@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Inter", sans-serif;
+  --font-sans: "Inter", sans-serif;
+  
+  /* Brand/Primary Colors */
+  --color-primary: #155dfc; 
+  --color-primary-dark: #1447e6;
+  --color-primary-light: #eff6ff; /* color-9 */
+
+  /* Neutral Colors */
+  --color-background: #f9fafb;
+  --color-surface: #ffffff;
+  --color-text-main: #101828; 
+  --color-text-secondary: #6a7282;
+  --color-border: #e5e7eb;
+
+  /* Semantic Status Colors */
+  --color-success: #00c950;
+  --color-success-bg: #f0fdf4; /* color-32 */
+  
+  --color-warning: #a65f00; /* color-24 */
+  --color-warning-bg: #fff7ed; /* color-25 */
+
+  --color-danger: #fb2c36; /* color-14 */
+  --color-danger-bg: #fef2f2; /* color-19 */
+}
+
+body {
+    @apply bg-background text-text-main; 
+} 
+
+/* Custom scrollbar: visible only on hover */
+.scrollbar-hover::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  background-color: transparent;
+}
+
+.scrollbar-hover::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 9999px;
+  transition: background-color 0.2s;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1; /* gray-300 */
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8; /* gray-400 */
+}

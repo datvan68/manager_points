@@ -1,0 +1,221 @@
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsArray, IsOptional, IsMongoId } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class RegisterDto {
+  @ApiProperty({ example: 'nguyenvana' })
+  @IsString()
+  @IsNotEmpty({ message: 'Username không được để trống' })
+  username: string;
+
+  @ApiProperty({ example: 'user@example.com' })
+  @IsEmail({}, { message: 'Email không đúng định dạng' })
+  @IsNotEmpty({ message: 'Email không được để trống' })
+  email: string;
+
+  @ApiProperty({ example: '12345678' })
+  @IsString()
+  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
+  password: string;
+}
+
+export class LoginDto {
+  @ApiProperty({ example: 'user@example.com' })
+  @IsEmail({}, { message: 'Email không đúng định dạng' })
+  @IsNotEmpty({ message: 'Email không được để trống' })
+  email: string;
+
+  @ApiProperty({ example: '12345678' })
+  @IsString()
+  @IsNotEmpty({ message: 'Mật khẩu không được để trống' })
+  password: string;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  remember?: boolean;
+}
+
+export class ForgotPasswordDto {
+  @ApiProperty({ example: 'user@example.com' })
+  @IsEmail({}, { message: 'Email không đúng định dạng' })
+  @IsNotEmpty({ message: 'Email không được để trống' })
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({ example: 'reset-token-uuid' })
+  @IsString()
+  @IsNotEmpty({ message: 'Token không được để trống' })
+  token: string;
+
+  @ApiProperty({ example: 'newpassword123' })
+  @IsString()
+  @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
+  new_password: string;
+}
+
+export class ChangePasswordDto {
+  @ApiProperty({ example: 'oldpassword123' })
+  @IsString()
+  @IsNotEmpty({ message: 'Mật khẩu cũ không được để trống' })
+  old_password: string;
+
+  @ApiProperty({ example: 'newpassword123' })
+  @IsString()
+  @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
+  new_password: string;
+}
+
+export class RefreshTokenDto {
+  @ApiProperty({ example: 'refresh-token-string' })
+  @IsString()
+  @IsNotEmpty({ message: 'Refresh token không được để trống' })
+  refresh_token: string;
+}
+
+export class CreateRoleDto {
+  @ApiProperty({ example: 'Manager' })
+  @IsString()
+  @IsNotEmpty({ message: 'Tên vai trò không được để trống' })
+  name: string;
+
+  @ApiProperty({ example: 'Quản lý nhân sự' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: ['65f1...'] })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  permissions?: string[];
+}
+
+export class UpdateRoleDto {
+  @ApiProperty({ example: 'Manager updated' })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiProperty({ example: 'Cập nhật mô tả' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: ['65f1...'] })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  permissions?: string[];
+}
+
+export class AssignRoleDto {
+  @ApiProperty({ example: '65f1...' })
+  @IsMongoId()
+  @IsNotEmpty({ message: 'RoleId không được để trống' })
+  role_id: string;
+}
+
+export class CreatePermissionDto {
+  @ApiProperty({ example: 'STUDENT_READ' })
+  @IsString()
+  @IsNotEmpty({ message: 'Mã quyền không được để trống' })
+  code: string;
+
+  @ApiProperty({ example: 'Xem sinh viên' })
+  @IsString()
+  @IsNotEmpty({ message: 'Tên quyền không được để trống' })
+  name: string;
+
+  @ApiProperty({ example: 'Quản lý sinh viên' })
+  @IsString()
+  @IsNotEmpty({ message: 'Module không được để trống' })
+  module: string;
+
+  @ApiProperty({ example: 'Cho phép xem danh sách sinh viên' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: '65f1...' })
+  @IsMongoId()
+  @IsOptional()
+  groupId?: string;
+}
+
+export class UpdatePermissionDto {
+  @ApiProperty({ example: 'STUDENT_READ_UPDATED' })
+  @IsString()
+  @IsOptional()
+  code?: string;
+
+  @ApiProperty({ example: 'Xem sinh viên (Cập nhật)' })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiProperty({ example: 'Hệ thống' })
+  @IsString()
+  @IsOptional()
+  module?: string;
+
+  @ApiProperty({ example: 'Mô tả mới' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: '65f1...' })
+  @IsMongoId()
+  @IsOptional()
+  groupId?: string;
+}
+
+export class CreatePermissionGroupDto {
+  @ApiProperty({ example: 'G_ACADEMIC' })
+  @IsString()
+  @IsNotEmpty({ message: 'Mã nhóm quyền không được để trống' })
+  code: string;
+
+  @ApiProperty({ example: 'Quản lý Đào tạo' })
+  @IsString()
+  @IsNotEmpty({ message: 'Tên nhóm quyền không được để trống' })
+  name: string;
+
+  @ApiProperty({ example: 'Các quyền liên quan đến đào tạo và học tập' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: ['65f1...'] })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  permissions?: string[];
+}
+
+export class UpdatePermissionGroupDto {
+  @ApiProperty({ example: 'G_ACADEMIC_UPDATED' })
+  @IsString()
+  @IsOptional()
+  code?: string;
+
+  @ApiProperty({ example: 'Cập nhật tên nhóm' })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiProperty({ example: 'Cập nhật mô tả' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: ['65f1...'] })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  permissions?: string[];
+
+  @ApiProperty({ example: 'Active' })
+  @IsString()
+  @IsOptional()
+  status?: string;
+}

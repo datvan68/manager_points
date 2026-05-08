@@ -1,0 +1,59 @@
+
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
+import { CacheModule } from '@nestjs/cache-manager';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { AgentsModule } from './agents/agents.module';
+import { TasksModule } from './tasks/tasks.module';
+import { OrchestratorModule } from './orchestrator/orchestrator.module';
+import { CoreModule } from './core/core.module';
+import { DepartmentsModule } from './departments/departments.module';
+import { ClassesModule } from './classes/classes.module';
+import { StudentsModule } from './students/students.module';
+import { AuthModule } from './auth/auth.module';
+import { MailModule } from './core/mail/mail.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    CacheModule.register({
+      isGlobal: true,
+      ttl: 5, // seconds
+      max: 100, // maximum number of items in cache
+    }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGO_URI'),
+        // Optimization: Connection Pooling
+        maxPoolSize: 10,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+      }),
+      inject: [ConfigService],
+    }),
+    PrometheusModule.register({
+      path: '/metrics',
+      defaultMetrics: {
+        enabled: true,
+      },
+    }),
+    AgentsModule,
+    TasksModule,
+    OrchestratorModule,
+    CoreModule,
+    DepartmentsModule,
+    ClassesModule,
+    StudentsModule,
+    AuthModule,
+    MailModule,
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
