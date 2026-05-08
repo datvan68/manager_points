@@ -35,7 +35,7 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
   return (
     <div 
       className={cn(
-        "relative w-full bg-white border-b border-[#e2e8f0] h-[41px] flex items-center px-[12px] shrink-0 z-[50]", 
+        "relative w-full bg-white border-b border-[#e2e8f0] h-[41px] flex items-center px-[12px] shrink-0 z-[49]", 
         className
       )}
     >

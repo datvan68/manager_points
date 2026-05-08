@@ -19,6 +19,8 @@ import { Toaster, toast } from 'sonner';
 import ClassPopup from '@/components/popups/ClassPopup';
 import DepartmentPopup from '@/components/popups/DepartmentPopup';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Research } from '@/components/ui/Research';
 import { motion, AnimatePresence } from 'framer-motion';
 import TabNavigation from '@/components/ui/TabNavigation';
 import {
@@ -97,14 +99,10 @@ function StudentsPageContent() {
                         </button>
                     </div>
 
-                    <div className="relative shrink-0">
-                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                         <input 
-                            type="text" 
-                            placeholder="Tìm kiếm khoa..." 
-                            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
-                         />
-                    </div>
+                    <Research 
+                        placeholder="Tìm kiếm khoa..."
+                        containerClassName="w-full max-w-none"
+                    />
 
                     <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 scrollbar-hover pb-4">
                         {departments.map(dept => (
@@ -198,21 +196,16 @@ function StudentsPageContent() {
                             </div>
                             
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                                <div className="relative group flex-1 sm:flex-none">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors" size={16} />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Tìm tên lớp..." 
-                                        className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all w-full sm:w-64"
-                                    />
-                                </div>
-                                <button 
+                                <Research 
+                                    placeholder="Tìm tên lớp..."
+                                    containerClassName="w-full sm:w-64"
+                                />
+                                <Button 
                                     onClick={() => { setEditingClass(null); setIsClassPopupOpen(true); }}
-                                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all shadow-sm shadow-blue-200 text-sm font-medium active:scale-95"
                                 >
                                     <Plus size={18} />
                                     Thêm lớp
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </div>

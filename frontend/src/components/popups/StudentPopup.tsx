@@ -10,6 +10,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/button';
 
 interface StudentPopupProps {
   isOpen: boolean;
@@ -102,68 +104,37 @@ export default function StudentPopup({ isOpen, onClose, initialData }: StudentPo
                     )}
                 </div>
 
-                <div className="py-6 gap-x-6 gap-y-6 grid grid-cols-2 border-b border-transparent">
+                <div className="py-6 gap-x-6 gap-y-6 grid grid-cols-2">
                     {/* Mã sinh viên */}
-                    <div className="col-span-1 space-y-[8.5px]">
-                        <label className="text-[12px] font-bold text-[#334155] uppercase tracking-[0.6px]">
-                            Mã sinh viên <span className="text-[#ef4444]">*</span>
-                        </label>
-                        <div className="relative">
-                            <div className="absolute left-[12px] top-1/2 -translate-y-1/2 text-gray-400">
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M2.66663 3.33333C2.66663 2.59695 3.26358 2 3.99996 2H12C12.7363 2 13.3333 2.59695 13.3333 3.33333V12.6667C13.3333 13.403 12.7363 14 12 14H3.99996C3.26358 14 2.66663 13.403 2.66663 12.6667V3.33333Z" stroke="#94A3B8" strokeLinecap="round" strokeLinejoin="round"/>
-                                    <path d="M6 5.33333H10M6 8H10M6 10.6667H8" stroke="#94A3B8" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                            </div>
-                            <input 
-                                type="text" 
-                                {...register('studentId')}
-                                placeholder="Nhập mã SV"
-                                className={`w-full pl-[40px] pr-[16px] py-[13px] bg-[#f8fafc] rounded-[12px] text-[14px] text-[#6b7280] focus:outline-none focus:ring-2 transition-all ${errors.studentId ? 'ring-red-500 bg-red-50' : 'focus:ring-primary/20 focus:bg-white'}`}
-                            />
-                        </div>
-                        {errors.studentId && <p className="text-[11px] font-medium text-red-500 mt-1">{errors.studentId.message}</p>}
-                    </div>
+                    <Input 
+                        label="Mã sinh viên"
+                        required
+                        placeholder="Nhập mã SV"
+                        {...register('studentId')}
+                        error={errors.studentId?.message}
+                    />
 
                     {/* Họ và tên */}
-                    <div className="col-span-1 space-y-[8.5px]">
-                        <label className="text-[12px] font-bold text-[#334155] uppercase tracking-[0.6px]">
-                            Họ và tên <span className="text-[#ef4444]">*</span>
-                        </label>
-                        <div className="relative">
-                            <div className="absolute left-[12px] top-1/2 -translate-y-1/2 text-gray-400">
-                                <User size={15} color="#94A3B8" />
-                            </div>
-                            <input 
-                                type="text" 
-                                {...register('fullName')}
-                                placeholder="Nhập họ và tên đầy đủ"
-                                className={`w-full pl-[40px] pr-[16px] py-[13px] bg-[#f8fafc] rounded-[12px] text-[14px] text-[#6b7280] focus:outline-none focus:ring-2 transition-all ${errors.fullName ? 'ring-red-500 bg-red-50' : 'focus:ring-primary/20 focus:bg-white'}`}
-                            />
-                        </div>
-                        {errors.fullName && <p className="text-[11px] font-medium text-red-500 mt-1">{errors.fullName.message}</p>}
-                    </div>
+                    <Input 
+                        label="Họ và tên"
+                        required
+                        placeholder="Nhập họ và tên đầy đủ"
+                        {...register('fullName')}
+                        error={errors.fullName?.message}
+                    />
 
                     {/* Ngày sinh */}
-                    <div className="col-span-1 space-y-[8.5px]">
-                        <label className="text-[12px] font-bold text-[#334155] uppercase tracking-[0.6px]">Ngày sinh</label>
-                        <div className="relative">
-                            <div className="absolute left-[12px] top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                                <Calendar size={15} color="#94A3B8" />
-                            </div>
-                            <input 
-                                type="date" 
-                                {...register('dob')}
-                                className={`w-full pl-[40px] pr-[16px] py-[12px] bg-[#f8fafc] rounded-[12px] text-[14px] text-[#475569] focus:outline-none focus:ring-2 transition-all ${errors.dob ? 'ring-red-500 bg-red-50' : 'focus:ring-primary/20 focus:bg-white'}`}
-                            />
-                        </div>
-                        {errors.dob && <p className="text-[11px] font-medium text-red-500 mt-1">{errors.dob.message}</p>}
-                    </div>
+                    <Input 
+                        label="Ngày sinh"
+                        type="date"
+                        {...register('dob')}
+                        error={errors.dob?.message}
+                    />
 
                     {/* Giới tính */}
-                    <div className="col-span-1 space-y-[8.5px]">
-                        <label className="text-[12px] font-bold text-[#334155] uppercase tracking-[0.6px]">Giới tính</label>
-                        <div className="flex gap-[24px] h-[46px] items-center">
+                    <div className="col-span-1 space-y-2">
+                        <label className="text-sm font-medium text-slate-700">Giới tính</label>
+                        <div className="flex gap-[24px] h-10 items-center">
                             <label className="flex items-center gap-[7px] cursor-pointer group">
                                 <div className="relative flex items-center justify-center w-[18px] h-[18px]">
                                     <input 
@@ -197,14 +168,14 @@ export default function StudentPopup({ isOpen, onClose, initialData }: StudentPo
                     </div>
 
                     {/* Khoa */}
-                    <div className="col-span-1 space-y-[8.5px]">
-                        <label className="text-[12px] font-bold text-[#334155] uppercase tracking-[0.6px]">Khoa</label>
+                    <div className="col-span-1 space-y-1.5">
+                        <label className="text-sm font-medium text-slate-700 px-1">Khoa</label>
                         <Controller
                             name="department"
                             control={control}
                             render={({ field }) => (
                                 <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger className={`w-full h-[46px] px-[16px] bg-[#f8fafc] border-transparent rounded-[12px] text-[14px] text-[#475569] transition-all focus:ring-2 focus:ring-primary/20 focus:outline-none focus:bg-white shadow-none`}>
+                                    <SelectTrigger className={`w-full h-10 px-3 bg-[#f8fafc] border-slate-200/60 rounded-lg text-[14px] text-slate-900 transition-all focus:ring-2 focus:ring-[#135bec]/20 focus:outline-none focus:bg-white shadow-none`}>
                                         <SelectValue placeholder="Chọn khoa" />
                                     </SelectTrigger>
                                     <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1">
@@ -215,18 +186,18 @@ export default function StudentPopup({ isOpen, onClose, initialData }: StudentPo
                                 </Select>
                             )}
                         />
-                        {errors.department && <p className="text-[11px] font-medium text-red-500 mt-1">{errors.department.message}</p>}
+                        {errors.department && <p className="px-1 text-[12px] font-medium text-red-500 mt-0.5">{errors.department.message}</p>}
                     </div>
                      
                     {/* Lớp */}
-                    <div className="col-span-1 space-y-[8.5px]">
-                        <label className="text-[12px] font-bold text-[#334155] uppercase tracking-[0.6px]">Lớp</label>
+                    <div className="col-span-1 space-y-1.5">
+                        <label className="text-sm font-medium text-slate-700 px-1">Lớp</label>
                         <Controller
                             name="classId"
                             control={control}
                             render={({ field }) => (
                                 <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger className={`w-full h-[46px] px-[16px] bg-[#f8fafc] border-transparent rounded-[12px] text-[14px] text-[#475569] transition-all focus:ring-2 focus:ring-primary/20 focus:outline-none focus:bg-white shadow-none`}>
+                                    <SelectTrigger className={`w-full h-10 px-3 bg-[#f8fafc] border-slate-200/60 rounded-lg text-[14px] text-slate-900 transition-all focus:ring-2 focus:ring-[#135bec]/20 focus:outline-none focus:bg-white shadow-none`}>
                                         <SelectValue placeholder="Chọn lớp" />
                                     </SelectTrigger>
                                     <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1">
@@ -237,25 +208,24 @@ export default function StudentPopup({ isOpen, onClose, initialData }: StudentPo
                                 </Select>
                             )}
                         />
-                        {errors.classId && <p className="text-[11px] font-medium text-red-500 mt-1">{errors.classId.message}</p>}
+                        {errors.classId && <p className="px-1 text-[12px] font-medium text-red-500 mt-0.5">{errors.classId.message}</p>}
                     </div>
                 </div>
 
                 {/* BOTTOM Section: Actions */}
-                <div className="pt-0 flex items-center justify-end gap-[12px]">
-                    <button
-                        type="button"
+                <div className="pt-4 flex items-center justify-end gap-3">
+                    <Button
+                        variant="secondary"
                         onClick={onClose}
-                        className="px-[10px] py-[7px] w-[71px] bg-[#f4f4f4] rounded-[6px] text-[14px] font-bold text-[#878787] hover:bg-gray-200 transition-colors shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1)]"
+                        type="button"
                     >
                         Huỷ
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         type="submit"
-                        className="px-[10px] py-[7px] rounded-[6px] text-[14px] font-bold text-white bg-[#155dfc] hover:bg-blue-700 shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.1)] transition-colors flex items-center gap-[4px]"
                     >
                         {initialData ? "Lưu thay đổi" : "Thêm mới"}
-                    </button>
+                    </Button>
                 </div>
             </form>
         </Popup>

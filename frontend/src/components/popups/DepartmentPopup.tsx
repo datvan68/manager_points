@@ -1,11 +1,12 @@
 'use client';
 import React, { useEffect } from 'react';
 import Popup from './Popup';
-
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/button';
 
 interface DepartmentPopupProps {
     isOpen: boolean;
@@ -60,52 +61,43 @@ export default function DepartmentPopup({ isOpen, onClose, initialData }: Depart
         <Popup isOpen={isOpen} onClose={onClose} title={isEditMode ? "Sửa Khoa" : "Thêm Khoa"}>
             <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6 pt-2">
                 <div className="flex flex-col gap-5 px-1">
-                    <div className="space-y-1.5">
-                        <label className="text-[14px] font-bold text-[#1e293b]">
-                            Tên khoa
-                        </label>
-                        <input 
-                            type="text" 
-                            {...register('name')}
-                            className={`w-full px-4 py-3 bg-[#f8fafc] border rounded-xl text-[14px] text-[#475569] focus:outline-none focus:ring-2 transition-all ${errors.name ? 'border-red-500 focus:ring-red-200' : 'border-[#e2e8f0] focus:ring-primary/20 focus:border-primary'}`}
-                            placeholder="Vui lòng nhập tên khoa"
-                        />
-                        {errors.name && <p className="text-[11px] font-medium text-red-500">{errors.name.message}</p>}
-                    </div>
+                    <Input 
+                        label="Tên khoa"
+                        required
+                        placeholder="Vui lòng nhập tên khoa"
+                        {...register('name')}
+                        error={errors.name?.message}
+                    />
 
-                    <div className="space-y-1.5">
-                        <label className="text-[14px] font-bold text-[#1e293b]">
-                            Mã khoa
-                        </label>
-                        <input 
-                            type="text" 
-                            {...register('code')}
-                            className={`w-full px-4 py-3 bg-[#f8fafc] border rounded-xl text-[14px] text-[#475569] focus:outline-none focus:ring-2 transition-all uppercase placeholder:normal-case ${errors.code ? 'border-red-500 focus:ring-red-200' : 'border-[#e2e8f0] focus:ring-primary/20 focus:border-primary'}`}
+                    <div className="space-y-1">
+                        <Input 
+                            label="Mã khoa"
+                            required
                             placeholder="NHẬP MÃ KHOA"
+                            className="uppercase placeholder:normal-case"
+                            {...register('code')}
+                            error={errors.code?.message}
                         />
-                        {errors.code ? (
-                             <p className="text-[11px] font-medium text-red-500 mt-1">{errors.code.message}</p>
-                        ) : (
-                             <p className="text-[12px] text-[#94a3b8] mt-1">Mã khoa nên viết tắt, không dấu và viết hoa.</p>
+                        {!errors.code && (
+                            <p className="text-[12px] text-[#94a3b8] px-1">Mã khoa nên viết tắt, không dấu và viết hoa.</p>
                         )}
                     </div>
                 </div>
 
                 {/* BOTTOM Section: Actions */}
                 <div className="pt-4 border-t border-[#f1f5f9] flex items-center justify-end gap-3 mt-2">
-                    <button 
+                    <Button 
                         type="button" 
+                        variant="secondary"
                         onClick={onClose}
-                        className="min-w-[83px] px-[16px] py-[8px] bg-[#f2f2f2] rounded-[8px] text-[14px] font-bold text-[#656565] transition-all hover:bg-gray-200 shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1)]"
                     >
                         Huỷ
-                    </button>
-                    <button 
+                    </Button>
+                    <Button 
                         type="submit" 
-                        className="px-[16px] py-[8px] rounded-[8px] text-[14px] font-bold text-white bg-[#155dfc] hover:bg-blue-700 transition-all flex items-center justify-center shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.1)]"
                     >
                         {isEditMode ? "Lưu thay đổi" : "Thêm khoa"}
-                    </button>
+                    </Button>
                 </div>
             </form>
         </Popup>

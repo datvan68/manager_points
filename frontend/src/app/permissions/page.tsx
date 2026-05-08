@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CustomPagination } from '@/components/ui/pagination';
+import TabNavigation from '@/components/ui/TabNavigation';
 import { authApi, tokenStorage } from '../../lib/auth-api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
@@ -390,37 +391,23 @@ export default function PermissionsPage() {
     }
   }, [selectedGroup, activeTab]);
 
-  const TABS = ['Người dùng', 'Vai trò', 'Quyền hạn', 'Cấu hình'];
 
   return (
     <div className="flex bg-slate-50 h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header />
-        
+        <TabNavigation 
+            tabs={[
+              { id: 'Người dùng', label: 'Người dùng' },
+              { id: 'Vai trò', label: 'Vai trò' },
+              { id: 'Quyền hạn', label: 'Quyền hạn' },
+              { id: 'Cấu hình', label: 'Cấu hình' }
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => setActiveTab(id)}
+          />
         <main className="flex-1 p-6 overflow-hidden flex flex-col bg-slate-50 relative">
-          {/* Main Title / Tabs Area */}
-          <div className="flex items-center gap-8 border-b border-slate-200 shrink-0 mb-6 px-2">
-            {TABS.map(tab => (
-              <button 
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`pb-3 text-sm font-semibold transition-colors relative ${
-                  activeTab === tab 
-                    ? 'text-blue-600' 
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {tab}
-                {activeTab === tab && (
-                  <motion.div 
-                    layoutId="activeTabIndicator"
-                    className="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-600 rounded-t-full"
-                  />
-                )}
-              </button>
-            ))}
-          </div>
 
           {/* Content Area */}
           <div className="flex-1 flex flex-col min-h-0 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">

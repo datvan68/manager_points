@@ -19,7 +19,7 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+      "flex h-10 w-full items-center justify-between rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#135bec]/20",
       className
     )}
     {...props}
@@ -156,4 +156,29 @@ export {
   SelectSeparator,
   SelectScrollUpButton,
   SelectScrollDownButton,
+};
+
+// New wrapper component for form fields with label and error handling
+interface SelectFieldProps {
+  label: string;
+  required?: boolean;
+  placeholder?: string;
+  error?: string;
+  children: React.ReactNode;
 }
+
+export const SelectField: React.FC<SelectFieldProps> = ({ label, required, placeholder, error, children }) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-sm font-medium text-slate-700">
+      {label}{required && <span className="ml-0.5 text-red-500">*</span>}
+    </label>
+    <Select>
+      <SelectTrigger className="h-10">
+        {placeholder && <SelectValue placeholder={placeholder} />}
+        {children}
+      </SelectTrigger>
+      <SelectContent />
+    </Select>
+    {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
+  </div>
+);

@@ -35,7 +35,7 @@ const Header = () => {
     }, [isProfileOpen]);
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
+    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 relative z-50">
       {/* Left: Breadcrumbs/Title */}
       <div className="flex items-center gap-2">
          <Breadcrumb />
@@ -67,7 +67,7 @@ const Header = () => {
 
            {/* Profile Popup */}
            {isProfileOpen && (
-             <div className="absolute right-0 top-12 w-72 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200" data-id="popup/Profile">
+             <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-[100] animate-in fade-in zoom-in-95 duration-200" data-id="popup/Profile">
                 <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-3">
                     <div className="relative w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-[#135bec] font-bold text-sm">
                         {user ? getInitials(user.username) : '??'}
