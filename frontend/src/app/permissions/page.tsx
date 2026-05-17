@@ -13,9 +13,11 @@ import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CustomPagination } from '@/components/ui/pagination';
 import TabNavigation from '@/components/ui/TabNavigation';
+import Action from '@/components/ui/Action';
 import { authApi, tokenStorage } from '../../lib/auth-api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
+import DeleteModal from '@/components/ui/DeleteModal';
 
 export default function PermissionsPage() {
   const [activeTab, setActiveTab] = useState('Người dùng');
@@ -32,6 +34,13 @@ export default function PermissionsPage() {
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [isRightPanelLoading, setIsRightPanelLoading] = useState(false);
   const [innerRightTab, setInnerRightTab] = useState('Danh sách Quyền');
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteConfig, setDeleteConfig] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const router = useRouter();
   const { user: authUser, isLoading: isAuthLoading, logout } = useAuth();
@@ -220,22 +229,22 @@ export default function PermissionsPage() {
     fetchData();
   };
 
-  const handleDeleteUser = async (user: any) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa người dùng "${user.username}"?`)) return;
-
-    const token = tokenStorage.getAccessToken();
-    if (!token) {
-      toast.error('Hết phiên làm việc');
-      return;
-    }
-
-    try {
-      await authApi.deleteUser(user._id, token);
-      toast.success('Xóa người dùng thành công');
-      fetchData();
-    } catch (error: any) {
-      toast.error('Lỗi khi xóa: ' + error.message);
-    }
+  const handleDeleteUser = (user: any) => {
+    setDeleteConfig({
+      title: 'Xóa người dùng',
+      message: `Bạn có chắc chắn muốn xóa người dùng "${user.username}"? Hành động này không thể hoàn tác.`,
+      onConfirm: async () => {
+        const token = tokenStorage.getAccessToken();
+        if (!token) {
+          toast.error('Hết phiên làm việc');
+          return;
+        }
+        await authApi.deleteUser(user._id, token);
+        toast.success('Xóa người dùng thành công');
+        fetchData();
+      }
+    });
+    setIsDeleteModalOpen(true);
   };
 
   const handlePermissionSave = async (permData: any) => {
@@ -271,44 +280,45 @@ export default function PermissionsPage() {
     }
   };
 
-  const handleRoleDelete = async (role: any) => {
+  const handleRoleDelete = (role: any) => {
     if (role.name === 'Admin') {
       toast.error('Không thể xóa vai trò quản trị hệ thống');
       return;
     }
-    if (!window.confirm(`Bạn có chắc muốn xóa vai trò "${role.name}"?`)) return;
 
-    const token = tokenStorage.getAccessToken();
-    if (!token) {
-      toast.error('Hết phiên làm việc');
-      return;
-    }
-
-    try {
-      await authApi.deleteRole(role._id, token);
-      toast.success('Xóa vai trò thành công');
-      fetchData();
-    } catch (error: any) {
-      toast.error('Lỗi khi xóa: ' + error.message);
-    }
+    setDeleteConfig({
+      title: 'Xóa vai trò',
+      message: `Bạn có chắc chắn muốn xóa vai trò "${role.name}"? Hành động này không thể hoàn tác.`,
+      onConfirm: async () => {
+        const token = tokenStorage.getAccessToken();
+        if (!token) {
+          toast.error('Hết phiên làm việc');
+          return;
+        }
+        await authApi.deleteRole(role._id, token);
+        toast.success('Xóa vai trò thành công');
+        fetchData();
+      }
+    });
+    setIsDeleteModalOpen(true);
   };
 
-  const handlePermissionDelete = async (perm: any) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa quyền "${perm.name}"?`)) return;
-
-    const token = tokenStorage.getAccessToken();
-    if (!token) {
-      toast.error('Hết phiên làm việc');
-      return;
-    }
-
-    try {
-      await authApi.deletePermission(perm._id, token);
-      toast.success('Xóa quyền thành công');
-      fetchData();
-    } catch (error: any) {
-      toast.error('Lỗi khi xóa: ' + error.message);
-    }
+  const handlePermissionDelete = (perm: any) => {
+    setDeleteConfig({
+      title: 'Xóa quyền hạn',
+      message: `Bạn có chắc chắn muốn xóa quyền "${perm.name}"? Hành động này không thể hoàn tác.`,
+      onConfirm: async () => {
+        const token = tokenStorage.getAccessToken();
+        if (!token) {
+          toast.error('Hết phiên làm việc');
+          return;
+        }
+        await authApi.deletePermission(perm._id, token);
+        toast.success('Xóa quyền thành công');
+        fetchData();
+      }
+    });
+    setIsDeleteModalOpen(true);
   };
 
   const handleGroupSave = async (groupData: any) => {
@@ -325,22 +335,22 @@ export default function PermissionsPage() {
     fetchData();
   };
 
-  const handleGroupDelete = async (group: any) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa nhóm quyền "${group.name}"?`)) return;
-
-    const token = tokenStorage.getAccessToken();
-    if (!token) {
-      toast.error('Hết phiên làm việc');
-      return;
-    }
-
-    try {
-      await authApi.deletePermissionGroup(group.id, token);
-      toast.success('Xóa nhóm quyền thành công');
-      fetchData();
-    } catch (error: any) {
-      toast.error('Lỗi khi xóa: ' + error.message);
-    }
+  const handleGroupDelete = (group: any) => {
+    setDeleteConfig({
+      title: 'Xóa nhóm quyền',
+      message: `Bạn có chắc chắn muốn xóa nhóm quyền "${group.name}"? Hành động này không thể hoàn tác.`,
+      onConfirm: async () => {
+        const token = tokenStorage.getAccessToken();
+        if (!token) {
+          toast.error('Hết phiên làm việc');
+          return;
+        }
+        await authApi.deletePermissionGroup(group.id, token);
+        toast.success('Xóa nhóm quyền thành công');
+        fetchData();
+      }
+    });
+    setIsDeleteModalOpen(true);
   };
 
   const handleOpenAddModal = () => {
@@ -552,18 +562,11 @@ export default function PermissionsPage() {
                               </td>
                               <td className="px-6 py-3 align-middle text-right">
                                 <div className="flex items-center justify-end gap-2">
-                                  <button 
-                                    onClick={() => handleOpenEditModal(user)}
-                                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-                                  <button 
-                                    onClick={() => handleDeleteUser(user)}
-                                    className="w-8 h-8 flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  <Action 
+                                    onView={() => router.push(`/permissions/${user._id || user.id}`)}
+                                    onEdit={() => handleOpenEditModal(user)}
+                                    onDelete={() => handleDeleteUser(user)}
+                                  />
                                 </div>
                               </td>
                             </motion.tr>
@@ -996,6 +999,23 @@ export default function PermissionsPage() {
       </div>
 
       {/* Insert Modal Component here */}
+      <DeleteModal 
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title={deleteConfig?.title}
+        message={deleteConfig?.message}
+        onConfirm={async () => {
+          if (deleteConfig?.onConfirm) {
+            try {
+              await deleteConfig.onConfirm();
+            } catch (error: any) {
+              toast.error('Lỗi: ' + error.message);
+            }
+          }
+          setIsDeleteModalOpen(false);
+        }}
+      />
+
       <UserModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 

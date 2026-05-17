@@ -38,7 +38,7 @@ export class StudentsService {
     return this.studentModel.find()
       .populate({
         path: 'class',
-        populate: { path: 'department', select: 'name code' }
+        populate: { path: 'dept_id', select: 'name code' }
       })
       .exec();
   }
@@ -47,7 +47,7 @@ export class StudentsService {
     const student = await this.studentModel.findById(id)
       .populate({
           path: 'class',
-          populate: { path: 'department', select: 'name code' }
+          populate: { path: 'dept_id', select: 'name code' }
       })
       .exec();
     if (!student) {

@@ -1,4 +1,3 @@
-
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -13,20 +12,25 @@ export class ClassesService {
     ) {}
 
     async create(createClassDto: CreateClassDto): Promise<Class> {
-        const { departmentId, ...rest } = createClassDto;
-        const newClass = new this.classModel({
-            ...rest,
-            department: departmentId,
-        });
+        const newClass = new this.classModel(createClassDto);
         return newClass.save();
     }
 
     async findAll(): Promise<Class[]> {
-        return this.classModel.find().populate('department', 'name code').exec();
+        return this.classModel
+            .find()
+            .populate('dept_id', 'name code')
+            .populate('user_id', 'username email')
+            .exec();
     }
 
     async findOne(id: string): Promise<Class> {
-        const classEntity = await this.classModel.findById(id).populate('department', 'name code').exec();
+        const classEntity = await this.classModel
+            .findById(id)
+            .populate('dept_id', 'name code')
+            .populate('user_id', 'username email')
+            .exec();
+            
         if (!classEntity) {
             throw new NotFoundException(`Class with ID ${id} not found`);
         }
@@ -34,15 +38,10 @@ export class ClassesService {
     }
 
     async update(id: string, updateClassDto: UpdateClassDto): Promise<Class> {
-        const { departmentId, ...rest } = updateClassDto;
-        const updateData: any = { ...rest };
-        if (departmentId) {
-            updateData.department = departmentId;
-        }
-
         const updatedClass = await this.classModel
-            .findByIdAndUpdate(id, updateData, { new: true })
-            .populate('department', 'name code')
+            .findByIdAndUpdate(id, updateClassDto, { new: true })
+            .populate('dept_id', 'name code')
+            .populate('user_id', 'username email')
             .exec();
             
         if (!updatedClass) {
