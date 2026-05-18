@@ -230,6 +230,6 @@ export class RbacService {
     user.role = role._id as Types.ObjectId;
     await user.save();
 
-    return { message: `Đã gán vai trò ${role.name} cho người dùng ${user.username}` };
+    return { message: `Đã gán vai trò ${role.name} cho người dùng ${user.user_name}` };
   }
 }

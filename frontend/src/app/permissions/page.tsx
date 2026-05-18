@@ -224,7 +224,7 @@ export default function PermissionsPage() {
         await authApi.assignRole(editingUser._id, userData.role, token);
       }
     } else {
-      await authApi.register(userData.username, userData.email, userData.password);
+      await authApi.register(userData.user_name || userData.username, userData.email, userData.password);
     }
     fetchData();
   };
@@ -232,7 +232,7 @@ export default function PermissionsPage() {
   const handleDeleteUser = (user: any) => {
     setDeleteConfig({
       title: 'Xóa người dùng',
-      message: `Bạn có chắc chắn muốn xóa người dùng "${user.username}"? Hành động này không thể hoàn tác.`,
+      message: `Bạn có chắc chắn muốn xóa người dùng "${user.user_name || user.username}"? Hành động này không thể hoàn tác.`,
       onConfirm: async () => {
         const token = tokenStorage.getAccessToken();
         if (!token) {
@@ -511,7 +511,7 @@ export default function PermissionsPage() {
                         ))
                       ) : (
                         <AnimatePresence>
-                          {users.filter(u => u.username.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase())).map((user, idx) => (
+                          {users.filter(u => (u.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase())).map((user, idx) => (
                             <motion.tr 
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
@@ -525,10 +525,10 @@ export default function PermissionsPage() {
                               <td className="px-6 py-3 align-middle">
                                 <div className="flex items-center gap-3">
                                   <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-700 shrink-0">
-                                    {(user.username || 'U').substring(0, 2).toUpperCase()}
+                                    {(user.user_name || 'U').substring(0, 2).toUpperCase()}
                                   </div>
                                   <div className="flex flex-col">
-                                    <span className="text-sm font-bold text-slate-800">{user.username}</span>
+                                    <span className="text-sm font-bold text-slate-800">{user.user_name || user.username}</span>
                                     <span className="text-xs font-medium text-slate-400 mt-0.5">ID: {user._id.substring(user._id.length - 8)}</span>
                                   </div>
                                 </div>

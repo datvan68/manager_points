@@ -12,10 +12,24 @@ interface CustomCalendarProps {
 }
 
 export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, onConfirm }: CustomCalendarProps) {
-  const [currentDate, setCurrentDate] = useState(startDate || new Date()); // Default to current real-time date
-  const [tempStart, setTempStart] = useState<Date | null>(startDate);
-  const [tempEnd, setTempEnd] = useState<Date | null>(endDate);
-  const [direction, setDirection] = useState(0); // 1 = right (next month), -1 = left (prev month)
+  const [currentDate, setCurrentDate] = React.useState(startDate || new Date()); // Default to current real-time date
+  const [tempStart, setTempStart] = React.useState<Date | null>(startDate);
+  const [tempEnd, setTempEnd] = React.useState<Date | null>(endDate);
+  const [direction, setDirection] = React.useState(0); // 1 = right (next month), -1 = left (prev month)
+  const [view, setView] = React.useState<'days' | 'months' | 'years'>('days');
+  const [yearGridStart, setYearGridStart] = React.useState((startDate || new Date()).getFullYear() - 4);
+
+  // Sync date when startDate prop changes
+  React.useEffect(() => {
+    if (startDate) {
+      setCurrentDate(startDate);
+      setTempStart(startDate);
+      setYearGridStart(startDate.getFullYear() - 4);
+    }
+    if (endDate) {
+      setTempEnd(endDate);
+    }
+  }, [startDate, endDate]);
 
   const daysOfWeek = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
   
@@ -129,84 +143,183 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
   return (
     <div className="flex flex-col font-sans w-[calc(100vw-32px)] sm:w-[320px] bg-white sm:bg-[#f8fafb] rounded-[20px] sm:rounded-[16px] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 pb-2">
-        <h3 className="text-[14px] font-bold text-slate-900">
-          Tháng {currentMonth + 1}, {currentYear}
-        </h3>
-        <div className="flex gap-1.5 text-slate-600">
-          <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-200 rounded transition">
-             <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button onClick={handleNextMonth} className="p-1 hover:bg-slate-200 rounded transition">
-             <ChevronRight className="w-4 h-4" />
-          </button>
+      <div className="flex justify-between items-center p-4 pb-2 border-b border-slate-100/60 bg-white">
+        {view === 'days' ? (
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setView('months')}
+              className="text-[14px] font-bold text-slate-900 hover:bg-slate-100 px-2 py-0.5 rounded-lg transition"
+            >
+              Tháng {currentMonth + 1}
+            </button>
+            <span className="text-slate-400 font-medium">,</span>
+            <button 
+              onClick={() => {
+                setYearGridStart(currentYear - 4);
+                setView('years');
+              }}
+              className="text-[14px] font-bold text-slate-900 hover:bg-slate-100 px-2 py-0.5 rounded-lg transition"
+            >
+              {currentYear}
+            </button>
+          </div>
+        ) : view === 'months' ? (
+          <h3 className="text-[14px] font-bold text-slate-900 pl-2">Chọn tháng</h3>
+        ) : (
+          <h3 className="text-[14px] font-bold text-slate-900 pl-2">
+            {yearGridStart} - {yearGridStart + 11}
+          </h3>
+        )}
+
+        <div className="flex gap-1 text-slate-600">
+          {view === 'days' ? (
+            <>
+              <button onClick={handlePrevMonth} className="p-1.5 hover:bg-slate-100 rounded-lg transition">
+                 <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button onClick={handleNextMonth} className="p-1.5 hover:bg-slate-100 rounded-lg transition">
+                 <ChevronRight className="w-4 h-4" />
+              </button>
+            </>
+          ) : view === 'months' ? (
+            <button 
+              onClick={() => setView('days')} 
+              className="text-xs text-blue-600 hover:text-blue-800 font-bold transition px-2.5 py-1 hover:bg-blue-50 rounded-lg"
+            >
+              Quay lại
+            </button>
+          ) : (
+            <>
+              <button onClick={() => setYearGridStart(prev => prev - 12)} className="p-1.5 hover:bg-slate-100 rounded-lg transition">
+                 <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button onClick={() => setYearGridStart(prev => prev + 12)} className="p-1.5 hover:bg-slate-100 rounded-lg transition">
+                 <ChevronRight className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setView('days')} 
+                className="text-xs text-blue-600 hover:text-blue-800 font-bold transition px-2.5 py-1 hover:bg-blue-50 rounded-lg ml-1"
+              >
+                Quay lại
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Grid */}
-      <div className="p-4 pt-1 relative min-h-[290px]">
-        <div className="grid grid-cols-7 text-center mb-2">
-          {daysOfWeek.map(d => (
-            <div key={d} className="text-[11px] font-bold text-slate-400 py-1">{d}</div>
-          ))}
-        </div>
-        
-        <div className="relative w-full h-[260px]">
-            <AnimatePresence initial={false} custom={direction}>
-              <motion.div
-                key={`${currentYear}-${currentMonth}`}
-                custom={direction}
-                variants={variants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
-                className="grid grid-cols-7 gap-y-1 absolute left-0 right-0"
-              >
-                {generateDays().map((day, idx) => {
-                  if (day === null) return <div key={`empty-${idx}`} />;
-                  
-                  const start = isStart(day);
-                  const end = isEnd(day);
-                  const range = isInRange(day);
-                  const today = isToday(day);
+      <div className="p-4 pt-2.5 relative min-h-[290px]">
+        {view === 'days' ? (
+          <>
+            <div className="grid grid-cols-7 text-center mb-2">
+              {daysOfWeek.map(d => (
+                <div key={d} className="text-[11px] font-bold text-slate-400 py-1">{d}</div>
+              ))}
+            </div>
+            
+            <div className="relative w-full h-[260px]">
+                <AnimatePresence initial={false} custom={direction}>
+                  <motion.div
+                    key={`${currentYear}-${currentMonth}`}
+                    custom={direction}
+                    variants={variants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
+                    className="grid grid-cols-7 gap-y-1 absolute left-0 right-0"
+                  >
+                    {generateDays().map((day, idx) => {
+                      if (day === null) return <div key={`empty-${idx}`} />;
+                      
+                      const start = isStart(day);
+                      const end = isEnd(day);
+                      const range = isInRange(day);
+                      const today = isToday(day);
 
-                  let bgClass = "bg-transparent";
-                  let textClass = "text-slate-800";
-                  let roundedClass = "rounded-lg";
+                      let bgClass = "bg-transparent";
+                      let textClass = "text-slate-800";
+                      let roundedClass = "rounded-lg";
 
-                  if (start) {
-                    bgClass = "bg-[#1a56db]";
-                    textClass = "text-white font-bold";
-                    roundedClass = (tempEnd && tempEnd.getTime() !== tempStart?.getTime()) ? "rounded-l-lg rounded-r-none" : "rounded-lg";
-                  } else if (end) {
-                    bgClass = "bg-[#1a56db]";
-                    textClass = "text-white font-bold";
-                    roundedClass = "rounded-r-lg rounded-l-none";
-                  } else if (range) {
-                    bgClass = "bg-[#e1effe]";
-                    textClass = "text-[#1a56db] font-semibold";
-                    roundedClass = "rounded-none";
-                  } else if (today) {
-                      textClass = "text-blue-600 font-bold";
-                      bgClass = "bg-blue-50/50";
-                  }
+                      if (start) {
+                        bgClass = "bg-[#1a56db]";
+                        textClass = "text-white font-bold";
+                        roundedClass = (tempEnd && tempEnd.getTime() !== tempStart?.getTime()) ? "rounded-l-lg rounded-r-none" : "rounded-lg";
+                      } else if (end) {
+                        bgClass = "bg-[#1a56db]";
+                        textClass = "text-white font-bold";
+                        roundedClass = "rounded-r-lg rounded-l-none";
+                      } else if (range) {
+                        bgClass = "bg-[#e1effe]";
+                        textClass = "text-[#1a56db] font-semibold";
+                        roundedClass = "rounded-none";
+                      } else if (today) {
+                          textClass = "text-blue-600 font-bold";
+                          bgClass = "bg-blue-50/50";
+                      }
 
-                  return (
-                    <button 
-                      key={day}
-                      onClick={() => handleDayClick(day)}
-                      className={`w-full max-w-[40px] h-[36px] flex items-center justify-center text-[13px] hover:font-bold transition-all mx-auto ${textClass}`}
-                    >
-                        <div className={`w-full h-full flex items-center justify-center ${bgClass} ${roundedClass} ${(!start && !end && !range) ? 'hover:bg-slate-200 hover:rounded-lg border border-transparent' : ''} ${today && !start && !end && !range ? 'border-blue-200' : ''}`}>
-                           {day}
-                        </div>
-                    </button>
-                  )
-                })}
-              </motion.div>
-            </AnimatePresence>
-        </div>
+                      return (
+                        <button 
+                          key={day}
+                          onClick={() => handleDayClick(day)}
+                          className={`w-full max-w-[40px] h-[36px] flex items-center justify-center text-[13px] hover:font-bold transition-all mx-auto ${textClass}`}
+                        >
+                            <div className={`w-full h-full flex items-center justify-center ${bgClass} ${roundedClass} ${(!start && !end && !range) ? 'hover:bg-slate-200 hover:rounded-lg border border-transparent' : ''} ${today && !start && !end && !range ? 'border-blue-200' : ''}`}>
+                               {day}
+                            </div>
+                        </button>
+                      )
+                    })}
+                  </motion.div>
+                </AnimatePresence>
+            </div>
+          </>
+        ) : view === 'months' ? (
+          <div className="grid grid-cols-3 gap-2.5 pt-2">
+            {['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'].map((m, idx) => {
+              const isActive = currentMonth === idx;
+              return (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setCurrentDate(new Date(currentYear, idx, 1));
+                    setView('days');
+                  }}
+                  className={`py-3.5 text-xs font-semibold rounded-xl text-center transition-all ${
+                    isActive 
+                      ? "bg-[#1a56db] text-white shadow-md shadow-blue-100" 
+                      : "text-slate-700 hover:bg-slate-100 bg-white border border-slate-100"
+                  }`}
+                >
+                  {m}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2.5 pt-1">
+            {Array.from({ length: 12 }).map((_, idx) => {
+              const y = yearGridStart + idx;
+              const isActive = currentYear === y;
+              return (
+                <button
+                  key={y}
+                  onClick={() => {
+                    setCurrentDate(new Date(y, currentMonth, 1));
+                    setView('months'); // Let them choose month next!
+                  }}
+                  className={`py-3.5 text-xs font-semibold rounded-xl text-center transition-all ${
+                    isActive 
+                      ? "bg-[#1a56db] text-white shadow-md shadow-blue-100" 
+                      : "text-slate-700 hover:bg-slate-100 bg-white border border-slate-100"
+                  }`}
+                >
+                  {y}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Footer */}

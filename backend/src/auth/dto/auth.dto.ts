@@ -5,7 +5,7 @@ export class RegisterDto {
   @ApiProperty({ example: 'nguyenvana' })
   @IsString()
   @IsNotEmpty({ message: 'Username không được để trống' })
-  username: string;
+  user_name: string;
 
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail({}, { message: 'Email không đúng định dạng' })

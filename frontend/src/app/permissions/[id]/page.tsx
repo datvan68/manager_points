@@ -7,6 +7,15 @@ import Header from '../../../components/layout/Header';
 import TabNavigation from '@/components/ui/TabNavigation';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { 
   User, 
   Mail, 
@@ -22,7 +31,8 @@ import {
   CheckCircle2,
   X,
   GraduationCap,
-  LayoutGrid
+  LayoutGrid,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { authApi, tokenStorage } from '../../../lib/auth-api';
@@ -38,6 +48,38 @@ export default function UserDetailPage() {
   const [activeTab, setActiveTab] = useState('Người dùng');
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [editValues, setEditValues] = useState({
+    username: '',
+    email: '',
+    phone: '0912 345 678',
+    staffId: 'GV-2023-089',
+    dob: '15/08/1985',
+    department: 'Khoa Công nghệ thông tin'
+  });
+
+  const parseDate = (dateStr: string): Date | null => {
+    if (!dateStr) return null;
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      const date = new Date(year, month, day);
+      if (!isNaN(date.getTime())) return date;
+    }
+    const standardDate = new Date(dateStr);
+    if (!isNaN(standardDate.getTime())) return standardDate;
+    return null;
+  };
+
+  const formatDateStr = (date: Date): string => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,6 +97,14 @@ export default function UserDetailPage() {
         
         if (foundUser) {
           setUser(foundUser);
+          setEditValues({
+            username: foundUser.user_name || foundUser.username || '',
+            email: foundUser.email || '',
+            phone: foundUser.phone || '0912 345 678',
+            staffId: foundUser.staffId || 'GV-2023-089',
+            dob: foundUser.dob || '15/08/1985',
+            department: foundUser.department || 'Khoa Công nghệ thông tin'
+          });
         } else {
           toast.error('Không tìm thấy người dùng');
           router.push('/permissions');
@@ -119,12 +169,12 @@ export default function UserDetailPage() {
               <div className="flex items-center gap-6">
                 {/* Avatar */}
                 <div className="w-24 h-24 rounded-full bg-blue-100 border-4 border-white shadow-md flex items-center justify-center text-3xl font-bold text-blue-600">
-                  {user?.username?.substring(0, 2).toUpperCase() || 'NQ'}
+                  {(user?.user_name || user?.username || 'NQ').substring(0, 2).toUpperCase()}
                 </div>
                 
                 {/* User Info */}
                 <div className="space-y-2">
-                  <h1 className="text-2xl font-bold text-slate-900">{user?.username || 'Nguyễn Quang Huy'}</h1>
+                  <h1 className="text-2xl font-bold text-slate-900">{user?.user_name || user?.username || 'Nguyễn Quang Huy'}</h1>
                   <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2 text-slate-500">
                       <Mail className="w-4 h-4" />
@@ -167,22 +217,122 @@ export default function UserDetailPage() {
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-full">
                   <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
                     <h2 className="text-lg font-bold text-slate-900">Thông tin cá nhân</h2>
-                    <button className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">Chỉnh sửa</button>
+                    {isEditing ? (
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => {
+                            setIsEditing(false);
+                            // Restore original values
+                            setEditValues({
+                              username: user?.user_name || user?.username || '',
+                              email: user?.email || '',
+                              phone: editValues.phone,
+                              staffId: editValues.staffId,
+                              dob: editValues.dob,
+                              department: editValues.department
+                            });
+                          }} 
+                          className="text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
+                        >
+                          Hủy
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setIsEditing(false);
+                            // Save and show toast
+                            setUser({
+                              ...user,
+                              username: editValues.username,
+                              email: editValues.email
+                            });
+                            toast.success('Lưu thông tin cá nhân thành công!');
+                          }} 
+                          className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                        >
+                          Lưu
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => setIsEditing(true)} 
+                        className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                      >
+                        Chỉnh sửa
+                      </button>
+                    )}
                   </div>
                   <div className="p-6 space-y-5">
-                    <Input label="HỌ VÀ TÊN" defaultValue={user?.username || 'Nguyễn Quang Huy'} readOnly />
-                    <Input label="EMAIL TỔ CHỨC" defaultValue={user?.email || 'huy.nq@edu.vn'} readOnly />
-                    <Input label="SỐ ĐIỆN THOẠI" defaultValue="0912 345 678" readOnly />
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input label="MÃ NHÂN SỰ" defaultValue="GV-2023-089" readOnly />
-                      <Input label="NGÀY SINH" defaultValue="15/08/1985" readOnly />
-                    </div>
+                    <Input 
+                      label="HỌ VÀ TÊN" 
+                      value={editValues.username} 
+                      onChange={(e) => setEditValues({ ...editValues, username: e.target.value })}
+                      readOnly={!isEditing} 
+                    />
+                    <Input 
+                      label="EMAIL TỔ CHỨC" 
+                      value={editValues.email} 
+                      onChange={(e) => setEditValues({ ...editValues, email: e.target.value })}
+                      readOnly={!isEditing} 
+                    />
+                    <Input 
+                      label="SỐ ĐIỆN THOẠI" 
+                      value={editValues.phone} 
+                      onChange={(e) => setEditValues({ ...editValues, phone: e.target.value })}
+                      readOnly={!isEditing} 
+                    />
+                    {isEditing ? (
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">NGÀY SINH</label>
+                        <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                          <PopoverTrigger asChild>
+                            <button className="flex items-center justify-between w-full h-10 px-3 bg-[#f8fafc] border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-left">
+                              <span>{editValues.dob || "Chọn ngày sinh"}</span>
+                              <CalendarIcon className="w-4 h-4 text-slate-400" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 z-[100] bg-transparent border-none shadow-none" align="start">
+                            <CustomCalendar 
+                              startDate={parseDate(editValues.dob)}
+                              endDate={parseDate(editValues.dob)}
+                              onRangeSelect={(start) => {
+                                setEditValues({ ...editValues, dob: formatDateStr(start) });
+                              }}
+                              onCancel={() => setIsCalendarOpen(false)}
+                              onConfirm={() => setIsCalendarOpen(false)}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    ) : (
+                      <Input 
+                        label="NGÀY SINH" 
+                        value={editValues.dob} 
+                        readOnly={true} 
+                      />
+                    )}
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">KHOA / PHÒNG BAN</label>
-                      <div className="flex items-center justify-between h-10 px-3 bg-[#f8fafc] border border-slate-200/60 rounded-lg text-sm text-slate-900">
-                        <span>Khoa Công nghệ thông tin</span>
-                        <LayoutGrid className="w-4 h-4 text-slate-400" />
-                      </div>
+                      {isEditing ? (
+                        <Select
+                          value={editValues.department}
+                          onValueChange={(val) => setEditValues({ ...editValues, department: val })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Chọn khoa / phòng ban" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Khoa Công nghệ thông tin">Khoa Công nghệ thông tin</SelectItem>
+                            <SelectItem value="Khoa Điện - Điện tử">Khoa Điện - Điện tử</SelectItem>
+                            <SelectItem value="Khoa Kinh tế quốc tế">Khoa Kinh tế quốc tế</SelectItem>
+                            <SelectItem value="Khoa Cơ khí chế tạo">Khoa Cơ khí chế tạo</SelectItem>
+                            <SelectItem value="Khoa Ngoại ngữ">Khoa Ngoại ngữ</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="flex items-center justify-between h-10 px-3 bg-[#f8fafc] border border-slate-200/60 rounded-lg text-sm text-slate-900">
+                          <span>{editValues.department}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

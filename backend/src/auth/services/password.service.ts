@@ -51,7 +51,7 @@ export class PasswordService {
     const password_hash = await bcrypt.hash(dto.new_password, BCRYPT_ROUNDS);
     await this.userModel.updateOne(
       { _id: resetToken.user_id },
-      { password_hash, failed_login_attempts: 0, status: UserStatus.ACTIVE, locked_until: null },
+      { pw_hash: password_hash, failed_login_attempts: 0, status: UserStatus.ACTIVE, locked_until: null },
     );
 
     await this.passwordResetTokenModel.deleteOne({ _id: resetToken._id });
@@ -62,10 +62,11 @@ export class PasswordService {
     const user = await this.userModel.findById(userId);
     if (!user) throw new UnauthorizedException('User not found');
 
-    const isOldPasswordValid = await bcrypt.compare(dto.old_password, user.password_hash);
+    const passwordHash = user.pw_hash || (user as any).password_hash;
+    const isOldPasswordValid = await bcrypt.compare(dto.old_password, passwordHash || '');
     if (!isOldPasswordValid) throw new BadRequestException('Mật khẩu cũ không đúng');
 
-    user.password_hash = await bcrypt.hash(dto.new_password, BCRYPT_ROUNDS);
+    user.pw_hash = await bcrypt.hash(dto.new_password, BCRYPT_ROUNDS);
     await user.save();
     return { userId: user._id };
   }

@@ -6,7 +6,7 @@ import { tokenStorage, authApi } from '@/lib/auth-api';
 import { toast } from 'sonner';
 
 interface AuthContextType {
-  user: { id: string; username: string } | null;
+  user: { id: string; user_name?: string; username?: string; role?: string; } | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   logout: () => void;
@@ -16,7 +16,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<{ id: string; username: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; user_name?: string; username?: string; role?: string; } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();

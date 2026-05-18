@@ -44,24 +44,25 @@ export class AuthService implements OnModuleInit {
   async onModuleInit() {
     await this.seedRbac();
     await this.migrateLegacyRoles();
+    await this.migrateLegacyUserFields();
   }
 
   // ─── AUTHENTICATION ─────────────────────────────────────────
 
   async register(dto: RegisterDto) {
-    const existingUsername = await this.userModel.findOne({ username: dto.username });
+    const existingUsername = await this.userModel.findOne({ user_name: dto.user_name });
     if (existingUsername) throw new ConflictException('Username đã tồn tại');
 
     const existingEmail = await this.userModel.findOne({ email: dto.email.toLowerCase() });
     if (existingEmail) throw new ConflictException('Email đã được sử dụng');
 
-    const password_hash = await this.passwordService.hashPassword(dto.password);
+    const pw_hash = await this.passwordService.hashPassword(dto.password);
     const defaultRole = await this.roleModel.findOne({ name: 'User' });
     
     await this.userModel.create({
-      username: dto.username,
+      user_name: dto.user_name,
       email: dto.email.toLowerCase(),
-      password_hash,
+      pw_hash,
       status: UserStatus.ACTIVE,
       role: defaultRole?._id,
     });
@@ -89,7 +90,8 @@ export class AuthService implements OnModuleInit {
       await user.save();
     }
 
-    const isPasswordValid = await this.passwordService.comparePassword(dto.password, user.password_hash);
+    const passwordHash = user.pw_hash || (user as any).password_hash;
+    const isPasswordValid = await this.passwordService.comparePassword(dto.password, passwordHash || '');
     if (!isPasswordValid) {
       user.failed_login_attempts += 1;
       if (user.failed_login_attempts >= MAX_LOGIN_ATTEMPTS) {
@@ -125,7 +127,7 @@ export class AuthService implements OnModuleInit {
       refresh_token,
       user: {
         id: (user._id as Types.ObjectId).toString(),
-        username: user.username,
+        username: user.user_name,
         role: role?.name || 'User'
       },
     };
@@ -182,7 +184,7 @@ export class AuthService implements OnModuleInit {
   // ─── USER MANAGEMENT ──────────────────────────
 
   async getUsers() {
-    return this.userModel.find().populate('role').select('-password_hash');
+    return this.userModel.find().populate('role').select('-pw_hash');
   }
 
   async deleteUser(userId: string) {
@@ -281,6 +283,59 @@ export class AuthService implements OnModuleInit {
         await user.save();
       }
       console.log(`✅ Successfully migrated ${usersToFix.length} users.`);
+    }
+  }
+
+  private async migrateLegacyUserFields() {
+    const usersToFix = await this.userModel.find({
+      $or: [
+        { pw_hash: { $exists: false } },
+        { user_name: { $exists: false } }
+      ]
+    } as any).lean();
+
+    if (usersToFix.length > 0) {
+      let migratedCount = 0;
+      for (const rawUser of usersToFix) {
+        const updateDoc: any = {};
+        const legacyUser = rawUser as any;
+        
+        if (!legacyUser.pw_hash && legacyUser.password_hash) {
+          updateDoc.pw_hash = legacyUser.password_hash;
+        }
+        if (!legacyUser.user_name && legacyUser.username) {
+          updateDoc.user_name = legacyUser.username;
+        }
+
+        if (Object.keys(updateDoc).length > 0) {
+          await this.userModel.updateOne(
+            { _id: rawUser._id },
+            { 
+              $set: updateDoc,
+              $unset: { username: "", password_hash: "" }
+            }
+          );
+          migratedCount++;
+        }
+      }
+      if (migratedCount > 0) {
+        console.log(`✅ Successfully migrated fields (pw_hash/user_name) for ${migratedCount} legacy users.`);
+      }
+    }
+
+    const cleanupResult = await this.userModel.updateMany(
+      {
+        $or: [
+          { username: { $exists: true } },
+          { password_hash: { $exists: true } }
+        ]
+      } as any,
+      {
+        $unset: { username: "", password_hash: "" }
+      }
+    );
+    if (cleanupResult.modifiedCount > 0) {
+      console.log(`🧹 Cleaned up legacy fields (username/password_hash) for ${cleanupResult.modifiedCount} users.`);
     }
   }
 }

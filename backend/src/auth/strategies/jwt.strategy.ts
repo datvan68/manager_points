@@ -26,7 +26,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         path: 'role',
         populate: { path: 'permissions' },
       })
-      .select('-password_hash');
+      .select('-pw_hash');
 
     if (!user) {
       throw new UnauthorizedException('Token không hợp lệ');
@@ -37,7 +37,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     return { 
       userId: payload.user_id, 
-      username: user.username,
+      username: user.user_name,
       roleName: role?.name || 'User',
       permissions: permissions
     };

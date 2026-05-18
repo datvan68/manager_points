@@ -43,7 +43,7 @@ export default function UserModal({
   useEffect(() => {
     if (isOpen) {
       setFormData({
-        username: initialData?.username || '',
+        username: initialData?.user_name || initialData?.username || '',
         email: initialData?.email || '',
         role: initialData?.role?._id || initialData?.role || '',
         password: ''
