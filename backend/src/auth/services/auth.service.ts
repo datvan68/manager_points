@@ -233,7 +233,7 @@ export class AuthService implements OnModuleInit {
       const perm = await this.permissionModel.findOneAndUpdate(
         { code: p.code },
         { $set: p },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
       createdPerms[p.code] = perm._id as Types.ObjectId;
     }

@@ -2,11 +2,6 @@ import { IsNotEmpty, IsString, IsOptional, IsMongoId, IsArray } from 'class-vali
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateClassDto {
-  @ApiProperty({ description: 'Class custom string ID' })
-  @IsNotEmpty()
-  @IsString()
-  id: string;
-
   @ApiProperty({ description: 'Class Name' })
   @IsNotEmpty()
   @IsString()

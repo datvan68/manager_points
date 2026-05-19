@@ -7,9 +7,6 @@ export type ClassDocument = Class & Document;
 
 @Schema({ timestamps: true })
 export class Class {
-  @Prop({ required: true, unique: true })
-  id: string;
-
   @Prop({ required: true })
   class_name: string;
 

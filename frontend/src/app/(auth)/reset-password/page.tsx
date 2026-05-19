@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { authApi } from '@/lib/auth-api';
+import { authApi } from '@/api/auth-api';
 
 const resetPasswordSchema = z.object({
   password: z.string().min(8, 'Mật khẩu phải chứa ít nhất 8 ký tự'),

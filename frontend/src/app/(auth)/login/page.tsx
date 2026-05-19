@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { authApi, tokenStorage } from '@/lib/auth-api';
+import { authApi, tokenStorage } from '@/api/auth-api';
 import { useAuth } from '@/providers/auth-provider';
 
 const loginSchema = z.object({

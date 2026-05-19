@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { CustomPagination } from '@/components/ui/pagination';
 import TabNavigation from '@/components/ui/TabNavigation';
 import Action from '@/components/ui/Action';
-import { authApi, tokenStorage } from '../../lib/auth-api';
+import { authApi, tokenStorage } from '../../api/auth-api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import DeleteModal from '@/components/ui/DeleteModal';

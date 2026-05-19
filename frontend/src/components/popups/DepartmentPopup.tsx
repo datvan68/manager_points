@@ -7,11 +7,13 @@ import * as z from 'zod';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/button';
+import { departmentApi, Department } from '@/api/department-api';
 
 interface DepartmentPopupProps {
     isOpen: boolean;
     onClose: () => void;
-    initialData?: FormValues | null;
+    initialData?: Department | null;
+    onSuccess?: () => void;
 }
 
 const formSchema = z.object({
@@ -21,7 +23,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function DepartmentPopup({ isOpen, onClose, initialData }: DepartmentPopupProps) {
+export default function DepartmentPopup({ isOpen, onClose, initialData, onSuccess }: DepartmentPopupProps) {
     const {
         register,
         handleSubmit,
@@ -38,21 +40,33 @@ export default function DepartmentPopup({ isOpen, onClose, initialData }: Depart
     useEffect(() => {
         if (isOpen) {
             if (initialData) {
-                reset(initialData);
+                reset({
+                    name: initialData.name,
+                    code: initialData.code
+                });
             } else {
                 reset({ name: '', code: '' });
             }
         }
     }, [isOpen, initialData, reset]);
 
-    const onSubmit = (data: FormValues) => {
+    const onSubmit = async (data: FormValues) => {
         console.log('Submitting department:', data);
-        if (initialData) {
-            toast.success(`Đã cập nhật khoa: ${data.name}`);
-        } else {
-            toast.success(`Đã thêm khoa mới: ${data.name}`);
+        try {
+            if (initialData && initialData._id) {
+                await departmentApi.updateDepartment(initialData._id, data);
+                toast.success(`Đã cập nhật khoa: ${data.name}`);
+            } else {
+                await departmentApi.createDepartment(data);
+                toast.success(`Đã thêm khoa mới: ${data.name}`);
+            }
+            if (onSuccess) {
+                onSuccess();
+            }
+            onClose();
+        } catch (error: any) {
+            toast.error('Có lỗi xảy ra: ' + error.message);
         }
-        onClose();
     };
 
     const isEditMode = !!initialData;

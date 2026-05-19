@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { tokenStorage, authApi } from '@/lib/auth-api';
+import { tokenStorage, authApi } from '@/api/auth-api';
 import { toast } from 'sonner';
 
 interface AuthContextType {

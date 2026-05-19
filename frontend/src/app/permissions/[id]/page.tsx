@@ -35,7 +35,7 @@ import {
   Calendar as CalendarIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { authApi, tokenStorage } from '../../../lib/auth-api';
+import { authApi, tokenStorage } from '../../../api/auth-api';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';

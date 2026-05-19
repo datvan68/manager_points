@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { authApi } from '@/lib/auth-api';
+import { authApi } from '@/api/auth-api';
 
 const registerSchema = z.object({
   fullName: z.string().min(3, 'Họ tên phải chứa ít nhất 3 ký tự'),

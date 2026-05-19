@@ -18,42 +18,121 @@ import {
 import { Toaster, toast } from 'sonner';
 import ClassPopup from '@/components/popups/ClassPopup';
 import DepartmentPopup from '@/components/popups/DepartmentPopup';
+import DeleteModal from '@/components/ui/DeleteModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Research } from '@/components/ui/Research';
 import { motion, AnimatePresence } from 'framer-motion';
 import TabNavigation from '@/components/ui/TabNavigation';
 import Action from '@/components/ui/Action';
-import {
-  departments,
-  classes
-} from '@/lib/mock-data/students';
+import { departmentApi, Department, Class } from '@/api/department-api';
 
 function StudentsPageContent() {
   const router = useRouter();
-  const [selectedDept, setSelectedDept] = useState('CNTT');
+  const [deptsList, setDeptsList] = useState<Department[]>([]);
+  const [classesList, setClassesList] = useState<Class[]>([]);
+  const [selectedDept, setSelectedDept] = useState<string>('');
   const [activeMainTab, setActiveMainTab] = useState<'Danh sách' | 'Ghi nhận'>('Danh sách');
   const [isClassPopupOpen, setIsClassPopupOpen] = useState(false);
   const [isDeptPopupOpen, setIsDeptPopupOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<any>(null);
-  const [editingDept, setEditingDept] = useState<any>(null);
+  const [editingDept, setEditingDept] = useState<Department | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deptToDelete, setDeptToDelete] = useState<Department | null>(null);
   
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deptSearchTerm, setDeptSearchTerm] = useState('');
   const [isCaoDangExpanded, setIsCaoDangExpanded] = useState(true);
   const [isTrungCapExpanded, setIsTrungCapExpanded] = useState(true);
 
+  const fetchDepartments = async () => {
+    try {
+      let fetchedDepts = await departmentApi.getDepartments();
+      if (fetchedDepts.length === 0) {
+        console.log('Database departments is empty. Seeding mock data...');
+        const seedDepts = [
+          { name: 'Công nghệ thông tin - Kỹ thuật điện', code: 'CNTT-KTĐ', description: 'Khoa Công nghệ thông tin' },
+          { name: 'Kinh tế quốc tế', code: 'KTQT', description: 'Khoa Kinh tế quốc tế' },
+          { name: 'Ngôn ngữ Anh', code: 'NNA', description: 'Khoa Ngôn ngữ Anh' },
+          { name: 'Cơ khí chế tạo', code: 'CKCT', description: 'Khoa Cơ khí chế tạo' },
+          { name: 'Kiến trúc', code: 'KTR', description: 'Khoa Kiến trúc' },
+        ];
+        
+        for (const d of seedDepts) {
+          await departmentApi.createDepartment(d);
+        }
+        fetchedDepts = await departmentApi.getDepartments();
+      }
+      setDeptsList(fetchedDepts);
+      
+      // Auto select the first department if none is selected
+      if (fetchedDepts.length > 0) {
+        setSelectedDept((prev) => {
+          if (prev && fetchedDepts.some(d => d._id === prev)) {
+            return prev;
+          }
+          return fetchedDepts[0]._id;
+        });
+      }
+      
+      await fetchClasses(fetchedDepts);
+    } catch (error: any) {
+      toast.error('Không thể tải danh sách khoa: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deptToDelete) return;
+    try {
+      await departmentApi.deleteDepartment(deptToDelete._id);
+      toast.success(`Đã xóa khoa ${deptToDelete.name}`);
+      fetchDepartments();
+    } catch (error: any) {
+      toast.error('Không thể xóa khoa: ' + error.message);
+    }
+  };
+
+  const fetchClasses = async (currentDepts: Department[]) => {
+    try {
+      let fetchedClasses = await departmentApi.getClasses();
+      if (fetchedClasses.length === 0 && currentDepts.length > 0) {
+        console.log('Database classes is empty. Seeding mock classes...');
+        const cnttDept = currentDepts.find(d => d.code === 'CNTT') || currentDepts[0];
+        const ktqtDept = currentDepts.find(d => d.code === 'KTQT') || currentDepts[0];
+        
+        const seedClasses = [
+          { class_name: 'Lớp CNTT-K45A', class_year: '2021 - 2025', dept_id: cnttDept._id, class_courses: ['Lập trình Web', 'Mạng máy tính'] },
+          { class_name: 'Lớp CNTT-K45B', class_year: '2021 - 2025', dept_id: cnttDept._id, class_courses: ['Cơ sở dữ liệu', 'Hệ điều hành'] },
+          { class_name: 'Lớp CNTT-K44CLC', class_year: '2020 - 2024', dept_id: cnttDept._id, class_courses: ['Phân tích thiết kế', 'Lập trình di động'] },
+          { class_name: 'Lớp CNTT-K43', class_year: '2019 - 2023', dept_id: cnttDept._id, class_courses: ['An toàn thông tin'] },
+          { class_name: 'Lớp KTQT-K45A', class_year: '2021 - 2025', dept_id: ktqtDept._id, class_courses: ['Kinh tế vĩ mô', 'Kinh doanh quốc tế'] }
+        ];
+        
+        for (const c of seedClasses) {
+          await departmentApi.createClass(c);
+        }
+        fetchedClasses = await departmentApi.getClasses();
+      }
+      setClassesList(fetchedClasses);
+    } catch (error: any) {
+      console.error('Error fetching classes:', error);
+    }
+  };
+
   useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(t);
+    fetchDepartments();
   }, []);
 
   useEffect(() => {
     if (!isLoading) {
       setIsDataLoading(true);
       const t = setTimeout(() => setIsDataLoading(false), 300);
+      return () => clearTimeout(t);
     }
   }, [activeMainTab, selectedDept]);
 
@@ -61,11 +140,25 @@ function StudentsPageContent() {
     router.push(`/students/${classId}`);
   };
 
-  const currentDeptName = departments.find(d => d.id === selectedDept)?.name || 'Công nghệ thông tin - Kỹ thuật điện';
+  const currentDeptName = deptsList.find(d => d._id === selectedDept)?.name || 'Công nghệ thông tin - Kỹ thuật điện';
 
-  const filteredClasses = classes.filter(cls =>
-    cls.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredDepts = deptsList.filter(dept =>
+    dept.name.toLowerCase().includes(deptSearchTerm.toLowerCase()) ||
+    dept.code.toLowerCase().includes(deptSearchTerm.toLowerCase())
   );
+
+  const filteredClasses = classesList.filter(cls => {
+    const deptIdStr = typeof cls.dept_id === 'string' ? cls.dept_id : cls.dept_id?._id;
+    return deptIdStr === selectedDept && cls.class_name.toLowerCase().includes(searchTerm.toLowerCase());
+  }).map(cls => ({
+    id: cls._id,
+    name: cls.class_name,
+    year: cls.class_year,
+    status: cls.class_name.includes('K44') ? 'Sắp tốt nghiệp' : cls.class_name.includes('K43') ? 'Đã tốt nghiệp' : 'Đang học',
+    students: cls.class_name.includes('K45A') ? 45 : cls.class_name.includes('K45B') ? 41 : cls.class_name.includes('K44') ? 30 : 25,
+    avatars: cls.class_name.includes('K43') ? [] : ['https://i.pravatar.cc/150?u=1', 'https://i.pravatar.cc/150?u=2'],
+    extraStudents: cls.class_name.includes('K45A') ? 42 : cls.class_name.includes('K45B') ? 39 : 0
+  }));
 
   const caoDangClasses = filteredClasses.filter(cls => 
     cls.name.toLowerCase().includes('k45') || cls.id.toLowerCase().includes('k45')
@@ -109,7 +202,7 @@ function StudentsPageContent() {
                     <div className="flex items-center justify-between shrink-0 mb-2">
                         <div className="flex items-center gap-2">
                             <h3 className="text-[14px] font-bold text-slate-900 tracking-tight uppercase">Khoa</h3>
-                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-bold w-4 h-4 flex items-center justify-center">8</span>
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-bold min-w-4 h-4 px-1 flex items-center justify-center">{deptsList.length}</span>
                         </div>
                         {/* <button className="flex items-center gap-1.5 bg-white border border-slate-200/60 shadow-[0_1px_3px_0_rgba(0,0,0,0.1),0_1px_2px_0_rgba(0,0,0,0.1)] rounded-md px-2 py-1.5 text-[14px] text-slate-700 hover:bg-slate-50 transition-colors">
                             Trụ sở chính
@@ -120,56 +213,67 @@ function StudentsPageContent() {
                     <Research 
                         placeholder="Tìm kiếm khoa..."
                         containerClassName="w-full max-w-none"
+                        value={deptSearchTerm}
+                        onChange={(e) => setDeptSearchTerm(e.target.value)}
                     />
 
                     <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 scrollbar-hover pb-4">
-                        {departments.map(dept => (
-                            <div 
-                                key={dept.id}
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => setSelectedDept(dept.id)}
-                                className={`w-full p-3 rounded-xl border text-left transition-all shrink-0 group flex flex-col cursor-pointer ${
-                                    selectedDept === dept.id 
-                                        ? 'bg-white border-primary shadow-md ring-1 ring-primary/10' 
-                                        : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm'
-                                }`}
-                            >
-                                <div className="flex items-start gap-3 w-full">
-                                    <div className={`p-2.5 rounded-lg shrink-0 ${selectedDept === dept.id ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-gray-50 text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-600'} transition-colors`}>
-                                        <School size={20} />
+                        {filteredDepts.map(dept => {
+                            const deptClassCount = classesList.filter(cls => {
+                                const deptIdStr = typeof cls.dept_id === 'string' ? cls.dept_id : cls.dept_id?._id;
+                                return deptIdStr === dept._id;
+                            }).length;
+                            return (
+                                <div 
+                                    key={dept._id}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => setSelectedDept(dept._id)}
+                                    className={`w-full p-3 rounded-xl border text-left transition-all shrink-0 group flex flex-col cursor-pointer ${
+                                        selectedDept === dept._id 
+                                            ? 'bg-white border-primary shadow-md ring-1 ring-primary/10' 
+                                            : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm'
+                                    }`}
+                                >
+                                    <div className="flex items-start gap-3 w-full">
+                                        <div className={`p-2.5 rounded-lg shrink-0 ${selectedDept === dept._id ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-gray-50 text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-600'} transition-colors`}>
+                                            <School size={20} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className={`font-semibold text-sm truncate ${selectedDept === dept._id ? 'text-gray-900' : 'text-gray-700'}`}>
+                                                {dept.name}
+                                            </h4>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-[10px] font-medium bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                                                    {dept.code}
+                                                </span>
+                                                <span className="text-xs text-gray-400">•</span>
+                                                <span className="text-xs text-gray-500">{deptClassCount} Lớp</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className={`font-semibold text-sm truncate ${selectedDept === dept.id ? 'text-gray-900' : 'text-gray-700'}`}>
-                                            {dept.name}
-                                        </h4>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-[10px] font-medium bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
-                                                {dept.code}
-                                            </span>
-                                            <span className="text-xs text-gray-400">•</span>
-                                            <span className="text-xs text-gray-500">{dept.classCount} Lớp</span>
+
+                                    <div className={`w-full flex items-center justify-end border-t overflow-hidden transition-all duration-300 ease-in-out ${
+                                        selectedDept === dept._id 
+                                            ? 'max-h-14 opacity-100 mt-3 pt-3 border-blue-100' 
+                                            : 'max-h-0 opacity-0 mt-0 pt-0 border-transparent group-hover:max-h-14 group-hover:opacity-100 group-hover:mt-3 group-hover:pt-3 group-hover:border-gray-100'
+                                    }`}>
+                                        <div className="flex items-center gap-1">
+                                        <Action 
+                                            onEdit={() => {
+                                                setEditingDept(dept);
+                                                setIsDeptPopupOpen(true);
+                                            }}
+                                            onDelete={() => {
+                                                setDeptToDelete(dept);
+                                                setIsDeleteModalOpen(true);
+                                            }}
+                                        />
                                         </div>
                                     </div>
                                 </div>
-
-                                <div className={`w-full flex items-center justify-end border-t overflow-hidden transition-all duration-300 ease-in-out ${
-                                    selectedDept === dept.id 
-                                        ? 'max-h-14 opacity-100 mt-3 pt-3 border-blue-100' 
-                                        : 'max-h-0 opacity-0 mt-0 pt-0 border-transparent group-hover:max-h-14 group-hover:opacity-100 group-hover:mt-3 group-hover:pt-3 group-hover:border-gray-100'
-                                }`}>
-                                    <div className="flex items-center gap-1">
-                                    <Action 
-                                        onEdit={() => {
-                                            setEditingDept({ name: dept.name, code: dept.code });
-                                            setIsDeptPopupOpen(true);
-                                        }}
-                                        onDelete={() => toast.success('Đã xóa khoa ' + dept.name)}
-                                    />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                         
                         <button 
                             onClick={() => { setEditingDept(null); setIsDeptPopupOpen(true); }}
@@ -430,7 +534,19 @@ function StudentsPageContent() {
         </main>
       </div>
       <ClassPopup isOpen={isClassPopupOpen} onClose={() => setIsClassPopupOpen(false)} initialData={editingClass} />
-      <DepartmentPopup isOpen={isDeptPopupOpen} onClose={() => setIsDeptPopupOpen(false)} initialData={editingDept} />
+      <DepartmentPopup isOpen={isDeptPopupOpen} onClose={() => setIsDeptPopupOpen(false)} initialData={editingDept} onSuccess={fetchDepartments} />
+      <DeleteModal 
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setDeptToDelete(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="Xác nhận xóa khoa"
+        message={`Bạn có chắc chắn muốn xóa khoa ${deptToDelete?.name || ''}? Hành động này sẽ không thể hoàn tác.`}
+        confirmLabel="Xóa khoa"
+        cancelLabel="Hủy"
+      />
       <Toaster position="top-right" richColors />
     </div>
   );
