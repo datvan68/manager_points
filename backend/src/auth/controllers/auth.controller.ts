@@ -33,6 +33,8 @@ import {
   UpdatePermissionDto,
   CreatePermissionGroupDto,
   UpdatePermissionGroupDto,
+  CreateRoutePermissionDto,
+  UpdateRoutePermissionDto,
 } from '../dto/auth.dto';
 
 @ApiTags('Authentication & RBAC')
@@ -129,6 +131,16 @@ export class AuthController {
     }
     res.clearCookie('refresh_token', { path: '/api/auth' });
     return { message: 'Logged out successfully' };
+  }
+
+  // ─── CURRENT USER PROFILE ──────────────────────
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user profile with permissions' })
+  async getMe(@Req() req: any) {
+    return this.authService.getMe(req.user.userId);
   }
 
   // ─── ROLE & PERMISSION MANAGEMENT (ADMIN ONLY) ──────────────
@@ -276,5 +288,80 @@ export class AuthController {
   @ApiOperation({ summary: 'Delete a user (Admin only)' })
   async deleteUser(@Param('id') id: string) {
     return this.authService.deleteUser(id);
+  }
+
+  // ─── ROUTE PERMISSION MANAGEMENT (ADMIN ONLY) ─────────
+
+  @Get('route-permissions/all')
+  @ApiOperation({ summary: 'Get all route-permission mappings (public for RouteGuard)' })
+  async getRoutePermissionsPublic() {
+    return this.authService.getRoutePermissions();
+  }
+
+  @Get('route-permissions')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('ADMIN_FULL')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all route-permission mappings (Admin only)' })
+  async getRoutePermissions() {
+    return this.authService.getRoutePermissions();
+  }
+
+  @Get('route-permissions/check')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Check permission for a specific route' })
+  async checkRoutePermission(@Req() req: any) {
+    const routePath = req.query.route as string;
+    if (!routePath) return { allowed: true };
+    
+    const mapping = await this.authService.getRoutePermissionByRoute(routePath);
+    if (!mapping) return { allowed: true, message: 'Route không được cấu hình' };
+
+    const user = req.user;
+    if (user.roleName === 'Admin') return { allowed: true };
+
+    const userPermissions: string[] = user.permissions || [];
+    const requiredCodes = (mapping.permissions as any[]).map((p: any) => p.code);
+
+    const allowed = mapping.check_type === 'any'
+      ? requiredCodes.some(code => userPermissions.includes(code))
+      : requiredCodes.every(code => userPermissions.includes(code));
+
+    return {
+      allowed,
+      route: routePath,
+      required: requiredCodes,
+      check_type: mapping.check_type,
+    };
+  }
+
+  @Post('route-permissions')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('ADMIN_FULL')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a route-permission mapping (Admin only)' })
+  async createRoutePermission(@Body() dto: CreateRoutePermissionDto) {
+    return this.authService.createRoutePermission(dto);
+  }
+
+  @Patch('route-permissions/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('ADMIN_FULL')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'id', description: 'Route Permission ID' })
+  @ApiOperation({ summary: 'Update a route-permission mapping (Admin only)' })
+  async updateRoutePermission(@Param('id') id: string, @Body() dto: UpdateRoutePermissionDto) {
+    return this.authService.updateRoutePermission(id, dto);
+  }
+
+  @Delete('route-permissions/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('ADMIN_FULL')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'id', description: 'Route Permission ID' })
+  @ApiOperation({ summary: 'Delete a route-permission mapping (Admin only)' })
+  async deleteRoutePermission(@Param('id') id: string) {
+    return this.authService.deleteRoutePermission(id);
   }
 }

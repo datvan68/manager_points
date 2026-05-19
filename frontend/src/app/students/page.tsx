@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
+import { RouteGuard } from '@/components/guards/RouteGuard';
 import GhiNhanTab from '@/components/grading/GhiNhanTab';
 import { 
   Search, 
@@ -25,7 +26,8 @@ import { Research } from '@/components/ui/Research';
 import { motion, AnimatePresence } from 'framer-motion';
 import TabNavigation from '@/components/ui/TabNavigation';
 import Action from '@/components/ui/Action';
-import { departmentApi, Department, Class } from '@/api/department-api';
+import { departmentApi, Department } from '@/api/department-api';
+import { classApi, Class } from '@/api/class-api';
 
 function StudentsPageContent() {
   const router = useRouter();
@@ -39,6 +41,8 @@ function StudentsPageContent() {
   const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deptToDelete, setDeptToDelete] = useState<Department | null>(null);
+  const [isClassDeleteModalOpen, setIsClassDeleteModalOpen] = useState(false);
+  const [classToDelete, setClassToDelete] = useState<any>(null);
   
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -97,26 +101,37 @@ function StudentsPageContent() {
     }
   };
 
+  const handleClassDeleteConfirm = async () => {
+    if (!classToDelete) return;
+    try {
+      await classApi.deleteClass(classToDelete.id);
+      toast.success(`Đã xóa lớp ${classToDelete.name}`);
+      fetchDepartments();
+    } catch (error: any) {
+      toast.error('Không thể xóa lớp: ' + error.message);
+    }
+  };
+
   const fetchClasses = async (currentDepts: Department[]) => {
     try {
-      let fetchedClasses = await departmentApi.getClasses();
+      let fetchedClasses = await classApi.getClasses();
       if (fetchedClasses.length === 0 && currentDepts.length > 0) {
         console.log('Database classes is empty. Seeding mock classes...');
         const cnttDept = currentDepts.find(d => d.code === 'CNTT') || currentDepts[0];
         const ktqtDept = currentDepts.find(d => d.code === 'KTQT') || currentDepts[0];
         
         const seedClasses = [
-          { class_name: 'Lớp CNTT-K45A', class_year: '2021 - 2025', dept_id: cnttDept._id, class_courses: ['Lập trình Web', 'Mạng máy tính'] },
-          { class_name: 'Lớp CNTT-K45B', class_year: '2021 - 2025', dept_id: cnttDept._id, class_courses: ['Cơ sở dữ liệu', 'Hệ điều hành'] },
-          { class_name: 'Lớp CNTT-K44CLC', class_year: '2020 - 2024', dept_id: cnttDept._id, class_courses: ['Phân tích thiết kế', 'Lập trình di động'] },
-          { class_name: 'Lớp CNTT-K43', class_year: '2019 - 2023', dept_id: cnttDept._id, class_courses: ['An toàn thông tin'] },
-          { class_name: 'Lớp KTQT-K45A', class_year: '2021 - 2025', dept_id: ktqtDept._id, class_courses: ['Kinh tế vĩ mô', 'Kinh doanh quốc tế'] }
+          { class_name: 'Lớp CNTT-K45A', class_year: '2021 - 2025', dept_id: cnttDept._id, class_type: 'Cao đẳng' },
+          { class_name: 'Lớp CNTT-K45B', class_year: '2021 - 2025', dept_id: cnttDept._id, class_type: 'Cao đẳng' },
+          { class_name: 'Lớp CNTT-K44CLC', class_year: '2020 - 2024', dept_id: cnttDept._id, class_type: 'Cao đẳng' },
+          { class_name: 'Lớp CNTT-K43', class_year: '2019 - 2023', dept_id: cnttDept._id, class_type: 'Trung cấp' },
+          { class_name: 'Lớp KTQT-K45A', class_year: '2021 - 2025', dept_id: ktqtDept._id, class_type: 'Cao đẳng' }
         ];
         
         for (const c of seedClasses) {
-          await departmentApi.createClass(c);
+          await classApi.createClass(c);
         }
-        fetchedClasses = await departmentApi.getClasses();
+        fetchedClasses = await classApi.getClasses();
       }
       setClassesList(fetchedClasses);
     } catch (error: any) {
@@ -154,6 +169,8 @@ function StudentsPageContent() {
     id: cls._id,
     name: cls.class_name,
     year: cls.class_year,
+    class_type: cls.class_type,
+    user_id: typeof cls.user_id === 'string' ? cls.user_id : cls.user_id?._id || '',
     status: cls.class_name.includes('K44') ? 'Sắp tốt nghiệp' : cls.class_name.includes('K43') ? 'Đã tốt nghiệp' : 'Đang học',
     students: cls.class_name.includes('K45A') ? 45 : cls.class_name.includes('K45B') ? 41 : cls.class_name.includes('K44') ? 30 : 25,
     avatars: cls.class_name.includes('K43') ? [] : ['https://i.pravatar.cc/150?u=1', 'https://i.pravatar.cc/150?u=2'],
@@ -161,11 +178,11 @@ function StudentsPageContent() {
   }));
 
   const caoDangClasses = filteredClasses.filter(cls => 
-    cls.name.toLowerCase().includes('k45') || cls.id.toLowerCase().includes('k45')
+    cls.class_type === 'Cao đẳng'
   );
 
   const trungCapClasses = filteredClasses.filter(cls => 
-    !cls.name.toLowerCase().includes('k45') && !cls.id.toLowerCase().includes('k45')
+    cls.class_type === 'Trung cấp'
   );
 
   return (
@@ -260,6 +277,8 @@ function StudentsPageContent() {
                                     }`}>
                                         <div className="flex items-center gap-1">
                                         <Action 
+                                            permissionEdit="dept_update"
+                                            permissionDelete="DEPT_DELETE"
                                             onEdit={() => {
                                                 setEditingDept(dept);
                                                 setIsDeptPopupOpen(true);
@@ -313,7 +332,7 @@ function StudentsPageContent() {
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                                 <Button 
-                                    onClick={() => { setEditingClass(null); setIsClassPopupOpen(true); }}
+                                    onClick={() => { setEditingClass({ departmentId: selectedDept }); setIsClassPopupOpen(true); }}
                                 >
                                     <span className="text-[20px] font-bold leading-none -mt-0.5">+</span>
                                     Thêm lớp
@@ -370,11 +389,23 @@ function StudentsPageContent() {
                                                         {/* Action Hover overlay */}
                                                         <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 bg-white/95 backdrop-blur-sm p-1.5 rounded-xl  shadow-md">
                                                             <Action 
+                                                                permissionEdit="CLASS_UPDATE"
+                                                                permissionDelete="CLASS_DELETE"
                                                                 onEdit={() => {
-                                                                    setEditingClass({ name: cls.name, code: cls.id, year: cls.year, departmentId: selectedDept });
+                                                                    setEditingClass({ 
+                                                                        _id: cls.id, 
+                                                                        name: cls.name, 
+                                                                        year: cls.year, 
+                                                                        departmentId: selectedDept,
+                                                                        degreeLevel: 'Cao đẳng',
+                                                                        teacherId: cls.user_id
+                                                                    });
                                                                     setIsClassPopupOpen(true);
                                                                 }}
-                                                                onDelete={() => toast.success('Đã yêu cầu xóa lớp: ' + cls.name)}
+                                                                onDelete={() => {
+                                                                    setClassToDelete(cls);
+                                                                    setIsClassDeleteModalOpen(true);
+                                                                }}
                                                             />
                                                         </div>
                                                         
@@ -427,7 +458,7 @@ function StudentsPageContent() {
 
                                                 {/* Add new Class card inside Cao đẳng */}
                                                 <div 
-                                                    onClick={() => { setEditingClass(null); setIsClassPopupOpen(true); }}
+                                                    onClick={() => { setEditingClass({ departmentId: selectedDept, degreeLevel: 'Cao đẳng' }); setIsClassPopupOpen(true); }}
                                                     className="border-2 border-dashed border-[#e5e7eb] hover:border-[#5519f0]/40 rounded-[16px] flex flex-col items-center justify-center p-[22px] py-[50px] cursor-pointer hover:bg-[#5519f0]/5 transition-all group min-h-[190px]"
                                                 >
                                                     <div className="w-12 h-12 rounded-full bg-white border border-[#f3f4f6] group-hover:border-[#5519f0]/20 flex items-center justify-center text-gray-400 group-hover:text-[#5519f0] shadow-[0px_1px_1px_rgba(0,0,0,0.05)] transition-all group-hover:scale-110">
@@ -465,11 +496,23 @@ function StudentsPageContent() {
                                                         {/* Action Hover overlay */}
                                                         <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 bg-white/95 backdrop-blur-sm p-1.5 rounded-xl  shadow-md">
                                                             <Action 
+                                                                permissionEdit="CLASS_UPDATE"
+                                                                permissionDelete="CLASS_DELETE"
                                                                 onEdit={() => {
-                                                                    setEditingClass({ name: cls.name, code: cls.id, year: cls.year, departmentId: selectedDept });
+                                                                    setEditingClass({ 
+                                                                        _id: cls.id, 
+                                                                        name: cls.name, 
+                                                                        year: cls.year, 
+                                                                        departmentId: selectedDept,
+                                                                        degreeLevel: 'Trung cấp',
+                                                                        teacherId: cls.user_id
+                                                                    });
                                                                     setIsClassPopupOpen(true);
                                                                 }}
-                                                                onDelete={() => toast.success('Đã yêu cầu xóa lớp: ' + cls.name)}
+                                                                onDelete={() => {
+                                                                    setClassToDelete(cls);
+                                                                    setIsClassDeleteModalOpen(true);
+                                                                }}
                                                             />
                                                         </div>
                                                         
@@ -533,7 +576,7 @@ function StudentsPageContent() {
           </AnimatePresence>
         </main>
       </div>
-      <ClassPopup isOpen={isClassPopupOpen} onClose={() => setIsClassPopupOpen(false)} initialData={editingClass} />
+      <ClassPopup isOpen={isClassPopupOpen} onClose={() => setIsClassPopupOpen(false)} initialData={editingClass} onSuccess={fetchDepartments} />
       <DepartmentPopup isOpen={isDeptPopupOpen} onClose={() => setIsDeptPopupOpen(false)} initialData={editingDept} onSuccess={fetchDepartments} />
       <DeleteModal 
         isOpen={isDeleteModalOpen}
@@ -547,6 +590,18 @@ function StudentsPageContent() {
         confirmLabel="Xóa khoa"
         cancelLabel="Hủy"
       />
+      <DeleteModal 
+        isOpen={isClassDeleteModalOpen}
+        onClose={() => {
+          setIsClassDeleteModalOpen(false);
+          setClassToDelete(null);
+        }}
+        onConfirm={handleClassDeleteConfirm}
+        title="Xác nhận xóa lớp học"
+        message={`Bạn có chắc chắn muốn xóa lớp học ${classToDelete?.name || ''}? Hành động này sẽ không thể hoàn tác.`}
+        confirmLabel="Xóa lớp"
+        cancelLabel="Hủy"
+      />
       <Toaster position="top-right" richColors />
     </div>
   );
@@ -555,7 +610,9 @@ function StudentsPageContent() {
 export default function StudentsPage() {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center bg-gray-50 text-gray-400">Loading student management...</div>}>
-      <StudentsPageContent />
+      <RouteGuard useDynamicMapping requiredPermission="student_page">
+        <StudentsPageContent />
+      </RouteGuard>
     </Suspense>
   );
 }

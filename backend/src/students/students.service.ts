@@ -72,7 +72,7 @@ export class StudentsService {
     }
     
     const updatedStudent = await this.studentModel
-      .findByIdAndUpdate(id, updateData, { new: true })
+      .findByIdAndUpdate(id, updateData, { returnDocument: 'after' })
       .exec();
       
     if (!updatedStudent) {

@@ -24,7 +24,7 @@ describe('Classes (e2e)', () => {
   const testClass = {
     class_name: 'E2E Class A',
     class_year: '2023-2027',
-    class_courses: ['Math', 'English'],
+    class_type: 'Cao đẳng',
   };
 
   beforeAll(async () => {

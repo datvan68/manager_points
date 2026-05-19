@@ -39,7 +39,7 @@ export class ClassesService {
 
     async update(id: string, updateClassDto: UpdateClassDto): Promise<Class> {
         const updatedClass = await this.classModel
-            .findByIdAndUpdate(id, updateClassDto, { new: true })
+            .findByIdAndUpdate(id, updateClassDto, { returnDocument: 'after' })
             .populate('dept_id', 'name code')
             .populate('user_id', 'username email')
             .exec();

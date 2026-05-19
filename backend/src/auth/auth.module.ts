@@ -16,6 +16,7 @@ import { LoginLog, LoginLogSchema } from './schemas/login-log.schema';
 import { Role, RoleSchema } from './schemas/role.schema';
 import { Permission, PermissionSchema } from './schemas/permission.schema';
 import { PermissionGroup, PermissionGroupSchema } from './schemas/permission-group.schema';
+import { RoutePermission, RoutePermissionSchema } from './schemas/route-permission.schema';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { PermissionGroup, PermissionGroupSchema } from './schemas/permission-gro
       { name: Role.name, schema: RoleSchema },
       { name: Permission.name, schema: PermissionSchema },
       { name: PermissionGroup.name, schema: PermissionGroupSchema },
+      { name: RoutePermission.name, schema: RoutePermissionSchema },
     ]),
   ],
   controllers: [AuthController],

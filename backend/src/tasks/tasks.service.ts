@@ -22,12 +22,12 @@ export class TasksService {
   }
 
   async updateStatus(id: string, status: TaskStatus): Promise<TaskDocument | null> {
-    return this.taskModel.findByIdAndUpdate(id, { status }, { new: true }).exec();
+    return this.taskModel.findByIdAndUpdate(id, { status }, { returnDocument: 'after' }).exec();
   }
 
   async updateResult(id: string, result: any): Promise<TaskDocument | null> {
     return this.taskModel
-      .findByIdAndUpdate(id, { result, status: TaskStatus.COMPLETED }, { new: true })
+      .findByIdAndUpdate(id, { result, status: TaskStatus.COMPLETED }, { returnDocument: 'after' })
       .exec();
   }
 }

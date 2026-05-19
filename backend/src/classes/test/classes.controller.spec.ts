@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClassesController } from '../classes.controller';
 import { ClassesService } from '../classes.service';
+import { ClassType } from '../schemas/class.schema';
 
 const mockClass = {
   _id: 'mock-class-id',
@@ -8,7 +9,7 @@ const mockClass = {
   class_year: '2023-2027',
   dept_id: 'mock-dept-id',
   user_id: 'mock-user-id',
-  class_courses: ['Math', 'Physics'],
+  class_type: 'Cao đẳng',
 };
 
 const mockClassesService = {
@@ -48,6 +49,7 @@ describe('ClassesController', () => {
         class_name: 'Class A',
         class_year: '2023-2027',
         dept_id: 'mock-dept-id',
+        class_type: ClassType.CAO_DANG,
       };
       const result = await controller.create(dto);
       expect(result).toEqual(mockClass);

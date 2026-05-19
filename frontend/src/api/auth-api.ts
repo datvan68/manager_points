@@ -248,6 +248,52 @@ export const authApi = {
     });
     return handleResponse<any>(res);
   },
+
+  // ─── ROUTE PERMISSION MANAGEMENT ────────────────
+
+  async getRoutePermissions(accessToken: string): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/api/auth/route-permissions`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    return handleResponse<any[]>(res);
+  },
+
+  async getRoutePermissionsPublic(): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/api/auth/route-permissions/all`);
+    return handleResponse<any[]>(res);
+  },
+
+  async createRoutePermission(data: any, accessToken: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/auth/route-permissions`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}` 
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async updateRoutePermission(id: string, data: any, accessToken: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/auth/route-permissions/${id}`, {
+      method: 'PATCH',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}` 
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async deleteRoutePermission(id: string, accessToken: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/auth/route-permissions/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    return handleResponse<any>(res);
+  },
 };
 
 // Token helpers (localStorage)

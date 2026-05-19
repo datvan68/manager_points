@@ -219,3 +219,79 @@ export class UpdatePermissionGroupDto {
   @IsOptional()
   status?: string;
 }
+
+// ─── ROUTE PERMISSION DTOs ────────────────────────
+
+export class CreateRoutePermissionDto {
+  @ApiProperty({ example: '/students' })
+  @IsString()
+  @IsNotEmpty({ message: 'Route path không được để trống' })
+  route_path: string;
+
+  @ApiProperty({ example: 'Quản lý sinh viên' })
+  @IsString()
+  @IsNotEmpty({ message: 'Tên route không được để trống' })
+  route_name: string;
+
+  @ApiProperty({ example: 'Trang quản lý danh sách sinh viên' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: ['65f1...'] })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  permissions?: string[];
+
+  @ApiProperty({ example: 'all', enum: ['all', 'any'] })
+  @IsString()
+  @IsOptional()
+  check_type?: string;
+
+  @ApiProperty({ example: true })
+  @IsOptional()
+  is_active?: boolean;
+
+  @ApiProperty({ example: 'page', enum: ['page', 'api', 'feature'] })
+  @IsString()
+  @IsOptional()
+  type?: string;
+}
+
+export class UpdateRoutePermissionDto {
+  @ApiProperty({ example: '/students' })
+  @IsString()
+  @IsOptional()
+  route_path?: string;
+
+  @ApiProperty({ example: 'Quản lý sinh viên' })
+  @IsString()
+  @IsOptional()
+  route_name?: string;
+
+  @ApiProperty({ example: 'Cập nhật mô tả' })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ example: ['65f1...'] })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  permissions?: string[];
+
+  @ApiProperty({ example: 'all', enum: ['all', 'any'] })
+  @IsString()
+  @IsOptional()
+  check_type?: string;
+
+  @ApiProperty({ example: true })
+  @IsOptional()
+  is_active?: boolean;
+
+  @ApiProperty({ example: 'page', enum: ['page', 'api', 'feature'] })
+  @IsString()
+  @IsOptional()
+  type?: string;
+}

@@ -181,7 +181,37 @@ export class AuthService implements OnModuleInit {
   async deleteRole(id: string) { return this.rbacService.deleteRole(id); }
   async assignRole(userId: string, dto: AssignRoleDto) { return this.rbacService.assignRole(userId, dto); }
 
+  // ─── ROUTE PERMISSION WRAPPERS ──────────────────
+  async getRoutePermissions() { return this.rbacService.getRoutePermissions(); }
+  async getRoutePermissionByRoute(routePath: string) { return this.rbacService.getRoutePermissionByRoute(routePath); }
+  async createRoutePermission(dto: any) { return this.rbacService.createRoutePermission(dto); }
+  async updateRoutePermission(id: string, dto: any) { return this.rbacService.updateRoutePermission(id, dto); }
+  async deleteRoutePermission(id: string) { return this.rbacService.deleteRoutePermission(id); }
+
   // ─── USER MANAGEMENT ──────────────────────────
+
+  async getMe(userId: string) {
+    const user = await this.userModel
+      .findById(userId)
+      .populate({
+        path: 'role',
+        populate: { path: 'permissions' },
+      })
+      .select('-pw_hash');
+
+    if (!user) throw new BadRequestException('Người dùng không tồn tại');
+
+    const role = user.role as any;
+    const permissions = role?.permissions?.map((p: any) => p.code) || [];
+
+    return {
+      id: (user._id as Types.ObjectId).toString(),
+      user_name: user.user_name,
+      email: user.email,
+      roleName: role?.name || 'User',
+      permissions,
+    };
+  }
 
   async getUsers() {
     return this.userModel.find().populate('role').select('-pw_hash');

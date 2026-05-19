@@ -6,7 +6,11 @@ import { useAuth } from '@/providers/auth-provider';
 
 import Breadcrumb from '@/components/ui/Breadcrumb';
 
-const Header = () => {
+interface HeaderProps {
+    customMappings?: Record<string, string>;
+}
+
+const Header = ({ customMappings = {} }: HeaderProps) => {
     const { user, logout } = useAuth();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
@@ -39,7 +43,7 @@ const Header = () => {
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 relative z-50">
       {/* Left: Breadcrumbs/Title */}
       <div className="flex items-center gap-2">
-         <Breadcrumb />
+         <Breadcrumb customMappings={customMappings} />
       </div>
 
       {/* Right: Actions */}

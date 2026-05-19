@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Popup from './Popup';
 import { BookOpen, Hash, Check, Calendar as CalendarIcon, School, PenLine, User } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
@@ -9,11 +9,15 @@ import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/button';
+import { classApi } from '@/api/class-api';
+import { departmentApi, Department } from '@/api/department-api';
+import { authApi, tokenStorage } from '@/api/auth-api';
 
 interface ClassPopupProps {
     isOpen: boolean;
     onClose: () => void;
-    initialData?: FormValues | null;
+    initialData?: any | null;
+    onSuccess?: () => void;
 }
 
 const formSchema = z.object({
@@ -26,7 +30,10 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function ClassPopup({ isOpen, onClose, initialData }: ClassPopupProps) {
+export default function ClassPopup({ isOpen, onClose, initialData, onSuccess }: ClassPopupProps) {
+    const [departments, setDepartments] = useState<Department[]>([]);
+    const [users, setUsers] = useState<any[]>([]);
+    
     const {
         register,
         control,
@@ -43,28 +50,62 @@ export default function ClassPopup({ isOpen, onClose, initialData }: ClassPopupP
             teacherId: ''
         }
     });
-
     useEffect(() => {
         if (isOpen) {
+            // Load departments list dynamically
+            departmentApi.getDepartments()
+                .then(setDepartments)
+                .catch(err => console.error('Lỗi khi tải danh sách khoa:', err));
+
+            // Load users list dynamically for GVCN
+            const token = tokenStorage.getAccessToken() || '';
+            authApi.getUsers(token)
+                .then(setUsers)
+                .catch(err => console.error('Lỗi khi tải danh sách giáo viên:', err));
+
             if (initialData) {
-                reset(initialData);
+                reset({
+                    name: initialData.name || '',
+                    year: initialData.year || '',
+                    departmentId: initialData.departmentId || '',
+                    degreeLevel: initialData.degreeLevel || 'Trung cấp',
+                    teacherId: initialData.teacherId || ''
+                });
             } else {
                 reset({ name: '', year: '', departmentId: '', degreeLevel: 'Trung cấp', teacherId: '' });
             }
         }
     }, [isOpen, initialData, reset]);
 
-    const onSubmit = (data: FormValues) => {
+    const onSubmit = async (data: FormValues) => {
         console.log('Submitting class:', data);
-        if (initialData) {
-            toast.success(`Đã cập nhật lớp: ${data.name}`);
-        } else {
-            toast.success(`Đã thêm lớp học mới: ${data.name}`);
+        try {
+            const payload = {
+                class_name: data.name,
+                class_year: data.year,
+                dept_id: data.departmentId,
+                class_type: data.degreeLevel,
+                user_id: data.teacherId || null
+            };
+
+            if (initialData && initialData._id) {
+                await classApi.updateClass(initialData._id, payload);
+                toast.success(`Đã cập nhật lớp: ${data.name}`);
+            } else {
+                await classApi.createClass(payload);
+                toast.success(`Đã thêm lớp học mới: ${data.name}`);
+            }
+            
+            if (onSuccess) {
+                onSuccess();
+            }
+            onClose();
+        } catch (error: any) {
+            toast.error('Có lỗi xảy ra: ' + error.message);
         }
-        onClose();
     };
 
-    const isEditMode = !!initialData;
+    const isEditMode = !!(initialData && initialData._id);
 
     return (
         <Popup isOpen={isOpen} onClose={onClose} className="max-w-[480px]">
@@ -110,13 +151,16 @@ export default function ClassPopup({ isOpen, onClose, initialData }: ClassPopupP
                                 name="departmentId"
                                 control={control}
                                 render={({ field }) => (
-                                    <Select onValueChange={field.onChange} value={field.value}>
+                                    <Select key={departments.length} onValueChange={field.onChange} value={field.value || undefined}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Chọn khoa" />
                                         </SelectTrigger>
                                         <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1">
-                                            <SelectItem value="CNTT" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">Công nghệ TT</SelectItem>
-                                            <SelectItem value="KT" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">Kinh tế</SelectItem>
+                                            {departments.map(dept => (
+                                                <SelectItem key={dept._id} value={dept._id} className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">
+                                                    {dept.code}
+                                                </SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 )}
@@ -131,14 +175,13 @@ export default function ClassPopup({ isOpen, onClose, initialData }: ClassPopupP
                                 name="degreeLevel"
                                 control={control}
                                 render={({ field }) => (
-                                    <Select onValueChange={field.onChange} value={field.value}>
+                                    <Select onValueChange={field.onChange} value={field.value || undefined}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Chọn khoá" />
                                         </SelectTrigger>
                                         <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1">
                                             <SelectItem value="Trung cấp" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">Trung cấp</SelectItem>
                                             <SelectItem value="Cao đẳng" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">Cao đẳng</SelectItem>
-                                            <SelectItem value="Đại học" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">Đại học</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 )}
@@ -154,13 +197,16 @@ export default function ClassPopup({ isOpen, onClose, initialData }: ClassPopupP
                             name="teacherId"
                             control={control}
                             render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
+                                <Select key={users.length} onValueChange={field.onChange} value={field.value || undefined}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Chọn giáo viên chủ nhiệm" />
                                     </SelectTrigger>
                                     <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1">
-                                        <SelectItem value="GV01" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">Trần Lệ Xuân</SelectItem>
-                                        <SelectItem value="GV02" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">Nguyễn Văn Quyết</SelectItem>
+                                        {users.map(u => (
+                                            <SelectItem key={u._id || u.id} value={u._id || u.id} className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">
+                                                {u.user_name || u.username} ({u.email})
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             )}

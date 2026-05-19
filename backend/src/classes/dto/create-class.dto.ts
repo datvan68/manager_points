@@ -1,5 +1,6 @@
-import { IsNotEmpty, IsString, IsOptional, IsMongoId, IsArray } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsMongoId, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { ClassType } from '../schemas/class.schema';
 
 export class CreateClassDto {
   @ApiProperty({ description: 'Class Name' })
@@ -22,9 +23,8 @@ export class CreateClassDto {
   @IsMongoId()
   user_id?: string;
 
-  @ApiProperty({ description: 'Class Courses List', required: false, type: [String] })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  class_courses?: string[];
+  @ApiProperty({ description: 'Class Type', enum: ClassType })
+  @IsNotEmpty()
+  @IsEnum(ClassType)
+  class_type: ClassType;
 }

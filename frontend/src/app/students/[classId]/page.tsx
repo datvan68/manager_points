@@ -17,6 +17,7 @@ import {
   ArrowRightLeft
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
+import { classApi, Class } from '@/api/class-api';
 import {
   Drawer,
   DrawerClose,
@@ -49,7 +50,13 @@ function ClassStudentsPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
-  const selectedClass = classes.find(c => c.id === classId) || { name: 'Lớp học', id: classId, students: 0 };
+  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+
+  useEffect(() => {
+    classApi.getClass(classId)
+      .then(setSelectedClass)
+      .catch(err => console.error('Lỗi khi tải thông tin lớp học:', err));
+  }, [classId]);
 
   useEffect(() => {
     const t = setTimeout(() => setIsLoading(false), 500);
@@ -100,7 +107,7 @@ function ClassStudentsPageContent() {
     <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <Header />
+        <Header customMappings={{ [classId]: selectedClass ? selectedClass.class_name : classId }} />
         <main className="flex-1 p-4 overflow-hidden flex flex-col bg-gray-50 relative">
           <motion.div 
             initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
@@ -114,13 +121,13 @@ function ClassStudentsPageContent() {
                             onClick={() => router.push('/students')} 
                             className="flex items-center gap-1.5 text-gray-900 hover:text-primary transition-colors font-bold text-[16px] shrink-0"
                         >
-                            <ArrowLeft className="w-5 h-5" /> {selectedClass.name}
+                             <ArrowLeft className="w-5 h-5" /> {selectedClass ? selectedClass.class_name : 'Lớp học'}
                         </button>
                         
                         <div className="hidden md:flex items-center gap-4 text-sm text-gray-500">
                            <div className="flex items-center gap-1.5">
                                <Users className="w-4 h-4 text-gray-400" />
-                               <span>Sĩ số: <span className="font-semibold text-gray-700">{selectedClass.students} Sinh viên</span></span>
+                               <span>Sĩ số: <span className="font-semibold text-gray-700">{filteredStudents.length} Sinh viên</span></span>
                            </div>
                            <div className="flex items-center gap-1.5">
                                <User className="w-4 h-4 text-gray-400" />

@@ -7,7 +7,8 @@ import UserModal from '../../components/modals/UserModal';
 import GroupModal from '../../components/modals/GroupModal';
 import PermissionModal from '../../components/modals/PermissionModal';
 import RoleModal from '../../components/modals/RoleModal';
-import { Search, Filter, Settings, Plus, Mail, Phone, Pencil, Trash2, ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import RoutePermissionModal from '../../components/modals/RoutePermissionModal';
+import { Search, Filter, Settings, Plus, Mail, Phone, Pencil, Trash2, ChevronLeft, ChevronRight, Save, Route, Globe, Cpu, Zap, Shield, ToggleLeft, ToggleRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -17,9 +18,10 @@ import Action from '@/components/ui/Action';
 import { authApi, tokenStorage } from '../../api/auth-api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
-import DeleteModal from '@/components/ui/DeleteModal';
+import DeleteModal from '../../components/ui/DeleteModal';
+import { RouteGuard } from '@/components/guards/RouteGuard';
 
-export default function PermissionsPage() {
+function PermissionsPageContent() {
   const [activeTab, setActiveTab] = useState('Người dùng');
   const [searchTerm, setSearchTerm] = useState('');
   const [isDataLoading, setIsDataLoading] = useState(false);
@@ -34,6 +36,11 @@ export default function PermissionsPage() {
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [isRightPanelLoading, setIsRightPanelLoading] = useState(false);
   const [innerRightTab, setInnerRightTab] = useState('Danh sách Quyền');
+
+  // Route Permissions state
+  const [routePermissions, setRoutePermissions] = useState<any[]>([]);
+  const [isRoutePermModalOpen, setIsRoutePermModalOpen] = useState(false);
+  const [editingRoutePerm, setEditingRoutePerm] = useState<any>(null);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteConfig, setDeleteConfig] = useState<{
@@ -58,16 +65,18 @@ export default function PermissionsPage() {
     setIsDataLoading(true);
     try {
       const token = tokenStorage.getAccessToken();
-      const [u, r, p, g] = await Promise.all([
+      const [u, r, p, g, rp] = await Promise.all([
         authApi.getUsers(token),
         authApi.getRoles(token),
         authApi.getPermissions(token),
-        authApi.getPermissionGroups(token)
+        authApi.getPermissionGroups(token),
+        authApi.getRoutePermissions(token).catch(() => [])
       ]);
 
       setUsers(u);
       setRoles(r);
       setAllPermissions(p);
+      setRoutePermissions(rp);
 
       // Groups from API
       const apiGroups = g.map((group: any, idx: number) => ({
@@ -412,6 +421,7 @@ export default function PermissionsPage() {
               { id: 'Người dùng', label: 'Người dùng' },
               { id: 'Vai trò', label: 'Vai trò' },
               { id: 'Quyền hạn', label: 'Quyền hạn' },
+              // { id: 'Gán quyền trang', label: 'Gán quyền trang' },
               { id: 'Cấu hình', label: 'Cấu hình' }
             ]}
             activeTab={activeTab}
@@ -988,8 +998,153 @@ export default function PermissionsPage() {
               </div>
             )}
             
+            {/* Tab Gán quyền trang */}
+            {activeTab === 'Cấu hình' && (
+              <motion.div 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                className="flex-1 flex flex-col overflow-hidden bg-white"
+              >
+                {/* Toolbar */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-indigo-100 shrink-0">
+                      <Route className="w-4.5 h-4.5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800">Cấu hình quyền theo trang</h3>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">{routePermissions.length} cấu hình đang hoạt động</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setEditingRoutePerm(null); setIsRoutePermModalOpen(true); }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" strokeWidth={3} />
+                    Thêm cấu hình
+                  </button>
+                </div>
+
+                {/* Table */}
+                <div className="flex-1 overflow-auto bg-white relative">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-100 shadow-sm">
+                      <tr>
+                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Route</th>
+                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Tên</th>
+                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Loại</th>
+                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Quyền yêu cầu</th>
+                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Kiểm tra</th>
+                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Trạng thái</th>
+                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {isDataLoading ? (
+                        Array.from({ length: 5 }).map((_, idx) => (
+                          <tr key={`sk-${idx}`}>
+                            {Array.from({ length: 7 }).map((_, ci) => (
+                              <td key={ci} className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
+                            ))}
+                          </tr>
+                        ))
+                      ) : routePermissions.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-16 text-center">
+                            <div className="flex flex-col items-center gap-3">
+                              <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
+                                <Route className="w-7 h-7 text-slate-400" />
+                              </div>
+                              <p className="text-sm text-gray-500 font-medium">Chưa có cấu hình nào</p>
+                              <p className="text-xs text-gray-400">Nhấn "Thêm cấu hình" để gán quyền cho trang</p>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        routePermissions.map((rp: any) => {
+                          const typeConfig = rp.type === 'api'
+                            ? { icon: Cpu, label: 'API', color: 'text-purple-600 bg-purple-50 border-purple-100' }
+                            : rp.type === 'feature'
+                            ? { icon: Zap, label: 'Chức năng', color: 'text-amber-600 bg-amber-50 border-amber-100' }
+                            : { icon: Globe, label: 'Trang', color: 'text-blue-600 bg-blue-50 border-blue-100' };
+                          const TypeIcon = typeConfig.icon;
+                          return (
+                            <tr key={rp._id} className="hover:bg-slate-50/50 transition-colors group">
+                              <td className="px-6 py-3.5 align-middle">
+                                <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">{rp.route_path}</span>
+                              </td>
+                              <td className="px-6 py-3.5 align-middle">
+                                <div>
+                                  <p className="text-sm font-bold text-slate-800">{rp.route_name}</p>
+                                  {rp.description && <p className="text-xs font-medium text-slate-400 mt-0.5 truncate max-w-[200px]">{rp.description}</p>}
+                                </div>
+                              </td>
+                              <td className="px-6 py-3.5 align-middle">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${typeConfig.color}`}>
+                                  <TypeIcon size={12} />
+                                  {typeConfig.label}
+                                </span>
+                              </td>
+                              <td className="px-6 py-3.5 align-middle">
+                                <div className="flex flex-wrap gap-1 max-w-[240px]">
+                                  {(rp.permissions || []).slice(0, 3).map((p: any) => (
+                                    <span key={p._id || p} className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                                      {p.code || p}
+                                    </span>
+                                  ))}
+                                  {(rp.permissions || []).length > 3 && (
+                                    <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+                                      +{rp.permissions.length - 3}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-3.5 align-middle text-center">
+                                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${rp.check_type === 'any' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
+                                  {rp.check_type === 'any' ? 'Ít nhất 1' : 'Tất cả'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-3.5 align-middle text-center">
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
+                                  rp.is_active !== false ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50' : 'bg-slate-50 text-slate-400 border-slate-100'
+                                }`}>
+                                  <div className={`w-1.5 h-1.5 rounded-full ${rp.is_active !== false ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                  <span className="text-xs font-bold">{rp.is_active !== false ? 'Active' : 'Inactive'}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-3.5 align-middle text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <Action 
+                                    onEdit={() => { setEditingRoutePerm(rp); setIsRoutePermModalOpen(true); }}
+                                    onDelete={() => {
+                                      setDeleteConfig({
+                                        title: 'Xóa cấu hình route',
+                                        message: `Bạn có chắc chắn muốn xóa cấu hình cho route "${rp.route_path}"?`,
+                                        onConfirm: async () => {
+                                          const token = tokenStorage.getAccessToken();
+                                          if (!token) { toast.error('Hết phiên làm việc'); return; }
+                                          await authApi.deleteRoutePermission(rp._id, token);
+                                          toast.success('Xóa cấu hình thành công');
+                                          fetchData();
+                                        }
+                                      });
+                                      setIsDeleteModalOpen(true);
+                                    }}
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
             {/* Other tabs dummy content */}
-            {activeTab !== 'Người dùng' && activeTab !== 'Quyền hạn' && activeTab !== 'Vai trò' && (
+            {activeTab !== 'Người dùng' && activeTab !== 'Quyền hạn' && activeTab !== 'Vai trò' && activeTab !== 'Cấu hình' && (
               <div className="flex-1 flex items-center justify-center text-slate-400 font-medium">
                 Nội dung tab {activeTab} đang được phát triển...
               </div>
@@ -1052,6 +1207,33 @@ export default function PermissionsPage() {
         groups={groups}
         onSave={handleRoleModalSave}
       />
+
+      <RoutePermissionModal
+        isOpen={isRoutePermModalOpen}
+        onClose={() => setIsRoutePermModalOpen(false)}
+        onSave={async (data) => {
+          const token = tokenStorage.getAccessToken();
+          if (!token) { toast.error('Hết phiên làm việc'); return; }
+          if (editingRoutePerm) {
+            await authApi.updateRoutePermission(editingRoutePerm._id, data, token);
+            toast.success('Cập nhật cấu hình thành công');
+          } else {
+            await authApi.createRoutePermission(data, token);
+            toast.success('Tạo cấu hình thành công');
+          }
+          fetchData();
+        }}
+        initialData={editingRoutePerm}
+        allPermissions={allPermissions}
+      />
     </div>
+  );
+}
+
+export default function PermissionsPage() {
+  return (
+    <RouteGuard requiredPermission="admin">
+      <PermissionsPageContent />
+    </RouteGuard>
   );
 }

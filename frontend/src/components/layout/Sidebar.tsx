@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -13,20 +13,83 @@ import {
   ChevronLeft, 
   Settings 
 } from 'lucide-react';
+import { useAuth } from '@/providers/auth-provider';
+import { authApi } from '@/api/auth-api';
+
+// Cache (shared with RouteGuard via same API)
+let sidebarCachedMappings: any[] | null = null;
+let sidebarCacheTimestamp = 0;
+const SIDEBAR_CACHE_TTL = 60_000;
+
+async function fetchSidebarMappings(): Promise<any[]> {
+  const now = Date.now();
+  if (sidebarCachedMappings && (now - sidebarCacheTimestamp) < SIDEBAR_CACHE_TTL) {
+    return sidebarCachedMappings;
+  }
+  try {
+    const data = await authApi.getRoutePermissionsPublic();
+    sidebarCachedMappings = data;
+    sidebarCacheTimestamp = now;
+    return data;
+  } catch {
+    return sidebarCachedMappings || [];
+  }
+}
+
+const allMenuItems = [
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
+  { icon: Calendar, label: 'Công việc & sự kiện', href: '/tasks' },
+  { icon: Users, label: 'Quản lý sinh viên', href: '/students' },
+  { icon: Building2, label: 'Quản lý KTX', href: '/dormitory' },
+  { icon: GraduationCap, label: 'Hệ thống chấm điểm', href: '/grading' },
+  { icon: BarChart3, label: 'Thống kê báo cáo', href: '/reports' },
+  { icon: Shield, label: 'Phân quyền', href: '/permissions' },
+];
 
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const pathname = usePathname();
+  const { user, isLoading, hasPermission, hasAnyPermission, hasAllPermissions } = useAuth();
+  const [visibleItems, setVisibleItems] = useState(allMenuItems);
 
-  const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
-    { icon: Calendar, label: 'Công việc & sự kiện', href: '/tasks' },
-    { icon: Users, label: 'Quản lý sinh viên', href: '/students' },
-    { icon: Building2, label: 'Quản lý KTX', href: '/dormitory' },
-    { icon: GraduationCap, label: 'Hệ thống chấm điểm', href: '/grading' },
-    { icon: BarChart3, label: 'Thống kê báo cáo', href: '/reports' },
-    { icon: Shield, label: 'Phân quyền', href: '/permissions' },
-  ];
+  useEffect(() => {
+    if (isLoading || !user) return;
+
+    (async () => {
+      try {
+        const mappings = await fetchSidebarMappings();
+        
+        // If user is Admin → show everything
+        if (user.role === 'Admin') {
+          setVisibleItems(allMenuItems);
+          return;
+        }
+
+        // Filter menu items based on route-permission mappings
+        const filtered = allMenuItems.filter(item => {
+          const mapping = mappings.find(
+            (m: any) => m.route_path === item.href && m.is_active !== false && m.type === 'page'
+          );
+
+          // If no mapping exists for this route → show it (not restricted)
+          if (!mapping || !mapping.permissions || mapping.permissions.length === 0) {
+            return true;
+          }
+
+          // Check permissions based on check_type
+          const requiredCodes = mapping.permissions.map((p: any) => p.code || p);
+          if (mapping.check_type === 'any') {
+            return hasAnyPermission(...requiredCodes);
+          }
+          return hasAllPermissions(...requiredCodes);
+        });
+
+        setVisibleItems(filtered);
+      } catch {
+        setVisibleItems(allMenuItems); // Fail open
+      }
+    })();
+  }, [user, isLoading]);
 
   return (
     <div className={`flex flex-col h-screen ${isCollapsed ? 'w-20' : 'w-64'} bg-white border-r border-gray-200 justify-between transition-all duration-300`}>
@@ -42,7 +105,7 @@ const Sidebar = () => {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-hidden">
-        {menuItems.map((item, index) => {
+        {visibleItems.map((item, index) => {
           const isActive = pathname === item.href;
           return (
             <Link

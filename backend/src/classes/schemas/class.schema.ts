@@ -5,6 +5,11 @@ import { User } from '../../auth/schemas/user.schema';
 
 export type ClassDocument = Class & Document;
 
+export enum ClassType {
+  TRUNG_CAP = 'Trung cấp',
+  CAO_DANG = 'Cao đẳng',
+}
+
 @Schema({ timestamps: true })
 export class Class {
   @Prop({ required: true })
@@ -19,8 +24,8 @@ export class Class {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   user_id: User;
 
-  @Prop({ type: [String], default: [] })
-  class_courses: string[];
+  @Prop({ enum: ClassType, required: true })
+  class_type: ClassType;
 }
 
 export const ClassSchema = SchemaFactory.createForClass(Class);

@@ -21,17 +21,6 @@ export interface UpdateDepartmentDto {
   description?: string;
 }
 
-export interface Class {
-  _id: string;
-  class_name: string;
-  class_year: string;
-  dept_id: Department | string;
-  user_id?: any;
-  class_courses: string[];
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 async function handleResponse<T>(res: Response): Promise<T> {
   const data = await res.json();
   if (!res.ok) {
@@ -75,36 +64,5 @@ export const departmentApi = {
       method: 'DELETE',
     });
     return handleResponse<Department>(res);
-  },
-
-  // Classes
-  async getClasses(): Promise<Class[]> {
-    const res = await fetch(`${API_BASE}/classes`);
-    return handleResponse<Class[]>(res);
-  },
-
-  async createClass(dto: any): Promise<Class> {
-    const res = await fetch(`${API_BASE}/classes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dto),
-    });
-    return handleResponse<Class>(res);
-  },
-
-  async updateClass(id: string, dto: any): Promise<Class> {
-    const res = await fetch(`${API_BASE}/classes/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dto),
-    });
-    return handleResponse<Class>(res);
-  },
-
-  async deleteClass(id: string): Promise<Class> {
-    const res = await fetch(`${API_BASE}/classes/${id}`, {
-      method: 'DELETE',
-    });
-    return handleResponse<Class>(res);
   }
 };

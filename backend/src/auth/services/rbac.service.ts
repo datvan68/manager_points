@@ -5,6 +5,7 @@ import { Role, RoleDocument } from '../schemas/role.schema';
 import { Permission, PermissionDocument } from '../schemas/permission.schema';
 import { PermissionGroup, PermissionGroupDocument } from '../schemas/permission-group.schema';
 import { User, UserDocument } from '../schemas/user.schema';
+import { RoutePermission, RoutePermissionDocument } from '../schemas/route-permission.schema';
 import {
   CreateRoleDto,
   UpdateRoleDto,
@@ -13,6 +14,8 @@ import {
   UpdatePermissionDto,
   CreatePermissionGroupDto,
   UpdatePermissionGroupDto,
+  CreateRoutePermissionDto,
+  UpdateRoutePermissionDto,
 } from '../dto/auth.dto';
 
 @Injectable()
@@ -22,6 +25,7 @@ export class RbacService {
     @InjectModel(Permission.name) private permissionModel: Model<PermissionDocument>,
     @InjectModel(PermissionGroup.name) private permissionGroupModel: Model<PermissionGroupDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(RoutePermission.name) private routePermissionModel: Model<RoutePermissionDocument>,
   ) {}
 
   async getRoles() {
@@ -231,5 +235,41 @@ export class RbacService {
     await user.save();
 
     return { message: `Đã gán vai trò ${role.name} cho người dùng ${user.user_name}` };
+  }
+
+  // ─── ROUTE PERMISSION MANAGEMENT ──────────────────
+
+  async getRoutePermissions() {
+    return this.routePermissionModel.find().populate('permissions');
+  }
+
+  async getRoutePermissionByRoute(routePath: string) {
+    return this.routePermissionModel.findOne({ route_path: routePath, is_active: true }).populate('permissions');
+  }
+
+  async createRoutePermission(dto: CreateRoutePermissionDto) {
+    const existing = await this.routePermissionModel.findOne({ route_path: dto.route_path });
+    if (existing) throw new ConflictException(`Route '${dto.route_path}' đã được cấu hình`);
+    return this.routePermissionModel.create(dto as any);
+  }
+
+  async updateRoutePermission(id: string, dto: UpdateRoutePermissionDto) {
+    if (!Types.ObjectId.isValid(id)) throw new BadRequestException('ID không hợp lệ');
+
+    if (dto.route_path) {
+      const existing = await this.routePermissionModel.findOne({ route_path: dto.route_path, _id: { $ne: id } });
+      if (existing) throw new ConflictException(`Route '${dto.route_path}' đã tồn tại`);
+    }
+
+    const updated = await this.routePermissionModel.findByIdAndUpdate(id, { $set: dto }, { new: true }).populate('permissions');
+    if (!updated) throw new BadRequestException('Route permission không tồn tại');
+    return updated;
+  }
+
+  async deleteRoutePermission(id: string) {
+    if (!Types.ObjectId.isValid(id)) throw new BadRequestException('ID không hợp lệ');
+    const result = await this.routePermissionModel.deleteOne({ _id: id });
+    if (result.deletedCount === 0) throw new BadRequestException('Route permission không tồn tại');
+    return { message: 'Xóa cấu hình route thành công' };
   }
 }

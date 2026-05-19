@@ -24,6 +24,7 @@ import {
   mockCategories 
 } from '@/lib/mock-data/students';
 import { toast } from 'sonner';
+import { classApi, Class } from '@/api/class-api';
 
 export default function StudentProfilePage() {
   const router = useRouter();
@@ -41,13 +42,20 @@ export default function StudentProfilePage() {
     setTimeout(() => setIsTabLoading(false), 300);
   };
 
+  const [targetClass, setTargetClass] = useState<Class | null>(null);
+
+  useEffect(() => {
+    classApi.getClass(classId)
+      .then(setTargetClass)
+      .catch(err => console.error('Lỗi khi tải thông tin lớp học:', err));
+  }, [classId]);
+
   useEffect(() => {
     const t = setTimeout(() => setIsLoading(false), 400);
     return () => clearTimeout(t);
   }, []);
 
   const student = mockStudents.find(s => s.id === studentId);
-  const targetClass = classes.find(c => c.id === student?.classId);
 
   const handleSave = () => {
     toast.success('Thông tin đã được lưu thành công!');
@@ -65,7 +73,7 @@ export default function StudentProfilePage() {
   const academicInfoRows = [
     { label: 'Mã số sinh viên (MSSV)', value: student?.id || '20240102' },
     { label: 'Khoa', value: 'Kinh tế & Quản trị kinh doanh' },
-    { label: 'Lớp', value: targetClass ? targetClass.name : (student?.classId || 'N/A') },
+    { label: 'Lớp', value: targetClass ? targetClass.class_name : (student?.classId || 'N/A') },
   ];
 
   // --- LOADING STATE ---
@@ -74,7 +82,7 @@ export default function StudentProfilePage() {
       <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full">
-          <Header />
+          <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.name : studentId }} />
           <main className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-[40px]">
             <div className="w-full px-[24px] pt-[24px] pb-[17px] flex items-center justify-between">
               <div className="flex gap-[16px] items-center">
@@ -124,7 +132,7 @@ export default function StudentProfilePage() {
       <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full">
-          <Header />
+          <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.name : studentId }} />
           <main className="flex-1 overflow-y-auto bg-white flex items-center justify-center">
             <div className="text-center flex flex-col items-center gap-4">
               <p className="text-[20px] font-bold text-slate-800">Không tìm thấy sinh viên</p>
@@ -146,7 +154,7 @@ export default function StudentProfilePage() {
     <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <Header />
+        <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.name : studentId }} />
         
         <motion.main 
           initial={{ opacity: 0 }} 

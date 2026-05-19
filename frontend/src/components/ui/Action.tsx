@@ -3,6 +3,7 @@
 import React from 'react';
 import { PencilLine, Trash2, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePermission } from '@/components/guards/RouteGuard';
 
 interface ActionProps {
   onEdit?: () => void;
@@ -12,6 +13,12 @@ interface ActionProps {
   hideEdit?: boolean;
   hideDelete?: boolean;
   hideView?: boolean;
+  /** Custom permission code required to show the Edit button */
+  permissionEdit?: string;
+  /** Custom permission code required to show the Delete button */
+  permissionDelete?: string;
+  /** Custom permission code required to show the View button */
+  permissionView?: string;
 }
 
 const Action = ({ 
@@ -21,11 +28,25 @@ const Action = ({
   className,
   hideEdit = false,
   hideDelete = false,
-  hideView = false
+  hideView = false,
+  permissionEdit,
+  permissionDelete,
+  permissionView
 }: ActionProps) => {
+  // Use usePermission hook for checking individual actions
+  const permissions = usePermission({
+    edit: permissionEdit || '',
+    delete: permissionDelete || '',
+    view: permissionView || '',
+  });
+
+  const canEdit = permissionEdit ? permissions.edit : true;
+  const canDelete = permissionDelete ? permissions.delete : true;
+  const canView = permissionView ? permissions.view : true;
+
   return (
     <div className={cn("flex items-center gap-1", className)}>
-      {!hideView && onView && (
+      {!hideView && onView && canView && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -40,7 +61,7 @@ const Action = ({
           />
         </button>
       )}
-      {!hideEdit && (
+      {!hideEdit && canEdit && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -55,7 +76,7 @@ const Action = ({
           />
         </button>
       )}
-      {!hideDelete && (
+      {!hideDelete && canDelete && (
         <button
           onClick={(e) => {
             e.stopPropagation();
