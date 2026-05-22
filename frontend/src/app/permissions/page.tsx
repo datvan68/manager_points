@@ -18,7 +18,7 @@ import Action from '@/components/ui/Action';
 import { authApi, tokenStorage } from '../../api/auth-api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
-import DeleteModal from '../../components/ui/DeleteModal';
+import ConfirmModal from '../../components/modals/ConfirmModal';
 import { RouteGuard } from '@/components/guards/RouteGuard';
 
 function PermissionsPageContent() {
@@ -64,7 +64,6 @@ function PermissionsPageContent() {
 
     setIsDataLoading(true);
     try {
-      const token = tokenStorage.getAccessToken();
       const [u, r, p, g, rp] = await Promise.all([
         authApi.getUsers(token),
         authApi.getRoles(token),
@@ -135,7 +134,16 @@ function PermissionsPageContent() {
       }
     } catch (error: any) {
       if (error.status === 401) {
-        logout();
+        try {
+          // Thử âm thầm làm mới token trước khi đăng xuất
+          const refreshResult = await authApi.refreshToken();
+          tokenStorage.setAccessToken(refreshResult.access_token);
+          // Tải lại dữ liệu bằng token mới
+          fetchData();
+        } catch (refreshErr) {
+          console.error("Silent refresh failed on 401 error:", refreshErr);
+          logout();
+        }
       } else {
         toast.error('Lỗi khi tải dữ liệu: ' + (error.message || 'Hết phiên làm việc'));
       }
@@ -1154,11 +1162,12 @@ function PermissionsPageContent() {
       </div>
 
       {/* Insert Modal Component here */}
-      <DeleteModal 
+      <ConfirmModal 
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title={deleteConfig?.title}
         message={deleteConfig?.message}
+        variant="danger"
         onConfirm={async () => {
           if (deleteConfig?.onConfirm) {
             try {

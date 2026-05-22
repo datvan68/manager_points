@@ -1,9 +1,15 @@
-'use client';
+"use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { tokenStorage, authApi } from '@/api/auth-api';
-import { toast } from 'sonner';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { tokenStorage, authApi } from "@/api/auth-api";
+import { toast } from "sonner";
 
 interface UserInfo {
   id: string;
@@ -34,36 +40,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const isPublicRoute = ['/login', '/register', '/forgot-password', '/reset-password'].includes(pathname);
+  const isPublicRoute = [
+    "/login",
+    "/register",
+    "/forgot-password",
+    "/reset-password",
+  ].includes(pathname);
 
   // Permission checking utilities
-  const hasPermission = useCallback((permission: string): boolean => {
-    if (user?.role === 'Admin') return true;
-    return permissions.includes(permission);
-  }, [user, permissions]);
+  const hasPermission = useCallback(
+    (permission: string): boolean => {
+      if (user?.role === "Admin") return true;
+      return permissions.includes(permission);
+    },
+    [user, permissions],
+  );
 
-  const hasAnyPermission = useCallback((...perms: string[]): boolean => {
-    if (user?.role === 'Admin') return true;
-    return perms.some((p) => permissions.includes(p));
-  }, [user, permissions]);
+  const hasAnyPermission = useCallback(
+    (...perms: string[]): boolean => {
+      if (user?.role === "Admin") return true;
+      return perms.some((p) => permissions.includes(p));
+    },
+    [user, permissions],
+  );
 
-  const hasAllPermissions = useCallback((...perms: string[]): boolean => {
-    if (user?.role === 'Admin') return true;
-    return perms.every((p) => permissions.includes(p));
-  }, [user, permissions]);
+  const hasAllPermissions = useCallback(
+    (...perms: string[]): boolean => {
+      if (user?.role === "Admin") return true;
+      return perms.every((p) => permissions.includes(p));
+    },
+    [user, permissions],
+  );
 
   const loadUserPermissions = async (token: string) => {
     try {
       // Decode JWT payload to get user_id, then fetch permissions via /api/auth/me
       // For now, we extract permissions from the JWT token payload directly
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      
+      const payload = JSON.parse(atob(token.split(".")[1]));
+
       // Fetch user details with populated role & permissions
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/me`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/me`,
+        { headers: { Authorization: `Bearer ${token}` } },
       );
-      
+
       if (res.ok) {
         const data = await res.json();
         const perms: string[] = data.permissions || [];
@@ -72,13 +92,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Update stored user with permissions
         const storedUser = tokenStorage.getUser();
         if (storedUser) {
-          const updatedUser = { ...storedUser, permissions: perms, role: data.roleName || storedUser.role };
+          const updatedUser = {
+            ...storedUser,
+            permissions: perms,
+            role: data.roleName || storedUser.role,
+          };
           tokenStorage.setUser(updatedUser);
           setUser(updatedUser);
         }
       }
     } catch (err) {
-      console.error('Failed to load user permissions:', err);
+      console.error("Failed to load user permissions:", err);
     }
   };
 
@@ -121,15 +145,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, []);
 
+  // Tự động làm mới token định kỳ mỗi 5 phút để duy trì phiên làm việc khi đang hoạt động
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const result = await authApi.refreshToken();
+        tokenStorage.setAccessToken(result.access_token);
+        loadUserPermissions(result.access_token);
+      } catch (err) {
+        console.error("Silent refresh failed:", err);
+        // Nếu Refresh Token hết hạn thật sự, lúc này mới đăng xuất
+        logout();
+      }
+    }, 5 * 60 * 1000); // 5 phút
+
+    return () => clearInterval(interval);
+  }, [user]);
+
   useEffect(() => {
     if (!isLoading) {
       if (!user && !isPublicRoute) {
-        toast.error('Vui lòng đăng nhập để tiếp tục', {
-          id: 'unauthorized-toast', // Prevent duplicate toasts
+        toast.error("Vui lòng đăng nhập để tiếp tục", {
+          id: "unauthorized-toast", // Prevent duplicate toasts
         });
-        router.push('/login');
+        router.push("/login");
       } else if (user && isPublicRoute) {
-        router.push('/select-module');
+        router.push("/select-module");
       }
     }
   }, [user, isLoading, pathname, isPublicRoute, router]);
@@ -143,18 +186,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       tokenStorage.clearTokens();
       setUser(null);
       setPermissions([]);
-      toast.success('Đã đăng xuất thành công');
-      router.push('/login');
+      toast.success("Đã đăng xuất thành công");
+      router.push("/login");
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, permissions, logout, checkAuth, hasPermission, hasAnyPermission, hasAllPermissions }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        isLoading,
+        permissions,
+        logout,
+        checkAuth,
+        hasPermission,
+        hasAnyPermission,
+        hasAllPermissions,
+      }}
+    >
       {isLoading ? (
         <div className="flex h-screen w-screen items-center justify-center bg-slate-50">
           <div className="flex flex-col items-center gap-4">
             <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#135bec] border-t-transparent shadow-lg"></div>
-            <p className="font-['Inter'] text-slate-500 animate-pulse">Đang kiểm tra bảo mật...</p>
+            <p className="font-['Inter'] text-slate-500 animate-pulse">
+              Đang kiểm tra bảo mật...
+            </p>
           </div>
         </div>
       ) : (
@@ -167,7 +224,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

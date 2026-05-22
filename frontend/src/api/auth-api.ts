@@ -240,6 +240,18 @@ export const authApi = {
     });
     return handleResponse<any>(res);
   },
+
+  async updateUser(userId: string, data: any, accessToken: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/auth/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}` 
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<any>(res);
+  },
   
   async deleteUser(userId: string, accessToken: string): Promise<any> {
     const res = await fetch(`${API_BASE}/api/auth/users/${userId}`, {

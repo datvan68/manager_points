@@ -23,7 +23,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <AuthProvider>
             {children}
-            <Toaster position="top-right" />
+            <Toaster position="top-right" richColors />
           </AuthProvider>
         </Suspense>
       </body>

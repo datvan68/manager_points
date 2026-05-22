@@ -124,7 +124,12 @@ export default function AddRecordView({ onBack }: { onBack: () => void }) {
                       <CalendarIcon className="w-[18px] h-[18px] text-slate-400" />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 z-[100] bg-transparent border-none shadow-none" align="start">
+                  <PopoverContent 
+                    className="w-auto p-0 z-[100] bg-transparent border-none shadow-none" 
+                    align="start"
+                    side="bottom"
+                    sideOffset={6}
+                  >
                     <CustomCalendar 
                       startDate={recordDate}
                       endDate={null}

@@ -295,3 +295,46 @@ export class UpdateRoutePermissionDto {
   @IsOptional()
   type?: string;
 }
+
+export class UpdateUserDto {
+  @ApiProperty({ example: 'nguyenvanb', required: false })
+  @IsString()
+  @IsOptional()
+  user_name?: string;
+
+  @ApiProperty({ example: 'user_new@example.com', required: false })
+  @IsEmail({}, { message: 'Email không đúng định dạng' })
+  @IsOptional()
+  email?: string;
+
+  @ApiProperty({ example: 'active', enum: ['active', 'locked'], required: false })
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  @ApiProperty({ example: '65f1...', required: false })
+  @IsMongoId()
+  @IsOptional()
+  role_id?: string;
+
+  @ApiProperty({ example: '0987654321', required: false })
+  @IsString()
+  @IsOptional()
+  phone_number?: string;
+
+  @ApiProperty({ example: 'Academic', required: false })
+  @IsString()
+  @IsOptional()
+  department?: string;
+
+  @ApiProperty({ example: '2000-01-01', required: false })
+  @IsOptional()
+  date_birth?: Date;
+
+  @ApiProperty({ example: 'newpassword123', required: false })
+  @IsString()
+  @IsOptional()
+  @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
+  password?: string;
+}
+

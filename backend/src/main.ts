@@ -10,10 +10,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Security Headers - Relax for local development to avoid CORS/Fetch issues
-  app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: false, // Disable CSP for local dev to avoid blocking fetches
-  }));
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: false, // Disable CSP for local dev to avoid blocking fetches
+    }),
+  );
 
   // Cookie Parser
   app.use(cookieParser());

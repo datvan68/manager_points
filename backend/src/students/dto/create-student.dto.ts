@@ -1,48 +1,35 @@
-
 import { IsNotEmpty, IsString, IsEnum, IsOptional, IsEmail, IsDateString, IsMongoId } from 'class-validator';
 
 export class CreateStudentDto {
   @IsNotEmpty()
   @IsString()
-  studentId: string;
+  student_code: string;
 
   @IsNotEmpty()
   @IsString()
-  fullName: string;
-
-  @IsNotEmpty()
-  @IsDateString()
-  dob: string;
-
-  @IsNotEmpty()
-  @IsEnum(['Male', 'Female', 'Other'])
-  gender: string;
-
-  @IsOptional()
-  @IsString()
-  phone?: string;
+  full_name: string;
 
   @IsOptional()
   @IsEmail()
   email?: string;
 
-  @IsOptional()
-  @IsString()
-  address?: string;
+  @IsNotEmpty()
+  @IsDateString()
+  date_bir: string;
 
-  @IsOptional()
-  @IsMongoId()
-  classId?: string;
-
-  @IsOptional()
-  @IsString()
-  course?: string;
+  @IsNotEmpty()
+  @IsEnum(['Male', 'Female', 'Other'])
+  sex: string;
 
   @IsNotEmpty()
   @IsEnum(['Studying', 'Reserved', 'Dropped', 'Graduated', 'Suspended'])
   status: string;
 
   @IsOptional()
-  @IsDateString()
-  admissionDate?: string;
+  @IsMongoId()
+  class_id?: string;
+
+  @IsOptional()
+  @IsMongoId()
+  training_point_id?: string;
 }

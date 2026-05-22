@@ -141,7 +141,12 @@ export default function GhiNhanTab() {
                 <span className="sm:hidden">{filterDateRange ? 'Đã lọc' : 'Lọc'}</span>
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 z-[100] bg-transparent border-none shadow-none" align="end">
+            <PopoverContent 
+              className="w-auto p-0 z-[100] bg-transparent border-none shadow-none" 
+              align="end"
+              side="bottom"
+              sideOffset={6}
+            >
               <CustomCalendar 
                 startDate={filterDateRange?.start || null}
                 endDate={filterDateRange?.end || null}

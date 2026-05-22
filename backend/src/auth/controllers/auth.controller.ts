@@ -35,6 +35,7 @@ import {
   UpdatePermissionGroupDto,
   CreateRoutePermissionDto,
   UpdateRoutePermissionDto,
+  UpdateUserDto,
 } from '../dto/auth.dto';
 
 @ApiTags('Authentication & RBAC')
@@ -278,6 +279,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Get all users (Admin only)' })
   async getUsers() {
     return this.authService.getUsers();
+  }
+
+  @Patch('users/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('ADMIN_FULL')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiOperation({ summary: 'Update a user (Admin only)' })
+  async updateUser(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+    return this.authService.updateUser(id, dto);
   }
 
   @Delete('users/:id')

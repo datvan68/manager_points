@@ -22,7 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import TabNavigation from '@/components/ui/TabNavigation';
 import { CustomPagination } from '@/components/ui/pagination';
 import CategoryModal from '../../components/grading/CategoryModal';
-import DeleteModal from '@/components/ui/DeleteModal';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 import { toast } from 'sonner';
 
 const mockConfigCategories = [
@@ -356,7 +356,7 @@ export default function GradingPage() {
         }}
       />
 
-      <DeleteModal 
+      <ConfirmModal 
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={() => {
@@ -366,6 +366,8 @@ export default function GradingPage() {
         }}
         title="Xác nhận xóa danh mục"
         message={`Bạn có chắc chắn muốn xóa danh mục "${categoryToDelete?.name}"? Hành động này không thể hoàn tác.`}
+        variant="danger"
+        confirmLabel="Xác nhận xóa"
       />
     </div>
   );

@@ -20,6 +20,7 @@ import {
   ResetPasswordDto,
   ChangePasswordDto,
   AssignRoleDto,
+  UpdateUserDto,
 } from '../dto/auth.dto';
 import { TokenService } from './token.service';
 import { PasswordService } from './password.service';
@@ -215,6 +216,75 @@ export class AuthService implements OnModuleInit {
 
   async getUsers() {
     return this.userModel.find().populate('role').select('-pw_hash');
+  }
+
+  async updateUser(userId: string, dto: UpdateUserDto) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('ID người dùng không hợp lệ');
+    }
+
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new BadRequestException('Người dùng không tồn tại');
+    }
+
+    // Check duplicate username if provided
+    if (dto.user_name && dto.user_name !== user.user_name) {
+      const existingUsername = await this.userModel.findOne({ user_name: dto.user_name });
+      if (existingUsername) throw new ConflictException('Username đã tồn tại');
+      user.user_name = dto.user_name;
+    }
+
+    // Check duplicate email if provided
+    if (dto.email && dto.email.toLowerCase() !== user.email) {
+      const existingEmail = await this.userModel.findOne({ email: dto.email.toLowerCase() });
+      if (existingEmail) throw new ConflictException('Email đã được sử dụng');
+      user.email = dto.email.toLowerCase();
+    }
+
+    // Check role existence if role_id is provided
+    if (dto.role_id) {
+      if (!Types.ObjectId.isValid(dto.role_id)) {
+        throw new BadRequestException('ID vai trò không hợp lệ');
+      }
+      const role = await this.roleModel.findById(dto.role_id);
+      if (!role) {
+        throw new BadRequestException('Vai trò không tồn tại');
+      }
+      user.role = role._id as Types.ObjectId;
+    }
+
+    // Update other fields
+    if (dto.status) {
+      if (dto.status !== UserStatus.ACTIVE && dto.status !== UserStatus.LOCKED) {
+        throw new BadRequestException('Trạng thái không hợp lệ');
+      }
+      user.status = dto.status as UserStatus;
+      // If status changes to Active, clear locking properties
+      if (dto.status === UserStatus.ACTIVE) {
+        user.failed_login_attempts = 0;
+        user.locked_until = null;
+      }
+    }
+
+    if (dto.phone_number !== undefined) user.phone_number = dto.phone_number;
+    if (dto.department !== undefined) user.department = dto.department;
+    if (dto.date_birth !== undefined) user.date_birth = dto.date_birth;
+
+    if (dto.password) {
+      user.pw_hash = await this.passwordService.hashPassword(dto.password);
+      user.failed_login_attempts = 0;
+      user.locked_until = null;
+    }
+
+    await user.save();
+
+    // Populate role and return updated user (without pw_hash)
+    const updatedUser = await this.userModel.findById(userId).populate('role').select('-pw_hash');
+    return {
+      message: 'Cập nhật người dùng thành công',
+      user: updatedUser,
+    };
   }
 
   async deleteUser(userId: string) {

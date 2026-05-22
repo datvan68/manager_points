@@ -21,11 +21,11 @@ const SelectContext = React.createContext<SelectContextProps | undefined>(undefi
 
 const getChildText = (node: any): string => {
   if (!node) return "";
+  if (Array.isArray(node)) {
+    return node.map(getChildText).join("");
+  }
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (node.props && node.props.children) {
-    if (Array.isArray(node.props.children)) {
-      return node.props.children.map(getChildText).join(" ");
-    }
     return getChildText(node.props.children);
   }
   return "";

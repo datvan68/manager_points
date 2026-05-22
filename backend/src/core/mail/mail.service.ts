@@ -19,11 +19,14 @@ export class MailService {
   }
 
   async sendPasswordResetEmail(email: string, token: string) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
 
     const mailOptions = {
-      from: this.configService.get<string>('MAIL_FROM') || '"Manager Point" <noreply@managerpoint.com>',
+      from:
+        this.configService.get<string>('MAIL_FROM') ||
+        '"Manager Point" <noreply@managerpoint.com>',
       to: email,
       subject: 'Xác nhận đổi mật khẩu - Manager Point',
       html: `
@@ -47,7 +50,7 @@ export class MailService {
       console.log(`✅ Email reset password sent to: ${email}`);
     } catch (error) {
       console.error('❌ Failed to send reset password email:', error);
-      // We don't throw error here to avoid blocking the API response, 
+      // We don't throw error here to avoid blocking the API response,
       // but in production you might want to handle this more robustly.
     }
   }

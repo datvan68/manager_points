@@ -10,9 +10,10 @@ interface PopupProps {
   children: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 }
 
-const Popup: React.FC<PopupProps> = ({ isOpen, onClose, title, children, action, className }) => {
+const Popup: React.FC<PopupProps> = ({ isOpen, onClose, title, children, action, className, contentClassName }) => {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -74,7 +75,7 @@ const Popup: React.FC<PopupProps> = ({ isOpen, onClose, title, children, action,
                 <X size={20} />
               </button>
             )}
-            <div className="p-6 overflow-y-auto custom-scrollbar">
+            <div className={contentClassName !== undefined ? contentClassName : "p-6 overflow-y-auto custom-scrollbar"}>
               {children}
             </div>
           </motion.div>

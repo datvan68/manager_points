@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StudentAvatar } from '@/components/ui/StudentAvatar';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -18,13 +19,13 @@ import {
   Calendar
 } from 'lucide-react';
 import { 
-  mockStudents, 
   classes, 
   mockRecords, 
   mockCategories 
 } from '@/lib/mock-data/students';
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
+import { studentApi, Student } from '@/api/student-api';
 
 export default function StudentProfilePage() {
   const router = useRouter();
@@ -42,38 +43,64 @@ export default function StudentProfilePage() {
     setTimeout(() => setIsTabLoading(false), 300);
   };
 
+  const [student, setStudent] = useState<Student | null>(null);
   const [targetClass, setTargetClass] = useState<Class | null>(null);
 
   useEffect(() => {
-    classApi.getClass(classId)
-      .then(setTargetClass)
-      .catch(err => console.error('Lỗi khi tải thông tin lớp học:', err));
-  }, [classId]);
-
-  useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 400);
-    return () => clearTimeout(t);
-  }, []);
-
-  const student = mockStudents.find(s => s.id === studentId);
+    setIsLoading(true);
+    Promise.all([
+      classApi.getClass(classId),
+      studentApi.getStudent(studentId)
+    ])
+      .then(([classData, studentData]) => {
+        setTargetClass(classData);
+        setStudent(studentData);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error('Lỗi khi tải thông tin chi tiết sinh viên:', err);
+        setIsLoading(false);
+      });
+  }, [classId, studentId]);
 
   const handleSave = () => {
     toast.success('Thông tin đã được lưu thành công!');
   };
 
+  const formatDob = (dobString?: string) => {
+    if (!dobString) return 'N/A';
+    try {
+      const date = new Date(dobString);
+      if (isNaN(date.getTime())) return dobString;
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch {
+      return dobString;
+    }
+  };
+
+  const formatGender = (gender?: string) => {
+    if (!gender) return 'N/A';
+    if (gender === 'Male') return 'Nam';
+    if (gender === 'Female') return 'Nữ';
+    return 'Khác';
+  };
+
   // --- Personal info data rows (Figma: label left, value right, horizontal justified) ---
   const personalInfoRows = [
-    { label: 'Họ và Tên', value: student?.name || '' },
-    { label: 'Ngày sinh', value: student?.dob || '15/05/2003' },
-    { label: 'Giới tính', value: student?.gender || 'Nam' },
-    { label: 'Email', value: student?.email || 'an.nv2024@university.edu.vn' },
+    { label: 'Họ và Tên', value: student?.full_name || '' },
+    { label: 'Ngày sinh', value: formatDob(student?.date_bir) },
+    { label: 'Giới tính', value: formatGender(student?.sex) },
+    { label: 'Email', value: student?.email || 'N/A' },
     { label: 'Số điện thoại', value: '0987 654 321' },
   ];
 
   const academicInfoRows = [
-    { label: 'Mã số sinh viên (MSSV)', value: student?.id || '20240102' },
-    { label: 'Khoa', value: 'Kinh tế & Quản trị kinh doanh' },
-    { label: 'Lớp', value: targetClass ? targetClass.class_name : (student?.classId || 'N/A') },
+    { label: 'Mã số sinh viên (MSSV)', value: student?.student_code || 'N/A' },
+    { label: 'Khoa', value: typeof student?.class_id === 'object' ? (student.class_id as any)?.dept_id?.name : 'N/A' },
+    { label: 'Lớp', value: typeof student?.class_id === 'object' ? (student.class_id as any)?.class_name : (targetClass ? targetClass.class_name : 'N/A') },
   ];
 
   // --- LOADING STATE ---
@@ -82,7 +109,7 @@ export default function StudentProfilePage() {
       <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full">
-          <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.name : studentId }} />
+          <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.full_name : studentId }} />
           <main className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-[40px]">
             <div className="w-full px-[24px] pt-[24px] pb-[17px] flex items-center justify-between">
               <div className="flex gap-[16px] items-center">
@@ -132,7 +159,7 @@ export default function StudentProfilePage() {
       <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full">
-          <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.name : studentId }} />
+          <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: studentId }} />
           <main className="flex-1 overflow-y-auto bg-white flex items-center justify-center">
             <div className="text-center flex flex-col items-center gap-4">
               <p className="text-[20px] font-bold text-slate-800">Không tìm thấy sinh viên</p>
@@ -154,7 +181,7 @@ export default function StudentProfilePage() {
     <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.name : studentId }} />
+        <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.full_name : studentId }} />
         
         <motion.main 
           initial={{ opacity: 0 }} 
@@ -173,10 +200,10 @@ export default function StudentProfilePage() {
               </button>
               <div className="flex flex-col">
                 <h1 className="font-sans font-bold text-[#111827] text-[20px] leading-[28px]">
-                  {student.name}
+                  {student.full_name}
                 </h1>
                 <p className="font-sans font-normal text-[#6b7280] text-[14px] leading-[20px]">
-                  MSSV: {student.id}
+                  MSSV: {student.student_code}
                 </p>
               </div>
             </div>
@@ -209,11 +236,12 @@ export default function StudentProfilePage() {
               >
                 {/* Avatar Container — Figma: 96x96 */}
                 <div className="relative shrink-0">
-                  <div className="bg-[#e5e7eb] rounded-[16px] shadow-[0px_0px_0px_4px_white,0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] w-[96px] h-[96px] overflow-hidden group cursor-pointer">
-                    <img 
-                      alt="Avatar" 
-                      className="w-full h-full object-cover group-hover:opacity-60 transition-opacity" 
-                      src={`https://api.dicebear.com/7.x/notionists/svg?seed=${student.id}&backgroundColor=b6e3f4`} 
+                  <div className="relative rounded-[16px] shadow-[0px_0px_0px_4px_white,0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] w-[96px] h-[96px] overflow-hidden group cursor-pointer">
+                    <StudentAvatar 
+                      fullName={student.full_name} 
+                      sizeClass="w-full h-full" 
+                      className="rounded-[16px]" 
+                      textClassName="text-3xl font-extrabold"
                     />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-[16px]">
                       <Pen className="w-[24px] h-[24px] text-white" />
@@ -228,10 +256,10 @@ export default function StudentProfilePage() {
                 {/* Name + MSSV + Change Photo link — Figma: VERTICAL */}
                 <div className="flex flex-col">
                   <h3 className="font-sans font-bold text-[#111827] text-[20px] leading-[28px]">
-                    {student.name}
+                    {student.full_name}
                   </h3>
                   <p className="font-sans font-medium text-[#6b7280] text-[14px] leading-[20px]">
-                    MSSV: {student.id}
+                    MSSV: {student.student_code}
                   </p>
                   {/* Change photo button — Figma: font Roboto 600 12px, color #135bec */}
                   <button className="mt-[7.5px] text-left cursor-pointer hover:underline">
@@ -332,7 +360,13 @@ export default function StudentProfilePage() {
                   </div>
                   <div className="flex flex-col">
                     <p className="font-sans font-bold text-[#2563eb] text-[10px] tracking-[0.5px] uppercase leading-[15px]">Điểm rèn luyện</p>
-                    <p className="font-sans font-bold text-[#1e3a8a] text-[20px] leading-[25px]">85/100</p>
+                    <p className="font-sans font-bold text-[#1e3a8a] text-[20px] leading-[25px]">
+                      {student?.training_point_id?.score != null 
+                        ? (student.training_point_id.score > 100 
+                          ? Math.round(student.training_point_id.score / 100) 
+                          : student.training_point_id.score) 
+                        : 0}/100
+                    </p>
                   </div>
                 </div>
 

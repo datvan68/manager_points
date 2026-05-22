@@ -1,4 +1,5 @@
 import { Department } from './department-api';
+import { tokenStorage } from './auth-api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -33,26 +34,38 @@ export const classApi = {
   },
 
   async createClass(dto: any): Promise<Class> {
+    const token = tokenStorage.getAccessToken();
     const res = await fetch(`${API_BASE}/classes`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
       body: JSON.stringify(dto),
     });
     return handleResponse<Class>(res);
   },
 
   async updateClass(id: string, dto: any): Promise<Class> {
+    const token = tokenStorage.getAccessToken();
     const res = await fetch(`${API_BASE}/classes/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
       body: JSON.stringify(dto),
     });
     return handleResponse<Class>(res);
   },
 
   async deleteClass(id: string): Promise<Class> {
+    const token = tokenStorage.getAccessToken();
     const res = await fetch(`${API_BASE}/classes/${id}`, {
       method: 'DELETE',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
     });
     return handleResponse<Class>(res);
   }
