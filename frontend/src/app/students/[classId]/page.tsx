@@ -335,15 +335,12 @@ function ClassStudentsPageContent() {
 
                                 {selectedStudentIds.length > 0 && (
                                     <div className="flex items-center gap-2">
-                                        <button onClick={handleExport} className="flex items-center gap-1.5 px-[13px] py-[7px] text-[14px] font-medium text-[#16a34a] bg-[#f0fdf4] border border-[#16a34a] rounded-lg hover:bg-green-100 transition-all">
-                                            <Download size={15} /> Xuất ({selectedStudentIds.length})
-                                        </button>
                                         <button
                                             onClick={handleDelete}
                                             disabled={isDataLoading}
-                                            className="flex items-center gap-1.5 px-[14px] py-[7px] text-[14px] font-medium text-[#ef4444] bg-[#fef2f2] border border-[#ef4444] rounded-lg hover:bg-red-100 transition-all disabled:opacity-50"
+                                            className="flex items-center gap-1.5 px-[10px] py-[4.5px] text-[11px] font-bold uppercase tracking-wider text-[#ef4444] bg-[#fef2f2] border border-[#ef4444]/30 rounded-[8px] hover:bg-red-100/50 hover:border-[#ef4444] transition-all disabled:opacity-50 shrink-0 select-none"
                                         >
-                                            {isDataLoading ? <Loader2 className="w-[14px] h-[14px] animate-spin" /> : <Trash2 size={15} />}
+                                            {isDataLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                                             Xóa ({selectedStudentIds.length})
                                         </button>
                                     </div>
@@ -370,7 +367,7 @@ function ClassStudentsPageContent() {
                         </div>
 
                         {/* Student Table */}
-                        <div className="flex-1 overflow-hidden bg-white border border-[#f1f5f9] rounded-[12px] shadow-sm max-w-screen-2xl w-full mx-auto relative flex flex-col mb-4">
+                        <div className="flex-1 overflow-hidden bg-white max-w-screen-2xl w-full mx-auto relative flex flex-col mb-4">
                             <div className="overflow-x-auto flex-1 h-full">
                                 <table className="w-full text-left border-collapse min-w-max">
                                     <thead className="bg-[#f8fafc] sticky top-0 z-20 border-b border-[#f1f5f9]">
@@ -652,7 +649,7 @@ function ClassStudentsPageContent() {
                     )}
                 </DrawerContent>
             </Drawer>
-            
+
         </div>
     );
 }

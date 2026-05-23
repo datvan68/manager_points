@@ -62,6 +62,17 @@ export class StudentsService implements OnModuleInit {
     }
   }
 
+  async checkDuplicate(studentCodes: string[]): Promise<{ student_code: string; full_name: string }[]> {
+    const existing = await this.studentModel
+      .find({ student_code: { $in: studentCodes } })
+      .select('student_code full_name')
+      .exec();
+    return existing.map(student => ({
+      student_code: student.student_code,
+      full_name: student.full_name
+    }));
+  }
+
   async findAll(): Promise<Student[]> {
     return this.studentModel.find()
       .populate({

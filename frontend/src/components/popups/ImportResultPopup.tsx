@@ -1,0 +1,245 @@
+'use client';
+import React from 'react';
+import Popup from './Popup';
+import {
+  Download, AlertCircle, CheckCircle2, Calendar, User, GraduationCap, FileWarning
+} from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Button } from '@/components/ui/button';
+
+export interface ImportValidationError {
+  row: number;
+  studentCode?: string;
+  fullName?: string;
+  reason: string;
+}
+
+interface ImportResultPopupProps {
+  isOpen: boolean;
+  onClose: () => void;
+  successCount: number;
+  errors: ImportValidationError[];
+}
+
+export default function ImportResultPopup({ isOpen, onClose, successCount, errors }: ImportResultPopupProps) {
+
+  // Export only the error records into a new Excel file for user correction
+  const handleDownloadErrorReport = () => {
+    try {
+      const headers = [['Dòng', 'Mã SV', 'Họ và tên', 'Nguyên nhân Lỗi / Cảnh báo']];
+      const errorData = errors.map(err => [
+        `Dòng ${err.row}`,
+        err.studentCode || '',
+        err.fullName || '',
+        err.reason
+      ]);
+
+      const worksheet = XLSX.utils.aoa_to_sheet([...headers, ...errorData]);
+
+      // Professional Column Widths
+      worksheet['!cols'] = [
+        { wch: 12 }, // Dòng
+        { wch: 15 }, // Mã SV
+        { wch: 25 }, // Họ và tên
+        { wch: 45 }  // Nguyên nhân Lỗi
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Error_Report');
+      XLSX.writeFile(workbook, 'Bao_Cao_Loi_Import_Sinh_Vien.xlsx');
+    } catch (err) {
+      console.error('Lỗi khi xuất file báo cáo lỗi:', err);
+    }
+  };
+
+  // Helper to render appropriate error badge based on error text
+  const renderErrorReasonBadge = (reason: string) => {
+    const norm = reason.toLowerCase();
+
+    // 1. Duplicate MSSV
+    if (norm.includes('tồn tại') || norm.includes('trùng')) {
+      return (
+        <div className="bg-[rgba(255,218,214,0.3)] text-[#ba1a1a] flex gap-1.5 items-center px-2.5 py-1 rounded-md shrink-0 border border-[#ffdad6]/40">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span className="font-semibold text-xs leading-4">Mã sinh viên đã tồn tại</span>
+        </div>
+      );
+    }
+
+    // 2. Invalid Date format
+    if (norm.includes('định dạng ngày sinh') || norm.includes('dd/mm/yyyy')) {
+      return (
+        <div className="bg-[rgba(255,218,214,0.3)] text-[#ba1a1a] flex gap-1.5 items-center px-2.5 py-1 rounded-md shrink-0 border border-[#ffdad6]/40">
+          <Calendar className="w-3.5 h-3.5 shrink-0" />
+          <span className="font-semibold text-xs leading-4">Định dạng ngày sinh không hợp lệ</span>
+        </div>
+      );
+    }
+
+    // 3. Missing Name
+    if (norm.includes('họ tên') || norm.includes('họ đệm') || norm.includes('tên')) {
+      return (
+        <div className="bg-[rgba(249,171,0,0.1)] text-[#b07800] flex gap-1.5 items-center px-2.5 py-1 rounded-md shrink-0 border border-[#f9ab00]/20">
+          <User className="w-3.5 h-3.5 shrink-0" />
+          <span className="font-semibold text-xs leading-4">Dữ liệu trống họ tên</span>
+        </div>
+      );
+    }
+
+    // 4. Missing Date of birth
+    if (norm.includes('thiếu ngày sinh') || norm.includes('ngày sinh')) {
+      return (
+        <div className="bg-[rgba(255,218,214,0.3)] text-[#ba1a1a] flex gap-1.5 items-center px-2.5 py-1 rounded-md shrink-0 border border-[#ffdad6]/40">
+          <GraduationCap className="w-3.5 h-3.5 shrink-0" />
+          <span className="font-semibold text-xs leading-4">Thiếu ngày sinh</span>
+        </div>
+      );
+    }
+
+    // Default Fallback
+    return (
+      <div className="bg-slate-50 text-slate-600 flex gap-1.5 items-center px-2.5 py-1 rounded-md shrink-0 border border-slate-100">
+        <FileWarning className="w-3.5 h-3.5 shrink-0" />
+        <span className="font-semibold text-xs leading-4 truncate max-w-[200px]">{reason}</span>
+      </div>
+    );
+  };
+
+  return (
+    <Popup isOpen={isOpen} onClose={onClose} className="max-w-[720px]" contentClassName="p-0">
+      <div className="bg-white flex flex-col items-start overflow-hidden rounded-[12px] shadow-[0px_24px_48px_0px_rgba(0,0,0,0.12)] w-full font-sans">
+
+        {/* Modal Header */}
+        <div className="border-[#efedf1] border-b border-solid flex h-[58px] items-center justify-between px-8 w-full shrink-0">
+          <h2 className="font-bold text-[#1a1b1e] text-[18px] leading-[28px]">
+            Kết quả Import Sinh viên
+          </h2>
+        </div>
+
+        {/* Modal Content */}
+        <div className="flex flex-col gap-6 items-start overflow-y-auto p-8 w-full max-h-[60vh] custom-scrollbar">
+
+          {/* Section 1: Summary Statistics (Bento Style Cards) */}
+          <div className="grid grid-cols-2 gap-4 w-full shrink-0">
+
+            {/* Success Card */}
+            <div className="bg-[#006d2b]/[0.05] flex items-center h-[68.5px] p-3 rounded-lg border border-[#006d2b]/10 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-full">
+              <div className="bg-[#96f8a1] flex items-center justify-center rounded-full shrink-0 w-10 h-10 text-[#006d2b] shadow-sm">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div className="pl-3 flex flex-col items-start justify-center">
+                <span className="text-[#575f6b] text-[10px] tracking-[0.5px] uppercase font-medium leading-normal">
+                  THÀNH CÔNG
+                </span>
+                <div className="flex gap-1 items-baseline mt-0.5 leading-none">
+                  <span className="font-black text-[#006d2b] text-[24px]">
+                    {successCount.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-[#414754]/80 font-normal">
+                    bản ghi
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Failure Card */}
+            <div className="bg-[#ba1a1a]/[0.05] flex items-center h-[68.5px] p-3 rounded-lg border border-[#ba1a1a]/10 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-full">
+              <div className="bg-[#ffdad6] flex items-center justify-center rounded-full shrink-0 w-10 h-10 text-[#ba1a1a] shadow-sm">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="pl-3 flex flex-col items-start justify-center">
+                <span className="text-[#575f6b] text-[10px] tracking-[0.5px] uppercase font-medium leading-normal">
+                  THẤT BẠI
+                </span>
+                <div className="flex gap-1 items-baseline mt-0.5 leading-none">
+                  <span className="font-black text-[#ba1a1a] text-[24px]">
+                    {errors.length.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-[#414754]/80 font-normal">
+                    bản ghi
+                  </span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Section 2: Detailed Error List */}
+          <div className="flex flex-col gap-2 items-start w-full">
+            <div className="flex items-center justify-between w-full">
+              <h3 className="font-bold text-[#414754] text-[12px] tracking-[0.6px] uppercase leading-4">
+                DANH SÁCH CHI TIẾT LỖI
+              </h3>
+              <div className="bg-[#e9e7eb] flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-extrabold text-[#575f6b] tracking-wide uppercase shrink-0">
+                {errors.length} RECORDS
+              </div>
+            </div>
+
+            {/* Table Container */}
+            <div className="bg-[#f4f3f7] border border-slate-200/50 rounded-xl overflow-hidden w-full shrink-0 shadow-inner shadow-slate-100">
+              <div className="w-full flex flex-col">
+
+                {/* Table Header */}
+                <div className="bg-[#efedf1] flex items-center w-full border-b border-slate-200/60 font-sans">
+                  <div className="w-[30%] px-4 py-3 font-semibold text-[#414754] text-xs tracking-[0.6px]">
+                    Dòng / MSSV
+                  </div>
+                  <div className="w-[30%] px-4 py-3 font-semibold text-[#414754] text-xs tracking-[0.6px]">
+                    Họ và Tên
+                  </div>
+                  <div className="w-[40%] px-4 py-3 font-semibold text-[#414754] text-xs tracking-[0.6px]">
+                    Lý do Lỗi
+                  </div>
+                </div>
+
+                {/* Table Body */}
+                <div className="flex flex-col w-full divide-y divide-slate-100 max-h-[30vh] overflow-y-auto custom-scrollbar bg-white">
+                  {errors.map((error, idx) => (
+                    <div key={idx} className="flex items-center w-full font-sans hover:bg-slate-50/50 transition-colors">
+                      <div className="w-[30%] px-4 py-3.5 text-[#1a1b1e] text-[14px] font-medium leading-5">
+                        Row {error.row} / <span className="font-mono text-slate-500 text-xs">{error.studentCode || 'N/A'}</span>
+                      </div>
+                      <div className="w-[30%] px-4 py-3.5 text-[#1a1b1e] text-[14px] font-medium leading-5">
+                        {error.fullName || 'Chưa nhập'}
+                      </div>
+                      <div className="w-[40%] px-4 py-3 flex items-center">
+                        {renderErrorReasonBadge(error.reason)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Modal Footer */}
+        <div className="bg-[#faf9fd] border-[#efedf1] border-solid border-t flex items-center justify-between px-8 py-4 w-full shrink-0">
+
+          {/* Download Report Button */}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleDownloadErrorReport}
+            className="flex items-center gap-2 text-[#005bbf] font-bold text-sm hover:text-[#004493] hover:bg-slate-100/80 transition-colors h-auto py-2 px-4 shrink-0"
+          >
+            <Download className="w-4 h-4" />
+            Tải về báo cáo lỗi (.xlsx)
+          </Button>
+
+          {/* Close Button */}
+          <Button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-2.5 h-auto text-sm"
+          >
+            Đóng
+          </Button>
+        </div>
+
+      </div>
+    </Popup>
+  );
+}

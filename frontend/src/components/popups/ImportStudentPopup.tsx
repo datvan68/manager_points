@@ -7,6 +7,7 @@ import {
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { studentApi } from '@/api/student-api';
+import ImportResultPopup, { ImportValidationError } from './ImportResultPopup';
 
 interface ImportStudentPopupProps {
   isOpen: boolean;
@@ -20,6 +21,12 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
   const [dragActive, setDragActive] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [showResultPopup, setShowResultPopup] = useState(false);
+  const [importStats, setImportStats] = useState<{ successCount: number; errors: ImportValidationError[] }>({
+    successCount: 0,
+    errors: []
+  });
 
   // 1. Generate and Download dynamic Excel Template file
   const handleDownloadTemplate = () => {
@@ -123,41 +130,82 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
           throw new Error('Tệp Excel không chứa dữ liệu hoặc sai định dạng!');
         }
 
-        // Validate and Map rows to backend Student DTO format
-        const studentDtos: any[] = [];
+        if (rawRows.length > 5000) {
+          throw new Error('Số lượng sinh viên vượt quá giới hạn 5.000 bản ghi mỗi lần import!');
+        }
+
+        const errors: ImportValidationError[] = [];
+        const tempDtos: { row: number; dto: any }[] = [];
+        const seenCodesInExcel = new Map<string, number>(); // student_code -> row number
 
         for (let i = 0; i < rawRows.length; i++) {
           const row = rawRows[i];
+          const rowNumber = i + 2; // Excel row numbering starts at 1, header is row 1
 
           // Map properties based on flexible column names
-          const studentCode = row['Mã SV'] || row['Mã SV (*)'] || row['Mã sinh viên'] || row['Mã sinh viên (*)'] || row['MSSV'] || row['student_code'];
-          const hoDem = row['Họ đệm'] || row['Họ đệm (*)'] || row['Họ'] || row['ho_dem'];
-          const ten = row['Tên'] || row['Tên (*)'] || row['ten'];
+          const studentCodeRaw = row['Mã SV'] || row['Mã SV (*)'] || row['Mã sinh viên'] || row['Mã sinh viên (*)'] || row['MSSV'] || row['student_code'];
+          const hoDemRaw = row['Họ đệm'] || row['Họ đệm (*)'] || row['Họ'] || row['ho_dem'];
+          const tenRaw = row['Tên'] || row['Tên (*)'] || row['ten'];
           
           let fullName = '';
-          if (hoDem && ten) {
-            fullName = `${hoDem.toString().trim()} ${ten.toString().trim()}`;
+          if (hoDemRaw && tenRaw) {
+            fullName = `${hoDemRaw.toString().trim()} ${tenRaw.toString().trim()}`;
           } else {
-            fullName = row['Họ và tên'] || row['Họ và tên (*)'] || row['Họ tên'] || row['full_name'];
+            const nameVal = row['Họ và tên'] || row['Họ và tên (*)'] || row['Họ tên'] || row['full_name'];
+            fullName = nameVal ? nameVal.toString().trim() : '';
           }
 
-          let dobValue = row['Ngày sinh'] || row['Ngày sinh (DD/MM/YYYY) (*)'] || row['Ngày sinh (YYYY-MM-DD) (*)'] || row['date_bir'];
+          const dobValue = row['Ngày sinh'] || row['Ngày sinh (DD/MM/YYYY) (*)'] || row['Ngày sinh (YYYY-MM-DD) (*)'] || row['date_bir'];
           const genderStr = row['Giới tính'] || row['Giới tính (Nam/Nữ)'] || row['sex'];
           const email = row['Email'] || row['email'];
 
+          const studentCode = studentCodeRaw ? studentCodeRaw.toString().trim() : '';
+
+          // 1. Check required fields
           if (!studentCode || !fullName || !dobValue) {
-            throw new Error(`Dòng ${i + 2}: Thiếu các trường bắt buộc (Mã SV, Họ đệm và Tên, hoặc Ngày sinh)`);
+            let reason = 'Thiếu trường bắt buộc';
+            if (!studentCode) {
+              reason = 'Thiếu mã sinh viên';
+            } else if (!fullName) {
+              reason = 'Dữ liệu trống họ tên';
+            } else {
+              reason = 'Thiếu ngày sinh';
+            }
+            errors.push({
+              row: rowNumber,
+              studentCode: studentCode || undefined,
+              fullName: fullName || undefined,
+              reason
+            });
+            continue;
           }
 
-          // Handle Excel date value if it's parsed as number by sheetjs
+          // 2. Check internal duplicate student code within the Excel file itself
+          if (seenCodesInExcel.has(studentCode)) {
+            errors.push({
+              row: rowNumber,
+              studentCode,
+              fullName,
+              reason: `Mã sinh viên bị trùng lặp trong file Excel (trùng với dòng ${seenCodesInExcel.get(studentCode)})`
+            });
+            continue;
+          }
+          seenCodesInExcel.set(studentCode, rowNumber);
+
+          // 3. Handle and validate Date of Birth format
           let finalDob = '';
+          let dateError = false;
           if (typeof dobValue === 'number') {
             // Excel serial date to JS date object
             const jsDate = new Date(Math.round((dobValue - 25569) * 86400 * 1000));
-            finalDob = jsDate.toISOString();
+            if (isNaN(jsDate.getTime())) {
+              dateError = true;
+            } else {
+              finalDob = jsDate.toISOString();
+            }
           } else {
             const strDob = dobValue.toString().trim();
-            // Thử kiểm tra định dạng DD/MM/YYYY (ví dụ: 15/05/2004 hoặc 15-05-2004)
+            // Regular expression for DD/MM/YYYY (e.g. 15/05/2004 or 15-05-2004)
             const dmyRegex = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/;
             const match = strDob.match(dmyRegex);
             if (match) {
@@ -166,20 +214,37 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
               const year = parseInt(match[3], 10);
               const parsedDate = new Date(year, month, day);
               if (isNaN(parsedDate.getTime()) || parsedDate.getDate() !== day || parsedDate.getMonth() !== month) {
-                throw new Error(`Dòng ${i + 2}: Ngày sinh "${dobValue}" không tồn tại trên thực tế.`);
+                errors.push({
+                  row: rowNumber,
+                  studentCode,
+                  fullName,
+                  reason: `Ngày sinh "${dobValue}" không tồn tại trên thực tế.`
+                });
+                continue;
               }
               finalDob = parsedDate.toISOString();
             } else {
-              // Thử parse thông thường (VD: YYYY-MM-DD)
+              // Try standard parse (e.g. YYYY-MM-DD)
               const parsedDate = new Date(strDob);
               if (isNaN(parsedDate.getTime())) {
-                throw new Error(`Dòng ${i + 2}: Định dạng ngày sinh "${dobValue}" không hợp lệ. Phải có định dạng DD/MM/YYYY.`);
+                dateError = true;
+              } else {
+                finalDob = parsedDate.toISOString();
               }
-              finalDob = parsedDate.toISOString();
             }
           }
 
-          // Standardize gender mapping
+          if (dateError) {
+            errors.push({
+              row: rowNumber,
+              studentCode,
+              fullName,
+              reason: `Định dạng ngày sinh "${dobValue}" không hợp lệ. Phải có định dạng DD/MM/YYYY.`
+            });
+            continue;
+          }
+
+          // 4. Standardize gender mapping
           let sex: 'Male' | 'Female' | 'Other' = 'Male';
           if (genderStr) {
             const normGender = genderStr.toString().trim().toLowerCase();
@@ -192,30 +257,67 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
             }
           }
 
-          studentDtos.push({
-            student_code: studentCode.toString().trim(),
-            full_name: fullName.toString().trim(),
-            date_bir: finalDob,
-            sex,
-            status: 'Studying',
-            class_id: classId,
-            email: email ? email.toString().trim() : undefined
+          tempDtos.push({
+            row: rowNumber,
+            dto: {
+              student_code: studentCode,
+              full_name: fullName,
+              date_bir: finalDob,
+              sex,
+              status: 'Studying',
+              class_id: classId,
+              email: email ? email.toString().trim() : undefined
+            }
           });
         }
 
-        if (studentDtos.length > 5000) {
-          throw new Error('Số lượng sinh viên vượt quá giới hạn 5.000 bản ghi mỗi lần import!');
+        // 5. Bulk check duplicates in the database via the backend API
+        const studentDtos: any[] = [];
+        if (tempDtos.length > 0) {
+          const studentCodesToCheck = tempDtos.map(item => item.dto.student_code);
+          const duplicates = await studentApi.checkDuplicate(studentCodesToCheck);
+          const duplicateCodesMap = new Map<string, string>(); // student_code -> full_name
+          duplicates.forEach(d => duplicateCodesMap.set(d.student_code, d.full_name));
+
+          // Classify into valid studentDtos or duplicate errors
+          tempDtos.forEach(item => {
+            if (duplicateCodesMap.has(item.dto.student_code)) {
+              errors.push({
+                row: item.row,
+                studentCode: item.dto.student_code,
+                fullName: item.dto.full_name,
+                reason: `Mã sinh viên đã tồn tại trong hệ thống (trùng với sinh viên "${duplicateCodesMap.get(item.dto.student_code)}")`
+              });
+            } else {
+              studentDtos.push(item.dto);
+            }
+          });
         }
 
-        // Call backend Bulk creation endpoint
-        const result = await studentApi.createStudentBulk(studentDtos);
+        // Sort errors by row number for readability
+        errors.sort((a, b) => a.row - b.row);
 
-        toast.success(`Import thành công! Đã thêm mới ${result.length} sinh viên vào lớp.`);
+        // 6. Execute Import and Show appropriate Popups
+        if (errors.length > 0) {
+          // Import whatever successfully validated (Partial success)
+          let successImportCount = 0;
+          if (studentDtos.length > 0) {
+            const result = await studentApi.createStudentBulk(studentDtos);
+            successImportCount = result.length;
+          }
 
-        if (onSuccess) {
-          onSuccess();
+          setImportStats({ successCount: successImportCount, errors });
+          setShowResultPopup(true); // Open the detailed Import Result Popup
+          onClose(); // Close the Import dialog itself
+        } else {
+          // 100% Success
+          if (studentDtos.length > 0) {
+            const result = await studentApi.createStudentBulk(studentDtos);
+            toast.success(`Import thành công! Đã thêm mới ${result.length} sinh viên vào lớp.`);
+          }
+          if (onSuccess) onSuccess();
+          onClose();
         }
-        onClose();
       } catch (err: any) {
         console.error('Lỗi khi import:', err);
         toast.error(err.message || 'Đã xảy ra lỗi trong quá trình import dữ liệu');
@@ -233,6 +335,7 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
   };
 
   return (
+    <>
     <Popup isOpen={isOpen} onClose={onClose} className="max-w-[500px]" contentClassName="p-0">
       <div className="bg-white flex flex-col items-start overflow-hidden rounded-[12px] w-full font-sans">
 
@@ -396,5 +499,16 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
 
       </div>
     </Popup>
+
+    <ImportResultPopup
+      isOpen={showResultPopup}
+      onClose={() => {
+        setShowResultPopup(false);
+        if (onSuccess) onSuccess();
+      }}
+      successCount={importStats.successCount}
+      errors={importStats.errors}
+    />
+    </>
   );
 }

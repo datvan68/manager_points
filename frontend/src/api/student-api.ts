@@ -62,6 +62,19 @@ export const studentApi = {
     return handleResponse<Student[]>(res);
   },
 
+  async checkDuplicate(studentCodes: string[]): Promise<{ student_code: string; full_name: string }[]> {
+    const token = tokenStorage.getAccessToken();
+    const res = await fetch(`${API_BASE}/students/check-duplicate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ studentCodes }),
+    });
+    return handleResponse<{ student_code: string; full_name: string }[]>(res);
+  },
+
   async updateStudent(id: string, dto: Partial<Student>): Promise<Student> {
     const token = tokenStorage.getAccessToken();
     const res = await fetch(`${API_BASE}/students/${id}`, {

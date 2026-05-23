@@ -18,6 +18,11 @@ export class StudentsController {
     return this.studentsService.createBulk(createStudentDtos);
   }
 
+  @Post('check-duplicate')
+  checkDuplicate(@Body('studentCodes') studentCodes: string[]) {
+    return this.studentsService.checkDuplicate(studentCodes);
+  }
+
   @Get()
   findAll() {
     return this.studentsService.findAll();
