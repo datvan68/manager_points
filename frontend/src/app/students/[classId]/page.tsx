@@ -16,7 +16,8 @@ import {
     User,
     ArrowRightLeft,
     Loader2,
-    ExternalLink
+    ExternalLink,
+    Compass
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
@@ -298,8 +299,14 @@ function ClassStudentsPageContent() {
                                         </div>
                                         <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-[#f8fafc] text-[#475569] border border-[#e2e8f0] rounded-[8px] text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
                                             <User className="w-3.5 h-3.5 text-[#475569]" />
-                                            <span>GVCN: Nguyễn Văn A</span>
+                                            <span>GVCN: {selectedClass?.user_id?.user_name || 'Chưa phân công'}</span>
                                         </div>
+                                        {selectedClass?.headquarters && (
+                                            <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-[#fdf2f8] text-[#db2777] border border-[#fbcfe8] rounded-[8px] text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
+                                                <Compass className="w-3.5 h-3.5 text-[#db2777]" />
+                                                <span>Trụ sở: {selectedClass.headquarters}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

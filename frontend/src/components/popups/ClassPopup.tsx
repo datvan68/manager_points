@@ -39,6 +39,7 @@ const formSchema = z.object({
   year: z.string().min(1, { message: "Niên khóa bắt buộc nhập." }),
   departmentId: z.string().min(1, { message: "Vui lòng chọn khoa." }),
   degreeLevel: z.string().min(1, { message: "Vui lòng chọn khoá." }),
+  headquarters: z.enum(['Nam Sài Gòn', 'Phân hiệu CSSĐ-NDT', 'Phân hiệu CK']).optional().or(z.literal("")),
   teacherId: z.string().optional(),
 });
 
@@ -66,6 +67,7 @@ export default function ClassPopup({
       year: "",
       departmentId: "",
       degreeLevel: "Trung cấp",
+      headquarters: "Nam Sài Gòn",
       teacherId: "",
     },
   });
@@ -100,6 +102,7 @@ export default function ClassPopup({
           year: initialData.year || "",
           departmentId: initialData.departmentId || "",
           degreeLevel: initialData.degreeLevel || "Trung cấp",
+          headquarters: initialData.headquarters || "Nam Sài Gòn",
           teacherId: extractedTeacherId,
         });
       } else {
@@ -108,6 +111,7 @@ export default function ClassPopup({
           year: "",
           departmentId: "",
           degreeLevel: "Trung cấp",
+          headquarters: "Nam Sài Gòn",
           teacherId: "",
         });
       }
@@ -122,6 +126,7 @@ export default function ClassPopup({
         class_year: data.year,
         dept_id: data.departmentId,
         class_type: data.degreeLevel,
+        headquarters: data.headquarters || null,
         user_id: data.teacherId || null,
       };
 
@@ -169,15 +174,65 @@ export default function ClassPopup({
             error={errors.name?.message}
           />
 
-          {/* Niên khóa */}
-          <Input
-            label="Niên khóa"
-            required
-            placeholder="Nhập niên khoá"
-            {...register("year")}
-            error={errors.year?.message}
-          />
+          {/* Niên khóa & Trụ sở */}
+          <div className="flex gap-5 w-full">
+            {/* Niên khóa */}
+            <div className="flex-1">
+              <Input
+                label="Niên khóa"
+                required
+                placeholder="Nhập niên khoá"
+                {...register("year")}
+                error={errors.year?.message}
+              />
+            </div>
 
+            {/* Trụ sở */}
+            <div className="flex-1 flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700 px-1">
+                Trụ sở
+              </label>
+              <Controller
+                name="headquarters"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value || undefined}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Chọn trụ sở" />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1"
+                    >
+                      <SelectItem
+                        value="Nam Sài Gòn"
+                        className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700"
+                      >
+                        Nam Sài Gòn
+                      </SelectItem>
+                      <SelectItem
+                        value="Phân hiệu CSSĐ-NDT"
+                        className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700"
+                      >
+                        Phân hiệu CSSĐ-NDT
+                      </SelectItem>
+                      <SelectItem
+                        value="Phân hiệu CK"
+                        className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700"
+                      >
+                        Phân hiệu CK
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Thuộc khoa & Khóa */}
           <div className="flex gap-5 w-full">
             {/* Thuộc khoa */}
             <div className="flex-1 flex flex-col gap-1.5">
@@ -193,7 +248,7 @@ export default function ClassPopup({
                     onValueChange={field.onChange}
                     value={field.value || undefined}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-10">
                       <SelectValue placeholder="Chọn khoa" />
                     </SelectTrigger>
                     <SelectContent
@@ -223,7 +278,7 @@ export default function ClassPopup({
             {/* Khoá */}
             <div className="flex-1 flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700 px-1">
-                Khoá
+                Khoá <span className="text-red-500 ml-0.5">*</span>
               </label>
               <Controller
                 name="degreeLevel"
@@ -233,7 +288,7 @@ export default function ClassPopup({
                     onValueChange={field.onChange}
                     value={field.value || undefined}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-10">
                       <SelectValue placeholder="Chọn khoá" />
                     </SelectTrigger>
                     <SelectContent

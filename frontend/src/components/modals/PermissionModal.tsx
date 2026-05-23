@@ -10,6 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface PermissionModalProps {
   isOpen: boolean;
@@ -44,7 +47,7 @@ export default function PermissionModal({
     if (isOpen) {
       if (initialData && isEditing) {
         setFormData({
-          code: initialData.code || "",
+          code: (initialData.code || "").toUpperCase(),
           groupId: initialData.groupId || defaultGroupId || "",
           name: initialData.name || "",
           description: initialData.description || initialData.desc || "",
@@ -86,7 +89,7 @@ export default function PermissionModal({
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/\s+/g, "_")
-      .toLowerCase();
+      .toUpperCase();
 
     setFormData((prev) => ({ ...prev, code: cleanValue }));
     if (errors.code) {
@@ -172,94 +175,54 @@ export default function PermissionModal({
                   {/* Grid 2 Column */}
                   <div className="grid grid-cols-2 gap-4">
                     {/* Mã quyền */}
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-bold text-slate-700">
-                        Mã quyền <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="code"
-                        value={formData.code}
-                        onChange={handleCodeChange}
-                        placeholder="VD: view_report"
-                        className={`w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-400 ${
-                          errors.code
-                            ? "border-rose-300 focus:border-rose-500 bg-rose-50/50"
-                            : "border-slate-100 focus:border-blue-500"
-                        }`}
-                      />
-                      {errors.code && (
-                        <span className="text-xs font-medium text-rose-500">
-                          {errors.code}
-                        </span>
-                      )}
-                    </div>
+                    <Input
+                      label="Mã quyền"
+                      required
+                      error={errors.code}
+                      type="text"
+                      name="code"
+                      value={formData.code}
+                      onChange={handleCodeChange}
+                      placeholder="VD: view_report"
+                      containerClassName="w-full"
+                      className="bg-[#f8fafc] "
+                    />
 
                     {/* Thuộc nhóm */}
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-bold text-slate-700">
-                        Thuộc nhóm <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Select
-                          value={formData.groupId}
-                          onValueChange={handleSelectChange}
-                        >
-                          <SelectTrigger
-                            className={`w-full h-[46px] px-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium text-slate-700 transition-all shadow-none focus:ring-blue-500/20 data-[state=open]:border-blue-500 ${
-                              errors.groupId
-                                ? "border-rose-300 focus:border-rose-500 bg-rose-50/50"
-                                : ""
-                            }`}
-                          >
-                            <SelectValue placeholder="Chọn nhóm quyền" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.08)] border-slate-100 z-[60]">
-                            <SelectGroup>
-                              {groups.map((g) => (
-                                <SelectItem
-                                  key={g.id}
-                                  value={g.id}
-                                  className="text-sm font-medium text-slate-700 cursor-pointer focus:bg-slate-50 focus:text-blue-700 py-2.5"
-                                >
-                                  {g.name}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {errors.groupId && (
-                        <span className="text-xs font-medium text-rose-500">
-                          {errors.groupId}
-                        </span>
-                      )}
-                    </div>
+                    <Select
+                      label="Thuộc nhóm"
+                      required
+                      error={errors.groupId}
+                      value={formData.groupId}
+                      onValueChange={handleSelectChange}
+                    >
+                      <SelectTrigger className="h-10 bg-[#f8fafc] border-slate-200/60">
+                        <SelectValue placeholder="Chọn nhóm quyền" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[60]">
+                        <SelectGroup>
+                          {groups.map((g) => (
+                            <SelectItem key={g.id} value={g.id}>
+                              {g.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Tên quyền */}
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-bold text-slate-700">
-                      Tên quyền <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      placeholder="VD: Xem báo cáo thống kê"
-                      className={`w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-400 ${
-                        errors.name
-                          ? "border-rose-300 focus:border-rose-500 bg-rose-50/50"
-                          : "border-slate-100 focus:border-blue-500"
-                      }`}
-                    />
-                    {errors.name && (
-                      <span className="text-xs font-medium text-rose-500">
-                        {errors.name}
-                      </span>
-                    )}
-                  </div>
+                  <Input
+                    label="Tên quyền"
+                    required
+                    error={errors.name}
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="VD: Xem báo cáo thống kê"
+                    className="bg-[#f8fafc]"
+                  />
 
                   {/* Mô tả chi tiết */}
                   <div className="flex flex-col gap-2">
@@ -280,32 +243,23 @@ export default function PermissionModal({
 
               {/* Footer */}
               <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-white shrink-0">
-                <button
+                <Button
                   type="button"
+                  variant="cancel"
                   onClick={onClose}
-                  className="px-6 py-2.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors"
                 >
                   Hủy bỏ
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   form="permission-form"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-600/20 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
                 >
-                  {isSubmitting ? (
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{
-                        duration: 1,
-                        repeat: Infinity,
-                        ease: "linear",
-                      }}
-                      className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                    />
-                  ) : null}
+                  {isSubmitting && (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  )}
                   Lưu Quyền
-                </button>
+                </Button>
               </div>
             </motion.div>
           </div>

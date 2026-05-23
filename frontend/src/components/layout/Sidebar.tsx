@@ -12,6 +12,7 @@ import {
   Shield,
   ChevronLeft,
   Settings,
+  Compass,
 } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { authApi } from "@/api/auth-api";
@@ -46,6 +47,7 @@ const allMenuItems = [
   { icon: Building2, label: "Quản lý KTX", href: "/dormitory" },
   { icon: GraduationCap, label: "Hệ thống chấm điểm", href: "/grading" },
   { icon: BarChart3, label: "Thống kê báo cáo", href: "/reports" },
+  { icon: Compass, label: "Câu lạc bộ", href: "/club" },
   { icon: Shield, label: "Phân quyền", href: "/permissions" },
 ];
 

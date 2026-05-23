@@ -13,7 +13,7 @@ interface BreadcrumbProps {
 export default function Breadcrumb({ customMappings = {} }: BreadcrumbProps) {
   const pathname = usePathname();
   const params = useParams();
-  
+
   const pathSegments = pathname.split('/').filter(segment => segment !== '');
 
   // Helper to get human-readable labels for IDs
@@ -41,6 +41,7 @@ export default function Breadcrumb({ customMappings = {} }: BreadcrumbProps) {
       'dormitory': 'Quản lý KTX',
       'reports': 'Thống kê báo cáo',
       'permissions': 'Phân quyền',
+      'club': 'Câu lạc bộ'
     };
 
     return staticLabels[segment] || segment;
@@ -52,8 +53,8 @@ export default function Breadcrumb({ customMappings = {} }: BreadcrumbProps) {
     <nav className="flex items-center text-sm font-medium" aria-label="Breadcrumb">
       <ol className="flex items-center space-x-2">
         <li>
-          <Link 
-            href="/" 
+          <Link
+            href="/"
             className="text-gray-400 hover:text-[#135bec] transition-colors flex items-center gap-1.5"
           >
             <Home size={16} />

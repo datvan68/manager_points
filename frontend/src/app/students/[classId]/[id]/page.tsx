@@ -7,21 +7,22 @@ import Header from '@/components/layout/Header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StudentAvatar } from '@/components/ui/StudentAvatar';
 import { motion } from 'framer-motion';
-import { 
-  ArrowLeft, 
-  Check, 
-  Pen, 
-  ChevronDown, 
-  ShieldCheck, 
-  Star, 
+import { Button } from '@/components/ui/button';
+import {
+  ArrowLeft,
+  Check,
+  Pen,
+  ChevronDown,
+  ShieldCheck,
+  Star,
   MinusCircle,
   Settings,
   Calendar
 } from 'lucide-react';
-import { 
-  classes, 
-  mockRecords, 
-  mockCategories 
+import {
+  classes,
+  mockRecords,
+  mockCategories
 } from '@/lib/mock-data/students';
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
@@ -130,7 +131,7 @@ export default function StudentProfilePage() {
               <div className="flex flex-col gap-[24px]">
                 {/* Stats row skeleton */}
                 <Skeleton className="w-full h-[80px] rounded-[16px]" />
-                
+
                 {/* Tabs Container Skeleton */}
                 <div className="bg-[#f9fafb] flex flex-col rounded-[24px] shadow-sm overflow-hidden w-full h-[722px]">
                   {/* Tab header skeleton */}
@@ -164,7 +165,7 @@ export default function StudentProfilePage() {
             <div className="text-center flex flex-col items-center gap-4">
               <p className="text-[20px] font-bold text-slate-800">Không tìm thấy sinh viên</p>
               <p className="text-[14px] text-slate-500">Mã sinh viên <strong>{studentId}</strong> không tồn tại trong hệ thống.</p>
-              <button 
+              <button
                 onClick={() => router.push(`/students/${classId}`)}
                 className="mt-4 px-6 py-3 bg-[#135bec] text-white rounded-[12px] font-semibold hover:bg-blue-700 transition-colors"
               >
@@ -182,17 +183,17 @@ export default function StudentProfilePage() {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.full_name : studentId }} />
-        
-        <motion.main 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
+
+        <motion.main
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
           className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-[73px]"
         >
           {/* ═══ MainHeader ═══ Figma: 1280x81, HORIZONTAL, SPACE_BETWEEN, pad 16 24 */}
           <div className="sticky top-0 z-10 backdrop-blur-[6px] bg-[rgba(255,255,255,0.92)] border-b border-[#f3f4f6] flex items-center justify-between py-[16px] px-[24px] w-full">
             <div className="flex gap-[16px] items-center">
-              <button 
+              <button
                 onClick={() => router.push(`/students/${classId}`)}
                 className="w-[40px] h-[40px] flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -207,40 +208,36 @@ export default function StudentProfilePage() {
                 </p>
               </div>
             </div>
-            
+
             {/* Figma: 183x44, bg #135bec, radius 12, pad 10 24, gap 8 */}
-            <button 
+            <Button
               onClick={handleSave}
-              className="relative bg-[#135bec] rounded-[12px] flex gap-[8px] items-center px-[24px] py-[10px] hover:bg-blue-700 transition-colors cursor-pointer"
             >
-              <div className="absolute inset-0 rounded-[12px] shadow-[0px_10px_15px_-3px_#bfdbfe,0px_4px_6px_-4px_#bfdbfe] pointer-events-none" />
-              <Check className="w-[20px] h-[20px] text-white" />
-              <span className="font-sans font-bold text-[16px] text-white leading-[24px]">
-                Lưu Thay Đổi
-              </span>
-            </button>
+              <Check className="w-[20px] h-[20px]" />
+              Lưu Thay Đổi
+            </Button>
           </div>
 
           {/* ═══ Main Content ═══ Figma: 1200x830, CSS GRID */}
           <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-[24px] w-full max-w-7xl px-4 sm:px-6 mt-[12px]">
-            
+
             {/* ═══ LEFT COLUMN ═══ Figma: 481px, VERTICAL, gap 32 */}
             <div className="flex flex-col gap-[32px] pb-[40px]">
-              
+
               {/* ── Profile Picture Upload Area ── Figma: 481x144, HORIZONTAL, gap 24, pad 24, radius 24 */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
                 className="bg-[#f9fafb] flex items-center gap-[24px] p-[24px] rounded-[24px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-full"
               >
                 {/* Avatar Container — Figma: 96x96 */}
                 <div className="relative shrink-0">
                   <div className="relative rounded-[16px] shadow-[0px_0px_0px_4px_white,0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] w-[96px] h-[96px] overflow-hidden group cursor-pointer">
-                    <StudentAvatar 
-                      fullName={student.full_name} 
-                      sizeClass="w-full h-full" 
-                      className="rounded-[16px]" 
+                    <StudentAvatar
+                      fullName={student.full_name}
+                      sizeClass="w-full h-full"
+                      className="rounded-[16px]"
                       textClassName="text-3xl font-extrabold"
                     />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-[16px]">
@@ -271,9 +268,9 @@ export default function StudentProfilePage() {
               </motion.div>
 
               {/* ── Personal Information Section ── Figma: 481x271, VERTICAL, gap 24, pad 24, radius 24 */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.2 }}
                 className="bg-[#f9fafb] flex flex-col gap-[24px] p-[24px] rounded-[24px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-full"
               >
@@ -290,7 +287,7 @@ export default function StudentProfilePage() {
                     <Settings className="w-[15px] h-[15px] text-[#9ca3af]" />
                   </button>
                 </div>
-                
+
                 {/* Info rows — Figma: VERTICAL, gap 15.8 */}
                 <div className="flex flex-col gap-[16px] w-full">
                   {personalInfoRows.map((row, idx) => (
@@ -307,9 +304,9 @@ export default function StudentProfilePage() {
               </motion.div>
 
               {/* ── Academic Information Section ── Figma: 481x198, VERTICAL, gap 24, pad 24, radius 24 */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.3 }}
                 className="bg-[#f9fafb] flex flex-col gap-[24px] p-[24px] rounded-[24px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-full"
               >
@@ -325,7 +322,7 @@ export default function StudentProfilePage() {
                     <Settings className="w-[15px] h-[15px] text-[#9ca3af]" />
                   </button>
                 </div>
-                
+
                 {/* Info rows — Figma: VERTICAL, gap 15.8 */}
                 <div className="flex flex-col gap-[16px] w-full">
                   {academicInfoRows.map((row, idx) => (
@@ -345,11 +342,11 @@ export default function StudentProfilePage() {
 
             {/* ═══ RIGHT COLUMN ═══ Figma: 687px, VERTICAL, gap 24 */}
             <div className="flex flex-col gap-[24px]">
-              
+
               {/* ── Summary Stats Cards ── Figma: 687x80, CSS GRID 3 cols, each 218x80 */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.15 }}
                 className="grid grid-cols-3 gap-[16px] w-full"
               >
@@ -361,10 +358,10 @@ export default function StudentProfilePage() {
                   <div className="flex flex-col">
                     <p className="font-sans font-bold text-[#2563eb] text-[10px] tracking-[0.5px] uppercase leading-[15px]">Điểm rèn luyện</p>
                     <p className="font-sans font-bold text-[#1e3a8a] text-[20px] leading-[25px]">
-                      {student?.training_point_id?.score != null 
-                        ? (student.training_point_id.score > 100 
-                          ? Math.round(student.training_point_id.score / 100) 
-                          : student.training_point_id.score) 
+                      {student?.training_point_id?.score != null
+                        ? (student.training_point_id.score > 100
+                          ? Math.round(student.training_point_id.score / 100)
+                          : student.training_point_id.score)
                         : 0}/100
                     </p>
                   </div>
@@ -394,9 +391,9 @@ export default function StudentProfilePage() {
               </motion.div>
 
               {/* ── Records History Container ── Figma: 687x722, VERTICAL, bg #f9fafb, radius 24 */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.25 }}
                 className="bg-[#f9fafb] flex flex-col rounded-[24px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] overflow-hidden w-full h-[722px]"
               >
@@ -404,36 +401,32 @@ export default function StudentProfilePage() {
                 <div className="border-b border-[#f3f4f6] px-[32px] pt-[32px] w-full shrink-0">
                   <div className="flex items-center gap-[24px]">
                     {/* Tab 1: Danh mục — Figma: Lexend 500 14px active #135bec, border-bottom 1px when active */}
-                    <button 
+                    <button
                       onClick={() => handleTabChange('category')}
-                      className={`pb-[16px] border-b transition-colors cursor-pointer ${
-                        activeTab === 'category' 
-                          ? 'border-[#135bec]' 
-                          : 'border-transparent'
-                      }`}
+                      className={`pb-[16px] border-b transition-colors cursor-pointer ${activeTab === 'category'
+                        ? 'border-[#135bec]'
+                        : 'border-transparent'
+                        }`}
                     >
-                      <span className={`font-sans text-[14px] leading-[20px] font-bold ${
-                        activeTab === 'category'
-                          ? 'text-[#135bec]'
-                          : 'text-[#595959]'
-                      }`}>
+                      <span className={`font-sans text-[14px] leading-[20px] font-bold ${activeTab === 'category'
+                        ? 'text-[#135bec]'
+                        : 'text-[#595959]'
+                        }`}>
                         Danh mục
                       </span>
                     </button>
                     {/* Tab 2: Lịch sử ghi nhận — Figma: Lexend 700 14px inactive #595959 */}
-                    <button 
+                    <button
                       onClick={() => handleTabChange('history')}
-                      className={`pb-[16px] border-b transition-colors cursor-pointer ${
-                        activeTab === 'history' 
-                          ? 'border-[#135bec]' 
-                          : 'border-transparent'
-                      }`}
+                      className={`pb-[16px] border-b transition-colors cursor-pointer ${activeTab === 'history'
+                        ? 'border-[#135bec]'
+                        : 'border-transparent'
+                        }`}
                     >
-                      <span className={`font-sans text-[14px] leading-[20px] font-bold ${
-                        activeTab === 'history'
-                          ? 'text-[#135bec]'
-                          : 'text-[#595959]'
-                      }`}>
+                      <span className={`font-sans text-[14px] leading-[20px] font-bold ${activeTab === 'history'
+                        ? 'text-[#135bec]'
+                        : 'text-[#595959]'
+                        }`}>
                         Lịch sử ghi nhận
                       </span>
                     </button>
@@ -441,7 +434,7 @@ export default function StudentProfilePage() {
                 </div>
 
                 {/* ─ Content Area ─ */}
-                <div 
+                <div
                   className="flex flex-col gap-[16px] px-[24px] pt-[24px] pb-[24px] w-full flex-1 min-h-0 overflow-y-auto"
                   style={{
                     scrollbarWidth: 'thin',
@@ -457,7 +450,7 @@ export default function StudentProfilePage() {
                   ) : activeTab === 'category' ? (
                     /* ─── Category List ─── Figma: VERTICAL, gap 16, pad 24 */
                     mockCategories.map((cat, idx) => (
-                      <motion.div 
+                      <motion.div
                         key={cat.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -465,7 +458,7 @@ export default function StudentProfilePage() {
                         className="bg-white border border-[#f1f5f9] rounded-[12px] w-full  shadow-[0px_1px_2px_0px_rgba(0,0,0,0.02)]"
                       >
                         {/* Card Header — Figma: HORIZONTAL, SPACE_BETWEEN, pad 20 */}
-                        <div 
+                        <div
                           className="flex items-center justify-between px-[20px] pt-[20px] pb-[20px] cursor-pointer hover:bg-slate-50/50 transition-colors"
                           onClick={() => setExpandedCategory(expandedCategory === cat.id ? null : cat.id)}
                         >
@@ -491,18 +484,18 @@ export default function StudentProfilePage() {
                           </p>
                         </div>
                         {/* Accordion Details → List — TOGGLE (Figma: VERTICAL, gap 8, padTop 20.6, border-top 1px) */}
-                        <motion.div 
+                        <motion.div
                           initial={false}
-                          animate={{ 
-                            height: expandedCategory === cat.id ? 'auto' : 0, 
-                            opacity: expandedCategory === cat.id ? 1 : 0 
+                          animate={{
+                            height: expandedCategory === cat.id ? 'auto' : 0,
+                            opacity: expandedCategory === cat.id ? 1 : 0
                           }}
                           transition={{ duration: 0.25 }}
                           className="overflow-hidden"
                         >
                           <div className="flex flex-col gap-[8px] px-[20px] pb-[20px] pt-[20px] border-t border-[#f1f5f9]">
                             {cat.items.map((item, itemIdx) => (
-                              <div 
+                              <div
                                 key={itemIdx}
                                 className="flex items-center justify-between px-[16px] py-[12px] bg-[#f9fafb] rounded-[8px] border border-[#f1f5f9]"
                               >
@@ -521,7 +514,7 @@ export default function StudentProfilePage() {
                   ) : (
                     /* ─── History List ─── Figma: Node 316:1314 */
                     mockRecords.map((record, idx) => (
-                      <motion.div 
+                      <motion.div
                         key={record.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -534,19 +527,17 @@ export default function StudentProfilePage() {
                             <h4 className="font-sans font-bold text-[#111827] text-[16px] leading-[24px] truncate">
                               {record.title}
                             </h4>
-                            <div className={`px-[10px] py-[2px] rounded-full border shrink-0 ${
-                              record.type === 'reward' 
-                                ? 'bg-[#f0fdf4] border-[#dcfce7]' 
-                                : 'bg-[#fef2f2] border-[#fee2e2]'
-                            }`}>
-                              <span className={`font-sans font-bold text-[10px] ${
-                                record.type === 'reward' ? 'text-[#15803d]' : 'text-[#b91c1c]'
+                            <div className={`px-[10px] py-[2px] rounded-full border shrink-0 ${record.type === 'reward'
+                              ? 'bg-[#f0fdf4] border-[#dcfce7]'
+                              : 'bg-[#fef2f2] border-[#fee2e2]'
                               }`}>
+                              <span className={`font-sans font-bold text-[10px] ${record.type === 'reward' ? 'text-[#15803d]' : 'text-[#b91c1c]'
+                                }`}>
                                 {record.label}
                               </span>
                             </div>
                           </div>
-                          
+
                           {/* Row 2: Metadata — Figma: HORIZONTAL, gap 24, Lexend 500 12px */}
                           <div className="flex items-center gap-[24px]">
                             <div className="flex items-center gap-[6px]">
@@ -569,9 +560,8 @@ export default function StudentProfilePage() {
                           <span className="font-sans font-bold text-[#9ca3af] text-[10px] leading-[15px] uppercase">
                             Điểm
                           </span>
-                          <span className={`font-sans font-bold text-[14px] leading-[20px] ${
-                            record.type === 'reward' ? 'text-[#16a34a]' : 'text-[#dc2626]'
-                          }`}>
+                          <span className={`font-sans font-bold text-[14px] leading-[20px] ${record.type === 'reward' ? 'text-[#16a34a]' : 'text-[#dc2626]'
+                            }`}>
                             {record.points}
                           </span>
                         </div>
@@ -584,8 +574,8 @@ export default function StudentProfilePage() {
                 <div className="bg-[#f9fafb] border-t border-[#f3f4f6] px-[24px] py-[24px] w-full shrink-0">
                   <div className="flex justify-center">
                     <span className="font-['Lexend',sans-serif] font-medium text-[#9ca3af] text-[12px]">
-                      {activeTab === 'category' 
-                        ? 'Danh sách các danh mục đánh giá điểm rèn luyện năm học 2024-2025.' 
+                      {activeTab === 'category'
+                        ? 'Danh sách các danh mục đánh giá điểm rèn luyện năm học 2024-2025.'
                         : 'Hiển thị 3 bản ghi khen thưởng gần nhất. Xem toàn bộ lịch sử trong báo cáo chi tiết.'}
                     </span>
                   </div>

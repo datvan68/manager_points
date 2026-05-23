@@ -15,6 +15,7 @@ interface SelectContextProps {
   selectedLabel: string;
   setSelectedLabel: (label: string) => void;
   openUp: boolean;
+  error?: string;
 }
 
 const SelectContext = React.createContext<SelectContextProps | undefined>(undefined);
@@ -31,7 +32,15 @@ const getChildText = (node: any): string => {
   return "";
 };
 
-export const Select = ({ children, value, onValueChange }: any) => {
+export const Select = ({
+  children,
+  value,
+  onValueChange,
+  label,
+  required,
+  error,
+  containerClassName,
+}: any) => {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedLabel, setSelectedLabel] = React.useState("");
@@ -95,10 +104,24 @@ export const Select = ({ children, value, onValueChange }: any) => {
         selectedLabel,
         setSelectedLabel,
         openUp,
+        error,
       }}
     >
-      <div ref={containerRef} className="relative w-full">
-        {children}
+      <div ref={containerRef} className={cn("flex flex-col gap-1.5 w-full", containerClassName)}>
+        {label && (
+          <label className="flex items-center gap-1 px-1 text-sm font-medium text-slate-700">
+            {label}
+            {required && <span className="text-red-500">*</span>}
+          </label>
+        )}
+        <div className="relative w-full">
+          {children}
+        </div>
+        {error && (
+          <p className="px-1 text-[12px] font-medium text-red-500 mt-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
+            {error}
+          </p>
+        )}
       </div>
     </SelectContext.Provider>
   );
@@ -117,7 +140,7 @@ export const SelectTrigger = React.forwardRef<any, any>(
     const context = React.useContext(SelectContext);
     if (!context) throw new Error("SelectTrigger must be used inside Select");
 
-    const { open, setOpen, searchQuery, setSearchQuery, selectedLabel } = context;
+    const { open, setOpen, searchQuery, setSearchQuery, selectedLabel, error } = context;
 
     // Extract placeholder text
     let placeholder = "Chọn...";
@@ -130,7 +153,8 @@ export const SelectTrigger = React.forwardRef<any, any>(
     return (
       <div
         className={cn(
-          "relative flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-[#f8fafc] px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all cursor-text",
+          "relative flex h-10 w-full items-center justify-between rounded-lg border border-slate-200 bg-[#f8fafc] px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all cursor-text",
+          error && "border-red-500 focus-within:ring-red-500/20 focus-within:border-red-500",
           className
         )}
         onClick={() => setOpen(true)}

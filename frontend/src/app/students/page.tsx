@@ -253,6 +253,7 @@ function StudentsPageContent() {
         name: cls.class_name,
         year: cls.class_year,
         class_type: cls.class_type,
+        headquarters: cls.headquarters || "",
         user_id:
           typeof cls.user_id === "string" ? cls.user_id : cls.user_id?._id || "",
         status: cls.class_name.includes("K44")
@@ -348,11 +349,10 @@ function StudentsPageContent() {
                           role="button"
                           tabIndex={0}
                           onClick={() => setSelectedDept(dept._id)}
-                          className={`w-full p-3 rounded-xl border text-left transition-all shrink-0 group flex flex-col cursor-pointer ${
-                            selectedDept === dept._id
-                              ? "bg-white border-primary shadow-md ring-1 ring-primary/10"
-                              : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm"
-                          }`}
+                          className={`w-full p-3 rounded-xl border text-left transition-all shrink-0 group flex flex-col cursor-pointer ${selectedDept === dept._id
+                            ? "bg-white border-primary shadow-md ring-1 ring-primary/10"
+                            : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm"
+                            }`}
                         >
                           <div className="flex items-start gap-3 w-full">
                             <div
@@ -379,15 +379,14 @@ function StudentsPageContent() {
                           </div>
 
                           <div
-                            className={`w-full flex items-center justify-end border-t overflow-hidden transition-all duration-300 ease-in-out ${
-                              selectedDept === dept._id
-                                ? "max-h-14 opacity-100 mt-3 pt-3 border-blue-100"
-                                : "max-h-0 opacity-0 mt-0 pt-0 border-transparent group-hover:max-h-14 group-hover:opacity-100 group-hover:mt-3 group-hover:pt-3 group-hover:border-gray-100"
-                            }`}
+                            className={`w-full flex items-center justify-end border-t overflow-hidden transition-all duration-300 ease-in-out ${selectedDept === dept._id
+                              ? "max-h-14 opacity-100 mt-3 pt-3 border-blue-100"
+                              : "max-h-0 opacity-0 mt-0 pt-0 border-transparent group-hover:max-h-14 group-hover:opacity-100 group-hover:mt-3 group-hover:pt-3 group-hover:border-gray-100"
+                              }`}
                           >
                             <div className="flex items-center gap-1">
                               <Action
-                                permissionEdit="dept_update"
+                                permissionEdit="DEPT_UPDATE"
                                 permissionDelete="DEPT_DELETE"
                                 onEdit={() => {
                                   setEditingDept(dept);
@@ -530,6 +529,7 @@ function StudentsPageContent() {
                                             year: cls.year,
                                             departmentId: selectedDept,
                                             degreeLevel: "Cao đẳng",
+                                            headquarters: cls.headquarters,
                                             teacherId: cls.user_id,
                                           });
                                           setIsClassPopupOpen(true);
@@ -540,21 +540,20 @@ function StudentsPageContent() {
                                         }}
                                       />
                                     </div>
-
+ 
                                     <div className="flex items-start justify-between">
                                       <div
-                                        className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${
-                                          cls.status === "Đang học"
-                                            ? "bg-[#f0fdf4] text-[#16a34a]"
-                                            : cls.status === "Sắp tốt nghiệp"
-                                              ? "bg-[#fff7ed] text-[#ea580c]"
-                                              : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
-                                        }`}
+                                        className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${cls.status === "Đang học"
+                                          ? "bg-[#f0fdf4] text-[#16a34a]"
+                                          : cls.status === "Sắp tốt nghiệp"
+                                            ? "bg-[#fff7ed] text-[#ea580c]"
+                                            : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
+                                          }`}
                                       >
                                         {cls.status}
                                       </div>
                                     </div>
-
+ 
                                     <div className="flex-1 mt-2">
                                       <h4
                                         className="text-[18px] font-bold text-[#1f2937] leading-[28px] line-clamp-1 group-hover:text-[#5519f0] transition-colors"
@@ -562,12 +561,22 @@ function StudentsPageContent() {
                                       >
                                         {cls.name}
                                       </h4>
-                                      <div className="flex items-center gap-[6px] text-[12px] text-[#9ca3af] mt-1 font-normal">
-                                        <CalendarIcon
-                                          size={14}
-                                          className="text-[#9ca3af]"
-                                        />
-                                        <span>{cls.year}</span>
+                                      <div className="flex items-center gap-[12px] text-[12px] text-[#9ca3af] mt-1 font-normal flex-wrap">
+                                        <div className="flex items-center gap-[6px]">
+                                          <CalendarIcon
+                                            size={14}
+                                            className="text-[#9ca3af]"
+                                          />
+                                          <span>{cls.year}</span>
+                                        </div>
+                                        {cls.headquarters && (
+                                          <>
+                                            <span>•</span>
+                                            <span className="bg-slate-100 text-slate-650 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                              {cls.headquarters}
+                                            </span>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
 
@@ -670,6 +679,7 @@ function StudentsPageContent() {
                                             year: cls.year,
                                             departmentId: selectedDept,
                                             degreeLevel: "Trung cấp",
+                                            headquarters: cls.headquarters,
                                             teacherId: cls.user_id,
                                           });
                                           setIsClassPopupOpen(true);
@@ -683,13 +693,12 @@ function StudentsPageContent() {
 
                                     <div className="flex items-start justify-between">
                                       <div
-                                        className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${
-                                          cls.status === "Đang học"
-                                            ? "bg-[#f0fdf4] text-[#16a34a]"
-                                            : cls.status === "Sắp tốt nghiệp"
-                                              ? "bg-[#fff7ed] text-[#ea580c]"
-                                              : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
-                                        }`}
+                                        className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${cls.status === "Đang học"
+                                          ? "bg-[#f0fdf4] text-[#16a34a]"
+                                          : cls.status === "Sắp tốt nghiệp"
+                                            ? "bg-[#fff7ed] text-[#ea580c]"
+                                            : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
+                                          }`}
                                       >
                                         {cls.status}
                                       </div>
@@ -702,12 +711,22 @@ function StudentsPageContent() {
                                       >
                                         {cls.name}
                                       </h4>
-                                      <div className="flex items-center gap-[6px] text-[12px] text-[#9ca3af] mt-1 font-normal">
-                                        <CalendarIcon
-                                          size={14}
-                                          className="text-[#9ca3af]"
-                                        />
-                                        <span>{cls.year}</span>
+                                      <div className="flex items-center gap-[12px] text-[12px] text-[#9ca3af] mt-1 font-normal flex-wrap">
+                                        <div className="flex items-center gap-[6px]">
+                                          <CalendarIcon
+                                            size={14}
+                                            className="text-[#9ca3af]"
+                                          />
+                                          <span>{cls.year}</span>
+                                        </div>
+                                        {cls.headquarters && (
+                                          <>
+                                            <span>•</span>
+                                            <span className="bg-slate-100 text-slate-650 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                              {cls.headquarters}
+                                            </span>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
 
@@ -796,7 +815,7 @@ function StudentsPageContent() {
         cancelLabel="Hủy"
         variant="danger"
       />
-      
+
     </div>
   );
 }
@@ -810,7 +829,7 @@ export default function StudentsPage() {
         </div>
       }
     >
-      <RouteGuard useDynamicMapping requiredPermission="student_page">
+      <RouteGuard useDynamicMapping requiredPermission="STUDENT_PAGE">
         <StudentsPageContent />
       </RouteGuard>
     </Suspense>

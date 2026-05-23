@@ -10,6 +10,7 @@ export interface Class {
   dept_id: Department | string;
   user_id?: any;
   class_type: 'Trung cấp' | 'Cao đẳng';
+  headquarters?: 'Nam Sài Gòn' | 'Phân hiệu CSSĐ-NDT' | 'Phân hiệu CK';
   createdAt?: string;
   updatedAt?: string;
 }
