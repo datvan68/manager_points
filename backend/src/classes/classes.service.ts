@@ -9,7 +9,7 @@ import { UpdateClassDto } from './dto/update-class.dto';
 export class ClassesService {
     constructor(
         @InjectModel(Class.name) private classModel: Model<ClassDocument>,
-    ) {}
+    ) { }
 
     async create(createClassDto: CreateClassDto): Promise<Class> {
         const newClass = new this.classModel(createClassDto);
@@ -20,7 +20,7 @@ export class ClassesService {
         return this.classModel
             .find()
             .populate('dept_id', 'name code')
-            .populate('user_id', 'username email')
+            .populate('user_id', 'user_name email')
             .exec();
     }
 
@@ -28,9 +28,9 @@ export class ClassesService {
         const classEntity = await this.classModel
             .findById(id)
             .populate('dept_id', 'name code')
-            .populate('user_id', 'username email')
+            .populate('user_id', 'user_name email')
             .exec();
-            
+
         if (!classEntity) {
             throw new NotFoundException(`Class with ID ${id} not found`);
         }
@@ -41,9 +41,9 @@ export class ClassesService {
         const updatedClass = await this.classModel
             .findByIdAndUpdate(id, updateClassDto, { returnDocument: 'after' })
             .populate('dept_id', 'name code')
-            .populate('user_id', 'username email')
+            .populate('user_id', 'user_name email')
             .exec();
-            
+
         if (!updatedClass) {
             throw new NotFoundException(`Class with ID ${id} not found`);
         }

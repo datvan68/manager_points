@@ -10,6 +10,11 @@ export enum ClassType {
   CAO_DANG = 'Cao đẳng',
 }
 
+export enum Headquarters {
+  PHAN_HIEU_CSSD = 'Phân hiệu CSSĐ-NDT',
+  PHAN_HIEU_CK = 'Phân hiệu CK'
+}
+
 @Schema({ timestamps: true })
 export class Class {
   @Prop({ required: true })
@@ -26,6 +31,9 @@ export class Class {
 
   @Prop({ enum: ClassType, required: true })
   class_type: ClassType;
+
+  @Prop({ enum: Headquarters })
+  headquarters: Headquarters;
 }
 
 export const ClassSchema = SchemaFactory.createForClass(Class);

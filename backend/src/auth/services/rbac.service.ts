@@ -37,10 +37,14 @@ export class RbacService {
   }
 
   async createPermission(dto: CreatePermissionDto) {
-    const existing = await this.permissionModel.findOne({ code: dto.code });
+    const codeUpper = (dto.code || '').toUpperCase();
+    const existing = await this.permissionModel.findOne({ code: codeUpper });
     if (existing) throw new ConflictException('Mã quyền này đã tồn tại');
 
-    const permission = await this.permissionModel.create(dto);
+    const permission = await this.permissionModel.create({
+      ...dto,
+      code: codeUpper,
+    });
 
     if (dto.groupId && Types.ObjectId.isValid(dto.groupId)) {
       await this.permissionGroupModel.findByIdAndUpdate(
@@ -59,9 +63,10 @@ export class RbacService {
     if (!permission) throw new BadRequestException('Quyền không tồn tại');
 
     if (dto.code) {
-      const existing = await this.permissionModel.findOne({ code: dto.code, _id: { $ne: id } });
+      const codeUpper = dto.code.toUpperCase();
+      const existing = await this.permissionModel.findOne({ code: codeUpper, _id: { $ne: id } });
       if (existing) throw new ConflictException('Mã quyền này đã tồn tại');
-      permission.code = dto.code;
+      permission.code = codeUpper;
     }
 
     if (dto.name) permission.name = dto.name;

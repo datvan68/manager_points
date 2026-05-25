@@ -39,7 +39,7 @@ const formSchema = z.object({
   year: z.string().min(1, { message: "Niên khóa bắt buộc nhập." }),
   departmentId: z.string().min(1, { message: "Vui lòng chọn khoa." }),
   degreeLevel: z.string().min(1, { message: "Vui lòng chọn khoá." }),
-  headquarters: z.enum(['Nam Sài Gòn', 'Phân hiệu CSSĐ-NDT', 'Phân hiệu CK']).optional().or(z.literal("")),
+  headquarters: z.enum(['Phân hiệu CSSĐ-NDT', 'Phân hiệu CK']).optional().or(z.literal("")),
   teacherId: z.string().optional(),
 });
 
@@ -67,7 +67,7 @@ export default function ClassPopup({
       year: "",
       departmentId: "",
       degreeLevel: "Trung cấp",
-      headquarters: "Nam Sài Gòn",
+      headquarters: "",
       teacherId: "",
     },
   });
@@ -102,7 +102,7 @@ export default function ClassPopup({
           year: initialData.year || "",
           departmentId: initialData.departmentId || "",
           degreeLevel: initialData.degreeLevel || "Trung cấp",
-          headquarters: initialData.headquarters || "Nam Sài Gòn",
+          headquarters: initialData.headquarters || "",
           teacherId: extractedTeacherId,
         });
       } else {
@@ -111,7 +111,7 @@ export default function ClassPopup({
           year: "",
           departmentId: "",
           degreeLevel: "Trung cấp",
-          headquarters: "Nam Sài Gòn",
+          headquarters: "",
           teacherId: "",
         });
       }
@@ -197,8 +197,8 @@ export default function ClassPopup({
                 control={control}
                 render={({ field }) => (
                   <Select
-                    onValueChange={field.onChange}
-                    value={field.value || undefined}
+                    onValueChange={(val) => field.onChange(val === "none" ? "" : val)}
+                    value={field.value || "none"}
                   >
                     <SelectTrigger className="h-10">
                       <SelectValue placeholder="Chọn trụ sở" />
@@ -208,10 +208,10 @@ export default function ClassPopup({
                       className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1"
                     >
                       <SelectItem
-                        value="Nam Sài Gòn"
-                        className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700"
+                        value="none"
+                        className="rounded-md cursor-pointer text-slate-400 focus:bg-slate-50 focus:text-slate-600"
                       >
-                        Nam Sài Gòn
+                        -- Không chọn --
                       </SelectItem>
                       <SelectItem
                         value="Phân hiệu CSSĐ-NDT"
@@ -330,8 +330,8 @@ export default function ClassPopup({
               render={({ field }) => (
                 <Select
                   key={users.length}
-                  onValueChange={field.onChange}
-                  value={field.value || undefined}
+                  onValueChange={(val) => field.onChange(val === "none" ? "" : val)}
+                  value={field.value || "none"}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Chọn giáo viên chủ nhiệm" />
@@ -340,6 +340,12 @@ export default function ClassPopup({
                     position="popper"
                     className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1"
                   >
+                    <SelectItem
+                      value="none"
+                      className="rounded-md cursor-pointer text-slate-400 focus:bg-slate-50 focus:text-slate-600"
+                    >
+                      -- Không chọn --
+                    </SelectItem>
                     {users.map((u) => {
                       const displayName = `${u.user_name || u.username || "Chưa rõ tên"} (${u.email || "Không có email"})`;
                       return (
