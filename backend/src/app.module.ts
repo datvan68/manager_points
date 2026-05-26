@@ -14,6 +14,8 @@ import { ClassesModule } from './classes/classes.module';
 import { StudentsModule } from './students/students.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './core/mail/mail.module';
+import { CategoriesModule } from './categories/categories.module';
+import { CriteriaModule } from './criteria/criteria.module';
 
 @Module({
   imports: [
@@ -51,6 +53,8 @@ import { MailModule } from './core/mail/mail.module';
     StudentsModule,
     AuthModule,
     MailModule,
+    CategoriesModule,
+    CriteriaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

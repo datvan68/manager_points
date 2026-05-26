@@ -83,10 +83,10 @@ export default function GradingPage() {
 
   // States cho việc thu gọn/mở rộng các danh mục
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
-    'CAT001': true,
-    'CAT002': true,
-    'CAT003': true,
-    'CAT004': true
+    'CAT001': false,
+    'CAT002': false,
+    'CAT003': false,
+    'CAT004': false
   });
 
   // Ref để lưu trữ timeout tự động mở rộng khi kéo đè tiêu chí lên danh mục đang thu gọn
@@ -212,6 +212,12 @@ export default function GradingPage() {
         }
       }
     }
+    // Nếu kéo category-id (danh mục) để điều chỉnh vị trí
+    else if (e.dataTransfer.types.includes('category-id')) {
+      if (dragOverCategoryId !== categoryId) {
+        setDragOverCategoryId(categoryId);
+      }
+    }
   };
 
   const handleDragLeave = (categoryId: string) => {
@@ -224,7 +230,10 @@ export default function GradingPage() {
 
   const handleDrop = (e: React.DragEvent, targetCatId: string) => {
     e.preventDefault();
+    e.stopPropagation(); // Ngăn chặn sự kiện nổi bọt lên column drop zone!
+
     const criteriaId = e.dataTransfer.getData('criteria-id') || draggingCriteriaId;
+    const draggedCatId = e.dataTransfer.getData('category-id') || draggingCategoryId;
     
     // Clear timeout for target
     if (dragTimeoutRef.current[targetCatId]) {
@@ -232,6 +241,7 @@ export default function GradingPage() {
       delete dragTimeoutRef.current[targetCatId];
     }
 
+    // Trường hợp 1: Kéo thả tiêu chí (Criteria) vào danh mục
     if (criteriaId) {
       const draggedItem = criteria.find(c => c.id === criteriaId);
       if (draggedItem) {
@@ -249,6 +259,28 @@ export default function GradingPage() {
         );
 
         toast.success(`Đã chuyển tiêu chí "${draggedItem.name}" sang danh mục "${targetCat?.name || ''}"!`);
+      }
+    }
+    // Trường hợp 2: Kéo thả danh mục (Category) đè lên một danh mục khác để thay đổi vị trí
+    else if (draggedCatId && draggedCatId !== targetCatId) {
+      const draggedCat = categories.find(c => c.id === draggedCatId);
+      const targetCat = categories.find(c => c.id === targetCatId);
+
+      if (draggedCat && targetCat) {
+        // Lọc bỏ danh mục bị kéo khỏi mảng hiện tại
+        const filtered = categories.filter(c => c.id !== draggedCatId);
+        // Tìm vị trí của danh mục đích (target) trong mảng đã lọc
+        const targetIdx = filtered.findIndex(c => c.id === targetCatId);
+
+        // Cập nhật lại cột của danh mục bị kéo trùng với cột của danh mục đích
+        const updatedDraggedCat = { ...draggedCat, columnId: targetCat.columnId };
+
+        // Chèn danh mục bị kéo vào vị trí ngay trước danh mục đích
+        const newCategories = [...filtered];
+        newCategories.splice(targetIdx, 0, updatedDraggedCat);
+
+        setCategories(newCategories);
+        toast.success(`Đã thay đổi thứ tự của danh mục "${draggedCat.name}"!`);
       }
     }
     setDragOverCategoryId(null);
@@ -736,9 +768,9 @@ export default function GradingPage() {
                                                       />
                                                     </div>
                                                   </div>
-                                                  <div className="max-h-0 opacity-0 overflow-hidden group-hover:max-h-[40px] group-hover:opacity-100 transition-all duration-300 ease-in-out border-t border-slate-50 pt-2 flex items-center justify-between w-full">
+                                                  <div className="border-t border-slate-50 pt-2 flex items-center justify-between w-full">
                                                     <span className="text-[10px] font-semibold text-slate-500">Dải điểm: {item.minPoints} - {item.maxPoints}</span>
-                                                    <div className="flex gap-2 items-center"><button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer" title="Sửa tiêu chí"><Pencil size={12} strokeWidth={2.5} /></button><button onClick={(e) => { e.stopPropagation(); setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer" title="Xóa tiêu chí"><Trash2 size={12} strokeWidth={2.5} /></button></div>
+                                                    <div className="flex gap-2 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Sửa tiêu chí"><Pencil size={14} strokeWidth={2.5} /></button><button onClick={(e) => { e.stopPropagation(); setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Xóa tiêu chí"><Trash2 size={14} strokeWidth={2.5} /></button></div>
                                                   </div>
                                                 </div>
                                               </motion.div>
@@ -850,9 +882,9 @@ export default function GradingPage() {
                                                       />
                                                     </div>
                                                   </div>
-                                                  <div className="max-h-0 opacity-0 overflow-hidden group-hover:max-h-[40px] group-hover:opacity-100 transition-all duration-300 ease-in-out border-t border-slate-50 pt-2 flex items-center justify-between w-full">
+                                                  <div className="border-t border-slate-50 pt-2 flex items-center justify-between w-full">
                                                     <span className="text-[10px] font-semibold text-slate-500">Dải điểm: {item.minPoints} - {item.maxPoints}</span>
-                                                    <div className="flex gap-2 items-center"><button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer" title="Sửa tiêu chí"><Pencil size={12} strokeWidth={2.5} /></button><button onClick={(e) => { e.stopPropagation(); setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer" title="Xóa tiêu chí"><Trash2 size={12} strokeWidth={2.5} /></button></div>
+                                                    <div className="flex gap-2 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Sửa tiêu chí"><Pencil size={14} strokeWidth={2.5} /></button><button onClick={(e) => { e.stopPropagation(); setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Xóa tiêu chí"><Trash2 size={14} strokeWidth={2.5} /></button></div>
                                                   </div>
                                                 </div>
                                               </motion.div>
