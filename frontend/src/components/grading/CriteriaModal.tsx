@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, BarChart3, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
+import { Input } from '../ui/Input';
+
 
 interface CriteriaModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface CriteriaModalProps {
   isEditing?: boolean;
   initialData?: any;
   categories: any[];
+  criteria?: any[];
   onSave?: (data: any) => void;
   defaultCategoryId?: string;
 }
@@ -22,6 +25,7 @@ export default function CriteriaModal({
   isEditing = false,
   initialData = null,
   categories = [],
+  criteria = [],
   onSave,
   defaultCategoryId = ''
 }: CriteriaModalProps) {
@@ -67,15 +71,35 @@ export default function CriteriaModal({
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = 'Vui lòng nhập tên tiêu chí';
     if (!formData.categoryId) newErrors.categoryId = 'Vui lòng chọn danh mục';
-    
+
     if (formData.minPoints > formData.maxPoints) {
       newErrors.minPoints = 'Điểm tối thiểu không được lớn hơn điểm tối đa';
+    }
+
+    if (formData.points > formData.maxPoints) {
+      newErrors.points = 'Bước nhảy điểm không được lớn hơn điểm tối đa';
+    }
+
+    // Kiểm tra tổng max điểm của các tiêu chí trong danh mục không vượt quá điểm tối đa của danh mục đó
+    const parentCat = categories.find(cat => cat.id === formData.categoryId);
+    if (parentCat) {
+      const siblingCriteria = criteria.filter(c => c.categoryId === formData.categoryId && c.id !== formData.id);
+      const siblingMaxPointsTotal = siblingCriteria.reduce((sum, c) => sum + (c.maxPoints || 0), 0);
+      const totalMaxPoints = siblingMaxPointsTotal + formData.maxPoints;
+
+      if (totalMaxPoints > parentCat.maxPoints) {
+        newErrors.maxPoints = `Tổng điểm tối đa tiêu chí (${totalMaxPoints}đ) vượt quá điểm tối đa danh mục "${parentCat.name}" (${parentCat.maxPoints}đ)`;
+      }
     }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       if (newErrors.minPoints) {
         toast.error(newErrors.minPoints);
+      } else if (newErrors.maxPoints) {
+        toast.error(newErrors.maxPoints);
+      } else if (newErrors.points) {
+        toast.error(newErrors.points);
       } else {
         toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
       }
@@ -133,7 +157,7 @@ export default function CriteriaModal({
                     </p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={onClose}
                   className="flex items-center justify-center p-[8px] rounded-full hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-all duration-200"
                 >
@@ -155,9 +179,8 @@ export default function CriteriaModal({
                     onValueChange={(val: string) => setFormData({ ...formData, categoryId: val })}
                     error={errors.categoryId}
                   >
-                    <SelectTrigger className={`w-full px-[16px] py-[12px] h-[48px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[16px] font-normal text-[#0f172a] focus-within:ring-4 focus-within:ring-blue-100/50 ${
-                      errors.categoryId ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : ''
-                    }`}>
+                    <SelectTrigger className={`w-full px-[16px] py-[12px] h-[48px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[16px] font-normal text-[#0f172a] focus-within:ring-4 focus-within:ring-blue-100/50 ${errors.categoryId ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : ''
+                      }`}>
                       <SelectValue placeholder="Chọn danh mục" />
                     </SelectTrigger>
                     <SelectContent>
@@ -171,22 +194,16 @@ export default function CriteriaModal({
                 </div>
 
                 {/* Tên tiêu chí */}
-                <div className="flex flex-col gap-[8px] items-start w-full">
-                  <div className="pl-[4px]">
-                    <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
-                      Tên tiêu chí <span className="text-[#ef4444]">*</span>
-                    </label>
-                  </div>
-                  <textarea 
-                    placeholder="Nhập tên chi tiết cho tiêu chí này..."
-                    rows={3}
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className={`w-full pb-[60px] pt-[12px] px-[16px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none resize-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${
-                      errors.name ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : ''
-                    }`}
-                  />
-                </div>
+                <Input
+                  label="Tên tiêu chí"
+                  required
+                  error={errors.name}
+                  placeholder="Nhập tên chi tiết cho tiêu chí này..."
+                  multiline
+                  rows={3}
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
 
                 {/* Loại điểm */}
                 <div className="flex flex-col gap-[8px] items-start w-full">
@@ -220,33 +237,27 @@ export default function CriteriaModal({
                       </label>
                     </div>
                     <div className="flex gap-[8px] items-center w-full">
-                      <input 
+                      <input
                         type="number"
                         min={0}
                         placeholder="Min"
                         value={formData.minPoints}
                         onChange={(e) => setFormData({ ...formData, minPoints: Number(e.target.value) })}
-                        className={`w-full h-[48px] text-center bg-[#f8fafc] border rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${
-                          errors.minPoints ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : 'border-[rgba(0,0,0,0.05)]'
-                        }`}
+                        className={`w-full h-[48px] text-center bg-[#f8fafc] border rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${errors.minPoints ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : 'border-[rgba(0,0,0,0.05)]'
+                          }`}
                       />
                       <span className="text-[#94a3b8] text-[16px] font-normal select-none">−</span>
-                      <input 
+                      <input
                         type="number"
                         min={0}
                         placeholder="Max"
                         value={formData.maxPoints}
                         onChange={(e) => setFormData({ ...formData, maxPoints: Number(e.target.value) })}
-                        className={`w-full h-[48px] text-center bg-[#f8fafc] border rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${
-                          errors.minPoints ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : 'border-[rgba(0,0,0,0.05)]'
-                        }`}
+                        className={`w-full h-[48px] text-center bg-[#f8fafc] border rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${errors.minPoints || errors.maxPoints ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : 'border-[rgba(0,0,0,0.05)]'
+                          }`}
                       />
                     </div>
-                    {errors.minPoints && (
-                      <p className="text-[12px] font-medium text-red-500 mt-1 pl-[4px]">
-                        {errors.minPoints}
-                      </p>
-                    )}
+
                   </div>
 
                   {/* Bước nhảy điểm */}
@@ -256,28 +267,34 @@ export default function CriteriaModal({
                         Bước nhảy điểm
                       </label>
                     </div>
-                    <input 
+                    <input
                       type="number"
                       min={0.5}
                       step={0.5}
                       placeholder="Ví dụ: 0.5 hoặc 1"
                       value={formData.points}
                       onChange={(e) => setFormData({ ...formData, points: Number(e.target.value) })}
-                      className="w-full px-[16px] py-[12px] h-[48px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50"
+                      className={`w-full px-[16px] py-[12px] h-[48px] bg-[#f8fafc] border rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${errors.points ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : 'border-[rgba(0,0,0,0.05)]'
+                        }`}
                     />
+                    {errors.points && (
+                      <p className="text-[12px] font-medium text-red-500 mt-1 pl-[4px]">
+                        {errors.points}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Footer theo thiết kế Figma */}
               <div className="flex gap-[16px] items-center justify-end pb-[24px] pt-[8px] px-[24px] shrink-0 border-t border-slate-50">
-                <button 
+                <button
                   onClick={onClose}
                   className="px-[32px] py-[12px] text-[#475569] hover:text-slate-900 font-semibold text-[14px] rounded-[16px] hover:bg-slate-50 transition-colors duration-200"
                 >
                   Hủy bỏ
                 </button>
-                <button 
+                <button
                   onClick={handleSave}
                   className="bg-[#135bec] hover:bg-blue-700 text-white px-[20px] py-[10px] rounded-[8px] flex items-center justify-center gap-2 font-semibold text-[14px] transition-all shadow-[0px_10px_15px_-3px_rgba(19,91,236,0.3),0px_4px_6px_-4px_rgba(19,91,236,0.3)] hover:shadow-[0px_12px_20px_-3px_rgba(19,91,236,0.4)] active:scale-95 duration-200"
                 >

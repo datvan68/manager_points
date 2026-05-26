@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, TrendingUp, Shapes, ListOrdered } from 'lucide-react';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/Input';
+
 
 interface CategoryModalProps {
   isOpen: boolean;
@@ -25,7 +27,7 @@ export default function CategoryModal({
     name: '',
     description: '',
     maxPoints: 10,
-    sortOrder: 10,
+    sort_order: 10,
     status: true
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -38,7 +40,7 @@ export default function CategoryModal({
           name: initialData.name || '',
           description: initialData.description || '',
           maxPoints: initialData.maxPoints || 10,
-          sortOrder: initialData.sortOrder || 10,
+          sort_order: initialData.sort_order !== undefined ? initialData.sort_order : (initialData.sortOrder || 10),
           status: initialData.status !== undefined ? initialData.status : true
         });
       } else {
@@ -47,7 +49,7 @@ export default function CategoryModal({
           name: '',
           description: '',
           maxPoints: 10,
-          sortOrder: 10,
+          sort_order: 10,
           status: true
         });
       }
@@ -70,6 +72,7 @@ export default function CategoryModal({
       // Tự động đồng bộ mô tả bằng tên để giữ khả năng tương thích cao nhất
       const dataToSave = {
         ...formData,
+        sortOrder: formData.sort_order, // Tương thích ngược
         description: formData.description || formData.name
       };
       onSave(dataToSave);
@@ -115,7 +118,7 @@ export default function CategoryModal({
                     </p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={onClose}
                   className="flex items-center justify-center p-[8px] rounded-full hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-all duration-200"
                 >
@@ -126,40 +129,26 @@ export default function CategoryModal({
               {/* Body theo thiết kế Figma */}
               <div className="flex-1 overflow-y-auto px-[32px] py-[24px] space-y-[24px]">
                 {/* Mã danh mục */}
-                <div className="flex flex-col gap-[8px] items-start w-full">
-                  <div className="pl-[4px]">
-                    <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
-                      Mã danh mục <span className="text-[#ef4444]">*</span>
-                    </label>
-                  </div>
-                  <input 
-                    type="text"
-                    placeholder="Nhập ký tự la mã"
-                    value={formData.id}
-                    onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                    className={`w-full px-[16px] py-[14px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${
-                      errors.id ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : ''
-                    }`}
-                  />
-                </div>
+                <Input
+                  label="Mã danh mục"
+                  required
+                  error={errors.id}
+                  placeholder="Nhập ký tự la mã"
+                  value={formData.id}
+                  onChange={(e) => setFormData({ ...formData, id: e.target.value.toUpperCase() })}
+                />
 
-                {/* Tên danh mục (Dạng Textarea) */}
-                <div className="flex flex-col gap-[8px] items-start w-full">
-                  <div className="pl-[4px]">
-                    <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
-                      Tên danh mục <span className="text-[#ef4444]">*</span>
-                    </label>
-                  </div>
-                  <textarea 
-                    placeholder="Nhập tên chi tiết cho danh mục này..."
-                    rows={3}
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className={`w-full pb-[60px] pt-[12px] px-[16px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none resize-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${
-                      errors.name ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : ''
-                    }`}
-                  />
-                </div>
+                {/* Tên danh mục */}
+                <Input
+                  label="Tên danh mục"
+                  required
+                  error={errors.name}
+                  placeholder="Nhập tên chi tiết cho danh mục này..."
+                  multiline
+                  rows={3}
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
 
                 {/* Grid 2 cột: Điểm tối đa & Thứ tự sắp xếp */}
                 <div className="grid grid-cols-2 gap-[24px] w-full">
@@ -174,7 +163,7 @@ export default function CategoryModal({
                       <div className="absolute left-[12px] top-1/2 -translate-y-1/2 text-[#94a3b8]">
                         <TrendingUp size={16} strokeWidth={2.5} />
                       </div>
-                      <input 
+                      <input
                         type="number"
                         min={0}
                         max={1000}
@@ -196,12 +185,12 @@ export default function CategoryModal({
                       <div className="absolute left-[12px] top-1/2 -translate-y-1/2 text-[#94a3b8]">
                         <ListOrdered size={16} strokeWidth={2.5} />
                       </div>
-                      <input 
+                      <input
                         type="number"
                         min={0}
                         max={100}
-                        value={formData.sortOrder}
-                        onChange={(e) => setFormData({ ...formData, sortOrder: Number(e.target.value) })}
+                        value={formData.sort_order}
+                        onChange={(e) => setFormData({ ...formData, sort_order: Number(e.target.value) })}
                         className="w-full pl-[40px] pr-[16px] py-[12px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[14px] font-medium text-[#0f172a] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50"
                       />
                     </div>
@@ -211,13 +200,13 @@ export default function CategoryModal({
 
               {/* Footer theo thiết kế Figma */}
               <div className="flex gap-[12.01px] items-center justify-end p-[32px] shrink-0 border-t border-slate-50">
-                <button 
+                <button
                   onClick={onClose}
                   className="px-[24px] py-[12px] text-[#475569] hover:text-slate-900 font-semibold text-[16px] rounded-[16px] hover:bg-slate-50 transition-colors duration-200"
                 >
                   Hủy bỏ
                 </button>
-                <button 
+                <button
                   onClick={handleSave}
                   className="bg-[#135bec] hover:bg-blue-700 text-white px-[20px] py-[10px] rounded-[8px] flex items-center justify-center gap-2 font-semibold text-[14px] transition-all shadow-[0px_10px_15px_-3px_rgba(19,91,236,0.3),0px_4px_6px_-4px_rgba(19,91,236,0.3)] hover:shadow-[0px_12px_20px_-3px_rgba(19,91,236,0.4)] active:scale-95 duration-200"
                 >

@@ -16,6 +16,14 @@ export class CriteriaController {
     return this.criteriaService.create(createCriterionDto);
   }
 
+  @Post('bulk-delete')
+  @ApiOperation({ summary: 'Xóa nhiều tiêu chí đánh giá cùng lúc' })
+  @ApiResponse({ status: 200, description: 'Xóa thành công các tiêu chí' })
+  bulkDelete(@Body('ids') ids: string[]) {
+    return this.criteriaService.bulkDelete(ids);
+  }
+
+
   @Get()
   @ApiOperation({ summary: 'Lấy danh sách tất cả các tiêu chí (có thể lọc theo category_id)' })
   @ApiQuery({ name: 'category_id', required: false, description: 'ID danh mục để lọc tiêu chí' })

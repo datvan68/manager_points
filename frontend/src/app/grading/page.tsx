@@ -23,28 +23,13 @@ import CategoryModal from '../../components/grading/CategoryModal';
 import CriteriaModal from '../../components/grading/CriteriaModal';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { toast } from 'sonner';
+import { categoryApi } from '../../api/category-api';
+import { criteriaApi } from '../../api/criteria-api';
 
-const initialCategories = [
-  { id: 'CAT001', name: 'Ý thức học tập', description: 'Đánh giá việc đi học đầy đủ, phát biểu bài và làm bài tập', maxPoints: 100, status: true, columnId: 'col-1' },
-  { id: 'CAT002', name: 'Hoạt động Ngoại khóa', description: 'Tham gia các chiến dịch tình nguyện, hiến máu và sự kiện', maxPoints: 100, status: true, columnId: 'col-1' },
-  { id: 'CAT003', name: 'Kỹ năng mềm', description: 'Đánh giá khả năng làm việc nhóm, thuyết trình và giao tiếp', maxPoints: 100, status: true, columnId: 'col-2' },
-  { id: 'CAT004', name: 'Thái độ ứng xử', description: 'Đánh giá tinh thần tôn trọng bạn bè, thầy cô và kỷ luật lớp', maxPoints: 100, status: true, columnId: 'col-2' }
-];
 
-const initialCriteria = [
-  { id: 'CRI001', name: 'Đi học đúng giờ', type: 'khen_thuong', points: 5, minPoints: 0, maxPoints: 10, categoryId: 'CAT001' },
-  { id: 'CRI002', name: 'Phát biểu xây dựng bài', type: 'cong_diem', points: 1, minPoints: 0, maxPoints: 10, categoryId: 'CAT001' },
-  { id: 'CRI003', name: 'Nghỉ học không phép', type: 'ky_luat', points: -2, minPoints: 0, maxPoints: 10, categoryId: 'CAT001' },
-  
-  { id: 'CRI004', name: 'Tham gia chiến dịch tình nguyện', type: 'khen_thuong', points: 10, minPoints: 0, maxPoints: 20, categoryId: 'CAT002' },
-  { id: 'CRI005', name: 'Tham gia hiến máu nhân đạo', type: 'khen_thuong', points: 15, minPoints: 0, maxPoints: 20, categoryId: 'CAT002' },
-  
-  { id: 'CRI006', name: 'Làm việc nhóm hiệu quả', type: 'cong_diem', points: 1, minPoints: 0, maxPoints: 5, categoryId: 'CAT003' },
-  { id: 'CRI007', name: 'Thuyết trình trước đám đông', type: 'cong_diem', points: 2, minPoints: 0, maxPoints: 5, categoryId: 'CAT003' },
-  
-  { id: 'CRI008', name: 'Ứng xử văn minh với bạn bè', type: 'cong_diem', points: 5, minPoints: 0, maxPoints: 10, categoryId: 'CAT004' },
-  { id: 'CRI009', name: 'Gây mất trật tự trong lớp', type: 'ky_luat', points: -2, minPoints: 0, maxPoints: 10, categoryId: 'CAT004' }
-];
+const initialCategories: any[] = [];
+const initialCriteria: any[] = [];
+
 
 export default function GradingPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,8 +39,8 @@ export default function GradingPage() {
   const [isFetching, setIsFetching] = useState(false);
   
   // States cho Category và Criteria
-  const [categories, setCategories] = useState<any[]>(initialCategories);
-  const [criteria, setCriteria] = useState<any[]>(initialCriteria);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [criteria, setCriteria] = useState<any[]>([]);
 
   // States cho Category Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -82,15 +67,81 @@ export default function GradingPage() {
   const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null);
 
   // States cho việc thu gọn/mở rộng các danh mục
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
-    'CAT001': false,
-    'CAT002': false,
-    'CAT003': false,
-    'CAT004': false
-  });
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+
+  // Hàm tải dữ liệu từ database thông qua API
+  const fetchData = async () => {
+    try {
+      setIsFetching(true);
+      const [backendCats, backendCris] = await Promise.all([
+        categoryApi.getCategories(),
+        criteriaApi.getCriteria()
+      ]);
+
+      // Đọc các cột đã lưu từ localStorage
+      const savedCols = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('category_columns') || '{}') : {};
+
+      // Mapping Categories từ Backend về định dạng Frontend
+      const mappedCats = backendCats.map((cat: any) => {
+        const defaultColId = cat.sort_order <= 2 ? 'col-1' : 'col-2';
+        const columnId = savedCols[cat.category_code] || defaultColId;
+        return {
+          id: cat.category_code,
+          _id: cat._id,
+          name: cat.category_name,
+          description: '',
+          maxPoints: cat.max_score,
+          sort_order: cat.sort_order,
+          status: true,
+          columnId
+        };
+      });
+
+      // Mapping Criteria từ Backend về định dạng Frontend
+      const mappedCris = backendCris.map((cri: any) => {
+        const parentCat = backendCats.find((cat: any) => cat._id === (typeof cri.category_id === 'object' ? cri.category_id?._id : cri.category_id));
+        return {
+          id: cri._id,
+          _id: cri._id,
+          name: cri.criterion_name,
+          type: cri.criterion_type,
+          points: cri.score_per_unit,
+          minPoints: cri.min_score,
+          maxPoints: cri.max_score,
+          categoryId: parentCat ? parentCat.category_code : '',
+          categoryObjectId: parentCat ? parentCat._id : (typeof cri.category_id === 'object' ? cri.category_id?._id : cri.category_id)
+        };
+      });
+
+      setCategories(mappedCats);
+      setCriteria(mappedCris);
+
+      // Cập nhật trạng thái thu gọn mặc định cho các categories mới (giữ lại trạng thái cũ nếu đã có)
+      setExpandedCategories(prev => {
+        const nextState = { ...prev };
+        mappedCats.forEach(cat => {
+          if (nextState[cat.id] === undefined) {
+            nextState[cat.id] = false;
+          }
+        });
+        return nextState;
+      });
+
+    } catch (error: any) {
+      toast.error('Lỗi khi tải dữ liệu từ database: ' + error.message);
+    } finally {
+      setIsInitialLoading(false);
+      setIsFetching(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   // Ref để lưu trữ timeout tự động mở rộng khi kéo đè tiêu chí lên danh mục đang thu gọn
   const dragTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+
 
   // Drag and Drop States cho việc kéo thả Category Card
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null);
@@ -149,16 +200,21 @@ export default function GradingPage() {
     const catCriteriaIds = criteria.filter(c => c.categoryId === bulkDeleteCatId).map(c => c.id);
     const toDeleteIds = selectedCriteriaIds.filter(id => catCriteriaIds.includes(id));
 
-    setCriteria(prev => prev.filter(c => !toDeleteIds.includes(c.id)));
-    setSelectedCriteriaIds(prev => prev.filter(id => !toDeleteIds.includes(id)));
-    
-    const catName = categories.find(cat => cat.id === bulkDeleteCatId)?.name || '';
-    toast.success(`Đã xóa thành công ${toDeleteIds.length} tiêu chí đã chọn trong danh mục "${catName}"!`);
-    
-    setIsDeleteBulkCriteriaModalOpen(false);
-    setBulkDeleteCatId('');
-    setBulkCriteriaToDeleteCount(0);
+    if (toDeleteIds.length === 0) return;
+
+    criteriaApi.deleteCriteria(toDeleteIds).then(() => {
+      fetchData();
+      setSelectedCriteriaIds(prev => prev.filter(id => !toDeleteIds.includes(id)));
+      const catName = categories.find(cat => cat.id === bulkDeleteCatId)?.name || '';
+      toast.success(`Đã xóa thành công ${toDeleteIds.length} tiêu chí đã chọn trong danh mục "${catName}"!`);
+    }).catch(err => toast.error('Lỗi khi xóa hàng loạt tiêu chí: ' + err.message))
+    .finally(() => {
+      setIsDeleteBulkCriteriaModalOpen(false);
+      setBulkDeleteCatId('');
+      setBulkCriteriaToDeleteCount(0);
+    });
   };
+
 
   const toggleCategoryExpand = (catId: string) => {
     setExpandedCategories(prev => ({
@@ -251,14 +307,25 @@ export default function GradingPage() {
         }
 
         const targetCat = categories.find(cat => cat.id === targetCatId);
+        if (targetCat) {
+          // Giao diện cục bộ cập nhật nhanh trước
+          setCriteria(prev => 
+            prev.map(item => 
+              item.id === criteriaId ? { ...item, categoryId: targetCatId, categoryObjectId: targetCat._id } : item
+            )
+          );
 
-        setCriteria(prev => 
-          prev.map(item => 
-            item.id === criteriaId ? { ...item, categoryId: targetCatId } : item
-          )
-        );
-
-        toast.success(`Đã chuyển tiêu chí "${draggedItem.name}" sang danh mục "${targetCat?.name || ''}"!`);
+          // Gọi API cập nhật vào database
+          criteriaApi.updateCriterion(draggedItem._id, {
+            category_id: targetCat._id
+          }).then(() => {
+            fetchData();
+            toast.success(`Đã chuyển tiêu chí "${draggedItem.name}" sang danh mục "${targetCat.name}"!`);
+          }).catch(err => {
+            fetchData();
+            toast.error('Lỗi khi chuyển danh mục tiêu chí: ' + err.message);
+          });
+        }
       }
     }
     // Trường hợp 2: Kéo thả danh mục (Category) đè lên một danh mục khác để thay đổi vị trí
@@ -267,20 +334,28 @@ export default function GradingPage() {
       const targetCat = categories.find(c => c.id === targetCatId);
 
       if (draggedCat && targetCat) {
-        // Lọc bỏ danh mục bị kéo khỏi mảng hiện tại
         const filtered = categories.filter(c => c.id !== draggedCatId);
-        // Tìm vị trí của danh mục đích (target) trong mảng đã lọc
         const targetIdx = filtered.findIndex(c => c.id === targetCatId);
-
-        // Cập nhật lại cột của danh mục bị kéo trùng với cột của danh mục đích
         const updatedDraggedCat = { ...draggedCat, columnId: targetCat.columnId };
-
-        // Chèn danh mục bị kéo vào vị trí ngay trước danh mục đích
         const newCategories = [...filtered];
         newCategories.splice(targetIdx, 0, updatedDraggedCat);
 
         setCategories(newCategories);
-        toast.success(`Đã thay đổi thứ tự của danh mục "${draggedCat.name}"!`);
+
+        // Gọi API cập nhật sort_order cho tất cả danh mục bị ảnh hưởng để lưu lại thứ tự kéo thả
+        const updatePromises = newCategories.map((cat, idx) => {
+          return categoryApi.updateCategory(cat._id, {
+            sort_order: idx + 1
+          });
+        });
+
+        Promise.all(updatePromises).then(() => {
+          fetchData();
+          toast.success(`Đã thay đổi thứ tự của danh mục "${draggedCat.name}"!`);
+        }).catch(err => {
+          fetchData();
+          toast.error('Lỗi khi lưu thứ tự danh mục: ' + err.message);
+        });
       }
     }
     setDragOverCategoryId(null);
@@ -334,6 +409,11 @@ export default function GradingPage() {
           )
         );
 
+        // Lưu thông tin cột vào localStorage để ghi nhớ mà không làm đổi sort_order trong DB
+        const savedCols = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('category_columns') || '{}') : {};
+        savedCols[catId] = targetColId;
+        localStorage.setItem('category_columns', JSON.stringify(savedCols));
+
         const colName = targetColId === 'col-1' ? 'Cột danh mục 1' : 'Cột danh mục 2';
         toast.success(`Đã chuyển danh mục "${draggedCat.name}" sang ${colName}!`);
       }
@@ -344,59 +424,101 @@ export default function GradingPage() {
   // Thêm/Sửa danh mục
   const handleSaveCategory = (data: any) => {
     if (isEditing && selectedCategory) {
-      setCategories(prev => prev.map(c => c.id === selectedCategory.id ? { ...c, ...data } : c));
+      categoryApi.updateCategory(selectedCategory._id, {
+        category_code: data.id,
+        category_name: data.name,
+        max_score: Number(data.maxPoints),
+        sort_order: Number(data.sort_order || selectedCategory.sort_order || 1)
+      }).then(() => {
+        fetchData();
+        toast.success(`Đã cập nhật danh mục "${data.name}" thành công!`);
+      }).catch(err => toast.error('Lỗi khi cập nhật danh mục: ' + err.message));
     } else {
-      const newCatId = data.id || `CAT00${categories.length + 1}`;
-      const newCat = {
-        ...data,
-        id: newCatId,
-        columnId: 'col-1' // Mặc định thêm vào cột 1
-      };
-      setCategories(prev => [...prev, newCat]);
-      // Tự động mở rộng danh mục mới thêm
-      setExpandedCategories(prev => ({
-        ...prev,
-        [newCatId]: true
-      }));
+      categoryApi.createCategory({
+        category_code: data.id,
+        category_name: data.name,
+        max_score: Number(data.maxPoints),
+        sort_order: Number(data.sort_order || categories.length + 1)
+      }).then((newCat) => {
+        fetchData().then(() => {
+          // Tự động mở rộng danh mục mới thêm
+          setExpandedCategories(prev => ({
+            ...prev,
+            [data.id]: true
+          }));
+        });
+        toast.success(`Đã thêm danh mục "${data.name}" thành công!`);
+      }).catch(err => toast.error('Lỗi khi thêm danh mục: ' + err.message));
     }
   };
 
   // Xóa danh mục
-  const handleConfirmDeleteCategory = () => {
+  const handleConfirmDeleteCategory = async () => {
     if (categoryToDelete) {
-      setCategories(prev => prev.filter(c => c.id !== categoryToDelete.id));
-      setCriteria(prev => prev.filter(c => c.categoryId !== categoryToDelete.id));
-      toast.success(`Đã xóa danh mục "${categoryToDelete.name}" thành công!`);
-      setIsDeleteModalOpen(false);
-      setCategoryToDelete(null);
+      try {
+        await categoryApi.deleteCategory(categoryToDelete._id);
+        // Đồng thời xóa các tiêu chí thuộc danh mục này ở database
+        const catCriteriaIds = criteria.filter(c => c.categoryId === categoryToDelete.id).map(c => c._id);
+        if (catCriteriaIds.length > 0) {
+          await criteriaApi.deleteCriteria(catCriteriaIds);
+        }
+        fetchData();
+        toast.success(`Đã xóa danh mục "${categoryToDelete.name}" thành công!`);
+      } catch (err: any) {
+        toast.error('Lỗi khi xóa danh mục: ' + err.message);
+      } finally {
+        setIsDeleteModalOpen(false);
+        setCategoryToDelete(null);
+      }
     }
   };
 
   // Thêm/Sửa tiêu chí
   const handleSaveCriteria = (data: any) => {
+    const parentCat = categories.find(cat => cat.id === data.categoryId);
+    const categoryObjectId = parentCat?._id || data.categoryId;
+
     if (isEditingCriteria && selectedCriteria) {
-      setCriteria(prev => prev.map(c => c.id === selectedCriteria.id ? { ...c, ...data } : c));
+      criteriaApi.updateCriterion(selectedCriteria._id, {
+        category_id: categoryObjectId,
+        criterion_name: data.name,
+        criterion_type: data.type,
+        score_per_unit: Number(data.points),
+        min_score: Number(data.minPoints),
+        max_score: Number(data.maxPoints)
+      }).then(() => {
+        fetchData();
+        toast.success(`Đã cập nhật tiêu chí "${data.name}" thành công!`);
+      }).catch(err => toast.error('Lỗi khi cập nhật tiêu chí: ' + err.message));
     } else {
-      setCriteria(prev => [...prev, data]);
+      criteriaApi.createCriterion({
+        category_id: categoryObjectId,
+        criterion_name: data.name,
+        criterion_type: data.type,
+        score_per_unit: Number(data.points),
+        min_score: Number(data.minPoints),
+        max_score: Number(data.maxPoints)
+      }).then(() => {
+        fetchData();
+        toast.success(`Đã thêm tiêu chí "${data.name}" thành công!`);
+      }).catch(err => toast.error('Lỗi khi thêm tiêu chí: ' + err.message));
     }
   };
 
   // Xóa tiêu chí
   const handleConfirmDeleteCriteria = () => {
     if (criteriaToDelete) {
-      setCriteria(prev => prev.filter(c => c.id !== criteriaToDelete.id));
-      toast.success(`Đã xóa tiêu chí "${criteriaToDelete.name}" thành công!`);
-      setIsDeleteCriteriaModalOpen(false);
-      setCriteriaToDelete(null);
+      criteriaApi.deleteCriterion(criteriaToDelete._id).then(() => {
+        fetchData();
+        toast.success(`Đã xóa tiêu chí "${criteriaToDelete.name}" thành công!`);
+      }).catch(err => toast.error('Lỗi khi xóa tiêu chí: ' + err.message))
+      .finally(() => {
+        setIsDeleteCriteriaModalOpen(false);
+        setCriteriaToDelete(null);
+      });
     }
   };
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsInitialLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
 
   const filteredStudents = mockStudents.filter(student =>
     student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -589,7 +711,7 @@ export default function GradingPage() {
                     <div className="relative shrink-0 w-full">
                       <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
                         <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-normal text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
+                          <span className="font-sans font-semibold text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
                             TỔNG SỐ DANH MỤC
                           </span>
                         </div>
@@ -607,7 +729,7 @@ export default function GradingPage() {
                     <div className="relative shrink-0 w-full">
                       <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
                         <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-normal text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
+                          <span className="font-sans font-semibold text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
                             TIÊU CHÍ KHEN THƯỞNG
                           </span>
                         </div>
@@ -625,7 +747,7 @@ export default function GradingPage() {
                     <div className="relative shrink-0 w-full">
                       <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
                         <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-normal text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
+                          <span className="font-sans font-semibold text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
                             TIÊU CHÍ KỶ LUẬT
                           </span>
                         </div>
@@ -643,13 +765,13 @@ export default function GradingPage() {
                     <div className="relative shrink-0 w-full">
                       <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
                         <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-normal text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
+                          <span className="font-sans font-semibold text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
                             ĐIỂM TỐI ĐA TB
                           </span>
                         </div>
                         <div className="flex flex-col items-start relative shrink-0">
                           <span className="font-sans font-bold text-[#f9ab00] text-[18px] leading-[27px] whitespace-nowrap">
-                            {categories.length > 0 ? Math.round(categories.reduce((sum, c) => sum + c.maxPoints, 0) / categories.length) : 0}
+                            {Math.min(categories.reduce((sum, c) => sum + c.maxPoints, 0), 100)}
                           </span>
                         </div>
                       </div>
@@ -680,7 +802,49 @@ export default function GradingPage() {
                      onDrop={(e) => handleColumnDrop(e, 'col-1')}
                      className={`flex-1 flex flex-col gap-4 p-4 rounded-2xl border-2 transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-1' ? 'border-dashed border-blue-400 bg-blue-50/20' : 'border-dashed border-slate-200/60 bg-slate-50/10'}`}
                   >
-                    {categories.filter(cat => cat.columnId === 'col-1' || !cat.columnId).map((cat, idx) => {
+                    {isInitialLoading ? (
+                      <>
+                        <div className="bg-white border-t-4 border-[#1a73e8] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-[16px] shadow-[0px_4px_12px_rgba(0,0,0,0.03)] w-full animate-pulse">
+                          <div className="w-full px-5 py-4 flex flex-col gap-2">
+                            <div className="flex items-start justify-between w-full">
+                              <div className="flex flex-col gap-1.5 w-2/3">
+                                <Skeleton className="h-4 w-16 bg-slate-100/80 rounded" />
+                                <Skeleton className="h-5 w-full bg-slate-100/80 rounded mt-1" />
+                              </div>
+                              <div className="flex gap-1.5 items-center">
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                              </div>
+                            </div>
+                            <div className="flex gap-4 items-center mt-1">
+                              <Skeleton className="h-4 w-24 bg-slate-100/80 rounded" />
+                              <Skeleton className="h-4 w-20 bg-slate-100/80 rounded" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-white border-t-4 border-[#006d2b] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-[16px] shadow-[0px_4px_12px_rgba(0,0,0,0.03)] w-full animate-pulse">
+                          <div className="w-full px-5 py-4 flex flex-col gap-2">
+                            <div className="flex items-start justify-between w-full">
+                              <div className="flex flex-col gap-1.5 w-2/3">
+                                <Skeleton className="h-4 w-16 bg-slate-100/80 rounded" />
+                                <Skeleton className="h-5 w-full bg-slate-100/80 rounded mt-1" />
+                              </div>
+                              <div className="flex gap-1.5 items-center">
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                              </div>
+                            </div>
+                            <div className="flex gap-4 items-center mt-1">
+                              <Skeleton className="h-4 w-24 bg-slate-100/80 rounded" />
+                              <Skeleton className="h-4 w-20 bg-slate-100/80 rounded" />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      categories.filter(cat => cat.columnId === 'col-1' || !cat.columnId).map((cat, idx) => {
                       const catCriteria = criteria.filter(c => c.categoryId === cat.id);
                       const isOver = dragOverCategoryId === cat.id;
                       const isExpanded = !!expandedCategories[cat.id];
@@ -695,7 +859,9 @@ export default function GradingPage() {
                               <div className="flex items-start justify-between w-full">
                                 <div className="flex flex-col gap-0.5">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase inline-block w-fit ${badgeClass}`}>{cat.id}</span>
-                                  <h3 className="font-bold text-slate-800 text-[15px] leading-[20px] mt-1">{cat.name}</h3>
+                                  <h3 className="font-bold text-slate-800 text-[15px] leading-[20px] mt-1" title={cat.name}>
+                                    {cat.name.length > 100 ? cat.name.slice(0, 100) + '...' : cat.name}
+                                  </h3>
                                 </div>
                                 <div className="flex gap-1 items-center">
                                   <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); setSelectedCategory(cat); setIsModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Sửa danh mục"><Pencil size={14} strokeWidth={2.5} /></button>
@@ -754,7 +920,12 @@ export default function GradingPage() {
                                                   <div className="flex items-center justify-between w-full">
                                                     <div className="flex items-center gap-3">
                                                       <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>
-                                                      <div className="flex flex-col gap-1"><h4 className="font-bold text-slate-800 text-[13px]">{item.name}</h4><span className={`px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase border tracking-wider w-fit ${typeClass}`}>{typeLabel}</span></div>
+                                                      <div className="flex flex-col gap-1">
+                                                        <h4 className="font-bold text-slate-800 text-[13px]" title={item.name}>
+                                                          {item.name.length > 50 ? item.name.slice(0, 50) + '...' : item.name}
+                                                        </h4>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase border tracking-wider w-fit ${typeClass}`}>{typeLabel}</span>
+                                                      </div>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                       <span className={`font-black text-[12px] ${pointClass} whitespace-nowrap shrink-0`}>{formattedPoints}</span>
@@ -786,7 +957,8 @@ export default function GradingPage() {
                           </div>
                         </motion.div>
                       );
-                    })}
+                    })
+                  )}
                   </div>
                   <div 
                     onDragOver={(e) => handleColumnDragOver(e, 'col-2')}
@@ -794,7 +966,49 @@ export default function GradingPage() {
                     onDrop={(e) => handleColumnDrop(e, 'col-2')}
                     className={`flex-1 flex flex-col gap-4 p-4 rounded-2xl border-2 transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-2' ? 'border-dashed border-blue-400 bg-blue-50/20' : 'border-dashed border-slate-200/60 bg-slate-50/10'}`}
                   >
-                    {categories.filter(cat => cat.columnId === 'col-2').map((cat, idx) => {
+                    {isInitialLoading ? (
+                      <>
+                        <div className="bg-white border-t-4 border-[#f9ab00] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-[16px] shadow-[0px_4px_12px_rgba(0,0,0,0.03)] w-full animate-pulse">
+                          <div className="w-full px-5 py-4 flex flex-col gap-2">
+                            <div className="flex items-start justify-between w-full">
+                              <div className="flex flex-col gap-1.5 w-2/3">
+                                <Skeleton className="h-4 w-16 bg-slate-100/80 rounded" />
+                                <Skeleton className="h-5 w-full bg-slate-100/80 rounded mt-1" />
+                              </div>
+                              <div className="flex gap-1.5 items-center">
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                              </div>
+                            </div>
+                            <div className="flex gap-4 items-center mt-1">
+                              <Skeleton className="h-4 w-24 bg-slate-100/80 rounded" />
+                              <Skeleton className="h-4 w-20 bg-slate-100/80 rounded" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-white border-t-4 border-[#7b2cbf] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-[16px] shadow-[0px_4px_12px_rgba(0,0,0,0.03)] w-full animate-pulse">
+                          <div className="w-full px-5 py-4 flex flex-col gap-2">
+                            <div className="flex items-start justify-between w-full">
+                              <div className="flex flex-col gap-1.5 w-2/3">
+                                <Skeleton className="h-4 w-16 bg-slate-100/80 rounded" />
+                                <Skeleton className="h-5 w-full bg-slate-100/80 rounded mt-1" />
+                              </div>
+                              <div className="flex gap-1.5 items-center">
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                              </div>
+                            </div>
+                            <div className="flex gap-4 items-center mt-1">
+                              <Skeleton className="h-4 w-24 bg-slate-100/80 rounded" />
+                              <Skeleton className="h-4 w-20 bg-slate-100/80 rounded" />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      categories.filter(cat => cat.columnId === 'col-2').map((cat, idx) => {
                       const catCriteria = criteria.filter(c => c.categoryId === cat.id);
                       const isOver = dragOverCategoryId === cat.id;
                       const isExpanded = !!expandedCategories[cat.id];
@@ -809,7 +1023,9 @@ export default function GradingPage() {
                               <div className="flex items-start justify-between w-full">
                                 <div className="flex flex-col gap-0.5">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase inline-block w-fit ${badgeClass}`}>{cat.id}</span>
-                                  <h3 className="font-bold text-slate-800 text-[15px] leading-[20px] mt-1">{cat.name}</h3>
+                                  <h3 className="font-bold text-slate-800 text-[15px] leading-[20px] mt-1" title={cat.name}>
+                                    {cat.name.length > 100 ? cat.name.slice(0, 100) + '...' : cat.name}
+                                  </h3>
                                 </div>
                                 <div className="flex gap-1 items-center">
                                   <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); setSelectedCategory(cat); setIsModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Sửa danh mục"><Pencil size={14} strokeWidth={2.5} /></button>
@@ -868,7 +1084,12 @@ export default function GradingPage() {
                                                   <div className="flex items-center justify-between w-full">
                                                     <div className="flex items-center gap-3">
                                                       <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>
-                                                      <div className="flex flex-col gap-1"><h4 className="font-bold text-slate-800 text-[13px]">{item.name}</h4><span className={`px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase border tracking-wider w-fit ${typeClass}`}>{typeLabel}</span></div>
+                                                      <div className="flex flex-col gap-1">
+                                                        <h4 className="font-bold text-slate-800 text-[13px]" title={item.name}>
+                                                          {item.name.length > 50 ? item.name.slice(0, 50) + '...' : item.name}
+                                                        </h4>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase border tracking-wider w-fit ${typeClass}`}>{typeLabel}</span>
+                                                      </div>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                       <span className={`font-black text-[12px] ${pointClass} whitespace-nowrap shrink-0`}>{formattedPoints}</span>
@@ -900,7 +1121,8 @@ export default function GradingPage() {
                           </div>
                         </motion.div>
                       );
-                    })}
+                    })
+                  )}
                   </div>
 
                 </div>
@@ -936,6 +1158,7 @@ export default function GradingPage() {
         isEditing={isEditingCriteria}
         initialData={selectedCriteria}
         categories={categories}
+        criteria={criteria}
         defaultCategoryId={targetCategoryId}
         onSave={handleSaveCriteria}
       />

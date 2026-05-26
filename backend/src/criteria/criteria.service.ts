@@ -65,4 +65,18 @@ export class CriteriaService {
     }
     return deletedCriterion;
   }
+
+  async bulkDelete(ids: string[]): Promise<{ deletedCount: number }> {
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException('Danh sách ID tiêu chí không hợp lệ hoặc rỗng');
+    }
+    for (const id of ids) {
+      if (!Types.ObjectId.isValid(id)) {
+        throw new BadRequestException(`ID tiêu chí không hợp lệ: ${id}`);
+      }
+    }
+    const result = await this.criterionModel.deleteMany({ _id: { $in: ids.map(id => new Types.ObjectId(id)) } }).exec();
+    return { deletedCount: result.deletedCount };
+  }
 }
+
