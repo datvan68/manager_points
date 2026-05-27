@@ -4,6 +4,8 @@ import { Model } from 'mongoose';
 import { Student, StudentDocument } from './schemas/student.schema';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
+import { Semester } from '../semesters/schemas/semester.schema';
+import { SummaryPoint } from '../summaries-point/schemas/summary-point.schema';
 
 @Injectable()
 export class StudentsService implements OnModuleInit {
@@ -11,6 +13,8 @@ export class StudentsService implements OnModuleInit {
 
   constructor(
     @InjectModel(Student.name) private studentModel: Model<StudentDocument>,
+    @InjectModel(Semester.name) private semesterModel: Model<any>,
+    @InjectModel(SummaryPoint.name) private summaryPointModel: Model<any>,
   ) {}
 
   async onModuleInit() {
@@ -30,7 +34,32 @@ export class StudentsService implements OnModuleInit {
 
   async create(createStudentDto: CreateStudentDto): Promise<Student> {
     try {
-      return await new this.studentModel(createStudentDto).save();
+      const createdStudent = await new this.studentModel(createStudentDto).save();
+
+      // Tự động tạo điểm rèn luyện tổng kết (summary point) mặc định cho tất cả học kỳ
+      try {
+        let semesters = await this.semesterModel.find({ status: 'active' }).exec();
+        if (semesters.length === 0) {
+          semesters = await this.semesterModel.find().exec();
+        }
+
+        const summariesToCreate = semesters.map(sem => ({
+          student_id: (createdStudent as any)._id,
+          semester_id: sem._id,
+          total_score: 0,
+          grading: 'chưa xếp loại',
+          status: 'active'
+        }));
+
+        if (summariesToCreate.length > 0) {
+          await this.summaryPointModel.insertMany(summariesToCreate);
+          this.logger.log(`Tự động khởi tạo ${summariesToCreate.length} bảng điểm 0đ cho sinh viên mới: ${createStudentDto.full_name}`);
+        }
+      } catch (sumErr) {
+        this.logger.error('Lỗi khi tự động khởi tạo summaries points cho sinh viên mới:', sumErr);
+      }
+
+      return createdStudent;
     } catch (error: any) {
       if (error.code === 11000) {
         const duplicateField = Object.keys(error.keyPattern || {})[0];
@@ -45,8 +74,37 @@ export class StudentsService implements OnModuleInit {
 
   async createBulk(createStudentDtos: CreateStudentDto[]) {
     try {
-      // insertMany validates schema by default
-      return await this.studentModel.insertMany(createStudentDtos);
+      const createdStudents = await this.studentModel.insertMany(createStudentDtos);
+
+      // Tự động tạo điểm rèn luyện tổng kết (summary point) mặc định cho tất cả học kỳ
+      try {
+        let semesters = await this.semesterModel.find({ status: 'active' }).exec();
+        if (semesters.length === 0) {
+          semesters = await this.semesterModel.find().exec();
+        }
+
+        const summariesToCreate: any[] = [];
+        createdStudents.forEach(student => {
+          semesters.forEach(sem => {
+            summariesToCreate.push({
+              student_id: (student as any)._id,
+              semester_id: sem._id,
+              total_score: 0,
+              grading: 'chưa xếp loại',
+              status: 'active'
+            });
+          });
+        });
+
+        if (summariesToCreate.length > 0) {
+          await this.summaryPointModel.insertMany(summariesToCreate);
+          this.logger.log(`Tự động khởi tạo ${summariesToCreate.length} bảng điểm 0đ cho ${createdStudents.length} sinh viên mới trong bulk import.`);
+        }
+      } catch (sumErr) {
+        this.logger.error('Lỗi khi tự động khởi tạo summaries points cho danh sách sinh viên bulk import:', sumErr);
+      }
+
+      return createdStudents;
     } catch (error: any) {
       if (error.code === 11000) {
         // MongoBulkWriteError chứa writeErrors là mảng các lỗi ghi

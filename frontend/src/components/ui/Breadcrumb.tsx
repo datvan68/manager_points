@@ -37,11 +37,13 @@ export default function Breadcrumb({ customMappings = {} }: BreadcrumbProps) {
     const staticLabels: Record<string, string> = {
       'students': 'Quản lý sinh viên',
       'tasks': 'Công việc',
-      'grading': 'Hệ thống chấm điểm',
+      'grading': 'Rèn luyện',
       'dormitory': 'Quản lý KTX',
       'reports': 'Thống kê báo cáo',
       'permissions': 'Phân quyền',
-      'club': 'Câu lạc bộ'
+      'club': 'Câu lạc bộ',
+      'score': 'Chấm điểm',
+      'categories': 'Danh mục',
     };
 
     return staticLabels[segment] || segment;

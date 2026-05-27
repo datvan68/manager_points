@@ -45,7 +45,7 @@ const allMenuItems = [
   { icon: Calendar, label: "Công việc & sự kiện", href: "/tasks" },
   { icon: Users, label: "Quản lý sinh viên", href: "/students" },
   { icon: Building2, label: "Quản lý KTX", href: "/dormitory" },
-  { icon: GraduationCap, label: "Hệ thống chấm điểm", href: "/grading" },
+  { icon: GraduationCap, label: "Rèn luyện", href: "/grading" },
   { icon: BarChart3, label: "Thống kê báo cáo", href: "/reports" },
   { icon: Compass, label: "Câu lạc bộ", href: "/club" },
   { icon: Shield, label: "Phân quyền", href: "/permissions" },
@@ -159,42 +159,40 @@ const Sidebar = () => {
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-hidden">
         {isSidebarLoading
           ? // Render Realism Skeleton Items
-            Array.from({ length: 6 }).map((_, index) => {
-              const widthClass = skeletonWidths[index % skeletonWidths.length];
-              return (
-                <div
-                  key={index}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg animate-pulse ${
-                    isCollapsed ? "justify-center" : ""
+          Array.from({ length: 6 }).map((_, index) => {
+            const widthClass = skeletonWidths[index % skeletonWidths.length];
+            return (
+              <div
+                key={index}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg animate-pulse ${isCollapsed ? "justify-center" : ""
                   }`}
-                >
-                  <div className="w-5 h-5 bg-slate-100 rounded shrink-0" />
-                  {!isCollapsed && (
-                    <div className={`h-4 bg-slate-100 rounded ${widthClass}`} />
-                  )}
-                </div>
-              );
-            })
+              >
+                <div className="w-5 h-5 bg-slate-100 rounded shrink-0" />
+                {!isCollapsed && (
+                  <div className={`h-4 bg-slate-100 rounded ${widthClass}`} />
+                )}
+              </div>
+            );
+          })
           : visibleItems.map((item, index) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={index}
-                  href={item.href}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-blue-50 text-primary"
-                      : "text-text-secondary hover:bg-gray-50 hover:text-text-main"
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={index}
+                href={item.href}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
+                  ? "bg-blue-50 text-primary"
+                  : "text-text-secondary hover:bg-gray-50 hover:text-text-main"
                   } ${isCollapsed ? "justify-center" : ""}`}
-                  title={isCollapsed ? item.label : ""}
-                >
-                  <item.icon size={20} className="min-w-5" />
-                  {!isCollapsed && (
-                    <span className="truncate">{item.label}</span>
-                  )}
-                </Link>
-              );
-            })}
+                title={isCollapsed ? item.label : ""}
+              >
+                <item.icon size={20} className="min-w-5" />
+                {!isCollapsed && (
+                  <span className="truncate">{item.label}</span>
+                )}
+              </Link>
+            );
+          })}
       </nav>
 
       {/* Footer */}

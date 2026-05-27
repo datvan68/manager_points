@@ -525,12 +525,15 @@ export default function CategoriesPage() {
           <TabNavigation
             tabs={[
               { id: 'list', label: 'Danh sách' },
+              { id: 'score', label: 'Chấm điểm' },
               { id: 'reports', label: 'Danh mục' }
             ]}
             activeTab={'reports'}
             onTabChange={(id) => {
               if (id === 'list') {
                 router.push('/grading');
+              } else if (id === 'score') {
+                router.push('/grading/score');
               }
             }}
           />

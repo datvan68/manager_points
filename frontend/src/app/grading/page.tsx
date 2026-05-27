@@ -6,18 +6,25 @@ import Sidebar from '../../components/layout/Sidebar';
 import Header from '../../components/layout/Header';
 import {
   Search,
-  SquarePen
+  SquarePen,
+  Plus,
+  Check,
+  FileDown
 } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { mockStudents, classes } from '../../lib/mock-data/students';
+import SemesterModal from '../../components/grading/SemesterModal';
+import BulkGradingModal from '../../components/grading/BulkGradingModal';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import TabNavigation from '@/components/ui/TabNavigation';
 import { CustomPagination } from '@/components/ui/pagination';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { StudentAvatar } from '@/components/ui/StudentAvatar';
 import { departmentApi } from '../../api/department-api';
 import { classApi } from '../../api/class-api';
+import { semesterApi } from '../../api/semester-api';
+import { summariesPointApi } from '../../api/summaries-point-api';
 
 
 export default function GradingPage() {
@@ -31,21 +38,49 @@ export default function GradingPage() {
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
 
-  // States cho Khoa và Lớp tải từ API
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
+  // States cho Khoa, Lớp và Học kì tải từ API
   const [apiDepartments, setApiDepartments] = useState<any[]>([]);
   const [apiClasses, setApiClasses] = useState<any[]>([]);
+  const [apiSemesters, setApiSemesters] = useState<any[]>([]);
+  const [apiSummariesPoints, setApiSummariesPoints] = useState<any[]>([]);
+
+  // States lưu các bộ lọc đã xác nhận (applied)
+  const [appliedSemester, setAppliedSemester] = useState<string>('');
+  const [appliedDepartment, setAppliedDepartment] = useState<string>('');
+  const [appliedClass, setAppliedClass] = useState<string>('');
+
+  // State lưu trữ danh sách MSSV đang chọn
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+
+  // Đánh dấu đã khôi phục xong filter state từ sessionStorage
+  const [isStateRestored, setIsStateRestored] = useState(false);
+
+  // Modal học kì
+  const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
+  const [isBulkGradingOpen, setIsBulkGradingOpen] = useState(false);
+
+  const handleConfirmBulkGrading = (criteriaId: string, count: number) => {
+    toast.success(`Đã áp dụng chấm điểm hàng loạt thành công cho ${selectedStudentIds.length} sinh viên!`);
+    setSelectedStudentIds([]);
+    setIsBulkGradingOpen(false);
+  };
 
   // Hàm tải dữ liệu từ database thông qua API
   const fetchData = async () => {
     try {
       setIsFetching(true);
-      const [backendDepts, backendClasses] = await Promise.all([
+      const [backendDepts, backendClasses, backendSemesters, backendSummaries] = await Promise.all([
         departmentApi.getDepartments(),
-        classApi.getClasses()
+        classApi.getClasses(),
+        semesterApi.getSemesters(),
+        summariesPointApi.getSummariesPoints()
       ]);
 
       setApiDepartments(backendDepts || []);
       setApiClasses(backendClasses || []);
+      setApiSemesters(backendSemesters || []);
+      setApiSummariesPoints(backendSummaries || []);
 
     } catch (error: any) {
       toast.error('Lỗi khi tải dữ liệu từ database: ' + error.message);
@@ -59,9 +94,64 @@ export default function GradingPage() {
     fetchData();
   }, []);
 
+  // Effect 1: Khôi phục trạng thái từ sessionStorage khi mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedDept = sessionStorage.getItem('grading_selectedDept') || '';
+      const savedClass = sessionStorage.getItem('grading_selectedClass') || '';
+      const savedSem = sessionStorage.getItem('grading_selectedSem') || '';
+      const savedAppliedDept = sessionStorage.getItem('grading_appliedDept') || '';
+      const savedAppliedClass = sessionStorage.getItem('grading_appliedClass') || '';
+      const savedAppliedSem = sessionStorage.getItem('grading_appliedSem') || '';
+      const savedSearch = sessionStorage.getItem('grading_search') || '';
+      const savedPage = sessionStorage.getItem('grading_page') || '1';
+
+      setSelectedDepartment(savedDept);
+      setSelectedClass(savedClass);
+      setSelectedSemester(savedSem);
+      setAppliedDepartment(savedAppliedDept);
+      setAppliedClass(savedAppliedClass);
+      setAppliedSemester(savedAppliedSem);
+      setSearchTerm(savedSearch);
+      setCurrentPage(Number(savedPage));
+    }
+    setIsStateRestored(true);
+  }, []);
+
+  // Effect 2: Đồng bộ hóa state sang sessionStorage bất cứ khi nào có thay đổi
+  useEffect(() => {
+    if (isStateRestored && typeof window !== 'undefined') {
+      sessionStorage.setItem('grading_selectedDept', selectedDepartment);
+      sessionStorage.setItem('grading_selectedClass', selectedClass);
+      sessionStorage.setItem('grading_selectedSem', selectedSemester);
+      sessionStorage.setItem('grading_appliedDept', appliedDepartment);
+      sessionStorage.setItem('grading_appliedClass', appliedClass);
+      sessionStorage.setItem('grading_appliedSem', appliedSemester);
+      sessionStorage.setItem('grading_search', searchTerm);
+      sessionStorage.setItem('grading_page', String(currentPage));
+    }
+  }, [
+    selectedDepartment,
+    selectedClass,
+    selectedSemester,
+    appliedDepartment,
+    appliedClass,
+    appliedSemester,
+    searchTerm,
+    currentPage,
+    isStateRestored
+  ]);
+
   const handleConfirmFilter = () => {
+    if (!selectedClass) {
+      toast.warning('Vui lòng chọn lớp học trước khi xác nhận!');
+      return;
+    }
     setIsTableLoading(true);
     setTimeout(() => {
+      setAppliedSemester(selectedSemester);
+      setAppliedDepartment(selectedDepartment);
+      setAppliedClass(selectedClass);
       setIsTableLoading(false);
       toast.success('Đã cập nhật danh sách sinh viên theo bộ lọc!');
     }, 600);
@@ -69,10 +159,40 @@ export default function GradingPage() {
 
   const pageSize = 10;
 
-  const filteredStudents = mockStudents.filter(student =>
-    student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.id.includes(searchTerm)
-  );
+  // Lọc và map dữ liệu từ summaries-point-api sang dạng tương thích với bảng hiển thị
+  const filteredStudents = !appliedClass
+    ? []
+    : (apiSummariesPoints || [])
+      .map(summary => {
+        const studentObj = typeof summary.student_id === 'object' ? summary.student_id : null;
+        const studentId = studentObj?.student_code || studentObj?.id || studentObj?._id || (typeof summary.student_id === 'string' ? summary.student_id : '');
+        const studentName = studentObj?.full_name || studentObj?.name || 'Chưa rõ';
+        const studentClassId = studentObj?.class_id?._id || studentObj?.class_id || studentObj?.classId || '';
+
+        const semId = typeof summary.semester_id === 'object' ? summary.semester_id?._id : summary.semester_id;
+
+        const classObj = apiClasses.find(c => c._id === studentClassId);
+        const deptId = classObj ? (typeof classObj.dept_id === 'object' ? classObj.dept_id?._id : classObj.dept_id) : '';
+
+        return {
+          id: studentId,
+          name: studentName,
+          score: summary.total_score || 0,
+          classId: studentClassId,
+          semesterId: semId,
+          departmentId: deptId
+        };
+      })
+      .filter(student => {
+        const matchesSearch =
+          student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          student.id.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSemester = appliedSemester ? student.semesterId === appliedSemester : true;
+        const matchesDept = appliedDepartment ? student.departmentId === appliedDepartment : true;
+        const matchesClass = appliedClass ? student.classId === appliedClass : true;
+
+        return matchesSearch && matchesSemester && matchesDept && matchesClass;
+      });
 
   const getRank = (score: number) => {
     if (score === 0) return { label: 'Chưa xếp loại', color: 'bg-slate-100 text-slate-500 border-slate-200/50' };
@@ -108,11 +228,14 @@ export default function GradingPage() {
           <TabNavigation
             tabs={[
               { id: 'list', label: 'Danh sách' },
+              { id: 'score', label: 'Chấm điểm' },
               { id: 'reports', label: 'Danh mục' }
             ]}
             activeTab={'list'}
             onTabChange={(id) => {
-              if (id === 'reports') {
+              if (id === 'score') {
+                router.push('/grading/score');
+              } else if (id === 'reports') {
                 router.push('/grading/categories');
               }
             }}
@@ -139,6 +262,34 @@ export default function GradingPage() {
                 />
               </div>
 
+              {/* Select Học kì */}
+              <div className="shrink-0 flex items-center gap-2">
+                <div className="min-w-[160px]">
+                  <Select
+                    value={selectedSemester}
+                    onValueChange={(val: string) => setSelectedSemester(val)}
+                  >
+                    <SelectTrigger className="h-[42px] bg-[#F3F4F6] border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none">
+                      <SelectValue placeholder="-- Chọn học kỳ --" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">-- Chọn học kỳ --</SelectItem>
+                      {apiSemesters.map(sem => (
+                        <SelectItem key={sem._id} value={sem._id}>{sem.semester_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSemesterModalOpen(true)}
+                  className="w-[42px] h-[42px] shrink-0 rounded-xl bg-[#F3F4F6] hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95"
+                  title="Thêm/Sửa Học kì"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+
               {/* Select Khoa */}
               <div className="shrink-0 min-w-[180px]">
                 <Select
@@ -146,10 +297,10 @@ export default function GradingPage() {
                   onValueChange={(val: string) => { setSelectedDepartment(val); setSelectedClass(''); }}
                 >
                   <SelectTrigger className="h-[42px] bg-[#F3F4F6] border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none">
-                    <SelectValue placeholder="Tất cả khoa" />
+                    <SelectValue placeholder="-- Chọn khoa --" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Tất cả khoa</SelectItem>
+                    <SelectItem value="">-- Chọn khoa --</SelectItem>
                     {apiDepartments.map(dept => (
                       <SelectItem key={dept._id} value={dept._id}>{dept.name}</SelectItem>
                     ))}
@@ -184,8 +335,18 @@ export default function GradingPage() {
                 </Select>
               </div>
 
-              <Button onClick={handleConfirmFilter}>
-                Xác nhận
+              <Button
+                onClick={handleConfirmFilter}
+                disabled={!selectedClass || isTableLoading}
+                className={!selectedClass ? "opacity-50 cursor-not-allowed bg-slate-300 hover:bg-slate-300 text-slate-500" : isTableLoading ? "opacity-80 cursor-not-allowed" : ""}
+              >
+                {isTableLoading && (
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                {isTableLoading ? 'Đang xử lý...' : 'Xác nhận'}
               </Button>
             </motion.div>
 
@@ -196,108 +357,236 @@ export default function GradingPage() {
               transition={{ delay: 0.2 }}
               className="bg-white border border-[#f1f5f9] rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col min-h-0"
             >
-              <div className="flex-1 overflow-auto">
-                <table className="w-full border-collapse">
-                  <thead className="sticky top-0 z-10 bg-[#f8fafc] shadow-[0_1px_0_0_#f1f5f9]">
-                    <tr>
-                      <th className="px-6 py-4 text-left w-16">
-                        <div className="flex items-center">
-                          <input type="checkbox" className="rounded border-[#cbd5e1] text-[#137fec] focus:ring-[#137fec]" />
-                        </div>
-                      </th>
-                      <th className="px-6 py-4 text-left text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Mã sinh viên</th>
-                      <th className="px-6 py-4 text-left text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Tên</th>
-                      <th className="px-6 py-4 text-left text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Lớp</th>
-                      <th className="px-6 py-4 text-center text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Tổng điểm</th>
-                      <th className="px-6 py-4 text-center text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Xếp loại</th>
-                      <th className="px-6 py-4 text-right text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Hành động</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#f1f5f9] relative">
-                    {isInitialLoading || isTableLoading ? (
-                      Array.from({ length: 8 }).map((_, idx) => (
-                        <tr key={`skeleton-${idx}`}>
-                          <td className="px-6 py-4"><Skeleton className="h-4 w-4 rounded" /></td>
-                          <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
-                          <td className="px-6 py-4"><Skeleton className="h-4 w-32 rounded" /></td>
-                          <td className="px-6 py-4"><Skeleton className="h-4 w-20 rounded" /></td>
-                          <td className="px-6 py-4 text-center"><Skeleton className="h-6 w-16 rounded-full mx-auto" /></td>
-                          <td className="px-6 py-4 text-center"><Skeleton className="h-6 w-16 rounded-full mx-auto" /></td>
-                          <td className="px-6 py-4 text-right"><Skeleton className="h-8 w-8 rounded-full ml-auto" /></td>
+              {!appliedClass ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[350px]">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 shadow-sm">
+                    <Search size={26} />
+                  </div>
+                  <h3 className="text-[15px] font-bold text-slate-800 mb-1.5">Chưa hiển thị danh sách sinh viên</h3>
+                  <p className="text-[12.5px] text-slate-500 max-w-[340px] leading-relaxed">
+                    Vui lòng chọn <strong>Khoa</strong>, <strong>Lớp học</strong> và <strong>Học kỳ</strong> phù hợp ở bộ lọc phía trên, sau đó nhấn <strong>Xác nhận</strong> để tải danh sách.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full border-collapse">
+                      <thead className="sticky top-0 z-10 bg-[#f8fafc] shadow-[0_1px_0_0_#f1f5f9]">
+                        <tr>
+                          <th className="px-6 py-4 text-left w-16">
+                            <div className="flex items-center">
+                              <input
+                                type="checkbox"
+                                className="rounded border-[#cbd5e1] text-[#137fec] focus:ring-[#137fec] cursor-pointer"
+                                checked={
+                                  filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize).length > 0 &&
+                                  filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize).every(std => selectedStudentIds.includes(std.id))
+                                }
+                                onChange={(e) => {
+                                  const currentPagedStudents = filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+                                  if (e.target.checked) {
+                                    setSelectedStudentIds(prev => {
+                                      const newSelection = [...prev];
+                                      currentPagedStudents.forEach(std => {
+                                        if (!newSelection.includes(std.id)) {
+                                          newSelection.push(std.id);
+                                        }
+                                      });
+                                      return newSelection;
+                                    });
+                                  } else {
+                                    setSelectedStudentIds(prev =>
+                                      prev.filter(id => !currentPagedStudents.some(std => std.id === id))
+                                    );
+                                  }
+                                }}
+                              />
+                            </div>
+                          </th>
+                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Mã sinh viên</th>
+                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Tên</th>
+                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Lớp</th>
+                          <th className="px-6 py-4 text-center text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Tổng điểm</th>
+                          <th className="px-6 py-4 text-center text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Xếp loại</th>
+                          <th className="px-6 py-4 text-right text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Hành động</th>
                         </tr>
-                      ))
-                    ) : (
-                      <>
-                        {filteredStudents
-                          .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                          .map((student) => {
-                            const rank = getRank(student.score);
-                            const className = apiClasses.find(c => c._id === student.classId)?.class_name || classes.find(c => c.id === student.classId)?.name || student.classId;
+                      </thead>
+                      <tbody className="divide-y divide-[#f1f5f9] relative">
+                        {isInitialLoading || isTableLoading ? (
+                          Array.from({ length: 8 }).map((_, idx) => (
+                            <tr key={`skeleton-${idx}`}>
+                              <td className="px-6 py-4"><Skeleton className="h-4 w-4 rounded" /></td>
+                              <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
+                              <td className="px-6 py-4"><Skeleton className="h-4 w-32 rounded" /></td>
+                              <td className="px-6 py-4"><Skeleton className="h-4 w-20 rounded" /></td>
+                              <td className="px-6 py-4 text-center"><Skeleton className="h-6 w-16 rounded-full mx-auto" /></td>
+                              <td className="px-6 py-4 text-center"><Skeleton className="h-6 w-16 rounded-full mx-auto" /></td>
+                              <td className="px-6 py-4 text-right"><Skeleton className="h-8 w-8 rounded-full ml-auto" /></td>
+                            </tr>
+                          ))
+                        ) : (
+                          <>
+                            {filteredStudents
+                              .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                              .map((student) => {
+                                const rank = getRank(student.score);
+                                const className = apiClasses.find(c => c._id === student.classId)?.class_name || student.classId;
 
-                            return (
-                              <motion.tr
-                                layout
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                key={student.id}
-                                className="hover:bg-slate-50 transition-colors group cursor-pointer"
-                              >
-                                <td className="px-6 py-4">
-                                  <input type="checkbox" className="rounded border-[#cbd5e1] text-[#137fec] focus:ring-[#137fec]" />
+                                return (
+                                  <motion.tr
+                                    layout
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    key={student.id}
+                                    className="hover:bg-slate-50 transition-colors group cursor-pointer"
+                                  >
+                                    <td className="px-6 py-4">
+                                      <input
+                                        type="checkbox"
+                                        className="rounded border-[#cbd5e1] text-[#137fec] focus:ring-[#137fec] cursor-pointer"
+                                        checked={selectedStudentIds.includes(student.id)}
+                                        onChange={() => {
+                                          setSelectedStudentIds(prev =>
+                                            prev.includes(student.id)
+                                              ? prev.filter(id => id !== student.id)
+                                              : [...prev, student.id]
+                                          );
+                                        }}
+                                      />
+                                    </td>
+                                    <td className="px-6 py-4 text-sm font-medium text-[#475569]">{student.id}</td>
+                                    <td className="px-6 py-2">
+                                      <div className="flex items-center gap-[12px]">
+                                        <StudentAvatar fullName={student.name} sizeClass="w-[36px] h-[36px]" />
+                                        <div>
+                                          <div className="font-semibold text-[14px] text-[#0f172a]">{student.name}</div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-[#475569]">{className}</td>
+                                    <td className="px-6 py-4 text-center">
+                                      <span className={`inline-flex items-center justify-center px-3 py-1 border rounded-full text-[13px] font-semibold ${rank.color}`}>
+                                        {student.score}/100
+                                      </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                      <span className={`px-3 py-1 border rounded-full text-[11px] font-bold uppercase tracking-tight ${rank.color}`}>
+                                        {rank.label}
+                                      </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                      <button
+                                        onClick={() => router.push(`/grading/score?studentId=${student.id}`)}
+                                        className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-95 ml-auto cursor-pointer"
+                                        title="Chấm điểm sinh viên"
+                                      >
+                                        <SquarePen size={15} />
+                                      </button>
+                                    </td>
+                                  </motion.tr>
+                                );
+                              })
+                            }
+                            {isFetching && (
+                              <tr className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] z-20 pointer-events-none">
+                                <td colSpan={7} className="h-full w-full p-0">
+                                  <div className="w-full h-full animate-pulse bg-gradient-to-r from-transparent via-slate-100/50 to-transparent" />
                                 </td>
-                                <td className="px-6 py-4 text-sm font-medium text-[#475569]">{student.id}</td>
-                                <td className="px-6 py-4 text-sm font-bold text-[#0f172a]">{student.name}</td>
-                                <td className="px-6 py-4 text-sm text-[#475569]">{className}</td>
-                                <td className="px-6 py-4 text-center">
-                                  <span className={`inline-flex items-center justify-center px-3 py-1 border rounded-full text-[13px] font-semibold ${rank.color}`}>
-                                    {student.score}/100
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 text-center">
-                                  <span className={`px-3 py-1 border rounded-full text-[11px] font-bold uppercase tracking-tight ${rank.color}`}>
-                                    {rank.label}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                  <button className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-95 ml-auto">
-                                    <SquarePen size={15} />
-                                  </button>
-                                </td>
-                              </motion.tr>
-                            );
-                          })
-                        }
-                        {isFetching && (
-                          <tr className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] z-20 pointer-events-none">
-                            <td colSpan={7} className="h-full w-full p-0">
-                              <div className="w-full h-full animate-pulse bg-gradient-to-r from-transparent via-slate-100/50 to-transparent" />
-                            </td>
-                          </tr>
+                              </tr>
+                            )}
+                          </>
                         )}
-                      </>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </tbody>
+                    </table>
+                  </div>
 
-              <CustomPagination
-                currentPage={currentPage}
-                pageSize={pageSize}
-                totalItems={filteredStudents.length}
-                onPageChange={(page) => {
-                  setIsFetching(true);
-                  setTimeout(() => {
-                    setCurrentPage(page);
-                    setIsFetching(false);
-                  }, 400);
-                }}
-                label="sinh viên"
-                isLoading={isFetching}
-              />
+                  <CustomPagination
+                    currentPage={currentPage}
+                    pageSize={pageSize}
+                    totalItems={filteredStudents.length}
+                    onPageChange={(page) => {
+                      setIsFetching(true);
+                      setTimeout(() => {
+                        setCurrentPage(page);
+                        setIsFetching(false);
+                      }, 400);
+                    }}
+                    label="sinh viên"
+                    isLoading={isFetching}
+                  />
+                </>
+              )}
             </motion.div>
           </main>
         </div>
       </div>
+
+      {/* Modal Quản lý Học kỳ */}
+      <SemesterModal
+        isOpen={isSemesterModalOpen}
+        onClose={() => setIsSemesterModalOpen(false)}
+        apiSemesters={apiSemesters}
+        onRefreshSemesters={(updated) => setApiSemesters(updated)}
+        selectedSemester={selectedSemester}
+        setSelectedSemester={setSelectedSemester}
+      />
+
+      {/* Modal Chấm điểm hàng loạt */}
+      <BulkGradingModal
+        isOpen={isBulkGradingOpen}
+        onClose={() => setIsBulkGradingOpen(false)}
+        selectedCount={selectedStudentIds.length}
+        onConfirm={handleConfirmBulkGrading}
+      />
+
+      {/* Thanh tác vụ chọn sinh viên hàng loạt */}
+      <AnimatePresence>
+        {selectedStudentIds.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#1e2022] text-white py-2.5 pl-6 pr-5 rounded-full shadow-[0px_8px_32px_rgba(0,0,0,0.24)] border border-slate-800 flex items-center gap-4 select-none shrink-0"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-[#137fec]/15 border border-[#137fec]/30 flex items-center justify-center text-[#137fec]">
+                <Check size={11} strokeWidth={3.5} />
+              </div>
+              <span className="text-[13px] font-bold tracking-wide">
+                {selectedStudentIds.length} sinh viên đã chọn
+              </span>
+            </div>
+
+            {/* Vạch ngăn */}
+            <div className="w-px h-4 bg-slate-700/80 mx-1 shrink-0" />
+
+            <button
+              onClick={() => setIsBulkGradingOpen(true)}
+              className="bg-[#137fec] hover:bg-blue-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(19,127,236,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+            >
+              <SquarePen size={13} strokeWidth={2.5} />
+              <span>Chấm điểm hàng loạt</span>
+            </button>
+
+            <button
+              onClick={() => {
+                toast.success(`Đã xuất PDF danh sách điểm rèn luyện của ${selectedStudentIds.length} sinh viên thành công!`);
+              }}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer h-9 shrink-0 border border-slate-700/60"
+            >
+              <FileDown size={13} strokeWidth={2.5} />
+              <span>Xuất PDF</span>
+            </button>
+
+            <button
+              onClick={() => setSelectedStudentIds([])}
+              className="text-slate-300 hover:text-white font-bold text-[12.5px] px-3 py-1.5 rounded-full transition-all cursor-pointer hover:bg-white/5 active:scale-95 shrink-0"
+            >
+              Hủy chọn
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

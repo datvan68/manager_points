@@ -18,6 +18,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { CriteriaModule } from './criteria/criteria.module';
 import { SemestersModule } from './semesters/semesters.module';
 import { SummariesPointModule } from './summaries-point/summaries-point.module';
+import { EvaluationDetailModule } from './evaluation-detail/evaluation-detail.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { SummariesPointModule } from './summaries-point/summaries-point.module';
     CriteriaModule,
     SemestersModule,
     SummariesPointModule,
+    EvaluationDetailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
