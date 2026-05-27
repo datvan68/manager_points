@@ -16,6 +16,8 @@ import { AuthModule } from './auth/auth.module';
 import { MailModule } from './core/mail/mail.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CriteriaModule } from './criteria/criteria.module';
+import { SemestersModule } from './semesters/semesters.module';
+import { SummariesPointModule } from './summaries-point/summaries-point.module';
 
 @Module({
   imports: [
@@ -55,6 +57,8 @@ import { CriteriaModule } from './criteria/criteria.module';
     MailModule,
     CategoriesModule,
     CriteriaModule,
+    SemestersModule,
+    SummariesPointModule,
   ],
   controllers: [AppController],
   providers: [AppService],
