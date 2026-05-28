@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsNumber, IsEnum, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsEnum, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCriterionDto {
@@ -31,4 +31,9 @@ export class CreateCriterionDto {
   @IsNotEmpty()
   @IsEnum(['khen_thuong', 'cong_diem', 'ky_luat'])
   criterion_type: string;
+
+  @ApiProperty({ description: 'Đánh dấu tiêu chí bị khóa rèn luyện', example: false, default: false, required: false })
+  @IsOptional()
+  @IsBoolean()
+  is_locked?: boolean;
 }

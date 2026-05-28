@@ -19,9 +19,12 @@ import {
   AlertTriangle,
   Award,
   CircleAlert,
-  ArrowUp
+  ArrowUp,
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CustomPagination } from '@/components/ui/pagination';
 import { toast } from 'sonner';
 
 import { summariesPointApi } from '@/api/summaries-point-api';
@@ -31,6 +34,7 @@ import { evaluationDetailApi } from '@/api/evaluation-detail-api';
 import { semesterApi } from '@/api/semester-api';
 import { classApi } from '@/api/class-api';
 import { studentApi } from '@/api/student-api';
+import { tokenStorage } from '@/api/auth-api';
 
 // Interfaces
 interface StudentData {
@@ -53,6 +57,7 @@ interface Criteria {
   type: 'reward' | 'violation';
   maxScore?: number;
   minScore?: number;
+  is_locked?: boolean;
 }
 
 interface Category {
@@ -94,16 +99,19 @@ const evaluationCategories: Category[] = [
   }
 ];
 
-// Mock Lịch sử ghi nhận
-const initialHistoryRecords = [
-  { id: 'rec-1', studentId: '20216001', type: 'reward', title: 'Điểm chuyên cần và thái độ học tập', date: '25/05/2026', count: 1, points: 10, session: 'Sáng' },
-  { id: 'rec-2', studentId: '20216001', type: 'reward', title: 'Tham gia các câu lạc bộ học thuật', date: '20/05/2026', count: 1, points: 5, session: 'Chiều' },
-  { id: 'rec-3', studentId: '20216001', type: 'reward', title: 'Kết quả học tập (GPA)', date: '15/05/2026', count: 1, points: 3, session: 'Sáng' },
-  { id: 'rec-4', studentId: '20216001', type: 'violation', title: 'Chấp hành nội quy Ký túc xá/Cư trú', date: '10/05/2026', count: 1, points: -10, session: 'Sáng' },
-
-  { id: 'rec-5', studentId: '20216002', type: 'reward', title: 'Tham gia chiến dịch Mùa hè xanh', date: '24/05/2026', count: 1, points: 20, session: 'Sáng' },
-  { id: 'rec-6', studentId: '20216002', type: 'reward', title: 'Điểm chuyên cần và thái độ học tập', date: '22/05/2026', count: 1, points: 10, session: 'Chiều' },
-];
+interface HistoryRecord {
+  id: string;
+  studentId: string;
+  type: string;
+  title: string;
+  date: string;
+  count: number;
+  points: number;
+  session: string;
+  role?: 'student' | 'teacher' | 'supervisor' | 'admin';
+  updated_by?: string;
+  status?: string;
+}
 
 function GradingScoreContent() {
   const router = useRouter();
@@ -112,6 +120,36 @@ function GradingScoreContent() {
 
   // Slider scroll ref
   const sliderRef = useRef<HTMLDivElement>(null);
+
+  // Slider drag to scroll refs & handlers
+  const isDownRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+
+  const handleSliderMouseDown = (e: React.MouseEvent) => {
+    if (!sliderRef.current) return;
+    isDownRef.current = true;
+    sliderRef.current.style.scrollBehavior = 'auto'; // Tắt smooth scroll tạm thời để kéo chuột nhạy hơn
+    sliderRef.current.style.cursor = 'grabbing';
+    startXRef.current = e.pageX - sliderRef.current.offsetLeft;
+    scrollLeftRef.current = sliderRef.current.scrollLeft;
+  };
+
+  const handleSliderMouseUpOrLeave = () => {
+    isDownRef.current = false;
+    if (sliderRef.current) {
+      sliderRef.current.style.scrollBehavior = 'smooth'; // Bật lại smooth scroll
+      sliderRef.current.style.cursor = 'grab';
+    }
+  };
+
+  const handleSliderMouseMove = (e: React.MouseEvent) => {
+    if (!isDownRef.current || !sliderRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - sliderRef.current.offsetLeft;
+    const walk = (x - startXRef.current) * 1.5; // Tốc độ kéo
+    sliderRef.current.scrollLeft = scrollLeftRef.current - walk;
+  };
 
   // Scroll to Top ref & state
   const mainRef = useRef<HTMLDivElement>(null);
@@ -160,7 +198,14 @@ function GradingScoreContent() {
   const [evaluationCounts, setEvaluationCounts] = useState<Record<string, Record<string, number>>>({});
 
   // State lưu lịch sử ghi nhận
-  const [historyRecords, setHistoryRecords] = useState(initialHistoryRecords);
+  const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [isHistoryFetching, setIsHistoryFetching] = useState(false);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState<HistoryRecord | null>(null);
+
+  const currentSemester = apiSemesters.find(sem => sem._id === selectedSemesterId);
+  const isSemesterActive = currentSemester ? currentSemester.status === 'active' : false;
 
   // Khởi tạo dữ liệu thực tế từ các API
   useEffect(() => {
@@ -202,7 +247,8 @@ function GradingScoreContent() {
                 pointsPerUnit: cri.score_per_unit || 1,
                 type: cri.criterion_type === 'ky_luat' ? ('violation' as const) : ('reward' as const),
                 maxScore: cri.max_score || 10,
-                minScore: cri.min_score || 0
+                minScore: cri.min_score || 0,
+                is_locked: !!cri.is_locked
               }));
 
             return {
@@ -297,17 +343,41 @@ function GradingScoreContent() {
           if (activeSummaryId) {
             const details = await evaluationDetailApi.getEvaluationDetailsBySummary(activeSummaryId);
             const counts: Record<string, number> = {};
+            const activeHistory: any[] = [];
+
             (details || []).forEach(detail => {
-              const criId = typeof detail.criterion_id === 'object' ? detail.criterion_id?._id : detail.criterion_id;
-              const criterionObj = backendCriteria.find(c => c._id === criId);
-              const pointsPerUnit = criterionObj?.score_per_unit || 1;
-              counts[criId] = Math.round(detail.student_score / pointsPerUnit);
+              const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
+              const criId = cri?._id || detail.criterion_id;
+              counts[criId] = detail.current_count || 0;
+
+              const criName = cri?.criterion_name || 'Tiêu chí';
+              const criType = cri?.criterion_type === 'ky_luat' ? 'violation' : 'reward';
+              const pointsPerUnit = cri?.score_per_unit || 1;
+
+              (detail.history || []).forEach((log: any, index: number) => {
+                activeHistory.push({
+                  id: `${detail._id}-log-${index}`,
+                  studentId: targetActiveId,
+                  type: criType,
+                  title: criName,
+                  date: log.updated_at ? new Date(log.updated_at).toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN'),
+                  count: log.count,
+                  points: pointsPerUnit * log.count,
+                  session: log.updated_at ? (new Date(log.updated_at).getHours() < 12 ? 'Sáng' : 'Chiều') : 'Sáng',
+                  role: log.role,
+                  updated_by: log.updated_by,
+                  status: detail.status || 'draft'
+                });
+              });
             });
 
             setEvaluationCounts(prev => ({
               ...prev,
               [targetActiveId]: counts
             }));
+
+            // Sắp xếp lịch sử mới nhất lên trước
+            setHistoryRecords(activeHistory.reverse());
           }
         }
 
@@ -323,8 +393,9 @@ function GradingScoreContent() {
 
   // Lazy-load chi tiết chấm điểm của sinh viên khi activeStudentId thay đổi
   useEffect(() => {
+    setHistoryPage(1);
     const loadStudentDetails = async () => {
-      if (!activeStudentId || evaluationCounts[activeStudentId] || isInitialLoading) return;
+      if (!activeStudentId || isInitialLoading) return;
 
       const summaryId = studentSummaryMap[activeStudentId];
       if (!summaryId) return;
@@ -333,23 +404,40 @@ function GradingScoreContent() {
         setIsFetching(true);
         const details = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
         const counts: Record<string, number> = {};
+        const activeHistory: any[] = [];
 
         (details || []).forEach(detail => {
-          const criId = typeof detail.criterion_id === 'object' ? detail.criterion_id?._id : detail.criterion_id;
-          let pointsPerUnit = 1;
-          categories.forEach(cat => {
-            const item = cat.items.find(cri => cri.id === criId);
-            if (item) {
-              pointsPerUnit = item.pointsPerUnit || 1;
-            }
+          const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
+          const criId = cri?._id || detail.criterion_id;
+          counts[criId] = detail.current_count || 0;
+
+          const criName = cri?.criterion_name || 'Tiêu chí';
+          const criType = cri?.criterion_type === 'ky_luat' ? 'violation' : 'reward';
+          const pointsPerUnit = cri?.score_per_unit || 1;
+
+          (detail.history || []).forEach((log: any, index: number) => {
+            activeHistory.push({
+              id: `${detail._id}-log-${index}`,
+              studentId: activeStudentId,
+              type: criType,
+              title: criName,
+              date: log.updated_at ? new Date(log.updated_at).toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN'),
+              count: log.count,
+              points: pointsPerUnit * log.count,
+              session: log.updated_at ? (new Date(log.updated_at).getHours() < 12 ? 'Sáng' : 'Chiều') : 'Sáng',
+              role: log.role,
+              updated_by: log.updated_by,
+              status: detail.status || 'draft'
+            });
           });
-          counts[criId] = Math.round(detail.student_score / pointsPerUnit);
         });
 
         setEvaluationCounts(prev => ({
           ...prev,
           [activeStudentId]: counts
         }));
+
+        setHistoryRecords(activeHistory.reverse());
       } catch (error: any) {
         toast.error('Không thể tải chi tiết chấm điểm của sinh viên này: ' + error.message);
       } finally {
@@ -359,6 +447,30 @@ function GradingScoreContent() {
 
     loadStudentDetails();
   }, [activeStudentId, studentSummaryMap, categories, isInitialLoading]);
+
+  // Tự động cuộn slider ngang đến vị trí sinh viên đang được active
+  useEffect(() => {
+    if (!activeStudentId || students.length === 0 || !sliderRef.current) return;
+
+    // Sử dụng setTimeout nhẹ để đảm bảo DOM đã render xong các thẻ sinh viên
+    const timer = setTimeout(() => {
+      const slider = sliderRef.current;
+      const card = document.getElementById(`student-card-${activeStudentId}`);
+      if (slider && card) {
+        const offsetLeft = card.offsetLeft;
+        const cardWidth = card.clientWidth;
+        const sliderWidth = slider.clientWidth;
+
+        // Căn giữa thẻ sinh viên đang active trong lòng slider ngang
+        slider.scrollTo({
+          left: offsetLeft - (sliderWidth / 2) + (cardWidth / 2),
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [activeStudentId, students]);
 
   // Sinh viên đang active
   const activeStudent = students.find(s => s.id === activeStudentId);
@@ -438,6 +550,10 @@ function GradingScoreContent() {
   // Hàm đặt lại điểm số
   const handleReset = () => {
     if (!activeStudentId || !activeStudent) return;
+    if (!isSemesterActive) {
+      toast.error('Học kỳ đã đóng, không thể đặt lại điểm số!');
+      return;
+    }
 
     setEvaluationCounts(prev => ({
       ...prev,
@@ -454,6 +570,10 @@ function GradingScoreContent() {
   // Hàm Lưu thay đổi thực tế đồng bộ database qua API
   const handleSave = async () => {
     if (!activeStudent || isFetching) return;
+    if (!isSemesterActive) {
+      toast.error('Học kỳ đã đóng, không thể lưu kết quả chấm điểm!');
+      return;
+    }
 
     const summaryId = studentSummaryMap[activeStudentId];
     if (!summaryId) {
@@ -465,63 +585,127 @@ function GradingScoreContent() {
       setIsFetching(true);
       toast.loading('Đang lưu kết quả chấm điểm...', { id: 'save-loading' });
 
+      // Lấy thông tin user hiện tại và ánh xạ sang role
+      const currentUser = tokenStorage.getUser();
+      let userRole: 'student' | 'teacher' | 'supervisor' | 'admin' = 'student';
+      if (currentUser?.role) {
+        const r = currentUser.role.toLowerCase();
+        if (r.includes('admin')) {
+          userRole = 'admin';
+        } else if (r.includes('teacher') || r.includes('advisor')) {
+          userRole = 'teacher';
+        } else if (r.includes('supervisor') || r.includes('quản sinh')) {
+          userRole = 'supervisor';
+        }
+      }
+
+      // Mặc định khi thực hiện Lưu thay đổi status trong EvaluationDetail là bản nháp ('draft') kể cả Admin
+      const detailStatus = 'draft';
+
       // 1. Tải các chi tiết cũ của summaryId này
       const oldDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
 
-      // 2. Xóa các chi tiết cũ
-      await Promise.all((oldDetails || []).map(detail => evaluationDetailApi.deleteEvaluationDetail(detail._id)));
-
-      // 3. Tạo các chi tiết chấm điểm mới
+      // 2. Tạo hoặc cập nhật các chi tiết chấm điểm
       const counts = evaluationCounts[activeStudentId] || {};
-      const createPromises: Promise<any>[] = [];
+      const promises: Promise<any>[] = [];
+      const newRecords: any[] = [];
+      let recordIndex = Date.now();
 
       categories.forEach(cat => {
         cat.items.forEach(cri => {
           const count = counts[cri.id] || 0;
-          if (count > 0) {
-            const maxScore = (cri as any).maxScore || 10;
-            const minScore = (cri as any).minScore || 0;
-            const student_score = Math.max(minScore, Math.min(maxScore, count * cri.pointsPerUnit));
-            const advisor_score = student_score; // Gán điểm cố vấn ban đầu bằng điểm tự chấm
+          // Tìm xem tiêu chí này đã có EvaluationDetail cũ chưa
+          const existingDetail = (oldDetails || []).find(d => {
+            const detailCriId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
+            return detailCriId === cri.id;
+          });
 
-            createPromises.push(evaluationDetailApi.createEvaluationDetail({
-              summary_id: summaryId,
-              criterion_id: cri.id,
-              student_score,
-              advisor_score
-            }));
+          if (existingDetail) {
+            // Nếu số lần khác nhau (có thay đổi)
+            if (existingDetail.current_count !== count) {
+              const updatedHistory = [...(existingDetail.history || [])];
+              updatedHistory.push({
+                role: userRole,
+                updated_by: currentUser?.id,
+                count: count,
+                reason: 'Cập nhật điểm rèn luyện'
+              });
+
+              // Lọc sạch lịch sử để khớp chính xác DTO ở Backend (tránh lỗi validation updated_at, _id)
+              const cleanHistory = updatedHistory.map((log: any) => ({
+                role: log.role,
+                updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
+                count: log.count,
+                reason: log.reason || 'Cập nhật điểm rèn luyện'
+              }));
+
+              promises.push(evaluationDetailApi.updateEvaluationDetail(existingDetail._id, {
+                current_count: count,
+                history: cleanHistory,
+                status: detailStatus
+              }));
+
+              newRecords.push({
+                id: `rec-new-${recordIndex++}`,
+                studentId: activeStudentId,
+                type: cri.type,
+                title: cri.name,
+                date: new Date().toLocaleDateString('vi-VN'),
+                count,
+                points: cri.pointsPerUnit * count,
+                session: new Date().getHours() < 12 ? 'Sáng' : 'Chiều',
+                role: userRole,
+                updated_by: currentUser?.id,
+                status: detailStatus
+              });
+            }
+          } else {
+            // Nếu chưa có và count > 0, ta tiến hành tạo mới
+            if (count > 0) {
+              promises.push(evaluationDetailApi.createEvaluationDetail({
+                summary_id: summaryId,
+                criterion_id: cri.id,
+                current_count: count,
+                history: [
+                  {
+                    role: userRole,
+                    updated_by: currentUser?.id,
+                    count: count,
+                    reason: 'Khởi tạo điểm rèn luyện'
+                  }
+                ],
+                status: detailStatus
+              }));
+
+              newRecords.push({
+                id: `rec-new-${recordIndex++}`,
+                studentId: activeStudentId,
+                type: cri.type,
+                title: cri.name,
+                date: new Date().toLocaleDateString('vi-VN'),
+                count,
+                points: cri.pointsPerUnit * count,
+                session: new Date().getHours() < 12 ? 'Sáng' : 'Chiều',
+                role: userRole,
+                updated_by: currentUser?.id,
+                status: detailStatus
+              });
+            }
           }
         });
       });
 
-      await Promise.all(createPromises);
+      await Promise.all(promises);
 
-      // 4. Cập nhật lại tổng điểm rèn luyện trong summariesPoint
+      // 3. Cập nhật lại tổng điểm rèn luyện trong summariesPoint
       await summariesPointApi.updateSummariesPoint(summaryId, {
         total_score: activeStudent.score
       });
 
-      // 5. Thêm các record mới vào lịch sử UI cho đồng bộ hiển thị
-      const newRecords: any[] = [];
-      let recordIndex = Date.now();
-      categories.forEach(cat => {
-        cat.items.forEach(cri => {
-          const count = counts[cri.id] || 0;
-          if (count > 0) {
-            newRecords.push({
-              id: `rec-new-${recordIndex++}`,
-              studentId: activeStudentId,
-              type: cri.type,
-              title: cri.name,
-              date: new Date().toLocaleDateString('vi-VN'),
-              count,
-              points: cri.pointsPerUnit * count,
-              session: new Date().getHours() < 12 ? 'Sáng' : 'Chiều'
-            });
-          }
-        });
-      });
-      setHistoryRecords(prev => [...newRecords, ...prev]);
+      // 4. Đồng bộ hiển thị lịch sử trên UI
+      if (newRecords.length > 0) {
+        setHistoryRecords(prev => [...newRecords, ...prev]);
+      }
 
       toast.dismiss('save-loading');
       toast.success(`Đã lưu thành công điểm rèn luyện ${activeStudent.score}/100đ cho sinh viên ${activeStudent.name}!`);
@@ -530,6 +714,108 @@ function GradingScoreContent() {
       toast.dismiss('save-loading');
       toast.error('Lỗi khi lưu kết quả chấm điểm: ' + error.message);
     } finally {
+      setIsFetching(false);
+    }
+  };
+
+  // Hàm xóa một bản ghi lịch sử rèn luyện và cập nhật database/realtime score
+  const handleDeleteHistoryRecord = async () => {
+    if (!recordToDelete) return;
+
+    try {
+      setIsFetching(true);
+      toast.loading('Đang xóa lịch sử chấm điểm...', { id: 'delete-loading' });
+
+      // Trích xuất detailId và logIndex
+      const parts = recordToDelete.id.split('-log-');
+      const detailId = parts[0];
+      const logIndex = parseInt(parts[1], 10);
+
+      // 1. Tải chi tiết EvaluationDetail từ API
+      const detail = await evaluationDetailApi.getEvaluationDetail(detailId);
+      if (!detail) {
+        throw new Error('Không tìm thấy chi tiết chấm điểm tương ứng');
+      }
+
+      // 2. Xóa log tại logIndex khỏi mảng history
+      const updatedHistory = [...(detail.history || [])];
+      updatedHistory.splice(logIndex, 1);
+
+      // 3. Tính toán lại số lần hiện tại (current_count)
+      const newCount = updatedHistory.length > 0 ? updatedHistory[updatedHistory.length - 1].count : 0;
+
+      // 4. Lọc sạch mảng lịch sử trước khi gửi lên API
+      const cleanHistory = updatedHistory.map((log: any) => ({
+        role: log.role,
+        updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
+        count: log.count,
+        reason: log.reason
+      }));
+
+      // 5. Cập nhật detail lên Backend (hoặc xóa detail nếu history trống và current_count = 0)
+      if (cleanHistory.length === 0) {
+        await evaluationDetailApi.deleteEvaluationDetail(detail._id);
+      } else {
+        await evaluationDetailApi.updateEvaluationDetail(detail._id, {
+          current_count: newCount,
+          history: cleanHistory,
+          status: 'draft' // Chuyển về bản nháp sau khi xóa log cũ
+        });
+      }
+
+      // 6. Cập nhật state realtime của Frontend
+      const criterionId = typeof detail.criterion_id === 'object' ? detail.criterion_id?._id : detail.criterion_id;
+      const updatedCounts = {
+        ...(evaluationCounts[activeStudentId] || {}),
+        [criterionId]: newCount
+      };
+
+      setEvaluationCounts(prev => ({
+        ...prev,
+        [activeStudentId]: updatedCounts
+      }));
+
+      // 7. Tính lại và cập nhật điểm số rèn luyện của sinh viên
+      let finalScore = 0;
+      categories.forEach(cat => {
+        let catScore = 0;
+        cat.items.forEach(cri => {
+          const count = updatedCounts[cri.id] || 0;
+          const maxScore = (cri as any).maxScore || 10;
+          const minScore = (cri as any).minScore || 0;
+          const criterionScore = Math.max(minScore, Math.min(maxScore, count * cri.pointsPerUnit));
+          catScore += criterionScore;
+        });
+        const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));
+        finalScore += clampedCatScore;
+      });
+
+      const clampedFinalScore = Math.max(0, Math.min(100, finalScore));
+
+      // Cập nhật state học sinh
+      setStudents(prev =>
+        prev.map(std => std.id === activeStudentId ? { ...std, score: clampedFinalScore } : std)
+      );
+
+      // Cập nhật summariesPoint
+      const summaryId = studentSummaryMap[activeStudentId];
+      if (summaryId) {
+        await summariesPointApi.updateSummariesPoint(summaryId, {
+          total_score: clampedFinalScore
+        });
+      }
+
+      // Xóa bản ghi trên giao diện
+      setHistoryRecords(prev => prev.filter(r => r.id !== recordToDelete.id));
+
+      toast.dismiss('delete-loading');
+      toast.success('Đã xóa lịch sử ghi nhận điểm rèn luyện thành công!');
+    } catch (error: any) {
+      toast.dismiss('delete-loading');
+      toast.error('Lỗi khi xóa lịch sử: ' + error.message);
+    } finally {
+      setIsConfirmDeleteOpen(false);
+      setRecordToDelete(null);
       setIsFetching(false);
     }
   };
@@ -576,8 +862,26 @@ function GradingScoreContent() {
           <main
             ref={mainRef}
             onScroll={handleScroll}
-            className="flex-1 p-6 flex flex-col gap-6 max-w-[1440px] mx-auto w-full overflow-y-auto custom-scrollbar"
+            className="flex-1 p-6 md:px-8 flex flex-col gap-6 w-full overflow-y-auto custom-scrollbar"
           >
+            {/* Banner cảnh báo học kỳ đã đóng (Chế độ chỉ xem) */}
+            {!isSemesterActive && !isInitialLoading && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-amber-50 border border-amber-200/70 rounded-2xl p-4 flex items-center gap-3 shrink-0 shadow-sm"
+              >
+                <div className="bg-amber-100 text-amber-800 p-2 rounded-xl">
+                  <Eye size={18} strokeWidth={2.5} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-amber-900 text-[14px]">Hệ thống chấm điểm chưa được mở</h4>
+                  <p className="text-amber-700 text-[12.5px] mt-0.5 font-medium leading-relaxed">
+                    Bạn hiện chỉ có quyền **xem chi tiết** điểm số rèn luyện trong học kỳ này. Mọi thao tác chấm điểm hoặc thay đổi đã bị vô hiệu hóa.
+                  </p>
+                </div>
+              </motion.div>
+            )}
 
             {/* ================= STUDENT HERO SLIDER ================= */}
             <div className="bg-white border border-[#e5e7eb] rounded-2xl p-5 shadow-sm shrink-0 flex flex-col gap-3.5 relative overflow-hidden">
@@ -606,7 +910,11 @@ function GradingScoreContent() {
               {/* Slider container */}
               <div
                 ref={sliderRef}
-                className="flex gap-4 overflow-x-auto pr-10 py-1.5 custom-scrollbar scroll-smooth"
+                onMouseDown={handleSliderMouseDown}
+                onMouseUp={handleSliderMouseUpOrLeave}
+                onMouseLeave={handleSliderMouseUpOrLeave}
+                onMouseMove={handleSliderMouseMove}
+                className="flex gap-4 overflow-x-auto pr-10 py-1.5 custom-scrollbar scroll-smooth cursor-grab select-none"
               >
                 {isInitialLoading ? (
                   Array.from({ length: 4 }).map((_, idx) => (
@@ -626,6 +934,7 @@ function GradingScoreContent() {
                     return (
                       <motion.div
                         key={student.id}
+                        id={`student-card-${student.id}`}
                         layout="position"
                         onClick={() => setActiveStudentId(student.id)}
                         className={`relative bg-white border-2 rounded-xl p-[13px] w-[256px] flex gap-[12px] items-center shrink-0 cursor-pointer transition-all duration-200 select-none shadow-[0px_1px_2px_rgba(0,0,0,0.03)] ${isActive
@@ -688,7 +997,7 @@ function GradingScoreContent() {
             <div className="border-[#e9e7eb] border-b border-solid flex gap-[32px] items-start pb-px shrink-0 ">
               <button
                 onClick={() => setSubTab('category')}
-                className={`pb-3.5 font-bold text-[18px] transition-all relative cursor-pointer ${subTab === 'category'
+                className={`pb-3.5 font-semibold text-[15px] transition-all relative cursor-pointer ${subTab === 'category'
                   ? 'text-[#005bbf]'
                   : 'text-[#5f6368] hover:text-slate-700'
                   }`}
@@ -696,14 +1005,16 @@ function GradingScoreContent() {
                 Danh mục
                 {subTab === 'category' && (
                   <motion.div
-                    layoutId="activeSubTabUnderline"
-                    className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#005bbf] rounded-full"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#005bbf] rounded-full origin-left"
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
                   />
                 )}
               </button>
               <button
                 onClick={() => setSubTab('history')}
-                className={`pb-3.5 font-bold text-[18px] transition-all relative cursor-pointer ${subTab === 'history'
+                className={`pb-3.5 font-semibold text-[15px] transition-all relative cursor-pointer ${subTab === 'history'
                   ? 'text-[#005bbf]'
                   : 'text-[#5f6368] hover:text-slate-700'
                   }`}
@@ -711,8 +1022,10 @@ function GradingScoreContent() {
                 Lịch sử ghi nhận
                 {subTab === 'history' && (
                   <motion.div
-                    layoutId="activeSubTabUnderline"
-                    className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#005bbf] rounded-full"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#005bbf] rounded-full origin-left"
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
                   />
                 )}
               </button>
@@ -756,7 +1069,7 @@ function GradingScoreContent() {
                       >
                         {/* Category Header */}
                         <div className="bg-[#f4f3f7] flex items-center justify-between p-5 w-full select-none">
-                          <h4 className="font-bold text-[#1a1b1e] text-[17.5px] tracking-wide flex items-center gap-2">
+                          <h4 className="font-bold text-[#1a1b1e] text-[15px] tracking-wide flex items-center gap-2">
                             {category.code && (
                               <span className="text-[#005bbf] font-mono text-[13px] bg-[#005bbf]/10 px-2 py-0.5 rounded font-bold shrink-0">
                                 {category.code}
@@ -779,44 +1092,47 @@ function GradingScoreContent() {
                             return (
                               <div
                                 key={item.id}
-                                className="flex items-center justify-between p-5 w-full hover:bg-slate-50/20 transition-colors"
+                                className="flex items-center justify-between gap-4 p-5 w-full hover:bg-slate-50/20 transition-colors"
                               >
                                 {/* Title */}
-                                <div className="flex flex-col gap-1 w-[40%]">
-                                  <h5 className="font-medium text-[#1a1b1e] text-[15px] leading-relaxed">
+                                <div className="flex-1 min-w-0 pr-4">
+                                  <h5 className="font-medium text-[#1a1b1e] text-[15px] leading-relaxed break-words">
                                     {item.name}
                                   </h5>
                                 </div>
 
                                 {/* Counter Control and Points */}
-                                <div className="flex gap-8 items-center shrink-0">
+                                <div className="flex gap-6 items-center shrink-0">
 
                                   {/* +/- Bộ nút tăng giảm số lượng và đơn giá */}
                                   <div className="flex flex-col items-center gap-1.5 shrink-0">
-                                    <div className="bg-[#f4f3f7]/55 border border-[#c1c6d6]/20 rounded-full p-1 flex gap-1 items-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                                    <div className={`bg-[#f4f3f7]/55 border border-[#c1c6d6]/20 rounded-full p-1 flex gap-1 items-center shadow-[0_1px_2px_rgba(0,0,0,0.03)] ${item.is_locked || !isSemesterActive ? 'opacity-60 bg-slate-100' : ''}`}>
                                       <button
-                                        onClick={() => handleCountChange(item.id, -1)}
-                                        disabled={count === 0}
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${count === 0
+                                        onClick={() => !item.is_locked && isSemesterActive && handleCountChange(item.id, -1)}
+                                        disabled={count === 0 || item.is_locked || !isSemesterActive}
+                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${count === 0 || item.is_locked || !isSemesterActive
                                           ? 'opacity-30 cursor-not-allowed text-slate-400'
-                                          : hasViolation
+                                          : 'cursor-pointer ' + (hasViolation
                                             ? 'text-[#d93025] hover:bg-rose-50'
-                                            : 'text-[#005bbf] hover:bg-blue-50'
+                                            : 'text-[#005bbf] hover:bg-blue-50')
                                           }`}
-                                        title="Giảm lần vi phạm/cộng điểm"
+                                        title={!isSemesterActive ? 'Học kỳ đã đóng' : item.is_locked ? 'Tiêu chí đã bị khóa' : 'Giảm lần vi phạm/cộng điểm'}
                                       >
                                         <Minus size={13} strokeWidth={3} />
                                       </button>
-                                      <div className="w-8 flex items-center justify-center font-bold text-[#1a1b1e] text-[15px] select-none">
+                                      <div className={`w-8 flex items-center justify-center font-bold text-[15px] select-none ${item.is_locked || !isSemesterActive ? 'text-slate-400' : 'text-[#1a1b1e]'}`}>
                                         {count}
                                       </div>
                                       <button
-                                        onClick={() => handleCountChange(item.id, 1)}
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${hasViolation
-                                          ? 'text-[#d93025] hover:bg-rose-50'
-                                          : 'text-[#005bbf] hover:bg-blue-50'
+                                        onClick={() => !item.is_locked && isSemesterActive && handleCountChange(item.id, 1)}
+                                        disabled={item.is_locked || !isSemesterActive}
+                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${item.is_locked || !isSemesterActive
+                                          ? 'opacity-30 cursor-not-allowed text-slate-400'
+                                          : 'cursor-pointer ' + (hasViolation
+                                            ? 'text-[#d93025] hover:bg-rose-50'
+                                            : 'text-[#005bbf] hover:bg-blue-50')
                                           }`}
-                                        title="Tăng lần vi phạm/cộng điểm"
+                                        title={!isSemesterActive ? 'Học kỳ đã đóng' : item.is_locked ? 'Tiêu chí đã bị khóa' : 'Tăng lần vi phạm/cộng điểm'}
                                       >
                                         <Plus size={13} strokeWidth={3} />
                                       </button>
@@ -851,30 +1167,35 @@ function GradingScoreContent() {
                   })}
 
                   {/* Nút lưu & đặt lại ở dưới cùng */}
-                  <div className="flex items-center justify-end gap-3.5 pt-4 pb-12 w-full">
-                    <button
-                      onClick={handleReset}
-                      className="border border-[#c1c6d6] hover:bg-slate-50 text-[#414754] font-bold text-[14px] px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all active:scale-95 cursor-pointer h-[42px]"
-                      title="Đặt lại các tiêu chí"
-                    >
-                      <RotateCcw size={15} strokeWidth={2.5} />
-                      <span>Đặt lại</span>
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      className="bg-[#005bbf] hover:bg-[#004797] text-white font-bold text-[14px] px-7 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-[0_4px_12px_rgba(0,91,191,0.2)] active:scale-95 cursor-pointer h-[42px]"
-                      title="Lưu điểm rèn luyện"
-                    >
-                      <Save size={15} strokeWidth={2.5} />
-                      <span>Lưu thay đổi</span>
-                    </button>
-                  </div>
+                  {isSemesterActive && (
+                    <div className="flex items-center justify-end gap-3.5 pt-4 pb-12 w-full">
+                      <button
+                        onClick={handleReset}
+                        className="border border-[#c1c6d6] hover:bg-slate-50 text-[#414754] font-bold text-[14px] px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all active:scale-95 cursor-pointer h-[42px]"
+                        title="Đặt lại các tiêu chí"
+                      >
+                        <RotateCcw size={15} strokeWidth={2.5} />
+                        <span>Đặt lại</span>
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        className="bg-[#005bbf] hover:bg-[#004797] text-white font-bold text-[14px] px-7 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-[0_4px_12px_rgba(0,91,191,0.2)] active:scale-95 cursor-pointer h-[42px]"
+                        title="Lưu điểm rèn luyện"
+                      >
+                        <Save size={15} strokeWidth={2.5} />
+                        <span>Lưu thay đổi</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* ───── TAB 2: LỊCH SỬ GHI NHẬN (History Log) ───── */}
               {subTab === 'history' && activeStudent && (() => {
                 const records = historyRecords.filter(r => r.studentId === activeStudentId);
+                const historyPageSize = 15;
+                const paginatedRecords = records.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize);
+                const totalPages = Math.ceil(records.length / historyPageSize);
 
                 return (
                   <div className="flex flex-col gap-4">
@@ -892,42 +1213,70 @@ function GradingScoreContent() {
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="bg-white border border-[#f1f5f9] rounded-2xl shadow-sm overflow-hidden flex flex-col"
+                        className="bg-white border border-[#f1f5f9] rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0"
                       >
-                        <div className="overflow-x-auto">
+                        <div className={`overflow-x-auto ${paginatedRecords.length > 10 ? 'max-h-[460px] overflow-y-auto custom-scrollbar' : ''}`}>
                           <table className="w-full border-collapse">
                             <thead>
                               <tr className="bg-[#f8fafc] border-b border-[#f1f5f9] text-left text-[11px] font-bold text-[#64748b] uppercase tracking-wider">
                                 <th className="px-6 py-4">Ngày ghi nhận</th>
-                                <th className="px-6 py-4">Loại hình</th>
-                                <th className="px-6 py-4">Mô tả tiêu chí</th>
-                                <th className="px-6 py-4 text-center">Buổi</th>
+                                <th className="px-6 py-4">Tiêu chí</th>
+                                <th className="px-6 py-4">Người chấm</th>
+                                <th className="px-6 py-4">Trạng thái</th>
                                 <th className="px-6 py-4 text-center">Số lần</th>
                                 <th className="px-6 py-4 text-right">Tổng điểm</th>
+                                <th className="px-6 py-4 text-right">Hành động</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-[#f1f5f9] text-[13.5px]">
-                              {records.map((rec) => {
+                            <tbody className="divide-y divide-[#f1f5f9] text-[13.5px] relative">
+                              {paginatedRecords.map((rec) => {
                                 const isViolation = rec.type === 'violation';
+
+                                // Helper xác định nhãn trạng thái
+                                let statusLabel = 'Bản nháp';
+                                let statusStyle = 'bg-slate-100 text-slate-700 border-slate-200';
+                                if (rec.status === 'teacher_evaluated') {
+                                  statusLabel = 'Cố vấn đã chấm';
+                                  statusStyle = 'bg-sky-50 text-sky-700 border-sky-100';
+                                } else if (rec.status === 'supervisor_evaluated') {
+                                  statusLabel = 'Quản sinh đã chấm';
+                                  statusStyle = 'bg-amber-50 text-amber-700 border-amber-100';
+                                } else if (rec.status === 'finalized') {
+                                  statusLabel = 'Đã phê duyệt';
+                                  statusStyle = 'bg-emerald-50 text-emerald-700 border-emerald-100';
+                                }
 
                                 return (
                                   <tr key={rec.id} className="hover:bg-slate-50/40 transition-colors">
                                     <td className="px-6 py-4 text-[#64748b] font-medium">{rec.date}</td>
                                     <td className="px-6 py-4">
-                                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wide border ${isViolation
-                                        ? 'bg-rose-50 text-rose-700 border-rose-100/50'
-                                        : 'bg-emerald-50 text-emerald-700 border-emerald-100/50'
+                                      <div className="flex flex-col gap-1">
+                                        <span className="font-bold text-[#0f172a]">{rec.title}</span>
+                                        <span className={`inline-flex items-center gap-1 self-start px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider border ${isViolation
+                                          ? 'bg-rose-50 text-rose-700 border-rose-100'
+                                          : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                          }`}>
+                                          {isViolation ? 'Vi phạm' : 'Khen thưởng'}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-bold tracking-wide uppercase border ${rec.role === 'admin'
+                                        ? 'bg-purple-50 text-purple-700 border-purple-100'
+                                        : rec.role === 'teacher'
+                                          ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                          : rec.role === 'supervisor'
+                                            ? 'bg-amber-50 text-amber-700 border-amber-100'
+                                            : 'bg-slate-50 text-slate-600 border-slate-100'
                                         }`}>
-                                        {isViolation ? (
-                                          <CircleAlert size={11} className="shrink-0" />
-                                        ) : (
-                                          <Award size={11} className="shrink-0" />
-                                        )}
-                                        {isViolation ? 'Vi phạm' : 'Khen thưởng'}
+                                        {rec.role === 'admin' ? 'Quản trị viên' : rec.role === 'teacher' ? 'Cố vấn' : rec.role === 'supervisor' ? 'Quản sinh' : 'Sinh viên'}
                                       </span>
                                     </td>
-                                    <td className="px-6 py-4 font-bold text-[#0f172a]">{rec.title}</td>
-                                    <td className="px-6 py-4 text-center text-[#475569] font-medium">{rec.session}</td>
+                                    <td className="px-6 py-4">
+                                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-bold border ${statusStyle}`}>
+                                        {statusLabel}
+                                      </span>
+                                    </td>
                                     <td className="px-6 py-4 text-center font-bold text-[#0f172a]">{rec.count}</td>
                                     <td className="px-6 py-4 text-right">
                                       <span className={`font-extrabold text-[14.5px] ${isViolation ? 'text-rose-600' : 'text-emerald-600'
@@ -935,12 +1284,49 @@ function GradingScoreContent() {
                                         {isViolation ? '' : '+'}{rec.points}đ
                                       </span>
                                     </td>
+                                    <td className="px-6 py-4 text-right">
+                                      <button
+                                        onClick={() => {
+                                          setRecordToDelete(rec);
+                                          setIsConfirmDeleteOpen(true);
+                                        }}
+                                        className="w-8 h-8 rounded-full flex items-center justify-center bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 transition-all active:scale-95 cursor-pointer ml-auto shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
+                                        title="Xóa lịch sử ghi nhận này"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </td>
                                   </tr>
                                 );
                               })}
+                              {isHistoryFetching && (
+                                <tr className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] z-20 pointer-events-none">
+                                  <td colSpan={7} className="h-full w-full p-0">
+                                    <div className="w-full h-full animate-pulse bg-gradient-to-r from-transparent via-slate-100/50 to-transparent" />
+                                  </td>
+                                </tr>
+                              )}
                             </tbody>
                           </table>
                         </div>
+
+                        {/* Render Pagination ở dưới cùng bảng lịch sử */}
+                        {records.length > 0 && (
+                          <CustomPagination
+                            currentPage={historyPage}
+                            totalItems={records.length}
+                            pageSize={historyPageSize}
+                            onPageChange={(page) => {
+                              setIsHistoryFetching(true);
+                              setTimeout(() => {
+                                setHistoryPage(page);
+                                setIsHistoryFetching(false);
+                              }, 400);
+                            }}
+                            label="lịch sử"
+                            isLoading={isHistoryFetching}
+                          />
+                        )}
                       </motion.div>
                     )}
                   </div>
@@ -949,6 +1335,53 @@ function GradingScoreContent() {
 
             </div>
           </main>
+
+          {/* Modal xác nhận xóa lịch sử */}
+          <AnimatePresence>
+            {isConfirmDeleteOpen && recordToDelete && (
+              <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-white rounded-2xl border border-slate-100 shadow-2xl p-6 max-w-md w-full flex flex-col gap-4 font-sans"
+                >
+                  <div className="flex gap-4 items-start">
+                    <div className="p-3 bg-rose-50 text-rose-600 rounded-full shrink-0">
+                      <AlertTriangle size={24} />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <h3 className="font-bold text-slate-900 text-[17px]">
+                        Xác nhận xóa lịch sử?
+                      </h3>
+                      <p className="text-slate-500 text-[13.5px] leading-relaxed">
+                        Bạn có chắc chắn muốn xóa lịch sử ghi nhận tiêu chí <span className="font-semibold text-slate-700">"{recordToDelete.title}"</span>? Điểm số thời gian thực và tổng điểm rèn luyện của sinh viên sẽ tự động được cập nhật lại tương ứng.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        setIsConfirmDeleteOpen(false);
+                        setRecordToDelete(null);
+                      }}
+                      className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-bold text-[13.5px] hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      onClick={handleDeleteHistoryRecord}
+                      className="px-5 py-2 bg-rose-600 text-white rounded-lg font-bold text-[13.5px] hover:bg-rose-700 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Trash2 size={14} />
+                      <span>Xác nhận xóa</span>
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

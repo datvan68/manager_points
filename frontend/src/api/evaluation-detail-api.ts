@@ -2,12 +2,21 @@ import { SummaryPoint } from './summaries-point-api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+export interface EvaluationLog {
+  role: 'student' | 'teacher' | 'supervisor' | 'admin';
+  updated_by?: string;
+  count: number;
+  updated_at?: string;
+  reason?: string;
+}
+
 export interface EvaluationDetail {
   _id: string;
   summary_id: SummaryPoint | string;
   criterion_id: any | string;
-  student_score: number;
-  advisor_score: number;
+  history: EvaluationLog[];
+  current_count: number;
+  status: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -15,15 +24,17 @@ export interface EvaluationDetail {
 export interface CreateEvaluationDetailDto {
   summary_id: string;
   criterion_id: string;
-  student_score: number;
-  advisor_score: number;
+  current_count?: number;
+  history?: EvaluationLog[];
+  status?: string;
 }
 
 export interface UpdateEvaluationDetailDto {
   summary_id?: string;
   criterion_id?: string;
-  student_score?: number;
-  advisor_score?: number;
+  current_count?: number;
+  history?: EvaluationLog[];
+  status?: string;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

@@ -36,7 +36,8 @@ export default function CriteriaModal({
     points: 1,
     minPoints: 0,
     maxPoints: 10,
-    categoryId: ''
+    categoryId: '',
+    is_locked: false
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -50,7 +51,8 @@ export default function CriteriaModal({
           points: Math.abs(initialData.points || 1), // Lưu dạng số dương trong form, dấu do type quyết định
           minPoints: initialData.minPoints !== undefined ? initialData.minPoints : 0,
           maxPoints: initialData.maxPoints || 10,
-          categoryId: initialData.categoryId || defaultCategoryId || (categories[0]?.id || '')
+          categoryId: initialData.categoryId || defaultCategoryId || (categories[0]?.id || ''),
+          is_locked: !!initialData.is_locked
         });
       } else {
         setFormData({
@@ -60,7 +62,8 @@ export default function CriteriaModal({
           points: 1,
           minPoints: 0,
           maxPoints: 10,
-          categoryId: defaultCategoryId || (categories[0]?.id || '')
+          categoryId: defaultCategoryId || (categories[0]?.id || ''),
+          is_locked: false
         });
       }
       setErrors({});
@@ -258,6 +261,20 @@ export default function CriteriaModal({
                       />
                     </div>
 
+                    {/* Khóa tiêu chí nằm dưới khoảng điểm */}
+                    <div className="flex items-center gap-[8px] mt-[4px] pl-[4px]">
+                      <label className="flex items-center gap-[8px] cursor-pointer select-none group">
+                        <input
+                          type="checkbox"
+                          checked={formData.is_locked}
+                          onChange={(e) => setFormData({ ...formData, is_locked: e.target.checked })}
+                          className="w-[18px] h-[18px] rounded-[6px] border-[#cbd5e1] text-[#135bec] focus:ring-[#135bec] cursor-pointer transition-colors"
+                        />
+                        <span className="font-semibold text-[#475569] group-hover:text-slate-900 text-[14px] leading-[20px] transition-colors">
+                          Khóa tiêu chí
+                        </span>
+                      </label>
+                    </div>
                   </div>
 
                   {/* Bước nhảy điểm */}

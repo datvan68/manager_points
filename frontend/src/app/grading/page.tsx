@@ -9,7 +9,10 @@ import {
   SquarePen,
   Plus,
   Check,
-  FileDown
+  FileDown,
+  CheckCircle,
+  Eye,
+  Settings
 } from 'lucide-react';
 import SemesterModal from '../../components/grading/SemesterModal';
 import BulkGradingModal from '../../components/grading/BulkGradingModal';
@@ -25,6 +28,11 @@ import { departmentApi } from '../../api/department-api';
 import { classApi } from '../../api/class-api';
 import { semesterApi } from '../../api/semester-api';
 import { summariesPointApi } from '../../api/summaries-point-api';
+import { tokenStorage } from '@/api/auth-api';
+import { evaluationDetailApi } from '@/api/evaluation-detail-api';
+import { categoryApi } from '../../api/category-api';
+import { criteriaApi } from '../../api/criteria-api';
+import { studentApi } from '../../api/student-api';
 
 
 export default function GradingPage() {
@@ -44,6 +52,8 @@ export default function GradingPage() {
   const [apiClasses, setApiClasses] = useState<any[]>([]);
   const [apiSemesters, setApiSemesters] = useState<any[]>([]);
   const [apiSummariesPoints, setApiSummariesPoints] = useState<any[]>([]);
+  const [apiEvaluationDetails, setApiEvaluationDetails] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
 
   // States lưu các bộ lọc đã xác nhận (applied)
   const [appliedSemester, setAppliedSemester] = useState<string>('');
@@ -60,27 +70,271 @@ export default function GradingPage() {
   const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
   const [isBulkGradingOpen, setIsBulkGradingOpen] = useState(false);
 
-  const handleConfirmBulkGrading = (criteriaId: string, count: number) => {
-    toast.success(`Đã áp dụng chấm điểm hàng loạt thành công cho ${selectedStudentIds.length} sinh viên!`);
-    setSelectedStudentIds([]);
-    setIsBulkGradingOpen(false);
+  const handleConfirmBulkGrading = async (criteriaId: string, count: number) => {
+    if (selectedStudentIds.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một sinh viên để chấm điểm!');
+      return;
+    }
+
+    setIsTableLoading(true);
+    toast.loading(`Đang chấm điểm rèn luyện hàng loạt cho ${selectedStudentIds.length} sinh viên...`, { id: 'bulk-loading' });
+
+    try {
+      // 1. Xác định thông tin vai trò người chấm đăng nhập
+      const currentUser = tokenStorage.getUser();
+      let userRole: 'student' | 'teacher' | 'supervisor' | 'admin' = 'student';
+      if (currentUser?.role) {
+        const r = currentUser.role.toLowerCase();
+        if (r.includes('admin')) {
+          userRole = 'admin';
+        } else if (r.includes('teacher') || r.includes('advisor')) {
+          userRole = 'teacher';
+        } else if (r.includes('supervisor') || r.includes('quản sinh')) {
+          userRole = 'supervisor';
+        }
+      }
+
+      // Trạng thái mặc định là bản nháp
+      const detailStatus = 'draft';
+
+      // 2. Tra cứu tiêu chí từ state categories
+      let targetCriterion: any = null;
+      categories.forEach(cat => {
+        const found = cat.items.find((cri: any) => cri.id === criteriaId);
+        if (found) targetCriterion = found;
+      });
+
+      if (!targetCriterion) {
+        throw new Error('Không tìm thấy thông tin tiêu chí chấm điểm!');
+      }
+
+      // 3. Tiến hành duyệt qua từng sinh viên được tick chọn
+      const promises = selectedStudentIds.map(async (studentId) => {
+        // Tìm summary tương ứng của sinh viên này trong class hiện tại
+        const summary = (apiSummariesPoints || []).find(s => {
+          const studentObj = typeof s.student_id === 'object' ? s.student_id : null;
+          const sId = studentObj?.student_code || studentObj?.id || studentObj?._id || (typeof s.student_id === 'string' ? s.student_id : '');
+          return sId === studentId;
+        });
+
+        if (!summary) {
+          console.warn(`Không tìm thấy bảng điểm rèn luyện (SummaryPoint) của sinh viên: ${studentId}`);
+          return;
+        }
+
+        const summaryId = summary._id;
+
+        // Tải các chi tiết chấm điểm cũ
+        const oldDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
+        const existingDetail = (oldDetails || []).find(d => {
+          const dCriId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
+          return dCriId === criteriaId;
+        });
+
+        if (existingDetail) {
+          const newCount = (existingDetail.current_count || 0) + count;
+          const updatedHistory = [...(existingDetail.history || [])];
+          updatedHistory.push({
+            role: userRole,
+            updated_by: currentUser?.id,
+            count: count,
+            reason: 'Chấm điểm hàng loạt'
+          });
+
+          // Lọc sạch lịch sử
+          const cleanHistory = updatedHistory.map((log: any) => ({
+            role: log.role,
+            updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
+            count: log.count,
+            reason: log.reason || 'Chấm điểm hàng loạt'
+          }));
+
+          await evaluationDetailApi.updateEvaluationDetail(existingDetail._id, {
+            current_count: newCount,
+            history: cleanHistory,
+            status: detailStatus
+          });
+        } else {
+          await evaluationDetailApi.createEvaluationDetail({
+            summary_id: summaryId,
+            criterion_id: criteriaId,
+            current_count: count,
+            history: [
+              {
+                role: userRole,
+                updated_by: currentUser?.id,
+                count: count,
+                reason: 'Chấm điểm hàng loạt'
+              }
+            ],
+            status: detailStatus
+          });
+        }
+
+        // Tải toàn bộ details mới để tính tổng điểm realtime
+        const latestDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
+        
+        let finalScore = 0;
+        categories.forEach(cat => {
+          let catScore = 0;
+          cat.items.forEach((cri: any) => {
+            const detail = latestDetails.find(d => {
+              const dCriId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
+              return dCriId === cri.id;
+            });
+            const currentCount = detail ? detail.current_count : 0;
+            const maxScore = cri.maxScore || 10;
+            const minScore = cri.minScore || 0;
+            const criterionScore = Math.max(minScore, Math.min(maxScore, currentCount * cri.pointsPerUnit));
+            catScore += criterionScore;
+          });
+          const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));
+          finalScore += clampedCatScore;
+        });
+
+        const clampedFinalScore = Math.max(0, Math.min(100, finalScore));
+
+        // Cập nhật summariesPoint
+        await summariesPointApi.updateSummariesPoint(summaryId, {
+          total_score: clampedFinalScore
+        });
+      });
+
+      await Promise.all(promises);
+
+      toast.dismiss('bulk-loading');
+      toast.success(`Đã áp dụng chấm điểm hàng loạt thành công cho ${selectedStudentIds.length} sinh viên!`);
+      setSelectedStudentIds([]);
+      setIsBulkGradingOpen(false);
+
+      // Tải lại dữ liệu toàn bảng
+      await fetchData();
+
+    } catch (error: any) {
+      toast.dismiss('bulk-loading');
+      toast.error('Lỗi khi chấm điểm hàng loạt: ' + error.message);
+    } finally {
+      setIsTableLoading(false);
+    }
+  };
+
+  // Hàm duyệt điểm rèn luyện cho tài khoản Quản sinh (Supervisor) và Admin
+  const handleApproveEvaluation = async (summaryId: string, studentName: string) => {
+    const currentUser = tokenStorage.getUser();
+    let userRole: 'student' | 'teacher' | 'supervisor' | 'admin' = 'student';
+    if (currentUser?.role) {
+      const r = currentUser.role.toLowerCase();
+      if (r.includes('admin')) {
+        userRole = 'admin';
+      } else if (r.includes('teacher') || r.includes('advisor')) {
+        userRole = 'teacher';
+      } else if (r.includes('supervisor') || r.includes('quản sinh')) {
+        userRole = 'supervisor';
+      }
+    }
+
+    if (userRole !== 'supervisor' && userRole !== 'admin') {
+      toast.error('Bạn không có quyền duyệt điểm rèn luyện!');
+      return;
+    }
+
+    let detailStatus = 'draft';
+    if (userRole === 'supervisor') detailStatus = 'supervisor_evaluated';
+    else if (userRole === 'admin') detailStatus = 'finalized';
+
+    setIsTableLoading(true);
+    toast.loading(`Đang duyệt điểm rèn luyện cho sinh viên ${studentName}...`, { id: 'approve-loading' });
+
+    try {
+      const details = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
+      if (!details || details.length === 0) {
+        toast.dismiss('approve-loading');
+        toast.warning(`Sinh viên ${studentName} chưa được chấm tiêu chí nào để duyệt!`);
+        setIsTableLoading(false);
+        return;
+      }
+
+      const promises = details.map(detail => {
+        const updatedHistory = [...(detail.history || [])];
+        updatedHistory.push({
+          role: userRole,
+          updated_by: currentUser?.id,
+          count: detail.current_count,
+          reason: 'Duyệt rèn luyện bởi ' + (userRole === 'supervisor' ? 'Quản sinh' : 'Admin')
+        });
+
+        // Lọc sạch mảng lịch sử trước khi gửi lên API
+        const cleanHistory = updatedHistory.map((log: any) => ({
+          role: log.role,
+          updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
+          count: log.count,
+          reason: log.reason || 'Duyệt rèn luyện'
+        }));
+
+        return evaluationDetailApi.updateEvaluationDetail(detail._id, {
+          history: cleanHistory,
+          status: detailStatus
+        });
+      });
+
+      await Promise.all(promises);
+      toast.dismiss('approve-loading');
+      toast.success(`Đã duyệt rèn luyện thành công cho sinh viên ${studentName}!`);
+      
+      // Tải lại bảng
+      await fetchData();
+    } catch (error: any) {
+      toast.dismiss('approve-loading');
+      toast.error('Lỗi khi duyệt rèn luyện: ' + error.message);
+    } finally {
+      setIsTableLoading(false);
+    }
   };
 
   // Hàm tải dữ liệu từ database thông qua API
   const fetchData = async () => {
     try {
       setIsFetching(true);
-      const [backendDepts, backendClasses, backendSemesters, backendSummaries] = await Promise.all([
+      const [backendDepts, backendClasses, backendSemesters, backendSummaries, backendDetails, backendCats, backendCriteria] = await Promise.all([
         departmentApi.getDepartments(),
         classApi.getClasses(),
         semesterApi.getSemesters(),
-        summariesPointApi.getSummariesPoints()
+        summariesPointApi.getSummariesPoints(),
+        evaluationDetailApi.getEvaluationDetails(),
+        categoryApi.getCategories(),
+        criteriaApi.getCriteria()
       ]);
 
       setApiDepartments(backendDepts || []);
       setApiClasses(backendClasses || []);
       setApiSemesters(backendSemesters || []);
       setApiSummariesPoints(backendSummaries || []);
+      setApiEvaluationDetails(backendDetails || []);
+
+      // Map categories và criteria sang cấu trúc chuẩn
+      const categoriesMapped = (backendCats || []).map((cat: any) => {
+        const catCriteria = (backendCriteria || []).filter((cri: any) => {
+          const catId = typeof cri.category_id === 'object' ? cri.category_id?._id : cri.category_id;
+          return catId === cat._id;
+        });
+
+        return {
+          id: cat._id,
+          code: cat.category_code,
+          title: cat.category_name,
+          maxPoints: cat.max_score,
+          items: catCriteria.map((cri: any) => ({
+            id: cri._id,
+            name: cri.criterion_name,
+            pointsPerUnit: cri.score_per_unit,
+            type: cri.criterion_type === 'ky_luat' ? 'violation' : 'reward',
+            maxScore: cri.max_score,
+            minScore: cri.min_score
+          }))
+        };
+      });
+
+      setCategories(categoriesMapped);
 
     } catch (error: any) {
       toast.error('Lỗi khi tải dữ liệu từ database: ' + error.message);
@@ -142,19 +396,72 @@ export default function GradingPage() {
     isStateRestored
   ]);
 
-  const handleConfirmFilter = () => {
+  const handleConfirmFilter = async () => {
     if (!selectedClass) {
       toast.warning('Vui lòng chọn lớp học trước khi xác nhận!');
       return;
     }
-    setIsTableLoading(true);
-    setTimeout(() => {
+    if (!selectedSemester) {
+      toast.warning('Vui lòng chọn học kỳ trước khi xác nhận!');
+      return;
+    }
+
+    try {
+      setIsTableLoading(true);
+
+      // 1. Tải tất cả sinh viên và tất cả summaries
+      const [backendStudents, backendSummaries] = await Promise.all([
+        studentApi.getStudents(),
+        summariesPointApi.getSummariesPoints()
+      ]);
+
+      // 2. Lọc các sinh viên thuộc lớp đang chọn
+      const classStudents = (backendStudents || []).filter(student => {
+        const classId = typeof student.class_id === 'object' ? student.class_id?._id : student.class_id;
+        return classId === selectedClass;
+      });
+
+      // 3. Kiểm tra xem sinh viên nào chưa có trong bảng summaries cho học kỳ đang chọn
+      const createPromises: Promise<any>[] = [];
+      classStudents.forEach(student => {
+        const hasSummary = (backendSummaries || []).some(summary => {
+          const semId = typeof summary.semester_id === 'object' ? summary.semester_id?._id : summary.semester_id;
+          const studId = typeof summary.student_id === 'object' ? summary.student_id?._id : summary.student_id;
+          return semId === selectedSemester && studId === student._id;
+        });
+
+        if (!hasSummary) {
+          createPromises.push(
+            summariesPointApi.createSummariesPoint({
+              student_id: student._id,
+              semester_id: selectedSemester,
+              total_score: 0,
+              grading: 'Chưa xếp loại',
+              status: 'active'
+            })
+          );
+        }
+      });
+
+      if (createPromises.length > 0) {
+        toast.info(`Phát hiện ${createPromises.length} sinh viên chưa có bảng điểm rèn luyện. Đang tự động khởi tạo...`);
+        await Promise.all(createPromises);
+        toast.success(`Đã tự động khởi tạo bảng điểm cho ${createPromises.length} sinh viên mới!`);
+      }
+
+      // 4. Load lại dữ liệu và áp dụng bộ lọc
+      await fetchData();
+
       setAppliedSemester(selectedSemester);
       setAppliedDepartment(selectedDepartment);
       setAppliedClass(selectedClass);
-      setIsTableLoading(false);
+      
       toast.success('Đã cập nhật danh sách sinh viên theo bộ lọc!');
-    }, 600);
+    } catch (error: any) {
+      toast.error('Lỗi khi cập nhật danh sách rèn luyện: ' + error.message);
+    } finally {
+      setIsTableLoading(false);
+    }
   };
 
   const pageSize = 10;
@@ -180,7 +487,8 @@ export default function GradingPage() {
           score: summary.total_score || 0,
           classId: studentClassId,
           semesterId: semId,
-          departmentId: deptId
+          departmentId: deptId,
+          summaryId: summary._id
         };
       })
       .filter(student => {
@@ -193,6 +501,9 @@ export default function GradingPage() {
 
         return matchesSearch && matchesSemester && matchesDept && matchesClass;
       });
+
+  const currentSemesterObj = apiSemesters.find(sem => sem._id === appliedSemester);
+  const isSemesterActive = currentSemesterObj ? currentSemesterObj.status === 'active' : false;
 
   const getRank = (score: number) => {
     if (score === 0) return { label: 'Chưa xếp loại', color: 'bg-slate-100 text-slate-500 border-slate-200/50' };
@@ -241,7 +552,7 @@ export default function GradingPage() {
             }}
           />
 
-          <main className="flex-1 p-4 flex flex-col gap-3 max-w-[1440px] mx-auto w-full overflow-hidden">
+          <main className="flex-1 p-4 md:px-8 flex flex-col gap-3 w-full overflow-hidden">
             {/* Filters Section Container */}
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -283,10 +594,10 @@ export default function GradingPage() {
                 <button
                   type="button"
                   onClick={() => setIsSemesterModalOpen(true)}
-                  className="w-[42px] h-[42px] shrink-0 rounded-xl bg-[#F3F4F6] hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95"
-                  title="Thêm/Sửa Học kì"
+                  className="w-[42px] h-[42px] shrink-0 rounded-xl bg-[#F3F4F6] hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95 group"
+                  title="Cấu hình Học kì"
                 >
-                  <Plus size={16} />
+                  <Settings size={16} className="group-hover:rotate-45 transition-transform duration-200" />
                 </button>
               </div>
 
@@ -338,15 +649,17 @@ export default function GradingPage() {
               <Button
                 onClick={handleConfirmFilter}
                 disabled={!selectedClass || isTableLoading}
-                className={!selectedClass ? "opacity-50 cursor-not-allowed bg-slate-300 hover:bg-slate-300 text-slate-500" : isTableLoading ? "opacity-80 cursor-not-allowed" : ""}
+                className={!selectedClass ? "opacity-50 cursor-not-allowed bg-slate-300 hover:bg-slate-300 text-slate-500 relative" : isTableLoading ? "opacity-80 cursor-not-allowed relative" : "relative"}
               >
                 {isTableLoading && (
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
                 )}
-                {isTableLoading ? 'Đang xử lý...' : 'Xác nhận'}
+                <span className={isTableLoading ? "invisible" : ""}>Xác nhận</span>
               </Button>
             </motion.div>
 
@@ -412,7 +725,7 @@ export default function GradingPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#f1f5f9] relative">
-                        {isInitialLoading || isTableLoading ? (
+                        {isInitialLoading ? (
                           Array.from({ length: 8 }).map((_, idx) => (
                             <tr key={`skeleton-${idx}`}>
                               <td className="px-6 py-4"><Skeleton className="h-4 w-4 rounded" /></td>
@@ -475,19 +788,69 @@ export default function GradingPage() {
                                       </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                      <button
-                                        onClick={() => router.push(`/grading/score?studentId=${student.id}`)}
-                                        className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-95 ml-auto cursor-pointer"
-                                        title="Chấm điểm sinh viên"
-                                      >
-                                        <SquarePen size={15} />
-                                      </button>
+                                      <div className="flex gap-2 justify-end items-center">
+                                        {isSemesterActive ? (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              router.push(`/grading/score?studentId=${student.id}`);
+                                            }}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-95 cursor-pointer shadow-sm"
+                                            title="Chấm điểm sinh viên"
+                                          >
+                                            <SquarePen size={15} />
+                                          </button>
+                                        ) : (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              router.push(`/grading/score?studentId=${student.id}&view=true`);
+                                            }}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-700 transition-all active:scale-95 cursor-pointer shadow-sm"
+                                            title="Xem chi tiết điểm"
+                                          >
+                                            <Eye size={15} />
+                                          </button>
+                                        )}
+                                        {(() => {
+                                          const currentUser = tokenStorage.getUser();
+                                          const userRoleLower = currentUser?.role?.toLowerCase() || '';
+                                          const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
+                                          
+                                          if (canApprove && isSemesterActive) {
+                                            const studentDetails = (apiEvaluationDetails || []).filter(d => {
+                                              const detailSummaryId = typeof d.summary_id === 'object' ? d.summary_id?._id : d.summary_id;
+                                              return detailSummaryId === student.summaryId;
+                                            });
+                                            const hasEvaluations = studentDetails.length > 0;
+                                            const isApproved = hasEvaluations && studentDetails.every(d => d.status === 'supervisor_evaluated' || d.status === 'finalized');
+
+                                            return (
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleApproveEvaluation(student.summaryId, student.name);
+                                                }}
+                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
+                                                  isApproved
+                                                    ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700'
+                                                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-500'
+                                                }`}
+                                                title={isApproved ? "Đã duyệt điểm rèn luyện" : "Duyệt điểm rèn luyện"}
+                                              >
+                                                <CheckCircle size={15} />
+                                              </button>
+                                            );
+                                          }
+                                          return null;
+                                        })()}
+                                      </div>
                                     </td>
                                   </motion.tr>
                                 );
                               })
                             }
-                            {isFetching && (
+                            {(isFetching || isTableLoading) && (
                               <tr className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] z-20 pointer-events-none">
                                 <td colSpan={7} className="h-full w-full p-0">
                                   <div className="w-full h-full animate-pulse bg-gradient-to-r from-transparent via-slate-100/50 to-transparent" />
@@ -537,6 +900,7 @@ export default function GradingPage() {
         onClose={() => setIsBulkGradingOpen(false)}
         selectedCount={selectedStudentIds.length}
         onConfirm={handleConfirmBulkGrading}
+        categories={categories}
       />
 
       {/* Thanh tác vụ chọn sinh viên hàng loạt */}

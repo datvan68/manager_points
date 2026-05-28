@@ -10,6 +10,7 @@ export interface Criterion {
   max_score: number;
   min_score: number;
   criterion_type: 'khen_thuong' | 'cong_diem' | 'ky_luat';
+  is_locked?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -21,6 +22,7 @@ export interface CreateCriterionDto {
   max_score?: number;
   min_score?: number;
   criterion_type: 'khen_thuong' | 'cong_diem' | 'ky_luat';
+  is_locked?: boolean;
 }
 
 export interface UpdateCriterionDto {
@@ -30,6 +32,7 @@ export interface UpdateCriterionDto {
   max_score?: number;
   min_score?: number;
   criterion_type?: 'khen_thuong' | 'cong_diem' | 'ky_luat';
+  is_locked?: boolean;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

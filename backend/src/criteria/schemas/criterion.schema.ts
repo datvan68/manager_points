@@ -22,6 +22,9 @@ export class Criterion {
 
   @Prop({ required: true, enum: ['khen_thuong', 'cong_diem', 'ky_luat'], default: 'cong_diem' })
   criterion_type: string;
+
+  @Prop({ default: false })
+  is_locked: boolean;
 }
 
 export const CriterionSchema = SchemaFactory.createForClass(Criterion);

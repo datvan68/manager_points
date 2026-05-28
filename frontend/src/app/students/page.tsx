@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Suspense } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
-import { RouteGuard } from "@/components/guards/RouteGuard";
+import { RouteGuard, usePermission } from "@/components/guards/RouteGuard";
 import GhiNhanTab from "@/components/grading/GhiNhanTab";
 import {
   Search,
@@ -33,6 +33,10 @@ import { studentApi, Student } from "@/api/student-api";
 
 function StudentsPageContent() {
   const router = useRouter();
+  const { canCreateDept, canCreateClass } = usePermission({
+    canCreateDept: "DEPT_CREATE",
+    canCreateClass: "CLASS_CREATE",
+  });
   const [deptsList, setDeptsList] = useState<Department[]>([]);
   const [classesList, setClassesList] = useState<Class[]>([]);
   const [studentsList, setStudentsList] = useState<Student[]>([]);
@@ -403,16 +407,18 @@ function StudentsPageContent() {
                       );
                     })}
 
-                    <button
-                      onClick={() => {
-                        setEditingDept(null);
-                        setIsDeptPopupOpen(true);
-                      }}
-                      className="w-full py-3 border border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center justify-center gap-2 shrink-0"
-                    >
-                      <Plus size={18} />
-                      Thêm khoa
-                    </button>
+                    {canCreateDept && (
+                      <button
+                        onClick={() => {
+                          setEditingDept(null);
+                          setIsDeptPopupOpen(true);
+                        }}
+                        className="w-full py-3 border border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center justify-center gap-2 shrink-0"
+                      >
+                        <Plus size={18} />
+                        Thêm khoa
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -447,17 +453,19 @@ function StudentsPageContent() {
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                        <Button
-                          onClick={() => {
-                            setEditingClass({ departmentId: selectedDept });
-                            setIsClassPopupOpen(true);
-                          }}
-                        >
-                          <span className="text-[20px] font-bold leading-none -mt-0.5">
-                            +
-                          </span>
-                          Thêm lớp
-                        </Button>
+                        {canCreateClass && (
+                          <Button
+                            onClick={() => {
+                              setEditingClass({ departmentId: selectedDept });
+                              setIsClassPopupOpen(true);
+                            }}
+                          >
+                            <span className="text-[20px] font-bold leading-none -mt-0.5">
+                              +
+                            </span>
+                            Thêm lớp
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>

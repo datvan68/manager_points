@@ -6,69 +6,44 @@ import { X, Award, AlertTriangle, Plus, Minus, CheckSquare } from 'lucide-react'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { toast } from 'sonner';
 
-interface Criteria {
+export interface Criteria {
   id: string;
   name: string;
   pointsPerUnit: number;
   type: 'reward' | 'violation';
+  maxScore?: number;
+  minScore?: number;
 }
 
-interface Category {
+export interface Category {
   id: string;
+  code?: string;
   title: string;
   maxPoints: number;
   items: Criteria[];
 }
-
-const evaluationCategories: Category[] = [
-  {
-    id: 'cat-1',
-    title: 'Ý thức tham gia học tập',
-    maxPoints: 20,
-    items: [
-      { id: 'cri-1-1', name: 'Điểm chuyên cần và thái độ học tập', pointsPerUnit: 10, type: 'reward' },
-      { id: 'cri-1-2', name: 'Tham gia các câu lạc bộ học thuật', pointsPerUnit: 5, type: 'reward' },
-      { id: 'cri-1-3', name: 'Kết quả học tập (GPA)', pointsPerUnit: 3, type: 'reward' }
-    ]
-  },
-  {
-    id: 'cat-2',
-    title: 'Ý thức chấp hành nội quy',
-    maxPoints: 25,
-    items: [
-      { id: 'cri-2-1', name: 'Chấp hành quy định về đồng phục & thẻ sinh viên', pointsPerUnit: 10, type: 'reward' },
-      { id: 'cri-2-2', name: 'Chấp hành nội quy Ký túc xá/Cư trú', pointsPerUnit: -10, type: 'violation' }
-    ]
-  },
-  {
-    id: 'cat-3',
-    title: 'Ý thức tham gia hoạt động chính trị, xã hội',
-    maxPoints: 20,
-    items: [
-      { id: 'cri-3-1', name: 'Tham gia chiến dịch Mùa hè xanh', pointsPerUnit: 20, type: 'reward' }
-    ]
-  }
-];
 
 interface BulkGradingModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedCount: number;
   onConfirm: (criteriaId: string, count: number) => void;
+  categories: Category[];
 }
 
 export default function BulkGradingModal({
   isOpen,
   onClose,
   selectedCount,
-  onConfirm
+  onConfirm,
+  categories = []
 }: BulkGradingModalProps) {
   const [selectedCatId, setSelectedCatId] = useState<string>('');
   const [selectedCriteriaId, setSelectedCriteriaId] = useState<string>('');
   const [count, setCount] = useState<number>(1);
 
   // Lấy danh mục đang chọn
-  const activeCategory = evaluationCategories.find(c => c.id === selectedCatId);
+  const activeCategory = categories.find(c => c.id === selectedCatId);
   // Lấy tiêu chí đang chọn
   const activeCriteria = activeCategory?.items.find(i => i.id === selectedCriteriaId);
 
@@ -165,7 +140,7 @@ export default function BulkGradingModal({
                     <SelectValue placeholder="Chọn danh mục" />
                   </SelectTrigger>
                   <SelectContent>
-                    {evaluationCategories.map(cat => (
+                    {categories.map(cat => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.title}</SelectItem>
                     ))}
                   </SelectContent>

@@ -1,5 +1,29 @@
-import { IsNotEmpty, IsNumber, Min, IsMongoId } from 'class-validator';
+import { IsNotEmpty, IsNumber, Min, IsMongoId, IsOptional, IsArray, ValidateNested, IsString, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+
+class EvaluationLogDto {
+  @ApiProperty({ example: 'student', enum: ['student', 'teacher', 'supervisor', 'admin'] })
+  @IsNotEmpty()
+  @IsEnum(['student', 'teacher', 'supervisor', 'admin'])
+  role: string;
+
+  @ApiProperty({ example: '60c72b2f9b1d8b2bad123456', required: false })
+  @IsOptional()
+  @IsMongoId()
+  updated_by?: string;
+
+  @ApiProperty({ example: 3 })
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  count: number;
+
+  @ApiProperty({ example: 'Tích cực tham gia câu lạc bộ học thuật', required: false })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
 
 export class CreateEvaluationDetailDto {
   @ApiProperty({ example: '60c72b2f9b1d8b2bad123456', description: 'ID bảng tổng kết điểm (Mongoose ObjectId)' })
@@ -12,15 +36,21 @@ export class CreateEvaluationDetailDto {
   @IsMongoId()
   criterion_id: string;
 
-  @ApiProperty({ example: 5, description: 'Điểm do sinh viên tự chấm', minimum: 0 })
-  @IsNotEmpty()
-  @IsNumber()
-  @Min(0)
-  student_score: number;
+  @ApiProperty({ type: [EvaluationLogDto], required: false, description: 'Mảng lịch sử chấm điểm các vai trò' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EvaluationLogDto)
+  history?: EvaluationLogDto[];
 
-  @ApiProperty({ example: 8, description: 'Điểm do cố vấn/lớp chấm', minimum: 0 })
-  @IsNotEmpty()
+  @ApiProperty({ example: 2, required: false, description: 'Số lần thực hiện hiện tại' })
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  advisor_score: number;
+  current_count?: number;
+
+  @ApiProperty({ example: 'draft', enum: ['draft', 'teacher_evaluated', 'supervisor_evaluated', 'finalized'], required: false })
+  @IsOptional()
+  @IsString()
+  status?: string;
 }

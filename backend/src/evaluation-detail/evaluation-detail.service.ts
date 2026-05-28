@@ -12,8 +12,19 @@ export class EvaluationDetailService {
   ) { }
 
   async create(createEvaluationDetailDto: CreateEvaluationDetailDto): Promise<EvaluationDetail> {
-    const created = new this.evaluationDetailModel(createEvaluationDetailDto);
-    return created.save();
+    const { history, current_count, ...rest } = createEvaluationDetailDto;
+
+    const dataToCreate: any = { ...rest };
+    const countVal = current_count || 0;
+
+    dataToCreate.current_count = countVal;
+    dataToCreate.history = history && history.length > 0 ? history : [
+      { role: 'student', count: countVal, updated_at: new Date() }
+    ];
+
+    const created = new this.evaluationDetailModel(dataToCreate);
+    const saved = await created.save();
+    return saved.populate(['summary_id', 'criterion_id']);
   }
 
   async findAll(): Promise<EvaluationDetail[]> {

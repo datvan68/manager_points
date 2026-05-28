@@ -13,6 +13,7 @@ import {
   ChevronDown,
   LayoutGrid,
   PanelLeftClose,
+  Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -107,7 +108,8 @@ export default function CategoriesPage() {
           minPoints: cri.min_score,
           maxPoints: cri.max_score,
           categoryId: parentCat ? parentCat.category_code : '',
-          categoryObjectId: parentCat ? parentCat._id : (typeof cri.category_id === 'object' ? cri.category_id?._id : cri.category_id)
+          categoryObjectId: parentCat ? parentCat._id : (typeof cri.category_id === 'object' ? cri.category_id?._id : cri.category_id),
+          is_locked: !!cri.is_locked
         };
       });
 
@@ -466,7 +468,8 @@ export default function CategoriesPage() {
         criterion_type: data.type,
         score_per_unit: Number(data.points),
         min_score: Number(data.minPoints),
-        max_score: Number(data.maxPoints)
+        max_score: Number(data.maxPoints),
+        is_locked: !!data.is_locked
       }).then(() => {
         fetchData();
         toast.success(`Đã cập nhật tiêu chí "${data.name}" thành công!`);
@@ -478,7 +481,8 @@ export default function CategoriesPage() {
         criterion_type: data.type,
         score_per_unit: Number(data.points),
         min_score: Number(data.minPoints),
-        max_score: Number(data.maxPoints)
+        max_score: Number(data.maxPoints),
+        is_locked: !!data.is_locked
       }).then(() => {
         fetchData();
         toast.success(`Đã thêm tiêu chí "${data.name}" thành công!`);
@@ -538,7 +542,7 @@ export default function CategoriesPage() {
             }}
           />
 
-          <main className="flex-1 p-4 flex flex-col gap-3 max-w-[1440px] mx-auto w-full overflow-hidden">
+          <main className="flex-1 p-4 md:px-8 flex flex-col gap-3 w-full overflow-hidden">
             {/* Tab Cấu hình danh mục - Giao diện kéo thả Kanban cao cấp theo Figma */}
             <div className="flex-1 flex flex-col gap-5 min-h-0 overflow-hidden w-full font-sans">
               {/* Header chứa các chỉ số thống kê bento và nút Thêm danh mục đặt chung một hàng flex */}
@@ -641,11 +645,10 @@ export default function CategoriesPage() {
                     <button
                       disabled={isInitialLoading}
                       onClick={() => setViewMode('kanban')}
-                      className={`flex items-center gap-1.5 px-3 h-full rounded-md text-[12px] font-semibold transition-all duration-200 ${
-                        isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                      } ${viewMode === 'kanban'
-                        ? 'bg-white text-[#135bec] shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
+                      className={`flex items-center gap-1.5 px-3 h-full rounded-md text-[12px] font-semibold transition-all duration-200 ${isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                        } ${viewMode === 'kanban'
+                          ? 'bg-white text-[#135bec] shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
                         }`}
                       title="Chế độ Kanban"
                     >
@@ -660,11 +663,10 @@ export default function CategoriesPage() {
                           setSelectedCategoryId(categories[0].id);
                         }
                       }}
-                      className={`flex items-center gap-1.5 px-3 h-full rounded-md text-[12px] font-semibold transition-all duration-200 ${
-                        isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                      } ${viewMode === 'master-detail'
-                        ? 'bg-white text-[#135bec] shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
+                      className={`flex items-center gap-1.5 px-3 h-full rounded-md text-[12px] font-semibold transition-all duration-200 ${isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                        } ${viewMode === 'master-detail'
+                          ? 'bg-white text-[#135bec] shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
                         }`}
                       title="Chế độ Chi tiết"
                     >
@@ -681,11 +683,10 @@ export default function CategoriesPage() {
                       setSelectedCategory(null);
                       setIsModalOpen(true);
                     }}
-                    className={`text-white px-[20px] py-[10px] rounded-[8px] flex items-center justify-center gap-2 font-semibold text-[14px] transition-all shrink-0 h-[40px] w-[180px] bg-[#135bec] ${
-                      isInitialLoading
-                        ? 'opacity-60 cursor-not-allowed shadow-none'
-                        : 'hover:bg-[#004dc7] active:scale-95 shadow-[0px_10px_15px_-3px_rgba(19,91,236,0.3),0px_4px_6px_-4px_rgba(19,91,236,0.3)] hover:shadow-[0px_12px_20px_-3px_rgba(19,91,236,0.4),0px_6px_8px_-4px_rgba(19,91,236,0.4)] cursor-pointer'
-                    }`}
+                    className={`text-white px-[20px] py-[10px] rounded-[8px] flex items-center justify-center gap-2 font-semibold text-[14px] transition-all shrink-0 h-[40px] w-[180px] bg-[#135bec] ${isInitialLoading
+                      ? 'opacity-60 cursor-not-allowed shadow-none'
+                      : 'hover:bg-[#004dc7] active:scale-95 shadow-[0px_10px_15px_-3px_rgba(19,91,236,0.3),0px_4px_6px_-4px_rgba(19,91,236,0.3)] hover:shadow-[0px_12px_20px_-3px_rgba(19,91,236,0.4),0px_6px_8px_-4px_rgba(19,91,236,0.4)] cursor-pointer'
+                      }`}
                   >
                     <Plus size={16} strokeWidth={2.5} className="shrink-0" />
                     <span>Thêm danh mục</span>
@@ -1019,7 +1020,12 @@ export default function CategoriesPage() {
                                                 <span className={`px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase border tracking-wider ${typeClass}`}>
                                                   {typeLabel}
                                                 </span>
-                                                <span className="text-[10px] font-medium text-slate-400">Dải điểm: {item.minPoints} — {item.maxPoints}</span>
+                                                <div className="flex items-center gap-1">
+                                                  <span className="text-[12px] font-medium text-slate-400">Dải điểm: {item.minPoints} — {item.maxPoints}</span>
+                                                  {item.is_locked && (
+                                                    <Lock size={12} className="text-red-500 shrink-0" strokeWidth={2.5} />
+                                                  )}
+                                                </div>
                                               </div>
                                             </div>
 
@@ -1207,7 +1213,12 @@ export default function CategoriesPage() {
                                                         </div>
                                                       </div>
                                                       <div className="border-t border-slate-50 pt-2 flex items-center justify-between w-full">
-                                                        <span className="text-[10px] font-semibold text-slate-500">Dải điểm: {item.minPoints} - {item.maxPoints}</span>
+                                                        <div className="flex items-center gap-1">
+                                                          <span className="text-[12px] font-semibold text-slate-500">Dải điểm: {item.minPoints} - {item.maxPoints}</span>
+                                                          {item.is_locked && (
+                                                            <Lock size={13} className="text-red-500 shrink-0" strokeWidth={2.5} />
+                                                          )}
+                                                        </div>
                                                         <div className="flex gap-2 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Sửa tiêu chí"><Pencil size={14} strokeWidth={2.5} /></button><button onClick={(e) => { e.stopPropagation(); setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Xóa tiêu chí"><Trash2 size={14} strokeWidth={2.5} /></button></div>
                                                       </div>
                                                     </div>
@@ -1371,7 +1382,12 @@ export default function CategoriesPage() {
                                                         </div>
                                                       </div>
                                                       <div className="border-t border-slate-50 pt-2 flex items-center justify-between w-full">
-                                                        <span className="text-[10px] font-semibold text-slate-500">Dải điểm: {item.minPoints} - {item.maxPoints}</span>
+                                                        <div className="flex items-center gap-1">
+                                                          <span className="text-[10px] font-semibold text-slate-500">Dải điểm: {item.minPoints} - {item.maxPoints}</span>
+                                                          {item.is_locked && (
+                                                            <Lock size={11} className="text-red-500 shrink-0" strokeWidth={2.5} />
+                                                          )}
+                                                        </div>
                                                         <div className="flex gap-2 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Sửa tiêu chí"><Pencil size={14} strokeWidth={2.5} /></button><button onClick={(e) => { e.stopPropagation(); setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Xóa tiêu chí"><Trash2 size={14} strokeWidth={2.5} /></button></div>
                                                       </div>
                                                     </div>
