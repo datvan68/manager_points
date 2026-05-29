@@ -83,3 +83,6 @@ async exportPdf(@Body() body: any, @Res() res: Response) {
    * Bấm "Tải xuống PDF".
    * Xác nhận toast hiển thị thông báo tải xuống mượt mà, màn hình client **hoàn toàn êm ái, không nhấp nháy, không bị bể style đằng sau modal, không bị reload trang Next.js**.
    * File PDF được tải về máy thành công, mở ra kiểm tra chất lượng in ấn sắc nét vector, màu sắc HEX và oklch tự động của Tailwind v4 được Chromium render chuẩn xác 100% khớp Figma.
+
+
+Heloo world
