@@ -13,6 +13,7 @@ export interface Student {
   status: 'Studying' | 'Reserved' | 'Dropped' | 'Graduated' | 'Suspended';
   class_id?: Class | string;
   training_point_id?: any;
+  account_status?: 'active' | 'inactive' | 'locked';
   createdAt?: string;
   updatedAt?: string;
 }

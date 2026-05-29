@@ -261,6 +261,18 @@ export const authApi = {
     return handleResponse<any>(res);
   },
 
+  async deleteUsersBulk(userIds: string[], accessToken: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/auth/users/bulk-delete`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}` 
+      },
+      body: JSON.stringify({ userIds }),
+    });
+    return handleResponse<any>(res);
+  },
+
   // ─── ROUTE PERMISSION MANAGEMENT ────────────────
 
   async getRoutePermissions(accessToken: string): Promise<any[]> {

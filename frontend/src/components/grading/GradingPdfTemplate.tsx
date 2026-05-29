@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import { 
-  X, Printer, Download, SlidersHorizontal, Loader2, 
-  GripVertical, Eye, EyeOff, Palette, Settings, Type, Layout 
+import {
+  X, Printer, Download, SlidersHorizontal, Loader2,
+  GripVertical, Eye, EyeOff, Palette, Settings, Type, Layout
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { tokenStorage } from '@/api/auth-api';
 
 interface CriteriaItem {
   id: string;
@@ -57,7 +58,7 @@ export default function GradingPdfTemplate({
   const [isDownloading, setIsDownloading] = React.useState(false);
   const [showConfigPanel, setShowConfigPanel] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<'layout' | 'data' | 'style'>('layout');
-  
+
   // Helper to generate mock counts for design canvas to make the preview vivid
   const getMockCounts = React.useCallback((cats: Category[]) => {
     const mockCounts: Record<string, number> = {};
@@ -90,51 +91,82 @@ export default function GradingPdfTemplate({
   }, []);
 
   // Custom PDF Config State - Now includes ubnd, city, school, and title for editing
-  const [pdfConfig, setPdfConfig] = React.useState({
-    sectionsOrder: ['header', 'title', 'student_info', 'criteria_1_2', 'criteria_3', 'summary', 'signatures'],
-    hiddenSections: {
-      header: false,
-      title: false,
-      student_info: false,
-      criteria_1_2: false,
-      criteria_3: false,
-      summary: false,
-      signatures: false,
-    } as Record<string, boolean>,
-    themeColor: '#135bec', // Default: Blue
-    fontFamily: 'Inter', // Default: Inter
-    fontSize: 'md' as 'sm' | 'md' | 'lg',
-    customTexts: {
-      semester: semesterName || 'I - Năm học 2025 - 2026',
-      creatorName: 'Trần Thị Bích Ngọc',
-      approverName: 'PGS.TS. NGUYỄN KHẮC HÙNG',
-      approverTitle: 'XÁC NHẬN CỦA NHÀ TRƯỜNG',
-      ubnd: 'ỦY BAN NHÂN DÂN',
-      city: 'THÀNH PHỐ HỒ CHÍ MINH',
-      school: 'TRƯỜNG CAO ĐẲNG BÁCH KHOA NAM SÀI GÒN',
-      title: 'PHIẾU ĐÁNH GIÁ KẾT QUẢ RÈN LUYỆN HỌC SINH, SINH VIÊN',
+  const [pdfConfig, setPdfConfig] = React.useState(() => {
+    let initialApproverName = 'NGƯỜI PHÊ DUYỆT';
+    if (typeof window !== 'undefined') {
+      try {
+        const currentUser = tokenStorage.getUser();
+        if (currentUser) {
+          initialApproverName = currentUser.user_name || currentUser.username || initialApproverName;
+        }
+      } catch (e) {
+        // Ignore
+      }
     }
+    return {
+      sectionsOrder: ['header', 'title', 'student_info', 'criteria_1_2', 'criteria_3', 'summary', 'signatures'],
+      hiddenSections: {
+        header: false,
+        title: false,
+        student_info: false,
+        criteria_1_2: false,
+        criteria_3: false,
+        summary: false,
+        signatures: false,
+      } as Record<string, boolean>,
+      themeColor: '#135bec', // Default: Blue
+      fontFamily: 'Times New Roman', // Default: Times New Roman
+      fontSize: 'md' as 'sm' | 'md' | 'lg',
+      customTexts: {
+        semester: semesterName || 'I - Năm học 2025 - 2026',
+        creatorName: 'Trần Thị Bích Ngọc',
+        approverName: initialApproverName,
+        approverTitle: 'XÁC NHẬN CỦA NHÀ TRƯỜNG',
+        ubnd: 'ỦY BAN NHÂN DÂN',
+        city: 'THÀNH PHỐ HỒ CHÍ MINH',
+        school: 'TRƯỜNG CAO ĐẲNG BÁCH KHOA\nNAM SÀI GÒN',
+        title: 'PHIẾU ĐÁNH GIÁ KẾT QUẢ RÈN LUYỆN HỌC SINH, SINH VIÊN',
+      }
+    };
   });
 
   // Restore config from localStorage on mount or when template opens
   React.useEffect(() => {
     if (isOpen) {
       const savedConfig = localStorage.getItem('grading_pdf_config');
+      const currentUser = tokenStorage.getUser();
+      const defaultApproverName = currentUser?.user_name || currentUser?.username || 'NGƯỜI PHÊ DUYỆT';
+
       if (savedConfig) {
         try {
           const parsed = JSON.parse(savedConfig);
+          const savedApproverName = parsed.customTexts?.approverName;
+          // Nếu cấu hình lưu trữ cũ là PGS.TS. NGUYỄN KHẮC HÙNG, di chuyển sang tên của user hiện tại
+          const activeApproverName = (!savedApproverName || savedApproverName === 'PGS.TS. NGUYỄN KHẮC HÙNG' || savedApproverName === 'NGƯỜI PHÊ DUYỆT')
+            ? defaultApproverName
+            : savedApproverName;
+
           setPdfConfig(prev => ({
             ...prev,
             ...parsed,
             customTexts: {
               ...prev.customTexts,
               ...parsed.customTexts,
-              semester: parsed.customTexts?.semester || semesterName || prev.customTexts.semester
+              semester: parsed.customTexts?.semester || semesterName || prev.customTexts.semester,
+              approverName: activeApproverName
             }
           }));
         } catch (e) {
           console.error('Error parsing saved PDF config', e);
         }
+      } else {
+        setPdfConfig(prev => ({
+          ...prev,
+          customTexts: {
+            ...prev.customTexts,
+            approverName: defaultApproverName
+          }
+        }));
       }
     }
   }, [isOpen, semesterName]);
@@ -164,7 +196,7 @@ export default function GradingPdfTemplate({
   // Setup Preview Mode variables
   const mockCounts = React.useMemo(() => getMockCounts(categories), [categories, getMockCounts]);
   const mockStudentScore = React.useMemo(() => calculateMockScore(categories, mockCounts), [categories, mockCounts, calculateMockScore]);
-  
+
   const mockStudent: StudentData = React.useMemo(() => ({
     id: 'SV20269999',
     name: 'Nguyễn Văn A (Dữ liệu mẫu)',
@@ -227,7 +259,7 @@ export default function GradingPdfTemplate({
     setIsDownloading(true);
     let progress = 0;
     let status = 'Đang khởi tạo trình kết xuất...';
-    
+
     const estimatedTime = Math.max(1800, selectedStudents.length * 1200);
     const intervalTime = 100;
     const totalSteps = estimatedTime / intervalTime;
@@ -243,8 +275,8 @@ export default function GradingPdfTemplate({
             </span>
           </div>
           <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mt-0.5 border border-slate-200/40">
-            <div 
-              className="bg-emerald-500 h-full rounded-full transition-all duration-100 ease-out" 
+            <div
+              className="bg-emerald-500 h-full rounded-full transition-all duration-100 ease-out"
               style={{ width: `${currentProgress}%` }}
             />
           </div>
@@ -262,7 +294,7 @@ export default function GradingPdfTemplate({
       if (progress < 95) {
         progress += progressPerStep;
         if (progress > 95) progress = 95;
-        
+
         if (progress > 75) {
           status = 'Đang đóng gói file PDF...';
         } else if (progress > 45) {
@@ -270,14 +302,14 @@ export default function GradingPdfTemplate({
         } else if (progress > 20) {
           status = 'Đang gửi dữ liệu và dựng giao diện ở Server...';
         }
-        
+
         updateProgressToast(progress, status);
       }
     }, intervalTime);
 
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      
+
       const response = await fetch(`${API_BASE}/summaries-point/export-pdf`, {
         method: 'POST',
         headers: {
@@ -302,10 +334,10 @@ export default function GradingPdfTemplate({
       updateProgressToast(95, status);
 
       const blob = await response.blob();
-      
+
       clearInterval(progressInterval);
       updateProgressToast(100, 'Tải xuống hoàn tất!');
-      
+
       await new Promise(resolve => setTimeout(resolve, 300));
 
       const url = window.URL.createObjectURL(blob);
@@ -381,7 +413,7 @@ export default function GradingPdfTemplate({
         return (
           <div key="header" className="flex justify-between items-start border-b border-slate-100 pb-5 w-full shrink-0">
             <div className="text-center flex flex-col gap-0.5 w-[320px] shrink-0">
-              <p className="font-bold text-[#1a1b1e] text-[11px] uppercase tracking-wide">
+              <p className="font-medium text-[#1a1b1e] text-[13px] uppercase tracking-wide">
                 <span
                   contentEditable={showConfigPanel}
                   suppressContentEditableWarning
@@ -392,13 +424,13 @@ export default function GradingPdfTemplate({
                       customTexts: { ...prev.customTexts, ubnd: newText }
                     }));
                   }}
-                  className={showConfigPanel ? "outline-none focus:ring-2 focus:ring-[#135bec]/40 focus:bg-blue-50/70 px-2 py-0.5 rounded-lg transition-all cursor-text border border-dashed border-blue-300 font-bold" : ""}
+                  className={showConfigPanel ? "outline-none focus:ring-2 focus:ring-[#135bec]/40 focus:bg-blue-50/70 px-2 py-0.5 rounded-lg transition-all cursor-text border border-dashed border-blue-300 font-medium" : ""}
                   title={showConfigPanel ? "Nhấp chuột để sửa trực tiếp" : undefined}
                 >
                   {pdfConfig.customTexts.ubnd}
                 </span>
               </p>
-              <p className="font-bold text-[#1a1b1e] text-[11px] uppercase tracking-wide">
+              <p className="font-medium text-[#1a1b1e] text-[13px] uppercase tracking-wide">
                 <span
                   contentEditable={showConfigPanel}
                   suppressContentEditableWarning
@@ -409,13 +441,13 @@ export default function GradingPdfTemplate({
                       customTexts: { ...prev.customTexts, city: newText }
                     }));
                   }}
-                  className={showConfigPanel ? "outline-none focus:ring-2 focus:ring-[#135bec]/40 focus:bg-blue-50/70 px-2 py-0.5 rounded-lg transition-all cursor-text border border-dashed border-blue-300 font-bold" : ""}
+                  className={showConfigPanel ? "outline-none focus:ring-2 focus:ring-[#135bec]/40 focus:bg-blue-50/70 px-2 py-0.5 rounded-lg transition-all cursor-text border border-dashed border-blue-300 font-medium" : ""}
                   title={showConfigPanel ? "Nhấp chuột để sửa trực tiếp" : undefined}
                 >
                   {pdfConfig.customTexts.city}
                 </span>
               </p>
-              <p className="font-black text-[var(--pdf-primary)] text-[11.5px] uppercase tracking-wide border-b border-[var(--pdf-primary)] pb-1 mx-auto w-fit">
+              <p className="font-bold text-[#1a1b1e] text-[13px] uppercase tracking-wide">
                 <span
                   contentEditable={showConfigPanel}
                   suppressContentEditableWarning
@@ -426,7 +458,8 @@ export default function GradingPdfTemplate({
                       customTexts: { ...prev.customTexts, school: newText }
                     }));
                   }}
-                  className={showConfigPanel ? "outline-none focus:ring-2 focus:ring-[#135bec]/40 focus:bg-blue-50/70 px-2 py-0.5 rounded-lg transition-all cursor-text border border-dashed border-blue-300 font-black" : ""}
+                  style={{ whiteSpace: 'pre-line' }}
+                  className={showConfigPanel ? "outline-none focus:ring-2 focus:ring-[#135bec]/40 focus:bg-blue-50/70 px-2 py-0.5 rounded-lg transition-all cursor-text border border-dashed border-blue-300 font-bold block" : "block"}
                   title={showConfigPanel ? "Nhấp chuột để sửa trực tiếp" : undefined}
                 >
                   {pdfConfig.customTexts.school}
@@ -434,9 +467,8 @@ export default function GradingPdfTemplate({
               </p>
             </div>
             <div className="text-center flex flex-col gap-0.5 w-[320px] shrink-0">
-              <p className="font-bold text-[#1a1b1e] text-[11px] uppercase tracking-wide">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-              <p className="font-bold text-[#1a1b1e] text-[11px] tracking-wide">Độc lập - Tự do - Hạnh phúc</p>
-              <div className="h-[1.5px] bg-slate-800 w-[110px] mx-auto mt-1.5" />
+              <p className="font-bold text-[#1a1b1e] text-[13px] uppercase tracking-wide">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+              <p className="font-bold text-[#1a1b1e] text-[13px] tracking-wide">Độc lập - Tự do - Hạnh phúc</p>
             </div>
           </div>
         );
@@ -444,7 +476,7 @@ export default function GradingPdfTemplate({
       case 'title':
         return (
           <div key="title" className="text-center py-5 flex flex-col gap-1 w-full mt-1 shrink-0">
-            <h2 className="font-bold text-slate-900 text-[17px] tracking-tight uppercase leading-snug">
+            <h2 className="font-bold text-slate-900 text-[14px] tracking-tight uppercase leading-snug">
               <span
                 contentEditable={showConfigPanel}
                 suppressContentEditableWarning
@@ -461,7 +493,7 @@ export default function GradingPdfTemplate({
                 {pdfConfig.customTexts.title}
               </span>
             </h2>
-            <p className="font-medium text-slate-500 text-[13px] italic">
+            <p className="font-medium text-slate-500 text-[14px] italic">
               Học kỳ:{' '}
               <span
                 contentEditable={showConfigPanel}
@@ -506,10 +538,10 @@ export default function GradingPdfTemplate({
         );
 
       case 'criteria_1_2':
-        // Dữ liệu bảng điểm tiêu chí (Tên tiêu chí, điểm số) chỉ cho kéo thả, KHÔNG cho sửa
+        // Dữ liệu bảng điểm tiêu chí từ API động, tự động ngắt trang mượt mà
         return (
           <div key="criteria_1_2" className="flex flex-col gap-4 w-full select-none">
-            {categories.slice(0, 2).map((cat, catIdx) => {
+            {categories.map((cat) => {
               let catScore = 0;
               cat.items.forEach(item => {
                 const count = counts[item.id] || 0;
@@ -518,14 +550,19 @@ export default function GradingPdfTemplate({
               const clampedScore = Math.max(0, Math.min(cat.maxPoints, catScore));
 
               return (
-                <div key={cat.id} className="border border-slate-200/80 rounded-xl overflow-hidden shadow-sm w-full">
-                  <div className="bg-[#f8fafc] border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between w-full">
+                <div key={cat.id} className="border border-slate-200/80 rounded-xl overflow-hidden shadow-sm w-full bg-white break-inside-avoid page-break-inside-avoid" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+                  <div className="bg-[#f8fafc] border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between w-full gap-2">
                     <span className="font-bold text-slate-800 text-[12.5px] uppercase">
-                      {catIdx === 0 ? 'I. Ý thức tham gia học tập' : 'II. Ý thức chấp hành nội quy, quy chế'}
+                      {cat.code ? `${cat.code}. ` : ''}{cat.title}
                     </span>
-                    <span className="font-bold text-[#5f6368] text-[9.5px] tracking-wide uppercase">
-                      Điểm đạt: {clampedScore} / Tối đa: {cat.maxPoints}đ
-                    </span>
+                    <div className="flex flex-col items-end text-right shrink-0 gap-2">
+                      <span className="font-bold text-[#5f6368] text-[9.5px] tracking-wide uppercase leading-none">
+                        Điểm đạt: {clampedScore}đ
+                      </span>
+                      <span className="font-bold text-slate-400 text-[8.5px] tracking-wide uppercase leading-none">
+                        Tối đa: {cat.maxPoints}đ
+                      </span>
+                    </div>
                   </div>
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -558,56 +595,8 @@ export default function GradingPdfTemplate({
         );
 
       case 'criteria_3':
-        // Dữ liệu bảng điểm tiêu chí (Tên tiêu chí, điểm số) chỉ cho kéo thả, KHÔNG cho sửa
-        return (
-          <div key="criteria_3" className="flex flex-col gap-4 w-full select-none">
-            {categories.slice(2, 3).map((cat) => {
-              let catScore = 0;
-              cat.items.forEach(item => {
-                const count = counts[item.id] || 0;
-                catScore += item.pointsPerUnit * count;
-              });
-              const clampedScore = Math.max(0, Math.min(cat.maxPoints, catScore));
-
-              return (
-                <div key={cat.id} className="border border-slate-200/80 rounded-xl overflow-hidden shadow-sm w-full">
-                  <div className="bg-[#f8fafc] border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between w-full">
-                    <span className="font-bold text-slate-800 text-[12.5px] uppercase">
-                      III. Ý thức tham gia hoạt động cộng đồng, tình nguyện
-                    </span>
-                    <span className="font-bold text-[#5f6368] text-[9.5px] tracking-wide uppercase">
-                      Điểm đạt: {clampedScore} / Tối đa: {cat.maxPoints}đ
-                    </span>
-                  </div>
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-white border-b border-slate-100">
-                        <th className="px-4 py-1.5 text-[9.5px] font-bold text-slate-400 uppercase w-[520px]">Nội dung đánh giá</th>
-                        <th className="px-4 py-1.5 text-[9.5px] font-bold text-slate-400 uppercase text-right w-[110px]">Điểm đạt</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-[12px] text-slate-700 font-medium">
-                      {cat.items.map(item => {
-                        const count = counts[item.id] || 0;
-                        const totalItemPoints = item.pointsPerUnit * count;
-                        const sign = totalItemPoints > 0 ? '+' : '';
-
-                        return (
-                          <tr key={item.id} className="hover:bg-slate-50/50">
-                            <td className="px-4 py-2.5 leading-relaxed">{item.name}</td>
-                            <td className="px-4 py-2.5 text-right font-bold text-[var(--pdf-primary)] font-mono text-[12.5px]">
-                              {sign}{totalItemPoints.toFixed(1)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })}
-          </div>
-        );
+        // Đã được gộp toàn bộ vào criteria_1_2 phía trên để tự động phân trang tự nhiên
+        return null;
 
       case 'summary':
         // Tổng điểm rèn luyện (lấy từ dữ liệu API) không cho phép sửa, chỉ hiển thị
@@ -623,10 +612,10 @@ export default function GradingPdfTemplate({
               </span>
               <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--pdf-border)] text-[var(--pdf-text)] uppercase tracking-wide">
                 Xếp loại: {
-                  student.score >= 90 ? 'Xuất sắc' : 
-                  student.score >= 80 ? 'Tốt' : 
-                  student.score >= 70 ? 'Khá' : 
-                  student.score >= 50 ? 'Trung bình' : 'Yếu'
+                  student.score >= 90 ? 'Xuất sắc' :
+                    student.score >= 80 ? 'Tốt' :
+                      student.score >= 70 ? 'Khá' :
+                        student.score >= 50 ? 'Trung bình' : 'Yếu'
                 }
               </span>
             </div>
@@ -638,24 +627,10 @@ export default function GradingPdfTemplate({
           <div key="signatures" className="mt-8 pt-6 w-full border-t border-dashed border-slate-200 shrink-0">
             <div className="grid grid-cols-2 gap-12 w-full text-center">
               <div className="flex flex-col items-center gap-14">
-                <p className="font-bold text-slate-800 text-[12.5px] uppercase tracking-wide">NGƯỜI LẬP BIỂU</p>
+                <p className="font-bold text-slate-800 text-[12.5px] uppercase tracking-wide">HỌC SINH, SINH VIÊN</p>
                 <div className="flex flex-col gap-1">
                   <p className="font-black text-slate-800 text-[13px]">
-                    <span
-                      contentEditable={showConfigPanel}
-                      suppressContentEditableWarning
-                      onBlur={(e) => {
-                        const newText = e.currentTarget.textContent || '';
-                        setPdfConfig(prev => ({
-                          ...prev,
-                          customTexts: { ...prev.customTexts, creatorName: newText }
-                        }));
-                      }}
-                      className={showConfigPanel ? "outline-none focus:ring-2 focus:ring-[#135bec]/40 focus:bg-blue-50/70 px-2 py-0.5 rounded-lg transition-all cursor-text border border-dashed border-blue-300" : ""}
-                      title={showConfigPanel ? "Click để sửa tên trực tiếp" : undefined}
-                    >
-                      {pdfConfig.customTexts.creatorName}
-                    </span>
+                    {student.name}
                   </p>
                   <p className="text-[10px] text-slate-400 italic font-semibold">(Ký và ghi rõ họ tên)</p>
                 </div>
@@ -696,7 +671,7 @@ export default function GradingPdfTemplate({
                       {pdfConfig.customTexts.approverName}
                     </span>
                   </p>
-                  <p className="text-[10px] text-slate-400 italic font-semibold">(Đóng dấu xác nhận)</p>
+                  <p className="text-[10px] text-slate-400 italic font-semibold">(Ký và ghi rõ họ tên)</p>
                 </div>
               </div>
             </div>
@@ -712,19 +687,21 @@ export default function GradingPdfTemplate({
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm no-print p-4">
       {/* Dynamic style generation mapping variables to selected theme configuration */}
       <style>{`
+        @import url('https://fonts.cdnfonts.com/css/times-new-roman');
         .print-area {
           --pdf-primary: ${colors.primary};
           --pdf-light: ${colors.light};
           --pdf-border: ${colors.border};
           --pdf-text: ${colors.text};
-          font-family: ${
-            pdfConfig.fontFamily === 'Inter' 
-              ? "'Inter', sans-serif" 
-              : pdfConfig.fontFamily === 'Roboto' 
-              ? "'Roboto', sans-serif" 
+          font-family: ${pdfConfig.fontFamily === 'Times New Roman'
+          ? "'Times New Roman', Times, serif"
+          : pdfConfig.fontFamily === 'Inter'
+            ? "'Inter', sans-serif"
+            : pdfConfig.fontFamily === 'Roboto'
+              ? "'Roboto', sans-serif"
               : "'Playfair Display', serif"
-          } !important;
-          font-size: ${pdfConfig.fontSize === 'sm' ? '12px' : pdfConfig.fontSize === 'lg' ? '15px' : '13.5px'} !important;
+        } !important;
+          font-size: ${pdfConfig.fontSize === 'sm' ? '12px' : pdfConfig.fontSize === 'lg' ? '16px' : '14px'} !important;
         }
 
         /* Override modern Tailwind classes inside preview area for print compatibility */
@@ -758,6 +735,20 @@ export default function GradingPdfTemplate({
         
         .print-area .divide-slate-100 > * + * { border-color: #f1f5f9 !important; }
 
+        .print-footer {
+          position: absolute;
+          bottom: 38px;
+          left: 60px;
+          right: 60px;
+          border-top: 1px solid #e2e8f0;
+          padding-top: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background-color: white;
+          z-index: 50;
+        }
+
         @media print {
           body * {
             visibility: hidden;
@@ -782,14 +773,26 @@ export default function GradingPdfTemplate({
             page-break-after: always;
             break-after: page;
           }
+          .print-footer {
+            position: fixed;
+            bottom: 10mm;
+            left: 16mm;
+            right: 16mm;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: white;
+            z-index: 9999;
+          }
         }
       `}</style>
 
       {/* Modal Container with Dynamic width scaling when customization panel is active */}
-      <div className={`bg-[#f0f2f5] w-full h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative border border-slate-200 transition-all duration-300 ${
-        showConfigPanel ? 'max-w-[1280px]' : 'max-w-[960px]'
-      }`}>
-        
+      <div className={`bg-[#f0f2f5] w-full h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative border border-slate-200 transition-all duration-300 ${showConfigPanel ? 'max-w-[1280px]' : 'max-w-[960px]'
+        }`}>
+
         {/* Modal Header */}
         <div className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -860,22 +863,21 @@ export default function GradingPdfTemplate({
 
         {/* Main Workspace Area */}
         <div className="flex-1 flex overflow-hidden">
-          
+
           {/* Customizer Sidebar */}
           {showConfigPanel && (
             <div className="w-[360px] bg-white border-r border-slate-200 overflow-y-auto p-5 flex flex-col gap-6 shrink-0 custom-scrollbar select-none">
-              
+
               {/* Tab Navigation */}
               <div className="flex border-b border-slate-100 pb-1 w-full gap-2 shrink-0">
                 {(['layout', 'data', 'style'] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all capitalize border ${
-                      activeTab === tab
-                        ? 'bg-blue-50 border-blue-200 text-[#135bec]'
-                        : 'bg-transparent border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'
-                    }`}
+                    className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all capitalize border ${activeTab === tab
+                      ? 'bg-blue-50 border-blue-200 text-[#135bec]'
+                      : 'bg-transparent border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                      }`}
                   >
                     {tab === 'layout' ? 'Bố cục' : tab === 'data' ? 'Văn bản' : 'Giao diện'}
                   </button>
@@ -889,7 +891,7 @@ export default function GradingPdfTemplate({
                     <h4 className="font-bold text-slate-800 text-[13px] mb-1">Kéo thả sắp xếp thứ tự</h4>
                     <p className="text-[11px] text-slate-400 font-medium">Nhấp giữ và kéo các khối để thay đổi thứ tự in ấn</p>
                   </div>
-                  
+
                   <div className="flex flex-col gap-2.5">
                     {pdfConfig.sectionsOrder.map((section, idx) => (
                       <div
@@ -909,7 +911,7 @@ export default function GradingPdfTemplate({
                             </span>
                           </div>
                         </div>
-                        
+
                         <button
                           onClick={() => {
                             setPdfConfig(prev => ({
@@ -920,11 +922,10 @@ export default function GradingPdfTemplate({
                               }
                             }));
                           }}
-                          className={`p-1.5 rounded-lg border transition-all ${
-                            pdfConfig.hiddenSections[section]
-                              ? 'bg-rose-50 border-rose-200 text-rose-500 hover:bg-rose-100'
-                              : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'
-                          }`}
+                          className={`p-1.5 rounded-lg border transition-all ${pdfConfig.hiddenSections[section]
+                            ? 'bg-rose-50 border-rose-200 text-rose-500 hover:bg-rose-100'
+                            : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'
+                            }`}
                           title={pdfConfig.hiddenSections[section] ? "Hiển thị lại" : "Tạm ẩn đi"}
                         >
                           {pdfConfig.hiddenSections[section] ? <EyeOff size={13} /> : <Eye size={13} />}
@@ -1000,7 +1001,7 @@ export default function GradingPdfTemplate({
                             customTexts: { ...prev.customTexts, title: e.target.value }
                           }));
                         }}
-                        className="border border-slate-200 rounded-xl px-3 py-2 text-[12.5px] font-medium text-slate-700 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-[#135bec] outline-none transition-all shadow-inner"
+                        className="border border-slate-200 rounded-xl px-3 py-2 text-[14px] font-medium text-slate-700 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-[#135bec] outline-none transition-all shadow-inner"
                       />
                     </div>
 
@@ -1090,11 +1091,10 @@ export default function GradingPdfTemplate({
                             onClick={() => {
                               setPdfConfig(prev => ({ ...prev, themeColor: item.color }));
                             }}
-                            className={`h-9 rounded-xl relative border transition-all ${
-                              pdfConfig.themeColor === item.color
-                                ? 'border-[#135bec] ring-2 ring-blue-500/20 scale-105 shadow-md'
-                                : 'border-slate-200 hover:scale-102 hover:border-slate-400'
-                            }`}
+                            className={`h-9 rounded-xl relative border transition-all ${pdfConfig.themeColor === item.color
+                              ? 'border-[#135bec] ring-2 ring-blue-500/20 scale-105 shadow-md'
+                              : 'border-slate-200 hover:scale-102 hover:border-slate-400'
+                              }`}
                             style={{ backgroundColor: item.color }}
                             title={item.name}
                           >
@@ -1115,8 +1115,9 @@ export default function GradingPdfTemplate({
                         }}
                         className="border border-slate-200 rounded-xl px-3 py-2 text-[12.5px] font-medium text-slate-700 bg-slate-50 focus:bg-white outline-none cursor-pointer shadow-sm transition-all"
                       >
-                        <option value="Inter">Inter (Bản xứ - Khuyên dùng)</option>
-                        <option value="Roboto">Roboto (Hiện đại)</option>
+                        <option value="Times New Roman">Times New Roman (Bản xứ - Khuyên dùng)</option>
+                        <option value="Inter">Inter (Hiện đại)</option>
+                        <option value="Roboto">Roboto (Hiện đại gọn)</option>
                         <option value="Playfair Display">Playfair Display (Cổ điển)</option>
                       </select>
                     </div>
@@ -1130,11 +1131,10 @@ export default function GradingPdfTemplate({
                             onClick={() => {
                               setPdfConfig(prev => ({ ...prev, fontSize: sz }));
                             }}
-                            className={`flex-1 py-1.5 text-[11px] font-bold transition-all ${
-                              pdfConfig.fontSize === sz
-                                ? 'bg-slate-100 text-slate-800'
-                                : 'bg-white text-slate-400 hover:text-slate-600'
-                            }`}
+                            className={`flex-1 py-1.5 text-[11px] font-bold transition-all ${pdfConfig.fontSize === sz
+                              ? 'bg-slate-100 text-slate-800'
+                              : 'bg-white text-slate-400 hover:text-slate-600'
+                              }`}
                           >
                             {sz === 'sm' ? 'Nhỏ' : sz === 'md' ? 'Vừa' : 'Lớn'}
                           </button>
@@ -1149,42 +1149,38 @@ export default function GradingPdfTemplate({
 
           {/* Scrollable Preview Area */}
           <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center gap-8 custom-scrollbar bg-[#f0f2f5]">
-            
+
             {/* Vùng in ấn thực tế (chuẩn A4) */}
             <div className="print-area flex flex-col gap-8 w-[794px] shrink-0">
               {previewStudents.map((student) => {
                 const counts = getStudentCounts(student.id);
-                
-                // Chia làm 2 trang xem trước, các khối tự động phân bổ theo sectionsOrder
+
                 return (
                   <div key={student.id} className="flex flex-col gap-8 w-[794px] print:gap-0">
-                    
-                    {/* ====== TRANG 1 ====== */}
-                    <div className="bg-white w-[794px] h-[1123px] p-[55px_60px_40px_60px] flex flex-col justify-between shadow-md border border-slate-100 relative box-border page-break">
+                    {/* ====== TRANG IN ẤN CO GIÃN TỰ ĐỘNG CHUẨN A4 ====== */}
+                    <div className="bg-white w-[794px] min-h-[1123px] p-[55px_60px_83px_60px] flex flex-col justify-between shadow-md border border-slate-100 relative box-border">
                       {/* Background Decorative */}
                       <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-0">
                         <div className="absolute bg-[var(--pdf-primary)] blur-[80px] bottom-[-150px] left-[-100px] rounded-full w-[350px] h-[350px]" />
                       </div>
 
-                      <div className="relative z-10 flex flex-col flex-1 gap-4 text-left">
-                        {pdfConfig.sectionsOrder.slice(0, 4).map((sectionName, idx) => {
-                          const actualIndex = idx;
+                      <div className="relative z-10 flex flex-col flex-1 gap-5 text-left">
+                        {pdfConfig.sectionsOrder.map((sectionName, idx) => {
                           return (
                             <div
                               key={sectionName}
                               draggable={showConfigPanel}
-                              onDragStart={(e) => handleDragStart(e, actualIndex)}
+                              onDragStart={(e) => handleDragStart(e, idx)}
                               onDragOver={handleDragOver}
-                              onDrop={(e) => handleDrop(e, actualIndex)}
-                              className={`group relative transition-all duration-200 ${
-                                showConfigPanel 
-                                  ? 'hover:ring-2 hover:ring-[#135bec]/30 hover:bg-blue-50/10 rounded-xl p-1 cursor-grab active:cursor-grabbing border border-transparent hover:border-blue-200/50' 
-                                  : ''
-                              }`}
+                              onDrop={(e) => handleDrop(e, idx)}
+                              className={`group relative transition-all duration-200 break-inside-avoid page-break-inside-avoid ${showConfigPanel
+                                ? 'hover:ring-2 hover:ring-[#135bec]/30 hover:bg-blue-50/10 rounded-xl p-1 cursor-grab active:cursor-grabbing border border-transparent hover:border-blue-200/50'
+                                : ''
+                                }`}
+                              style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
                             >
                               {showConfigPanel && (
                                 <div className="absolute top-1 right-1 bg-[#135bec] text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-none shadow flex items-center gap-1 text-[9px] font-bold">
-                                  <GripVertical size={9} />
                                   <span>Bố cục</span>
                                 </div>
                               )}
@@ -1194,59 +1190,14 @@ export default function GradingPdfTemplate({
                         })}
                       </div>
 
-                      {/* Footer Trang 1 */}
-                      <div className="border-t border-slate-200 pt-3 flex items-center justify-between w-full relative z-10 shrink-0 mt-4">
+                      {/* Footer */}
+                      <div className="border-t border-slate-200 pt-3 flex items-center justify-between w-full relative z-10 shrink-0 mt-8">
                         <span className="font-semibold text-slate-400 text-[9px] tracking-wider uppercase">
                           EDUPOINT MANAGEMENT SYSTEM - LƯU HÀNH NỘI BỘ
                         </span>
-                        <span className="font-bold text-slate-700 text-[10.5px]">Trang 01 / 02</span>
+                        <span className="font-bold text-slate-700 text-[10.5px]">Phiếu điểm rèn luyện HSSV</span>
                       </div>
                     </div>
-
-                    {/* ====== TRANG 2 ====== */}
-                    <div className="bg-white w-[794px] h-[1123px] p-[55px_60px_40px_60px] flex flex-col justify-between shadow-md border border-slate-100 relative box-border page-break mt-8 print:mt-0">
-                      {/* Background Decorative */}
-                      <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-0">
-                        <div className="absolute bg-[var(--pdf-primary)] blur-[80px] top-[-50px] right-[-100px] rounded-full w-[350px] h-[350px]" />
-                      </div>
-
-                      <div className="relative z-10 flex flex-col flex-1 gap-4 text-left">
-                        {pdfConfig.sectionsOrder.slice(4).map((sectionName, idx) => {
-                          const actualIndex = idx + 4;
-                          return (
-                            <div
-                              key={sectionName}
-                              draggable={showConfigPanel}
-                              onDragStart={(e) => handleDragStart(e, actualIndex)}
-                              onDragOver={handleDragOver}
-                              onDrop={(e) => handleDrop(e, actualIndex)}
-                              className={`group relative transition-all duration-200 ${
-                                showConfigPanel 
-                                  ? 'hover:ring-2 hover:ring-[#135bec]/30 hover:bg-blue-50/10 rounded-xl p-1 cursor-grab active:cursor-grabbing border border-transparent hover:border-blue-200/50' 
-                                  : ''
-                              }`}
-                            >
-                              {showConfigPanel && (
-                                <div className="absolute top-1 right-1 bg-[#135bec] text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-none shadow flex items-center gap-1 text-[9px] font-bold">
-                                  <GripVertical size={9} />
-                                  <span>Bố cục</span>
-                                </div>
-                              )}
-                              {renderSection(sectionName, student, counts)}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Footer Trang 2 */}
-                      <div className="border-t border-slate-200 pt-3 flex items-center justify-between w-full relative z-10 shrink-0 mt-4">
-                        <span className="font-semibold text-slate-400 text-[9px] tracking-wider uppercase">
-                          EDUPOINT MANAGEMENT SYSTEM - LƯU HÀNH NỘI BỘ
-                        </span>
-                        <span className="font-bold text-slate-700 text-[10.5px]">Trang 02 / 02</span>
-                      </div>
-                    </div>
-
                   </div>
                 );
               })}

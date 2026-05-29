@@ -27,7 +27,7 @@ function PermissionsPageContent() {
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
-  
+
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [allPermissions, setAllPermissions] = useState<any[]>([]);
@@ -48,6 +48,61 @@ function PermissionsPageContent() {
     message: string;
     onConfirm: () => Promise<void>;
   } | null>(null);
+
+  // State cho việc chọn hàng loạt User
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
+  const toggleSelectUser = (userId: string) => {
+    setSelectedUserIds(prev => 
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const toggleSelectAllUsers = (filteredUsers: any[]) => {
+    const filteredUserIds = filteredUsers.map(u => u._id || u.id);
+    const allSelected = filteredUserIds.length > 0 && filteredUserIds.every(id => selectedUserIds.includes(id));
+    
+    if (allSelected) {
+      setSelectedUserIds(prev => prev.filter(id => !filteredUserIds.includes(id)));
+    } else {
+      setSelectedUserIds(prev => {
+        const newSelection = [...prev];
+        filteredUserIds.forEach(id => {
+          if (!newSelection.includes(id)) {
+            newSelection.push(id);
+          }
+        });
+        return newSelection;
+      });
+    }
+  };
+
+  const handleDeleteUsersBulk = () => {
+    if (selectedUserIds.length === 0) return;
+    
+    setDeleteConfig({
+      title: 'Xác nhận xóa nhiều tài khoản',
+      message: `Bạn có chắc chắn muốn xóa ${selectedUserIds.length} tài khoản đã chọn? Hành động này sẽ không thể hoàn tác.`,
+      onConfirm: async () => {
+        const token = tokenStorage.getAccessToken();
+        if (!token) return;
+        
+        try {
+          setIsDataLoading(true);
+          const res = await authApi.deleteUsersBulk(selectedUserIds, token);
+          toast.success(res.message || 'Đã xóa các tài khoản thành công!');
+          setSelectedUserIds([]); // Reset selection
+          fetchData(); // Reload table
+        } catch (error: any) {
+          toast.error(error.message || 'Xóa tài khoản hàng loạt thất bại');
+        } finally {
+          setIsDataLoading(false);
+          setIsDeleteModalOpen(false);
+        }
+      }
+    });
+    setIsDeleteModalOpen(true);
+  };
 
   const router = useRouter();
   const { user: authUser, isLoading: isAuthLoading, logout } = useAuth();
@@ -102,7 +157,7 @@ function PermissionsPageContent() {
       // Handle permissions NOT in any group (Legacy/Fallback)
       const permsInGroups = new Set(g.flatMap((group: any) => group.permissions?.map((p: any) => p._id.toString()) || []));
       const ungroupedPerms = p.filter(perm => !permsInGroups.has(perm._id.toString()));
-      
+
       if (ungroupedPerms.length > 0) {
         const fallbackId = 'fallback_group';
         apiGroups.push({
@@ -125,7 +180,7 @@ function PermissionsPageContent() {
 
       setGroups(apiGroups);
       setPermissionsByGroup(groupsMap);
-      
+
       // Auto-select first group if none selected or if selectedGroup no longer exists
       if (apiGroups.length > 0) {
         if (!selectedGroup || !apiGroups.some(g => g.id === selectedGroup)) {
@@ -202,13 +257,13 @@ function PermissionsPageContent() {
     const groupPerms = permissionsByGroup[groupId]?.map(p => p.code) || [];
     return groupPerms.length > 0 && groupPerms.every(code => checkedPerms.includes(code));
   };
-  
+
   const handleSaveRole = async () => {
     if (!selectedRole) {
       toast.error('Vui lòng chọn vai trò để lưu');
       return;
     }
-    
+
     setIsRoleSaving(true);
     try {
       const token = tokenStorage.getAccessToken();
@@ -220,7 +275,7 @@ function PermissionsPageContent() {
         .map(p => p._id);
 
       await authApi.updateRole(selectedRole, { permissions: permissionIds }, token);
-      
+
       toast.success('Lưu cấu hình phân quyền thành công!');
       fetchData(); // Refresh data
     } catch (error: any) {
@@ -419,22 +474,27 @@ function PermissionsPageContent() {
   }, [selectedGroup, activeTab]);
 
 
+  const filteredUsers = users.filter(u => 
+    (u.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="flex bg-slate-50 h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header />
-        <TabNavigation 
-            tabs={[
-              { id: 'Người dùng', label: 'Người dùng' },
-              { id: 'Vai trò', label: 'Vai trò' },
-              { id: 'Quyền hạn', label: 'Quyền hạn' },
-              // { id: 'Gán quyền trang', label: 'Gán quyền trang' },
-              { id: 'Cấu hình', label: 'Cấu hình' }
-            ]}
-            activeTab={activeTab}
-            onTabChange={(id) => setActiveTab(id)}
-          />
+        <TabNavigation
+          tabs={[
+            { id: 'Người dùng', label: 'Người dùng' },
+            { id: 'Vai trò', label: 'Vai trò' },
+            { id: 'Quyền hạn', label: 'Quyền hạn' },
+            // { id: 'Gán quyền trang', label: 'Gán quyền trang' },
+            { id: 'Cấu hình', label: 'Cấu hình' }
+          ]}
+          activeTab={activeTab}
+          onTabChange={(id) => setActiveTab(id)}
+        />
         <main className="flex-1 p-6 overflow-hidden flex flex-col bg-slate-50 relative">
 
           {/* Content Area */}
@@ -458,14 +518,24 @@ function PermissionsPageContent() {
                       <Filter className="w-4 h-4" strokeWidth={2.5} />
                       Bộ lọc
                     </button>
+
+                    {selectedUserIds.length > 0 && (
+                      <button
+                        onClick={handleDeleteUsersBulk}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-all shadow-sm animate-fade-in"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Xóa ({selectedUserIds.length})
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3">
                     <button className="w-9 h-9 flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100">
                       <Settings className="w-4 h-4" />
                     </button>
-                    
-                    <button 
+
+                    <button
                       onClick={handleOpenAddModal}
                       className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors"
                     >
@@ -475,13 +545,18 @@ function PermissionsPageContent() {
                   </div>
                 </div>
 
-                {/* Table */}
+                {/* Table người dùng */}
                 <div className="flex-1 overflow-auto bg-white relative">
                   <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-100 shadow-sm">
                       <tr>
                         <th className="px-6 py-3 w-12">
-                          <input type="checkbox" className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" />
+                          <input 
+                            type="checkbox" 
+                            checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedUserIds.includes(u._id || u.id))}
+                            onChange={() => toggleSelectAllUsers(filteredUsers)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer" 
+                          />
                         </th>
                         <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Tên</th>
                         <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Liên hệ</th>
@@ -529,16 +604,21 @@ function PermissionsPageContent() {
                         ))
                       ) : (
                         <AnimatePresence>
-                          {users.filter(u => (u.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase())).map((user, idx) => (
-                            <motion.tr 
+                          {filteredUsers.map((user, idx) => (
+                            <motion.tr
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ duration: 0.15, delay: idx * 0.05 }}
-                              key={user._id} 
+                              key={user._id}
                               className="hover:bg-slate-50/50 transition-colors group"
                             >
                               <td className="px-6 py-3 align-middle">
-                                <input type="checkbox" className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" />
+                                <input 
+                                  type="checkbox" 
+                                  checked={selectedUserIds.includes(user._id || user.id)}
+                                  onChange={() => toggleSelectUser(user._id || user.id)}
+                                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer" 
+                                />
                               </td>
                               <td className="px-6 py-3 align-middle">
                                 <div className="flex items-center gap-3">
@@ -562,25 +642,23 @@ function PermissionsPageContent() {
                               <td className="px-6 py-3 align-middle">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   {user.role && (
-                                    <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${
-                                      user.role.name === 'Admin' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'
-                                    }`}>
+                                    <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${user.role.name === 'Admin' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'
+                                      }`}>
                                       {user.role.name}
                                     </span>
                                   )}
                                 </div>
                               </td>
                               <td className="px-6 py-3 align-middle">
-                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
-                                  user.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50' : 'bg-rose-50 text-rose-600 border-rose-100/50'
-                                }`}>
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${user.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50' : 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                  }`}>
                                   <div className={`w-1.5 h-1.5 rounded-full ${user.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                                   <span className="text-xs font-bold">{user.status}</span>
                                 </div>
                               </td>
                               <td className="px-6 py-3 align-middle text-right">
                                 <div className="flex items-center justify-end gap-2">
-                                  <Action 
+                                  <Action
                                     onView={() => router.push(`/permissions/${user._id || user.id}`)}
                                     onEdit={() => handleOpenEditModal(user)}
                                     onDelete={() => handleDeleteUser(user)}
@@ -596,12 +674,12 @@ function PermissionsPageContent() {
                 </div>
 
                 {/* Footer Pagination */}
-                <CustomPagination 
-                  currentPage={1} 
-                  pageSize={10} 
-                  totalItems={users.length} 
-                  onPageChange={() => {}} 
-                  label="người" 
+                <CustomPagination
+                  currentPage={1}
+                  pageSize={10}
+                  totalItems={users.length}
+                  onPageChange={() => { }}
+                  label="người"
                 />
               </>
             )}
@@ -634,14 +712,13 @@ function PermissionsPageContent() {
                       ))
                     ) : (
                       groups.map((group) => (
-                        <div 
+                        <div
                           key={group.id}
                           onClick={() => setSelectedGroup(group.id)}
-                          className={`p-4 rounded-xl cursor-pointer transition-all border-l-[3px] ${
-                            selectedGroup === group.id 
-                              ? 'bg-blue-50/50 border-blue-600 border-y-transparent border-r-transparent shadow-sm' 
-                              : 'bg-white border-transparent hover:border-blue-200 hover:shadow-sm'
-                          }`}
+                          className={`p-4 rounded-xl cursor-pointer transition-all border-l-[3px] ${selectedGroup === group.id
+                            ? 'bg-blue-50/50 border-blue-600 border-y-transparent border-r-transparent shadow-sm'
+                            : 'bg-white border-transparent hover:border-blue-200 hover:shadow-sm'
+                            }`}
                         >
                           <div className="flex items-start justify-between mb-1">
                             <h3 className={`text-sm font-bold ${selectedGroup === group.id ? 'text-blue-700' : 'text-slate-800'}`}>
@@ -678,30 +755,29 @@ function PermissionsPageContent() {
                   <div className="px-6 flex flex-col sm:flex-row sm:items-end justify-between border-b border-slate-100 shrink-0 gap-4">
                     {/* Inner Tabs */}
                     <div className="flex items-center gap-6">
-                       {['Danh sách Quyền', 'Lịch sử Audit'].map(tab => (
-                          <button 
-                            key={tab}
-                            onClick={() => setInnerRightTab(tab)}
-                            className={`py-4 text-sm font-bold transition-colors relative ${
-                              innerRightTab === tab ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
+                      {['Danh sách Quyền', 'Lịch sử Audit'].map(tab => (
+                        <button
+                          key={tab}
+                          onClick={() => setInnerRightTab(tab)}
+                          className={`py-4 text-sm font-bold transition-colors relative ${innerRightTab === tab ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
                             }`}
-                          >
-                            {tab}
-                            {innerRightTab === tab && (
-                              <motion.div 
-                                layoutId="innerTabIndicator"
-                                className="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-600 rounded-t-full"
-                              />
-                            )}
-                          </button>
-                       ))}
+                        >
+                          {tab}
+                          {innerRightTab === tab && (
+                            <motion.div
+                              layoutId="innerTabIndicator"
+                              className="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-600 rounded-t-full"
+                            />
+                          )}
+                        </button>
+                      ))}
                     </div>
 
                     <div className="flex items-center gap-3 pb-2">
-                       <button className="w-9 h-9 flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100">
-                         <Settings className="w-4 h-4" />
-                       </button>
-                       <button onClick={handleOpenAddPermissionModal} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors">
+                      <button className="w-9 h-9 flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100">
+                        <Settings className="w-4 h-4" />
+                      </button>
+                      <button onClick={handleOpenAddPermissionModal} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors">
                         <Plus className="w-4 h-4" />
                         Thêm quyền
                       </button>
@@ -711,84 +787,84 @@ function PermissionsPageContent() {
                   {/* Table area */}
                   <div className="flex-1 overflow-auto relative p-6 bg-slate-50/50">
                     <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden flex flex-col h-full">
-                       <table className="w-full text-left border-collapse shrink-0">
-                          <thead className="bg-slate-50 border-b border-slate-100">
-                            <tr>
-                              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Mã Quyền</th>
-                              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tên Quyền</th>
-                              <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-[40%]">Mô tả</th>
-                              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Thao tác</th>
-                            </tr>
-                          </thead>
-                       </table>
-                       <div className="flex-1 overflow-y-auto">
-                           <table className="w-full text-left border-collapse">
-                            <tbody className="divide-y divide-slate-50">
-                               {isRightPanelLoading || isDataLoading ? (
-                                  Array.from({ length: 4 }).map((_, i) => (
-                                    <tr key={`skel-${i}`}>
-                                      <td className="px-6 py-4 w-[20%]"><Skeleton className="w-24 h-4" /></td>
-                                      <td className="px-6 py-4 w-[25%]"><Skeleton className="w-32 h-4" /></td>
-                                      <td className="px-4 py-4 w-[40%]"><Skeleton className="w-full h-8" /></td>
-                                      <td className="px-6 py-4 text-right"><Skeleton className="w-16 h-4 inline-block" /></td>
-                                    </tr>
+                      <table className="w-full text-left border-collapse shrink-0">
+                        <thead className="bg-slate-50 border-b border-slate-100">
+                          <tr>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Mã Quyền</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tên Quyền</th>
+                            <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-[40%]">Mô tả</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Thao tác</th>
+                          </tr>
+                        </thead>
+                      </table>
+                      <div className="flex-1 overflow-y-auto">
+                        <table className="w-full text-left border-collapse">
+                          <tbody className="divide-y divide-slate-50">
+                            {isRightPanelLoading || isDataLoading ? (
+                              Array.from({ length: 4 }).map((_, i) => (
+                                <tr key={`skel-${i}`}>
+                                  <td className="px-6 py-4 w-[20%]"><Skeleton className="w-24 h-4" /></td>
+                                  <td className="px-6 py-4 w-[25%]"><Skeleton className="w-32 h-4" /></td>
+                                  <td className="px-4 py-4 w-[40%]"><Skeleton className="w-full h-8" /></td>
+                                  <td className="px-6 py-4 text-right"><Skeleton className="w-16 h-4 inline-block" /></td>
+                                </tr>
+                              ))
+                            ) : (
+                              <AnimatePresence mode="popLayout">
+                                {(permissionsByGroup[selectedGroup] || []).length > 0 ? (
+                                  permissionsByGroup[selectedGroup].map((perm, idx) => (
+                                    <motion.tr
+                                      initial={{ opacity: 0, x: -10 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      exit={{ opacity: 0, x: 10 }}
+                                      transition={{ duration: 0.15, delay: idx * 0.05 }}
+                                      key={`${selectedGroup}-${perm.code}`}
+                                      className="hover:bg-slate-50 inline-table w-full group transition-colors"
+                                    >
+                                      <td className="px-6 py-4 w-[20%] font-mono text-xs font-semibold text-slate-500 tracking-tight">
+                                        {perm.code}
+                                      </td>
+                                      <td className="px-6 py-4 w-[25%] font-bold text-sm text-slate-800">
+                                        {perm.name}
+                                      </td>
+                                      <td className="px-4 py-4 w-[40%] text-sm text-slate-500 font-medium">
+                                        {perm.desc}
+                                      </td>
+                                      <td className="px-6 py-4 text-right align-middle">
+                                        <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <button onClick={() => handleOpenEditPermissionModal(perm)} className="text-slate-400 hover:text-slate-700 transition-colors"><Pencil className="w-4 h-4" /></button>
+                                          <button onClick={() => handlePermissionDelete(perm)} className="text-slate-400 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                        </div>
+                                      </td>
+                                    </motion.tr>
                                   ))
-                               ) : (
-                                  <AnimatePresence mode="popLayout">
-                                    {(permissionsByGroup[selectedGroup] || []).length > 0 ? (
-                                      permissionsByGroup[selectedGroup].map((perm, idx) => (
-                                        <motion.tr 
-                                          initial={{ opacity: 0, x: -10 }}
-                                          animate={{ opacity: 1, x: 0 }}
-                                          exit={{ opacity: 0, x: 10 }}
-                                          transition={{ duration: 0.15, delay: idx * 0.05 }}
-                                          key={`${selectedGroup}-${perm.code}`}
-                                          className="hover:bg-slate-50 inline-table w-full group transition-colors"
-                                        >
-                                          <td className="px-6 py-4 w-[20%] font-mono text-xs font-semibold text-slate-500 tracking-tight">
-                                            {perm.code}
-                                          </td>
-                                          <td className="px-6 py-4 w-[25%] font-bold text-sm text-slate-800">
-                                            {perm.name}
-                                          </td>
-                                          <td className="px-4 py-4 w-[40%] text-sm text-slate-500 font-medium">
-                                            {perm.desc}
-                                          </td>
-                                          <td className="px-6 py-4 text-right align-middle">
-                                             <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => handleOpenEditPermissionModal(perm)} className="text-slate-400 hover:text-slate-700 transition-colors"><Pencil className="w-4 h-4" /></button>
-                                                <button onClick={() => handlePermissionDelete(perm)} className="text-slate-400 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                                             </div>
-                                          </td>
-                                        </motion.tr>
-                                      ))
-                                    ) : (
-                                      <tr>
-                                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium text-sm">
-                                          Không có quyền nào trong nhóm này.
-                                        </td>
-                                      </tr>
-                                    )}
-                                  </AnimatePresence>
-                               )}
-                            </tbody>
-                          </table>
-                       </div>
-                       
-                       {/* Pagination Footer */}
-                       <CustomPagination 
-                         currentPage={1} 
-                         pageSize={10} 
-                         totalItems={(permissionsByGroup[selectedGroup] || []).length} 
-                         onPageChange={() => {}} 
-                         label="quyền" 
-                       />
+                                ) : (
+                                  <tr>
+                                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium text-sm">
+                                      Không có quyền nào trong nhóm này.
+                                    </td>
+                                  </tr>
+                                )}
+                              </AnimatePresence>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <CustomPagination
+                        currentPage={1}
+                        pageSize={10}
+                        totalItems={(permissionsByGroup[selectedGroup] || []).length}
+                        onPageChange={() => { }}
+                        label="quyền"
+                      />
                     </div>
                   </div>
                 </div>
               </div>
             )}
-            
+
             {/* --- TAB VAI TRÒ --- */}
             {activeTab === 'Vai trò' && (
               <div className="flex-1 flex overflow-hidden">
@@ -810,7 +886,7 @@ function PermissionsPageContent() {
                       />
                     </div>
                     {/* Filter chips */}
-                    
+
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {isDataLoading ? (
@@ -819,22 +895,20 @@ function PermissionsPageContent() {
                       ))
                     ) : (
                       roles.map((role) => (
-                        <div 
+                        <div
                           key={role._id}
                           onClick={() => setSelectedRole(role._id)}
-                          className={`p-4 rounded-xl cursor-pointer transition-all border-l-[3px] ${
-                            selectedRole === role._id 
-                              ? 'bg-blue-50/50 border-blue-600 border-y-transparent border-r-transparent shadow-sm' 
-                              : 'bg-white border-transparent hover:border-blue-200 hover:shadow-sm'
-                          }`}
+                          className={`p-4 rounded-xl cursor-pointer transition-all border-l-[3px] ${selectedRole === role._id
+                            ? 'bg-blue-50/50 border-blue-600 border-y-transparent border-r-transparent shadow-sm'
+                            : 'bg-white border-transparent hover:border-blue-200 hover:shadow-sm'
+                            }`}
                         >
                           <div className="flex items-start justify-between mb-1.5">
                             <h3 className={`text-sm font-bold ${selectedRole === role._id ? 'text-blue-700' : 'text-slate-800'}`}>
                               {role.name}
                             </h3>
-                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${
-                              role.name === 'Admin' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
-                            }`}>
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${role.name === 'Admin' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
+                              }`}>
                               System
                             </span>
                           </div>
@@ -866,37 +940,36 @@ function PermissionsPageContent() {
                   {/* Header / Tabs right panel */}
                   <div className="px-6 flex flex-col sm:flex-row sm:items-end justify-between border-b border-slate-100 shrink-0 gap-4">
                     <div className="flex items-center gap-6">
-                       {['Ma trận quyền', 'Lịch sử Audit'].map(tab => (
-                          <button 
-                            key={tab}
-                            className={`py-4 text-sm font-bold transition-colors relative ${
-                              tab === 'Ma trận quyền' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
+                      {['Ma trận quyền', 'Lịch sử Audit'].map(tab => (
+                        <button
+                          key={tab}
+                          className={`py-4 text-sm font-bold transition-colors relative ${tab === 'Ma trận quyền' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
                             }`}
-                          >
-                            {tab}
-                            {tab === 'Ma trận quyền' && (
-                              <motion.div 
-                                layoutId="matrixTabIndicator"
-                                className="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-600 rounded-t-full"
-                              />
-                            )}
-                          </button>
-                       ))}
+                        >
+                          {tab}
+                          {tab === 'Ma trận quyền' && (
+                            <motion.div
+                              layoutId="matrixTabIndicator"
+                              className="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-600 rounded-t-full"
+                            />
+                          )}
+                        </button>
+                      ))}
                     </div>
 
                     <div className="flex items-center gap-3 pb-2">
-                       <button className="w-9 h-9 flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100">
-                         <Settings className="w-4 h-4" />
-                       </button>
-                       <button 
-                         onClick={handleSaveRole}
-                         disabled={isRoleSaving}
-                         className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors disabled:opacity-50"
-                       >
+                      <button className="w-9 h-9 flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100">
+                        <Settings className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={handleSaveRole}
+                        disabled={isRoleSaving}
+                        className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors disabled:opacity-50"
+                      >
                         {isRoleSaving ? (
-                            <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
+                          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
                         ) : (
-                            <Save className="w-4 h-4" />
+                          <Save className="w-4 h-4" />
                         )}
                         Lưu thay đổi
                       </button>
@@ -905,112 +978,112 @@ function PermissionsPageContent() {
 
                   {/* Matrix Content Area */}
                   <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-slate-50/50">
-                     <div className="max-w-5xl mx-auto space-y-6">
-                        {isDataLoading ? (
-                           Array.from({ length: 3 }).map((_, i) => (
-                             <Skeleton key={i} className="w-full h-48 rounded-2xl" />
-                           ))
-                        ) : (
-                          groups.map((groupData) => {
-                             const permissions = permissionsByGroup[groupData.id] || [];
-                             
-                             return (
-                               <div key={groupData.id} className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
-                                  {/* Group Header */}
-                                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 p-6 border-b border-slate-50 relative pb-5">
-                                     <div className="pr-40">
-                                        <div className="flex items-center gap-3 mb-1.5 flex-wrap">
-                                           <h3 className="text-base font-bold text-slate-800">{groupData.name}</h3>
-                                        </div>
-                                        <p className="text-[13px] text-slate-500 font-medium">{groupData.desc}</p>
-                                     </div>
-                                     <div className="flex items-center gap-4 sm:absolute sm:top-6 sm:right-6">
-                                        <span className="px-2 py-0.5 bg-slate-50 text-slate-500 border border-slate-100 text-[10px] font-bold rounded-md uppercase tracking-wider">
-                                          MÃ: {groupData.tag}
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                          <input 
-                                            type="checkbox" 
-                                            id={`checkAll-${groupData.id}`}
-                                            checked={isGroupFullyChecked(groupData.id)}
-                                            onChange={(e) => toggleGroupPermissions(groupData.id, e.target.checked)}
-                                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
-                                          />
-                                          <label htmlFor={`checkAll-${groupData.id}`} className="text-[13px] font-bold text-slate-600 cursor-pointer select-none">
-                                            Chọn tất cả
-                                          </label>
-                                        </div>
-                                     </div>
-                                  </div>
+                    <div className="max-w-5xl mx-auto space-y-6">
+                      {isDataLoading ? (
+                        Array.from({ length: 3 }).map((_, i) => (
+                          <Skeleton key={i} className="w-full h-48 rounded-2xl" />
+                        ))
+                      ) : (
+                        groups.map((groupData) => {
+                          const permissions = permissionsByGroup[groupData.id] || [];
 
-                                  {/* Permissions Grid */}
-                                  <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-y-7 gap-x-12">
-                                     {permissions.map((perm) => (
-                                        <div key={perm.code} className="flex items-start gap-4 flex-1 group">
-                                           <div className="mt-0.5 shrink-0">
-                                              <input 
-                                                type="checkbox" 
-                                                id={`perm-${perm.code}`}
-                                                checked={checkedPerms.includes(perm.code)}
-                                                onChange={() => togglePermission(perm.code)}
-                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer transition-colors"
-                                              />
-                                           </div>
-                                           <div className="flex flex-col flex-1 min-w-0">
-                                              <div className="flex items-start justify-between gap-3 mb-0.5">
-                                                <label htmlFor={`perm-${perm.code}`} className="text-[14px] font-bold text-slate-800 cursor-pointer hover:text-blue-600 transition-colors leading-tight">
-                                                   {perm.name}
-                                                </label>
-                                                <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-slate-400 mt-0.5 shrink-0">
-                                                   {perm.code}
-                                                </span>
-                                              </div>
-                                              <p className="text-[12px] sm:text-[13px] text-slate-500 font-medium leading-relaxed pr-2">
-                                                {perm.desc}
-                                              </p>
-                                           </div>
-                                           
-                                           {/* Permission Actions */}
-                                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                              <button 
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  handleOpenEditPermissionModal(perm);
-                                                }}
-                                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                                                title="Sửa quyền"
-                                              >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                              </button>
-                                              <button 
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  handlePermissionDelete(perm);
-                                                }}
-                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
-                                                title="Xóa quyền"
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                              </button>
-                                           </div>
-                                        </div>
-                                     ))}
+                          return (
+                            <div key={groupData.id} className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
+                              {/* Group Header */}
+                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 p-6 border-b border-slate-50 relative pb-5">
+                                <div className="pr-40">
+                                  <div className="flex items-center gap-3 mb-1.5 flex-wrap">
+                                    <h3 className="text-base font-bold text-slate-800">{groupData.name}</h3>
                                   </div>
-                               </div>
-                             );
-                          })
-                        )}
-                     </div>
+                                  <p className="text-[13px] text-slate-500 font-medium">{groupData.desc}</p>
+                                </div>
+                                <div className="flex items-center gap-4 sm:absolute sm:top-6 sm:right-6">
+                                  <span className="px-2 py-0.5 bg-slate-50 text-slate-500 border border-slate-100 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                    MÃ: {groupData.tag}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      id={`checkAll-${groupData.id}`}
+                                      checked={isGroupFullyChecked(groupData.id)}
+                                      onChange={(e) => toggleGroupPermissions(groupData.id, e.target.checked)}
+                                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
+                                    />
+                                    <label htmlFor={`checkAll-${groupData.id}`} className="text-[13px] font-bold text-slate-600 cursor-pointer select-none">
+                                      Chọn tất cả
+                                    </label>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Permissions Grid */}
+                              <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-y-7 gap-x-12">
+                                {permissions.map((perm) => (
+                                  <div key={perm.code} className="flex items-start gap-4 flex-1 group">
+                                    <div className="mt-0.5 shrink-0">
+                                      <input
+                                        type="checkbox"
+                                        id={`perm-${perm.code}`}
+                                        checked={checkedPerms.includes(perm.code)}
+                                        onChange={() => togglePermission(perm.code)}
+                                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer transition-colors"
+                                      />
+                                    </div>
+                                    <div className="flex flex-col flex-1 min-w-0">
+                                      <div className="flex items-start justify-between gap-3 mb-0.5">
+                                        <label htmlFor={`perm-${perm.code}`} className="text-[14px] font-bold text-slate-800 cursor-pointer hover:text-blue-600 transition-colors leading-tight">
+                                          {perm.name}
+                                        </label>
+                                        <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-slate-400 mt-0.5 shrink-0">
+                                          {perm.code}
+                                        </span>
+                                      </div>
+                                      <p className="text-[12px] sm:text-[13px] text-slate-500 font-medium leading-relaxed pr-2">
+                                        {perm.desc}
+                                      </p>
+                                    </div>
+
+                                    {/* Permission Actions */}
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenEditPermissionModal(perm);
+                                        }}
+                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                        title="Sửa quyền"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handlePermissionDelete(perm);
+                                        }}
+                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                                        title="Xóa quyền"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             )}
-            
+
             {/* Tab Gán quyền trang */}
             {activeTab === 'Cấu hình' && (
-              <motion.div 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 className="flex-1 flex flex-col overflow-hidden bg-white"
               >
                 {/* Toolbar */}
@@ -1073,8 +1146,8 @@ function PermissionsPageContent() {
                           const typeConfig = rp.type === 'api'
                             ? { icon: Cpu, label: 'API', color: 'text-purple-600 bg-purple-50 border-purple-100' }
                             : rp.type === 'feature'
-                            ? { icon: Zap, label: 'Chức năng', color: 'text-amber-600 bg-amber-50 border-amber-100' }
-                            : { icon: Globe, label: 'Trang', color: 'text-blue-600 bg-blue-50 border-blue-100' };
+                              ? { icon: Zap, label: 'Chức năng', color: 'text-amber-600 bg-amber-50 border-amber-100' }
+                              : { icon: Globe, label: 'Trang', color: 'text-blue-600 bg-blue-50 border-blue-100' };
                           const TypeIcon = typeConfig.icon;
                           return (
                             <tr key={rp._id} className="hover:bg-slate-50/50 transition-colors group">
@@ -1113,16 +1186,15 @@ function PermissionsPageContent() {
                                 </span>
                               </td>
                               <td className="px-6 py-3.5 align-middle text-center">
-                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
-                                  rp.is_active !== false ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50' : 'bg-slate-50 text-slate-400 border-slate-100'
-                                }`}>
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${rp.is_active !== false ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50' : 'bg-slate-50 text-slate-400 border-slate-100'
+                                  }`}>
                                   <div className={`w-1.5 h-1.5 rounded-full ${rp.is_active !== false ? 'bg-emerald-500' : 'bg-slate-300'}`} />
                                   <span className="text-xs font-bold">{rp.is_active !== false ? 'Active' : 'Inactive'}</span>
                                 </div>
                               </td>
                               <td className="px-6 py-3.5 align-middle text-right">
                                 <div className="flex items-center justify-end gap-2">
-                                  <Action 
+                                  <Action
                                     onEdit={() => { setEditingRoutePerm(rp); setIsRoutePermModalOpen(true); }}
                                     onDelete={() => {
                                       setDeleteConfig({
@@ -1162,7 +1234,7 @@ function PermissionsPageContent() {
       </div>
 
       {/* Insert Modal Component here */}
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title={deleteConfig?.title}
@@ -1180,26 +1252,26 @@ function PermissionsPageContent() {
         }}
       />
 
-      <UserModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <UserModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         isEditing={isEditingUser}
         initialData={editingUser}
         roles={roles}
         onSave={handleUserSave}
       />
-      
-      <GroupModal 
-        isOpen={isGroupModalOpen} 
-        onClose={() => setIsGroupModalOpen(false)} 
+
+      <GroupModal
+        isOpen={isGroupModalOpen}
+        onClose={() => setIsGroupModalOpen(false)}
         isEditing={!!editingGroup}
         initialData={editingGroup}
         onSave={handleGroupSave}
       />
 
-      <PermissionModal 
-        isOpen={isPermissionModalOpen} 
-        onClose={() => setIsPermissionModalOpen(false)} 
+      <PermissionModal
+        isOpen={isPermissionModalOpen}
+        onClose={() => setIsPermissionModalOpen(false)}
         isEditing={!!editingPermission}
         initialData={editingPermission}
         defaultGroupId={selectedGroup}
@@ -1207,7 +1279,7 @@ function PermissionsPageContent() {
         onSave={handlePermissionSave}
       />
 
-      <RoleModal 
+      <RoleModal
         isOpen={isRoleModalOpen}
         onClose={() => setIsRoleModalOpen(false)}
         isEditing={!!editingRole}

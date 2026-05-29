@@ -301,6 +301,15 @@ export class AuthController {
     return this.authService.deleteUser(id);
   }
 
+  @Post('users/bulk-delete')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('ADMIN_FULL')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete multiple users (Admin only)' })
+  async deleteUsersBulk(@Body('userIds') userIds: string[]) {
+    return this.authService.deleteUsersBulk(userIds);
+  }
+
   // ─── ROUTE PERMISSION MANAGEMENT (ADMIN ONLY) ─────────
 
   @Get('route-permissions/all')

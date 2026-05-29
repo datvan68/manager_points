@@ -8,11 +8,12 @@ export type UserDocument = User & Document;
 export enum UserStatus {
   ACTIVE = 'active',
   LOCKED = 'locked',
+  INACTIVE = 'inactive',
 }
 
 @Schema({ timestamps: true, collection: 'users' })
 export class User {
-  @Prop({ required: true, unique: true, trim: true })
+  @Prop({ required: true, trim: true })
   user_name: string;
 
   @Prop({ required: true, unique: true, lowercase: true, trim: true })

@@ -126,16 +126,16 @@ export class SummariesPointService {
       sectionsOrder: ['header', 'title', 'student_info', 'criteria_1_2', 'criteria_3', 'summary', 'signatures'],
       hiddenSections: {},
       themeColor: '#135bec',
-      fontFamily: 'Inter',
+      fontFamily: 'Times New Roman',
       fontSize: 'md',
       customTexts: {
         semester: semesterName || 'I - Năm học 2025 - 2026',
         creatorName: 'Trần Thị Bích Ngọc',
-        approverName: 'PGS.TS. NGUYỄN KHẮC HÙNG',
+        approverName: 'NGƯỜI PHÊ DUYỆT',
         approverTitle: 'XÁC NHẬN CỦA NHÀ TRƯỜNG',
         ubnd: 'ỦY BAN NHÂN DÂN',
         city: 'THÀNH PHỐ HỒ CHÍ MINH',
-        school: 'TRƯỜNG CAO ĐẲNG BÁCH KHOA NAM SÀI GÒN',
+        school: 'TRƯỜNG CAO ĐẲNG BÁCH KHOA\nNAM SÀI GÒN',
         title: 'PHIẾU ĐÁNH GIÁ KẾT QUẢ RÈN LUYỆN HỌC SINH, SINH VIÊN',
       }
     };
@@ -147,7 +147,7 @@ export class SummariesPointService {
       approverTitle: 'XÁC NHẬN CỦA NHÀ TRƯỜNG',
       ubnd: 'ỦY BAN NHÂN DÂN',
       city: 'THÀNH PHỐ HỒ CHÍ MINH',
-      school: 'TRƯỜNG CAO ĐẲNG BÁCH KHOA NAM SÀI GÒN',
+      school: 'TRƯỜNG CAO ĐẲNG BÁCH KHOA\nNAM SÀI GÒN',
       title: 'PHIẾU ĐÁNH GIÁ KẾT QUẢ RÈN LUYỆN HỌC SINH, SINH VIÊN',
     };
 
@@ -180,16 +180,13 @@ export class SummariesPointService {
           return `
             <div class="flex justify-between items-start border-b border-slate-100 pb-5 w-full shrink-0">
               <div class="text-center flex flex-col gap-0.5 w-[320px] shrink-0">
-                <p class="font-bold text-[#1a1b1e] text-[11px] uppercase tracking-wide">${customTexts.ubnd || 'ỦY BAN NHÂN DÂN'}</p>
-                <p class="font-bold text-[#1a1b1e] text-[11px] uppercase tracking-wide">${customTexts.city || 'THÀNH PHỐ HỒ CHÍ MINH'}</p>
-                <p class="font-black text-[var(--pdf-primary)] text-[11.5px] uppercase tracking-wide border-b border-[var(--pdf-primary)] pb-1 mx-auto w-fit">
-                  ${customTexts.school || 'TRƯỜNG CAO ĐẲNG BÁCH KHOA NAM SÀI GÒN'}
-                </p>
+                <p class="font-medium text-[#1a1b1e] text-[13px] uppercase tracking-wide">${customTexts.ubnd || 'ỦY BAN NHÂN DÂN'}</p>
+                <p class="font-medium text-[#1a1b1e] text-[13px] uppercase tracking-wide">${customTexts.city || 'THÀNH PHỐ HỒ CHÍ MINH'}</p>
+                <p class="font-bold text-[#1a1b1e] text-[13px] uppercase tracking-wide" style="white-space: pre-line">${customTexts.school || 'TRƯỜNG CAO ĐẲNG BÁCH KHOA\nNAM SÀI GÒN'}</p>
               </div>
               <div class="text-center flex flex-col gap-0.5 w-[320px] shrink-0">
-                <p class="font-bold text-[#1a1b1e] text-[11px] uppercase tracking-wide">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-                <p class="font-bold text-[#1a1b1e] text-[11px] tracking-wide">Độc lập - Tự do - Hạnh phúc</p>
-                <div class="h-[1.5px] bg-slate-800 w-[110px] mx-auto mt-1.5"></div>
+                <p class="font-bold text-[#1a1b1e] text-[13px] uppercase tracking-wide">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                <p class="font-bold text-[#1a1b1e] text-[13px] tracking-wide">Độc lập - Tự do - Hạnh phúc</p>
               </div>
             </div>
           `;
@@ -197,7 +194,7 @@ export class SummariesPointService {
         case 'title':
           return `
             <div class="text-center py-5 flex flex-col gap-1 w-full mt-1 shrink-0">
-              <h2 class="font-bold text-slate-900 text-[17px] tracking-tight uppercase leading-snug">
+              <h2 class="font-bold text-slate-900 text-[14px] tracking-tight uppercase leading-snug">
                 ${customTexts.title || 'PHIẾU ĐÁNH GIÁ KẾT QUẢ RÈN LUYỆN HỌC SINH, SINH VIÊN'}
               </h2>
               <p class="font-medium text-slate-500 text-[13px] italic">
@@ -208,29 +205,29 @@ export class SummariesPointService {
 
         case 'student_info':
           return `
-            <div class="bg-[#f8fafc] border border-slate-100 rounded-2xl p-4.5 grid grid-cols-2 gap-x-8 gap-y-2.5 w-full mb-2 shrink-0">
+            <div class="bg-[#f8fafc] border border-slate-100 rounded-2xl w-full mb-2 shrink-0" style="padding: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; row-gap: 10px;">
               <div class="flex items-center gap-2 text-[13px]">
-                <span class="font-semibold text-slate-500 min-w-[100px]">Họ và tên HSSV:</span>
+                <span class="font-semibold text-slate-500" style="min-width: 110px; display: inline-block;">Họ và tên HSSV:</span>
                 <span class="font-bold text-slate-800">${student.name}</span>
               </div>
               <div class="flex items-center gap-2 text-[13px]">
-                <span class="font-semibold text-slate-500 min-w-[80px]">Ngày sinh:</span>
+                <span class="font-semibold text-slate-500" style="min-width: 90px; display: inline-block;">Ngày sinh:</span>
                 <span class="font-medium text-slate-800">${formatDate(student.dob) || '13/02/2004'}</span>
               </div>
               <div class="flex items-center gap-2 text-[13px]">
-                <span class="font-semibold text-slate-500 min-w-[100px]">Lớp học:</span>
+                <span class="font-semibold text-slate-500" style="min-width: 110px; display: inline-block;">Lớp học:</span>
                 <span class="font-semibold text-slate-800">${className}</span>
               </div>
               <div class="flex items-center gap-2 text-[13px]">
-                <span class="font-semibold text-slate-500 min-w-[80px]">Mã HSSV:</span>
+                <span class="font-semibold text-slate-500" style="min-width: 90px; display: inline-block;">Mã HSSV:</span>
                 <span class="font-bold text-slate-800 font-mono">${student.id}</span>
               </div>
             </div>
           `;
 
         case 'criteria_1_2':
-          let page1CategoriesHtml = '';
-          categories.slice(0, 2).forEach((cat, catIdx) => {
+          let allCategoriesHtml = '';
+          categories.forEach((cat) => {
             let catScore = 0;
             cat.items.forEach((item: any) => {
               const count = counts[item.id] || 0;
@@ -253,15 +250,20 @@ export class SummariesPointService {
               `;
             });
 
-            page1CategoriesHtml += `
-              <div class="border border-slate-200/80 rounded-xl overflow-hidden shadow-sm w-full mb-3">
-                <div class="bg-[#f8fafc] border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between w-full">
+            allCategoriesHtml += `
+              <div class="border border-slate-200/80 rounded-xl overflow-hidden shadow-sm w-full mb-3 break-inside-avoid" style="break-inside: avoid; page-break-inside: avoid; background-color: white;">
+                <div class="bg-[#f8fafc] border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between w-full gap-2">
                   <span class="font-bold text-slate-800 text-[12.5px] uppercase">
-                    ${catIdx === 0 ? 'I. Ý thức tham gia học tập' : 'II. Ý thức chấp hành nội quy, quy chế'}
+                    ${cat.code ? `${cat.code}. ` : ''}${cat.title}
                   </span>
-                  <span class="font-bold text-[#5f6368] text-[9.5px] tracking-wide uppercase">
-                    Điểm đạt: ${clampedScore} / Tối đa: ${cat.maxPoints}đ
-                  </span>
+                  <div class="flex flex-col items-end text-right shrink-0 gap-2">
+                    <span class="font-bold text-[#5f6368] text-[9.5px] tracking-wide uppercase leading-none">
+                      Điểm đạt: ${clampedScore}đ
+                    </span>
+                    <span class="font-bold text-slate-400 text-[8.5px] tracking-wide uppercase leading-none">
+                      Tối đa: ${cat.maxPoints}đ
+                    </span>
+                  </div>
                 </div>
                 <table class="w-full text-left border-collapse">
                   <thead>
@@ -277,62 +279,15 @@ export class SummariesPointService {
               </div>
             `;
           });
-          return `<div class="flex flex-col gap-4 w-full">${page1CategoriesHtml}</div>`;
+          return `<div class="flex flex-col gap-4 w-full">${allCategoriesHtml}</div>`;
 
         case 'criteria_3':
-          let page2CategoriesHtml = '';
-          categories.slice(2, 3).forEach((cat) => {
-            let catScore = 0;
-            cat.items.forEach((item: any) => {
-              const count = counts[item.id] || 0;
-              catScore += item.pointsPerUnit * count;
-            });
-            const clampedScore = Math.max(0, Math.min(cat.maxPoints, catScore));
-
-            let itemsTrHtml = '';
-            cat.items.forEach((item: any) => {
-              const count = counts[item.id] || 0;
-              const totalItemPoints = item.pointsPerUnit * count;
-              const sign = totalItemPoints > 0 ? '+' : '';
-              itemsTrHtml += `
-                <tr class="hover:bg-slate-50/50">
-                  <td class="px-4 py-2.5 leading-relaxed text-left">${item.name}</td>
-                  <td class="px-4 py-2.5 text-right font-bold text-[var(--pdf-primary)] font-mono text-[12.5px]">
-                    ${sign}${totalItemPoints.toFixed(1)}
-                  </td>
-                </tr>
-              `;
-            });
-
-            page2CategoriesHtml += `
-              <div class="border border-slate-200/80 rounded-xl overflow-hidden shadow-sm w-full">
-                <div class="bg-[#f8fafc] border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between w-full">
-                  <span class="font-bold text-slate-800 text-[12.5px] uppercase">
-                    III. Ý thức tham gia hoạt động cộng đồng, tình nguyện
-                  </span>
-                  <span class="font-bold text-[#5f6368] text-[9.5px] tracking-wide uppercase">
-                    Điểm đạt: ${clampedScore} / Tối đa: ${cat.maxPoints}đ
-                  </span>
-                </div>
-                <table class="w-full text-left border-collapse">
-                  <thead>
-                    <tr class="bg-white border-b border-slate-100">
-                      <th class="px-4 py-1.5 text-[9.5px] font-bold text-slate-400 uppercase w-[520px]">Nội dung đánh giá</th>
-                      <th class="px-4 py-1.5 text-[9.5px] font-bold text-slate-400 uppercase text-right w-[110px]">Điểm đạt</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-100 text-[12px] text-slate-700 font-medium">
-                    ${itemsTrHtml}
-                  </tbody>
-                </table>
-              </div>
-            `;
-          });
-          return `<div class="flex flex-col gap-4 w-full">${page2CategoriesHtml}</div>`;
+          // Đã được gộp toàn bộ vào criteria_1_2 phía trên để tự động phân trang tự nhiên giống frontend
+          return '';
 
         case 'summary':
           return `
-            <div class="bg-[var(--pdf-light)] border border-[var(--pdf-border)] rounded-2xl p-4.5 flex items-center justify-between w-full mt-2 shadow-sm shrink-0">
+            <div class="bg-[var(--pdf-light)] border border-[var(--pdf-border)] rounded-2xl flex items-center justify-between w-full mt-2 shadow-sm shrink-0" style="padding: 18px 24px;">
               <div class="flex flex-col gap-1 text-left">
                 <span class="font-bold text-slate-800 text-[14px]">TỔNG ĐIỂM RÈN LUYỆN CHUNG:</span>
                 <span class="text-[11.5px] text-[var(--pdf-text)] font-semibold">Tự động cộng các danh mục điểm đạt</span>
@@ -358,9 +313,9 @@ export class SummariesPointService {
             <div class="mt-8 pt-6 w-full border-t border-dashed border-slate-200 shrink-0">
               <div class="grid grid-cols-2 gap-12 w-full text-center">
                 <div class="flex flex-col items-center gap-14">
-                  <p class="font-bold text-slate-800 text-[12.5px] uppercase tracking-wide">NGƯỜI LẬP BIỂU</p>
+                  <p class="font-bold text-slate-800 text-[12.5px] uppercase tracking-wide">HỌC SINH, SINH VIÊN</p>
                   <div class="flex flex-col gap-1">
-                    <p class="font-black text-slate-800 text-[13px]">${customTexts.creatorName}</p>
+                    <p class="font-black text-slate-800 text-[13px]">${student.name}</p>
                     <p class="text-[10px] text-slate-400 italic font-semibold">(Ký và ghi rõ họ tên)</p>
                   </div>
                 </div>
@@ -368,7 +323,7 @@ export class SummariesPointService {
                   <p class="font-bold text-slate-800 text-[12.5px] uppercase tracking-wide">${customTexts.approverTitle}</p>
                   <div class="flex flex-col gap-1">
                     <p class="font-black text-slate-800 text-[13px] uppercase">${customTexts.approverName}</p>
-                    <p class="text-[10px] text-slate-400 italic font-semibold">(Đóng dấu xác nhận)</p>
+                    <p class="text-[10px] text-slate-400 italic font-semibold">(Ký và ghi rõ họ tên)</p>
                   </div>
                 </div>
               </div>
@@ -385,59 +340,39 @@ export class SummariesPointService {
     selectedStudents.forEach((student) => {
       const counts = evaluationCounts[student.id] || {};
       
-      // Split configuration sectionsOrder: first 4 items go to Page 1, remaining 3 to Page 2
-      let page1ContentHtml = '';
-      sectionsOrder.slice(0, 4).forEach((sectionName: string) => {
-        page1ContentHtml += renderSectionHtml(sectionName, student, counts);
-      });
-
-      let page2ContentHtml = '';
-      sectionsOrder.slice(4).forEach((sectionName: string) => {
-        page2ContentHtml += renderSectionHtml(sectionName, student, counts);
+      // Aggregate all configuration sections into a single flow with auto-page break rules
+      let contentHtml = '';
+      sectionsOrder.forEach((sectionName: string) => {
+        const sectionHtml = renderSectionHtml(sectionName, student, counts);
+        if (sectionHtml && sectionHtml.trim() !== '') {
+          contentHtml += `
+            <div class="break-inside-avoid">
+              ${sectionHtml}
+            </div>
+          `;
+        }
       });
 
       studentsHtml += `
         <div class="student-container page-break-after-always">
-          <!-- ====== TRANG 1 ====== -->
+          <!-- ====== BẢN IN CO GIÃN TỰ ĐỘNG CHUẨN A4 ====== -->
           <div class="page bg-white relative box-border">
             <!-- Background Decorative -->
             <div class="absolute inset-0 opacity-[0.03] pointer-events-none z-0">
               <div class="absolute bg-[var(--pdf-primary)] blur-[80px] bottom-[-150px] left-[-100px] rounded-full w-[350px] h-[350px]"></div>
             </div>
 
-            <div class="relative z-10 flex flex-col justify-between h-full">
-              <div class="flex flex-col gap-4 text-left">
-                ${page1ContentHtml}
+            <div class="relative z-10 flex flex-col justify-between min-h-full">
+              <div class="flex flex-col gap-5 text-left">
+                ${contentHtml}
               </div>
 
-              <!-- Footer Trang 1 -->
-              <div class="border-t border-slate-200 pt-3 flex items-center justify-between w-full mt-4 shrink-0">
+              <!-- Footer chung cho phiếu điểm cố định ở cuối mỗi trang in -->
+              <div class="print-footer">
                 <span class="font-semibold text-slate-400 text-[9px] tracking-wider uppercase">
                   EDUPOINT MANAGEMENT SYSTEM - LƯU HÀNH NỘI BỘ
                 </span>
-                <span class="font-bold text-slate-700 text-[10.5px]">Trang 01 / 02</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- ====== TRANG 2 ====== -->
-          <div class="page bg-white relative box-border mt-0">
-            <!-- Background Decorative -->
-            <div class="absolute inset-0 opacity-[0.03] pointer-events-none z-0">
-              <div class="absolute bg-[var(--pdf-primary)] blur-[80px] top-[-50px] right-[-100px] rounded-full w-[350px] h-[350px]"></div>
-            </div>
-
-            <div class="relative z-10 flex flex-col justify-between h-full">
-              <div class="flex flex-col gap-4 text-left">
-                ${page2ContentHtml}
-              </div>
-
-              <!-- Footer Trang 2 -->
-              <div class="border-t border-slate-200 pt-3 flex items-center justify-between w-full mt-4 shrink-0">
-                <span class="font-semibold text-slate-400 text-[9px] tracking-wider uppercase">
-                  EDUPOINT MANAGEMENT SYSTEM - LƯU HÀNH NỘI BỘ
-                </span>
-                <span class="font-bold text-slate-700 text-[10.5px]">Trang 02 / 02</span>
+                <span class="font-bold text-slate-700 text-[10.5px]">Phiếu điểm rèn luyện HSSV</span>
               </div>
             </div>
           </div>
@@ -451,10 +386,11 @@ export class SummariesPointService {
       <head>
         <meta charset="UTF-8">
         <title>Phiếu điểm rèn luyện</title>
-        <!-- Google Fonts: Inter, Roboto -->
+        <!-- Google Fonts: Inter, Roboto, Times New Roman CDN -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Roboto:ital,wght@0,400;0,500;0,700;0,900;1,400&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
+        <link href="https://fonts.cdnfonts.com/css/times-new-roman" rel="stylesheet">
         <!-- CDN Tailwind CSS v4 -->
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
@@ -466,7 +402,9 @@ export class SummariesPointService {
           }
           body {
             font-family: ${
-              config.fontFamily === 'Inter' 
+              config.fontFamily === 'Times New Roman'
+                ? "'Times New Roman', Times, serif"
+                : config.fontFamily === 'Inter' 
                 ? "'Inter', sans-serif" 
                 : config.fontFamily === 'Roboto' 
                 ? "'Roboto', sans-serif" 
@@ -476,7 +414,7 @@ export class SummariesPointService {
             padding: 0;
             background-color: #f1f5f9;
             -webkit-print-color-adjust: exact;
-            font-size: ${config.fontSize === 'sm' ? '12px' : config.fontSize === 'lg' ? '15px' : '13.5px'};
+            font-size: ${config.fontSize === 'sm' ? '12px' : config.fontSize === 'lg' ? '16px' : '14px'};
           }
           
           /* Override color classes on the fly for compatibility */
@@ -510,12 +448,28 @@ export class SummariesPointService {
           
           .page {
             width: 210mm;
-            height: 297mm;
-            padding: 20mm;
+            min-height: 297mm;
+            padding: 15mm 16mm 22mm 16mm;
             box-sizing: border-box;
             background-color: white;
             position: relative;
-            overflow: hidden;
+          }
+          .print-footer {
+            position: absolute;
+            bottom: 10mm;
+            left: 16mm;
+            right: 16mm;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: white;
+            z-index: 50;
+          }
+          .break-inside-avoid {
+            break-inside: avoid;
+            page-break-inside: avoid;
           }
           .page-break-after-always {
             page-break-after: always;
@@ -527,12 +481,23 @@ export class SummariesPointService {
             }
             .page {
               width: 210mm;
-              height: 297mm;
-              padding: 20mm;
+              min-height: 297mm;
+              padding: 15mm 16mm 22mm 16mm;
               margin: 0;
               box-shadow: none;
-              page-break-after: always;
-              break-after: page;
+            }
+            .print-footer {
+              position: fixed;
+              bottom: 10mm;
+              left: 16mm;
+              right: 16mm;
+              border-top: 1px solid #e2e8f0;
+              padding-top: 12px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              background-color: white;
+              z-index: 9999;
             }
           }
         </style>

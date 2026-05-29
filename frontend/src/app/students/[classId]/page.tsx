@@ -393,6 +393,7 @@ function ClassStudentsPageContent() {
                                             <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase">GIỚI TÍNH</th>
                                             <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase">ĐRL</th>
                                             <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase text-center">TRẠNG THÁI</th>
+                                            <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase text-center">TÀI KHOẢN</th>
                                             <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase text-right">HÀNH ĐỘNG</th>
                                         </tr>
                                     </thead>
@@ -407,12 +408,13 @@ function ClassStudentsPageContent() {
                                                     <td className="px-6"><Skeleton className="w-16 h-4" /></td>
                                                     <td className="px-6"><Skeleton className="w-16 h-4" /></td>
                                                     <td className="px-6 text-center"><Skeleton className="w-20 h-5 rounded-full mx-auto" /></td>
+                                                    <td className="px-6 text-center"><Skeleton className="w-20 h-5 rounded-full mx-auto" /></td>
                                                     <td className="px-6 text-right"><Skeleton className="w-6 h-6 rounded-md ml-auto" /></td>
                                                 </tr>
                                             ))
                                         ) : paginatedStudents.length === 0 ? (
                                             <tr>
-                                                <td colSpan={8} className="px-6 py-12 text-center text-gray-400 text-sm">
+                                                <td colSpan={9} className="px-6 py-12 text-center text-gray-400 text-sm">
                                                     Không tìm thấy sinh viên nào trong lớp này.
                                                 </td>
                                             </tr>
@@ -459,6 +461,16 @@ function ClassStudentsPageContent() {
                                                                     'bg-[#fef2f2] text-[#ef4444]'
                                                                 }`}>
                                                                 {vStatus}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 text-center">
+                                                            <span className={`inline-flex items-center justify-center px-[8px] py-[3.5px] rounded-full font-bold text-[12px] ${
+                                                                student.account_status === 'active' ? 'bg-[#f0fdf4] text-[#16a34a]' :
+                                                                student.account_status === 'locked' ? 'bg-[#fef2f2] text-[#ef4444]' :
+                                                                'bg-gray-100 text-gray-500'
+                                                            }`}>
+                                                                {student.account_status === 'active' ? 'Đã kích hoạt' :
+                                                                 student.account_status === 'locked' ? 'Đang khóa' : 'Chưa active'}
                                                             </span>
                                                         </td>
                                                         <td className="px-6 text-right">
@@ -601,6 +613,16 @@ function ClassStudentsPageContent() {
                                 <div className="flex justify-between">
                                     <span className="text-gray-500 text-sm">Trạng thái</span>
                                     <span className="text-gray-900 font-medium text-sm">{getVietnameseStatus(drawerStudent.status)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm">Tài khoản</span>
+                                    <span className={`font-bold text-sm ${
+                                        drawerStudent.account_status === 'active' ? 'text-green-600' :
+                                        drawerStudent.account_status === 'locked' ? 'text-red-600' : 'text-gray-500'
+                                    }`}>
+                                        {drawerStudent.account_status === 'active' ? 'Đã kích hoạt' :
+                                         drawerStudent.account_status === 'locked' ? 'Đang khóa' : 'Chưa active'}
+                                    </span>
                                 </div>
                             </div>
 

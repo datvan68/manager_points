@@ -72,7 +72,16 @@ export class AuthService implements OnModuleInit {
   }
 
   async login(dto: LoginDto, ip: string) {
-    const user = await this.userModel.findOne({ email: dto.email.toLowerCase() }).populate('role');
+    const loginKey = dto.email.trim();
+    const isStudentCode = /^\d+$/.test(loginKey);
+    const studentEmail = isStudentCode ? `${loginKey}@school.edu.vn` : loginKey;
+
+    const user = await this.userModel.findOne({
+      $or: [
+        { email: studentEmail.toLowerCase() },
+        { user_name: loginKey }
+      ]
+    }).populate('role');
 
     if (!user) {
       await this.logAction(null, ip, 'login_failure', `User not found: ${dto.email}`);
@@ -110,6 +119,9 @@ export class AuthService implements OnModuleInit {
     // Success
     user.failed_login_attempts = 0;
     user.locked_until = null;
+    if (user.status === UserStatus.INACTIVE) {
+      user.status = UserStatus.ACTIVE;
+    }
     await user.save();
 
     const role = user.role as any;
@@ -294,6 +306,19 @@ export class AuthService implements OnModuleInit {
     return { message: 'Xóa người dùng thành công' };
   }
 
+  async deleteUsersBulk(userIds: string[]) {
+    const invalidIds = userIds.filter(id => !Types.ObjectId.isValid(id));
+    if (invalidIds.length > 0) {
+      throw new BadRequestException(`Có ID người dùng không hợp lệ: ${invalidIds.join(', ')}`);
+    }
+
+    const result = await this.userModel.deleteMany({ _id: { $in: userIds } });
+    return {
+      message: `Đã xóa thành công ${result.deletedCount}/${userIds.length} người dùng.`,
+      deletedCount: result.deletedCount,
+    };
+  }
+
   // ─── INTERNAL LOGGING ───────────────────────────────────────
 
   private async logAction(userId: Types.ObjectId | null, ip: string, action: string, details: string | null) {
@@ -309,6 +334,24 @@ export class AuthService implements OnModuleInit {
   // ─── SEEDING & MIGRATION ────────────────────────────────────
 
   private async seedRbac() {
+    // Đảm bảo luôn có vai trò Student trong hệ thống
+    const hasStudentRole = await this.roleModel.findOne({ name: 'Student' });
+    if (!hasStudentRole) {
+      const viewCoursePerm = await this.permissionModel.findOne({ code: 'view_course' });
+      await this.roleModel.findOneAndUpdate(
+        { name: 'Student' },
+        { 
+          $setOnInsert: {
+            name: 'Student',
+            description: 'Sinh viên học sinh',
+            permissions: viewCoursePerm ? [viewCoursePerm._id] : []
+          }
+        },
+        { upsert: true }
+      );
+      console.log('Tự động bổ sung vai trò Student vào hệ thống.');
+    }
+
     const permissionsCount = await this.permissionModel.countDocuments();
     const rolesCount = await this.roleModel.countDocuments();
     const groupsCount = await this.permissionGroupModel.countDocuments();
@@ -342,6 +385,7 @@ export class AuthService implements OnModuleInit {
       { name: 'Admin', description: 'Toàn quyền truy cập hệ thống', permissions: Object.values(createdPerms) },
       { name: 'Giảng viên chính', description: 'Quản lý lớp học và điểm số', permissions: [createdPerms['view_course'], createdPerms['STUDENT_READ'], createdPerms['view_users']] },
       { name: 'User', description: 'Người dùng cơ bản', permissions: [createdPerms['view_course']] },
+      { name: 'Student', description: 'Sinh viên học sinh', permissions: [createdPerms['view_course']] },
     ];
 
     for (const r of roles) {

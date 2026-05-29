@@ -20,8 +20,8 @@ export class RegisterDto {
 
 export class LoginDto {
   @ApiProperty({ example: 'user@example.com' })
-  @IsEmail({}, { message: 'Email không đúng định dạng' })
-  @IsNotEmpty({ message: 'Email không được để trống' })
+  @IsString()
+  @IsNotEmpty({ message: 'Email hoặc Mã sinh viên không được để trống' })
   email: string;
 
   @ApiProperty({ example: '12345678' })

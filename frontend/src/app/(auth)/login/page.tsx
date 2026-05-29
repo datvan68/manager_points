@@ -11,7 +11,7 @@ import { authApi, tokenStorage } from '@/api/auth-api';
 import { useAuth } from '@/providers/auth-provider';
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Email không được để trống').email('Email không đúng định dạng'),
+  email: z.string().min(1, 'Email hoặc Mã sinh viên không được để trống'),
   password: z.string().min(6, 'Mật khẩu phải chứa ít nhất 6 ký tự'),
   remember: z.boolean().optional(),
 });
@@ -68,7 +68,7 @@ export default function LoginPage() {
           Chào mừng quay trở lại
         </h1>
         <p className="font-['Inter'] font-normal text-[#64748b] text-[16px] leading-[24px]">
-          Vui lòng đăng nhập vào tài khoản EduAdmin của bạn
+          Vui lòng đăng nhập vào tài khoản của bạn
         </p>
       </div>
 
@@ -78,12 +78,12 @@ export default function LoginPage() {
           {/* Email Field */}
           <div className="flex flex-col gap-2">
             <label className="font-['Inter'] font-semibold text-[#334155] text-[14px]">
-              Email
+              Email hoặc Mã sinh viên
             </label>
             <div className={`bg-white border rounded-[12px] h-[56px] px-[17px] flex items-center transition-all ${errors.email ? 'border-red-500 ring-1 ring-red-500' : 'border-[#e2e8f0] focus-within:border-[#135bec] focus-within:ring-1 focus-within:ring-[#135bec]'}`}>
               <input 
-                type="email" 
-                placeholder="nguoidung@domain.com"
+                type="text" 
+                placeholder="Nhập email hoặc mã sinh viên..."
                 className="w-full h-full bg-transparent text-[#0f172a] text-[16px] font-['Inter'] placeholder:text-[#6b7280] outline-none"
                 disabled={isLoading}
                 {...register('email')}
