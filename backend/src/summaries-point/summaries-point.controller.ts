@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Res } from '@nestjs/common';
 import { SummariesPointService } from './summaries-point.service';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import * as express from 'express';
 
 @ApiTags('summaries-point')
 @Controller('summaries-point')
@@ -15,6 +16,33 @@ export class SummariesPointController {
   @ApiResponse({ status: 400, description: 'Dữ liệu đầu vào không hợp lệ.' })
   create(@Body() createSummaryPointDto: CreateSummaryPointDto) {
     return this.summariesPointService.create(createSummaryPointDto);
+  }
+
+  @Post('export-pdf')
+  @ApiOperation({ summary: 'Xuất file PDF kết quả điểm rèn luyện sinh viên bằng Puppeteer' })
+  @ApiResponse({ status: 200, description: 'Trả về file PDF dưới dạng stream.' })
+  async exportPdf(@Body() body: any, @Res() res: express.Response) {
+    try {
+      const { selectedStudents, categories, evaluationCounts, semesterName, className, pdfConfig } = body;
+      const pdfBuffer = await this.summariesPointService.generatePdf(
+        selectedStudents,
+        categories,
+        evaluationCounts,
+        semesterName,
+        className,
+        pdfConfig
+      );
+      
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'attachment; filename=phieu_diem_ren_luyen.pdf',
+        'Content-Length': pdfBuffer.length.toString(),
+      });
+      
+      res.end(pdfBuffer);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Lỗi khi xuất PDF: ' + error.message });
+    }
   }
 
   @Get()

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import SemesterModal from '../../components/grading/SemesterModal';
 import BulkGradingModal from '../../components/grading/BulkGradingModal';
+import GradingPdfTemplate from '../../components/grading/GradingPdfTemplate';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import TabNavigation from '@/components/ui/TabNavigation';
@@ -69,6 +70,7 @@ export default function GradingPage() {
   // Modal học kì
   const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
   const [isBulkGradingOpen, setIsBulkGradingOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   const handleConfirmBulkGrading = async (criteriaId: string, count: number) => {
     if (selectedStudentIds.length === 0) {
@@ -481,6 +483,8 @@ export default function GradingPage() {
         const classObj = apiClasses.find(c => c._id === studentClassId);
         const deptId = classObj ? (typeof classObj.dept_id === 'object' ? classObj.dept_id?._id : classObj.dept_id) : '';
 
+        const studentDob = studentObj?.date_bir || '';
+
         return {
           id: studentId,
           name: studentName,
@@ -488,7 +492,8 @@ export default function GradingPage() {
           classId: studentClassId,
           semesterId: semId,
           departmentId: deptId,
-          summaryId: summary._id
+          summaryId: summary._id,
+          dob: studentDob
         };
       })
       .filter(student => {
@@ -513,6 +518,30 @@ export default function GradingPage() {
     if (score >= 50) return { label: 'Trung bình', color: 'bg-purple-50 text-purple-700 border-purple-200/60' };
     return { label: 'Yếu', color: 'bg-rose-50 text-rose-700 border-rose-200/60' };
   };
+
+  // Chuẩn bị dữ liệu cho PDF template in ấn
+  const selectedStudentsData = filteredStudents.filter(std => selectedStudentIds.includes(std.id));
+  const currentClassObj = apiClasses.find(c => c._id === appliedClass);
+  const currentClassName = currentClassObj ? currentClassObj.class_name : '';
+  const currentSemesterName = currentSemesterObj ? currentSemesterObj.semester_name : '';
+
+  const evaluationCountsMap: Record<string, Record<string, number>> = {};
+  selectedStudentsData.forEach(student => {
+    evaluationCountsMap[student.id] = {};
+    
+    // Tìm tất cả chi tiết chấm điểm thuộc summaryId của sinh viên này
+    const studentDetails = (apiEvaluationDetails || []).filter(detail => {
+      const detailSummaryId = typeof detail.summary_id === 'object' ? detail.summary_id?._id : detail.summary_id;
+      return detailSummaryId === student.summaryId;
+    });
+
+    studentDetails.forEach(detail => {
+      const criterionId = typeof detail.criterion_id === 'object' ? detail.criterion_id?._id : detail.criterion_id;
+      if (criterionId) {
+        evaluationCountsMap[student.id][criterionId] = detail.current_count || 0;
+      }
+    });
+  });
 
   return (
     <>
@@ -933,9 +962,7 @@ export default function GradingPage() {
             </button>
 
             <button
-              onClick={() => {
-                toast.success(`Đã xuất PDF danh sách điểm rèn luyện của ${selectedStudentIds.length} sinh viên thành công!`);
-              }}
+              onClick={() => setIsPrintModalOpen(true)}
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer h-9 shrink-0 border border-slate-700/60"
             >
               <FileDown size={13} strokeWidth={2.5} />
@@ -951,6 +978,16 @@ export default function GradingPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <GradingPdfTemplate
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        selectedStudents={selectedStudentsData}
+        categories={categories}
+        evaluationCounts={evaluationCountsMap}
+        semesterName={currentSemesterName}
+        className={currentClassName}
+      />
     </>
   );
 }
