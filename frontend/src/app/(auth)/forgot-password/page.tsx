@@ -48,88 +48,106 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="w-full max-w-[480px] flex flex-col gap-[32px] z-10">
-        
-        {/* Top Icon */}
-        <div className="flex justify-center w-full">
-          <div className="bg-[rgba(19,91,236,0.1)] rounded-full w-[80px] h-[80px] flex items-center justify-center">
-            {/* Custom SVG Grid Icon */}
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="3" y="3" width="7" height="7" rx="1" fill="#135bec"/>
-              <rect x="14" y="3" width="7" height="7" rx="1" fill="#135bec"/>
-              <rect x="14" y="14" width="7" height="7" rx="1" fill="#135bec"/>
-              <rect x="3" y="14" width="7" height="7" rx="1" fill="#135bec"/>
-            </svg>
-          </div>
-        </div>
+    <>
+      {/* Background Gradient */}
+      <div 
+        className="fixed inset-0 z-0 pointer-events-none" 
+        style={{ 
+          backgroundImage: "linear-gradient(135deg, rgb(235, 242, 250) 0%, rgb(220, 230, 241) 100%)" 
+        }} 
+      />
 
-        {/* Content Header */}
-        <div className="flex flex-col gap-[12px] items-center text-center">
-          <h1 className="font-['Inter'] font-black text-[#0f172a] text-[30px] tracking-[-0.75px] leading-[36px]">
-            Quên mật khẩu?
-          </h1>
-          <p className="font-['Inter'] font-normal text-[#64748b] text-[16px] leading-[26px]">
-            Nhập địa chỉ email liên kết với tài khoản của bạn và chúng tôi sẽ gửi liên kết để đặt lại mật khẩu của bạn.
-          </p>
-        </div>
-
-        {/* Form Section */}
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-[24px] w-full mt-2">
-          {/* Email Field */}
-          <div className="flex flex-col gap-[8px]">
-            <label className="font-['Inter'] font-semibold text-[#334155] text-[14px]">
-              Địa chỉ Email
-            </label>
-            <div className={`bg-white border rounded-[12px] h-[56px] relative flex items-center shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-all ${errors.email ? 'border-red-500 ring-1 ring-red-500' : 'border-[#e2e8f0] focus-within:border-[#135bec] focus-within:ring-1 focus-within:ring-[#135bec]'}`}>
-              <div className="absolute left-[16px] text-slate-400 pointer-events-none flex items-center">
-                <Mail size={20} />
-              </div>
-              <input 
-                type="email" 
-                placeholder="name@example.com"
-                className="w-full h-full bg-transparent text-[#0f172a] text-[16px] font-['Inter'] placeholder:text-[#94a3b8] outline-none pl-[48px] pr-[16px]"
-                disabled={isLoading}
-                {...register('email')}
-              />
+      <div className="w-full max-w-[512px] z-10 px-4">
+        {/* Glass Card Container */}
+        <div className="backdrop-blur-[6px] bg-white/45 border border-white/75 flex flex-col gap-[32px] items-stretch p-6 sm:p-[49px] relative rounded-[32px] shadow-[0px_4px_20px_rgba(203,213,225,0.4)]">
+          
+          {/* Email Circle Icon */}
+          <div className="flex justify-center w-full">
+            <div className="backdrop-blur-[2px] bg-white/50 border border-white/80 flex items-center justify-center w-[64px] h-[64px] rounded-full shadow-[0px_1px_2px_rgba(0,0,0,0.05)] shrink-0 text-[#005bbf]">
+              <Mail size={24} />
             </div>
-            {errors.email && <span className="text-red-500 text-sm mt-1">{errors.email.message}</span>}
           </div>
 
-          {/* Submit Button */}
-          <button 
-            type="submit"
-            disabled={isLoading}
-            className={`bg-[#135bec] hover:bg-blue-700 text-white rounded-[12px] h-[56px] flex items-center justify-center gap-2 relative shadow-[0_20px_25px_-5px_rgba(19,91,236,0.25),0_8px_10px_-6px_rgba(19,91,236,0.25)] transition-all w-full px-[24px] ${isLoading ? 'opacity-80 cursor-not-allowed' : ''}`}
-          >
-            {isLoading ? (
-              <Loader2 size={24} className="animate-spin" />
-            ) : (
-              <>
-                <span className="font-['Inter'] font-bold text-[18px]">Gửi liên kết đặt lại</span>
-                <ArrowRight size={20} strokeWidth={2.5} />
-              </>
-            )}
-          </button>
-        </form>
+          {/* Heading Container */}
+          <div className="flex flex-col gap-[8px] items-center text-center">
+            <h1 className="font-['Inter'] font-semibold text-[#111c2d] text-[36px] tracking-tight leading-[44px]">
+              Quên mật khẩu?
+            </h1>
+            <p className="font-['Inter'] font-semibold text-[#64748b] text-[14px] leading-[20px] max-w-[340px]">
+              Nhập địa chỉ email liên kết với tài khoản của bạn và chúng tôi sẽ gửi liên kết để đặt lại mật khẩu.
+            </p>
+          </div>
 
-        {/* Back to Login Link */}
-        <div className="flex justify-center -mt-2">
-          <Link href="/login" className="flex items-center gap-[8px] font-['Inter'] font-medium text-[#135bec] text-[16px] hover:text-blue-700 transition-colors">
-            <ArrowLeft size={18} strokeWidth={2.5} />
-            Quay lại trang Đăng nhập
-          </Link>
+          {/* Form Section */}
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-[24px] w-full">
+            <div className="flex flex-col gap-[20px]">
+              
+              {/* Email Field */}
+              <div className="flex flex-col gap-[8px] w-full">
+                <div className="pl-[16px]">
+                  <label className="font-['Inter'] font-medium text-[#414754] text-[13px]">
+                    Địa chỉ Email
+                  </label>
+                </div>
+                <div className="relative w-full">
+                  <div className={`bg-white/40 border border-white/70 rounded-full h-[48px] pl-[49px] pr-[25px] flex items-center transition-all ${errors.email ? 'border-red-500 ring-1 ring-red-500 bg-red-50/10' : 'focus-within:border-[#005bbf] focus-within:ring-1 focus-within:ring-[#005bbf] focus-within:bg-white/80'}`}>
+                    <input 
+                      type="email" 
+                      placeholder="name@example.com"
+                      className="w-full h-full bg-transparent text-[#0f172a] text-[14px] font-['Inter'] font-semibold placeholder:text-[#a3b1cc] outline-none"
+                      disabled={isLoading}
+                      {...register('email')}
+                    />
+                  </div>
+                  <div className="absolute left-[16px] top-1/2 -translate-y-1/2 flex items-center pointer-events-none text-[#94a3b8]">
+                    <Mail size={18} />
+                  </div>
+                </div>
+                {errors.email && (
+                  <span className="text-red-500 text-[12px] mt-1 pl-[16px]">{errors.email.message}</span>
+                )}
+              </div>
+
+            </div>
+
+            {/* Submit Button */}
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className={`bg-[#005bbf] hover:bg-[#004da3] text-white rounded-full h-[48px] flex items-center justify-center gap-2 relative shadow-[0px_4px_6px_rgba(0,0,0,0.05)] transition-all mt-2 w-full ${isLoading ? 'opacity-80 cursor-not-allowed' : ''}`}
+            >
+              {isLoading ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <>
+                  <span className="font-['Inter'] font-semibold text-[16px]">Gửi liên kết đặt lại</span>
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+
+            {/* Back to Login Link */}
+            <div className="flex justify-center w-full mt-2">
+              <Link href="/login" className="flex items-center gap-[6px] font-['Inter'] font-medium text-[#005bbf] text-[13px] hover:underline transition-all">
+                <ArrowLeft size={16} />
+                <span>Quay lại trang đăng nhập</span>
+              </Link>
+            </div>
+
+            {/* Support Notice */}
+            <div className="flex justify-center w-full mt-4 border-t border-white/60 pt-4">
+              <span className="font-['Inter'] font-semibold text-[#566069] text-[13px] text-center">
+                Bạn gặp khó khăn?{' '}
+                <Link href="#" className="text-[#005bbf] hover:underline font-bold">
+                  Liên hệ hỗ trợ
+                </Link>
+              </span>
+            </div>
+
+          </form>
+
         </div>
-
-        {/* Support Notice */}
-        <div className="w-full border-t border-[#e2e8f0] pt-[32px] mt-4 flex items-center justify-center">
-          <p className="font-['Inter'] font-normal text-[#64748b] text-[14px] text-center">
-            Bạn gặp khó khăn?{' '}
-            <Link href="#" className="font-semibold text-[#135bec] hover:underline">
-              Liên hệ bộ phận hỗ trợ
-            </Link>
-          </p>
-        </div>
-
-    </div>
+      </div>
+    </>
   );
 }

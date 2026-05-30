@@ -17,11 +17,13 @@ import {
     ArrowRightLeft,
     Loader2,
     ExternalLink,
-    Compass
+    Compass,
+    CheckCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
 import { studentApi, Student } from '@/api/student-api';
+import { authApi, tokenStorage } from '@/api/auth-api';
 import {
     Drawer,
     DrawerClose,
@@ -36,8 +38,9 @@ import Action from '@/components/ui/Action';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { StudentAvatar } from '@/components/ui/StudentAvatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { CustomPagination } from '@/components/ui/pagination';
+import FloatingActionBar from '@/components/ui/FloatingActionBar';
 
 function ClassStudentsPageContent() {
     const router = useRouter();
@@ -188,6 +191,112 @@ function ClassStudentsPageContent() {
 
     const handleExport = () => {
         toast.success(`Đã xuất file ${selectedStudentIds.length} sinh viên thành công.`);
+    };
+
+    const handleActivateAccounts = async () => {
+        if (selectedStudentIds.length === 0) return;
+        setIsDataLoading(true);
+        const token = tokenStorage.getAccessToken();
+        let successCount = 0;
+        let failCount = 0;
+
+        try {
+            // 1. Lấy danh sách vai trò (roles) để tìm vai trò 'Student'
+            let studentRoleId = "";
+            if (token) {
+                try {
+                    const roles = await authApi.getRoles(token);
+                    const studentRole = roles.find(r => r.name?.toLowerCase() === 'student');
+                    if (studentRole) {
+                        studentRoleId = studentRole._id || studentRole.id;
+                    }
+                } catch (err) {
+                    console.error("Không thể lấy danh sách vai trò:", err);
+                }
+            }
+
+            // 2. Lấy danh sách người dùng ban đầu
+            let allUsers: any[] = [];
+            if (token) {
+                try {
+                    allUsers = await authApi.getUsers(token);
+                } catch (err) {
+                    console.error("Không thể lấy danh sách users ban đầu:", err);
+                }
+            }
+
+            for (const studentId of selectedStudentIds) {
+                const student = studentsList.find(s => s._id === studentId);
+                if (!student) continue;
+
+                const dob = new Date(student.date_bir);
+                const day = String(dob.getDate()).padStart(2, '0');
+                const month = String(dob.getMonth() + 1).padStart(2, '0');
+                const year = dob.getFullYear();
+                const plainPassword = `${day}${month}${year}`;
+                const studentEmail = student.email || `${student.student_code}@school.edu.vn`;
+
+                let registeredNew = false;
+                try {
+                    await authApi.register(student.full_name, studentEmail, plainPassword);
+                    registeredNew = true;
+                    successCount++;
+                } catch (regErr: any) {
+                    const isDuplicate = regErr.message?.toLowerCase().includes('đã được sử dụng') || 
+                                      regErr.message?.toLowerCase().includes('tồn tại') || 
+                                      regErr.status === 409;
+                    if (isDuplicate && token) {
+                        const matchedUser = allUsers.find(u => u.email?.toLowerCase() === studentEmail.toLowerCase());
+                        if (matchedUser) {
+                            try {
+                                const userId = matchedUser._id || matchedUser.id;
+                                await authApi.updateUser(userId, { status: 'active' }, token);
+                                successCount++;
+                                
+                                // Gán quyền 'Student' luôn cho tài khoản cũ vừa kích hoạt
+                                if (studentRoleId) {
+                                    await authApi.assignRole(userId, studentRoleId, token);
+                                }
+                                continue;
+                            } catch (updateErr) {
+                                console.error("Lỗi khi kích hoạt tài khoản đã có:", updateErr);
+                            }
+                        }
+                    }
+                    failCount++;
+                    continue;
+                }
+
+                // Nếu vừa đăng ký mới tài khoản thành công, tiến hành lấy User ID mới tạo để gán quyền Student
+                if (registeredNew && token && studentRoleId) {
+                    try {
+                        const updatedUsers = await authApi.getUsers(token);
+                        const newUser = updatedUsers.find(u => u.email?.toLowerCase() === studentEmail.toLowerCase());
+                        if (newUser) {
+                            const newUserId = newUser._id || newUser.id;
+                            await authApi.assignRole(newUserId, studentRoleId, token);
+                        }
+                    } catch (roleErr) {
+                        console.error("Lỗi khi gán vai trò Student cho tài khoản mới:", roleErr);
+                    }
+                }
+            }
+
+            if (successCount > 0) {
+                toast.success(`Đã kích hoạt thành công tài khoản và gán quyền Student cho ${successCount} sinh viên.`);
+            }
+            if (failCount > 0) {
+                toast.error(`Kích hoạt thất bại cho ${failCount} sinh viên.`);
+            }
+            
+            setSelectedStudentIds([]);
+            fetchStudents();
+        } catch (err) {
+            console.error("Lỗi khi xử lý kích hoạt tài khoản sinh viên:", err);
+            toast.error("Đã xảy ra lỗi trong quá trình kích hoạt tài khoản.");
+        } finally {
+            setIsDataLoading(false);
+        }
     };
 
     // Xóa danh sách sinh viên được chọn (Xóa hàng loạt)
@@ -341,16 +450,14 @@ function ClassStudentsPageContent() {
                                 </div>
 
                                 {selectedStudentIds.length > 0 && (
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={handleDelete}
-                                            disabled={isDataLoading}
-                                            className="flex items-center gap-1.5 px-[10px] py-[4.5px] text-[11px] font-bold uppercase tracking-wider text-[#ef4444] bg-[#fef2f2] border border-[#ef4444]/30 rounded-[8px] hover:bg-red-100/50 hover:border-[#ef4444] transition-all disabled:opacity-50 shrink-0 select-none"
-                                        >
-                                            {isDataLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                                            Xóa ({selectedStudentIds.length})
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={handleDelete}
+                                        disabled={isDataLoading}
+                                        className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#ef4444] bg-[#fef2f2] border border-[#ef4444]/30 rounded-lg hover:bg-red-100/50 hover:border-[#ef4444] transition-all disabled:opacity-50 shrink-0 select-none h-[33px]"
+                                    >
+                                        {isDataLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                        Xóa ({selectedStudentIds.length})
+                                    </button>
                                 )}
                             </div>
 
@@ -464,13 +571,12 @@ function ClassStudentsPageContent() {
                                                             </span>
                                                         </td>
                                                         <td className="px-6 text-center">
-                                                            <span className={`inline-flex items-center justify-center px-[8px] py-[3.5px] rounded-full font-bold text-[12px] ${
-                                                                student.account_status === 'active' ? 'bg-[#f0fdf4] text-[#16a34a]' :
+                                                            <span className={`inline-flex items-center justify-center px-[8px] py-[3.5px] rounded-full font-bold text-[12px] ${student.account_status === 'active' ? 'bg-[#f0fdf4] text-[#16a34a]' :
                                                                 student.account_status === 'locked' ? 'bg-[#fef2f2] text-[#ef4444]' :
-                                                                'bg-gray-100 text-gray-500'
-                                                            }`}>
+                                                                    'bg-gray-100 text-gray-500'
+                                                                }`}>
                                                                 {student.account_status === 'active' ? 'Đã kích hoạt' :
-                                                                 student.account_status === 'locked' ? 'Đang khóa' : 'Chưa active'}
+                                                                    student.account_status === 'locked' ? 'Đang khóa' : 'Chưa active'}
                                                             </span>
                                                         </td>
                                                         <td className="px-6 text-right">
@@ -616,12 +722,11 @@ function ClassStudentsPageContent() {
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-500 text-sm">Tài khoản</span>
-                                    <span className={`font-bold text-sm ${
-                                        drawerStudent.account_status === 'active' ? 'text-green-600' :
+                                    <span className={`font-bold text-sm ${drawerStudent.account_status === 'active' ? 'text-green-600' :
                                         drawerStudent.account_status === 'locked' ? 'text-red-600' : 'text-gray-500'
-                                    }`}>
+                                        }`}>
                                         {drawerStudent.account_status === 'active' ? 'Đã kích hoạt' :
-                                         drawerStudent.account_status === 'locked' ? 'Đang khóa' : 'Chưa active'}
+                                            drawerStudent.account_status === 'locked' ? 'Đang khóa' : 'Chưa active'}
                                     </span>
                                 </div>
                             </div>
@@ -678,6 +783,31 @@ function ClassStudentsPageContent() {
                     )}
                 </DrawerContent>
             </Drawer>
+
+            <FloatingActionBar
+                selectedCount={selectedStudentIds.length}
+                onClear={() => setSelectedStudentIds([])}
+                variant="light"
+                actions={
+                    <>
+                        <button
+                            onClick={handleExport}
+                            className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-slate-600 bg-white/80 border border-slate-200 rounded-full hover:bg-slate-50 transition-all select-none shadow-sm"
+                        >
+                            <Download className="w-3.5 h-3.5" /> Xuất file
+                        </button>
+
+                        <button
+                            onClick={handleActivateAccounts}
+                            disabled={isDataLoading}
+                            className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-white bg-[#135bec] rounded-full hover:bg-blue-600 active:bg-blue-700 transition-all disabled:opacity-50 select-none shadow-sm shadow-blue-500/10"
+                        >
+                            {isDataLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                            Kích hoạt
+                        </button>
+                    </>
+                }
+            />
 
         </div>
     );

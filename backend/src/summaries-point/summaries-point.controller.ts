@@ -5,8 +5,8 @@ import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import * as express from 'express';
 
-@ApiTags('summaries-point')
-@Controller('summaries-point')
+@ApiTags('summaries-points')
+@Controller('summaries-points')
 export class SummariesPointController {
   constructor(private readonly summariesPointService: SummariesPointService) {}
 

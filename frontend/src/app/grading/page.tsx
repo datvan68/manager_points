@@ -11,6 +11,7 @@ import {
   Check,
   FileDown,
   CheckCircle,
+  XCircle,
   Eye,
   Settings
 } from 'lucide-react';
@@ -19,6 +20,7 @@ import BulkGradingModal from '../../components/grading/BulkGradingModal';
 import GradingPdfTemplate from '../../components/grading/GradingPdfTemplate';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
+import FloatingActionBar from '@/components/ui/FloatingActionBar';
 import TabNavigation from '@/components/ui/TabNavigation';
 import { CustomPagination } from '@/components/ui/pagination';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -175,7 +177,7 @@ export default function GradingPage() {
 
         // Tải toàn bộ details mới để tính tổng điểm realtime
         const latestDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
-        
+
         let finalScore = 0;
         categories.forEach(cat => {
           let catScore = 0;
@@ -280,14 +282,134 @@ export default function GradingPage() {
       });
 
       await Promise.all(promises);
+
+      // Tính toán lại tổng điểm rèn luyện dựa trên các chi tiết chấm điểm thực tế
+      let finalScore = 0;
+      categories.forEach(cat => {
+        let catScore = 0;
+        cat.items.forEach((cri: any) => {
+          const detail = details.find(d => {
+            const dCriId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
+            return dCriId === cri.id;
+          });
+          const currentCount = detail ? detail.current_count : 0;
+          const maxScore = cri.maxScore || 10;
+          const minScore = cri.minScore || 0;
+          const criterionScore = Math.max(minScore, Math.min(maxScore, currentCount * cri.pointsPerUnit));
+          catScore += criterionScore;
+        });
+        const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));
+        finalScore += clampedCatScore;
+      });
+
+      const clampedFinalScore = Math.max(0, Math.min(100, finalScore));
+
+      // Xác định xếp loại tương ứng dựa trên tổng điểm mới tính
+      let newGrading = 'Chưa xếp loại';
+      if (clampedFinalScore >= 90) newGrading = 'Xuất sắc';
+      else if (clampedFinalScore >= 80) newGrading = 'Tốt';
+      else if (clampedFinalScore >= 70) newGrading = 'Khá';
+      else if (clampedFinalScore >= 50) newGrading = 'Trung bình';
+      else if (clampedFinalScore > 0) newGrading = 'Yếu';
+
+      // Cập nhật cả total_score, xếp loại mới và trạng thái active vào Database thông qua summariesPointApi
+      await summariesPointApi.updateSummariesPoint(summaryId, {
+        total_score: clampedFinalScore,
+        grading: newGrading,
+        status: 'active'
+      });
+
       toast.dismiss('approve-loading');
-      toast.success(`Đã duyệt rèn luyện thành công cho sinh viên ${studentName}!`);
-      
+      toast.success(`Đã duyệt rèn luyện và xếp loại "${newGrading}" thành công cho sinh viên ${studentName}!`);
+
       // Tải lại bảng
       await fetchData();
     } catch (error: any) {
       toast.dismiss('approve-loading');
       toast.error('Lỗi khi duyệt rèn luyện: ' + error.message);
+    } finally {
+      setIsTableLoading(false);
+    }
+  };
+
+  // Hàm hủy duyệt điểm rèn luyện hàng loạt (chuyển về inactive và Chưa xếp loại)
+  const handleCancelApproveBulk = async () => {
+    if (selectedStudentIds.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một sinh viên để hủy duyệt!');
+      return;
+    }
+
+    const currentUser = tokenStorage.getUser();
+    const userRoleLower = currentUser?.role?.toLowerCase() || '';
+    const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
+
+    if (!canApprove) {
+      toast.error('Bạn không có quyền hủy duyệt điểm rèn luyện!');
+      return;
+    }
+
+    setIsTableLoading(true);
+    toast.loading(`Đang hủy duyệt điểm rèn luyện cho ${selectedStudentIds.length} sinh viên...`, { id: 'cancel-bulk-loading' });
+
+    try {
+      const promises = selectedStudentIds.map(async (studentId) => {
+        // Tìm summary tương ứng của sinh viên này
+        const summary = (apiSummariesPoints || []).find(s => {
+          const studentObj = typeof s.student_id === 'object' ? s.student_id : null;
+          const sId = studentObj?.student_code || studentObj?.id || studentObj?._id || (typeof s.student_id === 'string' ? s.student_id : '');
+          return sId === studentId;
+        });
+
+        if (!summary) return;
+
+        const summaryId = summary._id;
+
+        // 1. Tải tất cả chi tiết chấm điểm (EvaluationDetails) thuộc summaryId này
+        const details = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
+
+        // 2. Cập nhật status của tất cả chi tiết chấm điểm về 'draft'
+        const detailPromises = (details || []).map(detail => {
+          const updatedHistory = [...(detail.history || [])];
+          updatedHistory.push({
+            role: userRoleLower.includes('admin') ? 'admin' : 'supervisor',
+            updated_by: currentUser?.id,
+            count: detail.current_count,
+            reason: 'Hủy duyệt rèn luyện về Bản nháp'
+          });
+
+          const cleanHistory = updatedHistory.map((log: any) => ({
+            role: log.role,
+            updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
+            count: log.count,
+            reason: log.reason || 'Hủy duyệt rèn luyện'
+          }));
+
+          return evaluationDetailApi.updateEvaluationDetail(detail._id, {
+            history: cleanHistory,
+            status: 'draft'
+          });
+        });
+
+        await Promise.all(detailPromises);
+
+        // 3. Cập nhật status bảng điểm về 'inactive' và grading về 'Chưa xếp loại'
+        await summariesPointApi.updateSummariesPoint(summaryId, {
+          status: 'inactive',
+          grading: 'Chưa xếp loại'
+        });
+      });
+
+      await Promise.all(promises);
+
+      toast.dismiss('cancel-bulk-loading');
+      toast.success(`Đã hủy duyệt điểm rèn luyện thành công cho ${selectedStudentIds.length} sinh viên!`);
+      setSelectedStudentIds([]); // Xóa danh sách đã chọn
+
+      // Tải lại bảng
+      await fetchData();
+    } catch (error: any) {
+      toast.dismiss('cancel-bulk-loading');
+      toast.error('Lỗi khi hủy duyệt rèn luyện hàng loạt: ' + error.message);
     } finally {
       setIsTableLoading(false);
     }
@@ -439,7 +561,7 @@ export default function GradingPage() {
               semester_id: selectedSemester,
               total_score: 0,
               grading: 'Chưa xếp loại',
-              status: 'active'
+              status: 'inactive'
             })
           );
         }
@@ -457,7 +579,7 @@ export default function GradingPage() {
       setAppliedSemester(selectedSemester);
       setAppliedDepartment(selectedDepartment);
       setAppliedClass(selectedClass);
-      
+
       toast.success('Đã cập nhật danh sách sinh viên theo bộ lọc!');
     } catch (error: any) {
       toast.error('Lỗi khi cập nhật danh sách rèn luyện: ' + error.message);
@@ -489,6 +611,8 @@ export default function GradingPage() {
           id: studentId,
           name: studentName,
           score: summary.total_score || 0,
+          grading: summary.grading || 'Chưa xếp loại',
+          status: summary.status || 'inactive',
           classId: studentClassId,
           semesterId: semId,
           departmentId: deptId,
@@ -519,6 +643,15 @@ export default function GradingPage() {
     return { label: 'Yếu', color: 'bg-rose-50 text-rose-700 border-rose-200/60' };
   };
 
+  const getRankColor = (label: string) => {
+    if (label === 'Xuất sắc') return 'bg-amber-50 text-amber-700 border-amber-200/60';
+    if (label === 'Tốt') return 'bg-emerald-50 text-emerald-700 border-emerald-200/60';
+    if (label === 'Khá') return 'bg-blue-50 text-blue-700 border-blue-200/60';
+    if (label === 'Trung bình') return 'bg-purple-50 text-purple-700 border-purple-200/60';
+    if (label === 'Yếu') return 'bg-rose-50 text-rose-700 border-rose-200/60';
+    return 'bg-slate-100 text-slate-500 border-slate-200/50';
+  };
+
   // Chuẩn bị dữ liệu cho PDF template in ấn
   const selectedStudentsData = filteredStudents.filter(std => selectedStudentIds.includes(std.id));
   const currentClassObj = apiClasses.find(c => c._id === appliedClass);
@@ -528,7 +661,7 @@ export default function GradingPage() {
   const evaluationCountsMap: Record<string, Record<string, number>> = {};
   selectedStudentsData.forEach(student => {
     evaluationCountsMap[student.id] = {};
-    
+
     // Tìm tất cả chi tiết chấm điểm thuộc summaryId của sinh viên này
     const studentDetails = (apiEvaluationDetails || []).filter(detail => {
       const detailSummaryId = typeof detail.summary_id === 'object' ? detail.summary_id?._id : detail.summary_id;
@@ -812,8 +945,8 @@ export default function GradingPage() {
                                       </span>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                      <span className={`px-3 py-1 border rounded-full text-[11px] font-bold uppercase tracking-tight ${rank.color}`}>
-                                        {rank.label}
+                                      <span className={`px-3 py-1 border rounded-full text-[11px] font-bold uppercase tracking-tight ${getRankColor(student.grading)}`}>
+                                        {student.grading}
                                       </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
@@ -845,27 +978,38 @@ export default function GradingPage() {
                                           const currentUser = tokenStorage.getUser();
                                           const userRoleLower = currentUser?.role?.toLowerCase() || '';
                                           const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
-                                          
+
                                           if (canApprove && isSemesterActive) {
-                                            const studentDetails = (apiEvaluationDetails || []).filter(d => {
+                                            const isApproved = student.status === 'active';
+                                            const hasEvaluations = (apiEvaluationDetails || []).some(d => {
                                               const detailSummaryId = typeof d.summary_id === 'object' ? d.summary_id?._id : d.summary_id;
                                               return detailSummaryId === student.summaryId;
                                             });
-                                            const hasEvaluations = studentDetails.length > 0;
-                                            const isApproved = hasEvaluations && studentDetails.every(d => d.status === 'supervisor_evaluated' || d.status === 'finalized');
 
                                             return (
                                               <button
                                                 onClick={(e) => {
                                                   e.stopPropagation();
+                                                  if (isApproved) return;
+                                                  if (!hasEvaluations) {
+                                                    toast.warning(`Sinh viên ${student.name} chưa được chấm tiêu chí nào để duyệt!`);
+                                                    return;
+                                                  }
                                                   handleApproveEvaluation(student.summaryId, student.name);
                                                 }}
-                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer shadow-sm ${
+                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-sm ${isApproved
+                                                  ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-default'
+                                                  : !hasEvaluations
+                                                    ? 'bg-slate-50 text-slate-300 opacity-60 cursor-not-allowed'
+                                                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-500 cursor-pointer'
+                                                  }`}
+                                                title={
                                                   isApproved
-                                                    ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700'
-                                                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-500'
-                                                }`}
-                                                title={isApproved ? "Đã duyệt điểm rèn luyện" : "Duyệt điểm rèn luyện"}
+                                                    ? "Đã duyệt điểm rèn luyện"
+                                                    : !hasEvaluations
+                                                      ? "Chưa có tiêu chí nào được chấm để duyệt"
+                                                      : "Duyệt điểm rèn luyện"
+                                                }
                                               >
                                                 <CheckCircle size={15} />
                                               </button>
@@ -933,33 +1077,38 @@ export default function GradingPage() {
       />
 
       {/* Thanh tác vụ chọn sinh viên hàng loạt */}
-      <AnimatePresence>
-        {selectedStudentIds.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.95 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#1e2022] text-white py-2.5 pl-6 pr-5 rounded-full shadow-[0px_8px_32px_rgba(0,0,0,0.24)] border border-slate-800 flex items-center gap-4 select-none shrink-0"
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-[#137fec]/15 border border-[#137fec]/30 flex items-center justify-center text-[#137fec]">
-                <Check size={11} strokeWidth={3.5} />
-              </div>
-              <span className="text-[13px] font-bold tracking-wide">
-                {selectedStudentIds.length} sinh viên đã chọn
-              </span>
-            </div>
-
-            {/* Vạch ngăn */}
-            <div className="w-px h-4 bg-slate-700/80 mx-1 shrink-0" />
-
+      <FloatingActionBar
+        selectedCount={selectedStudentIds.length}
+        onClear={() => setSelectedStudentIds([])}
+        variant="dark"
+        actions={
+          <>
             <button
               onClick={() => setIsBulkGradingOpen(true)}
               className="bg-[#137fec] hover:bg-blue-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(19,127,236,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
             >
               <SquarePen size={13} strokeWidth={2.5} />
-              <span>Chấm điểm hàng loạt</span>
+              <span>Chấm điểm </span>
             </button>
+
+            {(() => {
+              const currentUser = tokenStorage.getUser();
+              const userRoleLower = currentUser?.role?.toLowerCase() || '';
+              const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
+
+              if (canApprove) {
+                return (
+                  <button
+                    onClick={handleCancelApproveBulk}
+                    className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                  >
+                    <XCircle size={13} strokeWidth={2.5} />
+                    <span>Hủy duyệt</span>
+                  </button>
+                );
+              }
+              return null;
+            })()}
 
             <button
               onClick={() => setIsPrintModalOpen(true)}
@@ -968,16 +1117,9 @@ export default function GradingPage() {
               <FileDown size={13} strokeWidth={2.5} />
               <span>Xuất PDF</span>
             </button>
-
-            <button
-              onClick={() => setSelectedStudentIds([])}
-              className="text-slate-300 hover:text-white font-bold text-[12.5px] px-3 py-1.5 rounded-full transition-all cursor-pointer hover:bg-white/5 active:scale-95 shrink-0"
-            >
-              Hủy chọn
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </>
+        }
+      />
 
       <GradingPdfTemplate
         isOpen={isPrintModalOpen}

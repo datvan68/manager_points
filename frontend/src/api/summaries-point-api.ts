@@ -40,17 +40,17 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const summariesPointApi = {
   async getSummariesPoints(): Promise<SummaryPoint[]> {
-    const res = await fetch(`${API_BASE}/summaries-point`);
+    const res = await fetch(`${API_BASE}/summaries-points`);
     return handleResponse<SummaryPoint[]>(res);
   },
 
   async getSummariesPoint(id: string): Promise<SummaryPoint> {
-    const res = await fetch(`${API_BASE}/summaries-point/${id}`);
+    const res = await fetch(`${API_BASE}/summaries-points/${id}`);
     return handleResponse<SummaryPoint>(res);
   },
 
   async createSummariesPoint(dto: CreateSummaryPointDto): Promise<SummaryPoint> {
-    const res = await fetch(`${API_BASE}/summaries-point`, {
+    const res = await fetch(`${API_BASE}/summaries-points`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
@@ -59,7 +59,7 @@ export const summariesPointApi = {
   },
 
   async updateSummariesPoint(id: string, dto: UpdateSummaryPointDto): Promise<SummaryPoint> {
-    const res = await fetch(`${API_BASE}/summaries-point/${id}`, {
+    const res = await fetch(`${API_BASE}/summaries-points/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
@@ -68,7 +68,7 @@ export const summariesPointApi = {
   },
 
   async deleteSummariesPoint(id: string): Promise<SummaryPoint> {
-    const res = await fetch(`${API_BASE}/summaries-point/${id}`, {
+    const res = await fetch(`${API_BASE}/summaries-points/${id}`, {
       method: 'DELETE',
     });
     return handleResponse<SummaryPoint>(res);

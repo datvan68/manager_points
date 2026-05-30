@@ -19,7 +19,7 @@ export class SummaryPoint {
   @Prop({ required: true })
   grading: string;
 
-  @Prop({ required: true, default: 'active', enum: ['active', 'inactive'] })
+  @Prop({ required: true, default: 'inactive', enum: ['active', 'inactive'] })
   status: string;
 }
 
