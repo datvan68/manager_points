@@ -17,6 +17,7 @@ export interface EvaluationDetail {
   history: EvaluationLog[];
   current_count: number;
   status: string;
+  description?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -27,6 +28,7 @@ export interface CreateEvaluationDetailDto {
   current_count?: number;
   history?: EvaluationLog[];
   status?: string;
+  description?: string;
 }
 
 export interface UpdateEvaluationDetailDto {
@@ -35,6 +37,7 @@ export interface UpdateEvaluationDetailDto {
   current_count?: number;
   history?: EvaluationLog[];
   status?: string;
+  description?: string;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

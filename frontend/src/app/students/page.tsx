@@ -283,7 +283,7 @@ function StudentsPageContent() {
     <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <Header />
+        <Header customMappings={{ students: activeMainTab === "Danh sách" ? "Danh sách sinh viên" : "Ghi nhận" }} />
         <TabNavigation
           tabs={[
             { id: "Ghi nhận", label: "Ghi nhận" },
@@ -548,7 +548,7 @@ function StudentsPageContent() {
                                         }}
                                       />
                                     </div>
- 
+
                                     <div className="flex items-start justify-between">
                                       <div
                                         className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${cls.status === "Đang học"
@@ -561,7 +561,7 @@ function StudentsPageContent() {
                                         {cls.status}
                                       </div>
                                     </div>
- 
+
                                     <div className="flex-1 mt-2">
                                       <h4
                                         className="text-[18px] font-bold text-[#1f2937] leading-[28px] line-clamp-1 group-hover:text-[#5519f0] transition-colors"

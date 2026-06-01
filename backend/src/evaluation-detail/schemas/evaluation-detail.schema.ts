@@ -29,6 +29,9 @@ export class EvaluationDetail {
     index: true
   })
   status: string;
-}
 
+  @Prop({ type: String, required: false, default: '' })
+  description?: string;
+}
 export const EvaluationDetailSchema = SchemaFactory.createForClass(EvaluationDetail);
+

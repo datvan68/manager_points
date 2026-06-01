@@ -7,17 +7,26 @@ export interface RecordItem {
   recordNumber: string;
   date: string;
   points: string;
+  criteria?: string;
 }
 
 export const DUMMY_RECORDS: RecordItem[] = [
-  { id: '1', studentId: '20230001', fullName: 'Nguyen Van A', className: 'ECO-23B', recordType: 'Khen thưởng', recordNumber: '#1', date: '15/10/2023', points: '+5' },
-  { id: '2', studentId: '20230002', fullName: 'Tran Thi B', className: 'ECO-23B', recordType: 'Kỷ luật', recordNumber: '#1', date: '12/10/2023', points: '-2' },
-  { id: '3', studentId: '20230001', fullName: 'Nguyen Van A', className: 'ECO-23B', recordType: 'Khen thưởng', recordNumber: '#1', date: '15/10/2023', points: '+5' },
-  { id: '4', studentId: '20230002', fullName: 'Tran Thi B', className: 'ECO-23B', recordType: 'Kỷ luật', recordNumber: '#1', date: '12/10/2023', points: '-2' },
-  { id: '5', studentId: '20230001', fullName: 'Nguyen Van A', className: 'ECO-23B', recordType: 'Khen thưởng', recordNumber: '#1', date: '15/10/2023', points: '+5' },
+  { id: '1', studentId: '20230001', fullName: 'Nguyen Van A', className: 'ECO-23B', recordType: 'Khen thưởng', recordNumber: '#1', date: '15/10/2023', points: '+5', criteria: 'Tham gia hiến máu tình nguyện' },
+  { id: '2', studentId: '20230002', fullName: 'Tran Thi B', className: 'ECO-23B', recordType: 'Kỷ luật', recordNumber: '#1', date: '12/10/2023', points: '-2', criteria: 'Đi học muộn không có lý do' },
+  { id: '3', studentId: '20230001', fullName: 'Nguyen Van A', className: 'ECO-23B', recordType: 'Khen thưởng', recordNumber: '#1', date: '15/10/2023', points: '+5', criteria: 'Đạt thành tích xuất sắc trong kỳ thi NCKH' },
+  { id: '4', studentId: '20230002', fullName: 'Tran Thi B', className: 'ECO-23B', recordType: 'Kỷ luật', recordNumber: '#1', date: '12/10/2023', points: '-2', criteria: 'Không mặc đồng phục quy định' },
+  { id: '5', studentId: '20230001', fullName: 'Nguyen Van A', className: 'ECO-23B', recordType: 'Khen thưởng', recordNumber: '#1', date: '15/10/2023', points: '+5', criteria: 'Đóng góp tích cực chiến dịch Mùa hè xanh' },
   // Duplicate more to test pagination
   ...Array.from({ length: 20 }).map((_, i) => ({
-    id: `ext-${i}`, studentId: `202301${i.toString().padStart(2, '0')}`, fullName: `Student ${i}`, className: 'ECO-23B', recordType: i % 3 === 0 ? 'Kỷ luật' : 'Khen thưởng' as 'Khen thưởng' | 'Kỷ luật', recordNumber: `#${i+2}`, date: '15/10/2023', points: i % 3 === 0 ? '-2' : '+5'
+    id: `ext-${i}`,
+    studentId: `202301${i.toString().padStart(2, '0')}`,
+    fullName: `Student ${i}`,
+    className: 'ECO-23B',
+    recordType: (i % 3 === 0 ? 'Kỷ luật' : 'Khen thưởng') as 'Khen thưởng' | 'Kỷ luật',
+    recordNumber: `#${i+2}`,
+    date: '15/10/2023',
+    points: i % 3 === 0 ? '-2' : '+5',
+    criteria: i % 3 === 0 ? 'Vắng mặt không phép buổi sinh hoạt' : 'Hỗ trợ công tác tổ chức sự kiện khoa'
   }))
 ];
 

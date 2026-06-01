@@ -53,4 +53,9 @@ export class CreateEvaluationDetailDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @ApiProperty({ example: 'Tham gia đầy đủ và tích cực các hoạt động tình nguyện', required: false, description: 'Mô tả chi tiết hoặc ghi chú chấm điểm' })
+  @IsOptional()
+  @IsString()
+  description?: string;
 }

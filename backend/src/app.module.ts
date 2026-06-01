@@ -19,6 +19,8 @@ import { CriteriaModule } from './criteria/criteria.module';
 import { SemestersModule } from './semesters/semesters.module';
 import { SummariesPointModule } from './summaries-point/summaries-point.module';
 import { EvaluationDetailModule } from './evaluation-detail/evaluation-detail.module';
+import { DailyClassReportModule } from './daily-class-report/daily-class-report.module';
+import { AcademicRecordModule } from './academic-record/academic-record.module';
 
 @Module({
   imports: [
@@ -61,6 +63,8 @@ import { EvaluationDetailModule } from './evaluation-detail/evaluation-detail.mo
     SemestersModule,
     SummariesPointModule,
     EvaluationDetailModule,
+    DailyClassReportModule,
+    AcademicRecordModule,
   ],
   controllers: [AppController],
   providers: [AppService],
