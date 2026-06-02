@@ -29,7 +29,9 @@ describe('StudentsService', () => {
           useValue: Object.assign(
             jest.fn().mockImplementation((dto) => ({
               ...dto,
-              save: jest.fn().mockResolvedValue({ _id: 'mock-student-id', ...dto }),
+              save: jest
+                .fn()
+                .mockResolvedValue({ _id: 'mock-student-id', ...dto }),
             })),
             {
               find: jest.fn().mockReturnValue({
@@ -51,7 +53,7 @@ describe('StudentsService', () => {
                 exec: jest.fn().mockResolvedValue(mockStudent),
               }),
               insertMany: jest.fn().mockResolvedValue([mockStudent]),
-            }
+            },
           ),
         },
       ],
@@ -109,7 +111,7 @@ describe('StudentsService', () => {
       const result = await service.findAll();
       expect(result).toBeDefined();
       expect(Array.isArray(result)).toBe(true);
-      expect((result[0] as any)._id).toEqual('mock-student-id');
+      expect(result[0]._id).toEqual('mock-student-id');
     });
   });
 
@@ -125,7 +127,9 @@ describe('StudentsService', () => {
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.findOne('invalid-id')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -141,7 +145,9 @@ describe('StudentsService', () => {
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.findByStudentCode('invalid-code')).rejects.toThrow(NotFoundException);
+      await expect(service.findByStudentCode('invalid-code')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -156,7 +162,9 @@ describe('StudentsService', () => {
       model.findByIdAndUpdate.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.update('invalid-id', {})).rejects.toThrow(NotFoundException);
+      await expect(service.update('invalid-id', {})).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -170,7 +178,9 @@ describe('StudentsService', () => {
       model.findByIdAndDelete.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.remove('invalid-id')).rejects.toThrow(NotFoundException);
+      await expect(service.remove('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

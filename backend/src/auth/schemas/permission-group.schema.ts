@@ -22,4 +22,5 @@ export class PermissionGroup {
   status: string;
 }
 
-export const PermissionGroupSchema = SchemaFactory.createForClass(PermissionGroup);
+export const PermissionGroupSchema =
+  SchemaFactory.createForClass(PermissionGroup);

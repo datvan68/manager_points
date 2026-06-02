@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { AcademicRecord, AcademicRecordDocument } from './schemas/academic-record.schema';
+import {
+  AcademicRecord,
+  AcademicRecordDocument,
+} from './schemas/academic-record.schema';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
 
@@ -12,10 +15,17 @@ export class AcademicRecordService {
     private readonly academicRecordModel: Model<AcademicRecordDocument>,
   ) {}
 
-  async create(createAcademicRecordDto: CreateAcademicRecordDto): Promise<AcademicRecord> {
+  async create(
+    createAcademicRecordDto: CreateAcademicRecordDto,
+  ): Promise<AcademicRecord> {
     const createdRecord = new this.academicRecordModel(createAcademicRecordDto);
     const saved = await createdRecord.save();
-    return saved.populate(['evaluation_detail_id', 'student_id', 'semester_id', 'daily_report_id']);
+    return saved.populate([
+      'evaluation_detail_id',
+      'student_id',
+      'semester_id',
+      'daily_report_id',
+    ]);
   }
 
   async findAll(): Promise<AcademicRecord[]> {
@@ -62,9 +72,14 @@ export class AcademicRecordService {
       .exec();
   }
 
-  async update(id: string, updateAcademicRecordDto: UpdateAcademicRecordDto): Promise<AcademicRecord> {
+  async update(
+    id: string,
+    updateAcademicRecordDto: UpdateAcademicRecordDto,
+  ): Promise<AcademicRecord> {
     const updated = await this.academicRecordModel
-      .findByIdAndUpdate(id, updateAcademicRecordDto, { returnDocument: 'after' })
+      .findByIdAndUpdate(id, updateAcademicRecordDto, {
+        returnDocument: 'after',
+      })
       .populate('evaluation_detail_id')
       .populate('student_id')
       .populate('semester_id')
@@ -77,9 +92,7 @@ export class AcademicRecordService {
   }
 
   async remove(id: string): Promise<AcademicRecord> {
-    const deleted = await this.academicRecordModel
-      .findByIdAndDelete(id)
-      .exec();
+    const deleted = await this.academicRecordModel.findByIdAndDelete(id).exec();
     if (!deleted) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }

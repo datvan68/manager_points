@@ -12,7 +12,7 @@ export enum ClassType {
 
 export enum Headquarters {
   PHAN_HIEU_CSSD = 'Phân hiệu CSSĐ-NDT',
-  PHAN_HIEU_CK = 'Phân hiệu CK'
+  PHAN_HIEU_CK = 'Phân hiệu CK',
 }
 
 @Schema({ timestamps: true })
@@ -23,7 +23,11 @@ export class Class {
   @Prop({ required: true })
   class_year: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Department', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Department',
+    required: true,
+  })
   dept_id: Department;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })

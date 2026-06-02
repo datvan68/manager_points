@@ -28,4 +28,5 @@ export class RoutePermission {
   type: string; // Classify: frontend page, backend API, or feature/button
 }
 
-export const RoutePermissionSchema = SchemaFactory.createForClass(RoutePermission);
+export const RoutePermissionSchema =
+  SchemaFactory.createForClass(RoutePermission);

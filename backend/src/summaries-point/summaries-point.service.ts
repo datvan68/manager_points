@@ -1,17 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { SummaryPoint, SummaryPointDocument } from './schemas/summary-point.schema';
+import {
+  SummaryPoint,
+  SummaryPointDocument,
+} from './schemas/summary-point.schema';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
 
 @Injectable()
 export class SummariesPointService {
   constructor(
-    @InjectModel(SummaryPoint.name) private readonly summaryPointModel: Model<SummaryPointDocument>,
+    @InjectModel(SummaryPoint.name)
+    private readonly summaryPointModel: Model<SummaryPointDocument>,
   ) {}
 
-  async create(createSummaryPointDto: CreateSummaryPointDto): Promise<SummaryPoint> {
+  async create(
+    createSummaryPointDto: CreateSummaryPointDto,
+  ): Promise<SummaryPoint> {
     const created = new this.summaryPointModel(createSummaryPointDto);
     return created.save();
   }
@@ -36,7 +42,10 @@ export class SummariesPointService {
     return summaryPoint;
   }
 
-  async update(id: string, updateSummaryPointDto: UpdateSummaryPointDto): Promise<SummaryPoint> {
+  async update(
+    id: string,
+    updateSummaryPointDto: UpdateSummaryPointDto,
+  ): Promise<SummaryPoint> {
     const updated = await this.summaryPointModel
       .findByIdAndUpdate(id, updateSummaryPointDto, { returnDocument: 'after' })
       .populate('student_id')
@@ -49,9 +58,7 @@ export class SummariesPointService {
   }
 
   async remove(id: string): Promise<SummaryPoint> {
-    const deleted = await this.summaryPointModel
-      .findByIdAndDelete(id)
-      .exec();
+    const deleted = await this.summaryPointModel.findByIdAndDelete(id).exec();
     if (!deleted) {
       throw new NotFoundException(`SummaryPoint with ID ${id} not found`);
     }
@@ -85,14 +92,14 @@ export class SummariesPointService {
     try {
       const page = await browser.newPage();
       await page.setContent(htmlContent, { waitUntil: 'load' });
-      
+
       // Render to A4 PDF with full-bleed background colors (margin: 0)
       const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
         margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
       });
-      
+
       return pdfBuffer;
     } finally {
       await browser.close();
@@ -123,7 +130,15 @@ export class SummariesPointService {
 
     // Set fallback default config if not provided by the client
     const config = pdfConfig || {
-      sectionsOrder: ['header', 'title', 'student_info', 'criteria_1_2', 'criteria_3', 'summary', 'signatures'],
+      sectionsOrder: [
+        'header',
+        'title',
+        'student_info',
+        'criteria_1_2',
+        'criteria_3',
+        'summary',
+        'signatures',
+      ],
       hiddenSections: {},
       themeColor: '#135bec',
       fontFamily: 'Times New Roman',
@@ -137,7 +152,7 @@ export class SummariesPointService {
         city: 'THÀNH PHỐ HỒ CHÍ MINH',
         school: 'TRƯỜNG CAO ĐẲNG BÁCH KHOA\nNAM SÀI GÒN',
         title: 'PHIẾU ĐÁNH GIÁ KẾT QUẢ RÈN LUYỆN HỌC SINH, SINH VIÊN',
-      }
+      },
     };
 
     const customTexts = config.customTexts || {
@@ -152,27 +167,59 @@ export class SummariesPointService {
     };
 
     const hiddenSections = config.hiddenSections || {};
-    const sectionsOrder = config.sectionsOrder || ['header', 'title', 'student_info', 'criteria_1_2', 'criteria_3', 'summary', 'signatures'];
+    const sectionsOrder = config.sectionsOrder || [
+      'header',
+      'title',
+      'student_info',
+      'criteria_1_2',
+      'criteria_3',
+      'summary',
+      'signatures',
+    ];
 
     // Helper to generate dynamic colors based on chosen theme
     const getThemeColors = (colorStr: string) => {
       switch (colorStr) {
         case '#10b981': // Emerald
-          return { primary: '#10b981', light: '#ecfdf5', border: '#d1fae5', text: '#047857' };
+          return {
+            primary: '#10b981',
+            light: '#ecfdf5',
+            border: '#d1fae5',
+            text: '#047857',
+          };
         case '#475569': // Slate
-          return { primary: '#475569', light: '#f8fafc', border: '#e2e8f0', text: '#334155' };
+          return {
+            primary: '#475569',
+            light: '#f8fafc',
+            border: '#e2e8f0',
+            text: '#334155',
+          };
         case '#991b1b': // Burgundy
-          return { primary: '#991b1b', light: '#fdf2f2', border: '#fde8e8', text: '#b91c1c' };
+          return {
+            primary: '#991b1b',
+            light: '#fdf2f2',
+            border: '#fde8e8',
+            text: '#b91c1c',
+          };
         case '#135bec': // Blue
         default:
-          return { primary: '#135bec', light: '#eff6ff', border: '#dbeafe', text: '#1d4ed8' };
+          return {
+            primary: '#135bec',
+            light: '#eff6ff',
+            border: '#dbeafe',
+            text: '#1d4ed8',
+          };
       }
     };
 
     const colors = getThemeColors(config.themeColor);
 
     // Dynamic rendering of each section to HTML
-    const renderSectionHtml = (sectionName: string, student: any, counts: any) => {
+    const renderSectionHtml = (
+      sectionName: string,
+      student: any,
+      counts: any,
+    ) => {
       if (hiddenSections[sectionName]) return '';
 
       switch (sectionName) {
@@ -298,10 +345,15 @@ export class SummariesPointService {
                 </span>
                 <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--pdf-border)] text-[var(--pdf-text)] uppercase tracking-wide">
                   Xếp loại: ${
-                    student.score >= 90 ? 'Xuất sắc' : 
-                    student.score >= 80 ? 'Tốt' : 
-                    student.score >= 70 ? 'Khá' : 
-                    student.score >= 50 ? 'Trung bình' : 'Yếu'
+                    student.score >= 90
+                      ? 'Xuất sắc'
+                      : student.score >= 80
+                        ? 'Tốt'
+                        : student.score >= 70
+                          ? 'Khá'
+                          : student.score >= 50
+                            ? 'Trung bình'
+                            : 'Yếu'
                   }
                 </span>
               </div>
@@ -339,7 +391,7 @@ export class SummariesPointService {
 
     selectedStudents.forEach((student) => {
       const counts = evaluationCounts[student.id] || {};
-      
+
       // Aggregate all configuration sections into a single flow with auto-page break rules
       let contentHtml = '';
       sectionsOrder.forEach((sectionName: string) => {
@@ -404,11 +456,11 @@ export class SummariesPointService {
             font-family: ${
               config.fontFamily === 'Times New Roman'
                 ? "'Times New Roman', Times, serif"
-                : config.fontFamily === 'Inter' 
-                ? "'Inter', sans-serif" 
-                : config.fontFamily === 'Roboto' 
-                ? "'Roboto', sans-serif" 
-                : "'Playfair Display', serif"
+                : config.fontFamily === 'Inter'
+                  ? "'Inter', sans-serif"
+                  : config.fontFamily === 'Roboto'
+                    ? "'Roboto', sans-serif"
+                    : "'Playfair Display', serif"
             };
             margin: 0;
             padding: 0;

@@ -10,21 +10,34 @@ import { RbacService } from './services/rbac.service';
 import { AuthController } from './controllers/auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User, UserSchema } from './schemas/user.schema';
-import { RefreshToken, RefreshTokenSchema } from './schemas/refresh-token.schema';
-import { PasswordResetToken, PasswordResetTokenSchema } from './schemas/password-reset-token.schema';
+import {
+  RefreshToken,
+  RefreshTokenSchema,
+} from './schemas/refresh-token.schema';
+import {
+  PasswordResetToken,
+  PasswordResetTokenSchema,
+} from './schemas/password-reset-token.schema';
 import { LoginLog, LoginLogSchema } from './schemas/login-log.schema';
 import { Role, RoleSchema } from './schemas/role.schema';
 import { Permission, PermissionSchema } from './schemas/permission.schema';
-import { PermissionGroup, PermissionGroupSchema } from './schemas/permission-group.schema';
-import { RoutePermission, RoutePermissionSchema } from './schemas/route-permission.schema';
+import {
+  PermissionGroup,
+  PermissionGroupSchema,
+} from './schemas/permission-group.schema';
+import {
+  RoutePermission,
+  RoutePermissionSchema,
+} from './schemas/route-permission.schema';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'your_secret_key_here',
+      useFactory: (configService: ConfigService) => ({
+        secret:
+          configService.get<string>('JWT_SECRET') || 'your_secret_key_here',
         signOptions: { expiresIn: '15m' },
       }),
       inject: [ConfigService],
@@ -41,7 +54,21 @@ import { RoutePermission, RoutePermissionSchema } from './schemas/route-permissi
     ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, TokenService, PasswordService, RbacService, JwtStrategy],
-  exports: [AuthService, TokenService, PasswordService, RbacService, JwtStrategy, PassportModule, MongooseModule],
+  providers: [
+    AuthService,
+    TokenService,
+    PasswordService,
+    RbacService,
+    JwtStrategy,
+  ],
+  exports: [
+    AuthService,
+    TokenService,
+    PasswordService,
+    RbacService,
+    JwtStrategy,
+    PassportModule,
+    MongooseModule,
+  ],
 })
 export class AuthModule {}

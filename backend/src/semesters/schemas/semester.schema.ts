@@ -14,7 +14,11 @@ export class Semester {
   @Prop({ required: true })
   end_date: Date;
 
-  @Prop({ required: true, default: 'active', enum: ['active', 'inactive', 'upcoming'] })
+  @Prop({
+    required: true,
+    default: 'active',
+    enum: ['active', 'inactive', 'upcoming'],
+  })
   status: string;
 }
 

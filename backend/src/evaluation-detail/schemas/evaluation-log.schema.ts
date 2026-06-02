@@ -3,7 +3,11 @@ import { Schema as MongooseSchema } from 'mongoose';
 
 @Schema({ _id: false })
 export class EvaluationLog {
-  @Prop({ type: String, enum: ['student', 'teacher', 'supervisor', 'admin'], required: true })
+  @Prop({
+    type: String,
+    enum: ['student', 'teacher', 'supervisor', 'admin'],
+    required: true,
+  })
   role: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: false })

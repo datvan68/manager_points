@@ -15,7 +15,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || 'your_secret_key_here',
+      secretOrKey:
+        configService.get<string>('JWT_SECRET') || 'your_secret_key_here',
     });
   }
 
@@ -35,11 +36,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const role = user.role as any;
     const permissions = role?.permissions?.map((p: any) => p.code) || [];
 
-    return { 
-      userId: payload.user_id, 
+    return {
+      userId: payload.user_id,
       username: user.user_name,
       roleName: role?.name || 'User',
-      permissions: permissions
+      permissions: permissions,
     };
   }
 }

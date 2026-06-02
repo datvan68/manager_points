@@ -39,7 +39,7 @@ describe('DepartmentsService', () => {
               findByIdAndDelete: jest.fn().mockReturnValue({
                 exec: jest.fn().mockResolvedValue(mockDepartment),
               }),
-            }
+            },
           ),
         },
       ],
@@ -55,7 +55,11 @@ describe('DepartmentsService', () => {
 
   describe('create', () => {
     it('should successfully create a department', async () => {
-      const dto = { name: 'IT Department', code: 'IT', description: 'Information Technology' };
+      const dto = {
+        name: 'IT Department',
+        code: 'IT',
+        description: 'Information Technology',
+      };
       const result = await service.create(dto);
       expect(result).toBeDefined();
       expect(result.name).toEqual(dto.name);
@@ -83,7 +87,9 @@ describe('DepartmentsService', () => {
       model.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.findOne('invalid-id')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -98,7 +104,9 @@ describe('DepartmentsService', () => {
       model.findByIdAndUpdate.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.update('invalid-id', {})).rejects.toThrow(NotFoundException);
+      await expect(service.update('invalid-id', {})).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -112,7 +120,9 @@ describe('DepartmentsService', () => {
       model.findByIdAndDelete.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.remove('invalid-id')).rejects.toThrow(NotFoundException);
+      await expect(service.remove('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

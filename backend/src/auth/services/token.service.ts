@@ -3,12 +3,16 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
-import { RefreshToken, RefreshTokenDocument } from '../schemas/refresh-token.schema';
+import {
+  RefreshToken,
+  RefreshTokenDocument,
+} from '../schemas/refresh-token.schema';
 
 @Injectable()
 export class TokenService {
   constructor(
-    @InjectModel(RefreshToken.name) private refreshTokenModel: Model<RefreshTokenDocument>,
+    @InjectModel(RefreshToken.name)
+    private refreshTokenModel: Model<RefreshTokenDocument>,
     private jwtService: JwtService,
   ) {}
 
@@ -30,7 +34,9 @@ export class TokenService {
 
     if (storedToken.is_revoked) {
       await this.revokeAllUserTokens(storedToken.user_id.toString());
-      throw new UnauthorizedException('Cảnh báo bảo mật: Token đã được sử dụng. Vui lòng đăng nhập lại.');
+      throw new UnauthorizedException(
+        'Cảnh báo bảo mật: Token đã được sử dụng. Vui lòng đăng nhập lại.',
+      );
     }
 
     if (new Date() > new Date(storedToken.expires_at)) {
@@ -58,14 +64,14 @@ export class TokenService {
   async revokeAllUserTokens(userId: string) {
     await this.refreshTokenModel.updateMany(
       { user_id: new Types.ObjectId(userId) },
-      { $set: { is_revoked: true } }
+      { $set: { is_revoked: true } },
     );
   }
 
   async revokeToken(token: string) {
     await this.refreshTokenModel.updateOne(
       { token },
-      { $set: { is_revoked: true } }
+      { $set: { is_revoked: true } },
     );
   }
 

@@ -7,54 +7,54 @@ import { UpdateClassDto } from './dto/update-class.dto';
 
 @Injectable()
 export class ClassesService {
-    constructor(
-        @InjectModel(Class.name) private classModel: Model<ClassDocument>,
-    ) { }
+  constructor(
+    @InjectModel(Class.name) private classModel: Model<ClassDocument>,
+  ) {}
 
-    async create(createClassDto: CreateClassDto): Promise<Class> {
-        const newClass = new this.classModel(createClassDto);
-        return newClass.save();
+  async create(createClassDto: CreateClassDto): Promise<Class> {
+    const newClass = new this.classModel(createClassDto);
+    return newClass.save();
+  }
+
+  async findAll(): Promise<Class[]> {
+    return this.classModel
+      .find()
+      .populate('dept_id', 'name code')
+      .populate('user_id', 'user_name email')
+      .exec();
+  }
+
+  async findOne(id: string): Promise<Class> {
+    const classEntity = await this.classModel
+      .findById(id)
+      .populate('dept_id', 'name code')
+      .populate('user_id', 'user_name email')
+      .exec();
+
+    if (!classEntity) {
+      throw new NotFoundException(`Class with ID ${id} not found`);
     }
+    return classEntity;
+  }
 
-    async findAll(): Promise<Class[]> {
-        return this.classModel
-            .find()
-            .populate('dept_id', 'name code')
-            .populate('user_id', 'user_name email')
-            .exec();
+  async update(id: string, updateClassDto: UpdateClassDto): Promise<Class> {
+    const updatedClass = await this.classModel
+      .findByIdAndUpdate(id, updateClassDto, { returnDocument: 'after' })
+      .populate('dept_id', 'name code')
+      .populate('user_id', 'user_name email')
+      .exec();
+
+    if (!updatedClass) {
+      throw new NotFoundException(`Class with ID ${id} not found`);
     }
+    return updatedClass;
+  }
 
-    async findOne(id: string): Promise<Class> {
-        const classEntity = await this.classModel
-            .findById(id)
-            .populate('dept_id', 'name code')
-            .populate('user_id', 'user_name email')
-            .exec();
-
-        if (!classEntity) {
-            throw new NotFoundException(`Class with ID ${id} not found`);
-        }
-        return classEntity;
+  async remove(id: string): Promise<Class> {
+    const deletedClass = await this.classModel.findByIdAndDelete(id).exec();
+    if (!deletedClass) {
+      throw new NotFoundException(`Class with ID ${id} not found`);
     }
-
-    async update(id: string, updateClassDto: UpdateClassDto): Promise<Class> {
-        const updatedClass = await this.classModel
-            .findByIdAndUpdate(id, updateClassDto, { returnDocument: 'after' })
-            .populate('dept_id', 'name code')
-            .populate('user_id', 'user_name email')
-            .exec();
-
-        if (!updatedClass) {
-            throw new NotFoundException(`Class with ID ${id} not found`);
-        }
-        return updatedClass;
-    }
-
-    async remove(id: string): Promise<Class> {
-        const deletedClass = await this.classModel.findByIdAndDelete(id).exec();
-        if (!deletedClass) {
-            throw new NotFoundException(`Class with ID ${id} not found`);
-        }
-        return deletedClass;
-    }
+    return deletedClass;
+  }
 }

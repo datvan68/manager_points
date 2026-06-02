@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -12,7 +20,10 @@ export class CategoriesController {
   @Post()
   @ApiOperation({ summary: 'Tạo mới một danh mục' })
   @ApiResponse({ status: 201, description: 'Tạo danh mục thành công' })
-  @ApiResponse({ status: 409, description: 'Trùng mã danh mục (category_code)' })
+  @ApiResponse({
+    status: 409,
+    description: 'Trùng mã danh mục (category_code)',
+  })
   create(@Body() createCategoryDto: CreateCategoryDto) {
     return this.categoriesService.create(createCategoryDto);
   }
@@ -36,7 +47,10 @@ export class CategoriesController {
   @ApiOperation({ summary: 'Cập nhật danh mục theo MongoDB ID' })
   @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy danh mục' })
-  update(@Param('id') id: string, @Body() updateCategoryDto: UpdateCategoryDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateCategoryDto: UpdateCategoryDto,
+  ) {
     return this.categoriesService.update(id, updateCategoryDto);
   }
 

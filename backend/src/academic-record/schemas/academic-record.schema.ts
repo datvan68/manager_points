@@ -9,13 +9,28 @@ export type AcademicRecordDocument = AcademicRecord & Document;
 
 @Schema({ timestamps: true })
 export class AcademicRecord {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'EvaluationDetail', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'EvaluationDetail',
+    required: true,
+    index: true,
+  })
   evaluation_detail_id: EvaluationDetail;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Student',
+    required: true,
+    index: true,
+  })
   student_id: Student;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Semester', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Semester',
+    required: true,
+    index: true,
+  })
   semester_id: Semester;
 
   @Prop({ required: true, type: String })
@@ -24,11 +39,23 @@ export class AcademicRecord {
   @Prop({ required: true, type: Number })
   points_effect: number;
 
-  @Prop({ required: true, type: String, enum: ['active', 'inactive'], default: 'active', index: true })
+  @Prop({
+    required: true,
+    type: String,
+    enum: ['active', 'inactive'],
+    default: 'active',
+    index: true,
+  })
   status: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'DailyClassReport', required: false, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'DailyClassReport',
+    required: false,
+    index: true,
+  })
   daily_report_id?: DailyClassReport;
 }
 
-export const AcademicRecordSchema = SchemaFactory.createForClass(AcademicRecord);
+export const AcademicRecordSchema =
+  SchemaFactory.createForClass(AcademicRecord);

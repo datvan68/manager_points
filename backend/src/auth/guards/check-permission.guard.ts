@@ -1,21 +1,30 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, mixin, Type } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  mixin,
+  Type,
+} from '@nestjs/common';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 /**
  * Factory function: checkPermission(requiredPermission)
- * 
+ *
  * Creates a Guard that checks whether the current user has a specific permission code.
  * The user's permissions are resolved from JWT → JwtStrategy → populate role.permissions.
- * 
+ *
  * Usage in Controller:
  *   @UseGuards(checkPermission('STUDENT_READ'))
  *   @Get('students')
  *   findAll() { ... }
- * 
+ *
  * Can also accept multiple permissions (ALL required):
  *   @UseGuards(checkPermission('STUDENT_READ', 'STUDENT_CREATE'))
  */
-export function checkPermission(...requiredPermissions: string[]): Type<CanActivate> {
+export function checkPermission(
+  ...requiredPermissions: string[]
+): Type<CanActivate> {
   @Injectable()
   class CheckPermissionGuard extends JwtAuthGuard implements CanActivate {
     async canActivate(context: ExecutionContext): Promise<boolean> {

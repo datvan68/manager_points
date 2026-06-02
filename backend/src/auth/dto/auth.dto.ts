@@ -1,4 +1,12 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsArray, IsOptional, IsMongoId } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsArray,
+  IsOptional,
+  IsMongoId,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -307,7 +315,11 @@ export class UpdateUserDto {
   @IsOptional()
   email?: string;
 
-  @ApiProperty({ example: 'active', enum: ['active', 'locked'], required: false })
+  @ApiProperty({
+    example: 'active',
+    enum: ['active', 'locked'],
+    required: false,
+  })
   @IsString()
   @IsOptional()
   status?: string;
@@ -337,4 +349,3 @@ export class UpdateUserDto {
   @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
   password?: string;
 }
-

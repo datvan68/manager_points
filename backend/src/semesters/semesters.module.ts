@@ -6,7 +6,9 @@ import { Semester, SemesterSchema } from './schemas/semester.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Semester.name, schema: SemesterSchema }]),
+    MongooseModule.forFeature([
+      { name: Semester.name, schema: SemesterSchema },
+    ]),
   ],
   controllers: [SemestersController],
   providers: [SemestersService],

@@ -10,7 +10,11 @@ export class SummaryPoint {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', required: true })
   student_id: Student;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Semester', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Semester',
+    required: true,
+  })
   semester_id: Semester;
 
   @Prop({ required: true, min: 0, max: 100 })

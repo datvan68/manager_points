@@ -26,7 +26,9 @@ describe('ClassesService', () => {
           useValue: Object.assign(
             jest.fn().mockImplementation((dto) => ({
               ...dto,
-              save: jest.fn().mockResolvedValue({ _id: 'mock-class-id', ...dto }),
+              save: jest
+                .fn()
+                .mockResolvedValue({ _id: 'mock-class-id', ...dto }),
             })),
             {
               find: jest.fn().mockReturnValue({
@@ -44,7 +46,7 @@ describe('ClassesService', () => {
               findByIdAndDelete: jest.fn().mockReturnValue({
                 exec: jest.fn().mockResolvedValue(mockClass),
               }),
-            }
+            },
           ),
         },
       ],
@@ -93,7 +95,9 @@ describe('ClassesService', () => {
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.findOne('invalid-id')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -109,7 +113,9 @@ describe('ClassesService', () => {
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.update('invalid-id', {})).rejects.toThrow(NotFoundException);
+      await expect(service.update('invalid-id', {})).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -123,7 +129,9 @@ describe('ClassesService', () => {
       model.findByIdAndDelete.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.remove('invalid-id')).rejects.toThrow(NotFoundException);
+      await expect(service.remove('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

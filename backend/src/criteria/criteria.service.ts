@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Criterion, CriterionDocument } from './schemas/criterion.schema';
@@ -8,7 +12,8 @@ import { UpdateCriterionDto } from './dto/update-criterion.dto';
 @Injectable()
 export class CriteriaService {
   constructor(
-    @InjectModel(Criterion.name) private criterionModel: Model<CriterionDocument>,
+    @InjectModel(Criterion.name)
+    private criterionModel: Model<CriterionDocument>,
   ) {}
 
   async create(createCriterionDto: CreateCriterionDto): Promise<Criterion> {
@@ -34,14 +39,20 @@ export class CriteriaService {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('ID tiêu chí không hợp lệ');
     }
-    const criterion = await this.criterionModel.findById(id).populate('category_id').exec();
+    const criterion = await this.criterionModel
+      .findById(id)
+      .populate('category_id')
+      .exec();
     if (!criterion) {
       throw new NotFoundException(`Criterion with ID ${id} not found`);
     }
     return criterion;
   }
 
-  async update(id: string, updateCriterionDto: UpdateCriterionDto): Promise<Criterion> {
+  async update(
+    id: string,
+    updateCriterionDto: UpdateCriterionDto,
+  ): Promise<Criterion> {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('ID tiêu chí không hợp lệ');
     }
@@ -59,7 +70,9 @@ export class CriteriaService {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('ID tiêu chí không hợp lệ');
     }
-    const deletedCriterion = await this.criterionModel.findByIdAndDelete(id).exec();
+    const deletedCriterion = await this.criterionModel
+      .findByIdAndDelete(id)
+      .exec();
     if (!deletedCriterion) {
       throw new NotFoundException(`Criterion with ID ${id} not found`);
     }
@@ -68,15 +81,18 @@ export class CriteriaService {
 
   async bulkDelete(ids: string[]): Promise<{ deletedCount: number }> {
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      throw new BadRequestException('Danh sách ID tiêu chí không hợp lệ hoặc rỗng');
+      throw new BadRequestException(
+        'Danh sách ID tiêu chí không hợp lệ hoặc rỗng',
+      );
     }
     for (const id of ids) {
       if (!Types.ObjectId.isValid(id)) {
         throw new BadRequestException(`ID tiêu chí không hợp lệ: ${id}`);
       }
     }
-    const result = await this.criterionModel.deleteMany({ _id: { $in: ids.map(id => new Types.ObjectId(id)) } }).exec();
+    const result = await this.criterionModel
+      .deleteMany({ _id: { $in: ids.map((id) => new Types.ObjectId(id)) } })
+      .exec();
     return { deletedCount: result.deletedCount };
   }
 }
-

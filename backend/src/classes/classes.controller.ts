@@ -1,5 +1,13 @@
-
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+} from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
@@ -17,7 +25,9 @@ export class ClassesController {
   @Post()
   @UseGuards(checkPermission('create_course'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new class (requires create_course permission)' })
+  @ApiOperation({
+    summary: 'Create a new class (requires create_course permission)',
+  })
   create(@Body() createClassDto: CreateClassDto) {
     return this.classesService.create(createClassDto);
   }
@@ -37,7 +47,9 @@ export class ClassesController {
   @Patch(':id')
   @UseGuards(checkPermission('edit_content'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update a class (requires edit_content permission)' })
+  @ApiOperation({
+    summary: 'Update a class (requires edit_content permission)',
+  })
   update(@Param('id') id: string, @Body() updateClassDto: UpdateClassDto) {
     return this.classesService.update(id, updateClassDto);
   }
@@ -45,7 +57,9 @@ export class ClassesController {
   @Delete(':id')
   @UseGuards(checkPermission('delete_course'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete a class (requires delete_course permission)' })
+  @ApiOperation({
+    summary: 'Delete a class (requires delete_course permission)',
+  })
   remove(@Param('id') id: string) {
     return this.classesService.remove(id);
   }

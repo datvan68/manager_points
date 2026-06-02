@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect, Suspense } from 'react';
 import { Search, Plus, Calendar as CalendarIcon, Settings, MoreHorizontal, X, Edit, Trash2, ChevronUp, ChevronDown, CheckSquare, Check, Eye, Users, AlertCircle } from 'lucide-react';
-import { DUMMY_RECORDS, RecordItem, MOCK_HISTORY } from '@/lib/mock-data/ghinhan';
+import { DUMMY_RECORDS, RecordItem, MOCK_HISTORY, MOCK_CLASS_REPORTS } from '@/lib/mock-data/ghinhan';
 import { CustomPagination } from '@/components/ui/pagination';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,7 +70,18 @@ function GhiNhanTab() {
     const fetchClassReports = async () => {
         setIsClassLoading(true);
         try {
-            const reports = await dailyClassReportApi.getDailyClassReports();
+            let reports = [];
+            try {
+                reports = await dailyClassReportApi.getDailyClassReports();
+            } catch (apiErr) {
+                console.warn('API dailyClassReports lỗi, sử dụng dữ liệu mock:', apiErr);
+                reports = [...MOCK_CLASS_REPORTS] as any[];
+            }
+
+            if (!reports || reports.length === 0) {
+                reports = [...MOCK_CLASS_REPORTS] as any[];
+            }
+
             // Sort reports by date descending
             reports.sort((a, b) => {
                 const parseDate = (dStr: string) => {
@@ -84,7 +95,18 @@ function GhiNhanTab() {
             });
             setClassReports(reports);
 
-            const classList = await classApi.getClasses();
+            let classList = [];
+            try {
+                classList = await classApi.getClasses();
+            } catch (classApiErr) {
+                console.warn('API getClasses lỗi, tạo classList mock từ reports:', classApiErr);
+                const uniqueClasses = new Map();
+                MOCK_CLASS_REPORTS.forEach(rep => {
+                    const cObj = typeof rep.class_id === 'object' ? rep.class_id : { _id: rep.class_id, class_name: rep.class_id };
+                    uniqueClasses.set(cObj._id, { _id: cObj._id, class_name: cObj.class_name });
+                });
+                classList = Array.from(uniqueClasses.values());
+            }
             setClasses(classList);
         } catch (err) {
             console.error('Lỗi khi nạp dữ liệu lớp học:', err);

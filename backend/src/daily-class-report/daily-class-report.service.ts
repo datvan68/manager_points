@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { DailyClassReport, DailyClassReportDocument } from './schemas/daily-class-report.schema';
+import {
+  DailyClassReport,
+  DailyClassReportDocument,
+} from './schemas/daily-class-report.schema';
 import { CreateDailyClassReportDto } from './dto/create-daily-class-report.dto';
 import { UpdateDailyClassReportDto } from './dto/update-daily-class-report.dto';
 
@@ -12,8 +15,12 @@ export class DailyClassReportService {
     private readonly dailyClassReportModel: Model<DailyClassReportDocument>,
   ) {}
 
-  async create(createDailyClassReportDto: CreateDailyClassReportDto): Promise<DailyClassReport> {
-    const createdReport = new this.dailyClassReportModel(createDailyClassReportDto);
+  async create(
+    createDailyClassReportDto: CreateDailyClassReportDto,
+  ): Promise<DailyClassReport> {
+    const createdReport = new this.dailyClassReportModel(
+      createDailyClassReportDto,
+    );
     const saved = await createdReport.save();
     return saved.populate(['class_id', 'user_id']);
   }
@@ -46,9 +53,14 @@ export class DailyClassReportService {
       .exec();
   }
 
-  async update(id: string, updateDailyClassReportDto: UpdateDailyClassReportDto): Promise<DailyClassReport> {
+  async update(
+    id: string,
+    updateDailyClassReportDto: UpdateDailyClassReportDto,
+  ): Promise<DailyClassReport> {
     const updated = await this.dailyClassReportModel
-      .findByIdAndUpdate(id, updateDailyClassReportDto, { returnDocument: 'after' })
+      .findByIdAndUpdate(id, updateDailyClassReportDto, {
+        returnDocument: 'after',
+      })
       .populate('class_id')
       .populate('user_id', 'user_name email')
       .exec();

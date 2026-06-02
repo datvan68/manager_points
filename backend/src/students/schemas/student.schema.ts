@@ -21,7 +21,11 @@ export class Student {
   @Prop({ required: true, enum: ['Male', 'Female', 'Other'] })
   sex: string;
 
-  @Prop({ required: true, enum: ['Studying', 'Reserved', 'Dropped', 'Graduated', 'Suspended'], default: 'Studying' })
+  @Prop({
+    required: true,
+    enum: ['Studying', 'Reserved', 'Dropped', 'Graduated', 'Suspended'],
+    default: 'Studying',
+  })
   status: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Class' })

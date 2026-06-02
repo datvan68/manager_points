@@ -14,7 +14,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Response, Request } from 'express';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { AuthService } from '../services/auth.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { PermissionsGuard } from '../guards/permissions.guard';
@@ -25,7 +30,6 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
   ChangePasswordDto,
-  RefreshTokenDto,
   CreateRoleDto,
   UpdateRoleDto,
   AssignRoleDto,
@@ -55,10 +59,14 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })
-  async login(@Body() dto: LoginDto, @Req() req: any, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const ip = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
     const result = await this.authService.login(dto, ip);
-    
+
     // Determine cookie expiration based on token expiration
     // Note: Admin gets 4h, User with Remember gets 30d (Handled in Service)
     // We can just set a long-lived cookie or session cookie
@@ -71,6 +79,7 @@ export class AuthController {
     });
 
     // Don't send RT back in body for security
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { refresh_token, ...response } = result;
     return response;
   }
@@ -105,7 +114,10 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token' })
-  async refreshToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async refreshToken(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const token = req.cookies?.['refresh_token'];
     if (!token) throw new UnauthorizedException('Phiên làm việc đã kết thúc');
 
@@ -179,7 +191,10 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Permission ID' })
   @ApiOperation({ summary: 'Update a permission (Admin only)' })
-  async updatePermission(@Param('id') id: string, @Body() dto: UpdatePermissionDto) {
+  async updatePermission(
+    @Param('id') id: string,
+    @Body() dto: UpdatePermissionDto,
+  ) {
     return this.authService.updatePermission(id, dto);
   }
 
@@ -219,7 +234,10 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiOperation({ summary: 'Update a permission group (Admin only)' })
-  async updatePermissionGroup(@Param('id') id: string, @Body() dto: UpdatePermissionGroupDto) {
+  async updatePermissionGroup(
+    @Param('id') id: string,
+    @Body() dto: UpdatePermissionGroupDto,
+  ) {
     return this.authService.updatePermissionGroup(id, dto);
   }
 
@@ -313,7 +331,9 @@ export class AuthController {
   // ─── ROUTE PERMISSION MANAGEMENT (ADMIN ONLY) ─────────
 
   @Get('route-permissions/all')
-  @ApiOperation({ summary: 'Get all route-permission mappings (public for RouteGuard)' })
+  @ApiOperation({
+    summary: 'Get all route-permission mappings (public for RouteGuard)',
+  })
   async getRoutePermissionsPublic() {
     return this.authService.getRoutePermissions();
   }
@@ -334,19 +354,23 @@ export class AuthController {
   async checkRoutePermission(@Req() req: any) {
     const routePath = req.query.route as string;
     if (!routePath) return { allowed: true };
-    
+
     const mapping = await this.authService.getRoutePermissionByRoute(routePath);
-    if (!mapping) return { allowed: true, message: 'Route không được cấu hình' };
+    if (!mapping)
+      return { allowed: true, message: 'Route không được cấu hình' };
 
     const user = req.user;
     if (user.roleName === 'Admin') return { allowed: true };
 
     const userPermissions: string[] = user.permissions || [];
-    const requiredCodes = (mapping.permissions as any[]).map((p: any) => p.code);
+    const requiredCodes = (mapping.permissions as any[]).map(
+      (p: any) => p.code,
+    );
 
-    const allowed = mapping.check_type === 'any'
-      ? requiredCodes.some(code => userPermissions.includes(code))
-      : requiredCodes.every(code => userPermissions.includes(code));
+    const allowed =
+      mapping.check_type === 'any'
+        ? requiredCodes.some((code) => userPermissions.includes(code))
+        : requiredCodes.every((code) => userPermissions.includes(code));
 
     return {
       allowed,
@@ -371,7 +395,10 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Route Permission ID' })
   @ApiOperation({ summary: 'Update a route-permission mapping (Admin only)' })
-  async updateRoutePermission(@Param('id') id: string, @Body() dto: UpdateRoutePermissionDto) {
+  async updateRoutePermission(
+    @Param('id') id: string,
+    @Body() dto: UpdateRoutePermissionDto,
+  ) {
     return this.authService.updateRoutePermission(id, dto);
   }
 

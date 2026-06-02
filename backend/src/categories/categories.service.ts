@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Category, CategoryDocument } from './schemas/category.schema';
@@ -12,9 +16,13 @@ export class CategoriesService {
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
-    const existing = await this.categoryModel.findOne({ category_code: createCategoryDto.category_code }).exec();
+    const existing = await this.categoryModel
+      .findOne({ category_code: createCategoryDto.category_code })
+      .exec();
     if (existing) {
-      throw new ConflictException(`Category with code ${createCategoryDto.category_code} already exists`);
+      throw new ConflictException(
+        `Category with code ${createCategoryDto.category_code} already exists`,
+      );
     }
     const createdCategory = new this.categoryModel(createCategoryDto);
     return createdCategory.save();
@@ -32,7 +40,10 @@ export class CategoriesService {
     return category;
   }
 
-  async update(id: string, updateCategoryDto: UpdateCategoryDto): Promise<Category> {
+  async update(
+    id: string,
+    updateCategoryDto: UpdateCategoryDto,
+  ): Promise<Category> {
     const updatedCategory = await this.categoryModel
       .findByIdAndUpdate(id, updateCategoryDto, { returnDocument: 'after' })
       .exec();
@@ -43,7 +54,9 @@ export class CategoriesService {
   }
 
   async remove(id: string): Promise<Category> {
-    const deletedCategory = await this.categoryModel.findByIdAndDelete(id).exec();
+    const deletedCategory = await this.categoryModel
+      .findByIdAndDelete(id)
+      .exec();
     if (!deletedCategory) {
       throw new NotFoundException(`Category with ID ${id} not found`);
     }

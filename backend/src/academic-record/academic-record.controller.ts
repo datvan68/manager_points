@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+} from '@nestjs/common';
 import { AcademicRecordService } from './academic-record.service';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
@@ -13,7 +22,9 @@ export class AcademicRecordController {
   @Post()
   @UseGuards(checkPermission('edit_content'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new academic record (requires edit_content permission)' })
+  @ApiOperation({
+    summary: 'Create a new academic record (requires edit_content permission)',
+  })
   create(@Body() createAcademicRecordDto: CreateAcademicRecordDto) {
     return this.academicRecordService.create(createAcademicRecordDto);
   }
@@ -45,15 +56,22 @@ export class AcademicRecordController {
   @Patch(':id')
   @UseGuards(checkPermission('edit_content'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update academic record (requires edit_content permission)' })
-  update(@Param('id') id: string, @Body() updateAcademicRecordDto: UpdateAcademicRecordDto) {
+  @ApiOperation({
+    summary: 'Update academic record (requires edit_content permission)',
+  })
+  update(
+    @Param('id') id: string,
+    @Body() updateAcademicRecordDto: UpdateAcademicRecordDto,
+  ) {
     return this.academicRecordService.update(id, updateAcademicRecordDto);
   }
 
   @Delete(':id')
   @UseGuards(checkPermission('edit_content'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete academic record (requires edit_content permission)' })
+  @ApiOperation({
+    summary: 'Delete academic record (requires edit_content permission)',
+  })
   remove(@Param('id') id: string) {
     return this.academicRecordService.remove(id);
   }

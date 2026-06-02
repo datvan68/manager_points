@@ -7,17 +7,30 @@ export class CreateCategoryDto {
   @IsString()
   category_code: string;
 
-  @ApiProperty({ description: 'Tên chi tiết danh mục', example: 'Ý thức học tập' })
+  @ApiProperty({
+    description: 'Tên chi tiết danh mục',
+    example: 'Ý thức học tập',
+  })
   @IsNotEmpty()
   @IsString()
   category_name: string;
 
-  @ApiProperty({ description: 'Điểm tối đa của danh mục', example: 100, default: 10, required: false })
+  @ApiProperty({
+    description: 'Điểm tối đa của danh mục',
+    example: 100,
+    default: 10,
+    required: false,
+  })
   @IsOptional()
   @IsNumber()
   max_score?: number;
 
-  @ApiProperty({ description: 'Thứ tự sắp xếp của danh mục', example: 1, default: 10, required: false })
+  @ApiProperty({
+    description: 'Thứ tự sắp xếp của danh mục',
+    example: 1,
+    default: 10,
+    required: false,
+  })
   @IsOptional()
   @IsNumber()
   sort_order?: number;

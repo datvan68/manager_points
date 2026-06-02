@@ -12,7 +12,10 @@ import { User, UserDocument, UserStatus } from '../schemas/user.schema';
 import { LoginLog, LoginLogDocument } from '../schemas/login-log.schema';
 import { Role, RoleDocument } from '../schemas/role.schema';
 import { Permission, PermissionDocument } from '../schemas/permission.schema';
-import { PermissionGroup, PermissionGroupDocument } from '../schemas/permission-group.schema';
+import {
+  PermissionGroup,
+  PermissionGroupDocument,
+} from '../schemas/permission-group.schema';
 import {
   RegisterDto,
   LoginDto,
@@ -35,8 +38,10 @@ export class AuthService implements OnModuleInit {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(LoginLog.name) private loginLogModel: Model<LoginLogDocument>,
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
-    @InjectModel(Permission.name) private permissionModel: Model<PermissionDocument>,
-    @InjectModel(PermissionGroup.name) private permissionGroupModel: Model<PermissionGroupDocument>,
+    @InjectModel(Permission.name)
+    private permissionModel: Model<PermissionDocument>,
+    @InjectModel(PermissionGroup.name)
+    private permissionGroupModel: Model<PermissionGroupDocument>,
     private tokenService: TokenService,
     private passwordService: PasswordService,
     private rbacService: RbacService,
@@ -51,15 +56,19 @@ export class AuthService implements OnModuleInit {
   // ─── AUTHENTICATION ─────────────────────────────────────────
 
   async register(dto: RegisterDto) {
-    const existingUsername = await this.userModel.findOne({ user_name: dto.user_name });
+    const existingUsername = await this.userModel.findOne({
+      user_name: dto.user_name,
+    });
     if (existingUsername) throw new ConflictException('Username đã tồn tại');
 
-    const existingEmail = await this.userModel.findOne({ email: dto.email.toLowerCase() });
+    const existingEmail = await this.userModel.findOne({
+      email: dto.email.toLowerCase(),
+    });
     if (existingEmail) throw new ConflictException('Email đã được sử dụng');
 
     const pw_hash = await this.passwordService.hashPassword(dto.password);
     const defaultRole = await this.roleModel.findOne({ name: 'User' });
-    
+
     await this.userModel.create({
       user_name: dto.user_name,
       email: dto.email.toLowerCase(),
@@ -76,23 +85,31 @@ export class AuthService implements OnModuleInit {
     const isStudentCode = /^\d+$/.test(loginKey);
     const studentEmail = isStudentCode ? `${loginKey}@school.edu.vn` : loginKey;
 
-    const user = await this.userModel.findOne({
-      $or: [
-        { email: studentEmail.toLowerCase() },
-        { user_name: loginKey }
-      ]
-    }).populate('role');
+    const user = await this.userModel
+      .findOne({
+        $or: [{ email: studentEmail.toLowerCase() }, { user_name: loginKey }],
+      })
+      .populate('role');
 
     if (!user) {
-      await this.logAction(null, ip, 'login_failure', `User not found: ${dto.email}`);
+      await this.logAction(
+        null,
+        ip,
+        'login_failure',
+        `User not found: ${dto.email}`,
+      );
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // Check account lock
     if (user.status === UserStatus.LOCKED && user.locked_until) {
       if (new Date() < new Date(user.locked_until)) {
-        const minutesLeft = Math.ceil((new Date(user.locked_until).getTime() - Date.now()) / 60000);
-        throw new ForbiddenException(`Tài khoản bị khóa. Vui lòng thử lại sau ${minutesLeft} phút.`);
+        const minutesLeft = Math.ceil(
+          (new Date(user.locked_until).getTime() - Date.now()) / 60000,
+        );
+        throw new ForbiddenException(
+          `Tài khoản bị khóa. Vui lòng thử lại sau ${minutesLeft} phút.`,
+        );
       }
       user.status = UserStatus.ACTIVE;
       user.failed_login_attempts = 0;
@@ -101,18 +118,25 @@ export class AuthService implements OnModuleInit {
     }
 
     const passwordHash = user.pw_hash || (user as any).password_hash;
-    const isPasswordValid = await this.passwordService.comparePassword(dto.password, passwordHash || '');
+    const isPasswordValid = await this.passwordService.comparePassword(
+      dto.password,
+      passwordHash || '',
+    );
     if (!isPasswordValid) {
       user.failed_login_attempts += 1;
       if (user.failed_login_attempts >= MAX_LOGIN_ATTEMPTS) {
         user.status = UserStatus.LOCKED;
-        user.locked_until = new Date(Date.now() + LOCK_DURATION_MINUTES * 60 * 1000);
+        user.locked_until = new Date(
+          Date.now() + LOCK_DURATION_MINUTES * 60 * 1000,
+        );
         await user.save();
-        await this.logAction(user._id as Types.ObjectId, ip, 'login_failure', 'Account locked');
-        throw new ForbiddenException(`Tài khoản đã bị khóa. Thử lại sau ${LOCK_DURATION_MINUTES} phút.`);
+        await this.logAction(user._id, ip, 'login_failure', 'Account locked');
+        throw new ForbiddenException(
+          `Tài khoản đã bị khóa. Thử lại sau ${LOCK_DURATION_MINUTES} phút.`,
+        );
       }
       await user.save();
-      await this.logAction(user._id as Types.ObjectId, ip, 'login_failure', 'Wrong password');
+      await this.logAction(user._id, ip, 'login_failure', 'Wrong password');
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -126,22 +150,30 @@ export class AuthService implements OnModuleInit {
 
     const role = user.role as any;
     const isAdmin = role?.name === 'Admin';
-    
-    let rtExpirationDays = isAdmin ? 1/6 : (dto.remember ? 30 : 1);
 
-    const payload = { user_id: (user._id as Types.ObjectId).toString() };
+    const rtExpirationDays = isAdmin ? 1 / 6 : dto.remember ? 30 : 1;
+
+    const payload = { user_id: user._id.toString() };
     const access_token = this.tokenService.generateAccessToken(payload);
-    const refresh_token = await this.tokenService.createRefreshToken(user._id as Types.ObjectId, rtExpirationDays);
+    const refresh_token = await this.tokenService.createRefreshToken(
+      user._id,
+      rtExpirationDays,
+    );
 
-    await this.logAction(user._id as Types.ObjectId, ip, 'login_success', `Remember: ${!!dto.remember}`);
+    await this.logAction(
+      user._id,
+      ip,
+      'login_success',
+      `Remember: ${!!dto.remember}`,
+    );
 
     return {
       access_token,
       refresh_token,
       user: {
-        id: (user._id as Types.ObjectId).toString(),
+        id: user._id.toString(),
         username: user.user_name,
-        role: role?.name || 'User'
+        role: role?.name || 'User',
       },
     };
   }
@@ -151,20 +183,30 @@ export class AuthService implements OnModuleInit {
   async forgotPassword(dto: ForgotPasswordDto, ip: string) {
     const result = await this.passwordService.forgotPassword(dto);
     if (result.userId) {
-      await this.logAction(result.userId as Types.ObjectId, ip, 'password_reset', 'Reset token generated');
+      await this.logAction(
+        result.userId,
+        ip,
+        'password_reset',
+        'Reset token generated',
+      );
     }
     return { message: result.message };
   }
 
   async resetPassword(dto: ResetPasswordDto, ip: string) {
     const result = await this.passwordService.resetPassword(dto);
-    await this.logAction(result.userId as Types.ObjectId, ip, 'password_reset', 'Completed');
+    await this.logAction(result.userId, ip, 'password_reset', 'Completed');
     return { message: 'Password updated successfully' };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto, ip: string) {
     const result = await this.passwordService.changePassword(userId, dto);
-    await this.logAction(result.userId as Types.ObjectId, ip, 'password_change', 'Updated by user');
+    await this.logAction(
+      result.userId,
+      ip,
+      'password_change',
+      'Updated by user',
+    );
     return { message: 'Password updated successfully' };
   }
 
@@ -180,26 +222,62 @@ export class AuthService implements OnModuleInit {
 
   // ─── RBAC WRAPPERS ──────────────────────────────────────────
 
-  async getRoles() { return this.rbacService.getRoles(); }
-  async getPermissions() { return this.rbacService.getPermissions(); }
-  async createPermission(dto: any) { return this.rbacService.createPermission(dto); }
-  async updatePermission(id: string, dto: any) { return this.rbacService.updatePermission(id, dto); }
-  async deletePermission(id: string) { return this.rbacService.deletePermission(id); }
-  async getPermissionGroups() { return this.rbacService.getPermissionGroups(); }
-  async createPermissionGroup(dto: any) { return this.rbacService.createPermissionGroup(dto); }
-  async updatePermissionGroup(id: string, dto: any) { return this.rbacService.updatePermissionGroup(id, dto); }
-  async deletePermissionGroup(id: string) { return this.rbacService.deletePermissionGroup(id); }
-  async createRole(dto: any) { return this.rbacService.createRole(dto); }
-  async updateRole(id: string, dto: any) { return this.rbacService.updateRole(id, dto); }
-  async deleteRole(id: string) { return this.rbacService.deleteRole(id); }
-  async assignRole(userId: string, dto: AssignRoleDto) { return this.rbacService.assignRole(userId, dto); }
+  async getRoles() {
+    return this.rbacService.getRoles();
+  }
+  async getPermissions() {
+    return this.rbacService.getPermissions();
+  }
+  async createPermission(dto: any) {
+    return this.rbacService.createPermission(dto);
+  }
+  async updatePermission(id: string, dto: any) {
+    return this.rbacService.updatePermission(id, dto);
+  }
+  async deletePermission(id: string) {
+    return this.rbacService.deletePermission(id);
+  }
+  async getPermissionGroups() {
+    return this.rbacService.getPermissionGroups();
+  }
+  async createPermissionGroup(dto: any) {
+    return this.rbacService.createPermissionGroup(dto);
+  }
+  async updatePermissionGroup(id: string, dto: any) {
+    return this.rbacService.updatePermissionGroup(id, dto);
+  }
+  async deletePermissionGroup(id: string) {
+    return this.rbacService.deletePermissionGroup(id);
+  }
+  async createRole(dto: any) {
+    return this.rbacService.createRole(dto);
+  }
+  async updateRole(id: string, dto: any) {
+    return this.rbacService.updateRole(id, dto);
+  }
+  async deleteRole(id: string) {
+    return this.rbacService.deleteRole(id);
+  }
+  async assignRole(userId: string, dto: AssignRoleDto) {
+    return this.rbacService.assignRole(userId, dto);
+  }
 
   // ─── ROUTE PERMISSION WRAPPERS ──────────────────
-  async getRoutePermissions() { return this.rbacService.getRoutePermissions(); }
-  async getRoutePermissionByRoute(routePath: string) { return this.rbacService.getRoutePermissionByRoute(routePath); }
-  async createRoutePermission(dto: any) { return this.rbacService.createRoutePermission(dto); }
-  async updateRoutePermission(id: string, dto: any) { return this.rbacService.updateRoutePermission(id, dto); }
-  async deleteRoutePermission(id: string) { return this.rbacService.deleteRoutePermission(id); }
+  async getRoutePermissions() {
+    return this.rbacService.getRoutePermissions();
+  }
+  async getRoutePermissionByRoute(routePath: string) {
+    return this.rbacService.getRoutePermissionByRoute(routePath);
+  }
+  async createRoutePermission(dto: any) {
+    return this.rbacService.createRoutePermission(dto);
+  }
+  async updateRoutePermission(id: string, dto: any) {
+    return this.rbacService.updateRoutePermission(id, dto);
+  }
+  async deleteRoutePermission(id: string) {
+    return this.rbacService.deleteRoutePermission(id);
+  }
 
   // ─── USER MANAGEMENT ──────────────────────────
 
@@ -218,7 +296,7 @@ export class AuthService implements OnModuleInit {
     const permissions = role?.permissions?.map((p: any) => p.code) || [];
 
     return {
-      id: (user._id as Types.ObjectId).toString(),
+      id: user._id.toString(),
       user_name: user.user_name,
       email: user.email,
       roleName: role?.name || 'User',
@@ -242,14 +320,18 @@ export class AuthService implements OnModuleInit {
 
     // Check duplicate username if provided
     if (dto.user_name && dto.user_name !== user.user_name) {
-      const existingUsername = await this.userModel.findOne({ user_name: dto.user_name });
+      const existingUsername = await this.userModel.findOne({
+        user_name: dto.user_name,
+      });
       if (existingUsername) throw new ConflictException('Username đã tồn tại');
       user.user_name = dto.user_name;
     }
 
     // Check duplicate email if provided
     if (dto.email && dto.email.toLowerCase() !== user.email) {
-      const existingEmail = await this.userModel.findOne({ email: dto.email.toLowerCase() });
+      const existingEmail = await this.userModel.findOne({
+        email: dto.email.toLowerCase(),
+      });
       if (existingEmail) throw new ConflictException('Email đã được sử dụng');
       user.email = dto.email.toLowerCase();
     }
@@ -263,12 +345,15 @@ export class AuthService implements OnModuleInit {
       if (!role) {
         throw new BadRequestException('Vai trò không tồn tại');
       }
-      user.role = role._id as Types.ObjectId;
+      user.role = role._id;
     }
 
     // Update other fields
     if (dto.status) {
-      if (dto.status !== UserStatus.ACTIVE && dto.status !== UserStatus.LOCKED) {
+      if (
+        dto.status !== UserStatus.ACTIVE &&
+        dto.status !== UserStatus.LOCKED
+      ) {
         throw new BadRequestException('Trạng thái không hợp lệ');
       }
       user.status = dto.status as UserStatus;
@@ -292,7 +377,10 @@ export class AuthService implements OnModuleInit {
     await user.save();
 
     // Populate role and return updated user (without pw_hash)
-    const updatedUser = await this.userModel.findById(userId).populate('role').select('-pw_hash');
+    const updatedUser = await this.userModel
+      .findById(userId)
+      .populate('role')
+      .select('-pw_hash');
     return {
       message: 'Cập nhật người dùng thành công',
       user: updatedUser,
@@ -300,16 +388,20 @@ export class AuthService implements OnModuleInit {
   }
 
   async deleteUser(userId: string) {
-    if (!Types.ObjectId.isValid(userId)) throw new BadRequestException('ID người dùng không hợp lệ');
+    if (!Types.ObjectId.isValid(userId))
+      throw new BadRequestException('ID người dùng không hợp lệ');
     const result = await this.userModel.deleteOne({ _id: userId });
-    if (result.deletedCount === 0) throw new BadRequestException('Người dùng không tồn tại');
+    if (result.deletedCount === 0)
+      throw new BadRequestException('Người dùng không tồn tại');
     return { message: 'Xóa người dùng thành công' };
   }
 
   async deleteUsersBulk(userIds: string[]) {
-    const invalidIds = userIds.filter(id => !Types.ObjectId.isValid(id));
+    const invalidIds = userIds.filter((id) => !Types.ObjectId.isValid(id));
     if (invalidIds.length > 0) {
-      throw new BadRequestException(`Có ID người dùng không hợp lệ: ${invalidIds.join(', ')}`);
+      throw new BadRequestException(
+        `Có ID người dùng không hợp lệ: ${invalidIds.join(', ')}`,
+      );
     }
 
     const result = await this.userModel.deleteMany({ _id: { $in: userIds } });
@@ -321,7 +413,12 @@ export class AuthService implements OnModuleInit {
 
   // ─── INTERNAL LOGGING ───────────────────────────────────────
 
-  private async logAction(userId: Types.ObjectId | null, ip: string, action: string, details: string | null) {
+  private async logAction(
+    userId: Types.ObjectId | null,
+    ip: string,
+    action: string,
+    details: string | null,
+  ) {
     await this.loginLogModel.create({
       user_id: userId,
       ip_address: ip,
@@ -337,17 +434,19 @@ export class AuthService implements OnModuleInit {
     // Đảm bảo luôn có vai trò Student trong hệ thống
     const hasStudentRole = await this.roleModel.findOne({ name: 'Student' });
     if (!hasStudentRole) {
-      const viewCoursePerm = await this.permissionModel.findOne({ code: 'view_course' });
+      const viewCoursePerm = await this.permissionModel.findOne({
+        code: 'view_course',
+      });
       await this.roleModel.findOneAndUpdate(
         { name: 'Student' },
-        { 
+        {
           $setOnInsert: {
             name: 'Student',
             description: 'Sinh viên học sinh',
-            permissions: viewCoursePerm ? [viewCoursePerm._id] : []
-          }
+            permissions: viewCoursePerm ? [viewCoursePerm._id] : [],
+          },
         },
-        { upsert: true }
+        { upsert: true },
       );
       console.log('Tự động bổ sung vai trò Student vào hệ thống.');
     }
@@ -355,20 +454,56 @@ export class AuthService implements OnModuleInit {
     const permissionsCount = await this.permissionModel.countDocuments();
     const rolesCount = await this.roleModel.countDocuments();
     const groupsCount = await this.permissionGroupModel.countDocuments();
-    
+
     if (permissionsCount > 0 && rolesCount > 0 && groupsCount > 0) return;
 
     const permissions = [
-      { code: 'view_course', name: 'Xem danh sách khóa học', module: 'Quản lý Đào tạo (Academic)' },
-      { code: 'create_course', name: 'Tạo mới khóa học', module: 'Quản lý Đào tạo (Academic)' },
-      { code: 'edit_content', name: 'Chỉnh sửa nội dung', module: 'Quản lý Đào tạo (Academic)' },
-      { code: 'delete_course', name: 'Xóa khóa học', module: 'Quản lý Đào tạo (Academic)' },
-      { code: 'view_users', name: 'Xem danh sách người dùng', module: 'Quản lý Người dùng (Users)' },
-      { code: 'reset_pwd', name: 'Reset mật khẩu', module: 'Quản lý Người dùng (Users)' },
-      { code: 'STUDENT_READ', name: 'Xem sinh viên', module: 'Quản lý Đào tạo (Academic)' },
-      { code: 'STUDENT_CREATE', name: 'Tạo sinh viên', module: 'Quản lý Đào tạo (Academic)' },
+      {
+        code: 'view_course',
+        name: 'Xem danh sách khóa học',
+        module: 'Quản lý Đào tạo (Academic)',
+      },
+      {
+        code: 'create_course',
+        name: 'Tạo mới khóa học',
+        module: 'Quản lý Đào tạo (Academic)',
+      },
+      {
+        code: 'edit_content',
+        name: 'Chỉnh sửa nội dung',
+        module: 'Quản lý Đào tạo (Academic)',
+      },
+      {
+        code: 'delete_course',
+        name: 'Xóa khóa học',
+        module: 'Quản lý Đào tạo (Academic)',
+      },
+      {
+        code: 'view_users',
+        name: 'Xem danh sách người dùng',
+        module: 'Quản lý Người dùng (Users)',
+      },
+      {
+        code: 'reset_pwd',
+        name: 'Reset mật khẩu',
+        module: 'Quản lý Người dùng (Users)',
+      },
+      {
+        code: 'STUDENT_READ',
+        name: 'Xem sinh viên',
+        module: 'Quản lý Đào tạo (Academic)',
+      },
+      {
+        code: 'STUDENT_CREATE',
+        name: 'Tạo sinh viên',
+        module: 'Quản lý Đào tạo (Academic)',
+      },
       { code: 'ADMIN_FULL', name: 'Toàn quyền Admin', module: 'Hệ thống' },
-      { code: 'view_revenue', name: 'Xem báo cáo doanh thu', module: 'Tài chính & Kế toán (Finance)' },
+      {
+        code: 'view_revenue',
+        name: 'Xem báo cáo doanh thu',
+        module: 'Tài chính & Kế toán (Finance)',
+      },
     ];
 
     const createdPerms: Record<string, Types.ObjectId> = {};
@@ -376,31 +511,81 @@ export class AuthService implements OnModuleInit {
       const perm = await this.permissionModel.findOneAndUpdate(
         { code: p.code },
         { $set: p },
-        { upsert: true, returnDocument: 'after' }
+        { upsert: true, returnDocument: 'after' },
       );
-      createdPerms[p.code] = perm._id as Types.ObjectId;
+      createdPerms[p.code] = perm._id;
     }
 
     const roles = [
-      { name: 'Admin', description: 'Toàn quyền truy cập hệ thống', permissions: Object.values(createdPerms) },
-      { name: 'Giảng viên chính', description: 'Quản lý lớp học và điểm số', permissions: [createdPerms['view_course'], createdPerms['STUDENT_READ'], createdPerms['view_users']] },
-      { name: 'User', description: 'Người dùng cơ bản', permissions: [createdPerms['view_course']] },
-      { name: 'Student', description: 'Sinh viên học sinh', permissions: [createdPerms['view_course']] },
+      {
+        name: 'Admin',
+        description: 'Toàn quyền truy cập hệ thống',
+        permissions: Object.values(createdPerms),
+      },
+      {
+        name: 'Giảng viên chính',
+        description: 'Quản lý lớp học và điểm số',
+        permissions: [
+          createdPerms['view_course'],
+          createdPerms['STUDENT_READ'],
+          createdPerms['view_users'],
+        ],
+      },
+      {
+        name: 'User',
+        description: 'Người dùng cơ bản',
+        permissions: [createdPerms['view_course']],
+      },
+      {
+        name: 'Student',
+        description: 'Sinh viên học sinh',
+        permissions: [createdPerms['view_course']],
+      },
     ];
 
     for (const r of roles) {
-      await this.roleModel.findOneAndUpdate({ name: r.name }, { $set: r }, { upsert: true });
+      await this.roleModel.findOneAndUpdate(
+        { name: r.name },
+        { $set: r },
+        { upsert: true },
+      );
     }
 
     const groups = [
-      { code: 'G_SYSTEM', name: 'Hệ thống', description: 'Các quyền quản trị hệ thống cốt lõi', permissions: [createdPerms['ADMIN_FULL']] },
-      { code: 'G_ACADEMIC', name: 'Quản lý Đào tạo', description: 'Các quyền liên quan đến khóa học và sinh viên', permissions: [createdPerms['view_course'], createdPerms['create_course'], createdPerms['edit_content'], createdPerms['delete_course'], createdPerms['STUDENT_READ'], createdPerms['STUDENT_CREATE']] },
-      { code: 'G_USER', name: 'Quản lý Người dùng', description: 'Các quyền liên quan đến tài khoản và phân quyền', permissions: [createdPerms['view_users'], createdPerms['reset_pwd']] },
+      {
+        code: 'G_SYSTEM',
+        name: 'Hệ thống',
+        description: 'Các quyền quản trị hệ thống cốt lõi',
+        permissions: [createdPerms['ADMIN_FULL']],
+      },
+      {
+        code: 'G_ACADEMIC',
+        name: 'Quản lý Đào tạo',
+        description: 'Các quyền liên quan đến khóa học và sinh viên',
+        permissions: [
+          createdPerms['view_course'],
+          createdPerms['create_course'],
+          createdPerms['edit_content'],
+          createdPerms['delete_course'],
+          createdPerms['STUDENT_READ'],
+          createdPerms['STUDENT_CREATE'],
+        ],
+      },
+      {
+        code: 'G_USER',
+        name: 'Quản lý Người dùng',
+        description: 'Các quyền liên quan đến tài khoản và phân quyền',
+        permissions: [createdPerms['view_users'], createdPerms['reset_pwd']],
+      },
     ];
 
     for (const g of groups) {
-      const validPerms = g.permissions.filter(p => !!p);
-      await this.permissionGroupModel.findOneAndUpdate({ code: g.code }, { $set: { ...g, permissions: validPerms } }, { upsert: true });
+      const validPerms = g.permissions.filter((p) => !!p);
+      await this.permissionGroupModel.findOneAndUpdate(
+        { code: g.code },
+        { $set: { ...g, permissions: validPerms } },
+        { upsert: true },
+      );
     }
 
     console.log('✅ RBAC Data Seeded Successfully');
@@ -411,7 +596,7 @@ export class AuthService implements OnModuleInit {
     const userRole = await this.roleModel.findOne({ name: 'User' });
 
     const usersToFix = await (this.userModel as any).find({
-      role: { $not: { $type: 'objectId' } }
+      role: { $not: { $type: 'objectId' } },
     });
 
     if (usersToFix.length > 0) {
@@ -431,19 +616,21 @@ export class AuthService implements OnModuleInit {
   }
 
   private async migrateLegacyUserFields() {
-    const usersToFix = await this.userModel.find({
-      $or: [
-        { pw_hash: { $exists: false } },
-        { user_name: { $exists: false } }
-      ]
-    } as any).lean();
+    const usersToFix = await this.userModel
+      .find({
+        $or: [
+          { pw_hash: { $exists: false } },
+          { user_name: { $exists: false } },
+        ],
+      } as any)
+      .lean();
 
     if (usersToFix.length > 0) {
       let migratedCount = 0;
       for (const rawUser of usersToFix) {
         const updateDoc: any = {};
         const legacyUser = rawUser as any;
-        
+
         if (!legacyUser.pw_hash && legacyUser.password_hash) {
           updateDoc.pw_hash = legacyUser.password_hash;
         }
@@ -454,16 +641,18 @@ export class AuthService implements OnModuleInit {
         if (Object.keys(updateDoc).length > 0) {
           await this.userModel.updateOne(
             { _id: rawUser._id },
-            { 
+            {
               $set: updateDoc,
-              $unset: { username: "", password_hash: "" }
-            }
+              $unset: { username: '', password_hash: '' },
+            },
           );
           migratedCount++;
         }
       }
       if (migratedCount > 0) {
-        console.log(`✅ Successfully migrated fields (pw_hash/user_name) for ${migratedCount} legacy users.`);
+        console.log(
+          `✅ Successfully migrated fields (pw_hash/user_name) for ${migratedCount} legacy users.`,
+        );
       }
     }
 
@@ -471,15 +660,17 @@ export class AuthService implements OnModuleInit {
       {
         $or: [
           { username: { $exists: true } },
-          { password_hash: { $exists: true } }
-        ]
+          { password_hash: { $exists: true } },
+        ],
       } as any,
       {
-        $unset: { username: "", password_hash: "" }
-      }
+        $unset: { username: '', password_hash: '' },
+      },
     );
     if (cleanupResult.modifiedCount > 0) {
-      console.log(`🧹 Cleaned up legacy fields (username/password_hash) for ${cleanupResult.modifiedCount} users.`);
+      console.log(
+        `🧹 Cleaned up legacy fields (username/password_hash) for ${cleanupResult.modifiedCount} users.`,
+      );
     }
   }
 }

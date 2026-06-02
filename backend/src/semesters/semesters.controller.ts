@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
 import { SemestersService } from './semesters.service';
 import { CreateSemesterDto } from './dto/create-semester.dto';
 import { UpdateSemesterDto } from './dto/update-semester.dto';
@@ -26,7 +34,10 @@ export class SemestersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Lấy chi tiết một học kỳ bằng ID' })
-  @ApiResponse({ status: 200, description: 'Trả về dữ liệu chi tiết của học kỳ.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Trả về dữ liệu chi tiết của học kỳ.',
+  })
   @ApiResponse({ status: 404, description: 'Không tìm thấy học kỳ.' })
   findOne(@Param('id') id: string) {
     return this.semestersService.findOne(id);
@@ -34,9 +45,15 @@ export class SemestersController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Cập nhật một học kỳ bằng ID' })
-  @ApiResponse({ status: 200, description: 'Cập nhật thông tin học kỳ thành công.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật thông tin học kỳ thành công.',
+  })
   @ApiResponse({ status: 404, description: 'Không tìm thấy học kỳ.' })
-  update(@Param('id') id: string, @Body() updateSemesterDto: UpdateSemesterDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateSemesterDto: UpdateSemesterDto,
+  ) {
     return this.semestersService.update(id, updateSemesterDto);
   }
 

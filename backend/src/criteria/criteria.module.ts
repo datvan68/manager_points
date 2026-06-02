@@ -6,7 +6,9 @@ import { Criterion, CriterionSchema } from './schemas/criterion.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Criterion.name, schema: CriterionSchema }]),
+    MongooseModule.forFeature([
+      { name: Criterion.name, schema: CriterionSchema },
+    ]),
   ],
   controllers: [CriteriaController],
   providers: [CriteriaService],

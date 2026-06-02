@@ -5,7 +5,12 @@ export type CriterionDocument = Criterion & Document;
 
 @Schema({ timestamps: true })
 export class Criterion {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Category', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Category',
+    required: true,
+    index: true,
+  })
   category_id: MongooseSchema.Types.ObjectId;
 
   @Prop({ required: true })
@@ -20,7 +25,11 @@ export class Criterion {
   @Prop({ required: true, default: 0 })
   min_score: number;
 
-  @Prop({ required: true, enum: ['khen_thuong', 'cong_diem', 'ky_luat'], default: 'cong_diem' })
+  @Prop({
+    required: true,
+    enum: ['khen_thuong', 'cong_diem', 'ky_luat'],
+    default: 'cong_diem',
+  })
   criterion_type: string;
 
   @Prop({ default: false })

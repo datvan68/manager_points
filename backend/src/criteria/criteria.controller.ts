@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+} from '@nestjs/common';
 import { CriteriaService } from './criteria.service';
 import { CreateCriterionDto } from './dto/create-criterion.dto';
 import { UpdateCriterionDto } from './dto/update-criterion.dto';
@@ -23,10 +32,15 @@ export class CriteriaController {
     return this.criteriaService.bulkDelete(ids);
   }
 
-
   @Get()
-  @ApiOperation({ summary: 'Lấy danh sách tất cả các tiêu chí (có thể lọc theo category_id)' })
-  @ApiQuery({ name: 'category_id', required: false, description: 'ID danh mục để lọc tiêu chí' })
+  @ApiOperation({
+    summary: 'Lấy danh sách tất cả các tiêu chí (có thể lọc theo category_id)',
+  })
+  @ApiQuery({
+    name: 'category_id',
+    required: false,
+    description: 'ID danh mục để lọc tiêu chí',
+  })
   @ApiResponse({ status: 200, description: 'Lấy danh sách thành công' })
   findAll(@Query('category_id') categoryId?: string) {
     if (categoryId) {
@@ -47,7 +61,10 @@ export class CriteriaController {
   @ApiOperation({ summary: 'Cập nhật tiêu chí theo MongoDB ID' })
   @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy tiêu chí' })
-  update(@Param('id') id: string, @Body() updateCriterionDto: UpdateCriterionDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateCriterionDto: UpdateCriterionDto,
+  ) {
     return this.criteriaService.update(id, updateCriterionDto);
   }
 

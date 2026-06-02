@@ -1,4 +1,3 @@
-
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -21,13 +20,22 @@ export class TasksService {
     return this.taskModel.findById(id).exec();
   }
 
-  async updateStatus(id: string, status: TaskStatus): Promise<TaskDocument | null> {
-    return this.taskModel.findByIdAndUpdate(id, { status }, { returnDocument: 'after' }).exec();
+  async updateStatus(
+    id: string,
+    status: TaskStatus,
+  ): Promise<TaskDocument | null> {
+    return this.taskModel
+      .findByIdAndUpdate(id, { status }, { returnDocument: 'after' })
+      .exec();
   }
 
   async updateResult(id: string, result: any): Promise<TaskDocument | null> {
     return this.taskModel
-      .findByIdAndUpdate(id, { result, status: TaskStatus.COMPLETED }, { returnDocument: 'after' })
+      .findByIdAndUpdate(
+        id,
+        { result, status: TaskStatus.COMPLETED },
+        { returnDocument: 'after' },
+      )
       .exec();
   }
 }

@@ -8,7 +8,8 @@ import { UpdateSemesterDto } from './dto/update-semester.dto';
 @Injectable()
 export class SemestersService {
   constructor(
-    @InjectModel(Semester.name) private readonly semesterModel: Model<SemesterDocument>,
+    @InjectModel(Semester.name)
+    private readonly semesterModel: Model<SemesterDocument>,
   ) {}
 
   async create(createSemesterDto: CreateSemesterDto): Promise<Semester> {
@@ -28,7 +29,10 @@ export class SemestersService {
     return semester;
   }
 
-  async update(id: string, updateSemesterDto: UpdateSemesterDto): Promise<Semester> {
+  async update(
+    id: string,
+    updateSemesterDto: UpdateSemesterDto,
+  ): Promise<Semester> {
     const updatedSemester = await this.semesterModel
       .findByIdAndUpdate(id, updateSemesterDto, { returnDocument: 'after' })
       .exec();
@@ -39,7 +43,9 @@ export class SemestersService {
   }
 
   async remove(id: string): Promise<Semester> {
-    const deletedSemester = await this.semesterModel.findByIdAndDelete(id).exec();
+    const deletedSemester = await this.semesterModel
+      .findByIdAndDelete(id)
+      .exec();
     if (!deletedSemester) {
       throw new NotFoundException(`Semester with ID ${id} not found`);
     }

@@ -8,10 +8,20 @@ export type EvaluationDetailDocument = EvaluationDetail & Document;
 
 @Schema({ timestamps: true })
 export class EvaluationDetail {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'SummaryPoint', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'SummaryPoint',
+    required: true,
+    index: true,
+  })
   summary_id: SummaryPoint;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Criterion', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Criterion',
+    required: true,
+    index: true,
+  })
   criterion_id: Criterion;
 
   // Lịch sử toàn bộ các bước chấm/chỉnh sửa
@@ -26,12 +36,12 @@ export class EvaluationDetail {
     type: String,
     enum: ['draft', 'teacher_evaluated', 'supervisor_evaluated', 'finalized'],
     default: 'draft',
-    index: true
+    index: true,
   })
   status: string;
 
   @Prop({ type: String, required: false, default: '' })
   description?: string;
 }
-export const EvaluationDetailSchema = SchemaFactory.createForClass(EvaluationDetail);
-
+export const EvaluationDetailSchema =
+  SchemaFactory.createForClass(EvaluationDetail);

@@ -1,4 +1,12 @@
-import { IsNotEmpty, IsString, IsEnum, IsOptional, IsEmail, IsDateString, IsMongoId } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsEnum,
+  IsOptional,
+  IsEmail,
+  IsDateString,
+  IsMongoId,
+} from 'class-validator';
 
 export class CreateStudentDto {
   @IsNotEmpty()

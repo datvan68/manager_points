@@ -7,10 +7,20 @@ export type DailyClassReportDocument = DailyClassReport & Document;
 
 @Schema({ timestamps: true })
 export class DailyClassReport {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Class', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Class',
+    required: true,
+    index: true,
+  })
   class_id: Class;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  })
   user_id: User;
 
   @Prop({ required: true, type: Date })
@@ -29,4 +39,5 @@ export class DailyClassReport {
   class_note: string;
 }
 
-export const DailyClassReportSchema = SchemaFactory.createForClass(DailyClassReport);
+export const DailyClassReportSchema =
+  SchemaFactory.createForClass(DailyClassReport);

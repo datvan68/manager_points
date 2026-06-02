@@ -42,7 +42,11 @@ describe('DepartmentsController', () => {
 
   describe('create', () => {
     it('should create and return a department', async () => {
-      const dto = { name: 'IT Department', code: 'IT', description: 'Information Technology' };
+      const dto = {
+        name: 'IT Department',
+        code: 'IT',
+        description: 'Information Technology',
+      };
       const result = await controller.create(dto);
       expect(result).toEqual(mockDepartment);
       expect(service.create).toHaveBeenCalledWith(dto);

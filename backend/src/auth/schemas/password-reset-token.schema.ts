@@ -15,4 +15,5 @@ export class PasswordResetToken {
   expires_at: Date;
 }
 
-export const PasswordResetTokenSchema = SchemaFactory.createForClass(PasswordResetToken);
+export const PasswordResetTokenSchema =
+  SchemaFactory.createForClass(PasswordResetToken);

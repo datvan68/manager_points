@@ -1,26 +1,33 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { EvaluationDetail, EvaluationDetailDocument } from './schemas/evaluation-detail.schema';
+import {
+  EvaluationDetail,
+  EvaluationDetailDocument,
+} from './schemas/evaluation-detail.schema';
 import { CreateEvaluationDetailDto } from './dto/create-evaluation-detail.dto';
 import { UpdateEvaluationDetailDto } from './dto/update-evaluation-detail.dto';
 
 @Injectable()
 export class EvaluationDetailService {
   constructor(
-    @InjectModel(EvaluationDetail.name) private readonly evaluationDetailModel: Model<EvaluationDetailDocument>,
-  ) { }
+    @InjectModel(EvaluationDetail.name)
+    private readonly evaluationDetailModel: Model<EvaluationDetailDocument>,
+  ) {}
 
-  async create(createEvaluationDetailDto: CreateEvaluationDetailDto): Promise<EvaluationDetail> {
+  async create(
+    createEvaluationDetailDto: CreateEvaluationDetailDto,
+  ): Promise<EvaluationDetail> {
     const { history, current_count, ...rest } = createEvaluationDetailDto;
 
     const dataToCreate: any = { ...rest };
     const countVal = current_count || 0;
 
     dataToCreate.current_count = countVal;
-    dataToCreate.history = history && history.length > 0 ? history : [
-      { role: 'student', count: countVal, updated_at: new Date() }
-    ];
+    dataToCreate.history =
+      history && history.length > 0
+        ? history
+        : [{ role: 'student', count: countVal, updated_at: new Date() }];
 
     const created = new this.evaluationDetailModel(dataToCreate);
     const saved = await created.save();
@@ -54,9 +61,14 @@ export class EvaluationDetailService {
       .exec();
   }
 
-  async update(id: string, updateEvaluationDetailDto: UpdateEvaluationDetailDto): Promise<EvaluationDetail> {
+  async update(
+    id: string,
+    updateEvaluationDetailDto: UpdateEvaluationDetailDto,
+  ): Promise<EvaluationDetail> {
     const updated = await this.evaluationDetailModel
-      .findByIdAndUpdate(id, updateEvaluationDetailDto, { returnDocument: 'after' })
+      .findByIdAndUpdate(id, updateEvaluationDetailDto, {
+        returnDocument: 'after',
+      })
       .populate('summary_id')
       .populate('criterion_id')
       .exec();

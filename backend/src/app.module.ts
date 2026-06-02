@@ -34,7 +34,7 @@ import { AcademicRecordModule } from './academic-record/academic-record.module';
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         uri: configService.get<string>('MONGO_URI'),
         // Optimization: Connection Pooling
         maxPoolSize: 10,
