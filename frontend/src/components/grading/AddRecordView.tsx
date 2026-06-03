@@ -1,416 +1,629 @@
 'use client';
-import React, { useState } from 'react';
-import { 
-  Camera, Plus, Settings, Calendar as CalendarIcon, Search, ArrowLeft, Image as ImageIcon, Loader2, UserPlus, Trash2, X
+import React, { useState, useEffect } from 'react';
+import {
+  ArrowLeft, Calendar as CalendarIcon, Loader2, Plus, Trash2, AlertTriangle, FileText, Check, Users, Save, Settings, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/Input';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { classApi, Class } from '@/api/class-api';
+import { studentApi, Student } from '@/api/student-api';
+import { criteriaApi, Criterion } from '@/api/criteria-api';
+import { academicRecordApi } from '@/api/academic-record-api';
+import { semesterApi } from '@/api/semester-api';
+import { summariesPointApi } from '@/api/summaries-point-api';
+import { evaluationDetailApi } from '@/api/evaluation-detail-api';
 
-import { 
-  MOCK_OCR_STUDENTS, MOCK_RECORD_CATEGORIES, MOCK_LOCATIONS, 
-  MOCK_VIOLATION_TYPES, MOCK_CRITERIA, OCRStudent 
-} from '../../lib/mock-data/add-record';
+interface ViolationItem {
+  student_id: string;
+  student_name: string;
+  student_code: string;
+  evaluation_detail_id: string;
+  criterion_name: string;
+  points_effect: number;
+  class_note: string;
+}
 
-export default function AddRecordView({ onBack }: { onBack: () => void }) {
-  const [students, setStudents] = useState<OCRStudent[]>(MOCK_OCR_STUDENTS);
-  const [isProcessing, setIsProcessing] = useState(false);
+export default function AddRecordView({ onBack, onSuccess }: { onBack: () => void, onSuccess?: () => void }) {
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [classStudents, setClassStudents] = useState<Student[]>([]);
+  const [criteria, setCriteria] = useState<Criterion[]>([]);
+
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [showManualAdd, setShowManualAdd] = useState(false);
-  const [studentInput, setStudentInput] = useState('');
-  const [manualStudents, setManualStudents] = useState<string[]>([]);
-  const [manualNote, setManualNote] = useState('');
+  const [isStudentsLoading, setIsStudentsLoading] = useState(false);
 
-  // Form states
-  const [recordType, setRecordType] = useState('violation');
-  const [recordDate, setRecordDate] = useState<Date>(new Date());
+  // Card Trái (Thông tin cơ bản)
+  const [department, setDepartment] = useState('Công nghệ thông tin'); // Khoa mặc định
+  const [classId, setClassId] = useState('');
+  const [category, setCategory] = useState('ky_luat'); // 'ky_luat' hoặc 'khen_thuong'
+  const [criterionId, setCriterionId] = useState('');
+  const [reportDate, setReportDate] = useState<Date>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [shift, setShift] = useState<'Sáng' | 'Chiều'>('Sáng');
-  const [isCulturalClass, setIsCulturalClass] = useState(false);
-  const [violationCategory, setViolationCategory] = useState('');
-  const [selectedCriteria, setSelectedCriteria] = useState<string>('');
-  
-  const handleSave = () => {
-    setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
-      toast.success("Đã ghi nhận tất cả thành công!");
-      onBack();
-    }, 1500);
+
+  // Card Phải (Ghi nhận sinh viên)
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [violationNote, setViolationNote] = useState('');
+  const [addedViolations, setAddedViolations] = useState<ViolationItem[]>([]);
+  const [activeSemesterId, setActiveSemesterId] = useState('60d0fe4f5311236168a109cb');
+
+  // Load classes, students, criteria
+  useEffect(() => {
+    async function loadData() {
+      setIsLoadingData(true);
+      try {
+        const classList = await classApi.getClasses();
+        setClasses(classList);
+
+        const studentList = await studentApi.getStudents();
+        setAllStudents(studentList);
+
+        const criteriaList = await criteriaApi.getCriteria();
+        setCriteria(criteriaList);
+
+        // Lấy thông tin học kỳ đang hoạt động
+        try {
+          const semesterList = await semesterApi.getSemesters();
+          const activeSem = semesterList.find(s => s.status === 'active');
+          if (activeSem) {
+            setActiveSemesterId(activeSem._id);
+          } else if (semesterList.length > 0) {
+            setActiveSemesterId(semesterList[0]._id);
+          }
+        } catch (semErr) {
+          console.warn('Lỗi khi nạp kì học:', semErr);
+        }
+      } catch (err) {
+        console.error('Lỗi nạp dữ liệu:', err);
+        toast.error('Không thể nạp dữ liệu ban đầu');
+      } finally {
+        setIsLoadingData(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  // Lọc sinh viên theo lớp học đang chọn
+  useEffect(() => {
+    if (classId) {
+      setIsStudentsLoading(true);
+      const timer = setTimeout(() => {
+        if (allStudents.length > 0) {
+          const filtered = allStudents.filter(s => {
+            const sClassId = typeof s.class_id === 'object' ? s.class_id?._id : s.class_id;
+            return sClassId === classId;
+          });
+          setClassStudents(filtered);
+        } else {
+          setClassStudents([]);
+        }
+        setIsStudentsLoading(false);
+      }, 400); // Tạo trễ nhỏ giả lập loading chuyên nghiệp
+
+      // Reset danh sách ghi nhận tạm nếu đổi lớp
+      setAddedViolations([]);
+      return () => clearTimeout(timer);
+    } else {
+      setClassStudents([]);
+      setAddedViolations([]);
+      setIsStudentsLoading(false);
+    }
+    setSelectedStudentId('');
+    setViolationNote('');
+  }, [classId, allStudents]);
+
+  // Lọc danh sách tiêu chí theo danh mục đang chọn
+  const filteredCriteria = criteria.filter(c => c.criterion_type === category);
+
+  // Reset tiêu chí khi đổi danh mục
+  useEffect(() => {
+    setCriterionId('');
+  }, [category]);
+
+  const handleAddViolationToList = () => {
+    if (!classId) {
+      toast.error('Vui lòng chọn lớp học trước!');
+      return;
+    }
+    if (!criterionId) {
+      toast.error('Vui lòng chọn tiêu chí rèn luyện!');
+      return;
+    }
+    if (!selectedStudentId) {
+      toast.error('Vui lòng chọn sinh viên!');
+      return;
+    }
+
+    // Check trùng vi phạm cùng sinh viên
+    const isDuplicate = addedViolations.some(
+      v => v.student_id === selectedStudentId && v.evaluation_detail_id === criterionId
+    );
+    if (isDuplicate) {
+      toast.error('Sinh viên này đã được ghi nhận tiêu chí này!');
+      return;
+    }
+
+    const student = classStudents.find(s => s._id === selectedStudentId);
+    const criterion = criteria.find(c => c._id === criterionId);
+
+    if (student && criterion) {
+      const newViolation: ViolationItem = {
+        student_id: student._id,
+        student_name: student.full_name,
+        student_code: student.student_code,
+        evaluation_detail_id: criterion._id,
+        criterion_name: criterion.criterion_name,
+        points_effect: criterion.score_per_unit || criterion.min_score || -5,
+        class_note: violationNote.trim() || (category === 'ky_luat' ? 'Ghi nhận kỷ luật' : 'Ghi nhận khen thưởng')
+      };
+
+      setAddedViolations([...addedViolations, newViolation]);
+
+      // Reset input sinh viên & ghi chú
+      setSelectedStudentId('');
+      setViolationNote('');
+      toast.success('Đã thêm sinh viên vào danh sách tạm!');
+    }
   };
 
-  const simulateProcessing = () => {
-    setIsProcessing(true);
-    setTimeout(() => setIsProcessing(false), 2000);
+  const handleRemoveViolationFromList = (index: number) => {
+    setAddedViolations(prev => prev.filter((_, i) => i !== index));
+    toast.success('Đã xóa sinh viên khỏi danh sách tạm.');
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (addedViolations.length === 0) {
+      toast.error('Vui lòng thêm ít nhất 1 sinh viên vào danh sách ghi nhận!');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const summaryList = await summariesPointApi.getSummariesPoints();
+
+      await Promise.all(addedViolations.map(async (violation) => {
+        // 1. Tìm hoặc tạo SummaryPoint cho học sinh & kì học
+        let studentSummary = summaryList.find(s => {
+          const sId = typeof s.student_id === 'object' ? s.student_id?._id : s.student_id;
+          const semId = typeof s.semester_id === 'object' ? s.semester_id?._id : s.semester_id;
+          return sId === violation.student_id && semId === activeSemesterId;
+        });
+
+        if (!studentSummary) {
+          studentSummary = await summariesPointApi.createSummariesPoint({
+            student_id: violation.student_id,
+            semester_id: activeSemesterId,
+            total_score: 100,
+            grading: 'Xuất sắc',
+            status: 'active'
+          });
+        }
+
+        // 2. Tìm hoặc tạo EvaluationDetail liên kết SummaryPoint và Criterion
+        const detailsList = await evaluationDetailApi.getEvaluationDetailsBySummary(studentSummary._id);
+        let evalDetail = detailsList.find(d => {
+          const cId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
+          return cId === violation.evaluation_detail_id;
+        });
+
+        if (!evalDetail) {
+          evalDetail = await evaluationDetailApi.createEvaluationDetail({
+            summary_id: studentSummary._id,
+            criterion_id: violation.evaluation_detail_id,
+            current_count: 1,
+            status: 'teacher_evaluated',
+            description: `Ghi nhận từ phiếu đánh giá`,
+            history: [
+              {
+                role: 'teacher',
+                count: 1,
+                reason: `Tạo mới ghi nhận: ${violation.criterion_name}`
+              }
+            ]
+          });
+        } else {
+          const newCount = (evalDetail.current_count || 0) + 1;
+          await evaluationDetailApi.updateEvaluationDetail(evalDetail._id, {
+            current_count: newCount,
+            history: [
+              ...(evalDetail.history || []),
+              {
+                role: 'teacher',
+                count: newCount,
+                reason: `Thêm ghi nhận: ${violation.criterion_name}`
+              }
+            ]
+          });
+        }
+
+        // 3. Tạo AcademicRecord
+        return academicRecordApi.createAcademicRecord({
+          evaluation_detail_id: evalDetail._id,
+          criteria_id: violation.evaluation_detail_id,
+          student_id: violation.student_id,
+          semester_id: activeSemesterId,
+          record_title: `${violation.criterion_name} (${violation.class_note})`,
+          points_effect: violation.points_effect,
+          status: 'active'
+        });
+      }));
+      toast.success(`Đã ghi nhận ${addedViolations.length} rèn luyện thành công!`);
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        onBack();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Có lỗi xảy ra khi lưu ghi nhận!');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="flex flex-col h-full bg-[#f8fafc] font-sans w-full overflow-hidden"
+      className="flex flex-col h-full from-[#F4F7FC] to-[#E2EAF4] font-sans w-full overflow-y-auto"
     >
-      <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-12 gap-4 max-w-[1400px] mx-auto">
-          {/* LEFT COLUMN: Upload & Config */}
-          <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
-            
-            {/* Upload Section */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-6 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <button 
-                  onClick={onBack}
-                  className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium"
-                >
-                  <ArrowLeft className="w-4 h-4" /> Quay lại
-                </button>
-                <h2 className="text-[18px] font-bold text-slate-900">Tải lên hình ảnh</h2>
-              </div>
+      <div className="flex flex-col gap-[20px] mx-auto w-full">
+        {/* Page Header Section */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+          <div className="flex gap-[12px] items-center">
+            {/* Back Button Pill Glassmorphism using Custom Button */}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onBack}
+              className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[12px] w-[40px] h-[40px] p-0 flex items-center justify-center cursor-pointer hover:bg-white/80 transition-all shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] shrink-0"
+              title="Quay lại"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-700" />
+            </Button>
 
-              <div className="border-2 border-dashed border-slate-200 bg-slate-50 rounded-xl h-[130px] flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={simulateProcessing}>
-                <ImageIcon className="w-6 h-6 text-slate-400 mb-2" />
-                <p className="text-[12px] text-slate-500 text-center max-w-[200px]">
-                  Kéo thả hoặc nhấp để tải lên nhiều ảnh minh chứng (JPG, PNG)
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button className="flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-50/50 border border-blue-100 rounded-lg text-blue-600 text-[12px] font-bold hover:bg-blue-100 transition-colors">
-                  <Camera className="w-4 h-4" />
-                  Máy ảnh
-                </button>
-                <button className="flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 rounded-lg text-white text-[12px] font-bold shadow-sm hover:bg-blue-700 transition-colors">
-                  <ImageIcon className="w-4 h-4" />
-                  Thư viện
-                </button>
-              </div>
+            {/* Figma Icon Block */}
+            <div className="hidden xs:flex backdrop-blur-[6px] bg-white/45 border border-white/40 items-center justify-center rounded-[12px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] shrink-0 w-[40px] h-[40px]">
+              <FileText className="w-4 h-4 text-[#005bbf]" />
             </div>
 
-            {/* Config Section */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-6 flex flex-col gap-5">
-              <h2 className="text-[18px] font-bold text-slate-900 leading-none">Cấu hình ghi nhận</h2>
-
-              {/* Loại */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Loại ghi nhận</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={() => setRecordType('violation')}
-                    className={`h-9 text-[12px] font-medium rounded-lg flex items-center justify-center transition-colors ${recordType === 'violation' ? 'bg-rose-50 border border-rose-200 text-rose-600' : 'border border-slate-200 text-slate-900 hover:bg-slate-50'}`}
-                  >
-                    Vi phạm
-                  </button>
-                  <button 
-                    onClick={() => setRecordType('reward')}
-                    className={`h-9 text-[12px] font-medium rounded-lg flex items-center justify-center transition-colors ${recordType === 'reward' ? 'bg-emerald-50 border border-emerald-200 text-emerald-600' : 'border border-slate-200 text-slate-900 hover:bg-slate-50'}`}
-                  >
-                    Khen thưởng
-                  </button>
-                </div>
-              </div>
-
-              {/* Ngày */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Ngày ghi nhận</label>
-                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <button className="h-11 border border-slate-100 bg-slate-50 hover:bg-slate-100 rounded-xl flex items-center px-4 justify-between transition-colors">
-                      <span className="text-[14px] text-slate-900">{format(recordDate, 'dd/MM/yyyy')}</span>
-                      <CalendarIcon className="w-[18px] h-[18px] text-slate-400" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent 
-                    className="w-auto p-0 z-[100] bg-transparent border-none shadow-none" 
-                    align="start"
-                    side="bottom"
-                    sideOffset={6}
-                  >
-                    <CustomCalendar 
-                      startDate={recordDate}
-                      endDate={null}
-                      onRangeSelect={(start) => { if(start) setRecordDate(start); }}
-                      onCancel={() => setIsCalendarOpen(false)}
-                      onConfirm={() => setIsCalendarOpen(false)}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {/* Buổi */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Buổi</label>
-                <Select value={shift} onValueChange={(v: any) => setShift(v)}>
-                  <SelectTrigger className="h-11 bg-slate-50 border-slate-100 rounded-xl text-[14px] text-slate-900">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white rounded-xl shadow-lg border-slate-100">
-                    <SelectItem value="Sáng">Sáng</SelectItem>
-                    <SelectItem value="Chiều">Chiều</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Danh mục */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Danh mục</label>
-                <Select value={violationCategory} onValueChange={setViolationCategory}>
-                  <SelectTrigger className="h-11 bg-slate-50 border-slate-100 rounded-xl text-[14px] text-slate-900">
-                    <SelectValue placeholder="Chọn danh mục" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white rounded-xl shadow-lg border-slate-100">
-                    <SelectItem value="uniform">Đồng phục</SelectItem>
-                    <SelectItem value="behavior">Tác phong</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Tiêu chí */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Tiêu chí cụ thể</label>
-                <Select value={selectedCriteria} onValueChange={setSelectedCriteria}>
-                  <SelectTrigger className="h-11 bg-slate-50 border-slate-100 rounded-xl text-[14px] text-slate-900">
-                    <SelectValue placeholder="Chọn tiêu chí cụ thể..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white rounded-xl shadow-lg border-slate-100">
-                    {MOCK_CRITERIA.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Lớp văn hoá */}
-              <div className="flex flex-col gap-2 mt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] font-bold text-slate-400 uppercase tracking-wide">Lớp văn hoá</span>
-                  <button 
-                    onClick={() => setIsCulturalClass(!isCulturalClass)}
-                    className={`relative w-11 h-6 rounded-full transition-colors duration-300 focus:outline-none shadow-sm ${isCulturalClass ? 'bg-blue-600 border border-blue-600' : 'bg-slate-200 border border-slate-300'}`}
-                  >
-                    <span className={`absolute top-0.5 left-0.5 w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-300 ${isCulturalClass ? 'translate-x-[20px]' : 'translate-x-0'}`} />
-                  </button>
-                </div>
-              </div>
-
+            <div className="flex flex-col items-start min-w-0">
+              <h2 className="font-bold text-[20px] lg:text-[23px] text-[#005bbf] leading-tight truncate">
+                Thêm Ghi nhận Rèn luyện
+              </h2>
+              <p className="font-normal text-[#414754] text-[13px] lg:text-[14px] leading-relaxed">
+                Ghi nhận khen thưởng hoặc vi phạm của sinh viên
+              </p>
             </div>
           </div>
-
-          {/* RIGHT COLUMN: Results */}
-          <div className="col-span-12 lg:col-span-8 flex flex-col max-h-[calc(100vh-64px)] overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-            <div className="p-3 pb-2 border-b border-slate-50 flex items-center justify-between shrink-0">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-[20px] font-bold text-slate-900">Kết quả nhận diện AI</h2>
-                <p className="text-[14px] text-slate-500">Tự động nhận diện thông tin từ ảnh tải lên</p>
-              </div>
-              
-              {isProcessing && (
-                <div className="bg-emerald-50 rounded-full px-4 py-1.5 flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
-                  <span className="text-[12px] font-semibold text-emerald-500 tracking-wide uppercase">Đang xử lý dữ liệu...</span>
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 flex-1 overflow-y-auto flex flex-col gap-4">
-              <AnimatePresence mode="wait">
-                {!showManualAdd ? (
-                  <motion.button 
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    onClick={() => setShowManualAdd(true)}
-                    className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl h-[60px] text-slate-500 text-[14px] font-bold hover:bg-slate-50 hover:text-slate-600 transition-colors shrink-0"
-                  >
-                    <Plus className="w-4 h-4" /> Thêm sinh viên thủ công
-                  </motion.button>
-                ) : (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                    className="bg-white border-2 border-slate-200 border-dashed rounded-xl p-5 flex flex-col gap-4 shadow-[0_1px_2px_rgba(0,0,0,0.05)] overflow-hidden shrink-0"
-                  >
-                    <div className="flex items-center gap-2 text-slate-900 font-bold text-[14px] mb-1">
-                      <UserPlus className="w-4 h-4 text-blue-600" /> Thêm sinh viên thủ công
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Khoa</label>
-                        <Select>
-                          <SelectTrigger className="h-[36px] bg-[#f8fafc] border-transparent rounded-lg text-[12px] text-slate-900 shadow-none">
-                            <SelectValue placeholder="Chọn Khoa..." />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white rounded-lg shadow-lg border-slate-100 text-[12px]">
-                            <SelectItem value="cntt">Công nghệ TT</SelectItem>
-                            <SelectItem value="dt">Điện tử VT</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Lớp</label>
-                        <Select>
-                          <SelectTrigger className="h-[36px] bg-[#f8fafc] border-transparent rounded-lg text-[12px] text-slate-900 shadow-none">
-                            <SelectValue placeholder="Chọn Lớp..." />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white rounded-lg shadow-lg border-slate-100 text-[12px]">
-                            <SelectItem value="d20">D20_TH01</SelectItem>
-                            <SelectItem value="d21">D21_QT02</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Sinh viên (nhấn enter để thêm)</label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                        <input 
-                          type="text"
-                          value={studentInput}
-                          onChange={e => setStudentInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && studentInput.trim()) {
-                              if (!manualStudents.includes(studentInput.trim())) {
-                                setManualStudents([...manualStudents, studentInput.trim()]);
-                              }
-                              setStudentInput('');
-                            }
-                          }}
-                          placeholder="Tìm theo tên hoặc MSSV..."
-                          className="w-full h-[36px] bg-[#f8fafc] border border-transparent focus:border-blue-400 focus:bg-white rounded-lg pl-8 pr-3 text-[12px] text-slate-900 placeholder:text-slate-500 outline-none transition-colors"
-                        />
-                      </div>
-                      {manualStudents.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          <AnimatePresence>
-                            {manualStudents.map(student => (
-                              <motion.div
-                                key={student}
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.8 }}
-                                className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg border border-blue-100 text-[11.5px] font-semibold"
-                              >
-                                {student}
-                                <button 
-                                  onClick={() => setManualStudents(prev => prev.filter(s => s !== student))}
-                                  className="text-blue-400 hover:text-rose-500 transition-colors ml-1"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </motion.div>
-                            ))}
-                          </AnimatePresence>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Ghi chú</label>
-                      <textarea 
-                        value={manualNote}
-                        onChange={e => setManualNote(e.target.value)}
-                        placeholder="Nhập ghi chú chi tiết cho sinh viên này..."
-                        className="w-full min-h-[60px] bg-[#f8fafc] border border-transparent focus:border-blue-400 focus:bg-white rounded-lg p-3 text-[12px] text-slate-900 placeholder:text-slate-500 outline-none transition-colors resize-none"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-3 mt-1">
-                      <button 
-                        onClick={() => {
-                          if (manualStudents.length === 0) {
-                             toast.error("Vui lòng thêm ít nhất 1 sinh viên!");
-                             return;
-                          }
-                          toast.success(`Đã thêm ${manualStudents.length} sinh viên vào danh sách!`);
-                          setShowManualAdd(false);
-                          setStudentInput('');
-                          setManualStudents([]);
-                          setManualNote('');
-                        }}
-                        className="h-[36px] px-6 bg-[#135bec] text-white text-[12px] font-bold rounded-lg shadow-[0_2px_4px_-2px_rgba(37,99,235,0.2)] hover:bg-blue-700 transition-colors"
-                      >
-                        Thêm vào danh sách
-                      </button>
-                      <button 
-                        onClick={() => {
-                          setShowManualAdd(false);
-                          setStudentInput('');
-                          setManualStudents([]);
-                          setManualNote('');
-                        }}
-                        className="w-[36px] h-[36px] flex items-center justify-center text-rose-500 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors ml-auto"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
-                <AnimatePresence>
-                  {isProcessing ? (
-                    Array.from({length: 4}).map((_, i) => (
-                      <div key={i} className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4">
-                        <div className="flex justify-between items-start">
-                          <div className="flex flex-col gap-2">
-                            <Skeleton className="h-5 w-48" />
-                            <Skeleton className="h-4 w-32" />
-                          </div>
-                          <Skeleton className="h-5 w-10" />
-                        </div>
-                        <Skeleton className="h-[60px] w-full mt-2" />
-                      </div>
-                    ))
-                  ) : (
-                    students.map(student => (
-                      <motion.div 
-                        key={student.id}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-[0_2px_4px_rgba(0,0,0,0.02)]"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[16px] font-bold text-slate-900">Họ tên: {student.fullName}</span>
-                            <span className="text-[12px] text-slate-500">MSSV: {student.studentId} • Lớp: {student.className}</span>
-                          </div>
-                          <div className="flex items-center gap-1 mt-1">
-                            <span className="w-3 h-3 rounded-full bg-emerald-500 flex items-center justify-center">
-                              <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
-                            </span>
-                            <span className="text-[14px] font-bold text-emerald-500 text-right">98%</span>
-                          </div>
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-50">
-                          <textarea 
-                            placeholder="Ghi chú cho học sinh..."
-                            className="w-full min-h-[60px] bg-slate-50 rounded-lg p-3 text-[12px] text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:bg-white resize-none border border-transparent transition-colors"
-                          />
-                        </div>
-                      </motion.div>
-                    ))
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-slate-100 shrink-0 flex justify-center bg-white relative z-10">
-               <button 
-                 onClick={handleSave}
-                 disabled={isSaving || isProcessing}
-                 className="flex items-center justify-center gap-3 w-[448px] max-w-full py-4 bg-blue-600 rounded-xl text-white font-bold text-[16px] shadow-[0_8px_10px_-6px_rgba(19,127,236,0.3)] hover:bg-blue-700 transition-colors disabled:opacity-75 disabled:cursor-not-allowed"
-               >
-                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Settings className="w-5 h-5" />}
-                 Xác nhận và Ghi nhận tất cả
-               </button>
+          <div className="flex items-center sm:justify-end shrink-0">
+            <div className="bg-[#005bbf]/5 text-[#005bbf] font-bold text-[11px] px-3.5 py-1.5 rounded-full uppercase tracking-wider border border-[#005bbf]/10 flex items-center gap-1.5 shadow-sm bg-white/40 backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5 text-[#005bbf] animate-pulse" />
+              <span>Hệ thống ghi nhận</span>
             </div>
           </div>
-
         </div>
+        {isLoadingData ? (
+          <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[40px] shadow-sm flex flex-col items-center justify-center min-h-[250px] gap-3">
+            <Loader2 className="w-7 h-7 text-blue-600 animate-spin" />
+            <span className="text-[#005bbf] font-semibold text-xs">Đang nạp dữ liệu rèn luyện...</span>
+          </div>
+        ) : (
+          <form onSubmit={handleSave} className="flex flex-col gap-[20px]">
+            {/* Main Grid Layout (12 Columns) */}
+            <div className="grid grid-cols-12 gap-[20px] w-full">
+
+              {/* Left Column: Core Info (col-span-4) */}
+              <div className="col-span-12 lg:col-span-4 flex flex-col gap-[20px]">
+                {/* Section 1: Thông tin cơ bản */}
+                <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[22px] lg:p-[26px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] flex flex-col gap-[16px] w-full">
+                  <div className="flex gap-[8px] items-center text-[#005bbf]">
+                    <FileText className="w-4.5 h-4.5 shrink-0" />
+                    <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Thông tin cơ bản</h3>
+                  </div>
+
+                  <div className="flex flex-col gap-[14px] w-full">
+                    {/* Khoa học sử dụng Select Component */}
+                    <div className="flex flex-col w-full relative">
+                      <Select
+                        value={department}
+                        onValueChange={setDepartment}
+                        label="Khoa"
+                        required
+                        error={""}
+                      >
+                        <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
+                          <SelectValue placeholder="Chọn Khoa..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
+                          <SelectItem value="Công nghệ thông tin">Khoa Công nghệ thông tin</SelectItem>
+                          <SelectItem value="Điện tử - Viễn thông">Khoa Điện tử - Viễn thông</SelectItem>
+                          <SelectItem value="Kinh tế">Khoa Kinh tế</SelectItem>
+                          <SelectItem value="Cơ khí">Khoa Cơ khí</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Lớp học sử dụng Select Component */}
+                    <div className="flex flex-col w-full relative">
+                      <Select
+                        value={classId}
+                        onValueChange={setClassId}
+                        label="Lớp học"
+                        required
+                        error={""}
+                      >
+                        <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
+                          <SelectValue placeholder="Chọn lớp học..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 max-h-[220px] overflow-y-auto">
+                          {classes.map(c => (
+                            <SelectItem key={c._id} value={c._id}>{c.class_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Danh mục */}
+                    <div className="flex flex-col w-full relative">
+                      <Select
+                        value={category}
+                        onValueChange={setCategory}
+                        label="Danh mục rèn luyện"
+                        required
+                        error={""}
+                      >
+                        <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
+                          <SelectItem value="ky_luat">Kỷ luật (Điểm phạt)</SelectItem>
+                          <SelectItem value="khen_thuong">Khen thưởng (Điểm thưởng)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Tiêu chí */}
+                    <div className="flex flex-col w-full relative">
+                      <Select
+                        value={criterionId}
+                        onValueChange={setCriterionId}
+                        label="Tiêu chí ghi nhận"
+                        required
+                        error={""}
+                      >
+                        <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
+                          <SelectValue placeholder="Chọn tiêu chí..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 max-h-[220px] overflow-y-auto font-sans">
+                          {filteredCriteria.map(c => (
+                            <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || 0}đ)</SelectItem>
+                          ))}
+                          {filteredCriteria.length === 0 && (
+                            <div className="p-4 text-center text-xs text-slate-400 italic">Không có tiêu chí cho danh mục này</div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Ngày báo cáo */}
+                    <div className="flex flex-col w-full">
+                      <label className="text-[12px] font-medium text-[#414754] mb-1 ml-[4px]">Ngày báo cáo</label>
+                      <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="bg-white/80 border border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none flex items-center justify-between hover:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all w-full shadow-sm text-left font-sans"
+                          >
+                            <span>{format(reportDate, 'dd/MM/yyyy')}</span>
+                            <CalendarIcon className="w-[16px] h-[16px] text-slate-400 shrink-0" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-auto p-0 z-[100] bg-transparent border-none shadow-none"
+                          align="start"
+                          side="bottom"
+                          sideOffset={6}
+                        >
+                          <CustomCalendar
+                            startDate={reportDate}
+                            endDate={null}
+                            onRangeSelect={(start) => { if (start) setReportDate(start); }}
+                            onCancel={() => setIsCalendarOpen(false)}
+                            onConfirm={() => setIsCalendarOpen(false)}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Violations Section (col-span-8) */}
+              <div className="col-span-12 lg:col-span-8 flex flex-col gap-[20px]">
+                <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[22px] lg:p-[26px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] flex flex-col gap-[16px] w-full">
+                  <div className="flex gap-[8px] items-center text-[#005bbf]">
+                    <AlertTriangle className="w-4.5 h-4.5 shrink-0" />
+                    <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Ghi nhận sinh viên</h3>
+                  </div>
+
+                  {/* Entry Form: Kính mờ gọn gàng */}
+                  <div className="backdrop-blur-[6px] bg-white/40 border border-white/30 rounded-[12px] p-[14px] w-full">
+                    <div className="grid grid-cols-12 gap-[12px] w-full">
+                      {/* Họ tên sinh viên sử dụng Select Component */}
+                      <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
+                        <Select
+                          value={selectedStudentId}
+                          onValueChange={setSelectedStudentId}
+                          label="Họ tên sinh viên"
+                          error={""}
+                        >
+                          <SelectTrigger
+                            className="bg-white/80 border-white/15 h-[38px] rounded-full px-[14px] text-[12.5px] text-slate-800 font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all cursor-pointer font-sans"
+                            disabled={!classId}
+                          >
+                            <SelectValue placeholder={classId ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
+                          </SelectTrigger>
+                          <SelectContent lazyLoad className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
+                            {classStudents.map(s => (
+                              <SelectItem key={s._id} value={s._id}>{s.full_name} ({s.student_code})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Ghi chú chi tiết sử dụng Input Component */}
+                      <Input
+                        type="text"
+                        label="Ghi chú"
+                        value={violationNote}
+                        onChange={(e) => setViolationNote(e.target.value)}
+                        placeholder="VD: Vi phạm lần đầu..."
+                        className="bg-white/80 border-white/15 h-[38px] rounded-full px-[14px] text-[12.5px] text-slate-800 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/90 focus-visible:border-blue-400 shadow-sm"
+                        containerClassName="col-span-12 md:col-span-6 w-full"
+                      />
+
+                      {/* Nút Thêm sử dụng Button Component */}
+                      <div className="col-span-12 flex justify-end w-full mt-1">
+                        <Button
+                          type="button"
+                          onClick={handleAddViolationToList}
+                          className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold h-[36px] px-6 rounded-full shadow-[0px_4px_6px_-1px_rgba(0,91,191,0.1),0px_2px_4px_-2px_rgba(0,91,191,0.1)] flex items-center justify-center gap-2 cursor-pointer transition-all border-none outline-none text-[12px] min-w-[120px]"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Thêm vào danh sách</span>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bảng chi tiết ghi nhận */}
+                  <div className="w-full overflow-hidden border border-white/30 rounded-[12px] shadow-sm bg-white/20">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-[#005bbf]/5 border-b border-white/20">
+                        <tr>
+                          <th className="px-[20px] py-[10px] text-[11px] font-bold text-slate-600 uppercase tracking-wider">Họ tên & MSSV</th>
+                          <th className="px-[20px] py-[10px] text-[11px] font-bold text-slate-600 uppercase tracking-wider">Tiêu chí ghi nhận</th>
+                          <th className="px-[20px] py-[10px] text-[11px] font-bold text-slate-600 uppercase tracking-wider">Ghi chú</th>
+                          <th className="px-[20px] py-[10px] text-[11px] font-bold text-slate-600 uppercase tracking-wider text-center w-[80px]">Hành động</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/10">
+                        {addedViolations.map((violation, idx) => {
+                          const isThuong = violation.points_effect > 0;
+                          const badgeClass = isThuong
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                            : 'bg-rose-50 text-rose-600 border border-rose-100';
+
+                          return (
+                            <tr key={idx} className="hover:bg-white/15 transition-colors">
+                              <td className="px-[20px] py-[12px] font-semibold text-slate-800 text-[13px]">
+                                <div className="flex flex-col">
+                                  <span>{violation.student_name}</span>
+                                  <span className="text-slate-400 text-[10.5px] font-medium">MSSV: {violation.student_code}</span>
+                                </div>
+                              </td>
+                              <td className="px-[20px] py-[12px]">
+                                <span className={`font-bold rounded-full px-[10px] py-[3px] text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
+                                  {violation.criterion_name} ({isThuong ? '+' : ''}{violation.points_effect}đ)
+                                </span>
+                              </td>
+                              <td className="px-[20px] py-[12px] font-normal text-[#414754] text-[13.5px] max-w-[200px] truncate" title={violation.class_note}>
+                                {violation.class_note}
+                              </td>
+                              <td className="px-[20px] py-[12px] text-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  onClick={() => handleRemoveViolationFromList(idx)}
+                                  className="w-[28px] h-[28px] rounded-full hover:bg-red-50 hover:text-red-600 p-0 flex items-center justify-center text-rose-500 transition-colors bg-white/50 border border-white/80 shadow-sm outline-none cursor-pointer mx-auto"
+                                  title="Xóa ghi nhận"
+                                >
+                                  <Trash2 className="w-[14px] h-[16px]" />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {addedViolations.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-[20px] py-[24px] text-center text-[13px] text-slate-500 italic bg-white/10">
+                              Chưa có ghi nhận sinh viên trong danh sách tạm.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Hiển thị sĩ số/tổng hợp xem nhanh */}
+                  <div className="flex flex-wrap items-center gap-4 lg:gap-6 text-[12px] font-bold text-slate-500 px-2 mt-1">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Tổng số SV ghi nhận: <strong className="text-slate-800">
+                        {isStudentsLoading ? (
+                          <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-slate-400 align-middle ml-1" />
+                        ) : (
+                          `${new Set(addedViolations.map(v => v.student_id)).size} SV`
+                        )}
+                      </strong></span>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer Actions Panel */}
+            <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[18px] flex items-center justify-between gap-4 w-full shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+              <div className="hidden sm:flex items-center text-[12.5px] text-[#414754] font-medium italic">
+                Hãy kiểm tra kỹ thông tin rèn luyện trước khi lưu.
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-[12px] items-center justify-end w-full sm:w-auto ml-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onBack}
+                  className="border border-[rgba(0,91,191,0.3)] bg-white/30 hover:bg-white/80 rounded-full px-[32px] py-[10px] text-[#005bbf] font-bold text-[13px] tracking-[0.28px] h-auto"
+                >
+                  Hủy bỏ
+                </Button>
+
+                <Button
+                  type="submit"
+                  disabled={isSaving}
+                  className="relative bg-[#005bbf] text-white font-bold px-[38px] py-[10px] rounded-full shadow-[0px_10px_15px_-3px_rgba(0,91,191,0.3),0px_4px_6px_-4px_rgba(0,91,191,0.3)] hover:bg-[#004ca0] focus:ring-2 focus:ring-blue-500/20 transition-all flex items-center justify-center gap-2 border-none outline-none cursor-pointer text-[13px] tracking-[0.28px] h-auto disabled:opacity-75 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Lưu ghi nhận</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+          </form>
+        )}
       </div>
     </motion.div>
   );

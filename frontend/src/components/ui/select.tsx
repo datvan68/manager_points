@@ -180,8 +180,10 @@ export const SelectTrigger = React.forwardRef<any, any>(
 );
 SelectTrigger.displayName = "SelectTrigger";
 
+
+
 export const SelectContent = React.forwardRef<any, any>(
-  ({ className, children, position = "popper", ...props }, ref) => {
+  ({ className, children, position = "popper", lazyLoad = false, ...props }, ref) => {
     const context = React.useContext(SelectContext);
     if (!context) throw new Error("SelectContent must be used inside Select");
 
@@ -205,6 +207,23 @@ export const SelectContent = React.forwardRef<any, any>(
       return filteredChildren.some((child: any) => child && child.props && child.props.value);
     }, [filteredChildren]);
 
+    const [visibleCount, setVisibleCount] = React.useState(lazyLoad ? 5 : filteredChildren.length);
+
+    // Reset visible items count when dropdown opens or search query changes
+    React.useEffect(() => {
+      if (open) {
+        setVisibleCount(lazyLoad ? 5 : filteredChildren.length);
+      }
+    }, [open, searchQuery, lazyLoad, filteredChildren.length]);
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+      if (!lazyLoad) return;
+      const target = e.currentTarget;
+      if (target.scrollHeight - target.scrollTop <= target.clientHeight + 15) {
+        setVisibleCount((prev) => Math.min(prev + 5, filteredChildren.length));
+      }
+    };
+
     return (
       <div
         className={cn(
@@ -216,9 +235,15 @@ export const SelectContent = React.forwardRef<any, any>(
           className
         )}
       >
-        <div className="p-1 max-h-[220px] overflow-y-auto">
+        <div 
+          className={cn(
+            "p-1 overflow-y-auto",
+            lazyLoad ? "max-h-[160px]" : "max-h-[220px]"
+          )}
+          onScroll={handleScroll}
+        >
           {hasItems || !searchQuery ? (
-            filteredChildren
+            lazyLoad ? filteredChildren.slice(0, visibleCount) : filteredChildren
           ) : (
             <div className="py-6 text-center text-xs text-slate-400 font-medium">
               Không tìm thấy kết quả

@@ -82,7 +82,12 @@ export default function GradingPdfTemplate({
       let catScore = 0;
       cat.items.forEach(item => {
         const count = mockCounts[item.id] || 0;
-        catScore += item.pointsPerUnit * count;
+        const maxScore = item.maxScore || 10;
+        const minScore = item.minScore || 0;
+        const criterionScore = item.pointsPerUnit >= 0
+          ? Math.max(minScore, Math.min(maxScore, count * item.pointsPerUnit))
+          : Math.max(-maxScore, Math.min(0, count * item.pointsPerUnit));
+        catScore += criterionScore;
       });
       const clampedScore = Math.max(0, Math.min(cat.maxPoints, catScore));
       totalScore += clampedScore;
@@ -545,7 +550,12 @@ export default function GradingPdfTemplate({
               let catScore = 0;
               cat.items.forEach(item => {
                 const count = counts[item.id] || 0;
-                catScore += item.pointsPerUnit * count;
+                const maxScore = item.maxScore || 10;
+                const minScore = item.minScore || 0;
+                const criterionScore = item.pointsPerUnit >= 0
+                  ? Math.max(minScore, Math.min(maxScore, count * item.pointsPerUnit))
+                  : Math.max(-maxScore, Math.min(0, count * item.pointsPerUnit));
+                catScore += criterionScore;
               });
               const clampedScore = Math.max(0, Math.min(cat.maxPoints, catScore));
 
@@ -574,14 +584,18 @@ export default function GradingPdfTemplate({
                     <tbody className="divide-y divide-slate-100 text-[12px] text-slate-700 font-medium">
                       {cat.items.map(item => {
                         const count = counts[item.id] || 0;
-                        const totalItemPoints = item.pointsPerUnit * count;
-                        const sign = totalItemPoints > 0 ? '+' : '';
+                        const maxScore = item.maxScore || 10;
+                        const minScore = item.minScore || 0;
+                        const criterionScore = item.pointsPerUnit >= 0
+                          ? Math.max(minScore, Math.min(maxScore, count * item.pointsPerUnit))
+                          : Math.max(-maxScore, Math.min(0, count * item.pointsPerUnit));
+                        const sign = criterionScore > 0 ? '+' : '';
 
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/50">
                             <td className="px-4 py-2.5 leading-relaxed">{item.name}</td>
                             <td className="px-4 py-2.5 text-right font-bold text-[var(--pdf-primary)] font-mono text-[12.5px]">
-                              {sign}{totalItemPoints.toFixed(1)}
+                              {sign}{criterionScore.toFixed(1)}
                             </td>
                           </tr>
                         );

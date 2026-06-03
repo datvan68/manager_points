@@ -1,3 +1,4 @@
+import { tokenStorage } from './auth-api';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface DailyClassReport {
@@ -58,7 +59,7 @@ export const dailyClassReportApi = {
   },
 
   async createDailyClassReport(dto: CreateDailyClassReportDto): Promise<DailyClassReport> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+    const token = tokenStorage.getAccessToken() || '';
     const res = await fetch(`${API_BASE}/daily-class-reports`, {
       method: 'POST',
       headers: {
@@ -71,7 +72,7 @@ export const dailyClassReportApi = {
   },
 
   async updateDailyClassReport(id: string, dto: UpdateDailyClassReportDto): Promise<DailyClassReport> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+    const token = tokenStorage.getAccessToken() || '';
     const res = await fetch(`${API_BASE}/daily-class-reports/${id}`, {
       method: 'PATCH',
       headers: {
@@ -84,7 +85,7 @@ export const dailyClassReportApi = {
   },
 
   async deleteDailyClassReport(id: string): Promise<DailyClassReport> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+    const token = tokenStorage.getAccessToken() || '';
     const res = await fetch(`${API_BASE}/daily-class-reports/${id}`, {
       method: 'DELETE',
       headers: {

@@ -1,8 +1,10 @@
+import { tokenStorage } from './auth-api';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface AcademicRecord {
   _id: string;
-  evaluation_detail_id: any | string;
+  evaluation_detail_id?: any | string;
+  criteria_id?: any | string;
   student_id: any | string;
   semester_id: any | string;
   record_title: string;
@@ -14,7 +16,8 @@ export interface AcademicRecord {
 }
 
 export interface CreateAcademicRecordDto {
-  evaluation_detail_id: string;
+  evaluation_detail_id?: string;
+  criteria_id?: string;
   student_id: string;
   semester_id: string;
   record_title: string;
@@ -25,6 +28,7 @@ export interface CreateAcademicRecordDto {
 
 export interface UpdateAcademicRecordDto {
   evaluation_detail_id?: string;
+  criteria_id?: string;
   student_id?: string;
   semester_id?: string;
   record_title?: string;
@@ -63,7 +67,7 @@ export const academicRecordApi = {
   },
 
   async createAcademicRecord(dto: CreateAcademicRecordDto): Promise<AcademicRecord> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+    const token = tokenStorage.getAccessToken() || '';
     const res = await fetch(`${API_BASE}/academic-records`, {
       method: 'POST',
       headers: {
@@ -76,7 +80,7 @@ export const academicRecordApi = {
   },
 
   async updateAcademicRecord(id: string, dto: UpdateAcademicRecordDto): Promise<AcademicRecord> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+    const token = tokenStorage.getAccessToken() || '';
     const res = await fetch(`${API_BASE}/academic-records/${id}`, {
       method: 'PATCH',
       headers: {
@@ -89,7 +93,7 @@ export const academicRecordApi = {
   },
 
   async deleteAcademicRecord(id: string): Promise<AcademicRecord> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+    const token = tokenStorage.getAccessToken() || '';
     const res = await fetch(`${API_BASE}/academic-records/${id}`, {
       method: 'DELETE',
       headers: {

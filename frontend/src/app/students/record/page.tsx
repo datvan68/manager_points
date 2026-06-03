@@ -1,6 +1,7 @@
 'use client';
-import React, { useState, useEffect, Suspense } from 'react';
-import { Search, Plus, Calendar as CalendarIcon, Settings, MoreHorizontal, X, Edit, Trash2, ChevronUp, ChevronDown, CheckSquare, Check, Eye, Users, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
+import { Search, Plus, Calendar as CalendarIcon, Settings, MoreHorizontal, X, Edit, Trash2, ChevronUp, ChevronDown, CheckSquare, Check, Eye, Users, AlertCircle, Loader2, Copy, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { DUMMY_RECORDS, RecordItem, MOCK_HISTORY, MOCK_CLASS_REPORTS } from '@/lib/mock-data/ghinhan';
 import { CustomPagination } from '@/components/ui/pagination';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,17 +16,23 @@ import {
     DrawerTrigger,
 } from '@/components/ui/drawer';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { format } from 'date-fns';
 import AddRecordView from '@/components/grading/AddRecordView';
 import AddClassReportView from '@/components/grading/AddClassReportView';
 import { dailyClassReportApi, DailyClassReport } from '@/api/daily-class-report-api';
 import { classApi, Class } from '@/api/class-api';
+import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
+import { criteriaApi, Criterion } from '@/api/criteria-api';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import { RouteGuard } from '@/components/guards/RouteGuard';
 import { useRouter } from 'next/navigation';
 import TabNavigation from '@/components/ui/TabNavigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import FloatingActionBar from '@/components/ui/FloatingActionBar';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 
 function GhiNhanTab() {
     const [currentView, setCurrentView] = useState<'list' | 'add' | 'edit'>('list');
@@ -40,7 +47,19 @@ function GhiNhanTab() {
     const [isSelectingHistory, setIsSelectingHistory] = useState(false);
     const [selectedHistoryItems, setSelectedHistoryItems] = useState<number[]>([]);
     const [activeSubTab, setActiveSubTab] = useState<'class' | 'student'>('student');
+    const [selectedClassIdForStudent, setSelectedClassIdForStudent] = useState('all');
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [isDeleteClassConfirmOpen, setIsDeleteClassConfirmOpen] = useState(false);
+    const [isTrashOpen, setIsTrashOpen] = useState(false);
+    const [mockDeletedItems, setMockDeletedItems] = useState([
+        { id: 'del-1', name: 'Nguyễn Văn A', class: 'ECO-23B', detail: 'Đi học muộn không phép', date: '01/06/2026', type: 'Kỷ luật' },
+        { id: 'del-2', name: 'Trần Thị B', class: 'IT-22A', detail: 'Đạt thành tích xuất sắc', date: '30/05/2026', type: 'Khen thưởng' }
+    ]);
     const itemsPerPage = 20;
+
+    // Academic record states
+    const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
+    const [allCriteria, setAllCriteria] = useState<Criterion[]>([]);
 
     // Class tab states
     const [classReports, setClassReports] = useState<DailyClassReport[]>([]);
@@ -48,11 +67,17 @@ function GhiNhanTab() {
     const [isClassLoading, setIsClassLoading] = useState(false);
     const [classSearchTerm, setClassSearchTerm] = useState('');
     const [selectedClassId, setSelectedClassId] = useState('all');
-    const [selectedReportDate, setSelectedReportDate] = useState<Date | null>(null);
+    const [selectedReportDateRange, setSelectedReportDateRange] = useState<{ start: Date, end: Date } | null>(null);
     const [isClassDateCalendarOpen, setIsClassDateCalendarOpen] = useState(false);
     const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
     const [editingReport, setEditingReport] = useState<DailyClassReport | null>(null);
     const [classCurrentPage, setClassCurrentPage] = useState(1);
+
+    // Global configurations for absent criteria
+    const [globalCriteria, setGlobalCriteria] = useState<Criterion[]>([]);
+    const [globalAbsentCriteriaIds, setGlobalAbsentCriteriaIds] = useState<string[]>([]);
+    const [isGlobalConfigModalOpen, setIsGlobalConfigModalOpen] = useState(false);
+    const [viewLayout, setViewLayout] = useState<'table' | 'card'>('table');
 
     const toggleExpandCard = (index: number) => {
         setExpandedCards(prev => ({
@@ -62,24 +87,96 @@ function GhiNhanTab() {
     };
 
     useEffect(() => {
+        const cachedLayout = localStorage.getItem('ghinhan_view_layout');
+        if (cachedLayout === 'table' || cachedLayout === 'card') {
+            setViewLayout(cachedLayout);
+        }
+
+        const fetchClasses = async () => {
+            try {
+                let classList = [];
+                try {
+                    classList = await classApi.getClasses();
+                } catch (classApiErr) {
+                    console.warn('API getClasses lỗi:', classApiErr);
+                }
+                setClasses(classList);
+            } catch (err) {
+                console.error('Lỗi khi nạp danh sách lớp:', err);
+            }
+        };
+        fetchClasses();
+
         const timer = setTimeout(() => setIsLoading(false), 500);
         return () => clearTimeout(timer);
     }, []);
+
+    // Fetch student academic records
+    const fetchAcademicRecords = async () => {
+        setIsLoading(true);
+        try {
+            // Load all criteria first if empty
+            let criteriaList = allCriteria;
+            if (criteriaList.length === 0) {
+                try {
+                    criteriaList = await criteriaApi.getCriteria();
+                    setAllCriteria(criteriaList);
+                } catch (critErr) {
+                    console.warn('Lỗi khi tải danh sách tiêu chí:', critErr);
+                }
+            }
+
+            let records = [];
+            try {
+                records = await academicRecordApi.getAcademicRecords();
+            } catch (apiErr) {
+                console.warn('API getAcademicRecords lỗi:', apiErr);
+            }
+            // Sắp xếp các record theo ngày tạo giảm dần
+            records.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+            setAcademicRecords(records);
+        } catch (err) {
+            console.error('Lỗi khi nạp dữ liệu ghi nhận HSSV:', err);
+            toast.error('Không thể tải dữ liệu ghi nhận HSSV.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     // Fetch class data
     const fetchClassReports = async () => {
         setIsClassLoading(true);
         try {
+            // Load criteria list to setup configuration
+            try {
+                const criteriaList = await criteriaApi.getCriteria();
+                setAllCriteria(criteriaList);
+                const disciplineCriteria = criteriaList.filter(c => c.criterion_type === 'ky_luat');
+                setGlobalCriteria(disciplineCriteria);
+
+                // Load from localStorage or set defaults
+                const cached = localStorage.getItem('absentCriteriaIds');
+                if (cached) {
+                    setGlobalAbsentCriteriaIds(JSON.parse(cached));
+                } else {
+                    const defaultAbsents = disciplineCriteria
+                        .filter(c => {
+                            const nameLower = c.criterion_name.toLowerCase();
+                            return nameLower.includes('vắng') && (nameLower.includes('không phép') || nameLower.includes('có phép'));
+                        })
+                        .map(c => c._id);
+                    setGlobalAbsentCriteriaIds(defaultAbsents);
+                    localStorage.setItem('absentCriteriaIds', JSON.stringify(defaultAbsents));
+                }
+            } catch (critErr) {
+                console.warn('Không thể load tiêu chí:', critErr);
+            }
+
             let reports = [];
             try {
                 reports = await dailyClassReportApi.getDailyClassReports();
             } catch (apiErr) {
-                console.warn('API dailyClassReports lỗi, sử dụng dữ liệu mock:', apiErr);
-                reports = [...MOCK_CLASS_REPORTS] as any[];
-            }
-
-            if (!reports || reports.length === 0) {
-                reports = [...MOCK_CLASS_REPORTS] as any[];
+                console.warn('API dailyClassReports lỗi:', apiErr);
             }
 
             // Sort reports by date descending
@@ -99,13 +196,7 @@ function GhiNhanTab() {
             try {
                 classList = await classApi.getClasses();
             } catch (classApiErr) {
-                console.warn('API getClasses lỗi, tạo classList mock từ reports:', classApiErr);
-                const uniqueClasses = new Map();
-                MOCK_CLASS_REPORTS.forEach(rep => {
-                    const cObj = typeof rep.class_id === 'object' ? rep.class_id : { _id: rep.class_id, class_name: rep.class_id };
-                    uniqueClasses.set(cObj._id, { _id: cObj._id, class_name: cObj.class_name });
-                });
-                classList = Array.from(uniqueClasses.values());
+                console.warn('API getClasses lỗi:', classApiErr);
             }
             setClasses(classList);
         } catch (err) {
@@ -117,13 +208,55 @@ function GhiNhanTab() {
     };
 
     useEffect(() => {
-        if (activeSubTab === 'class') {
+        if (activeSubTab === 'student') {
+            fetchAcademicRecords();
+        } else if (activeSubTab === 'class') {
             fetchClassReports();
         }
     }, [activeSubTab]);
 
+    // Map academicRecords to dummy format for UI compatibility
+    const mappedRecords = academicRecords.map(r => {
+        const student = typeof r.student_id === 'object' ? r.student_id : null;
+        const evalDetail = typeof r.evaluation_detail_id === 'object' ? r.evaluation_detail_id : null;
+        const criterionId = r.criteria_id
+            ? (typeof r.criteria_id === 'object' ? r.criteria_id?._id : r.criteria_id)
+            : (evalDetail
+                ? (typeof evalDetail.criterion_id === 'object' ? evalDetail.criterion_id?._id : evalDetail.criterion_id)
+                : r.evaluation_detail_id);
+
+        const foundCriterion = allCriteria.find(c => c._id === criterionId);
+        const foundStudent = student;
+
+        let className = 'N/A';
+        if (foundStudent) {
+            const classId = typeof foundStudent.class_id === 'object' ? foundStudent.class_id?._id : foundStudent.class_id;
+            const foundClass = classes.find(c => c._id === classId);
+            className = foundClass ? foundClass.class_name : 'N/A';
+        }
+
+        const recordType = foundCriterion
+            ? (foundCriterion.criterion_type === 'khen_thuong' || foundCriterion.criterion_type === 'cong_diem' ? 'Khen thưởng' : 'Kỷ luật')
+            : (r.points_effect >= 0 ? 'Khen thưởng' : 'Kỷ luật');
+
+        return {
+            id: r._id,
+            studentId: foundStudent ? foundStudent.student_code : '',
+            fullName: foundStudent ? foundStudent.full_name : '',
+            className: className,
+            recordType: recordType as 'Khen thưởng' | 'Kỷ luật',
+            criteria: (() => {
+                const raw = foundCriterion ? foundCriterion.criterion_name : r.record_title;
+                return raw ? raw.replace(/\s*\(.*?\)\s*$/, '') : 'N/A';
+            })(),
+            date: r.createdAt ? format(new Date(r.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy'),
+            points: (r.points_effect >= 0 ? '+' : '') + r.points_effect,
+            original: r
+        };
+    });
+
     // Student filtering
-    const filteredRecords = DUMMY_RECORDS.filter(record => {
+    const filteredRecords = mappedRecords.filter(record => {
         const matchesSearch = record.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
             record.studentId.includes(searchTerm);
 
@@ -141,7 +274,18 @@ function GhiNhanTab() {
                 console.error(e);
             }
         }
-        return matchesSearch && matchesDate;
+
+        let matchesClass = true;
+        if (selectedClassIdForStudent !== 'all') {
+            const foundClass = classes.find(c => c._id === selectedClassIdForStudent);
+            if (foundClass) {
+                matchesClass = record.className === foundClass.class_name;
+            } else {
+                matchesClass = record.className === selectedClassIdForStudent;
+            }
+        }
+
+        return matchesSearch && matchesDate && matchesClass;
     });
 
     const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
@@ -162,9 +306,18 @@ function GhiNhanTab() {
         const matchesClass = selectedClassId === 'all' || classIdStr === selectedClassId;
 
         let matchesDate = true;
-        if (selectedReportDate) {
-            const formattedFilterDate = format(selectedReportDate, 'dd/MM/yyyy');
-            matchesDate = report.report_date === formattedFilterDate;
+        if (selectedReportDateRange && selectedReportDateRange.start && selectedReportDateRange.end) {
+            try {
+                const parts = report.report_date.split('/');
+                if (parts.length === 3) {
+                    const rDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime();
+                    const sDate = new Date(selectedReportDateRange.start.getFullYear(), selectedReportDateRange.start.getMonth(), selectedReportDateRange.start.getDate()).getTime();
+                    const eDate = new Date(selectedReportDateRange.end.getFullYear(), selectedReportDateRange.end.getMonth(), selectedReportDateRange.end.getDate()).getTime();
+                    matchesDate = rDate >= sDate && rDate <= eDate;
+                }
+            } catch (e) {
+                console.error(e);
+            }
         }
 
         const matchesSearch =
@@ -191,9 +344,16 @@ function GhiNhanTab() {
         setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
     };
 
-    const handleDelete = () => {
-        toast.success(`Đã xóa ${selectedIds.length} ghi nhận thành công.`);
-        setSelectedIds([]);
+    const handleDelete = async () => {
+        try {
+            await Promise.all(selectedIds.map(id => academicRecordApi.deleteAcademicRecord(id)));
+            toast.success(`Đã xóa thành công ${selectedIds.length} ghi nhận.`);
+            setSelectedIds([]);
+            fetchAcademicRecords();
+        } catch (err) {
+            console.error('Lỗi khi xóa ghi nhận:', err);
+            toast.error('Có lỗi xảy ra khi xóa ghi nhận.');
+        }
     };
 
     // Class list toggle selects
@@ -210,16 +370,14 @@ function GhiNhanTab() {
     };
 
     const handleDeleteClassReportsBulk = async () => {
-        if (confirm(`Bạn có chắc chắn muốn xóa ${selectedReportIds.length} báo cáo lớp học đã chọn?`)) {
-            try {
-                await Promise.all(selectedReportIds.map(id => dailyClassReportApi.deleteDailyClassReport(id)));
-                toast.success(`Đã xóa thành công ${selectedReportIds.length} báo cáo lớp học.`);
-                setSelectedReportIds([]);
-                fetchClassReports();
-            } catch (err) {
-                console.error(err);
-                toast.error('Có lỗi xảy ra khi xóa hàng loạt.');
-            }
+        try {
+            await Promise.all(selectedReportIds.map(id => dailyClassReportApi.deleteDailyClassReport(id)));
+            toast.success(`Đã xóa thành công ${selectedReportIds.length} báo cáo lớp học.`);
+            setSelectedReportIds([]);
+            fetchClassReports();
+        } catch (err) {
+            console.error(err);
+            toast.error('Có lỗi xảy ra khi xóa hàng loạt.');
         }
     };
 
@@ -235,6 +393,133 @@ function GhiNhanTab() {
             }
         }
     };
+
+    const handleExportStudentExcel = () => {
+        if (filteredRecords.length === 0) {
+            toast.error("Không có dữ liệu để xuất Excel");
+            return;
+        }
+        try {
+            const data = filteredRecords.map(r => ({
+                "Mã SV": r.studentId,
+                "Họ và tên": r.fullName,
+                "Lớp": r.className,
+                "Loại ghi nhận": r.recordType,
+                "Tiêu chí": r.criteria || "Chưa có",
+                "Ngày ghi nhận": r.date,
+                "Tính điểm": r.points
+            }));
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Ghi nhận HSSV");
+            XLSX.writeFile(workbook, `Ghi_nhan_HSSV_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`);
+            toast.success("Đã xuất file Excel ghi nhận HSSV thành công!");
+        } catch (error) {
+            console.error(error);
+            toast.error("Có lỗi xảy ra khi xuất file Excel");
+        }
+    };
+
+    const handleExportClassExcel = () => {
+        if (filteredClassReports.length === 0) {
+            toast.error("Không có dữ liệu để xuất Excel");
+            return;
+        }
+        try {
+            const data = filteredClassReports.map(report => {
+                const classObj = typeof report.class_id === 'object' ? report.class_id : null;
+                const className = classObj ? classObj.class_name : 'CS-101-A';
+                const totalPresent = report.total_present || 0;
+                const totalAbsent = report.total_absent || 0;
+                const totalStudents = totalPresent + totalAbsent;
+                const percent = totalStudents === 0 ? 0 : Math.round((totalPresent / totalStudents) * 100);
+
+                return {
+                    "Lớp học": className,
+                    "Ngày báo cáo": report.report_date,
+                    "Tổng số SV": totalStudents,
+                    "Sĩ số có mặt": totalPresent,
+                    "Sĩ số vắng": totalAbsent,
+                    "Tỉ lệ hiện diện": `${percent}%`,
+                    "Giảng viên ghi nhận": report.teacher_name,
+                    "Ghi chú lớp": report.class_note || "Ghi nhận đầy đủ..."
+                };
+            });
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Tình hình lớp học");
+            XLSX.writeFile(workbook, `Tinh_hinh_lop_hoc_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`);
+            toast.success("Đã xuất file Excel tình hình lớp học thành công!");
+        } catch (error) {
+            console.error(error);
+            toast.error("Có lỗi xảy ra khi xuất file Excel");
+        }
+    };
+
+    const handleExportSelectedStudentExcel = () => {
+        if (selectedIds.length === 0) {
+            toast.error("Không có dữ liệu được chọn để xuất Excel");
+            return;
+        }
+        try {
+            const selectedRecords = mappedRecords.filter(r => selectedIds.includes(r.id));
+            const data = selectedRecords.map(r => ({
+                "Mã SV": r.studentId,
+                "Họ và tên": r.fullName,
+                "Lớp": r.className,
+                "Loại ghi nhận": r.recordType,
+                "Tiêu chí": r.criteria || "Chưa có",
+                "Ngày ghi nhận": r.date,
+                "Tính điểm": r.points
+            }));
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Ghi nhận HSSV được chọn");
+            XLSX.writeFile(workbook, `Ghi_nhan_HSSV_Selected_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`);
+            toast.success("Đã xuất file Excel các ghi nhận HSSV được chọn thành công!");
+        } catch (error) {
+            console.error(error);
+            toast.error("Có lỗi xảy ra khi xuất file Excel");
+        }
+    };
+
+    const handleExportSelectedClassExcel = () => {
+        if (selectedReportIds.length === 0) {
+            toast.error("Không có dữ liệu được chọn để xuất Excel");
+            return;
+        }
+        try {
+            const selectedReports = classReports.filter(report => selectedReportIds.includes(report._id));
+            const data = selectedReports.map(report => {
+                const classObj = typeof report.class_id === 'object' ? report.class_id : null;
+                const className = classObj ? classObj.class_name : 'CS-101-A';
+                const totalPresent = report.total_present || 0;
+                const totalAbsent = report.total_absent || 0;
+                const totalStudents = totalPresent + totalAbsent;
+                const percent = totalStudents === 0 ? 0 : Math.round((totalPresent / totalStudents) * 100);
+
+                return {
+                    "Lớp học": className,
+                    "Ngày báo cáo": report.report_date,
+                    "Tổng số SV": totalStudents,
+                    "Sĩ số có mặt": totalPresent,
+                    "Sĩ số vắng": totalAbsent,
+                    "Tỉ lệ hiện diện": `${percent}%`,
+                    "Giảng viên ghi nhận": report.teacher_name,
+                    "Ghi chú lớp": report.class_note || "Ghi nhận đầy đủ..."
+                };
+            });
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Tình hình lớp học được chọn");
+            XLSX.writeFile(workbook, `Tinh_hinh_lop_hoc_Selected_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`);
+            toast.success("Đã xuất file Excel các tình hình lớp học được chọn thành công!");
+        } catch (error) {
+            console.error(error);
+            toast.error("Có lỗi xảy ra khi xuất file Excel");
+        }
+    };
+
 
     const handleCreate = () => {
         setCurrentView('add');
@@ -265,7 +550,13 @@ function GhiNhanTab() {
                         }}
                     />
                 ) : (
-                    <AddRecordView onBack={() => setCurrentView('list')} />
+                    <AddRecordView
+                        onBack={() => setCurrentView('list')}
+                        onSuccess={() => {
+                            setCurrentView('list');
+                            fetchAcademicRecords();
+                        }}
+                    />
                 )}
             </motion.div>
         );
@@ -328,15 +619,6 @@ function GhiNhanTab() {
                                     className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-gray-400"
                                 />
                             </div>
-
-                            {selectedIds.length > 0 && (
-                                <button
-                                    onClick={handleDelete}
-                                    className="px-4 py-2 text-sm font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-100 whitespace-nowrap"
-                                >
-                                    Xoá ({selectedIds.length})
-                                </button>
-                            )}
                         </div>
 
                         <div className="flex items-center justify-end gap-3 w-full lg:w-auto">
@@ -363,9 +645,36 @@ function GhiNhanTab() {
                                     />
                                 </PopoverContent>
                             </Popover>
-                            <button className="p-2 bg-gray-50 border border-gray-100 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors shrink-0">
-                                <Settings className="w-5 h-5 text-gray-500" />
+
+                            {/* Class Dropdown for Student */}
+                            <div className="w-[180px]">
+                                <Select
+                                    value={selectedClassIdForStudent}
+                                    onValueChange={(val: string) => {
+                                        setSelectedClassIdForStudent(val);
+                                        setCurrentPage(1);
+                                    }}
+                                >
+                                    <SelectTrigger className="h-10 bg-white border border-gray-200 text-slate-700 hover:bg-gray-50 transition-colors font-semibold text-sm rounded-lg shadow-sm">
+                                        <SelectValue placeholder="Tất cả các lớp" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Tất cả các lớp</SelectItem>
+                                        {classes.map(c => (
+                                            <SelectItem key={c._id} value={c._id}>{c.class_name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <button
+                                onClick={() => setIsGlobalConfigModalOpen(true)}
+                                className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                                title="Cấu hình tiêu chí vắng mặt"
+                            >
+                                <Settings className="w-4 h-4" />
                             </button>
+
                             <button
                                 onClick={handleCreate}
                                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
@@ -377,306 +686,604 @@ function GhiNhanTab() {
                         </div>
                     </div>
 
+
+
                     {/* Table Content */}
                     <div className="flex-1 overflow-auto bg-white">
-                        <table className="w-full text-left border-collapse min-w-max">
-                            <thead className="bg-[#F8FAFB] sticky top-0 z-10 shadow-sm shadow-gray-100/50">
-                                <tr>
-                                    <th className="px-5 py-3 w-12 text-center border-b border-gray-100">
-                                        <input
-                                            type="checkbox"
-                                            checked={paginatedRecords.length > 0 && selectedIds.length === paginatedRecords.length}
-                                            onChange={toggleSelectAll}
-                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                    </th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Mã SV</th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Họ và tên</th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Lớp</th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Loại ghi nhận</th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Tiêu chí</th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Ngày ghi nhận</th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Tính điểm</th>
-                                    <th className="px-5 py-3 w-16 text-center text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Hành động</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
+                        {viewLayout === 'card' ? (
+                            <div className="p-4 bg-slate-50/30">
                                 {isLoading ? (
-                                    Array.from({ length: itemsPerPage }).map((_, i) => (
-                                        <tr key={i}>
-                                            <td className="px-5 py-4 border-b border-gray-50 text-center"><Skeleton className="w-4 h-4 rounded mx-auto" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-20 h-4" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-32 h-4" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-24 h-4" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-24 h-6 rounded-full" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-40 h-4" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-24 h-4" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-10 h-4" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50 text-center"><Skeleton className="w-6 h-6 rounded-md mx-auto" /></td>
-                                        </tr>
-                                    ))
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {Array.from({ length: 9 }).map((_, i) => (
+                                            <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3">
+                                                <div className="flex justify-between items-start">
+                                                    <Skeleton className="w-20 h-4" />
+                                                    <Skeleton className="w-20 h-6 rounded-full" />
+                                                </div>
+                                                <Skeleton className="w-40 h-5" />
+                                                <Skeleton className="w-32 h-4" />
+                                                <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
+                                                    <Skeleton className="w-24 h-4" />
+                                                    <Skeleton className="w-8 h-8 rounded-full" />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 ) : (
-                                    paginatedRecords.map((record, idx) => {
-                                        const isKhenThuong = record.recordType === 'Khen thưởng';
-                                        return (
-                                            <motion.tr
-                                                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.1, delay: idx * 0.05 }}
-                                                key={record.id} className="hover:bg-slate-50/50 transition-colors group"
-                                            >
-                                                <td className="px-5 py-4 w-12 text-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedIds.includes(record.id)}
-                                                        onChange={() => toggleSelect(record.id)}
-                                                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                    />
-                                                </td>
-                                                <td className="px-5 py-4 text-sm font-medium text-gray-600">
-                                                    {record.studentId}
-                                                </td>
-                                                <td className="px-5 py-4 text-sm font-bold text-slate-800">
-                                                    {record.fullName}
-                                                </td>
-                                                <td className="px-5 py-4 text-sm font-semibold text-gray-600">
-                                                    {record.className}
-                                                </td>
-                                                <td className="px-5 py-4">
-                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${isKhenThuong
-                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
-                                                        : 'bg-rose-50 text-rose-600 border-rose-100/50'
-                                                        }`}>
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${isKhenThuong ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                                                        {record.recordType}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-4 text-sm font-bold text-slate-700 max-w-[220px] truncate" title={record.criteria || 'Chưa có'}>
-                                                    {record.criteria || 'Chưa có'}
-                                                </td>
-                                                <td className="px-5 py-4 text-sm font-medium text-gray-600">
-                                                    {record.date}
-                                                </td>
-                                                <td className="px-5 py-4">
-                                                    <span className={`text-sm font-bold ${isKhenThuong ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                        {record.points}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-4 text-center">
-                                                    <Drawer
-                                                        direction="right"
-                                                        open={openDrawerId === record.id}
-                                                        onOpenChange={(isOpen) => {
-                                                            setOpenDrawerId(isOpen ? record.id : null);
-                                                            if (!isOpen) {
-                                                                setIsSelectingHistory(false);
-                                                                setSelectedHistoryItems([]);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <DrawerTrigger asChild>
-                                                            <button
-                                                                className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors shadow-sm"
-                                                                title="Chi tiết trạng thái"
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {paginatedRecords.map((record, idx) => {
+                                            const isKhenThuong = record.recordType === 'Khen thưởng';
+                                            return (
+                                                <motion.div
+                                                    initial={{ opacity: 0, scale: 0.95 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    transition={{ duration: 0.15, delay: idx * 0.03 }}
+                                                    key={record.id}
+                                                    className={`bg-white border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-3 relative group ${selectedIds.includes(record.id) ? 'border-blue-400 bg-blue-50/10 shadow-[0_2px_12px_rgba(59,130,246,0.08)]' : 'border-slate-100'
+                                                        }`}
+                                                >
+                                                    {/* Checkbox & Badge */}
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedIds.includes(record.id)}
+                                                                onChange={() => toggleSelect(record.id)}
+                                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                            />
+                                                            <span className="text-[11px] font-bold text-slate-400">{record.studentId}</span>
+                                                        </div>
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${isKhenThuong
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
+                                                            : 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                                            }`}>
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${isKhenThuong ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                                            {record.recordType}
+                                                        </span>
+                                                    </div>
+
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <h3 className="text-sm font-bold text-slate-800 leading-snug">{record.fullName}</h3>
+                                                            {record.original?.createdAt && (new Date().getTime() - new Date(record.original.createdAt).getTime()) < 24 * 60 * 60 * 1000 && (
+                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
+                                                                    New
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-[11.5px] font-semibold text-slate-400 mt-0.5">Lớp: {record.className}</p>
+                                                    </div>
+
+                                                    {/* Criteria */}
+                                                    <div className="bg-slate-50/50 rounded-xl p-2.5 text-[12px] text-slate-600 font-medium line-clamp-2 h-10 flex items-center">
+                                                        {record.criteria || 'Không có tiêu chí'}
+                                                    </div>
+
+                                                    {/* Date, Point & Action */}
+                                                    <div className="border-t border-slate-100/60 pt-2.5 mt-1 flex items-center justify-between">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Ngày ghi nhận</span>
+                                                            <span className="text-[11px] font-bold text-slate-600 mt-0.5">{record.date}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className={`text-sm font-bold ${isKhenThuong ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                                {record.points}
+                                                            </span>
+                                                            <Drawer
+                                                                direction="right"
+                                                                open={openDrawerId === record.id}
+                                                                onOpenChange={(isOpen) => {
+                                                                    setOpenDrawerId(isOpen ? record.id : null);
+                                                                    if (!isOpen) {
+                                                                        setIsSelectingHistory(false);
+                                                                        setSelectedHistoryItems([]);
+                                                                    }
+                                                                }}
                                                             >
-                                                                <MoreHorizontal className="w-5 h-5" />
-                                                            </button>
-                                                        </DrawerTrigger>
-
-                                                        <DrawerContent className="w-[450px] sm:max-w-md h-full bg-white border-l border-gray-100 flex flex-col items-stretch outline-none overflow-hidden">
-                                                            {/* Modal Header */}
-                                                            <div className="flex justify-between items-center py-[17px] px-6 border-b border-gray-100 bg-white shrink-0">
-                                                                <DrawerTitle className="text-base font-bold text-slate-900">Chi tiết trạng thái</DrawerTitle>
-                                                                <DrawerDescription className="sr-only">Lịch sử và trạng thái chi tiết của bản ghi.</DrawerDescription>
-                                                                <DrawerClose asChild>
-                                                                    <button className="w-6 h-6 flex justify-center items-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded transition-colors">
-                                                                        <X className="w-4 h-4" />
+                                                                <DrawerTrigger asChild>
+                                                                    <button className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-all cursor-pointer shadow-sm">
+                                                                        <MoreHorizontal className="w-4.5 h-4.5" />
                                                                     </button>
-                                                                </DrawerClose>
-                                                            </div>
+                                                                </DrawerTrigger>
 
-                                                            <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6">
-                                                                {/* Profile overview */}
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="w-[60px] h-[60px] rounded-full overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
-                                                                        <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${record.studentId}&backgroundColor=b6e3f4`} alt="Avatar" className="w-full h-full object-cover" />
+                                                                <DrawerContent className="w-[450px] sm:max-w-md h-full bg-white border-l border-gray-100 flex flex-col items-stretch outline-none overflow-hidden">
+                                                                    {/* Modal Header */}
+                                                                    <div className="flex justify-between items-center py-[17px] px-6 border-b border-gray-100 bg-white shrink-0">
+                                                                        <DrawerTitle className="text-base font-bold text-slate-900">Chi tiết trạng thái</DrawerTitle>
+                                                                        <DrawerDescription className="sr-only">Lịch sử và trạng thái chi tiết của bản ghi.</DrawerDescription>
+                                                                        <DrawerClose asChild>
+                                                                            <button className="w-6 h-6 flex justify-center items-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded transition-colors">
+                                                                                <X className="w-4 h-4" />
+                                                                            </button>
+                                                                        </DrawerClose>
                                                                     </div>
-                                                                    <div className="flex flex-col items-start min-w-0">
-                                                                        <h2 className="text-[18px] font-bold text-slate-900 leading-snug truncate w-full">{record.fullName}</h2>
-                                                                        <p className="text-[12px] font-medium text-slate-500 truncate w-full">Mã SV: {record.studentId} • Lớp {record.className}</p>
-                                                                    </div>
-                                                                </div>
 
-                                                                {/* Summary blocks */}
-                                                                <div className="grid grid-cols-2 gap-3">
-                                                                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex flex-col">
-                                                                        <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1.5">Khen thưởng</span>
-                                                                        <div className="flex items-baseline gap-1">
-                                                                            <span className="text-2xl font-black text-emerald-600 leading-none">12</span>
-                                                                            <span className="text-[11px] font-semibold text-emerald-500">lần</span>
+                                                                    <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6">
+                                                                        {/* Profile overview */}
+                                                                        <div className="flex items-center gap-4">
+                                                                            <div className="w-[60px] h-[60px] rounded-full overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
+                                                                                <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${record.studentId}&backgroundColor=b6e3f4`} alt="Avatar" className="w-full h-full object-cover" />
+                                                                            </div>
+                                                                            <div className="flex flex-col items-start min-w-0">
+                                                                                <h2 className="text-[18px] font-bold text-slate-900 leading-snug truncate w-full">{record.fullName}</h2>
+                                                                                <p className="text-[12px] font-medium text-slate-500 truncate w-full">Mã SV: {record.studentId} • Lớp {record.className}</p>
+                                                                            </div>
                                                                         </div>
-                                                                    </div>
-                                                                    <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 flex flex-col">
-                                                                        <span className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1.5">Kỷ luật</span>
-                                                                        <div className="flex items-baseline gap-1">
-                                                                            <span className="text-2xl font-black text-rose-600 leading-none">03</span>
-                                                                            <span className="text-[11px] font-semibold text-rose-500">lần</span>
+
+                                                                        {/* Summary blocks */}
+                                                                        <div className="grid grid-cols-2 gap-3">
+                                                                            <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex flex-col">
+                                                                                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1.5">Khen thưởng</span>
+                                                                                <div className="flex items-baseline gap-1">
+                                                                                    <span className="text-2xl font-black text-emerald-600 leading-none">12</span>
+                                                                                    <span className="text-[11px] font-semibold text-emerald-500">lần</span>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 flex flex-col">
+                                                                                <span className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1.5">Kỷ luật</span>
+                                                                                <div className="flex items-baseline gap-1">
+                                                                                    <span className="text-2xl font-black text-rose-600 leading-none">03</span>
+                                                                                    <span className="text-[11px] font-semibold text-rose-500">lần</span>
+                                                                                </div>
+                                                                            </div>
                                                                         </div>
-                                                                    </div>
-                                                                </div>
 
-                                                                <div className="flex flex-col pb-4">
-                                                                    <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">Ghi nhận gần đây</h4>
+                                                                        <div className="flex flex-col pb-4">
+                                                                            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">Ghi nhận gần đây</h4>
 
-                                                                    <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
-                                                                        {MOCK_HISTORY.map((hist, i) => {
-                                                                            const isKyLuat = hist.type === 'Kỷ luật';
-                                                                            const isExpanded = expandedCards[i];
+                                                                            <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
+                                                                                {MOCK_HISTORY.map((hist, i) => {
+                                                                                    const isKyLuat = hist.type === 'Kỷ luật';
+                                                                                    const isExpanded = expandedCards[i];
 
-                                                                            return (
-                                                                                <div key={i} className="flex gap-4 relative mb-6 last:mb-0">
-                                                                                    <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
-                                                                                        {isSelectingHistory ? (
-                                                                                            <div
-                                                                                                className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-slate-50 hover:border-blue-400'}`}
-                                                                                                onClick={(e) => {
-                                                                                                    e.stopPropagation();
-                                                                                                    setSelectedHistoryItems(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
-                                                                                                }}
-                                                                                            >
-                                                                                                {selectedHistoryItems.includes(i) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                                                                                    return (
+                                                                                        <div key={i} className="flex gap-4 relative mb-6 last:mb-0">
+                                                                                            <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
+                                                                                                {isSelectingHistory ? (
+                                                                                                    <div
+                                                                                                        className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-slate-50 hover:border-blue-400'}`}
+                                                                                                        onClick={(e) => {
+                                                                                                            e.stopPropagation();
+                                                                                                            setSelectedHistoryItems(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        {selectedHistoryItems.includes(i) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                                                                                                    </div>
+                                                                                                ) : (
+                                                                                                    <div className={`w-3.5 h-3.5 rounded-full ${isKyLuat ? 'bg-rose-500 shadow-rose-200' : 'bg-emerald-500 shadow-emerald-200'} shadow-sm border-2 border-white box-content`} />
+                                                                                                )}
                                                                                             </div>
-                                                                                        ) : (
-                                                                                            <div className={`w-3.5 h-3.5 rounded-full ${isKyLuat ? 'bg-rose-500 shadow-rose-200' : 'bg-emerald-500 shadow-emerald-200'} shadow-sm border-2 border-white box-content`} />
-                                                                                        )}
-                                                                                    </div>
 
-                                                                                    <div className="flex-1 flex flex-col pt-0.5">
-                                                                                        <div
-                                                                                            className="flex justify-between items-start cursor-pointer group"
-                                                                                            onClick={() => toggleExpandCard(i)}
-                                                                                        >
-                                                                                            <div className="flex flex-col gap-1 pr-4">
-                                                                                                <span className="text-[11px] font-bold text-slate-500">{hist.date}</span>
-                                                                                                <span className="text-[13px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">{hist.title}</span>
-                                                                                                <div className="mt-0.5">
-                                                                                                    <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isKyLuat ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                                                                                        {hist.type}
-                                                                                                    </span>
-                                                                                                </div>
-                                                                                            </div>
-                                                                                            <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">
-                                                                                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                                                                            </button>
-                                                                                        </div>
-
-                                                                                        <AnimatePresence>
-                                                                                            {isExpanded && hist.description && (
-                                                                                                <motion.div
-                                                                                                    initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                                                                                                    animate={{ height: "auto", opacity: 1, marginTop: 12 }}
-                                                                                                    exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                                                                                                    className="overflow-hidden"
+                                                                                            <div className="flex-1 flex flex-col pt-0.5">
+                                                                                                <div
+                                                                                                    className="flex justify-between items-start cursor-pointer group"
+                                                                                                    onClick={() => toggleExpandCard(i)}
                                                                                                 >
-                                                                                                    <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
-                                                                                                        <div className="grid grid-cols-2 gap-4">
-                                                                                                            <div className="flex flex-col gap-1">
-                                                                                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiêu chí</span>
-                                                                                                                <span className="text-[12px] font-semibold text-slate-900">{hist.criteria}</span>
-                                                                                                            </div>
-                                                                                                            <div className="flex flex-col gap-1">
-                                                                                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Danh mục</span>
-                                                                                                                <span className="text-[12px] font-semibold text-slate-900">{hist.category}</span>
-                                                                                                            </div>
-                                                                                                            <div className="flex flex-col gap-1">
-                                                                                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Buổi</span>
-                                                                                                                <span className="text-[12px] font-semibold text-slate-900">{hist.shift}</span>
-                                                                                                            </div>
-                                                                                                            <div className="flex flex-col gap-1">
-                                                                                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ngày ghi</span>
-                                                                                                                <span className="text-[12px] font-semibold text-slate-900">{hist.logDate}</span>
-                                                                                                            </div>
-                                                                                                        </div>
-                                                                                                        <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1 mt-1">
-                                                                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mô tả</span>
-                                                                                                            <p className="text-[12px] font-medium text-slate-600 leading-relaxed">
-                                                                                                                "{hist.description}"
-                                                                                                            </p>
+                                                                                                    <div className="flex flex-col gap-1 pr-4">
+                                                                                                        <span className="text-[11px] font-bold text-slate-500">{hist.date}</span>
+                                                                                                        <span className="text-[13px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">{hist.title}</span>
+                                                                                                        <div className="mt-0.5">
+                                                                                                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isKyLuat ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                                                                                {hist.type}
+                                                                                                            </span>
                                                                                                         </div>
                                                                                                     </div>
-                                                                                                </motion.div>
+                                                                                                    <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">
+                                                                                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                                                                    </button>
+                                                                                                </div>
+
+                                                                                                <AnimatePresence>
+                                                                                                    {isExpanded && hist.description && (
+                                                                                                        <motion.div
+                                                                                                            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                                                                                                            animate={{ height: "auto", opacity: 1, marginTop: 12 }}
+                                                                                                            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                                                                                                            className="overflow-hidden"
+                                                                                                        >
+                                                                                                            <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
+                                                                                                                <div className="grid grid-cols-2 gap-4">
+                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiêu chí</span>
+                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{hist.criteria}</span>
+                                                                                                                    </div>
+                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Danh mục</span>
+                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{hist.category}</span>
+                                                                                                                    </div>
+                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Buổi</span>
+                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{hist.shift}</span>
+                                                                                                                    </div>
+                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ngày ghi</span>
+                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{hist.logDate}</span>
+                                                                                                                    </div>
+                                                                                                                </div>
+                                                                                                                <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1 mt-1">
+                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mô tả</span>
+                                                                                                                    <p className="text-[12px] font-medium text-slate-600 leading-relaxed">
+                                                                                                                        "{hist.description}"
+                                                                                                                    </p>
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        </motion.div>
+                                                                                                    )}
+                                                                                                </AnimatePresence>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Modal Footer actions */}
+                                                                    <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)] shrink-0 flex items-center justify-between gap-3">
+                                                                        {isSelectingHistory ? (
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setIsSelectingHistory(false);
+                                                                                        setSelectedHistoryItems([]);
+                                                                                    }}
+                                                                                    className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-slate-50 border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-100 transition-colors shadow-sm"
+                                                                                >
+                                                                                    Hủy
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        if (selectedHistoryItems.length > 0) {
+                                                                                            toast.success(`Đã xóa ${selectedHistoryItems.length} ghi nhận!`);
+                                                                                            setIsSelectingHistory(false);
+                                                                                            setSelectedHistoryItems([]);
+                                                                                        }
+                                                                                    }}
+                                                                                    disabled={selectedHistoryItems.length === 0}
+                                                                                    className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-50 border border-rose-100 text-[13px] font-bold text-rose-600 hover:bg-rose-100 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                >
+                                                                                    <Trash2 className="w-4 h-4 text-rose-500" />
+                                                                                    Xóa ({selectedHistoryItems.length})
+                                                                                </button>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <button className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm">
+                                                                                    <Edit className="w-4 h-4 text-slate-600" />
+                                                                                    Sửa ghi nhận
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => setIsSelectingHistory(true)}
+                                                                                    className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
+                                                                                >
+                                                                                    <CheckSquare className="w-4 h-4 text-slate-600" />
+                                                                                    Chọn
+                                                                                </button>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                </DrawerContent>
+                                                            </Drawer>
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {paginatedRecords.length === 0 && !isLoading && (
+                                    <div className="text-center py-12 text-slate-400 italic text-sm">
+                                        Không tìm thấy ghi nhận nào.
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse min-w-max">
+                                <thead className="bg-[#F8FAFB] sticky top-0 z-10 shadow-sm shadow-gray-100/50">
+                                    <tr>
+                                        <th className="px-5 py-3 w-12 text-center border-b border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={paginatedRecords.length > 0 && selectedIds.length === paginatedRecords.length}
+                                                onChange={toggleSelectAll}
+                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                        </th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Mã SV</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Họ và tên</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Lớp</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Loại ghi nhận</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Tiêu chí</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Ngày ghi nhận</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Tính điểm</th>
+                                        <th className="px-5 py-3 w-16 text-center text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Hành động</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {isLoading ? (
+                                        Array.from({ length: itemsPerPage }).map((_, i) => (
+                                            <tr key={i}>
+                                                <td className="px-5 py-4 border-b border-gray-50 text-center"><Skeleton className="w-4 h-4 rounded mx-auto" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-20 h-4" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-32 h-4" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-24 h-4" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-24 h-6 rounded-full" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-40 h-4" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-24 h-4" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-10 h-4" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50 text-center"><Skeleton className="w-6 h-6 rounded-md mx-auto" /></td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        paginatedRecords.map((record, idx) => {
+                                            const isKhenThuong = record.recordType === 'Khen thưởng';
+                                            return (
+                                                <motion.tr
+                                                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.1, delay: idx * 0.05 }}
+                                                    key={record.id} className="hover:bg-slate-50/50 transition-colors group"
+                                                >
+                                                    <td className="px-5 py-4 w-12 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedIds.includes(record.id)}
+                                                            onChange={() => toggleSelect(record.id)}
+                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                    </td>
+                                                    <td className="px-5 py-4 text-sm font-medium text-gray-600">
+                                                        {record.studentId}
+                                                    </td>
+                                                    <td className="px-5 py-4 text-sm font-bold text-slate-800">
+                                                        <div className="flex items-center gap-2">
+                                                            <span>{record.fullName}</span>
+                                                            {record.original?.createdAt && (new Date().getTime() - new Date(record.original.createdAt).getTime()) < 24 * 60 * 60 * 1000 && (
+                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
+                                                                    New
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-5 py-4 text-sm font-semibold text-gray-600">
+                                                        {record.className}
+                                                    </td>
+                                                    <td className="px-5 py-4">
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${isKhenThuong
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
+                                                            : 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                                            }`}>
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${isKhenThuong ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                                            {record.recordType}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-4 text-sm font-bold text-slate-700 max-w-[220px] truncate" title={record.criteria || 'Chưa có'}>
+                                                        {record.criteria || 'Chưa có'}
+                                                    </td>
+                                                    <td className="px-5 py-4 text-sm font-medium text-gray-600">
+                                                        {record.date}
+                                                    </td>
+                                                    <td className="px-5 py-4">
+                                                        <span className={`text-sm font-bold ${isKhenThuong ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                            {record.points}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-4 text-center">
+                                                        <Drawer
+                                                            direction="right"
+                                                            open={openDrawerId === record.id}
+                                                            onOpenChange={(isOpen) => {
+                                                                setOpenDrawerId(isOpen ? record.id : null);
+                                                                if (!isOpen) {
+                                                                    setIsSelectingHistory(false);
+                                                                    setSelectedHistoryItems([]);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <DrawerTrigger asChild>
+                                                                <button
+                                                                    className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors shadow-sm"
+                                                                    title="Chi tiết trạng thái"
+                                                                >
+                                                                    <MoreHorizontal className="w-5 h-5" />
+                                                                </button>
+                                                            </DrawerTrigger>
+
+                                                            <DrawerContent className="w-[450px] sm:max-w-md h-full bg-white border-l border-gray-100 flex flex-col items-stretch outline-none overflow-hidden">
+                                                                {/* Modal Header */}
+                                                                <div className="flex justify-between items-center py-[17px] px-6 border-b border-gray-100 bg-white shrink-0">
+                                                                    <DrawerTitle className="text-base font-bold text-slate-900">Chi tiết trạng thái</DrawerTitle>
+                                                                    <DrawerDescription className="sr-only">Lịch sử và trạng thái chi tiết của bản ghi.</DrawerDescription>
+                                                                    <DrawerClose asChild>
+                                                                        <button className="w-6 h-6 flex justify-center items-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded transition-colors">
+                                                                            <X className="w-4 h-4" />
+                                                                        </button>
+                                                                    </DrawerClose>
+                                                                </div>
+
+                                                                <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6">
+                                                                    {/* Profile overview */}
+                                                                    <div className="flex items-center gap-4">
+                                                                        <div className="w-[60px] h-[60px] rounded-full overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
+                                                                            <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${record.studentId}&backgroundColor=b6e3f4`} alt="Avatar" className="w-full h-full object-cover" />
+                                                                        </div>
+                                                                        <div className="flex flex-col items-start min-w-0">
+                                                                            <h2 className="text-[18px] font-bold text-slate-900 leading-snug truncate w-full">{record.fullName}</h2>
+                                                                            <p className="text-[12px] font-medium text-slate-500 truncate w-full">Mã SV: {record.studentId} • Lớp {record.className}</p>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Summary blocks */}
+                                                                    <div className="grid grid-cols-2 gap-3">
+                                                                        <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex flex-col">
+                                                                            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1.5">Khen thưởng</span>
+                                                                            <div className="flex items-baseline gap-1">
+                                                                                <span className="text-2xl font-black text-emerald-600 leading-none">12</span>
+                                                                                <span className="text-[11px] font-semibold text-emerald-500">lần</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 flex flex-col">
+                                                                            <span className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1.5">Kỷ luật</span>
+                                                                            <div className="flex items-baseline gap-1">
+                                                                                <span className="text-2xl font-black text-rose-600 leading-none">03</span>
+                                                                                <span className="text-[11px] font-semibold text-rose-500">lần</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="flex flex-col pb-4">
+                                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">Ghi nhận gần đây</h4>
+
+                                                                        <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
+                                                                            {MOCK_HISTORY.map((hist, i) => {
+                                                                                const isKyLuat = hist.type === 'Kỷ luật';
+                                                                                const isExpanded = expandedCards[i];
+
+                                                                                return (
+                                                                                    <div key={i} className="flex gap-4 relative mb-6 last:mb-0">
+                                                                                        <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
+                                                                                            {isSelectingHistory ? (
+                                                                                                <div
+                                                                                                    className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-slate-50 hover:border-blue-400'}`}
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        setSelectedHistoryItems(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+                                                                                                    }}
+                                                                                                >
+                                                                                                    {selectedHistoryItems.includes(i) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <div className={`w-3.5 h-3.5 rounded-full ${isKyLuat ? 'bg-rose-500 shadow-rose-200' : 'bg-emerald-500 shadow-emerald-200'} shadow-sm border-2 border-white box-content`} />
                                                                                             )}
-                                                                                        </AnimatePresence>
+                                                                                        </div>
+
+                                                                                        <div className="flex-1 flex flex-col pt-0.5">
+                                                                                            <div
+                                                                                                className="flex justify-between items-start cursor-pointer group"
+                                                                                                onClick={() => toggleExpandCard(i)}
+                                                                                            >
+                                                                                                <div className="flex flex-col gap-1 pr-4">
+                                                                                                    <span className="text-[11px] font-bold text-slate-500">{hist.date}</span>
+                                                                                                    <span className="text-[13px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">{hist.title}</span>
+                                                                                                    <div className="mt-0.5">
+                                                                                                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isKyLuat ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                                                                            {hist.type}
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                                <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">
+                                                                                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                                                                </button>
+                                                                                            </div>
+
+                                                                                            <AnimatePresence>
+                                                                                                {isExpanded && hist.description && (
+                                                                                                    <motion.div
+                                                                                                        initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                                                                                                        animate={{ height: "auto", opacity: 1, marginTop: 12 }}
+                                                                                                        exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                                                                                                        className="overflow-hidden"
+                                                                                                    >
+                                                                                                        <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
+                                                                                                            <div className="grid grid-cols-2 gap-4">
+                                                                                                                <div className="flex flex-col gap-1">
+                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiêu chí</span>
+                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{hist.criteria}</span>
+                                                                                                                </div>
+                                                                                                                <div className="flex flex-col gap-1">
+                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Danh mục</span>
+                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{hist.category}</span>
+                                                                                                                </div>
+                                                                                                                <div className="flex flex-col gap-1">
+                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Buổi</span>
+                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{hist.shift}</span>
+                                                                                                                </div>
+                                                                                                                <div className="flex flex-col gap-1">
+                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ngày ghi</span>
+                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{hist.logDate}</span>
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                            <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1 mt-1">
+                                                                                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mô tả</span>
+                                                                                                                <p className="text-[12px] font-medium text-slate-600 leading-relaxed">
+                                                                                                                    "{hist.description}"
+                                                                                                                </p>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    </motion.div>
+                                                                                                )}
+                                                                                            </AnimatePresence>
+                                                                                        </div>
                                                                                     </div>
-                                                                                </div>
-                                                                            )
-                                                                        })}
+                                                                                )
+                                                                            })}
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
 
-                                                            {/* Modal Footer actions */}
-                                                            <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)] shrink-0 flex items-center justify-between gap-3">
-                                                                {isSelectingHistory ? (
-                                                                    <>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setIsSelectingHistory(false);
-                                                                                setSelectedHistoryItems([]);
-                                                                            }}
-                                                                            className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-slate-50 border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-100 transition-colors shadow-sm"
-                                                                        >
-                                                                            Hủy
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (selectedHistoryItems.length > 0) {
-                                                                                    toast.success(`Đã xóa ${selectedHistoryItems.length} ghi nhận!`);
+                                                                {/* Modal Footer actions */}
+                                                                <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)] shrink-0 flex items-center justify-between gap-3">
+                                                                    {isSelectingHistory ? (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => {
                                                                                     setIsSelectingHistory(false);
                                                                                     setSelectedHistoryItems([]);
-                                                                                }
-                                                                            }}
-                                                                            disabled={selectedHistoryItems.length === 0}
-                                                                            className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-50 border border-rose-100 text-[13px] font-bold text-rose-600 hover:bg-rose-100 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                        >
-                                                                            <Trash2 className="w-4 h-4 text-rose-500" />
-                                                                            Xóa ({selectedHistoryItems.length})
-                                                                        </button>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <button className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm">
-                                                                            <Edit className="w-4 h-4 text-slate-600" />
-                                                                            Sửa ghi nhận
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => setIsSelectingHistory(true)}
-                                                                            className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
-                                                                        >
-                                                                            <CheckSquare className="w-4 h-4 text-slate-600" />
-                                                                            Chọn
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        </DrawerContent>
-                                                    </Drawer>
-                                                </td>
-                                            </motion.tr>
-                                        );
-                                    })
-                                )}
+                                                                                }}
+                                                                                className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-slate-50 border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-100 transition-colors shadow-sm"
+                                                                            >
+                                                                                Hủy
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (selectedHistoryItems.length > 0) {
+                                                                                        toast.success(`Đã xóa ${selectedHistoryItems.length} ghi nhận!`);
+                                                                                        setIsSelectingHistory(false);
+                                                                                        setSelectedHistoryItems([]);
+                                                                                    }
+                                                                                }}
+                                                                                disabled={selectedHistoryItems.length === 0}
+                                                                                className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-50 border border-rose-100 text-[13px] font-bold text-rose-600 hover:bg-rose-100 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                            >
+                                                                                <Trash2 className="w-4 h-4 text-rose-500" />
+                                                                                Xóa ({selectedHistoryItems.length})
+                                                                            </button>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <button className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm">
+                                                                                <Edit className="w-4 h-4 text-slate-600" />
+                                                                                Sửa ghi nhận
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => setIsSelectingHistory(true)}
+                                                                                className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
+                                                                            >
+                                                                                <CheckSquare className="w-4 h-4 text-slate-600" />
+                                                                                Chọn
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            </DrawerContent>
+                                                        </Drawer>
+                                                    </td>
+                                                </motion.tr>
+                                            );
+                                        })
+                                    )}
 
-                                {paginatedRecords.length === 0 && (
-                                    <tr>
-                                        <td colSpan={9} className="px-5 py-8 text-center text-sm text-gray-500 bg-gray-50/50">
-                                            Không tìm thấy ghi nhận nào.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                    {paginatedRecords.length === 0 && (
+                                        <tr>
+                                            <td colSpan={9} className="px-5 py-8 text-center text-sm text-gray-500 bg-gray-50/50">
+                                                Không tìm thấy ghi nhận nào.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
 
-                    {/* Pagination Bar */}
+                    {/* Pagination Bar Student */}
                     {filteredRecords.length > 0 && (
                         <CustomPagination
                             currentPage={currentPage}
@@ -685,7 +1292,7 @@ function GhiNhanTab() {
                             onPageChange={(page) => {
                                 setIsLoading(true);
                                 setCurrentPage(page);
-                                setTimeout(() => setIsLoading(false), 400);
+                                setTimeout(() => setIsLoading(false), 300);
                             }}
                             label="ghi nhận"
                             isLoading={isLoading}
@@ -724,25 +1331,20 @@ function GhiNhanTab() {
                                     className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-gray-400"
                                 />
                             </div>
-
-                            {selectedReportIds.length > 0 && (
-                                <button
-                                    onClick={handleDeleteClassReportsBulk}
-                                    className="px-4 py-2 text-sm font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-100 whitespace-nowrap"
-                                >
-                                    Xoá ({selectedReportIds.length})
-                                </button>
-                            )}
                         </div>
 
                         <div className="flex items-center justify-end gap-3 w-full lg:w-auto">
                             {/* Datepicker */}
                             <Popover open={isClassDateCalendarOpen} onOpenChange={setIsClassDateCalendarOpen}>
                                 <PopoverTrigger asChild>
-                                    <button className={`flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold transition-colors shadow-sm whitespace-nowrap ${selectedReportDate ? 'border-blue-400 bg-blue-50/50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                                        <CalendarIcon className={`w-4 h-4 ${selectedReportDate ? 'text-blue-500' : 'text-gray-500'}`} />
-                                        <span className="hidden sm:inline">{selectedReportDate ? format(selectedReportDate, 'dd/MM/yyyy') : 'Chọn ngày'}</span>
-                                        <span className="sm:hidden">{selectedReportDate ? 'Đã lọc' : 'Lọc'}</span>
+                                    <button className={`flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold transition-colors shadow-sm whitespace-nowrap ${selectedReportDateRange ? 'border-blue-400 bg-blue-50/50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                        <CalendarIcon className={`w-4 h-4 ${selectedReportDateRange ? 'text-blue-500' : 'text-gray-500'}`} />
+                                        <span className="hidden sm:inline">
+                                            {selectedReportDateRange
+                                                ? `${format(selectedReportDateRange.start, 'dd/MM')} - ${format(selectedReportDateRange.end, 'dd/MM')}`
+                                                : 'Chọn khoảng ngày'}
+                                        </span>
+                                        <span className="sm:hidden">{selectedReportDateRange ? 'Đã lọc' : 'Lọc'}</span>
                                     </button>
                                 </PopoverTrigger>
                                 <PopoverContent
@@ -752,33 +1354,44 @@ function GhiNhanTab() {
                                     sideOffset={6}
                                 >
                                     <CustomCalendar
-                                        startDate={selectedReportDate}
-                                        endDate={null}
-                                        onRangeSelect={(start) => setSelectedReportDate(start)}
-                                        onCancel={() => { setSelectedReportDate(null); setIsClassDateCalendarOpen(false); }}
+                                        startDate={selectedReportDateRange?.start || null}
+                                        endDate={selectedReportDateRange?.end || null}
+                                        onRangeSelect={(start, end) => setSelectedReportDateRange({ start, end })}
+                                        onCancel={() => { setSelectedReportDateRange(null); setIsClassDateCalendarOpen(false); }}
                                         onConfirm={() => setIsClassDateCalendarOpen(false)}
                                     />
                                 </PopoverContent>
                             </Popover>
 
                             {/* Class Dropdown */}
-                            <select
-                                value={selectedClassId}
-                                onChange={(e) => setSelectedClassId(e.target.value)}
-                                className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all appearance-none cursor-pointer shadow-sm"
-                                style={{
-                                    backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E")`,
-                                    backgroundPosition: 'right 8px center',
-                                    backgroundSize: '1.25rem',
-                                    backgroundRepeat: 'no-repeat',
-                                    paddingRight: '2rem'
-                                }}
+                            <div className="w-[180px]">
+                                <Select
+                                    value={selectedClassId}
+                                    onValueChange={(val: string) => {
+                                        setSelectedClassId(val);
+                                        setClassCurrentPage(1);
+                                    }}
+                                >
+                                    <SelectTrigger className="h-10 bg-white border border-gray-200 text-slate-700 hover:bg-gray-50 transition-colors font-semibold text-sm rounded-lg shadow-sm">
+                                        <SelectValue placeholder="Tất cả các lớp" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Tất cả các lớp</SelectItem>
+                                        {classes.map(c => (
+                                            <SelectItem key={c._id} value={c._id}>{c.class_name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+
+                            <button
+                                onClick={() => setIsGlobalConfigModalOpen(true)}
+                                className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                                title="Cấu hình tiêu chí vắng mặt"
                             >
-                                <option value="all">Tất cả các lớp</option>
-                                {classes.map(c => (
-                                    <option key={c._id} value={c._id}>{c.class_name}</option>
-                                ))}
-                            </select>
+                                <Settings className="w-4 h-4" />
+                            </button>
 
                             <button
                                 onClick={handleCreate}
@@ -793,163 +1406,276 @@ function GhiNhanTab() {
 
                     {/* Table Content */}
                     <div className="flex-1 overflow-auto bg-white">
-                        <table className="w-full text-left border-collapse min-w-max">
-                            <thead className="bg-[#F8FAFB] sticky top-0 z-10 shadow-sm shadow-gray-100/50">
-                                <tr>
-                                    <th className="px-5 py-3 w-12 text-center border-b border-gray-100">
-                                        <input
-                                            type="checkbox"
-                                            checked={paginatedClassReports.length > 0 && selectedReportIds.length === paginatedClassReports.length}
-                                            onChange={toggleSelectAllClass}
-                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                    </th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Lớp học</th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Ngày báo cáo</th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Sĩ số có mặt</th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Giảng viên ghi nhận</th>
-                                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Ghi chú lớp</th>
-                                    <th className="px-5 py-3 w-16 text-center text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Hành động</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
+                        {viewLayout === 'card' ? (
+                            <div className="p-4 bg-slate-50/30">
                                 {isClassLoading ? (
-                                    Array.from({ length: 6 }).map((_, i) => (
-                                        <tr key={i}>
-                                            <td className="px-5 py-4 border-b border-gray-50 text-center"><Skeleton className="w-4 h-4 rounded mx-auto" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-24 h-4" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-20 h-4" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-28 h-6 rounded-full" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-28 h-4" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-44 h-4" /></td>
-                                            <td className="px-5 py-4 border-b border-gray-50 text-center"><Skeleton className="w-12 h-6 rounded-md mx-auto" /></td>
-                                        </tr>
-                                    ))
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {Array.from({ length: 6 }).map((_, i) => (
+                                            <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3">
+                                                <Skeleton className="w-24 h-5" />
+                                                <Skeleton className="w-32 h-4" />
+                                                <Skeleton className="w-full h-8 rounded-xl" />
+                                                <Skeleton className="w-full h-10 rounded-xl" />
+                                            </div>
+                                        ))}
+                                    </div>
                                 ) : (
-                                    paginatedClassReports.map((report, idx) => {
-                                        const classObj = typeof report.class_id === 'object' ? report.class_id : null;
-                                        const className = classObj ? classObj.class_name : 'CS-101-A';
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {paginatedClassReports.map((report, idx) => {
+                                            const classObj = typeof report.class_id === 'object' ? report.class_id : null;
+                                            const className = classObj ? classObj.class_name : 'CS-101-A';
 
-                                        const totalPresent = report.total_present || 0;
-                                        const totalAbsent = report.total_absent || 0;
-                                        const totalStudents = totalPresent + totalAbsent;
-                                        const percent = totalStudents === 0 ? 0 : Math.round((totalPresent / totalStudents) * 100);
+                                            const totalPresent = report.total_present || 0;
+                                            const totalAbsent = report.total_absent || 0;
+                                            const totalStudents = totalPresent + totalAbsent;
+                                            const percent = totalStudents === 0 ? 0 : Math.round((totalPresent / totalStudents) * 100);
 
-                                        return (
-                                            <motion.tr
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ duration: 0.1, delay: idx * 0.04 }}
-                                                key={report._id}
-                                                className="hover:bg-slate-50/50 transition-colors group"
-                                            >
-                                                <td className="px-5 py-4 w-12 text-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedReportIds.includes(report._id)}
-                                                        onChange={() => toggleSelectClass(report._id)}
-                                                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                    />
-                                                </td>
-                                                <td className="px-5 py-4 text-sm font-bold text-slate-800">
-                                                    {className}
-                                                </td>
-                                                <td className="px-5 py-4 text-sm font-medium text-gray-600">
-                                                    {report.report_date}
-                                                </td>
-                                                <td className="px-5 py-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-semibold text-gray-600">{totalPresent}/{totalStudents}</span>
-                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border ${percent >= 80
-                                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
-                                                                : 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                            return (
+                                                <motion.div
+                                                    initial={{ opacity: 0, scale: 0.95 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    transition={{ duration: 0.15, delay: idx * 0.03 }}
+                                                    key={report._id}
+                                                    className={`bg-white border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-3 relative group ${selectedReportIds.includes(report._id) ? 'border-blue-400 bg-blue-50/10 shadow-[0_2px_12px_rgba(59,130,246,0.08)]' : 'border-slate-100'
+                                                        }`}
+                                                >
+                                                    {/* Checkbox & Class Name */}
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedReportIds.includes(report._id)}
+                                                                onChange={() => toggleSelectClass(report._id)}
+                                                                className="w-4.5 h-4.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                            />
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-bold text-slate-800">{className}</span>
+                                                                {report.createdAt && (new Date().getTime() - new Date(report.createdAt).getTime()) < 24 * 60 * 60 * 1000 && (
+                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
+                                                                        New
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${percent >= 80
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
+                                                            : 'bg-rose-50 text-rose-600 border-rose-100/50'
                                                             }`}>
                                                             <span className={`w-1.5 h-1.5 rounded-full ${percent >= 80 ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                                                            {percent}%
+                                                            Sĩ số: {percent}%
                                                         </span>
                                                     </div>
-                                                </td>
-                                                <td className="px-5 py-4 text-sm font-bold text-slate-700">
-                                                    {report.teacher_name}
-                                                </td>
-                                                <td className="px-5 py-4 text-sm font-medium text-gray-600 max-w-[200px] truncate" title={report.class_note || 'Ghi nhận đầy đủ...'}>
-                                                    {report.class_note || 'Ghi nhận đầy đủ...'}
-                                                </td>
-                                                <td className="px-5 py-4 text-center">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        {/* Chi tiết popover */}
-                                                        <Popover>
-                                                            <PopoverTrigger asChild>
+
+                                                    {/* Present stats */}
+                                                    <div className="bg-slate-50/50 rounded-xl p-2.5 flex items-center justify-between text-[11.5px] text-slate-600 font-semibold">
+                                                        <span>Hiện diện: {totalPresent}/{totalStudents}</span>
+                                                        <span>Vắng: {totalAbsent}</span>
+                                                    </div>
+
+                                                    {/* Teacher name & note */}
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="text-[12px] font-bold text-slate-700">GV: {report.teacher_name}</div>
+                                                        <div className="text-[11.5px] text-slate-400 font-medium line-clamp-2 h-8" title={report.class_note || 'Ghi nhận đầy đủ...'}>
+                                                            {report.class_note || 'Ghi nhận đầy đủ...'}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Date & Actions */}
+                                                    <div className="border-t border-slate-100/60 pt-2.5 mt-1 flex items-center justify-between">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Ngày báo cáo</span>
+                                                            <span className="text-[11px] font-bold text-slate-600 mt-0.5">{report.report_date}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <ClassReportDetailDialog
+                                                                report={report}
+                                                                className={className}
+                                                                totalPresent={totalPresent}
+                                                                totalAbsent={totalAbsent}
+                                                            >
+                                                                <button className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-all cursor-pointer">
+                                                                    <Eye className="w-4 h-4" />
+                                                                </button>
+                                                            </ClassReportDetailDialog>
+                                                            <button
+                                                                onClick={() => handleEditClassReport(report)}
+                                                                className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-all cursor-pointer"
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteClassReportSingle(report._id)}
+                                                                className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {paginatedClassReports.length === 0 && !isClassLoading && (
+                                    <div className="text-center py-12 text-slate-400 italic text-sm bg-white rounded-2xl border border-slate-100">
+                                        Không tìm thấy báo cáo tình hình lớp học nào phù hợp.
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse min-w-max">
+                                <thead className="bg-[#F8FAFB] sticky top-0 z-10 shadow-sm shadow-gray-100/50">
+                                    <tr>
+                                        <th className="px-5 py-3 w-12 text-center border-b border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={paginatedClassReports.length > 0 && selectedReportIds.length === paginatedClassReports.length}
+                                                onChange={toggleSelectAllClass}
+                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                        </th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Lớp học</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Ngày báo cáo</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Sĩ số có mặt</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Giảng viên ghi nhận</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Ghi chú lớp</th>
+                                        <th className="px-5 py-3 w-16 text-center text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Hành động</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {isClassLoading ? (
+                                        Array.from({ length: 6 }).map((_, i) => (
+                                            <tr key={i}>
+                                                <td className="px-5 py-4 border-b border-gray-50 text-center"><Skeleton className="w-4 h-4 rounded mx-auto" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-24 h-4" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-20 h-4" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-28 h-6 rounded-full" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-28 h-4" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-44 h-4" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50 text-center"><Skeleton className="w-12 h-6 rounded-md mx-auto" /></td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        paginatedClassReports.map((report, idx) => {
+                                            const classObj = typeof report.class_id === 'object' ? report.class_id : null;
+                                            const className = classObj ? classObj.class_name : 'CS-101-A';
+
+                                            const totalPresent = report.total_present || 0;
+                                            const totalAbsent = report.total_absent || 0;
+                                            const totalStudents = totalPresent + totalAbsent;
+                                            const percent = totalStudents === 0 ? 0 : Math.round((totalPresent / totalStudents) * 100);
+
+                                            return (
+                                                <motion.tr
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ duration: 0.1, delay: idx * 0.04 }}
+                                                    key={report._id}
+                                                    className="hover:bg-slate-50/50 transition-colors group"
+                                                >
+                                                    <td className="px-5 py-4 w-12 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedReportIds.includes(report._id)}
+                                                            onChange={() => toggleSelectClass(report._id)}
+                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                    </td>
+                                                    <td className="px-5 py-4 text-sm font-bold text-slate-800">
+                                                        <div className="flex items-center gap-2">
+                                                            <span>{className}</span>
+                                                            {report.createdAt && (new Date().getTime() - new Date(report.createdAt).getTime()) < 24 * 60 * 60 * 1000 && (
+                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
+                                                                    New
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-5 py-4 text-sm font-medium text-gray-600">
+                                                        {(() => {
+                                                            const dStr = report.report_date;
+                                                            if (!dStr) return 'N/A';
+                                                            if (dStr.includes('/')) return dStr;
+                                                            try {
+                                                                return format(new Date(dStr), 'dd/MM/yyyy');
+                                                            } catch {
+                                                                return dStr;
+                                                            }
+                                                        })()}
+                                                    </td>
+                                                    <td className="px-5 py-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm font-semibold text-gray-600">{totalPresent}/{totalStudents}</span>
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border ${percent >= 80
+                                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
+                                                                : 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                                                }`}>
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${percent >= 80 ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                                                {percent}%
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-5 py-4 text-sm font-bold text-slate-700">
+                                                        {report.teacher_name}
+                                                    </td>
+                                                    <td className="px-5 py-4 text-sm font-medium text-gray-600 max-w-[200px] truncate" title={report.class_note || 'Ghi nhận đầy đủ...'}>
+                                                        {report.class_note || 'Ghi nhận đầy đủ...'}
+                                                    </td>
+                                                    <td className="px-5 py-4 text-center">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            {/* Chi tiết popover */}
+                                                            <ClassReportDetailDialog
+                                                                report={report}
+                                                                className={className}
+                                                                totalPresent={totalPresent}
+                                                                totalAbsent={totalAbsent}
+                                                            >
                                                                 <button
                                                                     className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
                                                                     title="Xem chi tiết"
                                                                 >
                                                                     <Eye className="w-4 h-4" />
                                                                 </button>
-                                                            </PopoverTrigger>
-                                                            <PopoverContent className="w-80 bg-white/95 backdrop-blur-md rounded-2xl p-5 border border-slate-100 shadow-xl z-50">
-                                                                <div className="flex flex-col gap-3">
-                                                                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                                                                        <h4 className="font-bold text-slate-900 text-sm">Chi tiết báo cáo</h4>
-                                                                        <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">{className}</span>
-                                                                    </div>
-                                                                    <div className="grid grid-cols-2 gap-2 text-xs font-medium text-slate-600">
-                                                                        <div>Ngày báo cáo:</div>
-                                                                        <div className="font-bold text-slate-800">{report.report_date}</div>
-                                                                        <div>Giảng viên:</div>
-                                                                        <div className="font-bold text-slate-800">{report.teacher_name}</div>
-                                                                        <div>Có mặt:</div>
-                                                                        <div className="font-bold text-emerald-600">{totalPresent} sinh viên</div>
-                                                                        <div>Vắng mặt:</div>
-                                                                        <div className="font-bold text-rose-600">{totalAbsent} sinh viên</div>
-                                                                    </div>
-                                                                    <div className="border-t border-slate-100 pt-2 flex flex-col gap-1">
-                                                                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Ghi chú lớp</span>
-                                                                        <p className="text-xs text-slate-650 italic bg-slate-50 rounded-lg p-2.5 border border-slate-100/50 min-h-[50px]">
-                                                                            "{report.class_note || 'Không có ghi chú thêm.'}"
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            </PopoverContent>
-                                                        </Popover>
+                                                            </ClassReportDetailDialog>
 
-                                                        {/* Sửa */}
-                                                        <button
-                                                            onClick={() => handleEditClassReport(report)}
-                                                            className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
-                                                            title="Chỉnh sửa"
-                                                        >
-                                                            <Edit className="w-4 h-4" />
-                                                        </button>
+                                                            {/* Sửa */}
+                                                            <button
+                                                                onClick={() => handleEditClassReport(report)}
+                                                                className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
+                                                                title="Chỉnh sửa"
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </button>
 
-                                                        {/* Xóa */}
-                                                        <button
-                                                            onClick={() => handleDeleteClassReportSingle(report._id)}
-                                                            className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
-                                                            title="Xóa"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </motion.tr>
-                                        );
-                                    })
-                                )}
+                                                            {/* Xóa */}
+                                                            <button
+                                                                onClick={() => handleDeleteClassReportSingle(report._id)}
+                                                                className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
+                                                                title="Xóa"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </motion.tr>
+                                            );
+                                        })
+                                    )}
 
-                                {!isClassLoading && paginatedClassReports.length === 0 && (
-                                    <tr>
-                                        <td colSpan={7} className="px-5 py-8 text-center text-sm text-gray-500 bg-gray-50/50">
-                                            Không tìm thấy báo cáo tình hình lớp học nào phù hợp.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                    {!isClassLoading && paginatedClassReports.length === 0 && (
+                                        <tr>
+                                            <td colSpan={7} className="px-5 py-8 text-center text-sm text-gray-500 bg-gray-50/50">
+                                                Không tìm thấy báo cáo tình hình lớp học nào phù hợp.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
 
                     {/* Pagination Bar Class */}
-                    {!isClassLoading && filteredClassReports.length > 0 && (
+                    {filteredClassReports.length > 0 && (
                         <CustomPagination
                             currentPage={classCurrentPage}
                             pageSize={itemsPerPage}
@@ -965,7 +1691,591 @@ function GhiNhanTab() {
                     )}
                 </>
             )}
+
+            {activeSubTab === 'student' ? (
+                <FloatingActionBar
+                    selectedCount={selectedIds.length}
+                    onClear={() => setSelectedIds([])}
+                    variant="dark"
+                    actions={
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleExportSelectedStudentExcel}
+                                className="bg-[#107c41] hover:bg-[#0e6c38] text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,124,65,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                            >
+                                <FileSpreadsheet size={13} strokeWidth={2.5} />
+                                <span>Xuất Excel ({selectedIds.length})</span>
+                            </button>
+                            <button
+                                onClick={() => setIsDeleteConfirmOpen(true)}
+                                className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                            >
+                                <Trash2 size={13} strokeWidth={2.5} />
+                                <span>Xóa ({selectedIds.length})</span>
+                            </button>
+                        </div>
+                    }
+                />
+            ) : (
+                <FloatingActionBar
+                    selectedCount={selectedReportIds.length}
+                    onClear={() => setSelectedReportIds([])}
+                    variant="dark"
+                    actions={
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleExportSelectedClassExcel}
+                                className="bg-[#107c41] hover:bg-[#0e6c38] text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,124,65,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                            >
+                                <FileSpreadsheet size={13} strokeWidth={2.5} />
+                                <span>Xuất Excel ({selectedReportIds.length})</span>
+                            </button>
+                            <button
+                                onClick={() => setIsDeleteClassConfirmOpen(true)}
+                                className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                            >
+                                <Trash2 size={13} strokeWidth={2.5} />
+                                <span>Xóa ({selectedReportIds.length})</span>
+                            </button>
+                        </div>
+                    }
+                />
+            )}
+
+            {/* Confirm delete HSSV */}
+            <ConfirmModal
+                isOpen={isDeleteConfirmOpen}
+                onClose={() => setIsDeleteConfirmOpen(false)}
+                onConfirm={handleDelete}
+                title="Xác nhận xóa ghi nhận"
+                message={`Bạn có chắc chắn muốn xóa ${selectedIds.length} ghi nhận HSSV đã chọn? Hành động này không thể hoàn tác.`}
+                confirmLabel="Xóa"
+                cancelLabel="Hủy"
+                variant="danger"
+            />
+
+            {/* Confirm delete báo cáo lớp */}
+            <ConfirmModal
+                isOpen={isDeleteClassConfirmOpen}
+                onClose={() => setIsDeleteClassConfirmOpen(false)}
+                onConfirm={handleDeleteClassReportsBulk}
+                title="Xác nhận xóa báo cáo lớp"
+                message={`Bạn có chắc chắn muốn xóa ${selectedReportIds.length} báo cáo lớp học đã chọn? Hành động này không thể hoàn tác.`}
+                confirmLabel="Xóa"
+                cancelLabel="Hủy"
+                variant="danger"
+            />
+
+            {/* Dialog cấu hình tiêu chí vắng mặt toàn cục */}
+            <Dialog open={isGlobalConfigModalOpen} onOpenChange={setIsGlobalConfigModalOpen}>
+                <DialogContent className="max-w-[760px] w-[95vw] rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
+                    <DialogTitle className="text-[17px] font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Settings className="w-4 h-4 text-blue-500" />
+                        Cấu hình & Tiện ích hệ thống
+                    </DialogTitle>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                        {/* Cột trái: Tiện ích */}
+                        <div className="flex flex-col gap-3">
+                            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tiện ích</h4>
+                            <button
+                                onClick={() => {
+                                    setIsGlobalConfigModalOpen(false);
+                                    setIsTrashOpen(true);
+                                }}
+                                className="w-full flex items-center justify-between p-3.5 bg-white border border-slate-100 hover:bg-slate-50/50 hover:border-slate-200 rounded-2xl transition-all cursor-pointer shadow-sm text-left group"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                        <Trash2 className="w-4.5 h-4.5" />
+                                    </div>
+                                    <div>
+                                        <div className="text-[13px] font-bold text-slate-800">Thùng rác</div>
+                                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">Xem các ghi nhận đã bị xóa gần đây</div>
+                                    </div>
+                                </div>
+                                <ChevronDown className="w-4 h-4 text-slate-400" style={{ transform: 'rotate(-90deg)' }} />
+                            </button>
+                        </div>
+
+                        {/* Cột phải: Cấu hình */}
+                        <div className="border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6 flex flex-col gap-4">
+                            <div>
+                                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Cấu hình hiển thị</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setViewLayout('table');
+                                            localStorage.setItem('ghinhan_view_layout', 'table');
+                                        }}
+                                        className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-[12px] font-bold transition-all cursor-pointer ${viewLayout === 'table'
+                                            ? 'bg-blue-50 border-blue-200 text-blue-600 shadow-sm'
+                                            : 'bg-white border-slate-100 text-slate-500 hover:text-slate-800'
+                                            }`}
+                                    >
+                                        Dạng bảng
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setViewLayout('card');
+                                            localStorage.setItem('ghinhan_view_layout', 'card');
+                                        }}
+                                        className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-[12px] font-bold transition-all cursor-pointer ${viewLayout === 'card'
+                                            ? 'bg-blue-50 border-blue-200 text-blue-600 shadow-sm'
+                                            : 'bg-white border-slate-100 text-slate-500 hover:text-slate-800'
+                                            }`}
+                                    >
+                                        Dạng thẻ
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tiêu chí tính vắng</h4>
+                                <DialogDescription className="text-[12px] text-slate-500 leading-normal">
+                                    Chọn tiêu chí kỷ luật dùng để tự động tính sĩ số vắng học.
+                                </DialogDescription>
+                                <div className="max-h-[140px] overflow-y-auto pr-1 flex flex-col gap-2 mt-1">
+                                    {globalCriteria.map((c) => {
+                                        const isChecked = globalAbsentCriteriaIds.includes(c._id);
+                                        return (
+                                            <label
+                                                key={c._id}
+                                                className={`flex items-center justify-between p-2.5 rounded-xl border text-[12.5px] font-medium transition-all cursor-pointer select-none ${isChecked
+                                                    ? 'bg-rose-50/50 border-rose-200/80 text-rose-700 shadow-sm'
+                                                    : 'bg-slate-50/30 border-slate-100 text-slate-700 hover:bg-slate-50/85'
+                                                    }`}
+                                            >
+                                                <span className="flex-1 pr-3 truncate">{c.criterion_name}</span>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={(e) => {
+                                                        let updated: string[];
+                                                        if (e.target.checked) {
+                                                            updated = [...globalAbsentCriteriaIds, c._id];
+                                                        } else {
+                                                            updated = globalAbsentCriteriaIds.filter(id => id !== c._id);
+                                                        }
+                                                        setGlobalAbsentCriteriaIds(updated);
+                                                        localStorage.setItem('absentCriteriaIds', JSON.stringify(updated));
+                                                    }}
+                                                    className="w-4 h-4 rounded text-rose-600 border-slate-300 focus:ring-rose-500/20 cursor-pointer accent-rose-600"
+                                                />
+                                            </label>
+                                        );
+                                    })}
+                                    {globalCriteria.length === 0 && (
+                                        <div className="text-center py-4 text-slate-400 italic text-[12px]">
+                                            Đang tải tiêu chí...
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 flex justify-end border-t border-slate-100 pt-4">
+                        <button
+                            type="button"
+                            onClick={() => setIsGlobalConfigModalOpen(false)}
+                            className="bg-slate-900 text-white font-semibold rounded-full px-5 py-1.5 hover:bg-slate-800 text-[12.5px] cursor-pointer border-none outline-none"
+                        >
+                            Hoàn tất
+                        </button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Dialog Thùng rác giả định */}
+            <Dialog open={isTrashOpen} onOpenChange={setIsTrashOpen}>
+                <DialogContent className="max-w-[500px] rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
+                    <DialogTitle className="text-[17px] font-bold text-slate-800 flex items-center gap-2">
+                        <Trash2 className="w-4.5 h-4.5 text-rose-500" />
+                        Thùng rác ghi nhận
+                    </DialogTitle>
+                    <DialogDescription className="text-[12.5px] text-slate-500 mt-1">
+                        Danh sách các ghi nhận đã bị xóa. Bạn có thể khôi phục lại chúng về bảng chính.
+                    </DialogDescription>
+
+                    <div className="mt-4 max-h-[300px] overflow-y-auto pr-2 flex flex-col gap-3">
+                        {mockDeletedItems.map((item) => (
+                            <div
+                                key={item.id}
+                                className="p-3.5 bg-white border border-slate-100 rounded-xl shadow-sm flex items-center justify-between gap-4 group"
+                            >
+                                <div className="flex flex-col min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[13px] font-bold text-slate-800">{item.name}</span>
+                                        <span className="text-[11px] text-slate-500 font-semibold">• {item.class}</span>
+                                    </div>
+                                    <p className="text-[12px] text-slate-600 mt-1 truncate" title={item.detail}>
+                                        {item.detail}
+                                    </p>
+                                    <span className="text-[10px] text-slate-400 font-medium mt-1">{item.date}</span>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setMockDeletedItems(prev => prev.filter(x => x.id !== item.id));
+                                        toast.success(`Đã khôi phục thành công ghi nhận của ${item.name}!`);
+                                    }}
+                                    className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-[11px] font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer shrink-0"
+                                >
+                                    Khôi phục
+                                </button>
+                            </div>
+                        ))}
+                        {mockDeletedItems.length === 0 && (
+                            <div className="text-center py-8 text-slate-400 italic text-[12.5px]">
+                                Thùng rác trống.
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="mt-6 flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsTrashOpen(false);
+                                setIsGlobalConfigModalOpen(true);
+                            }}
+                            className="bg-slate-100 text-slate-600 font-semibold rounded-full px-5 py-1.5 hover:bg-slate-200 text-[12.5px] cursor-pointer"
+                        >
+                            Quay lại
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setIsTrashOpen(false)}
+                            className="bg-slate-900 text-white font-semibold rounded-full px-5 py-1.5 hover:bg-slate-800 text-[12.5px] cursor-pointer border-none outline-none"
+                        >
+                            Đóng
+                        </button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
+    );
+}
+
+interface ViolationItem {
+    student_id: string;
+    student_name: string;
+    student_code: string;
+    evaluation_detail_id: string;
+    criterion_name: string;
+    points_effect: number;
+    class_note: string;
+}
+
+function ClassReportDetailDialog({
+    report,
+    className,
+    totalPresent,
+    totalAbsent,
+    children
+}: {
+    report: DailyClassReport;
+    className: string;
+    totalPresent: number;
+    totalAbsent: number;
+    children: React.ReactNode;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [violations, setViolations] = useState<ViolationItem[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const shareCardRef = useRef<HTMLDivElement>(null);
+
+    const loadHtmlToImage = (): Promise<any> => {
+        return new Promise((resolve, reject) => {
+            if ((window as any).htmlToImage) {
+                resolve((window as any).htmlToImage);
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js';
+            script.onload = () => {
+                if ((window as any).htmlToImage) {
+                    resolve((window as any).htmlToImage);
+                } else {
+                    reject(new Error('html-to-image load failed'));
+                }
+            };
+            script.onerror = () => reject(new Error('html-to-image load failed'));
+            document.head.appendChild(script);
+        });
+    };
+
+    const handleCopyAsImage = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!shareCardRef.current) return;
+
+        const loadingToast = toast.loading('Đang xử lý hình ảnh báo cáo...');
+        try {
+            const htmlToImageLib = await loadHtmlToImage();
+            const blob = await htmlToImageLib.toBlob(shareCardRef.current, {
+                pixelRatio: 2,
+                backgroundColor: '#f8fafc',
+                style: {
+                    opacity: '1',
+                    visibility: 'visible',
+                    transform: 'none'
+                }
+            });
+
+            if (blob) {
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        [blob.type]: blob
+                    })
+                ]);
+                toast.success('Đã sao chép hình ảnh báo cáo vào Clipboard! Bạn có thể gửi đi ngay.', { id: loadingToast });
+            } else {
+                throw new Error('Không thể tạo blob ảnh');
+            }
+        } catch (err) {
+            console.error('Lỗi khi sao chép hình ảnh:', err);
+            toast.error('Không thể chụp hình ảnh. Vui lòng thử lại!', { id: loadingToast });
+        }
+    };
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        async function loadViolations() {
+            setIsLoading(true);
+            try {
+                const records = await academicRecordApi.getAcademicRecordsByDailyReport(report._id);
+                if (records && records.length > 0) {
+                    const mapped: ViolationItem[] = records.map(rec => {
+                        const stObj = typeof rec.student_id === 'object' ? rec.student_id : null;
+                        const critObj = typeof rec.evaluation_detail_id === 'object' ? rec.evaluation_detail_id : null;
+                        const criterionId = rec.criteria_id
+                            ? (typeof rec.criteria_id === 'object' ? rec.criteria_id?._id : rec.criteria_id)
+                            : (critObj
+                                ? (typeof critObj.criterion_id === 'object' ? critObj.criterion_id?._id : critObj.criterion_id)
+                                : rec.evaluation_detail_id);
+                        return {
+                            student_id: stObj ? stObj._id : rec.student_id,
+                            student_name: stObj ? stObj.full_name : 'Sinh viên',
+                            student_code: stObj ? stObj.student_code : '',
+                            evaluation_detail_id: criterionId,
+                            criterion_name: rec.record_title || 'Vi phạm',
+                            points_effect: rec.points_effect || -5,
+                            class_note: rec.record_title || ''
+                        };
+                    });
+                    setViolations(mapped);
+                } else {
+                    setViolations([]);
+                }
+            } catch (err) {
+                console.error("Lỗi khi tải danh sách vi phạm của báo cáo:", err);
+                setViolations([]);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+
+        loadViolations();
+    }, [isOpen, report._id, totalAbsent]);
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                {children}
+            </DialogTrigger>
+            <DialogContent className="max-w-[440px] sm:max-w-[480px] bg-white rounded-2xl p-6 border border-slate-100 shadow-2xl z-50 overflow-hidden gap-0">
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3 pr-6">
+                        <div className="flex flex-col">
+                            <DialogTitle className="font-bold text-slate-900 text-[16px]">Chi tiết báo cáo buổi học</DialogTitle>
+                            <span className="text-[11px] text-slate-400 font-semibold mt-0.5">Mã báo cáo: {report._id.substring(0, 8)}...</span>
+                            <DialogDescription className="sr-only">
+                                Xem thông tin chi tiết về sĩ số chuyên cần và danh sách các sinh viên bị ghi nhận vi phạm trong buổi học của lớp {className}.
+                            </DialogDescription>
+                        </div>
+                        <span className="text-xs bg-blue-50 text-blue-600 px-3 py-0.5 rounded-full font-bold border border-blue-100/50">{className}</span>
+                    </div>
+
+                    <div className="flex flex-col gap-2.5 text-xs font-semibold text-slate-500 bg-slate-50/70 rounded-xl p-3.5 border border-slate-100/50">
+                        <div className="flex justify-between items-center w-full">
+                            <span className="text-slate-400 text-left">Ngày báo cáo:</span>
+                            <span className="font-bold text-slate-800 text-right">
+                                {(() => {
+                                    const dStr = report.report_date;
+                                    if (!dStr) return 'N/A';
+                                    if (dStr.includes('/')) return dStr;
+                                    try {
+                                        return format(new Date(dStr), 'dd/MM/yyyy');
+                                    } catch {
+                                        return dStr;
+                                    }
+                                })()}
+                            </span>
+                        </div>
+                        <div className="flex justify-between items-center w-full">
+                            <span className="text-slate-400 text-left">Giảng viên:</span>
+                            <span className="font-bold text-slate-800 text-right">{report.teacher_name}</span>
+                        </div>
+                        <div className="flex justify-between items-center w-full">
+                            <span className="text-slate-400 text-left">Có mặt:</span>
+                            <span className="font-bold text-emerald-600 text-right">{totalPresent} sinh viên</span>
+                        </div>
+                        <div className="flex justify-between items-center w-full">
+                            <span className="text-slate-400 text-left">Vắng mặt:</span>
+                            <span className="font-bold text-rose-600 text-right">{totalAbsent} sinh viên</span>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Ghi chú lớp</span>
+                        <p className="text-xs text-slate-600 italic bg-slate-50 rounded-lg p-3 border border-slate-100/50 min-h-[45px] leading-relaxed">
+                            "{report.class_note || 'Không có ghi chú thêm.'}"
+                        </p>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-3.5 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sinh viên bị ghi nhận vi phạm</span>
+                            <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full font-bold">
+                                {violations.length} mục
+                            </span>
+                        </div>
+
+                        {isLoading ? (
+                            <div className="flex items-center justify-center py-8 gap-2 text-xs text-slate-400 font-medium">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                <span>Đang tải thông tin sinh viên...</span>
+                            </div>
+                        ) : violations.length > 0 ? (
+                            <div className="max-h-[180px] overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin">
+                                {violations.map((violation, idx) => (
+                                    <div key={idx} className="flex items-start justify-between p-3 rounded-lg border border-slate-100 bg-white shadow-[0px_1px_2px_rgba(0,0,0,0.02)]">
+                                        <div className="flex flex-col min-w-0 pr-2">
+                                            <span className="text-xs font-bold text-slate-800 truncate">{violation.student_name}</span>
+                                            <span className="text-[10px] text-slate-400 font-semibold">MSSV: {violation.student_code}</span>
+                                            {violation.class_note && (
+                                                <span className="text-[10px] text-slate-500 italic mt-1 truncate">
+                                                    Ghi chú: {violation.class_note}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full shrink-0 border uppercase tracking-wider ${violation.criterion_name.toLowerCase().includes('trễ') || violation.criterion_name.toLowerCase().includes('muộn')
+                                            ? 'bg-amber-50 text-amber-600 border-amber-100/50'
+                                            : 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                            }`}>
+                                            {violation.criterion_name}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-6 bg-emerald-50/20 border border-emerald-100/40 rounded-xl gap-1 text-center">
+                                <Check className="w-5 h-5 text-emerald-500 animate-bounce" />
+                                <span className="text-[11px] text-emerald-700 font-semibold">Lớp học đầy đủ chuyên cần!</span>
+                                <span className="text-[10px] text-slate-400">Không ghi nhận trường hợp vi phạm kỷ luật.</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer Actions Panel */}
+                    <div className="border-t border-slate-100 pt-4 flex items-center justify-end">
+                        <button
+                            type="button"
+                            onClick={handleCopyAsImage}
+                            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-[#005bbf] hover:bg-[#004ca0] text-white text-xs font-bold rounded-full transition-colors cursor-pointer shadow-[0px_4px_10px_-1px_rgba(0,91,191,0.2)] border-none outline-none w-full"
+                            title="Sao chép ảnh báo cáo"
+                        >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Sao chép hình ảnh báo cáo</span>
+                        </button>
+                    </div>
+                </div>
+            </DialogContent>
+
+            {/* Container bọc ngoài ẩn w-0 h-0 để giấu khỏi giao diện, bên trong card render opacity: 1 bình thường để chụp ảnh */}
+            <div className="w-0 h-0 overflow-hidden pointer-events-none fixed top-0 left-0 z-[-50]">
+                <div
+                    ref={shareCardRef}
+                    className="bg-gradient-to-br from-[#f8fafc] to-[#f1f5f9] p-8 rounded-3xl border border-slate-200 shadow-2xl w-[480px] flex flex-col gap-5 text-slate-800 font-sans"
+                >
+                    <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
+                        <div className="flex flex-col items-start">
+                            <h3 className="font-bold text-slate-900 text-[18px] text-left">Báo cáo tình hình lớp học</h3>
+                            <span className="text-[11px] text-slate-400 font-semibold mt-0.5 text-left">Mã báo cáo: {report._id.substring(0, 8)}...</span>
+                        </div>
+                        <span className="text-xs bg-blue-500 text-white px-3.5 py-1 rounded-full font-bold uppercase tracking-wider">{className}</span>
+                    </div>
+
+                    <div className="flex flex-col gap-3 text-xs font-semibold text-slate-500 bg-white rounded-2xl p-4.5 border border-slate-100 shadow-[0px_1px_2px_rgba(0,0,0,0.02)]">
+                        <div className="flex justify-between items-center w-full">
+                            <span className="text-slate-400 text-left">Ngày báo cáo:</span>
+                            <span className="font-bold text-slate-800 text-right">{report.report_date}</span>
+                        </div>
+                        <div className="flex justify-between items-center w-full">
+                            <span className="text-slate-400 text-left">Giảng viên:</span>
+                            <span className="font-bold text-slate-800 text-right">{report.teacher_name}</span>
+                        </div>
+                        <div className="flex justify-between items-center w-full">
+                            <span className="text-slate-400 text-left">Có mặt:</span>
+                            <span className="font-bold text-emerald-600 text-right">{totalPresent} sinh viên</span>
+                        </div>
+                        <div className="flex justify-between items-center w-full">
+                            <span className="text-slate-400 text-left">Vắng mặt:</span>
+                            <span className="font-bold text-rose-600 text-right">{totalAbsent} sinh viên</span>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 items-start w-full">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-left">Ghi chú lớp</span>
+                        <p className="text-xs text-slate-650 italic bg-white rounded-xl p-3 border border-slate-100/50 leading-relaxed shadow-[0px_1px_2px_rgba(0,0,0,0.01)] text-left w-full">
+                            "{report.class_note || 'Không có ghi chú thêm.'}"
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2.5 mt-1 border-t border-slate-200/60 pt-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sinh viên bị ghi nhận vi phạm</span>
+                            <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full font-bold">
+                                {violations.length} mục
+                            </span>
+                        </div>
+
+                        {violations.length > 0 ? (
+                            <div className="flex flex-col gap-2.5">
+                                {violations.map((violation, idx) => (
+                                    <div key={idx} className="flex items-start justify-between p-3.5 rounded-xl border border-slate-100/80 bg-white shadow-sm">
+                                        <div className="flex flex-col min-w-0 pr-3">
+                                            <span className="text-xs font-bold text-slate-800 truncate">{violation.student_name}</span>
+                                            <span className="text-[10px] text-slate-400 font-semibold">MSSV: {violation.student_code}</span>
+                                            {violation.class_note && (
+                                                <span className="text-[10px] text-slate-550 italic mt-1 leading-normal">
+                                                    Ghi chú: {violation.class_note}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full shrink-0 border uppercase tracking-wider ${violation.criterion_name.toLowerCase().includes('trễ') || violation.criterion_name.toLowerCase().includes('muộn')
+                                            ? 'bg-amber-50 text-amber-600 border-amber-100/50'
+                                            : 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                            }`}>
+                                            {violation.criterion_name}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-6 bg-emerald-50/20 border border-emerald-100/40 rounded-2xl gap-1 text-center">
+                                <Check className="w-5 h-5 text-emerald-500" />
+                                <span className="text-[11.5px] text-emerald-700 font-bold">Lớp học đầy đủ chuyên cần!</span>
+                                <span className="text-[10px] text-slate-400">Không ghi nhận trường hợp vi phạm kỷ luật.</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </Dialog>
     );
 }
 

@@ -1,8 +1,9 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar as CalendarIcon, Loader2, Plus, Trash2, AlertTriangle, FileText, Check, Users, Save } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, Loader2, Plus, Trash2, AlertTriangle, FileText, Check, Users, Save, Settings, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/Input';
@@ -14,6 +15,10 @@ import { dailyClassReportApi, DailyClassReport } from '@/api/daily-class-report-
 import { studentApi, Student } from '@/api/student-api';
 import { criteriaApi, Criterion } from '@/api/criteria-api';
 import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
+import { useAuth } from '@/providers/auth-provider';
+import { semesterApi } from '@/api/semester-api';
+import { summariesPointApi } from '@/api/summaries-point-api';
+import { evaluationDetailApi } from '@/api/evaluation-detail-api';
 
 interface ViolationItem {
   student_id: string;
@@ -32,6 +37,7 @@ interface AddClassReportViewProps {
 }
 
 export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: AddClassReportViewProps) {
+  const { user } = useAuth();
   const [classes, setClasses] = useState<Class[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
@@ -57,6 +63,13 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const [violationNote, setViolationNote] = useState('');
   const [addedViolations, setAddedViolations] = useState<ViolationItem[]>([]);
 
+  // Cấu hình tiêu chí vắng mặt
+  const [absentCriteriaIds, setAbsentCriteriaIds] = useState<string[]>([]);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  
+  // Học kỳ hoạt động thực tế
+  const [activeSemesterId, setActiveSemesterId] = useState('60d0fe4f5311236168a109cb');
+
   // Load classes, students, criteria and editing data
   useEffect(() => {
     async function loadData() {
@@ -69,9 +82,35 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         setAllStudents(studentList);
 
         const criteriaList = await criteriaApi.getCriteria();
-        // Lọc các tiêu chí có tính chất kỷ luật (điểm phạt / trừ)
-        const disciplineCriteria = criteriaList.filter(c => c.criterion_type === 'ky_luat');
-        setCriteria(disciplineCriteria);
+        setCriteria(criteriaList);
+
+        // Lấy thông tin học kỳ đang hoạt động
+        try {
+          const semesterList = await semesterApi.getSemesters();
+          const activeSem = semesterList.find(s => s.status === 'active');
+          if (activeSem) {
+            setActiveSemesterId(activeSem._id);
+          } else if (semesterList.length > 0) {
+            setActiveSemesterId(semesterList[0]._id);
+          }
+        } catch (semErr) {
+          console.warn('Lỗi khi nạp kì học:', semErr);
+        }
+
+        // Thiết lập tiêu chí vắng mặt mặc định (chứa từ "vắng" kết hợp với "không phép" hoặc "có phép")
+        const cached = localStorage.getItem('absentCriteriaIds');
+        if (cached) {
+          setAbsentCriteriaIds(JSON.parse(cached));
+        } else {
+          const defaultAbsents = criteriaList
+            .filter(c => {
+              const nameLower = c.criterion_name.toLowerCase();
+              return nameLower.includes('vắng') && (nameLower.includes('không phép') || nameLower.includes('có phép'));
+            })
+            .map(c => c._id);
+          setAbsentCriteriaIds(defaultAbsents);
+          localStorage.setItem('absentCriteriaIds', JSON.stringify(defaultAbsents));
+        }
 
         if (reportToEdit) {
           // Edit mode - Điền thông tin chung
@@ -105,11 +144,16 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             const violationsMapped: ViolationItem[] = records.map(rec => {
               const stObj = typeof rec.student_id === 'object' ? rec.student_id : null;
               const critObj = typeof rec.evaluation_detail_id === 'object' ? rec.evaluation_detail_id : null;
+              const criterionId = rec.criteria_id
+                ? (typeof rec.criteria_id === 'object' ? rec.criteria_id?._id : rec.criteria_id)
+                : (critObj
+                  ? (typeof critObj.criterion_id === 'object' ? critObj.criterion_id?._id : critObj.criterion_id)
+                  : rec.evaluation_detail_id);
               return {
                 student_id: stObj ? stObj._id : rec.student_id,
                 student_name: stObj ? stObj.full_name : 'Sinh viên',
                 student_code: stObj ? stObj.student_code : '',
-                evaluation_detail_id: critObj ? critObj._id : rec.evaluation_detail_id,
+                evaluation_detail_id: criterionId,
                 criterion_name: rec.record_title || 'Vi phạm',
                 points_effect: rec.points_effect || -5,
                 class_note: rec.record_title || '' // tạm lấy title làm note
@@ -130,33 +174,46 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     loadData();
   }, [reportToEdit]);
 
+  const [isStudentsLoading, setIsStudentsLoading] = useState(false);
+
   // Lọc sinh viên theo lớp học đang chọn
   useEffect(() => {
-    if (classId && allStudents.length > 0) {
-      const filtered = allStudents.filter(s => {
-        const sClassId = typeof s.class_id === 'object' ? s.class_id?._id : s.class_id;
-        return sClassId === classId;
-      });
-      setClassStudents(filtered);
+    if (classId) {
+      setIsStudentsLoading(true);
+      const timer = setTimeout(() => {
+        if (allStudents.length > 0) {
+          const filtered = allStudents.filter(s => {
+            const sClassId = typeof s.class_id === 'object' ? s.class_id?._id : s.class_id;
+            return sClassId === classId;
+          });
+          setClassStudents(filtered);
+        } else {
+          setClassStudents([]);
+        }
+        setIsStudentsLoading(false);
+      }, 400); // Tạo trễ nhỏ giả lập loading chuyên nghiệp
 
       // Nếu không ở edit mode hoặc đổi lớp khác, reset vi phạm cũ
       if (!reportToEdit) {
         setAddedViolations([]);
       }
+      return () => clearTimeout(timer);
     } else {
       setClassStudents([]);
       setAddedViolations([]);
+      setIsStudentsLoading(false);
     }
     setSelectedStudentId('');
     setSelectedCriterionId('');
     setViolationNote('');
   }, [classId, allStudents]);
 
-  // Tự động tính toán sĩ số dựa trên danh sách sinh viên vắng mặt (vi phạm vắng học)
+  // Tự động tính toán sĩ số dựa trên danh sách sinh viên vắng mặt (vi phạm vắng học được cấu hình)
   useEffect(() => {
     if (classStudents.length > 0) {
-      // Đếm số lượng sinh viên duy nhất có vi phạm trong bảng tạm
-      const uniqueAbsentIds = new Set(addedViolations.map(v => v.student_id));
+      // Chỉ đếm những vi phạm thuộc tiêu chí được cấu hình tính vắng mặt
+      const absentViolations = addedViolations.filter(v => absentCriteriaIds.includes(v.evaluation_detail_id));
+      const uniqueAbsentIds = new Set(absentViolations.map(v => v.student_id));
       const absentCount = uniqueAbsentIds.size;
       setTotalAbsent(absentCount);
       setTotalPresent(Math.max(0, classStudents.length - absentCount));
@@ -164,7 +221,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       setTotalPresent(0);
       setTotalAbsent(0);
     }
-  }, [addedViolations, classStudents]);
+  }, [addedViolations, classStudents, absentCriteriaIds]);
 
   // Thêm vi phạm vào danh sách tạm
   const handleAddViolationToList = () => {
@@ -237,7 +294,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     }
 
     setIsSaving(true);
-    const dateFormatted = format(reportDate, 'dd/MM/yyyy');
+    const dateFormatted = reportDate.toISOString();
 
     try {
       let dailyReportId = '';
@@ -269,7 +326,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         // 1. Tạo mới báo cáo lớp học hàng ngày
         const newReport = await dailyClassReportApi.createDailyClassReport({
           class_id: classId,
-          user_id: '60d0fe4f5311236168a109ca', // default user placeholder
+          user_id: user?.id || '60d0fe4f5311236168a109ca', // use logged-in user or fallback
           report_date: dateFormatted,
           teacher_name: teacherName.trim(),
           total_present: totalPresent,
@@ -282,17 +339,75 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
       // 2. Lưu từng bản ghi vi phạm rèn luyện từ bảng tạm
       if (addedViolations.length > 0) {
-        await Promise.all(addedViolations.map(violation =>
-          academicRecordApi.createAcademicRecord({
-            evaluation_detail_id: violation.evaluation_detail_id,
+        const summaryList = await summariesPointApi.getSummariesPoints();
+
+        await Promise.all(addedViolations.map(async (violation) => {
+          // 1. Tìm hoặc tạo SummaryPoint cho học sinh & kì học
+          let studentSummary = summaryList.find(s => {
+            const sId = typeof s.student_id === 'object' ? s.student_id?._id : s.student_id;
+            const semId = typeof s.semester_id === 'object' ? s.semester_id?._id : s.semester_id;
+            return sId === violation.student_id && semId === activeSemesterId;
+          });
+
+          if (!studentSummary) {
+            studentSummary = await summariesPointApi.createSummariesPoint({
+              student_id: violation.student_id,
+              semester_id: activeSemesterId,
+              total_score: 100,
+              grading: 'Xuất sắc',
+              status: 'active'
+            });
+          }
+
+          // 2. Tìm hoặc tạo EvaluationDetail liên kết SummaryPoint và Criterion
+          const detailsList = await evaluationDetailApi.getEvaluationDetailsBySummary(studentSummary._id);
+          let evalDetail = detailsList.find(d => {
+            const cId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
+            return cId === violation.evaluation_detail_id;
+          });
+
+          if (!evalDetail) {
+            evalDetail = await evaluationDetailApi.createEvaluationDetail({
+              summary_id: studentSummary._id,
+              criterion_id: violation.evaluation_detail_id,
+              current_count: 1,
+              status: 'teacher_evaluated',
+              description: `Ghi nhận từ báo cáo ngày`,
+              history: [
+                {
+                  role: 'teacher',
+                  count: 1,
+                  reason: `Tạo mới ghi nhận: ${violation.criterion_name}`
+                }
+              ]
+            });
+          } else {
+            const newCount = (evalDetail.current_count || 0) + 1;
+            await evaluationDetailApi.updateEvaluationDetail(evalDetail._id, {
+              current_count: newCount,
+              history: [
+                ...(evalDetail.history || []),
+                {
+                  role: 'teacher',
+                  count: newCount,
+                  reason: `Thêm ghi nhận: ${violation.criterion_name}`
+                }
+              ]
+            });
+          }
+
+          // 3. Tạo AcademicRecord với evaluation_detail_id chính xác
+          return academicRecordApi.createAcademicRecord({
+            evaluation_detail_id: evalDetail._id,
+            criteria_id: violation.evaluation_detail_id,
             student_id: violation.student_id,
-            semester_id: '60d0fe4f5311236168a109cb', // active semester placeholder
+            semester_id: activeSemesterId,
             record_title: `${violation.criterion_name} (${violation.class_note})`,
             points_effect: violation.points_effect,
             status: 'active',
             daily_report_id: dailyReportId
-          })
-        ));
+          });
+        }));
         toast.success(`Đã ghi nhận ${addedViolations.length} vi phạm rèn luyện thành công!`);
       }
 
@@ -312,7 +427,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       exit={{ opacity: 0 }}
       className="flex flex-col h-full from-[#F4F7FC] to-[#E2EAF4] font-sans w-full overflow-y-auto"
     >
-      <div className="flex flex-col gap-[20px] max-w-[1280px] mx-auto w-full">
+      <div className="flex flex-col gap-[20px]  mx-auto w-full">
         {/* Page Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
           <div className="flex gap-[12px] items-center">
@@ -339,6 +454,12 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
               <p className="font-normal text-[#414754] text-[13px] lg:text-[14px] leading-relaxed">
                 Ghi lại thông tin chuyên cần, kỷ luật và đánh giá chất lượng buổi học hôm nay.
               </p>
+            </div>
+          </div>
+          <div className="flex items-center sm:justify-end shrink-0">
+            <div className="bg-[#005bbf]/5 text-[#005bbf] font-bold text-[11px] px-3.5 py-1.5 rounded-full uppercase tracking-wider border border-[#005bbf]/10 flex items-center gap-1.5 shadow-sm bg-white/40 backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5 text-[#005bbf] animate-pulse" />
+              <span>Hệ thống ghi nhận</span>
             </div>
           </div>
         </div>
@@ -391,6 +512,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       value={teacherName}
                       onChange={(e) => setTeacherName(e.target.value)}
                       placeholder="Nhập tên giảng viên đứng lớp"
+                      required
                       className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/90 focus-visible:border-blue-400 shadow-sm"
                       containerClassName="w-full"
                     />
@@ -465,13 +587,13 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           label="Họ tên sinh viên"
                           error={""}
                         >
-                          <SelectTrigger 
+                          <SelectTrigger
                             className="bg-white/80 border-white/15 h-[38px] rounded-full px-[14px] text-[12.5px] text-slate-800 font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all cursor-pointer font-sans"
                             disabled={!classId}
                           >
                             <SelectValue placeholder={classId ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
                           </SelectTrigger>
-                          <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 max-h-[200px] overflow-y-auto">
+                          <SelectContent lazyLoad className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
                             {classStudents.map(s => (
                               <SelectItem key={s._id} value={s._id}>{s.full_name} ({s.student_code})</SelectItem>
                             ))}
@@ -484,13 +606,13 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         <Select
                           value={selectedCriterionId}
                           onValueChange={setSelectedCriterionId}
-                          label="Tiêu chí"
+                          label="Tiêu chí ghi nhận"
                           error={""}
                         >
                           <SelectTrigger className="bg-white/80 border-white/15 h-[38px] rounded-full px-[14px] text-[12.5px] text-slate-800 font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all cursor-pointer font-sans">
                             <SelectValue placeholder="Chọn tiêu chí..." />
                           </SelectTrigger>
-                          <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 max-h-[200px] overflow-y-auto font-sans">
+                          <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 font-sans">
                             {criteria.map(c => (
                               <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>
                             ))}
@@ -536,11 +658,13 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       </thead>
                       <tbody className="divide-y divide-white/20 bg-white/25">
                         {addedViolations.map((violation, idx) => {
-                          // Xác định màu badge kỷ luật sinh động giống Figma (đỏ nhạt, cam nhạt, v.v.)
                           const isTre = violation.criterion_name.toLowerCase().includes('trễ') || violation.criterion_name.toLowerCase().includes('muộn');
-                          const badgeClass = isTre
-                            ? 'bg-[rgba(255,218,214,0.6)] border border-[#ffdad6] text-[#93000a]'
-                            : 'bg-[#ffdbcb]/80 border border-[#ffcdb2] text-[#783100]';
+                          const isPositive = violation.points_effect > 0;
+                          const badgeClass = isPositive
+                            ? 'bg-emerald-50 border border-[#a7f3d0] text-[#065f46]'
+                            : isTre
+                              ? 'bg-[rgba(255,218,214,0.6)] border border-[#ffdad6] text-[#93000a]'
+                              : 'bg-[#ffdbcb]/80 border border-[#ffcdb2] text-[#783100]';
 
                           return (
                             <tr key={idx} className="hover:bg-white/30 transition-colors">
@@ -552,7 +676,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                               </td>
                               <td className="px-[20px] py-[12px]">
                                 <span className={`font-bold rounded-full px-[10px] py-[3px] text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
-                                  {violation.criterion_name} ({violation.points_effect}đ)
+                                  {violation.criterion_name} ({violation.points_effect > 0 ? '+' : ''}{violation.points_effect}đ)
                                 </span>
                               </td>
                               <td className="px-[20px] py-[12px] font-normal text-[#414754] text-[13.5px] max-w-[200px] truncate" title={violation.class_note}>
@@ -585,27 +709,102 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   </div>
 
                   {/* Sĩ số hiển thị xem nhanh */}
-                  {classStudents.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-4 lg:gap-6 text-[12px] font-bold text-slate-500 px-2 mt-1">
-                      <div className="flex items-center gap-2">
-                        <Users className="w-3.5 h-3.5 text-blue-500" />
-                        <span>Sĩ số lớp: <strong className="text-slate-800">{classStudents.length} SV</strong></span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        <span>Hiện diện: <strong className="text-emerald-600">{totalPresent} SV</strong></span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-rose-500" />
-                        <span>Vắng mặt: <strong className="text-rose-600">{totalAbsent} SV</strong></span>
-                      </div>
-                      <div className="ml-auto text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full text-[11px]">
-                        {classStudents.length > 0 ? Math.round((totalPresent / classStudents.length) * 100) : 100}% Chuyên cần
-                      </div>
+                  <div className="flex flex-wrap items-center gap-4 lg:gap-6 text-[12px] font-bold text-slate-500 px-2 mt-1">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Sĩ số lớp: <strong className="text-slate-800">
+                        {isStudentsLoading ? (
+                          <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-slate-400 align-middle ml-1" />
+                        ) : (
+                          `${classStudents.length} SV`
+                        )}
+                      </strong></span>
                     </div>
-                  )}
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span>Hiện diện: <strong className="text-emerald-600">
+                        {isStudentsLoading ? (
+                          <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-emerald-400 align-middle ml-1" />
+                        ) : (
+                          `${totalPresent} SV`
+                        )}
+                      </strong></span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-rose-500" />
+                      <span>Vắng mặt: <strong className="text-rose-600">
+                        {isStudentsLoading ? (
+                          <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-rose-400 align-middle ml-1" />
+                        ) : (
+                          `${totalAbsent} SV`
+                        )}
+                      </strong></span>
+                    </div>
+                    <div className="ml-auto text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full text-[11px] min-w-[90px] text-center">
+                      {isStudentsLoading ? (
+                        <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-emerald-500 align-middle" />
+                      ) : (
+                        `${classStudents.length > 0 ? Math.round((totalPresent / classStudents.length) * 100) : 0}% Chuyên cần`
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {/* Dialog cấu hình tiêu chí vắng mặt */}
+              {/* <Dialog open={isConfigModalOpen} onOpenChange={setIsConfigModalOpen}>
+                <DialogContent className="max-w-[480px] rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
+                  <DialogTitle className="text-[17px] font-bold text-slate-800 flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-rose-500" />
+                    Cấu hình tiêu chí tính vắng mặt
+                  </DialogTitle>
+                  <DialogDescription className="text-[13px] text-slate-500 mt-1">
+                    Chọn các tiêu chí kỷ luật dùng để xác định sinh viên vắng học (ảnh hưởng tới việc tự động tính toán sĩ số vắng mặt/hiện diện).
+                  </DialogDescription>
+                  <div className="mt-4 max-h-[250px] overflow-y-auto pr-2 flex flex-col gap-2.5">
+                    {criteria.map((c) => {
+                      const isChecked = absentCriteriaIds.includes(c._id);
+                      return (
+                        <label
+                          key={c._id}
+                          className={`flex items-center justify-between p-3 rounded-xl border text-[13px] font-medium transition-all cursor-pointer select-none ${isChecked
+                              ? 'bg-rose-50/50 border-rose-200/80 text-rose-700 shadow-sm'
+                              : 'bg-slate-50/30 border-slate-100 text-slate-700 hover:bg-slate-50/85'
+                            }`}
+                        >
+                          <span className="flex-1 pr-3">{c.criterion_name}</span>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAbsentCriteriaIds(prev => [...prev, c._id]);
+                              } else {
+                                setAbsentCriteriaIds(prev => prev.filter(id => id !== c._id));
+                              }
+                            }}
+                            className="w-4 h-4 rounded text-rose-600 border-slate-300 focus:ring-rose-500/20 cursor-pointer accent-rose-600"
+                          />
+                        </label>
+                      );
+                    })}
+                    {criteria.length === 0 && (
+                      <div className="text-center py-6 text-slate-400 italic text-[12.5px]">
+                        Không tìm thấy tiêu chí kỷ luật nào.
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-6 flex justify-end">
+                    <Button
+                      type="button"
+                      onClick={() => setIsConfigModalOpen(false)}
+                      className="bg-slate-900 text-white font-semibold rounded-full px-5 py-1.5 hover:bg-slate-800 text-[12.5px] cursor-pointer"
+                    >
+                      Hoàn tất
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog> */}
 
             </div>
 

@@ -12,10 +12,20 @@ export class CreateAcademicRecordDto {
   @ApiProperty({
     example: '60c72b2f9b1d8b2bad123456',
     description: 'ID chi tiết chấm điểm (EvaluationDetail Mongoose ObjectId)',
+    required: false,
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsMongoId()
-  evaluation_detail_id: string;
+  evaluation_detail_id?: string;
+
+  @ApiProperty({
+    example: '60c72b2f9b1d8b2bad778899',
+    description: 'ID tiêu chí chấm điểm (Criterion Mongoose ObjectId)',
+    required: false,
+  })
+  @IsOptional()
+  @IsMongoId()
+  criteria_id?: string;
 
   @ApiProperty({
     example: '60c72b2f9b1d8b2bad654321',
@@ -65,4 +75,13 @@ export class CreateAcademicRecordDto {
   @IsOptional()
   @IsMongoId()
   daily_report_id?: string;
+
+  @ApiProperty({
+    example: '60c72b2f9b1d8b2bad123456',
+    required: false,
+    description: 'ID người tạo (User Mongoose ObjectId, optional)',
+  })
+  @IsOptional()
+  @IsMongoId()
+  user_id?: string;
 }

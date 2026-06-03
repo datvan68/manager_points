@@ -4,6 +4,8 @@ import { EvaluationDetail } from '../../evaluation-detail/schemas/evaluation-det
 import { Student } from '../../students/schemas/student.schema';
 import { Semester } from '../../semesters/schemas/semester.schema';
 import { DailyClassReport } from '../../daily-class-report/schemas/daily-class-report.schema';
+import { User } from '../../auth/schemas/user.schema';
+import { Criterion } from '../../criteria/schemas/criterion.schema';
 
 export type AcademicRecordDocument = AcademicRecord & Document;
 
@@ -12,10 +14,18 @@ export class AcademicRecord {
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'EvaluationDetail',
-    required: true,
+    required: false,
     index: true,
   })
-  evaluation_detail_id: EvaluationDetail;
+  evaluation_detail_id?: EvaluationDetail;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Criterion',
+    required: false,
+    index: true,
+  })
+  criteria_id?: Criterion;
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
@@ -55,6 +65,14 @@ export class AcademicRecord {
     index: true,
   })
   daily_report_id?: DailyClassReport;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: false,
+    index: true,
+  })
+  user_id?: User;
 }
 
 export const AcademicRecordSchema =

@@ -278,20 +278,29 @@ export class SummariesPointService {
             let catScore = 0;
             cat.items.forEach((item: any) => {
               const count = counts[item.id] || 0;
-              catScore += item.pointsPerUnit * count;
+              const maxScore = item.maxScore || item.max_score || 10;
+              const minScore = item.minScore || item.min_score || 0;
+              const criterionScore = item.pointsPerUnit >= 0
+                ? Math.max(minScore, Math.min(maxScore, count * item.pointsPerUnit))
+                : Math.max(-maxScore, Math.min(0, count * item.pointsPerUnit));
+              catScore += criterionScore;
             });
             const clampedScore = Math.max(0, Math.min(cat.maxPoints, catScore));
 
             let itemsTrHtml = '';
             cat.items.forEach((item: any) => {
               const count = counts[item.id] || 0;
-              const totalItemPoints = item.pointsPerUnit * count;
-              const sign = totalItemPoints > 0 ? '+' : '';
+              const maxScore = item.maxScore || item.max_score || 10;
+              const minScore = item.minScore || item.min_score || 0;
+              const criterionScore = item.pointsPerUnit >= 0
+                ? Math.max(minScore, Math.min(maxScore, count * item.pointsPerUnit))
+                : Math.max(-maxScore, Math.min(0, count * item.pointsPerUnit));
+              const sign = criterionScore > 0 ? '+' : '';
               itemsTrHtml += `
                 <tr class="hover:bg-slate-50/50">
                   <td class="px-4 py-2.5 leading-relaxed text-left">${item.name}</td>
                   <td class="px-4 py-2.5 text-right font-bold text-[var(--pdf-primary)] font-mono text-[12.5px]">
-                    ${sign}${totalItemPoints.toFixed(1)}
+                    ${sign}${criterionScore.toFixed(1)}
                   </td>
                 </tr>
               `;

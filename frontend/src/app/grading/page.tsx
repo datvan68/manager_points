@@ -189,7 +189,9 @@ export default function GradingPage() {
             const currentCount = detail ? detail.current_count : 0;
             const maxScore = cri.maxScore || 10;
             const minScore = cri.minScore || 0;
-            const criterionScore = Math.max(minScore, Math.min(maxScore, currentCount * cri.pointsPerUnit));
+            const criterionScore = cri.pointsPerUnit >= 0
+              ? Math.max(minScore, Math.min(maxScore, currentCount * cri.pointsPerUnit))
+              : Math.max(-maxScore, Math.min(0, currentCount * cri.pointsPerUnit));
             catScore += criterionScore;
           });
           const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));
@@ -295,7 +297,9 @@ export default function GradingPage() {
           const currentCount = detail ? detail.current_count : 0;
           const maxScore = cri.maxScore || 10;
           const minScore = cri.minScore || 0;
-          const criterionScore = Math.max(minScore, Math.min(maxScore, currentCount * cri.pointsPerUnit));
+          const criterionScore = cri.pointsPerUnit >= 0
+            ? Math.max(minScore, Math.min(maxScore, currentCount * cri.pointsPerUnit))
+            : Math.max(-maxScore, Math.min(0, currentCount * cri.pointsPerUnit));
           catScore += criterionScore;
         });
         const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));

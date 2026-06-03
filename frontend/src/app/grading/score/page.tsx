@@ -533,7 +533,9 @@ function GradingScoreContent() {
         const count = studentCounts[cri.id] || 0;
         const maxScore = (cri as any).maxScore || 10;
         const minScore = (cri as any).minScore || 0;
-        const criterionScore = Math.max(minScore, Math.min(maxScore, count * cri.pointsPerUnit));
+        const criterionScore = cri.pointsPerUnit >= 0
+          ? Math.max(minScore, Math.min(maxScore, count * cri.pointsPerUnit))
+          : Math.max(-maxScore, Math.min(0, count * cri.pointsPerUnit));
         catScore += criterionScore;
       });
 
@@ -804,7 +806,9 @@ function GradingScoreContent() {
           const count = updatedCounts[cri.id] || 0;
           const maxScore = (cri as any).maxScore || 10;
           const minScore = (cri as any).minScore || 0;
-          const criterionScore = Math.max(minScore, Math.min(maxScore, count * cri.pointsPerUnit));
+          const criterionScore = cri.pointsPerUnit >= 0
+            ? Math.max(minScore, Math.min(maxScore, count * cri.pointsPerUnit))
+            : Math.max(-maxScore, Math.min(0, count * cri.pointsPerUnit));
           catScore += criterionScore;
         });
         const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));
@@ -1054,7 +1058,9 @@ function GradingScoreContent() {
                       const count = studentCounts[cri.id] || 0;
                       const maxScore = (cri as any).maxScore || 10;
                       const minScore = (cri as any).minScore || 0;
-                      const criterionScore = Math.max(minScore, Math.min(maxScore, count * cri.pointsPerUnit));
+                      const criterionScore = cri.pointsPerUnit >= 0
+                        ? Math.max(minScore, Math.min(maxScore, count * cri.pointsPerUnit))
+                        : Math.max(-maxScore, Math.min(0, count * cri.pointsPerUnit));
                       catScore += criterionScore;
                     });
                     const clampedCatScore = Math.max(0, Math.min(category.maxPoints, catScore));
