@@ -118,8 +118,8 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
     setViolationNote('');
   }, [classId, allStudents]);
 
-  // Lọc danh sách tiêu chí theo danh mục đang chọn
-  const filteredCriteria = criteria.filter(c => c.criterion_type === category);
+  // Lọc danh sách tiêu chí (lấy tất cả không cần qua danh mục)
+  const filteredCriteria = criteria;
 
   // Reset tiêu chí khi đổi danh mục
   useEffect(() => {
@@ -160,7 +160,7 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
         evaluation_detail_id: criterion._id,
         criterion_name: criterion.criterion_name,
         points_effect: criterion.score_per_unit || criterion.min_score || -5,
-        class_note: violationNote.trim() || (category === 'ky_luat' ? 'Ghi nhận kỷ luật' : 'Ghi nhận khen thưởng')
+        class_note: violationNote.trim() || 'Không có ghi chú'
       };
 
       setAddedViolations([...addedViolations, newViolation]);
@@ -217,31 +217,14 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
           evalDetail = await evaluationDetailApi.createEvaluationDetail({
             summary_id: studentSummary._id,
             criterion_id: violation.evaluation_detail_id,
-            current_count: 1,
+            current_count: 0,
             status: 'teacher_evaluated',
-            description: `Ghi nhận từ phiếu đánh giá`,
-            history: [
-              {
-                role: 'teacher',
-                count: 1,
-                reason: `Tạo mới ghi nhận: ${violation.criterion_name}`
-              }
-            ]
-          });
-        } else {
-          const newCount = (evalDetail.current_count || 0) + 1;
-          await evaluationDetailApi.updateEvaluationDetail(evalDetail._id, {
-            current_count: newCount,
-            history: [
-              ...(evalDetail.history || []),
-              {
-                role: 'teacher',
-                count: newCount,
-                reason: `Thêm ghi nhận: ${violation.criterion_name}`
-              }
-            ]
+            description: `Khởi tạo ghi nhận thủ công`,
+            history: []
           });
         }
+        // Lưu ý: Không gọi updateEvaluationDetail ở đây nếu đã có evalDetail,
+        // vì hàm createAcademicRecord ở dưới sẽ tự động kích hoạt backend cộng thêm 1 vào current_count.
 
         // 3. Tạo AcademicRecord
         return academicRecordApi.createAcademicRecord({
@@ -249,9 +232,11 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
           criteria_id: violation.evaluation_detail_id,
           student_id: violation.student_id,
           semester_id: activeSemesterId,
-          record_title: `${violation.criterion_name} (${violation.class_note})`,
+          record_title: `${violation.criterion_name}`,
           points_effect: violation.points_effect,
-          status: 'active'
+          status: 'active',
+          date_record: reportDate.toISOString(),
+          description: violation.class_note
         });
       }));
       toast.success(`Đã ghi nhận ${addedViolations.length} rèn luyện thành công!`);
@@ -319,7 +304,7 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
         ) : (
           <form onSubmit={handleSave} className="flex flex-col gap-[20px]">
             {/* Main Grid Layout (12 Columns) */}
-            <div className="grid grid-cols-12 gap-[20px] w-full">
+            <div className="grid grid-cols-12 gap-[20px] w-full relative z-10">
 
               {/* Left Column: Core Info (col-span-4) */}
               <div className="col-span-12 lg:col-span-4 flex flex-col gap-[20px]">
@@ -364,7 +349,7 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
                         <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
                           <SelectValue placeholder="Chọn lớp học..." />
                         </SelectTrigger>
-                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 max-h-[220px] overflow-y-auto">
+                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
                           {classes.map(c => (
                             <SelectItem key={c._id} value={c._id}>{c.class_name}</SelectItem>
                           ))}
@@ -372,24 +357,6 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
                       </Select>
                     </div>
 
-                    {/* Danh mục */}
-                    <div className="flex flex-col w-full relative">
-                      <Select
-                        value={category}
-                        onValueChange={setCategory}
-                        label="Danh mục rèn luyện"
-                        required
-                        error={""}
-                      >
-                        <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
-                          <SelectItem value="ky_luat">Kỷ luật (Điểm phạt)</SelectItem>
-                          <SelectItem value="khen_thuong">Khen thưởng (Điểm thưởng)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
 
                     {/* Tiêu chí */}
                     <div className="flex flex-col w-full relative">
@@ -403,12 +370,12 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
                         <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
                           <SelectValue placeholder="Chọn tiêu chí..." />
                         </SelectTrigger>
-                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 max-h-[220px] overflow-y-auto font-sans">
+                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 font-sans">
                           {filteredCriteria.map(c => (
                             <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || 0}đ)</SelectItem>
                           ))}
                           {filteredCriteria.length === 0 && (
-                            <div className="p-4 text-center text-xs text-slate-400 italic">Không có tiêu chí cho danh mục này</div>
+                            <div className="p-4 text-center text-xs text-slate-400 italic">Không có tiêu chí nào</div>
                           )}
                         </SelectContent>
                       </Select>
@@ -519,10 +486,15 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
                       </thead>
                       <tbody className="divide-y divide-white/10">
                         {addedViolations.map((violation, idx) => {
-                          const isThuong = violation.points_effect > 0;
-                          const badgeClass = isThuong
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                            : 'bg-rose-50 text-rose-600 border border-rose-100';
+                          const criterion = criteria.find(c => c._id === violation.evaluation_detail_id);
+                          const type = criterion?.criterion_type || (violation.points_effect > 0 ? 'cong_diem' : 'ky_luat');
+
+                          let badgeClass = 'bg-blue-50 text-blue-600 border border-blue-100';
+                          if (type === 'khen_thuong') {
+                            badgeClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100';
+                          } else if (type === 'ky_luat') {
+                            badgeClass = 'bg-rose-50 text-rose-600 border border-rose-100';
+                          }
 
                           return (
                             <tr key={idx} className="hover:bg-white/15 transition-colors">
@@ -534,7 +506,7 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
                               </td>
                               <td className="px-[20px] py-[12px]">
                                 <span className={`font-bold rounded-full px-[10px] py-[3px] text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
-                                  {violation.criterion_name} ({isThuong ? '+' : ''}{violation.points_effect}đ)
+                                  {violation.criterion_name}
                                 </span>
                               </td>
                               <td className="px-[20px] py-[12px] font-normal text-[#414754] text-[13.5px] max-w-[200px] truncate" title={violation.class_note}>
@@ -586,7 +558,7 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
             </div>
 
             {/* Footer Actions Panel */}
-            <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[18px] flex items-center justify-between gap-4 w-full shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+            <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[18px] flex items-center justify-between gap-4 w-full shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] relative z-0">
               <div className="hidden sm:flex items-center text-[12.5px] text-[#414754] font-medium italic">
                 Hãy kiểm tra kỹ thông tin rèn luyện trước khi lưu.
               </div>

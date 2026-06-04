@@ -56,6 +56,7 @@ export default function GradingPage() {
   const [apiSemesters, setApiSemesters] = useState<any[]>([]);
   const [apiSummariesPoints, setApiSummariesPoints] = useState<any[]>([]);
   const [apiEvaluationDetails, setApiEvaluationDetails] = useState<any[]>([]);
+  const [preExistingCountsCache, setPreExistingCountsCache] = useState<Record<string, Record<string, { original_count: number; current_count: number }>>>({});
   const [categories, setCategories] = useState<any[]>([]);
 
   // States lưu các bộ lọc đã xác nhận (applied)
@@ -159,15 +160,18 @@ export default function GradingPage() {
             status: detailStatus
           });
         } else {
+          const preCount = (preExistingCountsCache[summaryId] && preExistingCountsCache[summaryId][criteriaId]?.current_count) || 0;
+          const newCount = count + preCount;
+          
           await evaluationDetailApi.createEvaluationDetail({
             summary_id: summaryId,
             criterion_id: criteriaId,
-            current_count: count,
+            current_count: newCount,
             history: [
               {
                 role: userRole,
                 updated_by: currentUser?.id,
-                count: count,
+                count: newCount,
                 reason: 'Chấm điểm hàng loạt'
               }
             ],
@@ -464,6 +468,19 @@ export default function GradingPage() {
 
       setCategories(categoriesMapped);
 
+      // Fetch pre-existing counts cho tất cả summaries (để hiển thị trên bảng và PDF)
+      const preCountsMap: Record<string, Record<string, { original_count: number; current_count: number }>> = {};
+      const preCountPromises = (backendSummaries || []).map(async (summary: any) => {
+        try {
+          const counts = await evaluationDetailApi.getPreExistingCounts(summary._id);
+          if (counts && Object.keys(counts).length > 0) {
+            preCountsMap[summary._id] = counts;
+          }
+        } catch { /* ignore errors for individual summaries */ }
+      });
+      await Promise.all(preCountPromises);
+      setPreExistingCountsCache(preCountsMap);
+
     } catch (error: any) {
       toast.error('Lỗi khi tải dữ liệu từ database: ' + error.message);
     } finally {
@@ -672,12 +689,25 @@ export default function GradingPage() {
       return detailSummaryId === student.summaryId;
     });
 
+    const evaluatedCriteriaIds = new Set<string>();
+
     studentDetails.forEach(detail => {
       const criterionId = typeof detail.criterion_id === 'object' ? detail.criterion_id?._id : detail.criterion_id;
       if (criterionId) {
         evaluationCountsMap[student.id][criterionId] = detail.current_count || 0;
+        evaluatedCriteriaIds.add(criterionId);
       }
     });
+
+    // Merge pre-existing counts cho tiêu chí chưa có evaluation_detail
+    const preCounts = preExistingCountsCache[student.summaryId];
+    if (preCounts) {
+      Object.entries(preCounts).forEach(([criId, preCount]) => {
+        if (!evaluatedCriteriaIds.has(criId) && preCount.current_count > 0) {
+          evaluationCountsMap[student.id][criId] = preCount.current_count;
+        }
+      });
+    }
   });
 
   return (

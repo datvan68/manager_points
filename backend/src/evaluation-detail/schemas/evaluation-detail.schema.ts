@@ -43,5 +43,6 @@ export class EvaluationDetail {
   @Prop({ type: String, required: false, default: '' })
   description?: string;
 }
-export const EvaluationDetailSchema =
-  SchemaFactory.createForClass(EvaluationDetail);
+export const EvaluationDetailSchema = SchemaFactory.createForClass(EvaluationDetail);
+
+EvaluationDetailSchema.index({ summary_id: 1, criterion_id: 1 });

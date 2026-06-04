@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsEnum,
+  IsDateString,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -84,4 +85,22 @@ export class CreateAcademicRecordDto {
   @IsOptional()
   @IsMongoId()
   user_id?: string;
+
+  @ApiProperty({
+    example: '2026-06-04T00:00:00.000Z',
+    required: false,
+    description: 'Ngày ghi nhận',
+  })
+  @IsOptional()
+  @IsDateString()
+  date_record?: string;
+
+  @ApiProperty({
+    example: 'Chi tiết vi phạm...',
+    required: false,
+    description: 'Mô tả chi tiết bản ghi học thuật',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
 }

@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useRef, Suspense } from 'react';
-import { Search, Plus, Calendar as CalendarIcon, Settings, MoreHorizontal, X, Edit, Trash2, ChevronUp, ChevronDown, CheckSquare, Check, Eye, Users, AlertCircle, Loader2, Copy, FileSpreadsheet } from 'lucide-react';
+import { Search, Plus, Calendar as CalendarIcon, Settings, MoreHorizontal, X, Edit, Trash2, ChevronUp, ChevronDown, CheckSquare, Check, Eye, Users, AlertCircle, Loader2, Copy, FileSpreadsheet, RotateCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { DUMMY_RECORDS, RecordItem, MOCK_HISTORY, MOCK_CLASS_REPORTS } from '@/lib/mock-data/ghinhan';
 import { CustomPagination } from '@/components/ui/pagination';
@@ -46,15 +46,24 @@ function GhiNhanTab() {
     const [isCalendarOpen, setIsCalendarOpen] = useState(false);
     const [isSelectingHistory, setIsSelectingHistory] = useState(false);
     const [selectedHistoryItems, setSelectedHistoryItems] = useState<number[]>([]);
+    const [drawerLoading, setDrawerLoading] = useState(false);
+    const [drawerHistory, setDrawerHistory] = useState<any[]>([]);
     const [activeSubTab, setActiveSubTab] = useState<'class' | 'student'>('student');
     const [selectedClassIdForStudent, setSelectedClassIdForStudent] = useState('all');
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [isDeleteClassConfirmOpen, setIsDeleteClassConfirmOpen] = useState(false);
+    const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+    const [errorModalTitle, setErrorModalTitle] = useState('Không thể thực hiện hành động');
+    const [errorModalMessage, setErrorModalMessage] = useState('');
+    const [recordToDelete, setRecordToDelete] = useState<string | null>(null);
+    const [reportToDelete, setReportToDelete] = useState<string | null>(null);
     const [isTrashOpen, setIsTrashOpen] = useState(false);
-    const [mockDeletedItems, setMockDeletedItems] = useState([
-        { id: 'del-1', name: 'Nguyễn Văn A', class: 'ECO-23B', detail: 'Đi học muộn không phép', date: '01/06/2026', type: 'Kỷ luật' },
-        { id: 'del-2', name: 'Trần Thị B', class: 'IT-22A', detail: 'Đạt thành tích xuất sắc', date: '30/05/2026', type: 'Khen thưởng' }
-    ]);
+    const [deletedRecords, setDeletedRecords] = useState<AcademicRecord[]>([]);
+    const [deletedReports, setDeletedReports] = useState<DailyClassReport[]>([]);
+    const [isTrashLoading, setIsTrashLoading] = useState(false);
+    const [trashTab, setTrashTab] = useState<'student' | 'class'>('student');
+    const [recordToForceDelete, setRecordToForceDelete] = useState<string | null>(null);
+    const [reportToForceDelete, setReportToForceDelete] = useState<string | null>(null);
     const itemsPerPage = 20;
 
     // Academic record states
@@ -72,6 +81,7 @@ function GhiNhanTab() {
     const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
     const [editingReport, setEditingReport] = useState<DailyClassReport | null>(null);
     const [classCurrentPage, setClassCurrentPage] = useState(1);
+    const [classReportRecordCounts, setClassReportRecordCounts] = useState<Record<string, number>>({});
 
     // Global configurations for absent criteria
     const [globalCriteria, setGlobalCriteria] = useState<Criterion[]>([]);
@@ -143,6 +153,75 @@ function GhiNhanTab() {
         }
     };
 
+    const handleOpenDrawerChange = async (isOpen: boolean, record: any) => {
+        setOpenDrawerId(isOpen ? record.id : null);
+        if (isOpen) {
+            setDrawerLoading(true);
+            try {
+                const studentObj = typeof record.original?.student_id === 'object' ? record.original.student_id : null;
+                const studentId = studentObj?._id || record.original?.student_id;
+                
+                if (studentId) {
+                    const studentRecords = await academicRecordApi.getAcademicRecordsByStudent(studentId);
+                    
+                    const mappedStudentRecords = studentRecords.map(r => {
+                        const student = typeof r.student_id === 'object' ? r.student_id : null;
+                        const evalDetail = typeof r.evaluation_detail_id === 'object' ? r.evaluation_detail_id : null;
+                        const criterionId = r.criteria_id
+                            ? (typeof r.criteria_id === 'object' ? r.criteria_id?._id : r.criteria_id)
+                            : (evalDetail
+                                ? (typeof evalDetail.criterion_id === 'object' ? evalDetail.criterion_id?._id : evalDetail.criterion_id)
+                                : r.evaluation_detail_id);
+                        
+                        const foundCriterion = allCriteria.find(c => c._id === criterionId);
+                        
+                        let className = 'N/A';
+                        if (student) {
+                            const classId = typeof student.class_id === 'object' ? student.class_id?._id : student.class_id;
+                            const foundClass = classes.find(c => c._id === classId);
+                            className = foundClass ? foundClass.class_name : 'N/A';
+                        }
+                        
+                        const recordType = foundCriterion
+                            ? (foundCriterion.criterion_type === 'khen_thuong'
+                                ? 'Khen thưởng'
+                                : foundCriterion.criterion_type === 'ky_luat'
+                                ? 'Kỷ luật'
+                                : 'Cộng điểm')
+                            : (r.points_effect > 0 ? 'Cộng điểm' : (r.points_effect < 0 ? 'Kỷ luật' : 'Cộng điểm'));
+
+                        return {
+                            id: r._id,
+                            studentId: student ? student.student_code : '',
+                            fullName: student ? student.full_name : '',
+                            className: className,
+                            recordType: recordType,
+                            criteria: (() => {
+                                const raw = foundCriterion ? foundCriterion.criterion_name : r.record_title;
+                                return raw ? raw.replace(/\s*\(.*?\)\s*$/, '') : 'N/A';
+                            })(),
+                            date: r.date_record ? format(new Date(r.date_record), 'dd/MM/yyyy') : (r.createdAt ? format(new Date(r.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')),
+                            points: (r.points_effect >= 0 ? '+' : '') + r.points_effect,
+                            original: r
+                        };
+                    });
+                    
+                    mappedStudentRecords.sort((a: any, b: any) => new Date(b.original.createdAt || 0).getTime() - new Date(a.original.createdAt || 0).getTime());
+                    setDrawerHistory(mappedStudentRecords);
+                }
+            } catch (err) {
+                console.error('Lỗi khi tải lịch sử sinh viên:', err);
+                toast.error('Không thể tải lịch sử rèn luyện.');
+            } finally {
+                setDrawerLoading(false);
+            }
+        } else {
+            setIsSelectingHistory(false);
+            setSelectedHistoryItems([]);
+            setDrawerHistory([]);
+        }
+    };
+
     // Fetch class data
     const fetchClassReports = async () => {
         setIsClassLoading(true);
@@ -199,6 +278,36 @@ function GhiNhanTab() {
                 console.warn('API getClasses lỗi:', classApiErr);
             }
             setClasses(classList);
+
+            // Fetch academic records to count recorded students per daily report
+            try {
+                const records = await academicRecordApi.getAcademicRecords();
+                const counts: Record<string, Set<string>> = {};
+                records.forEach(rec => {
+                    const reportId = rec.daily_report_id
+                        ? (typeof rec.daily_report_id === 'object' ? rec.daily_report_id._id : rec.daily_report_id)
+                        : null;
+                    if (reportId && rec.status === 'active') {
+                        const studentId = rec.student_id
+                            ? (typeof rec.student_id === 'object' ? rec.student_id._id : rec.student_id)
+                            : null;
+                        if (studentId) {
+                            if (!counts[reportId]) {
+                                counts[reportId] = new Set<string>();
+                            }
+                            counts[reportId].add(studentId);
+                        }
+                    }
+                });
+
+                const finalCounts: Record<string, number> = {};
+                Object.keys(counts).forEach(reportId => {
+                    finalCounts[reportId] = counts[reportId].size;
+                });
+                setClassReportRecordCounts(finalCounts);
+            } catch (recErr) {
+                console.warn('Lỗi khi nạp dữ liệu ghi nhận sinh viên cho báo cáo lớp:', recErr);
+            }
         } catch (err) {
             console.error('Lỗi khi nạp dữ liệu lớp học:', err);
             toast.error('Không thể tải dữ liệu tình hình lớp học.');
@@ -236,20 +345,24 @@ function GhiNhanTab() {
         }
 
         const recordType = foundCriterion
-            ? (foundCriterion.criterion_type === 'khen_thuong' || foundCriterion.criterion_type === 'cong_diem' ? 'Khen thưởng' : 'Kỷ luật')
-            : (r.points_effect >= 0 ? 'Khen thưởng' : 'Kỷ luật');
+            ? (foundCriterion.criterion_type === 'khen_thuong'
+                ? 'Khen thưởng'
+                : foundCriterion.criterion_type === 'ky_luat'
+                ? 'Kỷ luật'
+                : 'Cộng điểm')
+            : (r.points_effect > 0 ? 'Cộng điểm' : (r.points_effect < 0 ? 'Kỷ luật' : 'Cộng điểm'));
 
         return {
             id: r._id,
             studentId: foundStudent ? foundStudent.student_code : '',
             fullName: foundStudent ? foundStudent.full_name : '',
             className: className,
-            recordType: recordType as 'Khen thưởng' | 'Kỷ luật',
+            recordType: recordType as 'Khen thưởng' | 'Kỷ luật' | 'Cộng điểm',
             criteria: (() => {
                 const raw = foundCriterion ? foundCriterion.criterion_name : r.record_title;
                 return raw ? raw.replace(/\s*\(.*?\)\s*$/, '') : 'N/A';
             })(),
-            date: r.createdAt ? format(new Date(r.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy'),
+            date: r.date_record ? format(new Date(r.date_record), 'dd/MM/yyyy') : (r.createdAt ? format(new Date(r.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')),
             points: (r.points_effect >= 0 ? '+' : '') + r.points_effect,
             original: r
         };
@@ -346,13 +459,33 @@ function GhiNhanTab() {
 
     const handleDelete = async () => {
         try {
-            await Promise.all(selectedIds.map(id => academicRecordApi.deleteAcademicRecord(id)));
+            // Xóa tuần tự từng bản ghi để bắt chính xác lỗi từ backend
+            for (const id of selectedIds) {
+                await academicRecordApi.deleteAcademicRecord(id);
+            }
             toast.success(`Đã xóa thành công ${selectedIds.length} ghi nhận.`);
             setSelectedIds([]);
             fetchAcademicRecords();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Lỗi khi xóa ghi nhận:', err);
-            toast.error('Có lỗi xảy ra khi xóa ghi nhận.');
+            const errMsg = err.message || 'Có lỗi xảy ra khi xóa ghi nhận.';
+            setErrorModalTitle('Không thể xóa ghi nhận');
+            setErrorModalMessage(errMsg);
+            setIsErrorModalOpen(true);
+        }
+    };
+
+    const handleDeleteRecordSingle = async (id: string) => {
+        try {
+            await academicRecordApi.deleteAcademicRecord(id);
+            toast.success('Đã xóa ghi nhận rèn luyện thành công.');
+            fetchAcademicRecords();
+        } catch (err: any) {
+            console.error(err);
+            const errMsg = err.message || 'Không thể xóa ghi nhận rèn luyện.';
+            setErrorModalTitle('Không thể xóa ghi nhận');
+            setErrorModalMessage(errMsg);
+            setIsErrorModalOpen(true);
         }
     };
 
@@ -382,15 +515,79 @@ function GhiNhanTab() {
     };
 
     const handleDeleteClassReportSingle = async (id: string) => {
-        if (confirm('Bạn có chắc chắn muốn xóa báo cáo lớp học này?')) {
-            try {
-                await dailyClassReportApi.deleteDailyClassReport(id);
-                toast.success('Đã xóa báo cáo lớp học thành công.');
-                fetchClassReports();
-            } catch (err) {
-                console.error(err);
-                toast.error('Không thể xóa báo cáo lớp học.');
-            }
+        try {
+            await dailyClassReportApi.deleteDailyClassReport(id);
+            toast.success('Đã xóa báo cáo lớp học thành công.');
+            fetchClassReports();
+        } catch (err) {
+            console.error(err);
+            toast.error('Không thể xóa báo cáo lớp học.');
+        }
+    };
+
+    const fetchDeletedItems = async () => {
+        setIsTrashLoading(true);
+        try {
+            const [recs, reps] = await Promise.all([
+                academicRecordApi.getDeletedAcademicRecords(),
+                dailyClassReportApi.getDeletedDailyClassReports()
+            ]);
+            setDeletedRecords(recs);
+            setDeletedReports(reps);
+        } catch (err) {
+            console.error('Lỗi khi tải dữ liệu thùng rác:', err);
+            toast.error('Không thể tải danh sách thùng rác.');
+        } finally {
+            setIsTrashLoading(false);
+        }
+    };
+
+    const handleRestoreRecord = async (id: string) => {
+        try {
+            await academicRecordApi.restoreAcademicRecord(id);
+            toast.success('Khôi phục ghi nhận vi phạm thành công!');
+            fetchDeletedItems();
+            fetchAcademicRecords();
+        } catch (err: any) {
+            console.error('Lỗi khi khôi phục ghi nhận:', err);
+            toast.error(err.message || 'Khôi phục ghi nhận vi phạm thất bại.');
+        }
+    };
+
+    const handleRestoreReport = async (id: string) => {
+        try {
+            await dailyClassReportApi.restoreDailyClassReport(id);
+            toast.success('Khôi phục báo cáo ngày thành công!');
+            fetchDeletedItems();
+            fetchClassReports();
+            fetchAcademicRecords();
+        } catch (err: any) {
+            console.error('Lỗi khi khôi phục báo cáo:', err);
+            toast.error(err.message || 'Khôi phục báo cáo ngày thất bại.');
+        }
+    };
+
+    const handleForceDeleteRecord = async (id: string) => {
+        try {
+            await academicRecordApi.forceDeleteAcademicRecord(id, true);
+            toast.success('Đã xóa vĩnh viễn ghi nhận vi phạm.');
+            setRecordToForceDelete(null);
+            fetchDeletedItems();
+        } catch (err: any) {
+            console.error('Lỗi khi xóa vĩnh viễn ghi nhận:', err);
+            toast.error(err.message || 'Không thể xóa vĩnh viễn ghi nhận.');
+        }
+    };
+
+    const handleForceDeleteReport = async (id: string) => {
+        try {
+            await dailyClassReportApi.forceDeleteDailyClassReport(id);
+            toast.success('Đã xóa vĩnh viễn báo cáo lớp học.');
+            setReportToForceDelete(null);
+            fetchDeletedItems();
+        } catch (err: any) {
+            console.error('Lỗi khi xóa vĩnh viễn báo cáo:', err);
+            toast.error(err.message || 'Không thể xóa vĩnh viễn báo cáo.');
         }
     };
 
@@ -713,6 +910,22 @@ function GhiNhanTab() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {paginatedRecords.map((record, idx) => {
                                             const isKhenThuong = record.recordType === 'Khen thưởng';
+                                            const isKyLuat = record.recordType === 'Kỷ luật';
+                                            const isCongDiem = record.recordType === 'Cộng điểm';
+
+                                            let badgeStyle = 'bg-blue-50 text-blue-600 border-blue-100/50';
+                                            let dotStyle = 'bg-blue-500';
+                                            let pointStyle = 'text-emerald-500';
+
+                                            if (isKhenThuong) {
+                                                badgeStyle = 'bg-emerald-50 text-emerald-600 border-emerald-100/50';
+                                                dotStyle = 'bg-emerald-500';
+                                            } else if (isKyLuat) {
+                                                badgeStyle = 'bg-rose-50 text-rose-600 border-rose-100/50';
+                                                dotStyle = 'bg-rose-500';
+                                                pointStyle = 'text-rose-500';
+                                            }
+
                                             return (
                                                 <motion.div
                                                     initial={{ opacity: 0, scale: 0.95 }}
@@ -733,11 +946,8 @@ function GhiNhanTab() {
                                                             />
                                                             <span className="text-[11px] font-bold text-slate-400">{record.studentId}</span>
                                                         </div>
-                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${isKhenThuong
-                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
-                                                            : 'bg-rose-50 text-rose-600 border-rose-100/50'
-                                                            }`}>
-                                                            <span className={`w-1.5 h-1.5 rounded-full ${isKhenThuong ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}>
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${dotStyle}`}></span>
                                                             {record.recordType}
                                                         </span>
                                                     </div>
@@ -766,19 +976,13 @@ function GhiNhanTab() {
                                                             <span className="text-[11px] font-bold text-slate-600 mt-0.5">{record.date}</span>
                                                         </div>
                                                         <div className="flex items-center gap-3">
-                                                            <span className={`text-sm font-bold ${isKhenThuong ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                            <span className={`text-sm font-bold ${pointStyle}`}>
                                                                 {record.points}
                                                             </span>
                                                             <Drawer
                                                                 direction="right"
                                                                 open={openDrawerId === record.id}
-                                                                onOpenChange={(isOpen) => {
-                                                                    setOpenDrawerId(isOpen ? record.id : null);
-                                                                    if (!isOpen) {
-                                                                        setIsSelectingHistory(false);
-                                                                        setSelectedHistoryItems([]);
-                                                                    }
-                                                                }}
+                                                                onOpenChange={(isOpen) => handleOpenDrawerChange(isOpen, record)}
                                                             >
                                                                 <DrawerTrigger asChild>
                                                                     <button className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-all cursor-pointer shadow-sm">
@@ -811,111 +1015,178 @@ function GhiNhanTab() {
                                                                         </div>
 
                                                                         {/* Summary blocks */}
-                                                                        <div className="grid grid-cols-2 gap-3">
-                                                                            <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex flex-col">
-                                                                                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1.5">Khen thưởng</span>
-                                                                                <div className="flex items-baseline gap-1">
-                                                                                    <span className="text-2xl font-black text-emerald-600 leading-none">12</span>
-                                                                                    <span className="text-[11px] font-semibold text-emerald-500">lần</span>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 flex flex-col">
-                                                                                <span className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1.5">Kỷ luật</span>
-                                                                                <div className="flex items-baseline gap-1">
-                                                                                    <span className="text-2xl font-black text-rose-600 leading-none">03</span>
-                                                                                    <span className="text-[11px] font-semibold text-rose-500">lần</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
+                                                                        {(() => {
+                                                                            const khenThuongCount = drawerHistory.filter(mr => mr.recordType === 'Khen thưởng').length;
+                                                                            const congDiemCount = drawerHistory.filter(mr => mr.recordType === 'Cộng điểm').length;
+                                                                            const kyLuatCount = drawerHistory.filter(mr => mr.recordType === 'Kỷ luật').length;
 
-                                                                        <div className="flex flex-col pb-4">
-                                                                            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">Ghi nhận gần đây</h4>
-
-                                                                            <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
-                                                                                {MOCK_HISTORY.map((hist, i) => {
-                                                                                    const isKyLuat = hist.type === 'Kỷ luật';
-                                                                                    const isExpanded = expandedCards[i];
-
-                                                                                    return (
-                                                                                        <div key={i} className="flex gap-4 relative mb-6 last:mb-0">
-                                                                                            <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
-                                                                                                {isSelectingHistory ? (
-                                                                                                    <div
-                                                                                                        className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-slate-50 hover:border-blue-400'}`}
-                                                                                                        onClick={(e) => {
-                                                                                                            e.stopPropagation();
-                                                                                                            setSelectedHistoryItems(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
-                                                                                                        }}
-                                                                                                    >
-                                                                                                        {selectedHistoryItems.includes(i) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
-                                                                                                    </div>
+                                                                            return (
+                                                                                <>
+                                                                                    <div className="grid grid-cols-3 gap-2">
+                                                                                        <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                                                                                            <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Khen thưởng</span>
+                                                                                            <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
+                                                                                                {drawerLoading ? (
+                                                                                                    <Skeleton className="w-10 h-5 rounded bg-emerald-200/60 animate-pulse" />
                                                                                                 ) : (
-                                                                                                    <div className={`w-3.5 h-3.5 rounded-full ${isKyLuat ? 'bg-rose-500 shadow-rose-200' : 'bg-emerald-500 shadow-emerald-200'} shadow-sm border-2 border-white box-content`} />
+                                                                                                    <>
+                                                                                                        <span className="text-xl font-black text-emerald-600 leading-none">{khenThuongCount}</span>
+                                                                                                        <span className="text-[10px] font-semibold text-emerald-500 ml-0.5">lần</span>
+                                                                                                    </>
                                                                                                 )}
                                                                                             </div>
-
-                                                                                            <div className="flex-1 flex flex-col pt-0.5">
-                                                                                                <div
-                                                                                                    className="flex justify-between items-start cursor-pointer group"
-                                                                                                    onClick={() => toggleExpandCard(i)}
-                                                                                                >
-                                                                                                    <div className="flex flex-col gap-1 pr-4">
-                                                                                                        <span className="text-[11px] font-bold text-slate-500">{hist.date}</span>
-                                                                                                        <span className="text-[13px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">{hist.title}</span>
-                                                                                                        <div className="mt-0.5">
-                                                                                                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isKyLuat ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                                                                                                {hist.type}
-                                                                                                            </span>
-                                                                                                        </div>
-                                                                                                    </div>
-                                                                                                    <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">
-                                                                                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                                                                                    </button>
-                                                                                                </div>
-
-                                                                                                <AnimatePresence>
-                                                                                                    {isExpanded && hist.description && (
-                                                                                                        <motion.div
-                                                                                                            initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                                                                                                            animate={{ height: "auto", opacity: 1, marginTop: 12 }}
-                                                                                                            exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                                                                                                            className="overflow-hidden"
-                                                                                                        >
-                                                                                                            <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
-                                                                                                                <div className="grid grid-cols-2 gap-4">
-                                                                                                                    <div className="flex flex-col gap-1">
-                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiêu chí</span>
-                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{hist.criteria}</span>
-                                                                                                                    </div>
-                                                                                                                    <div className="flex flex-col gap-1">
-                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Danh mục</span>
-                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{hist.category}</span>
-                                                                                                                    </div>
-                                                                                                                    <div className="flex flex-col gap-1">
-                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Buổi</span>
-                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{hist.shift}</span>
-                                                                                                                    </div>
-                                                                                                                    <div className="flex flex-col gap-1">
-                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ngày ghi</span>
-                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{hist.logDate}</span>
-                                                                                                                    </div>
-                                                                                                                </div>
-                                                                                                                <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1 mt-1">
-                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mô tả</span>
-                                                                                                                    <p className="text-[12px] font-medium text-slate-600 leading-relaxed">
-                                                                                                                        "{hist.description}"
-                                                                                                                    </p>
-                                                                                                                </div>
-                                                                                                            </div>
-                                                                                                        </motion.div>
-                                                                                                    )}
-                                                                                                </AnimatePresence>
+                                                                                        </div>
+                                                                                        <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                                                                                            <span className="text-[9px] font-bold text-blue-600 uppercase tracking-wider mb-1">Cộng điểm</span>
+                                                                                            <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
+                                                                                                {drawerLoading ? (
+                                                                                                    <Skeleton className="w-10 h-5 rounded bg-blue-200/60 animate-pulse" />
+                                                                                                ) : (
+                                                                                                    <>
+                                                                                                        <span className="text-xl font-black text-blue-600 leading-none">{congDiemCount}</span>
+                                                                                                        <span className="text-[10px] font-semibold text-blue-500 ml-0.5">lần</span>
+                                                                                                    </>
+                                                                                                )}
                                                                                             </div>
                                                                                         </div>
-                                                                                    )
-                                                                                })}
-                                                                            </div>
-                                                                        </div>
+                                                                                        <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                                                                                            <span className="text-[9px] font-bold text-rose-600 uppercase tracking-wider mb-1">Kỷ luật</span>
+                                                                                            <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
+                                                                                                {drawerLoading ? (
+                                                                                                    <Skeleton className="w-10 h-5 rounded bg-rose-200/60 animate-pulse" />
+                                                                                                ) : (
+                                                                                                    <>
+                                                                                                        <span className="text-xl font-black text-rose-600 leading-none">{kyLuatCount}</span>
+                                                                                                        <span className="text-[10px] font-semibold text-rose-500 ml-0.5">lần</span>
+                                                                                                    </>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    <div className="flex flex-col pb-4">
+                                                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">Ghi nhận gần đây</h4>
+
+                                                                                        {drawerLoading ? (
+                                                                                            <div className="flex flex-col gap-4 mt-2">
+                                                                                                {Array.from({ length: 3 }).map((_, i) => (
+                                                                                                    <div key={i} className="flex gap-4">
+                                                                                                        <Skeleton className="w-6 h-6 rounded-full shrink-0" />
+                                                                                                        <div className="flex-1 flex flex-col gap-2 pt-0.5">
+                                                                                                            <Skeleton className="w-24 h-3" />
+                                                                                                            <Skeleton className="w-48 h-4" />
+                                                                                                            <Skeleton className="w-16 h-4 rounded" />
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        ) : drawerHistory.length === 0 ? (
+                                                                                            <div className="text-center py-6 text-slate-400 italic text-[12px]">
+                                                                                                Chưa có ghi nhận nào cho học sinh này.
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
+                                                                                                {drawerHistory.map((mr, i) => {
+                                                                                                    const isKyLuat = mr.recordType === 'Kỷ luật';
+                                                                                                    const isKhenThuong = mr.recordType === 'Khen thưởng';
+                                                                                                    const isExpanded = !!expandedCards[i];
+
+                                                                                                    let bulletBg = 'bg-blue-500 shadow-blue-200';
+                                                                                                    let badgeClass = 'bg-blue-50 text-blue-600';
+                                                                                                    if (isKhenThuong) {
+                                                                                                        bulletBg = 'bg-emerald-500 shadow-emerald-200';
+                                                                                                        badgeClass = 'bg-emerald-50 text-emerald-600';
+                                                                                                    } else if (isKyLuat) {
+                                                                                                        bulletBg = 'bg-rose-500 shadow-rose-200';
+                                                                                                        badgeClass = 'bg-rose-50 text-rose-600';
+                                                                                                    }
+
+                                                                                                    return (
+                                                                                                        <div key={mr.id} className="flex gap-4 relative mb-6 last:mb-0">
+                                                                                                            <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
+                                                                                                                {isSelectingHistory ? (
+                                                                                                                    <div
+                                                                                                                        className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-slate-50 hover:border-blue-400'}`}
+                                                                                                                        onClick={(e) => {
+                                                                                                                            e.stopPropagation();
+                                                                                                                            setSelectedHistoryItems(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+                                                                                                                        }}
+                                                                                                                    >
+                                                                                                                        {selectedHistoryItems.includes(i) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                                                                                                                    </div>
+                                                                                                                ) : (
+                                                                                                                    <div className={`w-3.5 h-3.5 rounded-full ${bulletBg} shadow-sm border-2 border-white box-content`} />
+                                                                                                                )}
+                                                                                                            </div>
+
+                                                                                                            <div className="flex-1 flex flex-col pt-0.5">
+                                                                                                                <div
+                                                                                                                    className="flex justify-between items-start cursor-pointer group"
+                                                                                                                    onClick={() => toggleExpandCard(i)}
+                                                                                                                >
+                                                                                                                    <div className="flex flex-col gap-1 pr-4">
+                                                                                                                        <span className="text-[11px] font-bold text-slate-500">{mr.date}</span>
+                                                                                                                        <span className="text-[13px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">{mr.criteria}</span>
+                                                                                                                        <div className="mt-0.5">
+                                                                                                                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                                                                                                                                {mr.recordType} ({mr.points}đ)
+                                                                                                                            </span>
+                                                                                                                        </div>
+                                                                                                                    </div>
+                                                                                                                    <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">
+                                                                                                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                                                                                    </button>
+                                                                                                                </div>
+
+                                                                                                                <AnimatePresence>
+                                                                                                                    {isExpanded && (
+                                                                                                                        <motion.div
+                                                                                                                            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                                                                                                                            animate={{ height: "auto", opacity: 1, marginTop: 12 }}
+                                                                                                                            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                                                                                                                            className="overflow-hidden"
+                                                                                                                        >
+                                                                                                                            <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
+                                                                                                                                <div className="grid grid-cols-2 gap-4">
+                                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiêu chí</span>
+                                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{mr.criteria}</span>
+                                                                                                                                    </div>
+                                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Danh mục</span>
+                                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{mr.recordType}</span>
+                                                                                                                                    </div>
+                                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Điểm số</span>
+                                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{mr.points}đ</span>
+                                                                                                                                    </div>
+                                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ngày ghi</span>
+                                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{mr.date}</span>
+                                                                                                                                    </div>
+                                                                                                                                </div>
+                                                                                                                                {mr.original?.description && (
+                                                                                                                                    <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1 mt-1">
+                                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mô tả</span>
+                                                                                                                                        <p className="text-[12px] font-medium text-slate-600 leading-relaxed font-sans">
+                                                                                                                                            "{mr.original.description}"
+                                                                                                                                        </p>
+                                                                                                                                    </div>
+                                                                                                                                )}
+                                                                                                                            </div>
+                                                                                                                        </motion.div>
+                                                                                                                    )}
+                                                                                                                </AnimatePresence>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    );
+                                                                                                })}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </>
+                                                                            );
+                                                                        })()}
                                                                     </div>
 
                                                                     {/* Modal Footer actions */}
@@ -932,11 +1203,25 @@ function GhiNhanTab() {
                                                                                     Hủy
                                                                                 </button>
                                                                                 <button
-                                                                                    onClick={() => {
+                                                                                    onClick={async () => {
                                                                                         if (selectedHistoryItems.length > 0) {
-                                                                                            toast.success(`Đã xóa ${selectedHistoryItems.length} ghi nhận!`);
-                                                                                            setIsSelectingHistory(false);
-                                                                                            setSelectedHistoryItems([]);
+                                                                                            setIsLoading(true);
+                                                                                            try {
+                                                                                                const deletePromises = selectedHistoryItems.map(idx => {
+                                                                                                    const targetRecord = drawerHistory[idx];
+                                                                                                    return academicRecordApi.deleteAcademicRecord(targetRecord.id);
+                                                                                                });
+                                                                                                await Promise.all(deletePromises);
+                                                                                                toast.success(`Đã xóa thành công ${selectedHistoryItems.length} ghi nhận.`);
+                                                                                                setIsSelectingHistory(false);
+                                                                                                setSelectedHistoryItems([]);
+                                                                                                fetchAcademicRecords();
+                                                                                            } catch (err: any) {
+                                                                                                console.error('Lỗi khi xóa ghi nhận lịch sử:', err);
+                                                                                                toast.error(err.message || 'Có lỗi xảy ra khi xóa ghi nhận.');
+                                                                                            } finally {
+                                                                                                setIsLoading(false);
+                                                                                            }
                                                                                         }
                                                                                     }}
                                                                                     disabled={selectedHistoryItems.length === 0}
@@ -1017,6 +1302,17 @@ function GhiNhanTab() {
                                     ) : (
                                         paginatedRecords.map((record, idx) => {
                                             const isKhenThuong = record.recordType === 'Khen thưởng';
+                                            const isKyLuat = record.recordType === 'Kỷ luật';
+                                            
+                                            let badgeStyle = 'bg-blue-50 text-blue-600 border-blue-100/50';
+                                            let dotStyle = 'bg-blue-500';
+                                            if (isKhenThuong) {
+                                                badgeStyle = 'bg-emerald-50 text-emerald-600 border-emerald-100/50';
+                                                dotStyle = 'bg-emerald-500';
+                                            } else if (isKyLuat) {
+                                                badgeStyle = 'bg-rose-50 text-rose-600 border-rose-100/50';
+                                                dotStyle = 'bg-rose-500';
+                                            }
                                             return (
                                                 <motion.tr
                                                     initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.1, delay: idx * 0.05 }}
@@ -1047,11 +1343,8 @@ function GhiNhanTab() {
                                                         {record.className}
                                                     </td>
                                                     <td className="px-5 py-4">
-                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${isKhenThuong
-                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
-                                                            : 'bg-rose-50 text-rose-600 border-rose-100/50'
-                                                            }`}>
-                                                            <span className={`w-1.5 h-1.5 rounded-full ${isKhenThuong ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${badgeStyle}`}>
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${dotStyle}`}></span>
                                                             {record.recordType}
                                                         </span>
                                                     </td>
@@ -1062,30 +1355,25 @@ function GhiNhanTab() {
                                                         {record.date}
                                                     </td>
                                                     <td className="px-5 py-4">
-                                                        <span className={`text-sm font-bold ${isKhenThuong ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                        <span className={`text-sm font-bold ${isKyLuat ? 'text-rose-500' : 'text-emerald-500'}`}>
                                                             {record.points}
                                                         </span>
                                                     </td>
                                                     <td className="px-5 py-4 text-center">
-                                                        <Drawer
-                                                            direction="right"
-                                                            open={openDrawerId === record.id}
-                                                            onOpenChange={(isOpen) => {
-                                                                setOpenDrawerId(isOpen ? record.id : null);
-                                                                if (!isOpen) {
-                                                                    setIsSelectingHistory(false);
-                                                                    setSelectedHistoryItems([]);
-                                                                }
-                                                            }}
-                                                        >
-                                                            <DrawerTrigger asChild>
-                                                                <button
-                                                                    className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors shadow-sm"
-                                                                    title="Chi tiết trạng thái"
-                                                                >
-                                                                    <MoreHorizontal className="w-5 h-5" />
-                                                                </button>
-                                                            </DrawerTrigger>
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <Drawer
+                                                                direction="right"
+                                                                open={openDrawerId === record.id}
+                                                                onOpenChange={(isOpen) => handleOpenDrawerChange(isOpen, record)}
+                                                            >
+                                                                <DrawerTrigger asChild>
+                                                                    <button
+                                                                        className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
+                                                                        title="Xem chi tiết"
+                                                                    >
+                                                                        <Eye className="w-4 h-4" />
+                                                                    </button>
+                                                                </DrawerTrigger>
 
                                                             <DrawerContent className="w-[450px] sm:max-w-md h-full bg-white border-l border-gray-100 flex flex-col items-stretch outline-none overflow-hidden">
                                                                 {/* Modal Header */}
@@ -1112,111 +1400,178 @@ function GhiNhanTab() {
                                                                     </div>
 
                                                                     {/* Summary blocks */}
-                                                                    <div className="grid grid-cols-2 gap-3">
-                                                                        <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex flex-col">
-                                                                            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1.5">Khen thưởng</span>
-                                                                            <div className="flex items-baseline gap-1">
-                                                                                <span className="text-2xl font-black text-emerald-600 leading-none">12</span>
-                                                                                <span className="text-[11px] font-semibold text-emerald-500">lần</span>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 flex flex-col">
-                                                                            <span className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1.5">Kỷ luật</span>
-                                                                            <div className="flex items-baseline gap-1">
-                                                                                <span className="text-2xl font-black text-rose-600 leading-none">03</span>
-                                                                                <span className="text-[11px] font-semibold text-rose-500">lần</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
+                                                                    {(() => {
+                                                                        const khenThuongCount = drawerHistory.filter(mr => mr.recordType === 'Khen thưởng').length;
+                                                                        const congDiemCount = drawerHistory.filter(mr => mr.recordType === 'Cộng điểm').length;
+                                                                        const kyLuatCount = drawerHistory.filter(mr => mr.recordType === 'Kỷ luật').length;
 
-                                                                    <div className="flex flex-col pb-4">
-                                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">Ghi nhận gần đây</h4>
-
-                                                                        <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
-                                                                            {MOCK_HISTORY.map((hist, i) => {
-                                                                                const isKyLuat = hist.type === 'Kỷ luật';
-                                                                                const isExpanded = expandedCards[i];
-
-                                                                                return (
-                                                                                    <div key={i} className="flex gap-4 relative mb-6 last:mb-0">
-                                                                                        <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
-                                                                                            {isSelectingHistory ? (
-                                                                                                <div
-                                                                                                    className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-slate-50 hover:border-blue-400'}`}
-                                                                                                    onClick={(e) => {
-                                                                                                        e.stopPropagation();
-                                                                                                        setSelectedHistoryItems(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
-                                                                                                    }}
-                                                                                                >
-                                                                                                    {selectedHistoryItems.includes(i) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
-                                                                                                </div>
+                                                                        return (
+                                                                            <>
+                                                                                <div className="grid grid-cols-3 gap-2">
+                                                                                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                                                                                        <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Khen thưởng</span>
+                                                                                        <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
+                                                                                            {drawerLoading ? (
+                                                                                                <Skeleton className="w-10 h-5 rounded bg-emerald-200/60 animate-pulse" />
                                                                                             ) : (
-                                                                                                <div className={`w-3.5 h-3.5 rounded-full ${isKyLuat ? 'bg-rose-500 shadow-rose-200' : 'bg-emerald-500 shadow-emerald-200'} shadow-sm border-2 border-white box-content`} />
+                                                                                                <>
+                                                                                                    <span className="text-xl font-black text-emerald-600 leading-none">{khenThuongCount}</span>
+                                                                                                    <span className="text-[10px] font-semibold text-emerald-500 ml-0.5">lần</span>
+                                                                                                </>
                                                                                             )}
                                                                                         </div>
-
-                                                                                        <div className="flex-1 flex flex-col pt-0.5">
-                                                                                            <div
-                                                                                                className="flex justify-between items-start cursor-pointer group"
-                                                                                                onClick={() => toggleExpandCard(i)}
-                                                                                            >
-                                                                                                <div className="flex flex-col gap-1 pr-4">
-                                                                                                    <span className="text-[11px] font-bold text-slate-500">{hist.date}</span>
-                                                                                                    <span className="text-[13px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">{hist.title}</span>
-                                                                                                    <div className="mt-0.5">
-                                                                                                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isKyLuat ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                                                                                            {hist.type}
-                                                                                                        </span>
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                                <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">
-                                                                                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                                                                                </button>
-                                                                                            </div>
-
-                                                                                            <AnimatePresence>
-                                                                                                {isExpanded && hist.description && (
-                                                                                                    <motion.div
-                                                                                                        initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                                                                                                        animate={{ height: "auto", opacity: 1, marginTop: 12 }}
-                                                                                                        exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                                                                                                        className="overflow-hidden"
-                                                                                                    >
-                                                                                                        <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
-                                                                                                            <div className="grid grid-cols-2 gap-4">
-                                                                                                                <div className="flex flex-col gap-1">
-                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiêu chí</span>
-                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{hist.criteria}</span>
-                                                                                                                </div>
-                                                                                                                <div className="flex flex-col gap-1">
-                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Danh mục</span>
-                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{hist.category}</span>
-                                                                                                                </div>
-                                                                                                                <div className="flex flex-col gap-1">
-                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Buổi</span>
-                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{hist.shift}</span>
-                                                                                                                </div>
-                                                                                                                <div className="flex flex-col gap-1">
-                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ngày ghi</span>
-                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{hist.logDate}</span>
-                                                                                                                </div>
-                                                                                                            </div>
-                                                                                                            <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1 mt-1">
-                                                                                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mô tả</span>
-                                                                                                                <p className="text-[12px] font-medium text-slate-600 leading-relaxed">
-                                                                                                                    "{hist.description}"
-                                                                                                                </p>
-                                                                                                            </div>
-                                                                                                        </div>
-                                                                                                    </motion.div>
-                                                                                                )}
-                                                                                            </AnimatePresence>
+                                                                                    </div>
+                                                                                    <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                                                                                        <span className="text-[9px] font-bold text-blue-600 uppercase tracking-wider mb-1">Cộng điểm</span>
+                                                                                        <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
+                                                                                            {drawerLoading ? (
+                                                                                                <Skeleton className="w-10 h-5 rounded bg-blue-200/60 animate-pulse" />
+                                                                                            ) : (
+                                                                                                <>
+                                                                                                    <span className="text-xl font-black text-blue-600 leading-none">{congDiemCount}</span>
+                                                                                                    <span className="text-[10px] font-semibold text-blue-500 ml-0.5">lần</span>
+                                                                                                </>
+                                                                                            )}
                                                                                         </div>
                                                                                     </div>
-                                                                                )
-                                                                            })}
-                                                                        </div>
-                                                                    </div>
+                                                                                    <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                                                                                        <span className="text-[9px] font-bold text-rose-600 uppercase tracking-wider mb-1">Kỷ luật</span>
+                                                                                        <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
+                                                                                            {drawerLoading ? (
+                                                                                                <Skeleton className="w-10 h-5 rounded bg-rose-200/60 animate-pulse" />
+                                                                                            ) : (
+                                                                                                <>
+                                                                                                    <span className="text-xl font-black text-rose-600 leading-none">{kyLuatCount}</span>
+                                                                                                    <span className="text-[10px] font-semibold text-rose-500 ml-0.5">lần</span>
+                                                                                                </>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="flex flex-col pb-4">
+                                                                                    <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">Ghi nhận gần đây</h4>
+
+                                                                                    {drawerLoading ? (
+                                                                                        <div className="flex flex-col gap-4 mt-2">
+                                                                                            {Array.from({ length: 3 }).map((_, i) => (
+                                                                                                <div key={i} className="flex gap-4">
+                                                                                                    <Skeleton className="w-6 h-6 rounded-full shrink-0" />
+                                                                                                    <div className="flex-1 flex flex-col gap-2 pt-0.5">
+                                                                                                        <Skeleton className="w-24 h-3" />
+                                                                                                        <Skeleton className="w-48 h-4" />
+                                                                                                        <Skeleton className="w-16 h-4 rounded" />
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    ) : drawerHistory.length === 0 ? (
+                                                                                        <div className="text-center py-6 text-slate-400 italic text-[12px]">
+                                                                                            Chưa có ghi nhận nào cho học sinh này.
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
+                                                                                            {drawerHistory.map((mr, i) => {
+                                                                                                const isKyLuat = mr.recordType === 'Kỷ luật';
+                                                                                                const isKhenThuong = mr.recordType === 'Khen thưởng';
+                                                                                                const isExpanded = !!expandedCards[i];
+
+                                                                                                let bulletBg = 'bg-blue-500 shadow-blue-200';
+                                                                                                let badgeClass = 'bg-blue-50 text-blue-600';
+                                                                                                if (isKhenThuong) {
+                                                                                                    bulletBg = 'bg-emerald-500 shadow-emerald-200';
+                                                                                                    badgeClass = 'bg-emerald-50 text-emerald-600';
+                                                                                                } else if (isKyLuat) {
+                                                                                                    bulletBg = 'bg-rose-500 shadow-rose-200';
+                                                                                                    badgeClass = 'bg-rose-50 text-rose-600';
+                                                                                                }
+
+                                                                                                return (
+                                                                                                    <div key={mr.id} className="flex gap-4 relative mb-6 last:mb-0">
+                                                                                                        <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
+                                                                                                            {isSelectingHistory ? (
+                                                                                                                <div
+                                                                                                                    className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-slate-50 hover:border-blue-400'}`}
+                                                                                                                    onClick={(e) => {
+                                                                                                                        e.stopPropagation();
+                                                                                                                        setSelectedHistoryItems(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+                                                                                                                    }}
+                                                                                                                >
+                                                                                                                    {selectedHistoryItems.includes(i) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                                                                                                                </div>
+                                                                                                            ) : (
+                                                                                                                <div className={`w-3.5 h-3.5 rounded-full ${bulletBg} shadow-sm border-2 border-white box-content`} />
+                                                                                                            )}
+                                                                                                        </div>
+
+                                                                                                        <div className="flex-1 flex flex-col pt-0.5">
+                                                                                                            <div
+                                                                                                                className="flex justify-between items-start cursor-pointer group"
+                                                                                                                onClick={() => toggleExpandCard(i)}
+                                                                                                            >
+                                                                                                                <div className="flex flex-col gap-1 pr-4">
+                                                                                                                    <span className="text-[11px] font-bold text-slate-500">{mr.date}</span>
+                                                                                                                    <span className="text-[13px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">{mr.criteria}</span>
+                                                                                                                    <div className="mt-0.5">
+                                                                                                                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                                                                                                                            {mr.recordType} ({mr.points}đ)
+                                                                                                                        </span>
+                                                                                                                    </div>
+                                                                                                                </div>
+                                                                                                                <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">
+                                                                                                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                                                                                </button>
+                                                                                                            </div>
+
+                                                                                                            <AnimatePresence>
+                                                                                                                {isExpanded && (
+                                                                                                                    <motion.div
+                                                                                                                        initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                                                                                                                        animate={{ height: "auto", opacity: 1, marginTop: 12 }}
+                                                                                                                        exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                                                                                                                        className="overflow-hidden"
+                                                                                                                    >
+                                                                                                                        <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
+                                                                                                                            <div className="grid grid-cols-2 gap-4">
+                                                                                                                                <div className="flex flex-col gap-1">
+                                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiêu chí</span>
+                                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{mr.criteria}</span>
+                                                                                                                                </div>
+                                                                                                                                <div className="flex flex-col gap-1">
+                                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Danh mục</span>
+                                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{mr.recordType}</span>
+                                                                                                                                </div>
+                                                                                                                                <div className="flex flex-col gap-1">
+                                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Điểm số</span>
+                                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{mr.points}đ</span>
+                                                                                                                                </div>
+                                                                                                                                <div className="flex flex-col gap-1">
+                                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ngày ghi</span>
+                                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{mr.date}</span>
+                                                                                                                                </div>
+                                                                                                                            </div>
+                                                                                                                            {mr.original?.description && (
+                                                                                                                                <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1 mt-1">
+                                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mô tả</span>
+                                                                                                                                    <p className="text-[12px] font-medium text-slate-600 leading-relaxed font-sans">
+                                                                                                                                        "{mr.original.description}"
+                                                                                                                                    </p>
+                                                                                                                                </div>
+                                                                                                                            )}
+                                                                                                                        </div>
+                                                                                                                    </motion.div>
+                                                                                                                )}
+                                                                                                            </AnimatePresence>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </>
+                                                                        );
+                                                                    })()}
                                                                 </div>
 
                                                                 {/* Modal Footer actions */}
@@ -1233,11 +1588,25 @@ function GhiNhanTab() {
                                                                                 Hủy
                                                                             </button>
                                                                             <button
-                                                                                onClick={() => {
+                                                                                onClick={async () => {
                                                                                     if (selectedHistoryItems.length > 0) {
-                                                                                        toast.success(`Đã xóa ${selectedHistoryItems.length} ghi nhận!`);
-                                                                                        setIsSelectingHistory(false);
-                                                                                        setSelectedHistoryItems([]);
+                                                                                        setIsLoading(true);
+                                                                                        try {
+                                                                                            const deletePromises = selectedHistoryItems.map(idx => {
+                                                                                                const targetRecord = drawerHistory[idx];
+                                                                                                return academicRecordApi.deleteAcademicRecord(targetRecord.id);
+                                                                                            });
+                                                                                            await Promise.all(deletePromises);
+                                                                                            toast.success(`Đã xóa thành công ${selectedHistoryItems.length} ghi nhận.`);
+                                                                                            setIsSelectingHistory(false);
+                                                                                            setSelectedHistoryItems([]);
+                                                                                            fetchAcademicRecords();
+                                                                                        } catch (err: any) {
+                                                                                            console.error('Lỗi khi xóa ghi nhận lịch sử:', err);
+                                                                                            toast.error(err.message || 'Có lỗi xảy ra khi xóa ghi nhận.');
+                                                                                        } finally {
+                                                                                            setIsLoading(false);
+                                                                                        }
                                                                                     }
                                                                                 }}
                                                                                 disabled={selectedHistoryItems.length === 0}
@@ -1265,7 +1634,26 @@ function GhiNhanTab() {
                                                                 </div>
                                                             </DrawerContent>
                                                         </Drawer>
-                                                    </td>
+
+                                                        {/* Sửa */}
+                                                        <button
+                                                            onClick={() => handleEdit(record.id)}
+                                                            className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
+                                                            title="Chỉnh sửa"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
+
+                                                        {/* Xóa */}
+                                                        <button
+                                                            onClick={() => setRecordToDelete(record.id)}
+                                                            className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
+                                                            title="Xóa"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
                                                 </motion.tr>
                                             );
                                         })
@@ -1469,6 +1857,9 @@ function GhiNhanTab() {
                                                     {/* Present stats */}
                                                     <div className="bg-slate-50/50 rounded-xl p-2.5 flex items-center justify-between text-[11.5px] text-slate-600 font-semibold">
                                                         <span>Hiện diện: {totalPresent}/{totalStudents}</span>
+                                                        <span className="text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded">
+                                                            {classReportRecordCounts[report._id] || 0} ghi nhận
+                                                        </span>
                                                         <span>Vắng: {totalAbsent}</span>
                                                     </div>
 
@@ -1484,7 +1875,18 @@ function GhiNhanTab() {
                                                     <div className="border-t border-slate-100/60 pt-2.5 mt-1 flex items-center justify-between">
                                                         <div className="flex flex-col">
                                                             <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Ngày báo cáo</span>
-                                                            <span className="text-[11px] font-bold text-slate-600 mt-0.5">{report.report_date}</span>
+                                                            <span className="text-[11px] font-bold text-slate-600 mt-0.5">
+                                                                {(() => {
+                                                                    const dStr = report.report_date;
+                                                                    if (!dStr) return 'N/A';
+                                                                    if (dStr.includes('/')) return dStr;
+                                                                    try {
+                                                                        return format(new Date(dStr), 'dd/MM/yyyy');
+                                                                    } catch {
+                                                                        return dStr;
+                                                                    }
+                                                                })()}
+                                                            </span>
                                                         </div>
                                                         <div className="flex items-center gap-1">
                                                             <ClassReportDetailDialog
@@ -1504,7 +1906,7 @@ function GhiNhanTab() {
                                                                 <Edit className="w-4 h-4" />
                                                             </button>
                                                             <button
-                                                                onClick={() => handleDeleteClassReportSingle(report._id)}
+                                                                onClick={() => setReportToDelete(report._id)}
                                                                 className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer"
                                                             >
                                                                 <Trash2 className="w-4 h-4" />
@@ -1537,6 +1939,7 @@ function GhiNhanTab() {
                                         <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Lớp học</th>
                                         <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Ngày báo cáo</th>
                                         <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Sĩ số có mặt</th>
+                                        <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Ghi nhận sv</th>
                                         <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Giảng viên ghi nhận</th>
                                         <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Ghi chú lớp</th>
                                         <th className="px-5 py-3 w-16 text-center text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Hành động</th>
@@ -1550,6 +1953,7 @@ function GhiNhanTab() {
                                                 <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-24 h-4" /></td>
                                                 <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-20 h-4" /></td>
                                                 <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-28 h-6 rounded-full" /></td>
+                                                <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-24 h-4" /></td>
                                                 <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-28 h-4" /></td>
                                                 <td className="px-5 py-4 border-b border-gray-50"><Skeleton className="w-44 h-4" /></td>
                                                 <td className="px-5 py-4 border-b border-gray-50 text-center"><Skeleton className="w-12 h-6 rounded-md mx-auto" /></td>
@@ -1615,6 +2019,9 @@ function GhiNhanTab() {
                                                             </span>
                                                         </div>
                                                     </td>
+                                                    <td className="px-5 py-4 text-sm font-semibold text-slate-600">
+                                                        {classReportRecordCounts[report._id] || 0} ghi nhận
+                                                    </td>
                                                     <td className="px-5 py-4 text-sm font-bold text-slate-700">
                                                         {report.teacher_name}
                                                     </td>
@@ -1649,7 +2056,7 @@ function GhiNhanTab() {
 
                                                             {/* Xóa */}
                                                             <button
-                                                                onClick={() => handleDeleteClassReportSingle(report._id)}
+                                                                onClick={() => setReportToDelete(report._id)}
                                                                 className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
                                                                 title="Xóa"
                                                             >
@@ -1664,7 +2071,7 @@ function GhiNhanTab() {
 
                                     {!isClassLoading && paginatedClassReports.length === 0 && (
                                         <tr>
-                                            <td colSpan={7} className="px-5 py-8 text-center text-sm text-gray-500 bg-gray-50/50">
+                                            <td colSpan={8} className="px-5 py-8 text-center text-sm text-gray-500 bg-gray-50/50">
                                                 Không tìm thấy báo cáo tình hình lớp học nào phù hợp.
                                             </td>
                                         </tr>
@@ -1766,6 +2173,43 @@ function GhiNhanTab() {
                 variant="danger"
             />
 
+            {/* Confirm delete 1 ghi nhận HSSV */}
+            <ConfirmModal
+                isOpen={recordToDelete !== null}
+                onClose={() => setRecordToDelete(null)}
+                onConfirm={() => recordToDelete && handleDeleteRecordSingle(recordToDelete)}
+                title="Xác nhận xóa ghi nhận"
+                message="Bạn có chắc chắn muốn xóa ghi nhận rèn luyện này? Hành động này không thể hoàn tác."
+                confirmLabel="Xóa"
+                cancelLabel="Hủy"
+                variant="danger"
+            />
+
+            {/* Confirm delete 1 báo cáo lớp */}
+            <ConfirmModal
+                isOpen={reportToDelete !== null}
+                onClose={() => setReportToDelete(null)}
+                onConfirm={() => reportToDelete && handleDeleteClassReportSingle(reportToDelete)}
+                title="Xác nhận xóa báo cáo lớp"
+                message="Bạn có chắc chắn muốn xóa báo cáo lớp học này? Hành động này không thể hoàn tác."
+                confirmLabel="Xóa"
+                cancelLabel="Hủy"
+                variant="danger"
+            />
+
+            {/* Modal thông báo lỗi từ backend */}
+            <ConfirmModal
+                isOpen={isErrorModalOpen}
+                onClose={() => setIsErrorModalOpen(false)}
+                onConfirm={() => setIsErrorModalOpen(false)}
+                title={errorModalTitle}
+                message={errorModalMessage}
+                confirmLabel="Đã hiểu"
+                showCancel={false}
+                variant="warning"
+            />
+
+
             {/* Dialog cấu hình tiêu chí vắng mặt toàn cục */}
             <Dialog open={isGlobalConfigModalOpen} onOpenChange={setIsGlobalConfigModalOpen}>
                 <DialogContent className="max-w-[760px] w-[95vw] rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
@@ -1782,6 +2226,7 @@ function GhiNhanTab() {
                                 onClick={() => {
                                     setIsGlobalConfigModalOpen(false);
                                     setIsTrashOpen(true);
+                                    fetchDeletedItems();
                                 }}
                                 className="w-full flex items-center justify-between p-3.5 bg-white border border-slate-100 hover:bg-slate-50/50 hover:border-slate-200 rounded-2xl transition-all cursor-pointer shadow-sm text-left group"
                             >
@@ -1889,70 +2334,213 @@ function GhiNhanTab() {
                 </DialogContent>
             </Dialog>
 
-            {/* Dialog Thùng rác giả định */}
+            {/* Dialog Thùng rác thực tế */}
             <Dialog open={isTrashOpen} onOpenChange={setIsTrashOpen}>
-                <DialogContent className="max-w-[500px] rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
-                    <DialogTitle className="text-[17px] font-bold text-slate-800 flex items-center gap-2">
+                <DialogContent className="max-w-[760px] w-[95vw] rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
+                    <DialogTitle className="text-[17px] font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
                         <Trash2 className="w-4.5 h-4.5 text-rose-500" />
-                        Thùng rác ghi nhận
+                        Thùng rác hệ thống
                     </DialogTitle>
                     <DialogDescription className="text-[12.5px] text-slate-500 mt-1">
-                        Danh sách các ghi nhận đã bị xóa. Bạn có thể khôi phục lại chúng về bảng chính.
+                        Danh sách các báo cáo ngày và ghi nhận vi phạm đã bị xóa tạm thời. Bạn có thể khôi phục lại hoặc xóa vĩnh viễn chúng.
                     </DialogDescription>
 
-                    <div className="mt-4 max-h-[300px] overflow-y-auto pr-2 flex flex-col gap-3">
-                        {mockDeletedItems.map((item) => (
-                            <div
-                                key={item.id}
-                                className="p-3.5 bg-white border border-slate-100 rounded-xl shadow-sm flex items-center justify-between gap-4 group"
-                            >
-                                <div className="flex flex-col min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[13px] font-bold text-slate-800">{item.name}</span>
-                                        <span className="text-[11px] text-slate-500 font-semibold">• {item.class}</span>
+                    {/* Tabs */}
+                    <div className="flex border-b border-slate-100 mt-4 mb-4 gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setTrashTab('student')}
+                            className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                                trashTab === 'student'
+                                    ? 'border-rose-500 text-rose-600'
+                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                            }`}
+                        >
+                            Vi phạm sinh viên ({deletedRecords.length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTrashTab('class')}
+                            className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                                trashTab === 'class'
+                                    ? 'border-rose-500 text-rose-600'
+                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                            }`}
+                        >
+                            Báo cáo của lớp ({deletedReports.length})
+                        </button>
+                    </div>
+
+                    <div className="mt-2 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                        {isTrashLoading ? (
+                            <div className="flex items-center justify-center py-12 text-slate-400 text-sm gap-2">
+                                <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+                                <span>Đang tải dữ liệu thùng rác...</span>
+                            </div>
+                        ) : trashTab === 'student' ? (
+                            <>
+                                {deletedRecords.length > 0 ? (
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 text-slate-500 font-semibold">
+                                                <th className="p-3 border-b border-slate-100">Sinh viên</th>
+                                                <th className="p-3 border-b border-slate-100">Nội dung ghi nhận</th>
+                                                <th className="p-3 border-b border-slate-100 text-center">Điểm ảnh hưởng</th>
+                                                <th className="p-3 border-b border-slate-100 text-center">Hành động</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {deletedRecords.map(rec => {
+                                                const stdName = typeof rec.student_id === 'object' ? rec.student_id?.full_name : 'N/A';
+                                                const stdCode = typeof rec.student_id === 'object' ? rec.student_id?.student_code : '';
+                                                const criName = rec.record_title;
+                                                return (
+                                                    <tr key={rec._id} className="hover:bg-slate-50/40 transition-colors">
+                                                        <td className="p-3">
+                                                            <div className="font-bold text-slate-700">{stdName}</div>
+                                                            <div className="text-[10px] text-slate-400 font-medium mt-0.5">{stdCode}</div>
+                                                        </td>
+                                                        <td className="p-3 text-slate-600 max-w-[240px] truncate" title={criName}>
+                                                            {criName}
+                                                        </td>
+                                                        <td className={`p-3 text-center font-bold ${rec.points_effect < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                                            {rec.points_effect > 0 ? `+${rec.points_effect}` : rec.points_effect}
+                                                        </td>
+                                                        <td className="p-3">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRestoreRecord(rec._id)}
+                                                                    className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                                                                    title="Khôi phục"
+                                                                >
+                                                                    <RotateCcw className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setRecordToForceDelete(rec._id)}
+                                                                    className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                                                                    title="Xóa vĩnh viễn"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    <div className="text-center py-12 text-slate-400 italic text-[12.5px]">
+                                        Thùng rác ghi nhận vi phạm trống.
                                     </div>
-                                    <p className="text-[12px] text-slate-600 mt-1 truncate" title={item.detail}>
-                                        {item.detail}
-                                    </p>
-                                    <span className="text-[10px] text-slate-400 font-medium mt-1">{item.date}</span>
-                                </div>
-                                <button
-                                    onClick={() => {
-                                        setMockDeletedItems(prev => prev.filter(x => x.id !== item.id));
-                                        toast.success(`Đã khôi phục thành công ghi nhận của ${item.name}!`);
-                                    }}
-                                    className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-[11px] font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer shrink-0"
-                                >
-                                    Khôi phục
-                                </button>
-                            </div>
-                        ))}
-                        {mockDeletedItems.length === 0 && (
-                            <div className="text-center py-8 text-slate-400 italic text-[12.5px]">
-                                Thùng rác trống.
-                            </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                {deletedReports.length > 0 ? (
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 text-slate-500 font-semibold">
+                                                <th className="p-3 border-b border-slate-100">Lớp học</th>
+                                                <th className="p-3 border-b border-slate-100">Ngày báo cáo</th>
+                                                <th className="p-3 border-b border-slate-100">Giảng viên ghi nhận</th>
+                                                <th className="p-3 border-b border-slate-100 text-center">Hành động</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {deletedReports.map(rep => {
+                                                const classObj = typeof rep.class_id === 'object' ? rep.class_id : null;
+                                                const className = classObj ? classObj.class_name : 'N/A';
+                                                return (
+                                                    <tr key={rep._id} className="hover:bg-slate-50/40 transition-colors">
+                                                        <td className="p-3 font-bold text-slate-700">
+                                                            {className}
+                                                        </td>
+                                                        <td className="p-3 text-slate-600 font-medium">
+                                                            {rep.report_date ? format(new Date(rep.report_date), 'dd/MM/yyyy') : 'N/A'}
+                                                        </td>
+                                                        <td className="p-3 text-slate-600 font-semibold">
+                                                            {rep.teacher_name}
+                                                        </td>
+                                                        <td className="p-3">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRestoreReport(rep._id)}
+                                                                    className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                                                                    title="Khôi phục"
+                                                                >
+                                                                    <RotateCcw className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setReportToForceDelete(rep._id)}
+                                                                    className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                                                                    title="Xóa vĩnh viễn"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    <div className="text-center py-12 text-slate-400 italic text-[12.5px]">
+                                        Thùng rác báo cáo lớp trống.
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
 
-                    <div className="mt-6 flex justify-end gap-2">
+                    <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
                         <button
                             type="button"
                             onClick={() => {
                                 setIsTrashOpen(false);
                                 setIsGlobalConfigModalOpen(true);
                             }}
-                            className="bg-slate-100 text-slate-600 font-semibold rounded-full px-5 py-1.5 hover:bg-slate-200 text-[12.5px] cursor-pointer"
+                            className="bg-slate-100 text-slate-600 font-bold rounded-xl px-5 py-2 hover:bg-slate-200 text-xs transition-colors cursor-pointer"
                         >
-                            Quay lại
+                            Quay lại cấu hình
                         </button>
                         <button
                             type="button"
                             onClick={() => setIsTrashOpen(false)}
-                            className="bg-slate-900 text-white font-semibold rounded-full px-5 py-1.5 hover:bg-slate-800 text-[12.5px] cursor-pointer border-none outline-none"
+                            className="bg-slate-900 text-white font-bold rounded-xl px-5 py-2 hover:bg-slate-800 text-xs transition-colors cursor-pointer border-none outline-none"
                         >
-                            Đóng
+                            Đóng thùng rác
                         </button>
                     </div>
+
+                    {/* Confirm force delete AcademicRecord */}
+                    <ConfirmModal
+                        isOpen={recordToForceDelete !== null}
+                        onClose={() => setRecordToForceDelete(null)}
+                        onConfirm={() => recordToForceDelete && handleForceDeleteRecord(recordToForceDelete)}
+                        title="Xác nhận xoá vĩnh viễn"
+                        message="Bạn có chắc chắn muốn xoá vĩnh viễn ghi nhận rèn luyện này? Hành động này sẽ xoá sạch dữ liệu và không thể hoàn tác."
+                        confirmLabel="Xoá vĩnh viễn"
+                        cancelLabel="Huỷ"
+                        variant="danger"
+                    />
+
+                    {/* Confirm force delete DailyClassReport */}
+                    <ConfirmModal
+                        isOpen={reportToForceDelete !== null}
+                        onClose={() => setReportToForceDelete(null)}
+                        onConfirm={() => reportToForceDelete && handleForceDeleteReport(reportToForceDelete)}
+                        title="Xác nhận xoá vĩnh viễn"
+                        message="Bạn có chắc chắn muốn xoá vĩnh viễn báo cáo lớp học này? Hành động này sẽ xoá sạch báo cáo và các ghi nhận vi phạm liên quan vĩnh viễn khỏi database."
+                        confirmLabel="Xoá vĩnh viễn"
+                        cancelLabel="Huỷ"
+                        variant="danger"
+                    />
                 </DialogContent>
             </Dialog>
         </div>
@@ -2063,7 +2651,7 @@ function ClassReportDetailDialog({
                             evaluation_detail_id: criterionId,
                             criterion_name: rec.record_title || 'Vi phạm',
                             points_effect: rec.points_effect || -5,
-                            class_note: rec.record_title || ''
+                            class_note: rec.description || ''
                         };
                     });
                     setViolations(mapped);
@@ -2091,7 +2679,6 @@ function ClassReportDetailDialog({
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3 pr-6">
                         <div className="flex flex-col">
                             <DialogTitle className="font-bold text-slate-900 text-[16px]">Chi tiết báo cáo buổi học</DialogTitle>
-                            <span className="text-[11px] text-slate-400 font-semibold mt-0.5">Mã báo cáo: {report._id.substring(0, 8)}...</span>
                             <DialogDescription className="sr-only">
                                 Xem thông tin chi tiết về sĩ số chuyên cần và danh sách các sinh viên bị ghi nhận vi phạm trong buổi học của lớp {className}.
                             </DialogDescription>
@@ -2139,7 +2726,7 @@ function ClassReportDetailDialog({
                     <div className="border-t border-slate-100 pt-3.5 flex flex-col gap-2">
                         <div className="flex items-center justify-between">
                             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sinh viên bị ghi nhận vi phạm</span>
-                            <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full font-bold">
+                            <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">
                                 {violations.length} mục
                             </span>
                         </div>
@@ -2153,20 +2740,22 @@ function ClassReportDetailDialog({
                             <div className="max-h-[180px] overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin">
                                 {violations.map((violation, idx) => (
                                     <div key={idx} className="flex items-start justify-between p-3 rounded-lg border border-slate-100 bg-white shadow-[0px_1px_2px_rgba(0,0,0,0.02)]">
-                                        <div className="flex flex-col min-w-0 pr-2">
+                                        <div className="flex flex-col min-w-0 pr-2 items-start text-left">
                                             <span className="text-xs font-bold text-slate-800 truncate">{violation.student_name}</span>
-                                            <span className="text-[10px] text-slate-400 font-semibold">MSSV: {violation.student_code}</span>
+                                            <span className="text-[10px] text-slate-500 font-medium mt-0.5 text-left">
+                                                Tiêu chí: {violation.criterion_name}
+                                            </span>
                                             {violation.class_note && (
-                                                <span className="text-[10px] text-slate-500 italic mt-1 truncate">
+                                                <span className="text-[10px] text-slate-400 italic mt-0.5 truncate text-left">
                                                     Ghi chú: {violation.class_note}
                                                 </span>
                                             )}
                                         </div>
-                                        <span className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full shrink-0 border uppercase tracking-wider ${violation.criterion_name.toLowerCase().includes('trễ') || violation.criterion_name.toLowerCase().includes('muộn')
-                                            ? 'bg-amber-50 text-amber-600 border-amber-100/50'
-                                            : 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                        <span className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full shrink-0 border uppercase tracking-wider ${violation.points_effect < 0
+                                            ? 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                            : 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
                                             }`}>
-                                            {violation.criterion_name}
+                                            {violation.points_effect > 0 ? '+' : ''}{violation.points_effect}đ
                                         </span>
                                     </div>
                                 ))}
@@ -2204,7 +2793,6 @@ function ClassReportDetailDialog({
                     <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
                         <div className="flex flex-col items-start">
                             <h3 className="font-bold text-slate-900 text-[18px] text-left">Báo cáo tình hình lớp học</h3>
-                            <span className="text-[11px] text-slate-400 font-semibold mt-0.5 text-left">Mã báo cáo: {report._id.substring(0, 8)}...</span>
                         </div>
                         <span className="text-xs bg-blue-500 text-white px-3.5 py-1 rounded-full font-bold uppercase tracking-wider">{className}</span>
                     </div>
@@ -2212,7 +2800,18 @@ function ClassReportDetailDialog({
                     <div className="flex flex-col gap-3 text-xs font-semibold text-slate-500 bg-white rounded-2xl p-4.5 border border-slate-100 shadow-[0px_1px_2px_rgba(0,0,0,0.02)]">
                         <div className="flex justify-between items-center w-full">
                             <span className="text-slate-400 text-left">Ngày báo cáo:</span>
-                            <span className="font-bold text-slate-800 text-right">{report.report_date}</span>
+                            <span className="font-bold text-slate-800 text-right">
+                                {(() => {
+                                    const dStr = report.report_date;
+                                    if (!dStr) return 'N/A';
+                                    if (dStr.includes('/')) return dStr;
+                                    try {
+                                        return format(new Date(dStr), 'dd/MM/yyyy');
+                                    } catch {
+                                        return dStr;
+                                    }
+                                })()}
+                            </span>
                         </div>
                         <div className="flex justify-between items-center w-full">
                             <span className="text-slate-400 text-left">Giảng viên:</span>
@@ -2238,7 +2837,7 @@ function ClassReportDetailDialog({
                     <div className="flex flex-col gap-2.5 mt-1 border-t border-slate-200/60 pt-4">
                         <div className="flex items-center justify-between">
                             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sinh viên bị ghi nhận vi phạm</span>
-                            <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full font-bold">
+                            <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">
                                 {violations.length} mục
                             </span>
                         </div>
@@ -2247,20 +2846,22 @@ function ClassReportDetailDialog({
                             <div className="flex flex-col gap-2.5">
                                 {violations.map((violation, idx) => (
                                     <div key={idx} className="flex items-start justify-between p-3.5 rounded-xl border border-slate-100/80 bg-white shadow-sm">
-                                        <div className="flex flex-col min-w-0 pr-3">
+                                        <div className="flex flex-col min-w-0 pr-3 items-start text-left">
                                             <span className="text-xs font-bold text-slate-800 truncate">{violation.student_name}</span>
-                                            <span className="text-[10px] text-slate-400 font-semibold">MSSV: {violation.student_code}</span>
+                                            <span className="text-[10px] text-slate-500 font-medium mt-0.5 text-left">
+                                                Tiêu chí: {violation.criterion_name}
+                                            </span>
                                             {violation.class_note && (
-                                                <span className="text-[10px] text-slate-550 italic mt-1 leading-normal">
+                                                <span className="text-[10px] text-slate-400 italic mt-0.5 leading-normal text-left">
                                                     Ghi chú: {violation.class_note}
                                                 </span>
                                             )}
                                         </div>
-                                        <span className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full shrink-0 border uppercase tracking-wider ${violation.criterion_name.toLowerCase().includes('trễ') || violation.criterion_name.toLowerCase().includes('muộn')
-                                            ? 'bg-amber-50 text-amber-600 border-amber-100/50'
-                                            : 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                        <span className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full shrink-0 border uppercase tracking-wider ${violation.points_effect < 0
+                                            ? 'bg-rose-50 text-rose-600 border-rose-100/50'
+                                            : 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
                                             }`}>
-                                            {violation.criterion_name}
+                                            {violation.points_effect > 0 ? '+' : ''}{violation.points_effect}đ
                                         </span>
                                     </div>
                                 ))}

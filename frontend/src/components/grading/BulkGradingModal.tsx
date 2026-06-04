@@ -38,32 +38,25 @@ export default function BulkGradingModal({
   onConfirm,
   categories = []
 }: BulkGradingModalProps) {
-  const [selectedCatId, setSelectedCatId] = useState<string>('');
   const [selectedCriteriaId, setSelectedCriteriaId] = useState<string>('');
   const [count, setCount] = useState<number>(1);
 
-  // Lấy danh mục đang chọn
-  const activeCategory = categories.find(c => c.id === selectedCatId);
+  // Gom toàn bộ tiêu chí
+  const allCriteria = categories.reduce<Criteria[]>((acc, cat) => [...acc, ...cat.items], []);
   // Lấy tiêu chí đang chọn
-  const activeCriteria = activeCategory?.items.find(i => i.id === selectedCriteriaId);
+  const activeCriteria = allCriteria.find(i => i.id === selectedCriteriaId);
 
   // Tự động reset form khi modal đóng/mở
   useEffect(() => {
     if (isOpen) {
-      setSelectedCatId('');
       setSelectedCriteriaId('');
       setCount(1);
     }
   }, [isOpen]);
 
-  // Tự động reset tiêu chí khi thay đổi danh mục
-  useEffect(() => {
-    setSelectedCriteriaId('');
-  }, [selectedCatId]);
-
   const handleConfirm = () => {
-    if (!selectedCatId || !selectedCriteriaId) {
-      toast.error('Vui lòng chọn danh mục và tiêu chí chấm điểm!');
+    if (!selectedCriteriaId) {
+      toast.error('Vui lòng chọn tiêu chí chấm điểm!');
       return;
     }
     if (count <= 0) {
@@ -127,27 +120,7 @@ export default function BulkGradingModal({
                 </div>
               </div>
 
-              {/* 1. Chọn Danh mục */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
-                  Danh mục rèn luyện
-                </label>
-                <Select
-                  value={selectedCatId}
-                  onValueChange={(val: string) => setSelectedCatId(val)}
-                >
-                  <SelectTrigger className="h-[42px] bg-slate-50 border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none">
-                    <SelectValue placeholder="Chọn danh mục" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>{cat.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 2. Chọn Tiêu chí */}
+              {/* 1. Chọn Tiêu chí */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
                   Tiêu chí chấm điểm
@@ -155,17 +128,19 @@ export default function BulkGradingModal({
                 <Select
                   value={selectedCriteriaId}
                   onValueChange={(val: string) => setSelectedCriteriaId(val)}
-                  disabled={!selectedCatId}
                 >
-                  <SelectTrigger className="h-[42px] bg-slate-50 border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none disabled:opacity-50 disabled:bg-slate-100">
-                    <SelectValue placeholder={selectedCatId ? "Chọn tiêu chí" : "Chọn danh mục trước"} />
+                  <SelectTrigger className="h-[42px] bg-slate-50 border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none">
+                    <SelectValue placeholder="Chọn tiêu chí..." />
                   </SelectTrigger>
-                  <SelectContent>
-                    {activeCategory?.items.map(item => (
+                  <SelectContent className="max-h-[220px] overflow-y-auto">
+                    {allCriteria.map(item => (
                       <SelectItem key={item.id} value={item.id}>
                         {item.name} ({item.pointsPerUnit > 0 ? '+' : ''}{item.pointsPerUnit}đ)
                       </SelectItem>
                     ))}
+                    {allCriteria.length === 0 && (
+                      <div className="p-4 text-center text-xs text-slate-400 italic">Không có tiêu chí nào</div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

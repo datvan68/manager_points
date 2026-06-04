@@ -6,11 +6,26 @@ import {
   EvaluationDetail,
   EvaluationDetailSchema,
 } from './schemas/evaluation-detail.schema';
+import {
+  AcademicRecord,
+  AcademicRecordSchema,
+} from '../academic-record/schemas/academic-record.schema';
+import {
+  Criterion,
+  CriterionSchema,
+} from '../criteria/schemas/criterion.schema';
+import {
+  SummaryPoint,
+  SummaryPointSchema,
+} from '../summaries-point/schemas/summary-point.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: EvaluationDetail.name, schema: EvaluationDetailSchema },
+      { name: AcademicRecord.name, schema: AcademicRecordSchema },
+      { name: Criterion.name, schema: CriterionSchema },
+      { name: SummaryPoint.name, schema: SummaryPointSchema },
     ]),
   ],
   controllers: [EvaluationDetailController],

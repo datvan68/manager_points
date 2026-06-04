@@ -40,6 +40,18 @@ export class EvaluationDetailController {
     return this.evaluationDetailService.findAll();
   }
 
+  @Get('pre-counts/:summaryId')
+  @ApiOperation({
+    summary: 'Đếm số academic_record đã có sẵn cho tất cả tiêu chí của bảng tổng kết',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Trả về map { criterionId: count } các ghi nhận đã có sẵn.',
+  })
+  getPreExistingCounts(@Param('summaryId') summaryId: string) {
+    return this.evaluationDetailService.getPreExistingCountsForSummary(summaryId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Lấy chi tiết chấm điểm bằng ID' })
   @ApiResponse({

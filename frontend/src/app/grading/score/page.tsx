@@ -198,6 +198,9 @@ function GradingScoreContent() {
   // Cấu trúc: { [studentId]: { [criteriaId]: count } }
   const [evaluationCounts, setEvaluationCounts] = useState<Record<string, Record<string, number>>>({});
 
+  // State lưu lại giá trị gốc có sẵn (pre-existing) — { studentId: { criterionId: { original_count, current_count } } }
+  const [preExistingCountsState, setPreExistingCountsState] = useState<Record<string, Record<string, { original_count: number; current_count: number }>>>({});
+
   // State lưu lịch sử ghi nhận
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
   const [historyPage, setHistoryPage] = useState(1);
@@ -342,14 +345,21 @@ function GradingScoreContent() {
         if (targetActiveId) {
           const activeSummaryId = summaryMap[targetActiveId];
           if (activeSummaryId) {
-            const details = await evaluationDetailApi.getEvaluationDetailsBySummary(activeSummaryId);
+            const [details, preExistingCounts] = await Promise.all([
+              evaluationDetailApi.getEvaluationDetailsBySummary(activeSummaryId),
+              evaluationDetailApi.getPreExistingCounts(activeSummaryId),
+            ]);
             const counts: Record<string, number> = {};
             const activeHistory: any[] = [];
+
+            // Ghi nhận criteria đã có evaluation_detail
+            const evaluatedCriteriaIds = new Set<string>();
 
             (details || []).forEach(detail => {
               const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
               const criId = cri?._id || detail.criterion_id;
               counts[criId] = detail.current_count || 0;
+              evaluatedCriteriaIds.add(criId);
 
               const criName = cri?.criterion_name || 'Tiêu chí';
               const criType = cri?.criterion_type === 'ky_luat' ? 'violation' : 'reward';
@@ -371,6 +381,20 @@ function GradingScoreContent() {
                 });
               });
             });
+
+            // Merge pre-existing counts cho tiêu chí chưa có evaluation_detail
+            if (preExistingCounts) {
+              setPreExistingCountsState(prev => ({
+                ...prev,
+                [targetActiveId]: preExistingCounts
+              }));
+              Object.entries(preExistingCounts).forEach(([criId, preCountObj]) => {
+                const preCount = typeof preCountObj === 'object' ? preCountObj.current_count : preCountObj;
+                if (!evaluatedCriteriaIds.has(criId) && preCount > 0) {
+                  counts[criId] = preCount;
+                }
+              });
+            }
 
             setEvaluationCounts(prev => ({
               ...prev,
@@ -403,14 +427,21 @@ function GradingScoreContent() {
 
       try {
         setIsFetching(true);
-        const details = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
+        const [details, preExistingCounts] = await Promise.all([
+          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId),
+          evaluationDetailApi.getPreExistingCounts(summaryId),
+        ]);
         const counts: Record<string, number> = {};
         const activeHistory: any[] = [];
+
+        // Ghi nhận criteria đã có evaluation_detail
+        const evaluatedCriteriaIds = new Set<string>();
 
         (details || []).forEach(detail => {
           const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
           const criId = cri?._id || detail.criterion_id;
           counts[criId] = detail.current_count || 0;
+          evaluatedCriteriaIds.add(criId);
 
           const criName = cri?.criterion_name || 'Tiêu chí';
           const criType = cri?.criterion_type === 'ky_luat' ? 'violation' : 'reward';
@@ -432,6 +463,20 @@ function GradingScoreContent() {
             });
           });
         });
+
+        // Merge pre-existing counts cho tiêu chí chưa có evaluation_detail
+        if (preExistingCounts) {
+          setPreExistingCountsState(prev => ({
+            ...prev,
+            [activeStudentId]: preExistingCounts
+          }));
+          Object.entries(preExistingCounts).forEach(([criId, preCountObj]) => {
+            const preCount = typeof preCountObj === 'object' ? preCountObj.current_count : preCountObj;
+            if (!evaluatedCriteriaIds.has(criId) && preCount > 0) {
+              counts[criId] = preCount;
+            }
+          });
+        }
 
         setEvaluationCounts(prev => ({
           ...prev,
@@ -503,10 +548,14 @@ function GradingScoreContent() {
   const handleCountChange = (criteriaId: string, delta: number) => {
     if (!activeStudentId) return;
 
+    // Lấy min count từ pre-existing records (không cho giảm dưới giá trị gốc)
+    const studentPreCounts = preExistingCountsState[activeStudentId] || {};
+    const minCount = studentPreCounts[criteriaId]?.original_count || 0;
+
     setEvaluationCounts(prev => {
       const studentCounts = prev[activeStudentId] ? { ...prev[activeStudentId] } : {};
       const currentCount = studentCounts[criteriaId] || 0;
-      const newCount = Math.max(0, currentCount + delta); // không âm
+      const newCount = Math.max(minCount, currentCount + delta); // không giảm dưới giá trị gốc
 
       const updatedCounts = {
         ...prev,
@@ -569,8 +618,13 @@ function GradingScoreContent() {
           if (currentCounts[cri.id] !== undefined) {
             newCounts[cri.id] = currentCounts[cri.id];
           }
+        } else {
+          // Lấy lại giá trị pre-existing nếu có, nếu không thì = 0 (tránh xoá record ghi nhận hàng ngày)
+          const studentPreCounts = preExistingCountsState[activeStudentId] || {};
+          if (studentPreCounts[cri.id]) {
+            newCounts[cri.id] = studentPreCounts[cri.id].current_count;
+          }
         }
-        // Các tiêu chí không bị khóa mặc định sẽ không có trong newCounts hoặc bằng 0
       });
     });
 
@@ -1103,6 +1157,9 @@ function GradingScoreContent() {
                             const hasViolation = item.type === 'violation';
                             const totalPoints = item.pointsPerUnit * count;
 
+                            const studentPreCounts = preExistingCountsState[activeStudentId] || {};
+                            const minCount = studentPreCounts[item.id]?.original_count || 0;
+
                             return (
                               <div
                                 key={item.id}
@@ -1123,8 +1180,8 @@ function GradingScoreContent() {
                                     <div className={`bg-white/60 backdrop-blur-sm border border-white/80 rounded-full p-1 flex gap-1 items-center shadow-sm ${item.is_locked || !isSemesterActive ? 'opacity-60 bg-slate-100/50' : ''}`}>
                                       <button
                                         onClick={() => !item.is_locked && isSemesterActive && handleCountChange(item.id, -1)}
-                                        disabled={count === 0 || item.is_locked || !isSemesterActive}
-                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${count === 0 || item.is_locked || !isSemesterActive
+                                        disabled={count <= minCount || item.is_locked || !isSemesterActive}
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${count <= minCount || item.is_locked || !isSemesterActive
                                           ? 'opacity-30 cursor-not-allowed text-slate-400'
                                           : 'cursor-pointer ' + (hasViolation
                                             ? 'text-rose-600 hover:bg-rose-50'

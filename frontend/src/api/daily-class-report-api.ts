@@ -93,5 +93,37 @@ export const dailyClassReportApi = {
       },
     });
     return handleResponse<DailyClassReport>(res);
+  },
+
+  async getDeletedDailyClassReports(): Promise<DailyClassReport[]> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/daily-class-reports/deleted/all`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+    });
+    return handleResponse<DailyClassReport[]>(res);
+  },
+
+  async restoreDailyClassReport(id: string): Promise<DailyClassReport> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/daily-class-reports/${id}/restore`, {
+      method: 'PATCH',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+    });
+    return handleResponse<DailyClassReport>(res);
+  },
+
+  async forceDeleteDailyClassReport(id: string): Promise<DailyClassReport> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/daily-class-reports/${id}/force`, {
+      method: 'DELETE',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+    });
+    return handleResponse<DailyClassReport>(res);
   }
 };

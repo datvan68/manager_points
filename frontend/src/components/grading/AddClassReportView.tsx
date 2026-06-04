@@ -66,7 +66,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   // Cấu hình tiêu chí vắng mặt
   const [absentCriteriaIds, setAbsentCriteriaIds] = useState<string[]>([]);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  
+
   // Học kỳ hoạt động thực tế
   const [activeSemesterId, setActiveSemesterId] = useState('60d0fe4f5311236168a109cb');
 
@@ -156,7 +156,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                 evaluation_detail_id: criterionId,
                 criterion_name: rec.record_title || 'Vi phạm',
                 points_effect: rec.points_effect || -5,
-                class_note: rec.record_title || '' // tạm lấy title làm note
+                class_note: rec.description || ''
               };
             });
             setAddedViolations(violationsMapped);
@@ -211,8 +211,11 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   // Tự động tính toán sĩ số dựa trên danh sách sinh viên vắng mặt (vi phạm vắng học được cấu hình)
   useEffect(() => {
     if (classStudents.length > 0) {
-      // Chỉ đếm những vi phạm thuộc tiêu chí được cấu hình tính vắng mặt
-      const absentViolations = addedViolations.filter(v => absentCriteriaIds.includes(v.evaluation_detail_id));
+      // Chỉ đếm những vi phạm thuộc tiêu chí được cấu hình tính vắng mặt hoặc có chứa từ khóa "vắng"
+      const absentViolations = addedViolations.filter(v => 
+        absentCriteriaIds.includes(v.evaluation_detail_id) || 
+        v.criterion_name.toLowerCase().includes('vắng')
+      );
       const uniqueAbsentIds = new Set(absentViolations.map(v => v.student_id));
       const absentCount = uniqueAbsentIds.size;
       setTotalAbsent(absentCount);
@@ -263,7 +266,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         evaluation_detail_id: criterion._id,
         criterion_name: criterion.criterion_name,
         points_effect: criterion.score_per_unit || criterion.min_score || -5,
-        class_note: violationNote.trim() || 'Vi phạm kỷ luật'
+        class_note: violationNote.trim() || 'Không có ghi chú'
       };
 
       setAddedViolations([...addedViolations, newViolation]);
@@ -315,7 +318,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         // 2. Xóa toàn bộ các academic_records cũ của daily report này để ghi đè sạch sẽ
         try {
           const oldRecords = await academicRecordApi.getAcademicRecordsByDailyReport(dailyReportId);
-          await Promise.all(oldRecords.map(rec => academicRecordApi.deleteAcademicRecord(rec._id)));
+          await Promise.all(oldRecords.map(rec => academicRecordApi.deleteAcademicRecord(rec._id, true)));
         } catch (e) {
           console.warn('Không thể làm sạch bản ghi cũ hoặc không có bản ghi cũ:', e);
         }
@@ -370,31 +373,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             evalDetail = await evaluationDetailApi.createEvaluationDetail({
               summary_id: studentSummary._id,
               criterion_id: violation.evaluation_detail_id,
-              current_count: 1,
+              current_count: 0,
               status: 'teacher_evaluated',
-              description: `Ghi nhận từ báo cáo ngày`,
-              history: [
-                {
-                  role: 'teacher',
-                  count: 1,
-                  reason: `Tạo mới ghi nhận: ${violation.criterion_name}`
-                }
-              ]
-            });
-          } else {
-            const newCount = (evalDetail.current_count || 0) + 1;
-            await evaluationDetailApi.updateEvaluationDetail(evalDetail._id, {
-              current_count: newCount,
-              history: [
-                ...(evalDetail.history || []),
-                {
-                  role: 'teacher',
-                  count: newCount,
-                  reason: `Thêm ghi nhận: ${violation.criterion_name}`
-                }
-              ]
+              description: `Khởi tạo ghi nhận thủ công`,
+              history: []
             });
           }
+          // Lưu ý: Không gọi updateEvaluationDetail ở đây nếu đã có evalDetail,
+          // vì hàm createAcademicRecord ở dưới sẽ tự động kích hoạt backend cộng thêm 1 vào current_count.
 
           // 3. Tạo AcademicRecord với evaluation_detail_id chính xác
           return academicRecordApi.createAcademicRecord({
@@ -402,10 +388,12 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             criteria_id: violation.evaluation_detail_id,
             student_id: violation.student_id,
             semester_id: activeSemesterId,
-            record_title: `${violation.criterion_name} (${violation.class_note})`,
+            record_title: `${violation.criterion_name}`,
             points_effect: violation.points_effect,
             status: 'active',
-            daily_report_id: dailyReportId
+            daily_report_id: dailyReportId,
+            date_record: reportDate.toISOString(),
+            description: violation.class_note
           });
         }));
         toast.success(`Đã ghi nhận ${addedViolations.length} vi phạm rèn luyện thành công!`);
@@ -497,7 +485,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
                           <SelectValue placeholder="Chọn mã lớp học..." />
                         </SelectTrigger>
-                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 max-h-[220px] overflow-y-auto">
+                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
                           {classes.map(c => (
                             <SelectItem key={c._id} value={c._id}>{c.class_name}</SelectItem>
                           ))}
@@ -658,13 +646,15 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       </thead>
                       <tbody className="divide-y divide-white/20 bg-white/25">
                         {addedViolations.map((violation, idx) => {
-                          const isTre = violation.criterion_name.toLowerCase().includes('trễ') || violation.criterion_name.toLowerCase().includes('muộn');
-                          const isPositive = violation.points_effect > 0;
-                          const badgeClass = isPositive
-                            ? 'bg-emerald-50 border border-[#a7f3d0] text-[#065f46]'
-                            : isTre
-                              ? 'bg-[rgba(255,218,214,0.6)] border border-[#ffdad6] text-[#93000a]'
-                              : 'bg-[#ffdbcb]/80 border border-[#ffcdb2] text-[#783100]';
+                          const criterion = criteria.find(c => c._id === violation.evaluation_detail_id);
+                          const type = criterion?.criterion_type || (violation.points_effect > 0 ? 'cong_diem' : 'ky_luat');
+
+                          let badgeClass = 'bg-blue-50 text-blue-600 border border-blue-100';
+                          if (type === 'khen_thuong') {
+                            badgeClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100';
+                          } else if (type === 'ky_luat') {
+                            badgeClass = 'bg-rose-50 text-rose-600 border border-rose-100';
+                          }
 
                           return (
                             <tr key={idx} className="hover:bg-white/30 transition-colors">
@@ -676,7 +666,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                               </td>
                               <td className="px-[20px] py-[12px]">
                                 <span className={`font-bold rounded-full px-[10px] py-[3px] text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
-                                  {violation.criterion_name} ({violation.points_effect > 0 ? '+' : ''}{violation.points_effect}đ)
+                                  {violation.criterion_name}
                                 </span>
                               </td>
                               <td className="px-[20px] py-[12px] font-normal text-[#414754] text-[13.5px] max-w-[200px] truncate" title={violation.class_note}>

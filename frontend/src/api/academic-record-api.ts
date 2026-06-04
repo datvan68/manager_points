@@ -11,6 +11,8 @@ export interface AcademicRecord {
   points_effect: number;
   status: 'active' | 'inactive';
   daily_report_id?: any | string;
+  date_record?: string;
+  description?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -24,6 +26,8 @@ export interface CreateAcademicRecordDto {
   points_effect: number;
   status?: 'active' | 'inactive';
   daily_report_id?: string;
+  date_record?: string;
+  description?: string;
 }
 
 export interface UpdateAcademicRecordDto {
@@ -35,6 +39,8 @@ export interface UpdateAcademicRecordDto {
   points_effect?: number;
   status?: 'active' | 'inactive';
   daily_report_id?: string;
+  date_record?: string;
+  description?: string;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -79,9 +85,10 @@ export const academicRecordApi = {
     return handleResponse<AcademicRecord>(res);
   },
 
-  async updateAcademicRecord(id: string, dto: UpdateAcademicRecordDto): Promise<AcademicRecord> {
+  async updateAcademicRecord(id: string, dto: UpdateAcademicRecordDto, bypassDailyReportCheck?: boolean): Promise<AcademicRecord> {
     const token = tokenStorage.getAccessToken() || '';
-    const res = await fetch(`${API_BASE}/academic-records/${id}`, {
+    const query = bypassDailyReportCheck ? '?bypassDailyReportCheck=true' : '';
+    const res = await fetch(`${API_BASE}/academic-records/${id}${query}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -92,9 +99,43 @@ export const academicRecordApi = {
     return handleResponse<AcademicRecord>(res);
   },
 
-  async deleteAcademicRecord(id: string): Promise<AcademicRecord> {
+  async deleteAcademicRecord(id: string, bypassDailyReportCheck?: boolean): Promise<AcademicRecord> {
     const token = tokenStorage.getAccessToken() || '';
-    const res = await fetch(`${API_BASE}/academic-records/${id}`, {
+    const query = bypassDailyReportCheck ? '?bypassDailyReportCheck=true' : '';
+    const res = await fetch(`${API_BASE}/academic-records/${id}${query}`, {
+      method: 'DELETE',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+    });
+    return handleResponse<AcademicRecord>(res);
+  },
+
+  async getDeletedAcademicRecords(): Promise<AcademicRecord[]> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/deleted/all`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+    });
+    return handleResponse<AcademicRecord[]>(res);
+  },
+
+  async restoreAcademicRecord(id: string): Promise<AcademicRecord> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/${id}/restore`, {
+      method: 'PATCH',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+    });
+    return handleResponse<AcademicRecord>(res);
+  },
+
+  async forceDeleteAcademicRecord(id: string, bypassDailyReportCheck?: boolean): Promise<AcademicRecord> {
+    const token = tokenStorage.getAccessToken() || '';
+    const query = bypassDailyReportCheck ? '?bypassDailyReportCheck=true' : '';
+    const res = await fetch(`${API_BASE}/academic-records/${id}/force${query}`, {
       method: 'DELETE',
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),

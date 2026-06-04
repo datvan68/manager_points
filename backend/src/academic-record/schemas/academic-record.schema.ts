@@ -59,6 +59,14 @@ export class AcademicRecord {
   status: string;
 
   @Prop({
+    type: String,
+    enum: ['system', 'manual', 'direct_grading'],
+    default: 'manual',
+    index: true,
+  })
+  source: string;
+
+  @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'DailyClassReport',
     required: false,
@@ -73,7 +81,17 @@ export class AcademicRecord {
     index: true,
   })
   user_id?: User;
+
+  @Prop({ required: false, type: Date })
+  date_record?: Date;
+
+  @Prop({ type: String, default: '' })
+  description?: string;
+
+  @Prop({ type: Boolean, default: false, index: true })
+  is_delete: boolean;
 }
 
-export const AcademicRecordSchema =
-  SchemaFactory.createForClass(AcademicRecord);
+export const AcademicRecordSchema = SchemaFactory.createForClass(AcademicRecord);
+
+AcademicRecordSchema.index({ student_id: 1, semester_id: 1, status: 1 });

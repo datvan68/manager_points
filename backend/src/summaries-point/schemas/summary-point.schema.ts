@@ -28,3 +28,5 @@ export class SummaryPoint {
 }
 
 export const SummaryPointSchema = SchemaFactory.createForClass(SummaryPoint);
+
+SummaryPointSchema.index({ semester_id: 1, student_id: 1 });

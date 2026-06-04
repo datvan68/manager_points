@@ -87,11 +87,24 @@ export default function CriteriaModal({
     const parentCat = categories.find(cat => cat.id === formData.categoryId);
     if (parentCat) {
       const siblingCriteria = criteria.filter(c => c.categoryId === formData.categoryId && c.id !== formData.id);
-      const siblingMaxPointsTotal = siblingCriteria.reduce((sum, c) => sum + (c.maxPoints || 0), 0);
-      const totalMaxPoints = siblingMaxPointsTotal + formData.maxPoints;
+      
+      // Tách nhóm cộng (khen thưởng & cộng điểm) và nhóm trừ (kỷ luật)
+      const siblingPlusCriteria = siblingCriteria.filter(c => c.type !== 'ky_luat');
+      const siblingMinusCriteria = siblingCriteria.filter(c => c.type === 'ky_luat');
 
-      if (totalMaxPoints > parentCat.maxPoints) {
-        newErrors.maxPoints = `Tổng điểm tối đa tiêu chí (${totalMaxPoints}đ) vượt quá điểm tối đa danh mục "${parentCat.name}" (${parentCat.maxPoints}đ)`;
+      const siblingPlusMaxTotal = siblingPlusCriteria.reduce((sum, c) => sum + (c.maxPoints || 0), 0);
+      const siblingMinusMaxTotal = siblingMinusCriteria.reduce((sum, c) => sum + (c.maxPoints || 0), 0);
+
+      if (formData.type !== 'ky_luat') {
+        const totalPlusMax = siblingPlusMaxTotal + formData.maxPoints;
+        if (totalPlusMax > parentCat.maxPoints) {
+          newErrors.maxPoints = `Tổng điểm tối đa các tiêu chí cộng (${totalPlusMax}đ) vượt quá điểm tối đa danh mục "${parentCat.name}" (${parentCat.maxPoints}đ)`;
+        }
+      } else {
+        const totalMinusMax = siblingMinusMaxTotal + formData.maxPoints;
+        if (totalMinusMax > parentCat.maxPoints) {
+          newErrors.maxPoints = `Tổng điểm trừ tối đa các tiêu chí trừ (${totalMinusMax}đ) vượt quá điểm tối đa danh mục "${parentCat.name}" (${parentCat.maxPoints}đ)`;
+        }
       }
     }
 

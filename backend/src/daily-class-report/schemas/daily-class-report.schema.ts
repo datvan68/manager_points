@@ -37,6 +37,9 @@ export class DailyClassReport {
 
   @Prop({ type: String, default: '' })
   class_note: string;
+
+  @Prop({ type: Boolean, default: false, index: true })
+  is_delete: boolean;
 }
 
 export const DailyClassReportSchema =

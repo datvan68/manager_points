@@ -38,6 +38,12 @@ export class DailyClassReportController {
     return this.dailyClassReportService.findAll();
   }
 
+  @Get('deleted/all')
+  @ApiOperation({ summary: 'Get all soft-deleted daily class reports' })
+  findDeleted() {
+    return this.dailyClassReportService.findDeleted();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get daily class report by ID' })
   findOne(@Param('id') id: string) {
@@ -71,5 +77,25 @@ export class DailyClassReportController {
   })
   remove(@Param('id') id: string) {
     return this.dailyClassReportService.remove(id);
+  }
+
+  @Patch(':id/restore')
+  @UseGuards(checkPermission('edit_content'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Restore a soft-deleted daily class report (requires edit_content permission)',
+  })
+  restore(@Param('id') id: string) {
+    return this.dailyClassReportService.restore(id);
+  }
+
+  @Delete(':id/force')
+  @UseGuards(checkPermission('edit_content'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Permanently delete daily class report (requires edit_content permission)',
+  })
+  forceRemove(@Param('id') id: string) {
+    return this.dailyClassReportService.forceRemove(id);
   }
 }

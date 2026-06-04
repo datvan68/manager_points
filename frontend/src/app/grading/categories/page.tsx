@@ -298,6 +298,33 @@ export default function CategoriesPage() {
 
         const targetCat = categories.find(cat => cat.id === targetCatId);
         if (targetCat) {
+          // Lấy danh sách tiêu chí hiện có trong danh mục đích
+          const targetCriteria = criteria.filter(c => c.categoryId === targetCatId);
+          
+          if (draggedItem.type !== 'ky_luat') {
+            const currentPlusTotal = targetCriteria
+              .filter(c => c.type !== 'ky_luat')
+              .reduce((sum, c) => sum + (c.maxPoints || 0), 0);
+            const newPlusTotal = currentPlusTotal + (draggedItem.maxPoints || 0);
+            
+            if (newPlusTotal > targetCat.maxPoints) {
+              toast.error(`Không thể chuyển! Tổng điểm tối đa tiêu chí cộng (${newPlusTotal}đ) vượt quá giới hạn danh mục "${targetCat.name}" (${targetCat.maxPoints}đ)`);
+              setDragOverCategoryId(null);
+              return;
+            }
+          } else {
+            const currentMinusTotal = targetCriteria
+              .filter(c => c.type === 'ky_luat')
+              .reduce((sum, c) => sum + (c.maxPoints || 0), 0);
+            const newMinusTotal = currentMinusTotal + (draggedItem.maxPoints || 0);
+            
+            if (newMinusTotal > targetCat.maxPoints) {
+              toast.error(`Không thể chuyển! Tổng điểm trừ tối đa tiêu chí trừ (${newMinusTotal}đ) vượt quá giới hạn danh mục "${targetCat.name}" (${targetCat.maxPoints}đ)`);
+              setDragOverCategoryId(null);
+              return;
+            }
+          }
+
           setCriteria(prev =>
             prev.map(item =>
               item.id === criteriaId ? { ...item, categoryId: targetCatId, categoryObjectId: targetCat._id } : item
@@ -409,10 +436,33 @@ export default function CategoriesPage() {
   // Thêm/Sửa danh mục
   const handleSaveCategory = (data: any) => {
     if (isEditing && selectedCategory) {
+      // Lấy danh sách tiêu chí hiện có trong danh mục này
+      const catCriteria = criteria.filter(c => c.categoryId === selectedCategory.id);
+      
+      const currentPlusTotal = catCriteria
+        .filter(c => c.type !== 'ky_luat')
+        .reduce((sum, c) => sum + (c.maxPoints || 0), 0);
+        
+      const currentMinusTotal = catCriteria
+        .filter(c => c.type === 'ky_luat')
+        .reduce((sum, c) => sum + (c.maxPoints || 0), 0);
+        
+      const newMaxScore = Number(data.maxPoints);
+      
+      if (currentPlusTotal > newMaxScore) {
+        toast.error(`Không thể cập nhật! Điểm tối đa danh mục mới (${newMaxScore}đ) nhỏ hơn tổng điểm tối đa các tiêu chí cộng hiện tại (${currentPlusTotal}đ)`);
+        return;
+      }
+      
+      if (currentMinusTotal > newMaxScore) {
+        toast.error(`Không thể cập nhật! Điểm tối đa danh mục mới (${newMaxScore}đ) nhỏ hơn tổng điểm trừ tối đa các tiêu chí trừ hiện tại (${currentMinusTotal}đ)`);
+        return;
+      }
+
       categoryApi.updateCategory(selectedCategory._id, {
         category_code: data.id,
         category_name: data.name,
-        max_score: Number(data.maxPoints),
+        max_score: newMaxScore,
         sort_order: Number(data.sort_order || selectedCategory.sort_order || 1)
       }).then(() => {
         fetchData();

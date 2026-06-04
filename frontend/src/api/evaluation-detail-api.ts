@@ -87,5 +87,14 @@ export const evaluationDetailApi = {
       method: 'DELETE',
     });
     return handleResponse<EvaluationDetail>(res);
+  },
+
+  /**
+   * Đếm số academic_record đã có sẵn cho tất cả tiêu chí của 1 summary.
+   * Trả về map { criterionId: count }
+   */
+  async getPreExistingCounts(summaryId: string): Promise<Record<string, { original_count: number; current_count: number }>> {
+    const res = await fetch(`${API_BASE}/evaluation-detail/pre-counts/${summaryId}`);
+    return handleResponse<Record<string, { original_count: number; current_count: number }>>(res);
   }
 };

@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { AcademicRecordService } from './academic-record.service';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
@@ -33,6 +34,12 @@ export class AcademicRecordController {
   @ApiOperation({ summary: 'Get all academic records' })
   findAll() {
     return this.academicRecordService.findAll();
+  }
+
+  @Get('deleted/all')
+  @ApiOperation({ summary: 'Get all soft-deleted academic records' })
+  findDeleted() {
+    return this.academicRecordService.findDeleted();
   }
 
   @Get(':id')
@@ -62,8 +69,10 @@ export class AcademicRecordController {
   update(
     @Param('id') id: string,
     @Body() updateAcademicRecordDto: UpdateAcademicRecordDto,
+    @Query('bypassDailyReportCheck') bypassDailyReportCheck?: string,
   ) {
-    return this.academicRecordService.update(id, updateAcademicRecordDto);
+    const bypass = bypassDailyReportCheck === 'true';
+    return this.academicRecordService.update(id, updateAcademicRecordDto, bypass);
   }
 
   @Delete(':id')
@@ -72,7 +81,35 @@ export class AcademicRecordController {
   @ApiOperation({
     summary: 'Delete academic record (requires edit_content permission)',
   })
-  remove(@Param('id') id: string) {
-    return this.academicRecordService.remove(id);
+  remove(
+    @Param('id') id: string,
+    @Query('bypassDailyReportCheck') bypassDailyReportCheck?: string,
+  ) {
+    const bypass = bypassDailyReportCheck === 'true';
+    return this.academicRecordService.remove(id, bypass);
+  }
+
+  @Patch(':id/restore')
+  @UseGuards(checkPermission('edit_content'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Restore a soft-deleted academic record (requires edit_content permission)',
+  })
+  restore(@Param('id') id: string) {
+    return this.academicRecordService.restore(id);
+  }
+
+  @Delete(':id/force')
+  @UseGuards(checkPermission('edit_content'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Permanently delete academic record (requires edit_content permission)',
+  })
+  forceRemove(
+    @Param('id') id: string,
+    @Query('bypassDailyReportCheck') bypassDailyReportCheck?: string,
+  ) {
+    const bypass = bypassDailyReportCheck === 'true';
+    return this.academicRecordService.forceRemove(id, bypass);
   }
 }

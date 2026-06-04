@@ -6,11 +6,16 @@ import {
   AcademicRecord,
   AcademicRecordSchema,
 } from './schemas/academic-record.schema';
+import {
+  EvaluationDetail,
+  EvaluationDetailSchema,
+} from '../evaluation-detail/schemas/evaluation-detail.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: AcademicRecord.name, schema: AcademicRecordSchema },
+      { name: EvaluationDetail.name, schema: EvaluationDetailSchema },
     ]),
   ],
   controllers: [AcademicRecordController],

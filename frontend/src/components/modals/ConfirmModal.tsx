@@ -14,6 +14,7 @@ export interface ConfirmModalProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: 'danger' | 'warning' | 'info' | 'success';
+  showCancel?: boolean;
 }
 
 export default function ConfirmModal({
@@ -24,7 +25,8 @@ export default function ConfirmModal({
   message = "Bạn có chắc chắn muốn thực hiện hành động này?",
   confirmLabel = "Xác nhận",
   cancelLabel = "Hủy bỏ",
-  variant = "info"
+  variant = "info",
+  showCancel = true
 }: ConfirmModalProps) {
   
   // Icon and style matching based on variant
@@ -110,12 +112,14 @@ export default function ConfirmModal({
 
                 {/* Actions */}
                 <div className="mt-8 flex items-center justify-end gap-3">
-                  <button
-                    onClick={onClose}
-                    className="flex-1 md:flex-none px-6 py-2.5 bg-white border border-[#D0D5DD] rounded-xl text-[14px] font-bold text-[#344054] hover:bg-slate-50 transition-colors"
-                  >
-                    {cancelLabel}
-                  </button>
+                  {showCancel && (
+                    <button
+                      onClick={onClose}
+                      className="flex-1 md:flex-none px-6 py-2.5 bg-white border border-[#D0D5DD] rounded-xl text-[14px] font-bold text-[#344054] hover:bg-slate-50 transition-colors"
+                    >
+                      {cancelLabel}
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       onConfirm();
