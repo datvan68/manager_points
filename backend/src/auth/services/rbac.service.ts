@@ -228,12 +228,23 @@ export class RbacService {
       throw new ConflictException('Tên vai trò này đã tồn tại');
     }
 
+    const roleCodeUpper = (dto.role_code || '').trim().toUpperCase();
+    if (!roleCodeUpper) {
+      throw new BadRequestException('Mã vai trò không được để trống');
+    }
+
+    const existingCode = await this.roleModel.findOne({ role_code: roleCodeUpper });
+    if (existingCode) {
+      throw new ConflictException('Mã vai trò này đã tồn tại');
+    }
+
     return this.roleModel.create({
       name: dto.name,
+      role_code: roleCodeUpper,
       description: dto.description,
       permissions:
         (dto.permissions?.map((id) => new Types.ObjectId(id)) as any) || [],
-    });
+    } as any);
   }
 
   async updateRole(roleId: string, dto: UpdateRoleDto) {
@@ -251,6 +262,17 @@ export class RbacService {
       if (existingRole)
         throw new ConflictException('Tên vai trò này đã tồn tại');
       role.name = dto.name;
+    }
+
+    if (dto.role_code) {
+      const roleCodeUpper = dto.role_code.trim().toUpperCase();
+      const existingCode = await this.roleModel.findOne({
+        role_code: roleCodeUpper,
+        _id: { $ne: roleId },
+      });
+      if (existingCode)
+        throw new ConflictException('Mã vai trò này đã tồn tại');
+      (role as any).role_code = roleCodeUpper;
     }
 
     if (dto.description !== undefined) role.description = dto.description;

@@ -160,35 +160,41 @@ function GhiNhanTab() {
             try {
                 const studentObj = typeof record.original?.student_id === 'object' ? record.original.student_id : null;
                 const studentId = studentObj?._id || record.original?.student_id;
-                
+
                 if (studentId) {
                     const studentRecords = await academicRecordApi.getAcademicRecordsByStudent(studentId);
-                    
+
                     const mappedStudentRecords = studentRecords.map(r => {
                         const student = typeof r.student_id === 'object' ? r.student_id : null;
                         const evalDetail = typeof r.evaluation_detail_id === 'object' ? r.evaluation_detail_id : null;
-                        const criterionId = r.criteria_id
-                            ? (typeof r.criteria_id === 'object' ? r.criteria_id?._id : r.criteria_id)
-                            : (evalDetail
-                                ? (typeof evalDetail.criterion_id === 'object' ? evalDetail.criterion_id?._id : evalDetail.criterion_id)
-                                : r.evaluation_detail_id);
-                        
+                        const criterionId = r.criterion_id
+                            ? (typeof r.criterion_id === 'object' ? r.criterion_id?._id : r.criterion_id)
+                            : (r.criteria_id
+                                ? (typeof r.criteria_id === 'object' ? r.criteria_id?._id : r.criteria_id)
+                                : (evalDetail
+                                    ? (typeof evalDetail.criterion_id === 'object' ? evalDetail.criterion_id?._id : evalDetail.criterion_id)
+                                    : r.evaluation_detail_id));
+
                         const foundCriterion = allCriteria.find(c => c._id === criterionId);
-                        
+
                         let className = 'N/A';
                         if (student) {
                             const classId = typeof student.class_id === 'object' ? student.class_id?._id : student.class_id;
                             const foundClass = classes.find(c => c._id === classId);
                             className = foundClass ? foundClass.class_name : 'N/A';
                         }
-                        
+
+                        const pts = foundCriterion 
+                            ? (foundCriterion.score_per_unit || foundCriterion.min_score || 0)
+                            : (r.points_effect || 0);
+
                         const recordType = foundCriterion
                             ? (foundCriterion.criterion_type === 'khen_thuong'
                                 ? 'Khen thưởng'
                                 : foundCriterion.criterion_type === 'ky_luat'
-                                ? 'Kỷ luật'
-                                : 'Cộng điểm')
-                            : (r.points_effect > 0 ? 'Cộng điểm' : (r.points_effect < 0 ? 'Kỷ luật' : 'Cộng điểm'));
+                                    ? 'Kỷ luật'
+                                    : 'Cộng điểm')
+                            : (pts > 0 ? 'Cộng điểm' : (pts < 0 ? 'Kỷ luật' : 'Cộng điểm'));
 
                         return {
                             id: r._id,
@@ -200,12 +206,12 @@ function GhiNhanTab() {
                                 const raw = foundCriterion ? foundCriterion.criterion_name : r.record_title;
                                 return raw ? raw.replace(/\s*\(.*?\)\s*$/, '') : 'N/A';
                             })(),
-                            date: r.date_record ? format(new Date(r.date_record), 'dd/MM/yyyy') : (r.createdAt ? format(new Date(r.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')),
-                            points: (r.points_effect >= 0 ? '+' : '') + r.points_effect,
+                            date: r.recorded_at ? format(new Date(r.recorded_at), 'dd/MM/yyyy') : (r.date_record ? format(new Date(r.date_record), 'dd/MM/yyyy') : (r.createdAt ? format(new Date(r.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy'))),
+                            points: (pts >= 0 ? '+' : '') + pts,
                             original: r
                         };
                     });
-                    
+
                     mappedStudentRecords.sort((a: any, b: any) => new Date(b.original.createdAt || 0).getTime() - new Date(a.original.createdAt || 0).getTime());
                     setDrawerHistory(mappedStudentRecords);
                 }
@@ -328,11 +334,13 @@ function GhiNhanTab() {
     const mappedRecords = academicRecords.map(r => {
         const student = typeof r.student_id === 'object' ? r.student_id : null;
         const evalDetail = typeof r.evaluation_detail_id === 'object' ? r.evaluation_detail_id : null;
-        const criterionId = r.criteria_id
-            ? (typeof r.criteria_id === 'object' ? r.criteria_id?._id : r.criteria_id)
-            : (evalDetail
-                ? (typeof evalDetail.criterion_id === 'object' ? evalDetail.criterion_id?._id : evalDetail.criterion_id)
-                : r.evaluation_detail_id);
+        const criterionId = r.criterion_id
+            ? (typeof r.criterion_id === 'object' ? r.criterion_id?._id : r.criterion_id)
+            : (r.criteria_id
+                ? (typeof r.criteria_id === 'object' ? r.criteria_id?._id : r.criteria_id)
+                : (evalDetail
+                    ? (typeof evalDetail.criterion_id === 'object' ? evalDetail.criterion_id?._id : evalDetail.criterion_id)
+                    : r.evaluation_detail_id));
 
         const foundCriterion = allCriteria.find(c => c._id === criterionId);
         const foundStudent = student;
@@ -344,13 +352,17 @@ function GhiNhanTab() {
             className = foundClass ? foundClass.class_name : 'N/A';
         }
 
+        const pts = foundCriterion 
+            ? (foundCriterion.score_per_unit || foundCriterion.min_score || 0)
+            : (r.points_effect || 0);
+
         const recordType = foundCriterion
             ? (foundCriterion.criterion_type === 'khen_thuong'
                 ? 'Khen thưởng'
                 : foundCriterion.criterion_type === 'ky_luat'
-                ? 'Kỷ luật'
-                : 'Cộng điểm')
-            : (r.points_effect > 0 ? 'Cộng điểm' : (r.points_effect < 0 ? 'Kỷ luật' : 'Cộng điểm'));
+                    ? 'Kỷ luật'
+                    : 'Cộng điểm')
+            : (pts > 0 ? 'Cộng điểm' : (pts < 0 ? 'Kỷ luật' : 'Cộng điểm'));
 
         return {
             id: r._id,
@@ -362,8 +374,8 @@ function GhiNhanTab() {
                 const raw = foundCriterion ? foundCriterion.criterion_name : r.record_title;
                 return raw ? raw.replace(/\s*\(.*?\)\s*$/, '') : 'N/A';
             })(),
-            date: r.date_record ? format(new Date(r.date_record), 'dd/MM/yyyy') : (r.createdAt ? format(new Date(r.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')),
-            points: (r.points_effect >= 0 ? '+' : '') + r.points_effect,
+            date: r.recorded_at ? format(new Date(r.recorded_at), 'dd/MM/yyyy') : (r.date_record ? format(new Date(r.date_record), 'dd/MM/yyyy') : (r.createdAt ? format(new Date(r.createdAt), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy'))),
+            points: (pts >= 0 ? '+' : '') + pts,
             original: r
         };
     });
@@ -961,7 +973,7 @@ function GhiNhanTab() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <p className="text-[11.5px] font-semibold text-slate-400 mt-0.5">Lớp: {record.className}</p>
+                                                        <p className="text-[11.5px] font-semibold text-slate-400 mt-0.5">{record.className}</p>
                                                     </div>
 
                                                     {/* Criteria */}
@@ -1303,7 +1315,7 @@ function GhiNhanTab() {
                                         paginatedRecords.map((record, idx) => {
                                             const isKhenThuong = record.recordType === 'Khen thưởng';
                                             const isKyLuat = record.recordType === 'Kỷ luật';
-                                            
+
                                             let badgeStyle = 'bg-blue-50 text-blue-600 border-blue-100/50';
                                             let dotStyle = 'bg-blue-500';
                                             if (isKhenThuong) {
@@ -1375,285 +1387,285 @@ function GhiNhanTab() {
                                                                     </button>
                                                                 </DrawerTrigger>
 
-                                                            <DrawerContent className="w-[450px] sm:max-w-md h-full bg-white border-l border-gray-100 flex flex-col items-stretch outline-none overflow-hidden">
-                                                                {/* Modal Header */}
-                                                                <div className="flex justify-between items-center py-[17px] px-6 border-b border-gray-100 bg-white shrink-0">
-                                                                    <DrawerTitle className="text-base font-bold text-slate-900">Chi tiết trạng thái</DrawerTitle>
-                                                                    <DrawerDescription className="sr-only">Lịch sử và trạng thái chi tiết của bản ghi.</DrawerDescription>
-                                                                    <DrawerClose asChild>
-                                                                        <button className="w-6 h-6 flex justify-center items-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded transition-colors">
-                                                                            <X className="w-4 h-4" />
-                                                                        </button>
-                                                                    </DrawerClose>
-                                                                </div>
-
-                                                                <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6">
-                                                                    {/* Profile overview */}
-                                                                    <div className="flex items-center gap-4">
-                                                                        <div className="w-[60px] h-[60px] rounded-full overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
-                                                                            <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${record.studentId}&backgroundColor=b6e3f4`} alt="Avatar" className="w-full h-full object-cover" />
-                                                                        </div>
-                                                                        <div className="flex flex-col items-start min-w-0">
-                                                                            <h2 className="text-[18px] font-bold text-slate-900 leading-snug truncate w-full">{record.fullName}</h2>
-                                                                            <p className="text-[12px] font-medium text-slate-500 truncate w-full">Mã SV: {record.studentId} • Lớp {record.className}</p>
-                                                                        </div>
+                                                                <DrawerContent className="w-[450px] sm:max-w-md h-full bg-white border-l border-gray-100 flex flex-col items-stretch outline-none overflow-hidden">
+                                                                    {/* Modal Header */}
+                                                                    <div className="flex justify-between items-center py-[17px] px-6 border-b border-gray-100 bg-white shrink-0">
+                                                                        <DrawerTitle className="text-base font-bold text-slate-900">Chi tiết trạng thái</DrawerTitle>
+                                                                        <DrawerDescription className="sr-only">Lịch sử và trạng thái chi tiết của bản ghi.</DrawerDescription>
+                                                                        <DrawerClose asChild>
+                                                                            <button className="w-6 h-6 flex justify-center items-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded transition-colors">
+                                                                                <X className="w-4 h-4" />
+                                                                            </button>
+                                                                        </DrawerClose>
                                                                     </div>
 
-                                                                    {/* Summary blocks */}
-                                                                    {(() => {
-                                                                        const khenThuongCount = drawerHistory.filter(mr => mr.recordType === 'Khen thưởng').length;
-                                                                        const congDiemCount = drawerHistory.filter(mr => mr.recordType === 'Cộng điểm').length;
-                                                                        const kyLuatCount = drawerHistory.filter(mr => mr.recordType === 'Kỷ luật').length;
+                                                                    <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6">
+                                                                        {/* Profile overview */}
+                                                                        <div className="flex items-center gap-4">
+                                                                            <div className="w-[60px] h-[60px] rounded-full overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
+                                                                                <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${record.studentId}&backgroundColor=b6e3f4`} alt="Avatar" className="w-full h-full object-cover" />
+                                                                            </div>
+                                                                            <div className="flex flex-col items-start min-w-0">
+                                                                                <h2 className="text-[18px] font-bold text-slate-900 leading-snug truncate w-full">{record.fullName}</h2>
+                                                                                <p className="text-[12px] font-medium text-slate-500 truncate w-full">Mã SV: {record.studentId} • Lớp {record.className}</p>
+                                                                            </div>
+                                                                        </div>
 
-                                                                        return (
-                                                                            <>
-                                                                                <div className="grid grid-cols-3 gap-2">
-                                                                                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
-                                                                                        <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Khen thưởng</span>
-                                                                                        <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
-                                                                                            {drawerLoading ? (
-                                                                                                <Skeleton className="w-10 h-5 rounded bg-emerald-200/60 animate-pulse" />
-                                                                                            ) : (
-                                                                                                <>
-                                                                                                    <span className="text-xl font-black text-emerald-600 leading-none">{khenThuongCount}</span>
-                                                                                                    <span className="text-[10px] font-semibold text-emerald-500 ml-0.5">lần</span>
-                                                                                                </>
-                                                                                            )}
+                                                                        {/* Summary blocks */}
+                                                                        {(() => {
+                                                                            const khenThuongCount = drawerHistory.filter(mr => mr.recordType === 'Khen thưởng').length;
+                                                                            const congDiemCount = drawerHistory.filter(mr => mr.recordType === 'Cộng điểm').length;
+                                                                            const kyLuatCount = drawerHistory.filter(mr => mr.recordType === 'Kỷ luật').length;
+
+                                                                            return (
+                                                                                <>
+                                                                                    <div className="grid grid-cols-3 gap-2">
+                                                                                        <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                                                                                            <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Khen thưởng</span>
+                                                                                            <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
+                                                                                                {drawerLoading ? (
+                                                                                                    <Skeleton className="w-10 h-5 rounded bg-emerald-200/60 animate-pulse" />
+                                                                                                ) : (
+                                                                                                    <>
+                                                                                                        <span className="text-xl font-black text-emerald-600 leading-none">{khenThuongCount}</span>
+                                                                                                        <span className="text-[10px] font-semibold text-emerald-500 ml-0.5">lần</span>
+                                                                                                    </>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                                                                                            <span className="text-[9px] font-bold text-blue-600 uppercase tracking-wider mb-1">Cộng điểm</span>
+                                                                                            <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
+                                                                                                {drawerLoading ? (
+                                                                                                    <Skeleton className="w-10 h-5 rounded bg-blue-200/60 animate-pulse" />
+                                                                                                ) : (
+                                                                                                    <>
+                                                                                                        <span className="text-xl font-black text-blue-600 leading-none">{congDiemCount}</span>
+                                                                                                        <span className="text-[10px] font-semibold text-blue-500 ml-0.5">lần</span>
+                                                                                                    </>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                                                                                            <span className="text-[9px] font-bold text-rose-600 uppercase tracking-wider mb-1">Kỷ luật</span>
+                                                                                            <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
+                                                                                                {drawerLoading ? (
+                                                                                                    <Skeleton className="w-10 h-5 rounded bg-rose-200/60 animate-pulse" />
+                                                                                                ) : (
+                                                                                                    <>
+                                                                                                        <span className="text-xl font-black text-rose-600 leading-none">{kyLuatCount}</span>
+                                                                                                        <span className="text-[10px] font-semibold text-rose-500 ml-0.5">lần</span>
+                                                                                                    </>
+                                                                                                )}
+                                                                                            </div>
                                                                                         </div>
                                                                                     </div>
-                                                                                    <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
-                                                                                        <span className="text-[9px] font-bold text-blue-600 uppercase tracking-wider mb-1">Cộng điểm</span>
-                                                                                        <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
-                                                                                            {drawerLoading ? (
-                                                                                                <Skeleton className="w-10 h-5 rounded bg-blue-200/60 animate-pulse" />
-                                                                                            ) : (
-                                                                                                <>
-                                                                                                    <span className="text-xl font-black text-blue-600 leading-none">{congDiemCount}</span>
-                                                                                                    <span className="text-[10px] font-semibold text-blue-500 ml-0.5">lần</span>
-                                                                                                </>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
-                                                                                        <span className="text-[9px] font-bold text-rose-600 uppercase tracking-wider mb-1">Kỷ luật</span>
-                                                                                        <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
-                                                                                            {drawerLoading ? (
-                                                                                                <Skeleton className="w-10 h-5 rounded bg-rose-200/60 animate-pulse" />
-                                                                                            ) : (
-                                                                                                <>
-                                                                                                    <span className="text-xl font-black text-rose-600 leading-none">{kyLuatCount}</span>
-                                                                                                    <span className="text-[10px] font-semibold text-rose-500 ml-0.5">lần</span>
-                                                                                                </>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
 
-                                                                                <div className="flex flex-col pb-4">
-                                                                                    <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">Ghi nhận gần đây</h4>
+                                                                                    <div className="flex flex-col pb-4">
+                                                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">Ghi nhận gần đây</h4>
 
-                                                                                    {drawerLoading ? (
-                                                                                        <div className="flex flex-col gap-4 mt-2">
-                                                                                            {Array.from({ length: 3 }).map((_, i) => (
-                                                                                                <div key={i} className="flex gap-4">
-                                                                                                    <Skeleton className="w-6 h-6 rounded-full shrink-0" />
-                                                                                                    <div className="flex-1 flex flex-col gap-2 pt-0.5">
-                                                                                                        <Skeleton className="w-24 h-3" />
-                                                                                                        <Skeleton className="w-48 h-4" />
-                                                                                                        <Skeleton className="w-16 h-4 rounded" />
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            ))}
-                                                                                        </div>
-                                                                                    ) : drawerHistory.length === 0 ? (
-                                                                                        <div className="text-center py-6 text-slate-400 italic text-[12px]">
-                                                                                            Chưa có ghi nhận nào cho học sinh này.
-                                                                                        </div>
-                                                                                    ) : (
-                                                                                        <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
-                                                                                            {drawerHistory.map((mr, i) => {
-                                                                                                const isKyLuat = mr.recordType === 'Kỷ luật';
-                                                                                                const isKhenThuong = mr.recordType === 'Khen thưởng';
-                                                                                                const isExpanded = !!expandedCards[i];
-
-                                                                                                let bulletBg = 'bg-blue-500 shadow-blue-200';
-                                                                                                let badgeClass = 'bg-blue-50 text-blue-600';
-                                                                                                if (isKhenThuong) {
-                                                                                                    bulletBg = 'bg-emerald-500 shadow-emerald-200';
-                                                                                                    badgeClass = 'bg-emerald-50 text-emerald-600';
-                                                                                                } else if (isKyLuat) {
-                                                                                                    bulletBg = 'bg-rose-500 shadow-rose-200';
-                                                                                                    badgeClass = 'bg-rose-50 text-rose-600';
-                                                                                                }
-
-                                                                                                return (
-                                                                                                    <div key={mr.id} className="flex gap-4 relative mb-6 last:mb-0">
-                                                                                                        <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
-                                                                                                            {isSelectingHistory ? (
-                                                                                                                <div
-                                                                                                                    className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-slate-50 hover:border-blue-400'}`}
-                                                                                                                    onClick={(e) => {
-                                                                                                                        e.stopPropagation();
-                                                                                                                        setSelectedHistoryItems(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
-                                                                                                                    }}
-                                                                                                                >
-                                                                                                                    {selectedHistoryItems.includes(i) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
-                                                                                                                </div>
-                                                                                                            ) : (
-                                                                                                                <div className={`w-3.5 h-3.5 rounded-full ${bulletBg} shadow-sm border-2 border-white box-content`} />
-                                                                                                            )}
+                                                                                        {drawerLoading ? (
+                                                                                            <div className="flex flex-col gap-4 mt-2">
+                                                                                                {Array.from({ length: 3 }).map((_, i) => (
+                                                                                                    <div key={i} className="flex gap-4">
+                                                                                                        <Skeleton className="w-6 h-6 rounded-full shrink-0" />
+                                                                                                        <div className="flex-1 flex flex-col gap-2 pt-0.5">
+                                                                                                            <Skeleton className="w-24 h-3" />
+                                                                                                            <Skeleton className="w-48 h-4" />
+                                                                                                            <Skeleton className="w-16 h-4 rounded" />
                                                                                                         </div>
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        ) : drawerHistory.length === 0 ? (
+                                                                                            <div className="text-center py-6 text-slate-400 italic text-[12px]">
+                                                                                                Chưa có ghi nhận nào cho học sinh này.
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
+                                                                                                {drawerHistory.map((mr, i) => {
+                                                                                                    const isKyLuat = mr.recordType === 'Kỷ luật';
+                                                                                                    const isKhenThuong = mr.recordType === 'Khen thưởng';
+                                                                                                    const isExpanded = !!expandedCards[i];
 
-                                                                                                        <div className="flex-1 flex flex-col pt-0.5">
-                                                                                                            <div
-                                                                                                                className="flex justify-between items-start cursor-pointer group"
-                                                                                                                onClick={() => toggleExpandCard(i)}
-                                                                                                            >
-                                                                                                                <div className="flex flex-col gap-1 pr-4">
-                                                                                                                    <span className="text-[11px] font-bold text-slate-500">{mr.date}</span>
-                                                                                                                    <span className="text-[13px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">{mr.criteria}</span>
-                                                                                                                    <div className="mt-0.5">
-                                                                                                                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
-                                                                                                                            {mr.recordType} ({mr.points}đ)
-                                                                                                                        </span>
+                                                                                                    let bulletBg = 'bg-blue-500 shadow-blue-200';
+                                                                                                    let badgeClass = 'bg-blue-50 text-blue-600';
+                                                                                                    if (isKhenThuong) {
+                                                                                                        bulletBg = 'bg-emerald-500 shadow-emerald-200';
+                                                                                                        badgeClass = 'bg-emerald-50 text-emerald-600';
+                                                                                                    } else if (isKyLuat) {
+                                                                                                        bulletBg = 'bg-rose-500 shadow-rose-200';
+                                                                                                        badgeClass = 'bg-rose-50 text-rose-600';
+                                                                                                    }
+
+                                                                                                    return (
+                                                                                                        <div key={mr.id} className="flex gap-4 relative mb-6 last:mb-0">
+                                                                                                            <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
+                                                                                                                {isSelectingHistory ? (
+                                                                                                                    <div
+                                                                                                                        className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-slate-50 hover:border-blue-400'}`}
+                                                                                                                        onClick={(e) => {
+                                                                                                                            e.stopPropagation();
+                                                                                                                            setSelectedHistoryItems(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+                                                                                                                        }}
+                                                                                                                    >
+                                                                                                                        {selectedHistoryItems.includes(i) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
                                                                                                                     </div>
-                                                                                                                </div>
-                                                                                                                <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">
-                                                                                                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                                                                                                </button>
+                                                                                                                ) : (
+                                                                                                                    <div className={`w-3.5 h-3.5 rounded-full ${bulletBg} shadow-sm border-2 border-white box-content`} />
+                                                                                                                )}
                                                                                                             </div>
 
-                                                                                                            <AnimatePresence>
-                                                                                                                {isExpanded && (
-                                                                                                                    <motion.div
-                                                                                                                        initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                                                                                                                        animate={{ height: "auto", opacity: 1, marginTop: 12 }}
-                                                                                                                        exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                                                                                                                        className="overflow-hidden"
-                                                                                                                    >
-                                                                                                                        <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
-                                                                                                                            <div className="grid grid-cols-2 gap-4">
-                                                                                                                                <div className="flex flex-col gap-1">
-                                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiêu chí</span>
-                                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{mr.criteria}</span>
-                                                                                                                                </div>
-                                                                                                                                <div className="flex flex-col gap-1">
-                                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Danh mục</span>
-                                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{mr.recordType}</span>
-                                                                                                                                </div>
-                                                                                                                                <div className="flex flex-col gap-1">
-                                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Điểm số</span>
-                                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{mr.points}đ</span>
-                                                                                                                                </div>
-                                                                                                                                <div className="flex flex-col gap-1">
-                                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ngày ghi</span>
-                                                                                                                                    <span className="text-[12px] font-semibold text-slate-900">{mr.date}</span>
-                                                                                                                                </div>
-                                                                                                                            </div>
-                                                                                                                            {mr.original?.description && (
-                                                                                                                                <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1 mt-1">
-                                                                                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mô tả</span>
-                                                                                                                                    <p className="text-[12px] font-medium text-slate-600 leading-relaxed font-sans">
-                                                                                                                                        "{mr.original.description}"
-                                                                                                                                    </p>
-                                                                                                                                </div>
-                                                                                                                            )}
+                                                                                                            <div className="flex-1 flex flex-col pt-0.5">
+                                                                                                                <div
+                                                                                                                    className="flex justify-between items-start cursor-pointer group"
+                                                                                                                    onClick={() => toggleExpandCard(i)}
+                                                                                                                >
+                                                                                                                    <div className="flex flex-col gap-1 pr-4">
+                                                                                                                        <span className="text-[11px] font-bold text-slate-500">{mr.date}</span>
+                                                                                                                        <span className="text-[13px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">{mr.criteria}</span>
+                                                                                                                        <div className="mt-0.5">
+                                                                                                                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                                                                                                                                {mr.recordType} ({mr.points}đ)
+                                                                                                                            </span>
                                                                                                                         </div>
-                                                                                                                    </motion.div>
-                                                                                                                )}
-                                                                                                            </AnimatePresence>
+                                                                                                                    </div>
+                                                                                                                    <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">
+                                                                                                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                                                                                    </button>
+                                                                                                                </div>
+
+                                                                                                                <AnimatePresence>
+                                                                                                                    {isExpanded && (
+                                                                                                                        <motion.div
+                                                                                                                            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                                                                                                                            animate={{ height: "auto", opacity: 1, marginTop: 12 }}
+                                                                                                                            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                                                                                                                            className="overflow-hidden"
+                                                                                                                        >
+                                                                                                                            <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
+                                                                                                                                <div className="grid grid-cols-2 gap-4">
+                                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiêu chí</span>
+                                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{mr.criteria}</span>
+                                                                                                                                    </div>
+                                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Danh mục</span>
+                                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{mr.recordType}</span>
+                                                                                                                                    </div>
+                                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Điểm số</span>
+                                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{mr.points}đ</span>
+                                                                                                                                    </div>
+                                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ngày ghi</span>
+                                                                                                                                        <span className="text-[12px] font-semibold text-slate-900">{mr.date}</span>
+                                                                                                                                    </div>
+                                                                                                                                </div>
+                                                                                                                                {mr.original?.description && (
+                                                                                                                                    <div className="pt-2 border-t border-slate-200/60 flex flex-col gap-1 mt-1">
+                                                                                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mô tả</span>
+                                                                                                                                        <p className="text-[12px] font-medium text-slate-600 leading-relaxed font-sans">
+                                                                                                                                            "{mr.original.description}"
+                                                                                                                                        </p>
+                                                                                                                                    </div>
+                                                                                                                                )}
+                                                                                                                            </div>
+                                                                                                                        </motion.div>
+                                                                                                                    )}
+                                                                                                                </AnimatePresence>
+                                                                                                            </div>
                                                                                                         </div>
-                                                                                                    </div>
-                                                                                                );
-                                                                                            })}
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                            </>
-                                                                        );
-                                                                    })()}
-                                                                </div>
+                                                                                                    );
+                                                                                                })}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </>
+                                                                            );
+                                                                        })()}
+                                                                    </div>
 
-                                                                {/* Modal Footer actions */}
-                                                                <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)] shrink-0 flex items-center justify-between gap-3">
-                                                                    {isSelectingHistory ? (
-                                                                        <>
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    setIsSelectingHistory(false);
-                                                                                    setSelectedHistoryItems([]);
-                                                                                }}
-                                                                                className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-slate-50 border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-100 transition-colors shadow-sm"
-                                                                            >
-                                                                                Hủy
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={async () => {
-                                                                                    if (selectedHistoryItems.length > 0) {
-                                                                                        setIsLoading(true);
-                                                                                        try {
-                                                                                            const deletePromises = selectedHistoryItems.map(idx => {
-                                                                                                const targetRecord = drawerHistory[idx];
-                                                                                                return academicRecordApi.deleteAcademicRecord(targetRecord.id);
-                                                                                            });
-                                                                                            await Promise.all(deletePromises);
-                                                                                            toast.success(`Đã xóa thành công ${selectedHistoryItems.length} ghi nhận.`);
-                                                                                            setIsSelectingHistory(false);
-                                                                                            setSelectedHistoryItems([]);
-                                                                                            fetchAcademicRecords();
-                                                                                        } catch (err: any) {
-                                                                                            console.error('Lỗi khi xóa ghi nhận lịch sử:', err);
-                                                                                            toast.error(err.message || 'Có lỗi xảy ra khi xóa ghi nhận.');
-                                                                                        } finally {
-                                                                                            setIsLoading(false);
+                                                                    {/* Modal Footer actions */}
+                                                                    <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)] shrink-0 flex items-center justify-between gap-3">
+                                                                        {isSelectingHistory ? (
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setIsSelectingHistory(false);
+                                                                                        setSelectedHistoryItems([]);
+                                                                                    }}
+                                                                                    className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-slate-50 border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-100 transition-colors shadow-sm"
+                                                                                >
+                                                                                    Hủy
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={async () => {
+                                                                                        if (selectedHistoryItems.length > 0) {
+                                                                                            setIsLoading(true);
+                                                                                            try {
+                                                                                                const deletePromises = selectedHistoryItems.map(idx => {
+                                                                                                    const targetRecord = drawerHistory[idx];
+                                                                                                    return academicRecordApi.deleteAcademicRecord(targetRecord.id);
+                                                                                                });
+                                                                                                await Promise.all(deletePromises);
+                                                                                                toast.success(`Đã xóa thành công ${selectedHistoryItems.length} ghi nhận.`);
+                                                                                                setIsSelectingHistory(false);
+                                                                                                setSelectedHistoryItems([]);
+                                                                                                fetchAcademicRecords();
+                                                                                            } catch (err: any) {
+                                                                                                console.error('Lỗi khi xóa ghi nhận lịch sử:', err);
+                                                                                                toast.error(err.message || 'Có lỗi xảy ra khi xóa ghi nhận.');
+                                                                                            } finally {
+                                                                                                setIsLoading(false);
+                                                                                            }
                                                                                         }
-                                                                                    }
-                                                                                }}
-                                                                                disabled={selectedHistoryItems.length === 0}
-                                                                                className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-50 border border-rose-100 text-[13px] font-bold text-rose-600 hover:bg-rose-100 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                            >
-                                                                                <Trash2 className="w-4 h-4 text-rose-500" />
-                                                                                Xóa ({selectedHistoryItems.length})
-                                                                            </button>
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            <button className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm">
-                                                                                <Edit className="w-4 h-4 text-slate-600" />
-                                                                                Sửa ghi nhận
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => setIsSelectingHistory(true)}
-                                                                                className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
-                                                                            >
-                                                                                <CheckSquare className="w-4 h-4 text-slate-600" />
-                                                                                Chọn
-                                                                            </button>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                            </DrawerContent>
-                                                        </Drawer>
+                                                                                    }}
+                                                                                    disabled={selectedHistoryItems.length === 0}
+                                                                                    className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-50 border border-rose-100 text-[13px] font-bold text-rose-600 hover:bg-rose-100 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                >
+                                                                                    <Trash2 className="w-4 h-4 text-rose-500" />
+                                                                                    Xóa ({selectedHistoryItems.length})
+                                                                                </button>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <button className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm">
+                                                                                    <Edit className="w-4 h-4 text-slate-600" />
+                                                                                    Sửa ghi nhận
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => setIsSelectingHistory(true)}
+                                                                                    className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
+                                                                                >
+                                                                                    <CheckSquare className="w-4 h-4 text-slate-600" />
+                                                                                    Chọn
+                                                                                </button>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                </DrawerContent>
+                                                            </Drawer>
 
-                                                        {/* Sửa */}
-                                                        <button
-                                                            onClick={() => handleEdit(record.id)}
-                                                            className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
-                                                            title="Chỉnh sửa"
-                                                        >
-                                                            <Edit className="w-4 h-4" />
-                                                        </button>
+                                                            {/* Sửa */}
+                                                            <button
+                                                                onClick={() => handleEdit(record.id)}
+                                                                className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
+                                                                title="Chỉnh sửa"
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </button>
 
-                                                        {/* Xóa */}
-                                                        <button
-                                                            onClick={() => setRecordToDelete(record.id)}
-                                                            className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
-                                                            title="Xóa"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
+                                                            {/* Xóa */}
+                                                            <button
+                                                                onClick={() => setRecordToDelete(record.id)}
+                                                                className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
+                                                                title="Xóa"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
                                                 </motion.tr>
                                             );
                                         })
@@ -1836,11 +1848,18 @@ function GhiNhanTab() {
                                                                 onChange={() => toggleSelectClass(report._id)}
                                                                 className="w-4.5 h-4.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                             />
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-sm font-bold text-slate-800">{className}</span>
-                                                                {report.createdAt && (new Date().getTime() - new Date(report.createdAt).getTime()) < 24 * 60 * 60 * 1000 && (
-                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
-                                                                        New
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm font-bold text-slate-800">{className}</span>
+                                                                    {report.createdAt && (new Date().getTime() - new Date(report.createdAt).getTime()) < 24 * 60 * 60 * 1000 && (
+                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
+                                                                            New
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {classObj?.headquarters && (
+                                                                    <span className="text-[10.5px] font-semibold text-slate-400">
+                                                                        {classObj.headquarters}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -1894,6 +1913,7 @@ function GhiNhanTab() {
                                                                 className={className}
                                                                 totalPresent={totalPresent}
                                                                 totalAbsent={totalAbsent}
+                                                                allCriteria={allCriteria}
                                                             >
                                                                 <button className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-all cursor-pointer">
                                                                     <Eye className="w-4 h-4" />
@@ -1986,11 +2006,18 @@ function GhiNhanTab() {
                                                         />
                                                     </td>
                                                     <td className="px-5 py-4 text-sm font-bold text-slate-800">
-                                                        <div className="flex items-center gap-2">
-                                                            <span>{className}</span>
-                                                            {report.createdAt && (new Date().getTime() - new Date(report.createdAt).getTime()) < 24 * 60 * 60 * 1000 && (
-                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
-                                                                    New
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span>{className}</span>
+                                                                {report.createdAt && (new Date().getTime() - new Date(report.createdAt).getTime()) < 24 * 60 * 60 * 1000 && (
+                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
+                                                                        New
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {classObj?.headquarters && (
+                                                                <span className="text-[11px] font-medium text-slate-400">
+                                                                    {classObj.headquarters}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -2035,7 +2062,7 @@ function GhiNhanTab() {
                                                                 report={report}
                                                                 className={className}
                                                                 totalPresent={totalPresent}
-                                                                totalAbsent={totalAbsent}
+                                                                totalAbsent={totalAbsent} allCriteria={allCriteria}
                                                             >
                                                                 <button
                                                                     className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
@@ -2350,22 +2377,20 @@ function GhiNhanTab() {
                         <button
                             type="button"
                             onClick={() => setTrashTab('student')}
-                            className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
-                                trashTab === 'student'
+                            className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${trashTab === 'student'
                                     ? 'border-rose-500 text-rose-600'
                                     : 'border-transparent text-slate-400 hover:text-slate-600'
-                            }`}
+                                }`}
                         >
                             Vi phạm sinh viên ({deletedRecords.length})
                         </button>
                         <button
                             type="button"
                             onClick={() => setTrashTab('class')}
-                            className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
-                                trashTab === 'class'
+                            className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${trashTab === 'class'
                                     ? 'border-rose-500 text-rose-600'
                                     : 'border-transparent text-slate-400 hover:text-slate-600'
-                            }`}
+                                }`}
                         >
                             Báo cáo của lớp ({deletedReports.length})
                         </button>
@@ -2562,12 +2587,14 @@ function ClassReportDetailDialog({
     className,
     totalPresent,
     totalAbsent,
+    allCriteria = [],
     children
 }: {
     report: DailyClassReport;
     className: string;
     totalPresent: number;
     totalAbsent: number;
+    allCriteria?: any[];
     children: React.ReactNode;
 }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -2639,18 +2666,24 @@ function ClassReportDetailDialog({
                     const mapped: ViolationItem[] = records.map(rec => {
                         const stObj = typeof rec.student_id === 'object' ? rec.student_id : null;
                         const critObj = typeof rec.evaluation_detail_id === 'object' ? rec.evaluation_detail_id : null;
-                        const criterionId = rec.criteria_id
-                            ? (typeof rec.criteria_id === 'object' ? rec.criteria_id?._id : rec.criteria_id)
-                            : (critObj
-                                ? (typeof critObj.criterion_id === 'object' ? critObj.criterion_id?._id : critObj.criterion_id)
-                                : rec.evaluation_detail_id);
+                        const criterionId = rec.criterion_id
+                            ? (typeof rec.criterion_id === 'object' ? rec.criterion_id?._id : rec.criterion_id)
+                            : (rec.criteria_id
+                                ? (typeof rec.criteria_id === 'object' ? rec.criteria_id?._id : rec.criteria_id)
+                                : (critObj
+                                    ? (typeof critObj.criterion_id === 'object' ? critObj.criterion_id?._id : critObj.criterion_id)
+                                    : rec.evaluation_detail_id));
+                        
+                        const foundCri = allCriteria.find(c => c._id === criterionId);
+                        const pts = foundCri ? (foundCri.score_per_unit || foundCri.min_score || 0) : (rec.points_effect || -5);
+
                         return {
                             student_id: stObj ? stObj._id : rec.student_id,
                             student_name: stObj ? stObj.full_name : 'Sinh viên',
                             student_code: stObj ? stObj.student_code : '',
                             evaluation_detail_id: criterionId,
                             criterion_name: rec.record_title || 'Vi phạm',
-                            points_effect: rec.points_effect || -5,
+                            points_effect: pts,
                             class_note: rec.description || ''
                         };
                     });

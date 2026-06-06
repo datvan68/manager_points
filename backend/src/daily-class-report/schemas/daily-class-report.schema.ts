@@ -21,7 +21,7 @@ export class DailyClassReport {
     required: true,
     index: true,
   })
-  user_id: User;
+  reported_by: User;
 
   @Prop({ required: true, type: Date })
   report_date: Date;
@@ -36,7 +36,7 @@ export class DailyClassReport {
   teacher_name: string;
 
   @Prop({ type: String, default: '' })
-  class_note: string;
+  class_notes: string;
 
   @Prop({ type: Boolean, default: false, index: true })
   is_delete: boolean;
@@ -44,3 +44,8 @@ export class DailyClassReport {
 
 export const DailyClassReportSchema =
   SchemaFactory.createForClass(DailyClassReport);
+
+DailyClassReportSchema.index(
+  { class_id: 1, report_date: 1 },
+  { unique: true, name: 'uq_class_date' },
+);

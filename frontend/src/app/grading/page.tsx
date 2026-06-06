@@ -138,44 +138,83 @@ export default function GradingPage() {
 
         if (existingDetail) {
           const newCount = (existingDetail.current_count || 0) + count;
-          const updatedHistory = [...(existingDetail.history || [])];
+          let calculatedScore = newCount * targetCriterion.pointsPerUnit;
+          if (targetCriterion.pointsPerUnit >= 0) {
+            calculatedScore = Math.max(targetCriterion.minScore || 0, Math.min(targetCriterion.maxScore || 10, calculatedScore));
+          } else {
+            calculatedScore = Math.max(-(targetCriterion.maxScore || 10), Math.min(targetCriterion.minScore || 0, calculatedScore));
+          }
+
+          const updatedHistory = [...(existingDetail.log || [])];
           updatedHistory.push({
-            role: userRole,
+            from_status: existingDetail.status || 'draft',
+            to_status: detailStatus,
+            score_before: existingDetail.system_score || 0,
+            score_after: calculatedScore,
             updated_by: currentUser?.id,
-            count: count,
             reason: 'Chấm điểm hàng loạt'
           });
 
-          // Lọc sạch lịch sử
-          const cleanHistory = updatedHistory.map((log: any) => ({
-            role: log.role,
+          const cleanLog = updatedHistory.map((log: any) => ({
+            from_status: log.from_status || 'draft',
+            to_status: log.to_status || 'draft',
+            score_before: log.score_before !== undefined ? log.score_before : 0,
+            score_after: log.score_after !== undefined ? log.score_after : 0,
             updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
-            count: log.count,
             reason: log.reason || 'Chấm điểm hàng loạt'
           }));
 
+          const scorePayload: any = {};
+          if (userRole === 'student') {
+            scorePayload.sv_score = calculatedScore;
+          } else if (userRole === 'teacher' || userRole === 'supervisor') {
+            scorePayload.gv_score = calculatedScore;
+          } else if (userRole === 'admin') {
+            scorePayload.final_score = calculatedScore;
+          }
+
           await evaluationDetailApi.updateEvaluationDetail(existingDetail._id, {
             current_count: newCount,
-            history: cleanHistory,
-            status: detailStatus
+            log: cleanLog,
+            status: detailStatus,
+            ...scorePayload
           });
         } else {
           const preCount = (preExistingCountsCache[summaryId] && preExistingCountsCache[summaryId][criteriaId]?.current_count) || 0;
           const newCount = count + preCount;
           
+          let calculatedScore = newCount * targetCriterion.pointsPerUnit;
+          if (targetCriterion.pointsPerUnit >= 0) {
+            calculatedScore = Math.max(targetCriterion.minScore || 0, Math.min(targetCriterion.maxScore || 10, calculatedScore));
+          } else {
+            calculatedScore = Math.max(-(targetCriterion.maxScore || 10), Math.min(targetCriterion.minScore || 0, calculatedScore));
+          }
+
+          const scorePayload: any = {};
+          if (userRole === 'student') {
+            scorePayload.sv_score = calculatedScore;
+          } else if (userRole === 'teacher' || userRole === 'supervisor') {
+            scorePayload.gv_score = calculatedScore;
+          } else if (userRole === 'admin') {
+            scorePayload.final_score = calculatedScore;
+          }
+
           await evaluationDetailApi.createEvaluationDetail({
             summary_id: summaryId,
             criterion_id: criteriaId,
             current_count: newCount,
-            history: [
+            log: [
               {
-                role: userRole,
+                from_status: 'draft',
+                to_status: detailStatus,
+                score_before: 0,
+                score_after: calculatedScore,
                 updated_by: currentUser?.id,
-                count: newCount,
                 reason: 'Chấm điểm hàng loạt'
               }
             ],
-            status: detailStatus
+            status: detailStatus,
+            ...scorePayload
           });
         }
 
@@ -249,8 +288,8 @@ export default function GradingPage() {
     }
 
     let detailStatus = 'draft';
-    if (userRole === 'supervisor') detailStatus = 'supervisor_evaluated';
-    else if (userRole === 'admin') detailStatus = 'finalized';
+    if (userRole === 'supervisor') detailStatus = 'gv_reviewed';
+    else if (userRole === 'admin') detailStatus = 'locked';
 
     setIsTableLoading(true);
     toast.loading(`Đang duyệt điểm rèn luyện cho sinh viên ${studentName}...`, { id: 'approve-loading' });
@@ -265,25 +304,41 @@ export default function GradingPage() {
       }
 
       const promises = details.map(detail => {
-        const updatedHistory = [...(detail.history || [])];
+        const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
+        const pointsPerUnit = cri?.score_per_unit || 1;
+        const currentScore = detail.current_count * pointsPerUnit;
+
+        const updatedHistory = [...(detail.log || [])];
         updatedHistory.push({
-          role: userRole,
+          from_status: detail.status || 'draft',
+          to_status: detailStatus,
+          score_before: detail.system_score || 0,
+          score_after: currentScore,
           updated_by: currentUser?.id,
-          count: detail.current_count,
           reason: 'Duyệt rèn luyện bởi ' + (userRole === 'supervisor' ? 'Quản sinh' : 'Admin')
         });
 
         // Lọc sạch mảng lịch sử trước khi gửi lên API
-        const cleanHistory = updatedHistory.map((log: any) => ({
-          role: log.role,
+        const cleanLog = updatedHistory.map((log: any) => ({
+          from_status: log.from_status || 'draft',
+          to_status: log.to_status || 'draft',
+          score_before: log.score_before !== undefined ? log.score_before : 0,
+          score_after: log.score_after !== undefined ? log.score_after : 0,
           updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
-          count: log.count,
           reason: log.reason || 'Duyệt rèn luyện'
         }));
 
+        const scorePayload: any = {};
+        if (userRole === 'supervisor') {
+          scorePayload.gv_score = currentScore;
+        } else if (userRole === 'admin') {
+          scorePayload.final_score = currentScore;
+        }
+
         return evaluationDetailApi.updateEvaluationDetail(detail._id, {
-          history: cleanHistory,
-          status: detailStatus
+          log: cleanLog,
+          status: detailStatus,
+          ...scorePayload
         });
       });
 
@@ -320,11 +375,11 @@ export default function GradingPage() {
       else if (clampedFinalScore >= 50) newGrading = 'Trung bình';
       else if (clampedFinalScore > 0) newGrading = 'Yếu';
 
-      // Cập nhật cả total_score, xếp loại mới và trạng thái active vào Database thông qua summariesPointApi
+      // Cập nhật cả total_score, xếp loại mới và trạng thái vào Database thông qua summariesPointApi
       await summariesPointApi.updateSummariesPoint(summaryId, {
         total_score: clampedFinalScore,
         grading: newGrading,
-        status: 'active'
+        status: detailStatus as any
       });
 
       toast.dismiss('approve-loading');
@@ -373,36 +428,44 @@ export default function GradingPage() {
         const summaryId = summary._id;
 
         // 1. Tải tất cả chi tiết chấm điểm (EvaluationDetails) thuộc summaryId này
-        const details = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
+        const studentDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
 
         // 2. Cập nhật status của tất cả chi tiết chấm điểm về 'draft'
-        const detailPromises = (details || []).map(detail => {
-          const updatedHistory = [...(detail.history || [])];
+        const detailPromises = (studentDetails || []).map(detail => {
+          const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
+          const pointsPerUnit = cri?.score_per_unit || 1;
+          const currentScore = detail.current_count * pointsPerUnit;
+
+          const updatedHistory = [...(detail.log || [])];
           updatedHistory.push({
-            role: userRoleLower.includes('admin') ? 'admin' : 'supervisor',
+            from_status: detail.status || 'gv_reviewed',
+            to_status: 'draft',
+            score_before: currentScore,
+            score_after: currentScore,
             updated_by: currentUser?.id,
-            count: detail.current_count,
             reason: 'Hủy duyệt rèn luyện về Bản nháp'
           });
 
-          const cleanHistory = updatedHistory.map((log: any) => ({
-            role: log.role,
+          const cleanLog = updatedHistory.map((log: any) => ({
+            from_status: log.from_status || 'gv_reviewed',
+            to_status: log.to_status || 'draft',
+            score_before: log.score_before !== undefined ? log.score_before : 0,
+            score_after: log.score_after !== undefined ? log.score_after : 0,
             updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
-            count: log.count,
             reason: log.reason || 'Hủy duyệt rèn luyện'
           }));
 
           return evaluationDetailApi.updateEvaluationDetail(detail._id, {
-            history: cleanHistory,
+            log: cleanLog,
             status: 'draft'
           });
         });
 
         await Promise.all(detailPromises);
 
-        // 3. Cập nhật status bảng điểm về 'inactive' và grading về 'Chưa xếp loại'
+        // 3. Cập nhật status bảng điểm về 'draft' và grading về 'Chưa xếp loại'
         await summariesPointApi.updateSummariesPoint(summaryId, {
-          status: 'inactive',
+          status: 'draft',
           grading: 'Chưa xếp loại'
         });
       });
@@ -582,7 +645,7 @@ export default function GradingPage() {
               semester_id: selectedSemester,
               total_score: 0,
               grading: 'Chưa xếp loại',
-              status: 'inactive'
+              status: 'draft'
             })
           );
         }
@@ -633,7 +696,7 @@ export default function GradingPage() {
           name: studentName,
           score: summary.total_score || 0,
           grading: summary.grading || 'Chưa xếp loại',
-          status: summary.status || 'inactive',
+          status: summary.status || 'draft',
           classId: studentClassId,
           semesterId: semId,
           departmentId: deptId,

@@ -3,44 +3,50 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface AcademicRecord {
   _id: string;
-  evaluation_detail_id?: any | string;
-  criteria_id?: any | string;
   student_id: any | string;
+  criterion_id: any | string;
   semester_id: any | string;
-  record_title: string;
-  points_effect: number;
-  status: 'active' | 'inactive';
   daily_report_id?: any | string;
-  date_record?: string;
+  record_title?: string;
   description?: string;
+  evidence_url?: string;
+  recorded_by?: any | string;
+  recorded_at?: string;
+  status: 'active' | 'inactive';
   createdAt?: string;
   updatedAt?: string;
+
+  // Tương thích ngược với dữ liệu cũ
+  evaluation_detail_id?: any | string;
+  criteria_id?: any | string;
+  points_effect?: number;
+  date_record?: string;
 }
 
 export interface CreateAcademicRecordDto {
-  evaluation_detail_id?: string;
-  criteria_id?: string;
   student_id: string;
+  criterion_id: string;
   semester_id: string;
-  record_title: string;
-  points_effect: number;
-  status?: 'active' | 'inactive';
   daily_report_id?: string;
-  date_record?: string;
+  record_title?: string;
   description?: string;
+  evidence_url?: string;
+  recorded_by?: string;
+  recorded_at?: string;
+  status?: 'active' | 'inactive';
 }
 
 export interface UpdateAcademicRecordDto {
-  evaluation_detail_id?: string;
-  criteria_id?: string;
   student_id?: string;
+  criterion_id?: string;
   semester_id?: string;
-  record_title?: string;
-  points_effect?: number;
-  status?: 'active' | 'inactive';
   daily_report_id?: string;
-  date_record?: string;
+  record_title?: string;
   description?: string;
+  evidence_url?: string;
+  recorded_by?: string;
+  recorded_at?: string;
+  status?: 'active' | 'inactive';
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

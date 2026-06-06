@@ -20,7 +20,7 @@ export class ClassesService {
     return this.classModel
       .find()
       .populate('dept_id', 'name code')
-      .populate('user_id', 'user_name email')
+      .populate('advisor_id', 'user_name email')
       .exec();
   }
 
@@ -28,7 +28,7 @@ export class ClassesService {
     const classEntity = await this.classModel
       .findById(id)
       .populate('dept_id', 'name code')
-      .populate('user_id', 'user_name email')
+      .populate('advisor_id', 'user_name email')
       .exec();
 
     if (!classEntity) {
@@ -41,7 +41,7 @@ export class ClassesService {
     const updatedClass = await this.classModel
       .findByIdAndUpdate(id, updateClassDto, { returnDocument: 'after' })
       .populate('dept_id', 'name code')
-      .populate('user_id', 'user_name email')
+      .populate('advisor_id', 'user_name email')
       .exec();
 
     if (!updatedClass) {

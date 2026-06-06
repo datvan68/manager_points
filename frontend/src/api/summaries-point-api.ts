@@ -9,7 +9,7 @@ export interface SummaryPoint {
   semester_id: Semester | string;
   total_score: number;
   grading: string;
-  status: 'active' | 'inactive';
+  status: 'draft' | 'sv_submitted' | 'gv_reviewed' | 'locked';
   createdAt?: string;
   updatedAt?: string;
 }
@@ -19,7 +19,7 @@ export interface CreateSummaryPointDto {
   semester_id: string;
   total_score: number;
   grading: string;
-  status?: 'active' | 'inactive';
+  status?: 'draft' | 'sv_submitted' | 'gv_reviewed' | 'locked';
 }
 
 export interface UpdateSummaryPointDto {
@@ -27,7 +27,7 @@ export interface UpdateSummaryPointDto {
   semester_id?: string;
   total_score?: number;
   grading?: string;
-  status?: 'active' | 'inactive';
+  status?: 'draft' | 'sv_submitted' | 'gv_reviewed' | 'locked';
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

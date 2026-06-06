@@ -24,14 +24,14 @@ export class DailyClassReportService {
       createDailyClassReportDto,
     );
     const saved = await createdReport.save();
-    return saved.populate(['class_id', 'user_id']);
+    return saved.populate(['class_id', 'reported_by']);
   }
 
   async findAll(): Promise<DailyClassReport[]> {
     return this.dailyClassReportModel
       .find({ is_delete: { $ne: true } })
       .populate('class_id')
-      .populate('user_id', 'user_name email')
+      .populate('reported_by', 'user_name email')
       .exec();
   }
 
@@ -39,7 +39,7 @@ export class DailyClassReportService {
     return this.dailyClassReportModel
       .find({ is_delete: true })
       .populate('class_id')
-      .populate('user_id', 'user_name email')
+      .populate('reported_by', 'user_name email')
       .exec();
   }
 
@@ -47,7 +47,7 @@ export class DailyClassReportService {
     const report = await this.dailyClassReportModel
       .findOne({ _id: id, is_delete: { $ne: true } })
       .populate('class_id')
-      .populate('user_id', 'user_name email')
+      .populate('reported_by', 'user_name email')
       .exec();
     if (!report) {
       throw new NotFoundException(`DailyClassReport with ID ${id} not found`);
@@ -59,7 +59,7 @@ export class DailyClassReportService {
     return this.dailyClassReportModel
       .find({ class_id: classId as any, is_delete: { $ne: true } })
       .populate('class_id')
-      .populate('user_id', 'user_name email')
+      .populate('reported_by', 'user_name email')
       .exec();
   }
 
@@ -77,7 +77,7 @@ export class DailyClassReportService {
         returnDocument: 'after',
       })
       .populate('class_id')
-      .populate('user_id', 'user_name email')
+      .populate('reported_by', 'user_name email')
       .exec();
     if (!updated) {
       throw new NotFoundException(`DailyClassReport with ID ${id} not found`);
@@ -96,7 +96,7 @@ export class DailyClassReportService {
     const deleted = await this.dailyClassReportModel
       .findByIdAndUpdate(id, { is_delete: true }, { returnDocument: 'after' })
       .populate('class_id')
-      .populate('user_id', 'user_name email')
+      .populate('reported_by', 'user_name email')
       .exec();
     if (!deleted) {
       throw new NotFoundException(`DailyClassReport with ID ${id} not found`);
@@ -119,7 +119,7 @@ export class DailyClassReportService {
 
     report.is_delete = false;
     const saved = await report.save();
-    return saved.populate(['class_id', 'user_id']);
+    return saved.populate(['class_id', 'reported_by']);
   }
 
   async forceRemove(id: string): Promise<DailyClassReport> {

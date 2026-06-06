@@ -27,6 +27,8 @@ export class SummariesPointService {
       .find()
       .populate('student_id')
       .populate('semester_id')
+      .populate('period_id')
+      .populate('details.criterion_id')
       .exec();
   }
 
@@ -35,6 +37,8 @@ export class SummariesPointService {
       .findById(id)
       .populate('student_id')
       .populate('semester_id')
+      .populate('period_id')
+      .populate('details.criterion_id')
       .exec();
     if (!summaryPoint) {
       throw new NotFoundException(`SummaryPoint with ID ${id} not found`);
@@ -50,6 +54,8 @@ export class SummariesPointService {
       .findByIdAndUpdate(id, updateSummaryPointDto, { returnDocument: 'after' })
       .populate('student_id')
       .populate('semester_id')
+      .populate('period_id')
+      .populate('details.criterion_id')
       .exec();
     if (!updated) {
       throw new NotFoundException(`SummaryPoint with ID ${id} not found`);

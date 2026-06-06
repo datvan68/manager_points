@@ -2,15 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { NotFoundException } from '@nestjs/common';
 import { ClassesService } from '../classes.service';
-import { Class, ClassType } from '../schemas/class.schema';
+import { Class } from '../schemas/class.schema';
 
 const mockClass = {
   _id: 'mock-class-id',
   class_name: 'Class A',
   class_year: '2023-2027',
   dept_id: 'mock-dept-id',
-  user_id: 'mock-user-id',
-  class_type: 'Cao đẳng',
+  advisor_id: 'mock-user-id',
+  class_course: 'Cao đẳng',
 };
 
 describe('ClassesService', () => {
@@ -66,7 +66,7 @@ describe('ClassesService', () => {
         class_name: 'Class A',
         class_year: '2023-2027',
         dept_id: 'mock-dept-id',
-        class_type: ClassType.CAO_DANG,
+        class_course: 'Cao đẳng',
       };
       const result = await service.create(dto);
       expect(result).toBeDefined();

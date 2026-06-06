@@ -24,7 +24,7 @@ export class CreateDailyClassReportDto {
   })
   @IsNotEmpty()
   @IsMongoId()
-  user_id: string;
+  reported_by: string;
 
   @ApiProperty({
     example: '2026-06-01T00:00:00.000Z',
@@ -61,5 +61,5 @@ export class CreateDailyClassReportDto {
   })
   @IsOptional()
   @IsString()
-  class_note?: string;
+  class_notes?: string;
 }

@@ -6,9 +6,13 @@ import {
   AcademicRecordDocument,
 } from './schemas/academic-record.schema';
 import {
-  EvaluationDetail,
-  EvaluationDetailDocument,
-} from '../evaluation-detail/schemas/evaluation-detail.schema';
+  SummaryPoint,
+  SummaryPointDocument,
+} from '../summaries-point/schemas/summary-point.schema';
+import {
+  Criterion,
+  CriterionDocument,
+} from '../criteria/schemas/criterion.schema';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
 
@@ -17,50 +21,95 @@ export class AcademicRecordService {
   constructor(
     @InjectModel(AcademicRecord.name)
     private readonly academicRecordModel: Model<AcademicRecordDocument>,
-    @InjectModel(EvaluationDetail.name)
-    private readonly evaluationDetailModel: Model<EvaluationDetailDocument>,
+    @InjectModel(SummaryPoint.name)
+    private readonly summaryPointModel: Model<SummaryPointDocument>,
+    @InjectModel(Criterion.name)
+    private readonly criterionModel: Model<CriterionDocument>,
   ) {}
 
-  private async decrementEvaluationDetailCount(evaluationDetailId: string): Promise<void> {
-    if (!evaluationDetailId) return;
-    
-    const detail = await this.evaluationDetailModel.findById(evaluationDetailId).exec();
-    if (!detail) return;
+  /**
+   * Helper function to sync student's criterion count and system score in SummaryPoint(s)
+   */
+  async syncStudentCriterionScore(
+    studentId: string,
+    semesterId: string,
+    criterionId: string,
+  ): Promise<void> {
+    if (!Types.ObjectId.isValid(studentId) || !Types.ObjectId.isValid(semesterId) || !Types.ObjectId.isValid(criterionId)) {
+      return;
+    }
 
-    const newCount = Math.max(0, detail.current_count - 1);
-    
-    const history = [...(detail.history || [])];
-    history.push({
-      role: 'admin',
-      count: newCount,
-      reason: 'Trừ do ghi nhận bị xoá/vô hiệu hoá',
-      updated_at: new Date()
-    } as any);
+    // 1. Count how many active academic records exist for this student, semester, and criterion
+    const activeCount = await this.academicRecordModel.countDocuments({
+      student_id: new Types.ObjectId(studentId),
+      semester_id: new Types.ObjectId(semesterId),
+      criterion_id: new Types.ObjectId(criterionId),
+      status: 'active',
+    } as any).exec();
 
-    detail.current_count = newCount;
-    detail.history = history;
-    await detail.save();
-  }
+    // 2. Fetch the criterion definition to get details
+    const criterion = await this.criterionModel.findById(criterionId).exec();
+    if (!criterion) return;
 
-  private async incrementEvaluationDetailCount(evaluationDetailId: string, customReason?: string): Promise<void> {
-    if (!evaluationDetailId) return;
-    
-    const detail = await this.evaluationDetailModel.findById(evaluationDetailId).exec();
-    if (!detail) return;
+    // 3. Compute system_score
+    let systemScore = activeCount * criterion.score_per_unit;
+    if (criterion.score_per_unit >= 0) {
+      systemScore = Math.max(criterion.min_score, Math.min(criterion.max_score, systemScore));
+    } else {
+      systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
+    }
 
-    const newCount = detail.current_count + 1;
-    
-    const history = [...(detail.history || [])];
-    history.push({
-      role: 'admin',
-      count: newCount,
-      reason: customReason || 'Cộng do ghi nhận được kích hoạt lại',
-      updated_at: new Date()
-    } as any);
+    // 4. Find all SummaryPoints for this student and semester
+    let summaries = await this.summaryPointModel.find({
+      student_id: new Types.ObjectId(studentId),
+      semester_id: new Types.ObjectId(semesterId),
+    } as any).exec();
 
-    detail.current_count = newCount;
-    detail.history = history;
-    await detail.save();
+    // If no summaries exist, we don't automatically create one since it should be generated via period/import flow
+    // but just to be safe, if we need to initialize one, we can check.
+    for (const summary of summaries) {
+      let details = summary.details || [];
+      const detailIndex = details.findIndex(
+        (d) => d.criterion_id && d.criterion_id.toString() === criterionId,
+      );
+
+      if (detailIndex === -1) {
+        // Add new embedded detail
+        const newDetail: any = {
+          criterion_id: new Types.ObjectId(criterionId),
+          current_count: activeCount,
+          system_score: systemScore,
+          sv_score: null,
+          sv_submitted_at: null,
+          gv_score: null,
+          gv_reviewed_at: null,
+          gv_reviewed_by: null,
+          final_score: null,
+          locked_at: null,
+          locked_by: null,
+          status: 'draft',
+          description: '',
+          log: [],
+        };
+        details.push(newDetail);
+      } else {
+        // Update existing embedded detail
+        const detail = details[detailIndex];
+        detail.current_count = activeCount;
+        detail.system_score = systemScore;
+        // Also update final_score to systemScore if it hasn't been set by student/gv/admin yet
+        if (detail.status === 'draft') {
+          detail.sv_score = systemScore;
+          detail.gv_score = systemScore;
+          detail.final_score = systemScore;
+        }
+        details[detailIndex] = detail;
+      }
+
+      summary.details = details;
+      summary.markModified('details');
+      await summary.save();
+    }
   }
 
   async create(
@@ -69,43 +118,41 @@ export class AcademicRecordService {
     const createdRecord = new this.academicRecordModel(createAcademicRecordDto);
     const saved = await createdRecord.save();
     
-    if (saved.evaluation_detail_id && saved.status === 'active') {
-      const evalIdRaw = saved.evaluation_detail_id as any;
-      const evalId = evalIdRaw._id ? evalIdRaw._id.toString() : evalIdRaw.toString();
-      await this.incrementEvaluationDetailCount(evalId, 'Tạo mới ghi nhận thủ công');
-    }
+    // Sync points to SummaryPoints
+    await this.syncStudentCriterionScore(
+      saved.student_id.toString(),
+      saved.semester_id.toString(),
+      saved.criterion_id.toString(),
+    );
 
     return saved.populate([
-      'evaluation_detail_id',
-      'criteria_id',
+      'criterion_id',
       'student_id',
       'semester_id',
       'daily_report_id',
-      'user_id',
+      'recorded_by',
     ]);
   }
 
   async findAll(): Promise<AcademicRecord[]> {
     return this.academicRecordModel
-      .find({ is_delete: { $ne: true } })
-      .populate('evaluation_detail_id')
-      .populate('criteria_id')
+      .find({ status: 'active' })
+      .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('user_id')
+      .populate('recorded_by')
       .exec();
   }
 
   async findDeleted(): Promise<AcademicRecord[]> {
     return this.academicRecordModel
-      .find({ is_delete: true })
-      .populate('evaluation_detail_id')
-      .populate('criteria_id')
+      .find({ status: 'inactive' })
+      .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('user_id')
+      .populate('recorded_by')
       .exec();
   }
 
@@ -114,13 +161,12 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
     const record = await this.academicRecordModel
-      .findOne({ _id: id, is_delete: { $ne: true } })
-      .populate('evaluation_detail_id')
-      .populate('criteria_id')
+      .findOne({ _id: id, status: 'active' })
+      .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('user_id')
+      .populate('recorded_by')
       .exec();
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
@@ -133,13 +179,12 @@ export class AcademicRecordService {
       return [];
     }
     return this.academicRecordModel
-      .find({ student_id: studentId as any, is_delete: { $ne: true } })
-      .populate('evaluation_detail_id')
-      .populate('criteria_id')
+      .find({ student_id: new Types.ObjectId(studentId), status: 'active' } as any)
+      .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('user_id')
+      .populate('recorded_by')
       .exec();
   }
 
@@ -147,18 +192,17 @@ export class AcademicRecordService {
     if (!Types.ObjectId.isValid(dailyReportId)) {
       return [];
     }
-    const query = includeDeleted
-      ? { daily_report_id: dailyReportId as any }
-      : { daily_report_id: dailyReportId as any, is_delete: { $ne: true } };
+    const query: any = includeDeleted
+      ? { daily_report_id: new Types.ObjectId(dailyReportId) }
+      : { daily_report_id: new Types.ObjectId(dailyReportId), status: 'active' };
 
     return this.academicRecordModel
       .find(query)
-      .populate('evaluation_detail_id')
-      .populate('criteria_id')
+      .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('user_id')
+      .populate('recorded_by')
       .exec();
   }
 
@@ -171,7 +215,7 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const oldRecord = await this.academicRecordModel.findOne({ _id: id, is_delete: { $ne: true } }).exec();
+    const oldRecord = await this.academicRecordModel.findOne({ _id: id, status: 'active' }).exec();
     if (!oldRecord) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
@@ -186,27 +230,34 @@ export class AcademicRecordService {
       .findByIdAndUpdate(id, updateAcademicRecordDto, {
         returnDocument: 'after',
       })
-      .populate('evaluation_detail_id')
-      .populate('criteria_id')
+      .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('user_id')
+      .populate('recorded_by')
       .exec();
     if (!updated) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    // Handle status change
-    if (updated.evaluation_detail_id) {
-      const evalIdRaw = updated.evaluation_detail_id as any;
-      const evalId = evalIdRaw._id ? evalIdRaw._id.toString() : evalIdRaw.toString();
-      
-      if (oldRecord.status === 'active' && updated.status === 'inactive') {
-        await this.decrementEvaluationDetailCount(evalId);
-      } else if (oldRecord.status === 'inactive' && updated.status === 'active') {
-        await this.incrementEvaluationDetailCount(evalId);
-      }
+    // Sync old key
+    await this.syncStudentCriterionScore(
+      oldRecord.student_id.toString(),
+      oldRecord.semester_id.toString(),
+      oldRecord.criterion_id.toString(),
+    );
+
+    // Sync new key if changed
+    if (
+      updated.student_id.toString() !== oldRecord.student_id.toString() ||
+      updated.semester_id.toString() !== oldRecord.semester_id.toString() ||
+      updated.criterion_id.toString() !== oldRecord.criterion_id.toString()
+    ) {
+      await this.syncStudentCriterionScore(
+        updated.student_id.toString(),
+        updated.semester_id.toString(),
+        updated.criterion_id.toString(),
+      );
     }
 
     return updated;
@@ -217,7 +268,7 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel.findOne({ _id: id, is_delete: { $ne: true } }).exec();
+    const record = await this.academicRecordModel.findOne({ _id: id, status: 'active' }).exec();
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
@@ -230,7 +281,7 @@ export class AcademicRecordService {
 
     const deleted = await this.academicRecordModel.findByIdAndUpdate(
       id,
-      { is_delete: true },
+      { status: 'inactive' },
       { returnDocument: 'after' },
     ).exec();
 
@@ -238,11 +289,12 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    if (deleted.evaluation_detail_id && deleted.status === 'active') {
-      const evalIdRaw = deleted.evaluation_detail_id as any;
-      const evalId = evalIdRaw._id ? evalIdRaw._id.toString() : evalIdRaw.toString();
-      await this.decrementEvaluationDetailCount(evalId);
-    }
+    // Sync score update
+    await this.syncStudentCriterionScore(
+      deleted.student_id.toString(),
+      deleted.semester_id.toString(),
+      deleted.criterion_id.toString(),
+    );
 
     return deleted;
   }
@@ -252,27 +304,27 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel.findOne({ _id: id, is_delete: true }).exec();
+    const record = await this.academicRecordModel.findOne({ _id: id, status: 'inactive' }).exec();
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found trong thùng rác`);
     }
 
-    record.is_delete = false;
+    record.status = 'active';
     const saved = await record.save();
 
-    if (saved.evaluation_detail_id && saved.status === 'active') {
-      const evalIdRaw = saved.evaluation_detail_id as any;
-      const evalId = evalIdRaw._id ? evalIdRaw._id.toString() : evalIdRaw.toString();
-      await this.incrementEvaluationDetailCount(evalId, 'Khôi phục ghi nhận vi phạm');
-    }
+    // Sync score update
+    await this.syncStudentCriterionScore(
+      saved.student_id.toString(),
+      saved.semester_id.toString(),
+      saved.criterion_id.toString(),
+    );
 
     return saved.populate([
-      'evaluation_detail_id',
-      'criteria_id',
+      'criterion_id',
       'student_id',
       'semester_id',
       'daily_report_id',
-      'user_id',
+      'recorded_by',
     ]);
   }
 
@@ -296,6 +348,13 @@ export class AcademicRecordService {
     if (!deleted) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
+
+    // Sync score update
+    await this.syncStudentCriterionScore(
+      deleted.student_id.toString(),
+      deleted.semester_id.toString(),
+      deleted.criterion_id.toString(),
+    );
 
     return deleted;
   }

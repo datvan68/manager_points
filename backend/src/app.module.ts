@@ -21,6 +21,7 @@ import { SummariesPointModule } from './summaries-point/summaries-point.module';
 import { EvaluationDetailModule } from './evaluation-detail/evaluation-detail.module';
 import { DailyClassReportModule } from './daily-class-report/daily-class-report.module';
 import { AcademicRecordModule } from './academic-record/academic-record.module';
+import { EvaluationPeriodsModule } from './evaluation-periods/evaluation-periods.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { AcademicRecordModule } from './academic-record/academic-record.module';
     EvaluationDetailModule,
     DailyClassReportModule,
     AcademicRecordModule,
+    EvaluationPeriodsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

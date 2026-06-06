@@ -36,6 +36,7 @@ import { semesterApi } from '@/api/semester-api';
 import { classApi } from '@/api/class-api';
 import { studentApi } from '@/api/student-api';
 import { tokenStorage } from '@/api/auth-api';
+import { evaluationPeriodApi } from '@/api/evaluation-period-api';
 
 // Interfaces
 interface StudentData {
@@ -114,6 +115,16 @@ interface HistoryRecord {
   status?: string;
 }
 
+const formatDate = (dateStr?: string) => {
+  if (!dateStr) return 'Chưa thiết lập';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  } catch {
+    return 'Chưa thiết lập';
+  }
+};
+
 function GradingScoreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -190,6 +201,12 @@ function GradingScoreContent() {
   const [apiClasses, setApiClasses] = useState<any[]>([]);
   const [selectedSemesterId, setSelectedSemesterId] = useState<string>('');
   const [selectedClassId, setSelectedClassId] = useState<string>('');
+  
+  // States cho Kỳ đánh giá (Evaluation Periods)
+  const [apiEvaluationPeriods, setApiEvaluationPeriods] = useState<any[]>([]);
+  const [activePeriod, setActivePeriod] = useState<any | null>(null);
+  const [evaluationDetailsMap, setEvaluationDetailsMap] = useState<Record<string, any>>({});
+  const [apiSummariesPoints, setApiSummariesPoints] = useState<any[]>([]);
 
   // Mapping từ MSSV/Student ID sang ID của SummaryPoint
   const [studentSummaryMap, setStudentSummaryMap] = useState<Record<string, string>>({});
@@ -211,23 +228,71 @@ function GradingScoreContent() {
   const currentSemester = apiSemesters.find(sem => sem._id === selectedSemesterId);
   const isSemesterActive = currentSemester ? currentSemester.status === 'active' : false;
 
+  // Tự động tìm kỳ đánh giá (Evaluation Period) hoạt động tương ứng với học kỳ được chọn
+  useEffect(() => {
+    const period = apiEvaluationPeriods.find(p => {
+      const semId = typeof p.semester_id === 'object' ? p.semester_id?._id : p.semester_id;
+      return semId === selectedSemesterId;
+    });
+    setActivePeriod(period || null);
+  }, [selectedSemesterId, apiEvaluationPeriods]);
+
+  // Kiểm tra quyền chấm điểm theo vai trò và trạng thái kỳ đánh giá
+  const canModifyScore = (() => {
+    if (isInitialLoading || isFetching) return false;
+    
+    // Nếu học kỳ không active, chặn sửa
+    if (!isSemesterActive) return false;
+    
+    // Nếu chưa cấu hình kỳ đánh giá, mặc định theo học kỳ active
+    if (!activePeriod) return isSemesterActive;
+    
+    // Nếu kỳ đánh giá đã đóng hoặc chưa mở cổng
+    if (activePeriod.status === 'closed' || activePeriod.status === 'pending') return false;
+    
+    const currentUser = tokenStorage.getUser();
+    const role = currentUser?.role?.toLowerCase() || '';
+    
+    if (role.includes('admin')) {
+      return true; // Admin có quyền chấm trong kỳ đánh giá
+    }
+    
+    if (role.includes('teacher') || role.includes('advisor')) {
+      // Cố vấn học tập chấm điểm ở giai đoạn gv_phase
+      return activePeriod.status === 'gv_phase';
+    }
+    
+    if (role.includes('student')) {
+      // Sinh viên tự chấm điểm ở giai đoạn sv_phase và bảng điểm ở trạng thái draft
+      const summaryId = studentSummaryMap[activeStudentId];
+      const summary = apiSummariesPoints.find(s => s._id === summaryId);
+      const summaryStatus = summary?.status || 'draft';
+      return activePeriod.status === 'sv_phase' && (summaryStatus === 'draft' || summaryStatus === 'active');
+    }
+    
+    return false;
+  })();
+
   // Khởi tạo dữ liệu thực tế từ các API
   useEffect(() => {
     const loadRealData = async () => {
       try {
         setIsInitialLoading(true);
 
-        // 1. Tải danh mục, tiêu chí, học kỳ, lớp và bảng điểm từ backend
-        const [backendCats, backendCriteria, backendSemesters, backendClasses, backendSummaries] = await Promise.all([
+        // 1. Tải danh mục, tiêu chí, học kỳ, lớp, bảng điểm và kỳ đánh giá từ backend
+        const [backendCats, backendCriteria, backendSemesters, backendClasses, backendSummaries, backendPeriods] = await Promise.all([
           categoryApi.getCategories(),
           criteriaApi.getCriteria(),
           semesterApi.getSemesters(),
           classApi.getClasses(),
-          summariesPointApi.getSummariesPoints()
+          summariesPointApi.getSummariesPoints(),
+          evaluationPeriodApi.getEvaluationPeriods().catch(() => [])
         ]);
 
         setApiSemesters(backendSemesters || []);
         setApiClasses(backendClasses || []);
+        setApiEvaluationPeriods(backendPeriods || []);
+        setApiSummariesPoints(backendSummaries || []);
 
         // Đọc học kỳ và lớp học đã áp dụng từ sessionStorage
         const savedSem = sessionStorage.getItem('grading_appliedSem') || (backendSemesters[0]?._id || '');
@@ -350,6 +415,7 @@ function GradingScoreContent() {
               evaluationDetailApi.getPreExistingCounts(activeSummaryId),
             ]);
             const counts: Record<string, number> = {};
+            const detailsMap: Record<string, any> = {};
             const activeHistory: any[] = [];
 
             // Ghi nhận criteria đã có evaluation_detail
@@ -359,28 +425,32 @@ function GradingScoreContent() {
               const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
               const criId = cri?._id || detail.criterion_id;
               counts[criId] = detail.current_count || 0;
+              detailsMap[criId] = detail;
               evaluatedCriteriaIds.add(criId);
 
               const criName = cri?.criterion_name || 'Tiêu chí';
               const criType = cri?.criterion_type === 'ky_luat' ? 'violation' : 'reward';
               const pointsPerUnit = cri?.score_per_unit || 1;
 
-              (detail.history || []).forEach((log: any, index: number) => {
+              (detail.log || []).forEach((log: any, index: number) => {
+                const countVal = log.count !== undefined ? log.count : Math.round((log.score_after || 0) / pointsPerUnit);
                 activeHistory.push({
                   id: `${detail._id}-log-${index}`,
                   studentId: targetActiveId,
                   type: criType,
                   title: criName,
                   date: log.updated_at ? new Date(log.updated_at).toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN'),
-                  count: log.count,
-                  points: pointsPerUnit * log.count,
+                  count: countVal,
+                  points: log.score_after !== undefined ? log.score_after : pointsPerUnit * countVal,
                   session: log.updated_at ? (new Date(log.updated_at).getHours() < 12 ? 'Sáng' : 'Chiều') : 'Sáng',
-                  role: log.role,
+                  role: log.role || 'admin',
                   updated_by: log.updated_by,
                   status: detail.status || 'draft'
                 });
               });
             });
+            
+            setEvaluationDetailsMap(detailsMap);
 
             // Merge pre-existing counts cho tiêu chí chưa có evaluation_detail
             if (preExistingCounts) {
@@ -432,6 +502,7 @@ function GradingScoreContent() {
           evaluationDetailApi.getPreExistingCounts(summaryId),
         ]);
         const counts: Record<string, number> = {};
+        const detailsMap: Record<string, any> = {};
         const activeHistory: any[] = [];
 
         // Ghi nhận criteria đã có evaluation_detail
@@ -441,28 +512,32 @@ function GradingScoreContent() {
           const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
           const criId = cri?._id || detail.criterion_id;
           counts[criId] = detail.current_count || 0;
+          detailsMap[criId] = detail;
           evaluatedCriteriaIds.add(criId);
 
           const criName = cri?.criterion_name || 'Tiêu chí';
           const criType = cri?.criterion_type === 'ky_luat' ? 'violation' : 'reward';
           const pointsPerUnit = cri?.score_per_unit || 1;
 
-          (detail.history || []).forEach((log: any, index: number) => {
+          (detail.log || []).forEach((log: any, index: number) => {
+            const countVal = log.count !== undefined ? log.count : Math.round((log.score_after || 0) / pointsPerUnit);
             activeHistory.push({
               id: `${detail._id}-log-${index}`,
               studentId: activeStudentId,
               type: criType,
               title: criName,
               date: log.updated_at ? new Date(log.updated_at).toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN'),
-              count: log.count,
-              points: pointsPerUnit * log.count,
+              count: countVal,
+              points: log.score_after !== undefined ? log.score_after : pointsPerUnit * countVal,
               session: log.updated_at ? (new Date(log.updated_at).getHours() < 12 ? 'Sáng' : 'Chiều') : 'Sáng',
-              role: log.role,
+              role: log.role || 'admin',
               updated_by: log.updated_by,
               status: detail.status || 'draft'
             });
           });
         });
+
+        setEvaluationDetailsMap(detailsMap);
 
         // Merge pre-existing counts cho tiêu chí chưa có evaluation_detail
         if (preExistingCounts) {
@@ -602,8 +677,8 @@ function GradingScoreContent() {
   // Hàm đặt lại điểm số
   const handleReset = () => {
     if (!activeStudentId || !activeStudent) return;
-    if (!isSemesterActive) {
-      toast.error('Học kỳ đã đóng, không thể đặt lại điểm số!');
+    if (!canModifyScore) {
+      toast.error('Không có quyền sửa đổi điểm rèn luyện trong giai đoạn này!');
       return;
     }
 
@@ -642,8 +717,8 @@ function GradingScoreContent() {
   // Hàm Lưu thay đổi thực tế đồng bộ database qua API
   const handleSave = async () => {
     if (!activeStudent || isFetching) return;
-    if (!isSemesterActive) {
-      toast.error('Học kỳ đã đóng, không thể lưu kết quả chấm điểm!');
+    if (!canModifyScore) {
+      toast.error('Không có quyền sửa đổi điểm rèn luyện trong giai đoạn này!');
       return;
     }
 
@@ -695,26 +770,53 @@ function GradingScoreContent() {
           if (existingDetail) {
             // Nếu số lần khác nhau (có thay đổi)
             if (existingDetail.current_count !== count) {
-              const updatedHistory = [...(existingDetail.history || [])];
+              // Tính điểm tương ứng dựa trên count và pointsPerUnit
+              let calculatedScore = count * cri.pointsPerUnit;
+              if (cri.pointsPerUnit >= 0) {
+                calculatedScore = Math.max(cri.minScore || 0, Math.min(cri.maxScore || 10, calculatedScore));
+              } else {
+                calculatedScore = Math.max(-(cri.maxScore || 10), Math.min(cri.minScore || 0, calculatedScore));
+              }
+
+              const updatedHistory = [...(existingDetail.log || [])];
               updatedHistory.push({
-                role: userRole,
+                from_status: existingDetail.status || 'draft',
+                to_status: detailStatus,
+                score_before: existingDetail.system_score || 0,
+                score_after: calculatedScore,
                 updated_by: currentUser?.id,
-                count: count,
                 reason: 'Cập nhật điểm rèn luyện'
               });
 
-              // Lọc sạch lịch sử để khớp chính xác DTO ở Backend (tránh lỗi validation updated_at, _id)
-              const cleanHistory = updatedHistory.map((log: any) => ({
-                role: log.role,
+              // Lọc sạch lịch sử để khớp chính xác DTO ở Backend
+              const cleanLog = updatedHistory.map((log: any) => ({
+                from_status: log.from_status || 'draft',
+                to_status: log.to_status || 'draft',
+                score_before: log.score_before !== undefined ? log.score_before : 0,
+                score_after: log.score_after !== undefined ? log.score_after : 0,
                 updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
-                count: log.count,
                 reason: log.reason || 'Cập nhật điểm rèn luyện'
               }));
 
+              const scorePayload: any = {};
+              if (userRole === 'student') {
+                scorePayload.sv_score = calculatedScore;
+                scorePayload.sv_submitted_at = new Date();
+              } else if (userRole === 'teacher' || userRole === 'supervisor') {
+                scorePayload.gv_score = calculatedScore;
+                scorePayload.gv_reviewed_at = new Date();
+                scorePayload.gv_reviewed_by = currentUser?.id;
+              } else if (userRole === 'admin') {
+                scorePayload.final_score = calculatedScore;
+                scorePayload.locked_at = new Date();
+                scorePayload.locked_by = currentUser?.id;
+              }
+
               promises.push(evaluationDetailApi.updateEvaluationDetail(existingDetail._id, {
                 current_count: count,
-                history: cleanHistory,
-                status: detailStatus
+                log: cleanLog,
+                status: detailStatus,
+                ...scorePayload
               }));
 
               newRecords.push({
@@ -734,19 +836,43 @@ function GradingScoreContent() {
           } else {
             // Nếu chưa có và count > 0, ta tiến hành tạo mới
             if (count > 0) {
+              let calculatedScore = count * cri.pointsPerUnit;
+              if (cri.pointsPerUnit >= 0) {
+                calculatedScore = Math.max(cri.minScore || 0, Math.min(cri.maxScore || 10, calculatedScore));
+              } else {
+                calculatedScore = Math.max(-(cri.maxScore || 10), Math.min(cri.minScore || 0, calculatedScore));
+              }
+
+              const scorePayload: any = {};
+              if (userRole === 'student') {
+                scorePayload.sv_score = calculatedScore;
+                scorePayload.sv_submitted_at = new Date();
+              } else if (userRole === 'teacher' || userRole === 'supervisor') {
+                scorePayload.gv_score = calculatedScore;
+                scorePayload.gv_reviewed_at = new Date();
+                scorePayload.gv_reviewed_by = currentUser?.id;
+              } else if (userRole === 'admin') {
+                scorePayload.final_score = calculatedScore;
+                scorePayload.locked_at = new Date();
+                scorePayload.locked_by = currentUser?.id;
+              }
+
               promises.push(evaluationDetailApi.createEvaluationDetail({
                 summary_id: summaryId,
                 criterion_id: cri.id,
                 current_count: count,
-                history: [
+                log: [
                   {
-                    role: userRole,
+                    from_status: 'draft',
+                    to_status: detailStatus,
+                    score_before: 0,
+                    score_after: calculatedScore,
                     updated_by: currentUser?.id,
-                    count: count,
                     reason: 'Khởi tạo điểm rèn luyện'
                   }
                 ],
-                status: detailStatus
+                status: detailStatus,
+                ...scorePayload
               }));
 
               newRecords.push({
@@ -774,7 +900,6 @@ function GradingScoreContent() {
         total_score: activeStudent.score
       };
       if (activeStudent.score === 0) {
-        summaryPayload.status = 'inactive';
         summaryPayload.grading = 'CHƯA XẾP LOẠI';
       }
       await summariesPointApi.updateSummariesPoint(summaryId, summaryPayload);
@@ -814,28 +939,40 @@ function GradingScoreContent() {
         throw new Error('Không tìm thấy chi tiết chấm điểm tương ứng');
       }
 
-      // 2. Xóa log tại logIndex khỏi mảng history
-      const updatedHistory = [...(detail.history || [])];
+      // 2. Xóa log tại logIndex khỏi mảng history/log
+      const updatedHistory = [...(detail.log || [])];
       updatedHistory.splice(logIndex, 1);
 
       // 3. Tính toán lại số lần hiện tại (current_count)
-      const newCount = updatedHistory.length > 0 ? updatedHistory[updatedHistory.length - 1].count : 0;
+      const lastLog = updatedHistory.length > 0 ? updatedHistory[updatedHistory.length - 1] : null;
+      let newCount = 0;
+      if (lastLog) {
+        if (lastLog.count !== undefined) {
+          newCount = lastLog.count;
+        } else {
+          const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
+          const pointsPerUnit = cri?.score_per_unit || 1;
+          newCount = Math.round((lastLog.score_after || 0) / pointsPerUnit);
+        }
+      }
 
       // 4. Lọc sạch mảng lịch sử trước khi gửi lên API
-      const cleanHistory = updatedHistory.map((log: any) => ({
-        role: log.role,
+      const cleanLog = updatedHistory.map((log: any) => ({
+        from_status: log.from_status || 'draft',
+        to_status: log.to_status || 'draft',
+        score_before: log.score_before !== undefined ? log.score_before : 0,
+        score_after: log.score_after !== undefined ? log.score_after : 0,
         updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
-        count: log.count,
-        reason: log.reason
+        reason: log.reason || 'Xóa lịch sử chấm điểm'
       }));
 
       // 5. Cập nhật detail lên Backend (hoặc xóa detail nếu history trống và current_count = 0)
-      if (cleanHistory.length === 0) {
+      if (cleanLog.length === 0) {
         await evaluationDetailApi.deleteEvaluationDetail(detail._id);
       } else {
         await evaluationDetailApi.updateEvaluationDetail(detail._id, {
           current_count: newCount,
-          history: cleanHistory,
+          log: cleanLog,
           status: 'draft' // Chuyển về bản nháp sau khi xóa log cũ
         });
       }
@@ -882,7 +1019,6 @@ function GradingScoreContent() {
           total_score: clampedFinalScore
         };
         if (clampedFinalScore === 0) {
-          deletePayload.status = 'inactive';
           deletePayload.grading = 'CHƯA XẾP LOẠI';
         }
         await summariesPointApi.updateSummariesPoint(summaryId, deletePayload);
@@ -964,6 +1100,165 @@ function GradingScoreContent() {
                   </p>
                 </div>
               </motion.div>
+            )}
+
+            {/* ================= EVALUATION PERIOD STEPPER ================= */}
+            {!isInitialLoading && (
+              activePeriod ? (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white/45 backdrop-blur-md border border-white/75 rounded-3xl p-6 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4"
+                >
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200/50 pb-4">
+                    <div>
+                      <h3 className="font-sans font-bold text-[#1E293B] text-[15px] flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#1A73E8] animate-pulse" />
+                        Tiến trình kỳ đánh giá rèn luyện
+                      </h3>
+                      <p className="text-[#64748B] text-[12.5px] mt-0.5">
+                        Học kỳ: <span className="font-semibold text-[#1E293B]">{currentSemester?.semester_name || 'Chưa rõ'}</span>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] text-[#64748B] font-medium">Giai đoạn hiện tại:</span>
+                      <span className={`px-3.5 py-1 rounded-full text-[11px] font-bold border uppercase tracking-wider ${
+                        activePeriod.status === 'sv_phase' ? 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20' :
+                        activePeriod.status === 'gv_phase' ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' :
+                        activePeriod.status === 'admin_phase' ? 'bg-purple-500/10 text-purple-700 border-purple-500/20' :
+                        activePeriod.status === 'closed' ? 'bg-rose-500/10 text-rose-700 border-rose-500/20' :
+                        'bg-slate-500/10 text-[#64748B] border-slate-500/20'
+                      }`}>
+                        {activePeriod.status === 'sv_phase' ? 'Sinh viên tự chấm' :
+                         activePeriod.status === 'gv_phase' ? 'Cố vấn đánh giá' :
+                         activePeriod.status === 'admin_phase' ? 'Hội đồng phê duyệt' :
+                         activePeriod.status === 'closed' ? 'Đã đóng' :
+                         'Chưa bắt đầu'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Stepper Steps */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative mt-2">
+                    {/* Step 1: SV Phase */}
+                    <div className="flex flex-col gap-2 relative">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
+                          activePeriod.status === 'sv_phase'
+                            ? 'bg-[#1A73E8] text-white border-[#1A73E8] ring-4 ring-blue-100 animate-pulse'
+                            : ['gv_phase', 'admin_phase', 'closed'].includes(activePeriod.status)
+                            ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10'
+                            : 'bg-white text-slate-400 border-slate-200'
+                        }`}>
+                          {['gv_phase', 'admin_phase', 'closed'].includes(activePeriod.status) ? <Check size={14} strokeWidth={3} /> : '1'}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className={`text-[13.5px] font-bold ${
+                            activePeriod.status === 'sv_phase' ? 'text-[#1A73E8]' :
+                            ['gv_phase', 'admin_phase', 'closed'].includes(activePeriod.status) ? 'text-emerald-600' : 'text-[#64748B]'
+                          }`}>
+                            Sinh viên tự chấm
+                          </span>
+                          <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                            Hạn: {formatDate(activePeriod.sv_deadline)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Step 2: GV Phase */}
+                    <div className="flex flex-col gap-2 relative">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
+                          activePeriod.status === 'gv_phase'
+                            ? 'bg-amber-500 text-white border-amber-500 ring-4 ring-amber-100 animate-pulse'
+                            : ['admin_phase', 'closed'].includes(activePeriod.status)
+                            ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10'
+                            : 'bg-white text-slate-400 border-slate-200'
+                        }`}>
+                          {['admin_phase', 'closed'].includes(activePeriod.status) ? <Check size={14} strokeWidth={3} /> : '2'}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className={`text-[13.5px] font-bold ${
+                            activePeriod.status === 'gv_phase' ? 'text-amber-600 font-extrabold' :
+                            ['admin_phase', 'closed'].includes(activePeriod.status) ? 'text-emerald-600' : 'text-[#64748B]'
+                          }`}>
+                            Cố vấn đánh giá
+                          </span>
+                          <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                            Hạn: {formatDate(activePeriod.gv_deadline)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Step 3: Admin Phase */}
+                    <div className="flex flex-col gap-2 relative">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
+                          activePeriod.status === 'admin_phase'
+                            ? 'bg-purple-600 text-white border-purple-600 ring-4 ring-purple-100 animate-pulse'
+                            : ['closed'].includes(activePeriod.status)
+                            ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10'
+                            : 'bg-white text-slate-400 border-slate-200'
+                        }`}>
+                          {['closed'].includes(activePeriod.status) ? <Check size={14} strokeWidth={3} /> : '3'}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className={`text-[13.5px] font-bold ${
+                            activePeriod.status === 'admin_phase' ? 'text-purple-600 font-extrabold' :
+                            ['closed'].includes(activePeriod.status) ? 'text-emerald-600' : 'text-[#64748B]'
+                          }`}>
+                            Hội đồng phê duyệt
+                          </span>
+                          <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                            Hạn: {formatDate(activePeriod.admin_deadline)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Step 4: Closed */}
+                    <div className="flex flex-col gap-2 relative">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
+                          activePeriod.status === 'closed'
+                            ? 'bg-rose-600 text-white border-rose-600 ring-4 ring-rose-100 shadow-sm'
+                            : 'bg-white text-slate-400 border-slate-200'
+                        }`}>
+                          {activePeriod.status === 'closed' ? <Check size={14} strokeWidth={3} /> : '4'}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className={`text-[13.5px] font-bold ${
+                            activePeriod.status === 'closed' ? 'text-rose-600 font-extrabold' : 'text-[#64748B]'
+                          }`}>
+                            Khóa điểm
+                          </span>
+                          <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                            Đóng cổng đánh giá
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white/45 backdrop-blur-md border border-white/75 rounded-3xl p-5 shadow-sm shadow-slate-300/40 shrink-0 flex items-center gap-3"
+                >
+                  <div className="p-2 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-full shrink-0">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-[#1E293B] text-[14px]">Chưa cấu hình kỳ đánh giá</h4>
+                    <p className="text-[#64748B] text-[12px] mt-0.5">
+                      Học kỳ hiện tại chưa được thiết lập các giai đoạn và thời hạn chấm điểm cụ thể.
+                    </p>
+                  </div>
+                </motion.div>
+              )
             )}
 
             {/* ================= STUDENT HERO SLIDER ================= */}
@@ -1175,35 +1470,71 @@ function GradingScoreContent() {
                                 {/* Counter Control and Points */}
                                 <div className="flex gap-6 items-center shrink-0">
 
+                                  {/* Multi-score Columns Display */}
+                                  <div className="hidden md:flex items-center gap-2 shrink-0 bg-white/50 backdrop-blur-[2px] border border-white/70 rounded-2xl p-1.5 shadow-sm">
+                                    <div className="flex flex-col items-center px-2 py-0.5 min-w-[55px] border-r border-slate-200/50">
+                                      <span className="text-[#64748B] text-[9px] font-bold uppercase tracking-wider">H.Thống</span>
+                                      <span className={`font-bold text-[12.5px] mt-0.5 ${hasViolation ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                        {evaluationDetailsMap[item.id]?.system_score !== null && evaluationDetailsMap[item.id]?.system_score !== undefined
+                                          ? `${evaluationDetailsMap[item.id].system_score >= 0 && !hasViolation ? '+' : ''}${evaluationDetailsMap[item.id].system_score}đ`
+                                          : '0đ'}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-col items-center px-2 py-0.5 min-w-[55px] border-r border-slate-200/50">
+                                      <span className="text-[#64748B] text-[9px] font-bold uppercase tracking-wider">S.Viên</span>
+                                      <span className="font-bold text-[#1A73E8] text-[12.5px] mt-0.5">
+                                        {evaluationDetailsMap[item.id]?.sv_score !== null && evaluationDetailsMap[item.id]?.sv_score !== undefined
+                                          ? `${evaluationDetailsMap[item.id].sv_score >= 0 && !hasViolation ? '+' : ''}${evaluationDetailsMap[item.id].sv_score}đ`
+                                          : '0đ'}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-col items-center px-2 py-0.5 min-w-[55px] border-r border-slate-200/50">
+                                      <span className="text-[#64748B] text-[9px] font-bold uppercase tracking-wider">C.Vấn</span>
+                                      <span className="font-bold text-amber-600 text-[12.5px] mt-0.5">
+                                        {evaluationDetailsMap[item.id]?.gv_score !== null && evaluationDetailsMap[item.id]?.gv_score !== undefined
+                                          ? `${evaluationDetailsMap[item.id].gv_score >= 0 && !hasViolation ? '+' : ''}${evaluationDetailsMap[item.id].gv_score}đ`
+                                          : '0đ'}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-col items-center px-2 py-0.5 min-w-[55px]">
+                                      <span className="text-[#64748B] text-[9px] font-bold uppercase tracking-wider">C.Quyết</span>
+                                      <span className="font-bold text-purple-700 text-[12.5px] mt-0.5">
+                                        {evaluationDetailsMap[item.id]?.final_score !== null && evaluationDetailsMap[item.id]?.final_score !== undefined
+                                          ? `${evaluationDetailsMap[item.id].final_score >= 0 && !hasViolation ? '+' : ''}${evaluationDetailsMap[item.id].final_score}đ`
+                                          : '0đ'}
+                                      </span>
+                                    </div>
+                                  </div>
+
                                   {/* +/- Bộ nút tăng giảm số lượng và đơn giá - Pill Control */}
                                   <div className="flex flex-col items-center gap-1.5 shrink-0">
-                                    <div className={`bg-white/60 backdrop-blur-sm border border-white/80 rounded-full p-1 flex gap-1 items-center shadow-sm ${item.is_locked || !isSemesterActive ? 'opacity-60 bg-slate-100/50' : ''}`}>
+                                    <div className={`bg-white/60 backdrop-blur-sm border border-white/80 rounded-full p-1 flex gap-1 items-center shadow-sm ${item.is_locked || !canModifyScore ? 'opacity-60 bg-slate-100/50' : ''}`}>
                                       <button
-                                        onClick={() => !item.is_locked && isSemesterActive && handleCountChange(item.id, -1)}
-                                        disabled={count <= minCount || item.is_locked || !isSemesterActive}
-                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${count <= minCount || item.is_locked || !isSemesterActive
+                                        onClick={() => !item.is_locked && canModifyScore && handleCountChange(item.id, -1)}
+                                        disabled={count <= minCount || item.is_locked || !canModifyScore}
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${count <= minCount || item.is_locked || !canModifyScore
                                           ? 'opacity-30 cursor-not-allowed text-slate-400'
                                           : 'cursor-pointer ' + (hasViolation
                                             ? 'text-rose-600 hover:bg-rose-50'
                                             : 'text-[#1A73E8] hover:bg-blue-50')
                                           }`}
-                                        title={!isSemesterActive ? 'Học kỳ đã đóng' : item.is_locked ? 'Tiêu chí đã bị khóa' : 'Giảm số lần'}
+                                        title={!canModifyScore ? 'Không có quyền sửa đổi trong giai đoạn này' : item.is_locked ? 'Tiêu chí đã bị khóa' : 'Giảm số lần'}
                                       >
                                         <Minus size={12} strokeWidth={3} />
                                       </button>
-                                      <div className={`w-8 flex items-center justify-center font-bold text-[14.5px] select-none ${item.is_locked || !isSemesterActive ? 'text-slate-400' : 'text-[#1E293B]'}`}>
+                                      <div className={`w-8 flex items-center justify-center font-bold text-[14.5px] select-none ${item.is_locked || !canModifyScore ? 'text-slate-400' : 'text-[#1E293B]'}`}>
                                         {count}
                                       </div>
                                       <button
-                                        onClick={() => !item.is_locked && isSemesterActive && handleCountChange(item.id, 1)}
-                                        disabled={item.is_locked || !isSemesterActive}
-                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${item.is_locked || !isSemesterActive
+                                        onClick={() => !item.is_locked && canModifyScore && handleCountChange(item.id, 1)}
+                                        disabled={item.is_locked || !canModifyScore}
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${item.is_locked || !canModifyScore
                                           ? 'opacity-30 cursor-not-allowed text-slate-400'
                                           : 'cursor-pointer ' + (hasViolation
                                             ? 'text-rose-600 hover:bg-rose-50'
                                             : 'text-[#1A73E8] hover:bg-blue-50')
                                           }`}
-                                        title={!isSemesterActive ? 'Học kỳ đã đóng' : item.is_locked ? 'Tiêu chí đã bị khóa' : 'Tăng số lần'}
+                                        title={!canModifyScore ? 'Không có quyền sửa đổi trong giai đoạn này' : item.is_locked ? 'Tiêu chí đã bị khóa' : 'Tăng số lần'}
                                       >
                                         <Plus size={12} strokeWidth={3} />
                                       </button>
@@ -1238,7 +1569,7 @@ function GradingScoreContent() {
                   })}
 
                   {/* Nút lưu & đặt lại ở dưới cùng - Pill Shaped */}
-                  {isSemesterActive && (
+                  {canModifyScore && (
                     <div className="flex items-center justify-end gap-3.5 pt-4 pb-12 w-full">
                       <Button
                         onClick={handleReset}

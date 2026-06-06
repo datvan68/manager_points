@@ -8,29 +8,41 @@ import {
   ValidateNested,
   IsString,
   IsEnum,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 class EvaluationLogDto {
-  @ApiProperty({
-    example: 'student',
-    enum: ['student', 'teacher', 'supervisor', 'admin'],
-  })
-  @IsNotEmpty()
-  @IsEnum(['student', 'teacher', 'supervisor', 'admin'])
-  role: string;
+  @ApiProperty({ example: 'draft', required: false })
+  @IsOptional()
+  @IsString()
+  from_status?: string;
+
+  @ApiProperty({ example: 'sv_submitted', required: false })
+  @IsOptional()
+  @IsString()
+  to_status?: string;
+
+  @ApiProperty({ example: 0, required: false })
+  @IsOptional()
+  @IsNumber()
+  score_before?: number;
+
+  @ApiProperty({ example: 8, required: false })
+  @IsOptional()
+  @IsNumber()
+  score_after?: number;
 
   @ApiProperty({ example: '60c72b2f9b1d8b2bad123456', required: false })
   @IsOptional()
   @IsMongoId()
   updated_by?: string;
 
-  @ApiProperty({ example: 3 })
-  @IsNotEmpty()
-  @IsNumber()
-  @Min(0)
-  count: number;
+  @ApiProperty({ example: '2026-06-04T00:00:00.000Z', required: false })
+  @IsOptional()
+  @IsDateString()
+  updated_at?: string;
 
   @ApiProperty({
     example: 'Tích cực tham gia câu lạc bộ học thuật',
@@ -59,17 +71,6 @@ export class CreateEvaluationDetailDto {
   criterion_id: string;
 
   @ApiProperty({
-    type: [EvaluationLogDto],
-    required: false,
-    description: 'Mảng lịch sử chấm điểm các vai trò',
-  })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => EvaluationLogDto)
-  history?: EvaluationLogDto[];
-
-  @ApiProperty({
     example: 2,
     required: false,
     description: 'Số lần thực hiện hiện tại',
@@ -79,13 +80,58 @@ export class CreateEvaluationDetailDto {
   @Min(0)
   current_count?: number;
 
+  @ApiProperty({ example: 10, required: false })
+  @IsOptional()
+  @IsNumber()
+  system_score?: number;
+
+  @ApiProperty({ example: 10, required: false })
+  @IsOptional()
+  @IsNumber()
+  sv_score?: number;
+
+  @ApiProperty({ example: '2026-06-04T00:00:00.000Z', required: false })
+  @IsOptional()
+  @IsDateString()
+  sv_submitted_at?: string;
+
+  @ApiProperty({ example: 10, required: false })
+  @IsOptional()
+  @IsNumber()
+  gv_score?: number;
+
+  @ApiProperty({ example: '2026-06-04T00:00:00.000Z', required: false })
+  @IsOptional()
+  @IsDateString()
+  gv_reviewed_at?: string;
+
+  @ApiProperty({ example: '60c72b2f9b1d8b2bad123456', required: false })
+  @IsOptional()
+  @IsMongoId()
+  gv_reviewed_by?: string;
+
+  @ApiProperty({ example: 10, required: false })
+  @IsOptional()
+  @IsNumber()
+  final_score?: number;
+
+  @ApiProperty({ example: '2026-06-04T00:00:00.000Z', required: false })
+  @IsOptional()
+  @IsDateString()
+  locked_at?: string;
+
+  @ApiProperty({ example: '60c72b2f9b1d8b2bad123456', required: false })
+  @IsOptional()
+  @IsMongoId()
+  locked_by?: string;
+
   @ApiProperty({
     example: 'draft',
-    enum: ['draft', 'teacher_evaluated', 'supervisor_evaluated', 'finalized'],
+    enum: ['draft', 'sv_submitted', 'gv_reviewed', 'locked'],
     required: false,
   })
   @IsOptional()
-  @IsString()
+  @IsEnum(['draft', 'sv_submitted', 'gv_reviewed', 'locked'])
   status?: string;
 
   @ApiProperty({
@@ -96,4 +142,15 @@ export class CreateEvaluationDetailDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiProperty({
+    type: [EvaluationLogDto],
+    required: false,
+    description: 'Mảng lịch sử chấm điểm',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EvaluationLogDto)
+  log?: EvaluationLogDto[];
 }

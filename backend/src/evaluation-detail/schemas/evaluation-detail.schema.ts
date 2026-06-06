@@ -1,48 +1,78 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
-import { SummaryPoint } from '../../summaries-point/schemas/summary-point.schema';
-import { Criterion } from '../../criteria/schemas/criterion.schema';
 import { EvaluationLog, EvaluationLogSchema } from './evaluation-log.schema';
 
 export type EvaluationDetailDocument = EvaluationDetail & Document;
 
-@Schema({ timestamps: true })
+@Schema({ _id: true, timestamps: true })
 export class EvaluationDetail {
-  @Prop({
-    type: MongooseSchema.Types.ObjectId,
-    ref: 'SummaryPoint',
-    required: true,
-    index: true,
-  })
-  summary_id: SummaryPoint;
-
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Criterion',
     required: true,
     index: true,
   })
-  criterion_id: Criterion;
+  criterion_id: MongooseSchema.Types.ObjectId;
 
-  // Lịch sử toàn bộ các bước chấm/chỉnh sửa
-  @Prop({ type: [EvaluationLogSchema], default: [] })
-  history: EvaluationLog[];
-
-  // Số lần hiện tại (lấy từ bước chấm mới nhất để query mượt mà)
-  @Prop({ required: true, min: 0, default: 0 })
+  // Tổng hợp từ academic_records
+  @Prop({ type: Number, required: true, min: 0, default: 0 })
   current_count: number;
+
+  // Computed: clamp(current_count × score_per_unit, min_score, max_score)
+  @Prop({ type: Number, default: null })
+  system_score?: number | null;
+
+  // --- Vòng đời đánh giá ---
+
+  // Sinh viên tự chấm
+  @Prop({ type: Number, default: null })
+  sv_score?: number | null;
+
+  @Prop({ type: Date, default: null })
+  sv_submitted_at?: Date | null;
+
+  // GVCN duyệt
+  @Prop({ type: Number, default: null })
+  gv_score?: number | null;
+
+  @Prop({ type: Date, default: null })
+  gv_reviewed_at?: Date | null;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  })
+  gv_reviewed_by?: MongooseSchema.Types.ObjectId | null;
+
+  // Admin chốt
+  @Prop({ type: Number, default: null })
+  final_score?: number | null;
+
+  @Prop({ type: Date, default: null })
+  locked_at?: Date | null;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  })
+  locked_by?: MongooseSchema.Types.ObjectId | null;
 
   @Prop({
     type: String,
-    enum: ['draft', 'teacher_evaluated', 'supervisor_evaluated', 'finalized'],
+    enum: ['draft', 'sv_submitted', 'gv_reviewed', 'locked'],
     default: 'draft',
-    index: true,
   })
   status: string;
 
-  @Prop({ type: String, required: false, default: '' })
+  @Prop({ type: String, default: '' })
   description?: string;
-}
-export const EvaluationDetailSchema = SchemaFactory.createForClass(EvaluationDetail);
 
-EvaluationDetailSchema.index({ summary_id: 1, criterion_id: 1 });
+  // Lịch sử thay đổi (EMBEDDED)
+  @Prop({ type: [EvaluationLogSchema], default: [] })
+  log: EvaluationLog[];
+}
+
+export const EvaluationDetailSchema =
+  SchemaFactory.createForClass(EvaluationDetail);

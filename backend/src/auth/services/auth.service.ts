@@ -49,6 +49,7 @@ export class AuthService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedRbac();
+    await this.migrateLegacyRoleCodes();
     await this.migrateLegacyRoles();
     await this.migrateLegacyUserFields();
   }
@@ -430,6 +431,46 @@ export class AuthService implements OnModuleInit {
 
   // ─── SEEDING & MIGRATION ────────────────────────────────────
 
+  private async migrateLegacyRoleCodes() {
+    const roles = await this.roleModel.find({ role_code: { $exists: false } });
+    if (roles.length > 0) {
+      for (const role of roles) {
+        let code = '';
+        if (role.name === 'Admin') code = 'ADMIN';
+        else if (role.name === 'Giảng viên chính') code = 'LECTURER';
+        else if (role.name === 'User') code = 'USER';
+        else if (role.name === 'Student') code = 'STUDENT';
+        else {
+          code = role.name
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase()
+            .replace(/\s+/g, '_');
+        }
+
+        let suffix = '';
+        let count = 0;
+        while (true) {
+          const checkCode = `${code}${suffix}`;
+          const existing = await this.roleModel.findOne({
+            role_code: checkCode,
+            _id: { $ne: role._id },
+          });
+          if (!existing) {
+            code = checkCode;
+            break;
+          }
+          count++;
+          suffix = `_${count}`;
+        }
+
+        (role as any).role_code = code;
+        await role.save();
+      }
+      console.log(`✅ Successfully migrated role_code for ${roles.length} roles.`);
+    }
+  }
+
   private async seedRbac() {
     // Đảm bảo luôn có vai trò Student trong hệ thống
     const hasStudentRole = await this.roleModel.findOne({ name: 'Student' });
@@ -442,6 +483,7 @@ export class AuthService implements OnModuleInit {
         {
           $setOnInsert: {
             name: 'Student',
+            role_code: 'STUDENT',
             description: 'Sinh viên học sinh',
             permissions: viewCoursePerm ? [viewCoursePerm._id] : [],
           },
@@ -519,11 +561,13 @@ export class AuthService implements OnModuleInit {
     const roles = [
       {
         name: 'Admin',
+        role_code: 'ADMIN',
         description: 'Toàn quyền truy cập hệ thống',
         permissions: Object.values(createdPerms),
       },
       {
         name: 'Giảng viên chính',
+        role_code: 'LECTURER',
         description: 'Quản lý lớp học và điểm số',
         permissions: [
           createdPerms['view_course'],
@@ -533,11 +577,13 @@ export class AuthService implements OnModuleInit {
       },
       {
         name: 'User',
+        role_code: 'USER',
         description: 'Người dùng cơ bản',
         permissions: [createdPerms['view_course']],
       },
       {
         name: 'Student',
+        role_code: 'STUDENT',
         description: 'Sinh viên học sinh',
         permissions: [createdPerms['view_course']],
       },

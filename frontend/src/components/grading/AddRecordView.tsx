@@ -202,25 +202,25 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
             semester_id: activeSemesterId,
             total_score: 100,
             grading: 'Xuất sắc',
-            status: 'active'
+            status: 'draft'
           });
         }
-
+ 
         // 2. Tìm hoặc tạo EvaluationDetail liên kết SummaryPoint và Criterion
         const detailsList = await evaluationDetailApi.getEvaluationDetailsBySummary(studentSummary._id);
         let evalDetail = detailsList.find(d => {
           const cId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
           return cId === violation.evaluation_detail_id;
         });
-
+ 
         if (!evalDetail) {
           evalDetail = await evaluationDetailApi.createEvaluationDetail({
             summary_id: studentSummary._id,
             criterion_id: violation.evaluation_detail_id,
             current_count: 0,
-            status: 'teacher_evaluated',
+            status: 'draft',
             description: `Khởi tạo ghi nhận thủ công`,
-            history: []
+            log: []
           });
         }
         // Lưu ý: Không gọi updateEvaluationDetail ở đây nếu đã có evalDetail,
@@ -228,15 +228,12 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
 
         // 3. Tạo AcademicRecord
         return academicRecordApi.createAcademicRecord({
-          evaluation_detail_id: evalDetail._id,
-          criteria_id: violation.evaluation_detail_id,
           student_id: violation.student_id,
+          criterion_id: violation.evaluation_detail_id,
           semester_id: activeSemesterId,
-          record_title: `${violation.criterion_name}`,
-          points_effect: violation.points_effect,
+          record_title: `${violation.criterion_name} - Ghi chú: ${violation.class_note}`,
           status: 'active',
-          date_record: reportDate.toISOString(),
-          description: violation.class_note
+          recorded_at: reportDate.toISOString()
         });
       }));
       toast.success(`Đã ghi nhận ${addedViolations.length} rèn luyện thành công!`);

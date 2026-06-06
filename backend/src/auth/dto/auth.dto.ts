@@ -86,6 +86,11 @@ export class CreateRoleDto {
   @IsNotEmpty({ message: 'Tên vai trò không được để trống' })
   name: string;
 
+  @ApiProperty({ example: 'MANAGER' })
+  @IsString()
+  @IsNotEmpty({ message: 'Mã vai trò không được để trống' })
+  role_code: string;
+
   @ApiProperty({ example: 'Quản lý nhân sự' })
   @IsString()
   @IsOptional()
@@ -103,6 +108,11 @@ export class UpdateRoleDto {
   @IsString()
   @IsOptional()
   name?: string;
+
+  @ApiProperty({ example: 'MANAGER' })
+  @IsString()
+  @IsOptional()
+  role_code?: string;
 
   @ApiProperty({ example: 'Cập nhật mô tả' })
   @IsString()

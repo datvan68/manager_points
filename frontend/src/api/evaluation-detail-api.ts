@@ -3,20 +3,33 @@ import { SummaryPoint } from './summaries-point-api';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface EvaluationLog {
-  role: 'student' | 'teacher' | 'supervisor' | 'admin';
-  updated_by?: string;
-  count: number;
+  from_status?: string;
+  to_status?: string;
+  score_before?: number | null;
+  score_after?: number | null;
+  updated_by?: any;
   updated_at?: string;
   reason?: string;
+  role?: 'student' | 'teacher' | 'supervisor' | 'admin';
+  count?: number;
 }
 
 export interface EvaluationDetail {
   _id: string;
   summary_id: SummaryPoint | string;
   criterion_id: any | string;
-  history: EvaluationLog[];
+  log: EvaluationLog[];
   current_count: number;
   status: string;
+  system_score?: number | null;
+  sv_score?: number | null;
+  sv_submitted_at?: string | null;
+  gv_score?: number | null;
+  gv_reviewed_at?: string | null;
+  gv_reviewed_by?: string | null;
+  final_score?: number | null;
+  locked_at?: string | null;
+  locked_by?: string | null;
   description?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -26,8 +39,12 @@ export interface CreateEvaluationDetailDto {
   summary_id: string;
   criterion_id: string;
   current_count?: number;
-  history?: EvaluationLog[];
+  log?: EvaluationLog[];
   status?: string;
+  system_score?: number | null;
+  sv_score?: number | null;
+  gv_score?: number | null;
+  final_score?: number | null;
   description?: string;
 }
 
@@ -35,8 +52,12 @@ export interface UpdateEvaluationDetailDto {
   summary_id?: string;
   criterion_id?: string;
   current_count?: number;
-  history?: EvaluationLog[];
+  log?: EvaluationLog[];
   status?: string;
+  system_score?: number | null;
+  sv_score?: number | null;
+  gv_score?: number | null;
+  final_score?: number | null;
   description?: string;
 }
 

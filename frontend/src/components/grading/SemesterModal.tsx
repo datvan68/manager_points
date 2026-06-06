@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, X, Edit2, Trash2 } from 'lucide-react';
+import { Calendar, X, Edit2, Trash2, Clock, Settings } from 'lucide-react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { toast } from 'sonner';
 import { semesterApi, Semester } from '../../api/semester-api';
+import { evaluationPeriodApi } from '../../api/evaluation-period-api';
 
 interface SemesterModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export default function SemesterModal({
   setSelectedSemester
 }: SemesterModalProps) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'info' | 'period'>('info');
   const [semesterForm, setSemesterForm] = useState({
     _id: '',
     semester_name: '',
@@ -34,6 +36,74 @@ export default function SemesterModal({
     end_date: '',
     status: 'active'
   });
+  
+  const [periodForm, setPeriodForm] = useState({
+    _id: '',
+    status: 'pending',
+    sv_deadline: '',
+    gv_deadline: '',
+    admin_deadline: ''
+  });
+
+  const loadPeriodForSemester = async (semesterId: string) => {
+    try {
+      const periods = await evaluationPeriodApi.getEvaluationPeriods();
+      const found = periods.find(p => {
+        const semId = typeof p.semester_id === 'object' ? p.semester_id?._id : p.semester_id;
+        return semId === semesterId;
+      });
+      if (found) {
+        setPeriodForm({
+          _id: found._id,
+          status: found.status,
+          sv_deadline: found.sv_deadline ? found.sv_deadline.substring(0, 10) : '',
+          gv_deadline: found.gv_deadline ? found.gv_deadline.substring(0, 10) : '',
+          admin_deadline: found.admin_deadline ? found.admin_deadline.substring(0, 10) : ''
+        });
+      } else {
+        setPeriodForm({
+          _id: '',
+          status: 'pending',
+          sv_deadline: '',
+          gv_deadline: '',
+          admin_deadline: ''
+        });
+      }
+    } catch (error) {
+      console.error('Lỗi khi tải kỳ đánh giá:', error);
+    }
+  };
+
+  const handleSavePeriod = async () => {
+    if (!semesterForm._id) return;
+    if (!periodForm.sv_deadline || !periodForm.gv_deadline || !periodForm.admin_deadline) {
+      toast.error('Vui lòng nhập đầy đủ thời hạn cho các giai đoạn!');
+      return;
+    }
+    try {
+      if (periodForm._id) {
+        await evaluationPeriodApi.updateEvaluationPeriod(periodForm._id, {
+          status: periodForm.status as any,
+          sv_deadline: new Date(periodForm.sv_deadline).toISOString(),
+          gv_deadline: new Date(periodForm.gv_deadline).toISOString(),
+          admin_deadline: new Date(periodForm.admin_deadline).toISOString()
+        });
+        toast.success('Cập nhật kỳ đánh giá thành công!');
+      } else {
+        const newPeriod = await evaluationPeriodApi.createEvaluationPeriod({
+          semester_id: semesterForm._id,
+          status: periodForm.status as any,
+          sv_deadline: new Date(periodForm.sv_deadline).toISOString(),
+          gv_deadline: new Date(periodForm.gv_deadline).toISOString(),
+          admin_deadline: new Date(periodForm.admin_deadline).toISOString()
+        });
+        setPeriodForm(prev => ({ ...prev, _id: newPeriod._id }));
+        toast.success('Thiết lập kỳ đánh giá mới thành công!');
+      }
+    } catch (error: any) {
+      toast.error('Lỗi khi lưu kỳ đánh giá: ' + error.message);
+    }
+  };
 
   const formatDateToString = (date: Date) => {
     const y = date.getFullYear();
@@ -52,6 +122,7 @@ export default function SemesterModal({
   };
 
   const handleOpenSemesterForm = (sem?: any) => {
+    setActiveTab('info');
     if (sem) {
       setSemesterForm({
         _id: sem._id,
@@ -60,6 +131,7 @@ export default function SemesterModal({
         end_date: sem.end_date ? sem.end_date.substring(0, 10) : '',
         status: sem.status || 'active'
       });
+      loadPeriodForSemester(sem._id);
     } else {
       setSemesterForm({
         _id: '',
@@ -67,6 +139,13 @@ export default function SemesterModal({
         start_date: '',
         end_date: '',
         status: 'active'
+      });
+      setPeriodForm({
+        _id: '',
+        status: 'pending',
+        sv_deadline: '',
+        gv_deadline: '',
+        admin_deadline: ''
       });
     }
   };
@@ -235,106 +314,215 @@ export default function SemesterModal({
                     {semesterForm._id ? 'Cập nhật Học kỳ' : 'Thêm Học kỳ mới'}
                   </h4>
 
-                  {/* Semester Name */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
-                      Tên học kỳ
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ví dụ: Học kỳ 1 - 2025-2026"
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-[13.5px] font-medium placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none"
-                      value={semesterForm.semester_name}
-                      onChange={(e) => setSemesterForm({ ...semesterForm, semester_name: e.target.value })}
-                    />
-                  </div>
-
-                  {/* Dates (CustomCalendar) */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
-                      Thời gian diễn ra học kỳ
-                    </label>
-                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                      <PopoverTrigger asChild>
-                        <button 
-                          type="button"
-                          className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-[13.5px] font-medium text-slate-700 hover:bg-slate-100/70 transition-all outline-none text-left flex items-center justify-between cursor-pointer h-[42px]"
-                        >
-                          <span>
-                            {semesterForm.start_date && semesterForm.end_date
-                              ? `${formatDateToDisplay(semesterForm.start_date)} → ${formatDateToDisplay(semesterForm.end_date)}`
-                              : 'Chọn thời gian học kỳ'}
-                          </span>
-                          <Calendar size={16} className="text-slate-400" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent 
-                        className="w-auto p-0 z-[100] bg-transparent border-none shadow-none" 
-                        align="start"
-                        side="bottom"
-                        sideOffset={6}
+                  {/* Tabs */}
+                  {semesterForm._id && (
+                    <div className="flex bg-slate-100 rounded-xl p-1 gap-1 w-full border border-slate-200/50">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('info')}
+                        className={`flex-1 py-1.5 rounded-lg text-[12.5px] font-bold transition-all cursor-pointer ${
+                          activeTab === 'info' 
+                            ? 'bg-white text-[#137fec] shadow-sm' 
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
                       >
-                        <CustomCalendar 
-                          startDate={semesterForm.start_date ? new Date(semesterForm.start_date) : null}
-                          endDate={semesterForm.end_date ? new Date(semesterForm.end_date) : null}
-                          onRangeSelect={(start, end) => {
-                            setSemesterForm({
-                              ...semesterForm,
-                              start_date: formatDateToString(start),
-                              end_date: formatDateToString(end)
-                            });
-                          }}
-                          onCancel={() => {
-                            setSemesterForm({
-                              ...semesterForm,
-                              start_date: '',
-                              end_date: ''
-                            });
-                            setIsCalendarOpen(false);
-                          }}
-                          onConfirm={() => setIsCalendarOpen(false)}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                        Thông tin học kỳ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('period')}
+                        className={`flex-1 py-1.5 rounded-lg text-[12.5px] font-bold transition-all cursor-pointer ${
+                          activeTab === 'period' 
+                            ? 'bg-white text-[#137fec] shadow-sm' 
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        Kỳ đánh giá rèn luyện
+                      </button>
+                    </div>
+                  )}
 
-                  {/* Status */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
-                      Trạng thái
-                    </label>
-                    <Select
-                      value={semesterForm.status}
-                      onValueChange={(val: any) => setSemesterForm({ ...semesterForm, status: val })}
-                    >
-                      <SelectTrigger className="h-[42px] bg-slate-55 border-none bg-slate-50 rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none">
-                        <SelectValue placeholder="Chọn trạng thái" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Hoạt động (Active)</SelectItem>
-                        <SelectItem value="upcoming">Sắp diễn ra (Upcoming)</SelectItem>
-                        <SelectItem value="inactive">Đã ẩn (Inactive)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {activeTab === 'info' ? (
+                    <div className="flex flex-col gap-4">
+                      {/* Semester Name */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
+                          Tên học kỳ
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ví dụ: Học kỳ 1 - 2025-2026"
+                          className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-[13.5px] font-medium placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                          value={semesterForm.semester_name}
+                          onChange={(e) => setSemesterForm({ ...semesterForm, semester_name: e.target.value })}
+                        />
+                      </div>
+
+                      {/* Dates (CustomCalendar) */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
+                          Thời gian diễn ra học kỳ
+                        </label>
+                        <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                          <PopoverTrigger asChild>
+                            <button 
+                              type="button"
+                              className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-[13.5px] font-medium text-slate-700 hover:bg-slate-100/70 transition-all outline-none text-left flex items-center justify-between cursor-pointer h-[42px]"
+                            >
+                              <span>
+                                {semesterForm.start_date && semesterForm.end_date
+                                  ? `${formatDateToDisplay(semesterForm.start_date)} → ${formatDateToDisplay(semesterForm.end_date)}`
+                                  : 'Chọn thời gian học kỳ'}
+                              </span>
+                              <Calendar size={16} className="text-slate-400" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent 
+                            className="w-auto p-0 z-[100] bg-transparent border-none shadow-none" 
+                            align="start"
+                            side="bottom"
+                            sideOffset={6}
+                          >
+                            <CustomCalendar 
+                              startDate={semesterForm.start_date ? new Date(semesterForm.start_date) : null}
+                              endDate={semesterForm.end_date ? new Date(semesterForm.end_date) : null}
+                              onRangeSelect={(start, end) => {
+                                setSemesterForm({
+                                  ...semesterForm,
+                                  start_date: formatDateToString(start),
+                                  end_date: formatDateToString(end)
+                                });
+                              }}
+                              onCancel={() => {
+                                setSemesterForm({
+                                  ...semesterForm,
+                                  start_date: '',
+                                  end_date: ''
+                                });
+                                setIsCalendarOpen(false);
+                              }}
+                              onConfirm={() => setIsCalendarOpen(false)}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+
+                      {/* Status */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
+                          Trạng thái học kỳ
+                        </label>
+                        <Select
+                          value={semesterForm.status}
+                          onValueChange={(val: any) => setSemesterForm({ ...semesterForm, status: val })}
+                        >
+                          <SelectTrigger className="h-[42px] bg-slate-55 border-none bg-slate-50 rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none">
+                            <SelectValue placeholder="Chọn trạng thái" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Hoạt động (Active)</SelectItem>
+                            <SelectItem value="upcoming">Sắp diễn ra (Upcoming)</SelectItem>
+                            <SelectItem value="inactive">Đã ẩn (Inactive)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      {/* Trạng thái kỳ đánh giá */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
+                          Giai đoạn hiện tại
+                        </label>
+                        <Select
+                          value={periodForm.status}
+                          onValueChange={(val: any) => setPeriodForm({ ...periodForm, status: val })}
+                        >
+                          <SelectTrigger className="h-[42px] bg-slate-50 border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none">
+                            <SelectValue placeholder="Chọn giai đoạn" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Chưa bắt đầu (Pending)</SelectItem>
+                            <SelectItem value="sv_phase">Sinh viên tự chấm (SV Phase)</SelectItem>
+                            <SelectItem value="gv_phase">Cố vấn học tập chấm (GV Phase)</SelectItem>
+                            <SelectItem value="admin_phase">Hội đồng phê duyệt (Admin Phase)</SelectItem>
+                            <SelectItem value="closed">Đóng kỳ đánh giá (Closed)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* SV Deadline */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
+                          Hạn chót Sinh viên tự chấm (SV Deadline)
+                        </label>
+                        <input
+                          type="date"
+                          className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                          value={periodForm.sv_deadline}
+                          onChange={(e) => setPeriodForm({ ...periodForm, sv_deadline: e.target.value })}
+                        />
+                      </div>
+
+                      {/* GV Deadline */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
+                          Hạn chót Cố vấn chấm (GV Deadline)
+                        </label>
+                        <input
+                          type="date"
+                          className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                          value={periodForm.gv_deadline}
+                          onChange={(e) => setPeriodForm({ ...periodForm, gv_deadline: e.target.value })}
+                        />
+                      </div>
+
+                      {/* Admin Deadline */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12px] font-bold text-slate-500 uppercase tracking-wide">
+                          Hạn chót Hội đồng phê duyệt (Admin Deadline)
+                        </label>
+                        <input
+                          type="date"
+                          className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                          value={periodForm.admin_deadline}
+                          onChange={(e) => setPeriodForm({ ...periodForm, admin_deadline: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Form actions */}
                 <div className="flex items-center justify-end gap-2.5 pt-4 mt-6 border-t border-slate-50 shrink-0">
-                  {semesterForm._id && (
+                  {activeTab === 'info' ? (
+                    <>
+                      {semesterForm._id && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenSemesterForm()}
+                          className="px-4 py-2 rounded-xl text-[13px] font-bold text-slate-500 hover:bg-slate-50 transition-colors cursor-pointer"
+                        >
+                          Thêm mới
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleSaveSemester}
+                        className="px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#137fec] hover:bg-blue-600 transition-all shadow-[0_4px_12px_rgba(19,127,236,0.15)] active:scale-95 cursor-pointer"
+                      >
+                        Lưu thay đổi
+                      </button>
+                    </>
+                  ) : (
                     <button
-                      onClick={() => handleOpenSemesterForm()}
-                      className="px-4 py-2 rounded-xl text-[13px] font-bold text-slate-500 hover:bg-slate-50 transition-colors cursor-pointer"
+                      type="button"
+                      onClick={handleSavePeriod}
+                      className="px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#137fec] hover:bg-blue-600 transition-all shadow-[0_4px_12px_rgba(19,127,236,0.15)] active:scale-95 cursor-pointer"
                     >
-                      Thêm mới
+                      Lưu kỳ đánh giá
                     </button>
                   )}
-                  <button
-                    onClick={handleSaveSemester}
-                    className="px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#137fec] hover:bg-blue-600 transition-all shadow-[0_4px_12px_rgba(19,127,236,0.15)] active:scale-95 cursor-pointer"
-                  >
-                    Lưu thay đổi
-                  </button>
                 </div>
               </div>
             </div>
