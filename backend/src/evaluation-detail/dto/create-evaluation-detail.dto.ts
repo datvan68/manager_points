@@ -34,6 +34,12 @@ class EvaluationLogDto {
   @IsNumber()
   score_after?: number;
 
+  @ApiProperty({ example: 2, required: false })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  count?: number;
+
   @ApiProperty({ example: '60c72b2f9b1d8b2bad123456', required: false })
   @IsOptional()
   @IsMongoId()

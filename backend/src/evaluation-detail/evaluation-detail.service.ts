@@ -34,6 +34,48 @@ export class EvaluationDetailService {
     private readonly userModel: Model<UserDocument>,
   ) {}
 
+  private getRoleLevel(roleName?: string): number {
+    if (!roleName) return 1;
+    const nameLower = roleName.toLowerCase();
+    if (nameLower.includes('admin')) return 4;
+    if (nameLower.includes('supervisor') || nameLower.includes('quản sinh') || nameLower.includes('quan sinh')) return 3;
+    if (
+      nameLower.includes('teacher') ||
+      nameLower.includes('adviser') ||
+      nameLower.includes('advisor') ||
+      nameLower.includes('giảng viên') ||
+      nameLower.includes('giang vien') ||
+      nameLower.includes('lecturer')
+    ) {
+      return 2;
+    }
+    return 1;
+  }
+
+  private getRecordCreator(record: any): { id: string; level: number } | null {
+    if (!record.recorded_by) return null;
+
+    const recordedBy = record.recorded_by as any;
+    const id = recordedBy._id ? recordedBy._id.toString() : recordedBy.toString();
+    const roleName = recordedBy.role
+      ? (typeof recordedBy.role === 'object' ? recordedBy.role.name : recordedBy.role)
+      : '';
+
+    return { id, level: this.getRoleLevel(roleName) };
+  }
+
+  private canRequesterDeleteRecord(record: any, requester?: any): boolean {
+    if (!requester?.userId || record.daily_report_id) return false;
+
+    const creator = this.getRecordCreator(record);
+    if (!creator) return false;
+
+    const requesterLevel = this.getRoleLevel(requester.roleName);
+    if (requesterLevel > creator.level) return true;
+
+    return requesterLevel === creator.level && requester.userId === creator.id;
+  }
+
   /**
    * Helper function to sync direct grading academic records based on currentCount
    */
@@ -41,7 +83,7 @@ export class EvaluationDetailService {
     summary: SummaryPointDocument,
     criterion: CriterionDocument,
     currentCount: number,
-    updatedByUserId?: string,
+    requester?: any,
   ): Promise<void> {
     // Find all active academic records for this student, semester, and criterion
     const records = await this.academicRecordModel.find({
@@ -49,11 +91,14 @@ export class EvaluationDetailService {
       semester_id: summary.semester_id as any,
       criterion_id: criterion._id as any,
       status: 'active',
-    } as any).exec();
+    } as any)
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .exec();
 
     const diff = currentCount - records.length;
     if (diff > 0) {
       let userName = 'Hệ thống';
+      const updatedByUserId = requester?.userId;
       if (updatedByUserId && Types.ObjectId.isValid(updatedByUserId)) {
         const user = await this.userModel.findById(updatedByUserId).exec();
         if (user) {
@@ -80,21 +125,17 @@ export class EvaluationDetailService {
     } else if (diff < 0) {
       // Delete excess direct grading records created by the current user
       const excessCount = Math.abs(diff);
-      const deletableRecords = records.filter((rec) => {
-        if (!rec.recorded_by || !updatedByUserId) return false;
-        
-        const recRecordedBy = rec.recorded_by as any;
-        let creatorId = '';
-        if (typeof recRecordedBy === 'object') {
-          creatorId = recRecordedBy._id 
-            ? recRecordedBy._id.toString() 
-            : recRecordedBy.toString();
-        } else {
-          creatorId = String(recRecordedBy);
-        }
-        
-        return creatorId === updatedByUserId.toString();
-      });
+      const requesterLevel = this.getRoleLevel(requester?.roleName);
+      const deletableRecords = records
+        .filter((rec) => this.canRequesterDeleteRecord(rec, requester))
+        .sort((a, b) => {
+          const aCreator = this.getRecordCreator(a);
+          const bCreator = this.getRecordCreator(b);
+          const aLevel = aCreator?.level || requesterLevel;
+          const bLevel = bCreator?.level || requesterLevel;
+          if (aLevel !== bLevel) return aLevel - bLevel;
+          return new Date((b as any).createdAt || 0).getTime() - new Date((a as any).createdAt || 0).getTime();
+        });
       const recordsToDelete = deletableRecords.slice(0, excessCount);
       const promises = recordsToDelete.map((rec) =>
         this.academicRecordModel.findByIdAndDelete(rec._id).exec()
@@ -128,6 +169,7 @@ export class EvaluationDetailService {
    */
   async getPreExistingCountsForSummary(
     summaryId: string,
+    requester?: any,
   ): Promise<Record<string, { original_count: number; current_count: number }>> {
     const summary = await this.summaryPointModel.findById(summaryId).exec();
     if (!summary) return {};
@@ -136,7 +178,9 @@ export class EvaluationDetailService {
       student_id: summary.student_id as any,
       semester_id: summary.semester_id as any,
       status: 'active',
-    } as any).exec();
+    } as any)
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .exec();
 
     const countsMap: Record<string, { original_count: number; current_count: number }> = {};
     records.forEach((rec) => {
@@ -146,8 +190,7 @@ export class EvaluationDetailService {
           countsMap[criId] = { original_count: 0, current_count: 0 };
         }
         countsMap[criId].current_count += 1;
-        // count system records and daily report records as original_count
-        if (rec.daily_report_id) {
+        if (!this.canRequesterDeleteRecord(rec, requester)) {
           countsMap[criId].original_count += 1;
         }
       }
@@ -158,6 +201,7 @@ export class EvaluationDetailService {
 
   async create(
     createEvaluationDetailDto: CreateEvaluationDetailDto,
+    requester?: any,
   ): Promise<EvaluationDetail> {
     const { summary_id, criterion_id, current_count, ...rest } = createEvaluationDetailDto;
 
@@ -183,8 +227,13 @@ export class EvaluationDetailService {
 
     // Sync academic records first
     const firstLog = rest.log && rest.log.length > 0 ? rest.log[0] : null;
-    const createdByUserId = firstLog?.updated_by || rest.gv_reviewed_by || rest.locked_by;
-    await this.syncAcademicRecords(summary, criterion, countVal, createdByUserId);
+    const createdByUserId = requester?.userId || firstLog?.updated_by || rest.gv_reviewed_by || rest.locked_by;
+    await this.syncAcademicRecords(
+      summary,
+      criterion,
+      countVal,
+      requester || { userId: createdByUserId },
+    );
 
     // Compute system score
     let systemScore = countVal * criterion.score_per_unit;
@@ -253,6 +302,7 @@ export class EvaluationDetailService {
   async update(
     id: string,
     updateEvaluationDetailDto: UpdateEvaluationDetailDto,
+    requester?: any,
   ): Promise<EvaluationDetail> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
@@ -277,37 +327,28 @@ export class EvaluationDetailService {
     if (updateEvaluationDetailDto.current_count !== undefined) {
       let newCount = updateEvaluationDetailDto.current_count;
 
+      const lastLog = updateEvaluationDetailDto.log && updateEvaluationDetailDto.log.length > 0
+        ? updateEvaluationDetailDto.log[updateEvaluationDetailDto.log.length - 1]
+        : null;
+      const fallbackUserId = lastLog?.updated_by || updateEvaluationDetailDto.gv_reviewed_by || updateEvaluationDetailDto.locked_by;
+      const effectiveRequester = requester || { userId: fallbackUserId };
+
       const records = await this.academicRecordModel.find({
         student_id: summary.student_id as any,
         semester_id: summary.semester_id as any,
         criterion_id: criterion._id as any,
         status: 'active',
-      } as any).exec();
+      } as any)
+        .populate({ path: 'recorded_by', populate: { path: 'role' } })
+        .exec();
 
-      const originalCount = records.filter((rec) => {
-        if (!rec.recorded_by || !updatedByUserId) return true;
-        const recRecordedBy = rec.recorded_by as any;
-        let creatorId = '';
-        if (typeof recRecordedBy === 'object') {
-          creatorId = recRecordedBy._id
-            ? recRecordedBy._id.toString()
-            : recRecordedBy.toString();
-        } else {
-          creatorId = String(recRecordedBy);
-        }
-        return creatorId !== updatedByUserId.toString();
-      }).length;
+      const originalCount = records.filter((rec) => !this.canRequesterDeleteRecord(rec, effectiveRequester)).length;
 
       if (newCount < originalCount) {
         newCount = originalCount;
       }
 
-      const lastLog = updateEvaluationDetailDto.log && updateEvaluationDetailDto.log.length > 0
-        ? updateEvaluationDetailDto.log[updateEvaluationDetailDto.log.length - 1]
-        : null;
-      const updatedByUserId = lastLog?.updated_by || updateEvaluationDetailDto.gv_reviewed_by || updateEvaluationDetailDto.locked_by;
-
-      await this.syncAcademicRecords(summary, criterion, newCount, updatedByUserId);
+      await this.syncAcademicRecords(summary, criterion, newCount, effectiveRequester);
       detail.current_count = newCount;
 
       let systemScore = newCount * criterion.score_per_unit;
@@ -362,7 +403,7 @@ export class EvaluationDetailService {
     return updatedDetail;
   }
 
-  async remove(id: string): Promise<EvaluationDetail> {
+  async remove(id: string, requester?: any): Promise<EvaluationDetail> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
     }
@@ -378,16 +419,48 @@ export class EvaluationDetailService {
     const detailIndex = summary.details.findIndex((d: any) => d._id.toString() === id);
     const deletedDetail = summary.details[detailIndex];
 
-    summary.details.splice(detailIndex, 1);
-    summary.markModified('details');
-    await summary.save();
+    const criterion = await this.criterionModel.findById(deletedDetail.criterion_id).exec();
+    if (!criterion) {
+      throw new NotFoundException(`Criterion with ID ${deletedDetail.criterion_id} not found`);
+    }
 
-    // Clean up all linked academic records for this student/semester/criterion
-    await this.academicRecordModel.deleteMany({
+    const records = await this.academicRecordModel.find({
       student_id: summary.student_id as any,
       semester_id: summary.semester_id as any,
       criterion_id: deletedDetail.criterion_id as any,
-    } as any).exec();
+      status: 'active',
+    } as any)
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .exec();
+
+    const recordsToDelete = records.filter((rec) => this.canRequesterDeleteRecord(rec, requester));
+    await Promise.all(recordsToDelete.map((rec) => this.academicRecordModel.findByIdAndDelete(rec._id).exec()));
+
+    const remainingCount = records.length - recordsToDelete.length;
+    if (remainingCount > 0) {
+      let systemScore = remainingCount * criterion.score_per_unit;
+      if (criterion.score_per_unit >= 0) {
+        systemScore = Math.max(criterion.min_score, Math.min(criterion.max_score, systemScore));
+      } else {
+        systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
+      }
+
+      const detail = summary.details[detailIndex];
+      detail.current_count = remainingCount;
+      detail.system_score = systemScore;
+      detail.sv_score = systemScore;
+      detail.gv_score = systemScore;
+      detail.final_score = systemScore;
+      detail.status = 'draft';
+      detail.log = [];
+      summary.markModified('details');
+      await summary.save();
+      return detail;
+    }
+
+    summary.details.splice(detailIndex, 1);
+    summary.markModified('details');
+    await summary.save();
 
     return deletedDetail;
   }

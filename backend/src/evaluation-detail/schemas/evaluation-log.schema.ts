@@ -15,6 +15,9 @@ export class EvaluationLog {
   @Prop({ type: Number, required: false, default: null })
   score_after?: number | null;
 
+  @Prop({ type: Number, required: false, default: null })
+  count?: number | null;
+
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'User',

@@ -37,6 +37,16 @@ import { categoryApi } from '../../api/category-api';
 import { criteriaApi } from '../../api/criteria-api';
 import { studentApi } from '../../api/student-api';
 
+const calculateCriterionScore = (criterion: any, count: number) => {
+  const maxScore = criterion?.maxScore ?? criterion?.max_score ?? 10;
+  const minScore = criterion?.minScore ?? criterion?.min_score ?? 0;
+  const pointsPerUnit = criterion?.pointsPerUnit ?? criterion?.score_per_unit ?? 1;
+  const rawScore = count * pointsPerUnit;
+
+  return pointsPerUnit >= 0
+    ? Math.max(minScore, Math.min(maxScore, rawScore))
+    : Math.max(-maxScore, Math.min(0, rawScore));
+};
 
 export default function GradingPage() {
   const router = useRouter();
@@ -287,9 +297,7 @@ export default function GradingPage() {
       return;
     }
 
-    let detailStatus = 'draft';
-    if (userRole === 'supervisor') detailStatus = 'gv_reviewed';
-    else if (userRole === 'admin') detailStatus = 'locked';
+    const detailStatus = 'locked';
 
     setIsTableLoading(true);
     toast.loading(`Đang duyệt điểm rèn luyện cho sinh viên ${studentName}...`, { id: 'approve-loading' });
@@ -305,8 +313,9 @@ export default function GradingPage() {
 
       const promises = details.map(detail => {
         const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
-        const pointsPerUnit = cri?.score_per_unit || 1;
-        const currentScore = detail.current_count * pointsPerUnit;
+        const criterionId = cri?._id || detail.criterion_id;
+        const criterion = categories.flatMap(cat => cat.items).find((item: any) => item.id === criterionId);
+        const currentScore = calculateCriterionScore(criterion || cri, detail.current_count || 0);
 
         const updatedHistory = [...(detail.log || [])];
         updatedHistory.push({
@@ -331,8 +340,15 @@ export default function GradingPage() {
         const scorePayload: any = {};
         if (userRole === 'supervisor') {
           scorePayload.gv_score = currentScore;
+          scorePayload.gv_reviewed_at = new Date();
+          scorePayload.gv_reviewed_by = currentUser?.id;
+          scorePayload.final_score = currentScore;
+          scorePayload.locked_at = new Date();
+          scorePayload.locked_by = currentUser?.id;
         } else if (userRole === 'admin') {
           scorePayload.final_score = currentScore;
+          scorePayload.locked_at = new Date();
+          scorePayload.locked_by = currentUser?.id;
         }
 
         return evaluationDetailApi.updateEvaluationDetail(detail._id, {
@@ -379,7 +395,7 @@ export default function GradingPage() {
       await summariesPointApi.updateSummariesPoint(summaryId, {
         total_score: clampedFinalScore,
         grading: newGrading,
-        status: detailStatus as any
+        status: detailStatus
       });
 
       toast.dismiss('approve-loading');
@@ -701,7 +717,8 @@ export default function GradingPage() {
           semesterId: semId,
           departmentId: deptId,
           summaryId: summary._id,
-          dob: studentDob
+          dob: studentDob,
+          details: summary.details || []
         };
       })
       .filter(student => {
@@ -746,11 +763,7 @@ export default function GradingPage() {
   selectedStudentsData.forEach(student => {
     evaluationCountsMap[student.id] = {};
 
-    // Tìm tất cả chi tiết chấm điểm thuộc summaryId của sinh viên này
-    const studentDetails = (apiEvaluationDetails || []).filter(detail => {
-      const detailSummaryId = typeof detail.summary_id === 'object' ? detail.summary_id?._id : detail.summary_id;
-      return detailSummaryId === student.summaryId;
-    });
+    const studentDetails = student.details || [];
 
     const evaluatedCriteriaIds = new Set<string>();
 
@@ -1048,7 +1061,7 @@ export default function GradingPage() {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                       <div className="flex gap-2 justify-end items-center">
-                                        {isSemesterActive ? (
+                                        {isSemesterActive && student.status !== 'locked' ? (
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation();
@@ -1077,11 +1090,8 @@ export default function GradingPage() {
                                           const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
 
                                           if (canApprove && isSemesterActive) {
-                                            const isApproved = student.status === 'active';
-                                            const hasEvaluations = (apiEvaluationDetails || []).some(d => {
-                                              const detailSummaryId = typeof d.summary_id === 'object' ? d.summary_id?._id : d.summary_id;
-                                              return detailSummaryId === student.summaryId;
-                                            });
+                                            const isApproved = student.status === 'locked';
+                                            const hasEvaluations = (student.details || []).some((detail: any) => (detail.current_count || 0) > 0);
 
                                             return (
                                               <button
@@ -1102,10 +1112,10 @@ export default function GradingPage() {
                                                   }`}
                                                 title={
                                                   isApproved
-                                                    ? "Đã duyệt điểm rèn luyện"
+                                                    ? "Đã chốt điểm rèn luyện"
                                                     : !hasEvaluations
                                                       ? "Chưa có tiêu chí nào được chấm để duyệt"
-                                                      : "Duyệt điểm rèn luyện"
+                                                      : "Duyệt và chốt điểm rèn luyện"
                                                 }
                                               >
                                                 <CheckCircle size={15} />

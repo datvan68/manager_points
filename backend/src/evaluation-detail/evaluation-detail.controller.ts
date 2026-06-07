@@ -6,14 +6,19 @@ import {
   Patch,
   Param,
   Delete,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { EvaluationDetailService } from './evaluation-detail.service';
 import { CreateEvaluationDetailDto } from './dto/create-evaluation-detail.dto';
 import { UpdateEvaluationDetailDto } from './dto/update-evaluation-detail.dto';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { checkRole } from '../auth/guards/check-role.guard';
 
 @ApiTags('evaluation-detail')
 @Controller('evaluation-detail')
+@UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+@ApiBearerAuth()
 export class EvaluationDetailController {
   constructor(
     private readonly evaluationDetailService: EvaluationDetailService,
@@ -26,8 +31,11 @@ export class EvaluationDetailController {
     description: 'Chi tiết chấm điểm được tạo thành công.',
   })
   @ApiResponse({ status: 400, description: 'Dữ liệu đầu vào không hợp lệ.' })
-  create(@Body() createEvaluationDetailDto: CreateEvaluationDetailDto) {
-    return this.evaluationDetailService.create(createEvaluationDetailDto);
+  create(
+    @Body() createEvaluationDetailDto: CreateEvaluationDetailDto,
+    @Request() req: any,
+  ) {
+    return this.evaluationDetailService.create(createEvaluationDetailDto, req.user);
   }
 
   @Get()
@@ -48,8 +56,8 @@ export class EvaluationDetailController {
     status: 200,
     description: 'Trả về map { criterionId: count } các ghi nhận đã có sẵn.',
   })
-  getPreExistingCounts(@Param('summaryId') summaryId: string) {
-    return this.evaluationDetailService.getPreExistingCountsForSummary(summaryId);
+  getPreExistingCounts(@Param('summaryId') summaryId: string, @Request() req: any) {
+    return this.evaluationDetailService.getPreExistingCountsForSummary(summaryId, req.user);
   }
 
   @Get(':id')
@@ -88,8 +96,9 @@ export class EvaluationDetailController {
   update(
     @Param('id') id: string,
     @Body() updateEvaluationDetailDto: UpdateEvaluationDetailDto,
+    @Request() req: any,
   ) {
-    return this.evaluationDetailService.update(id, updateEvaluationDetailDto);
+    return this.evaluationDetailService.update(id, updateEvaluationDetailDto, req.user);
   }
 
   @Delete(':id')
@@ -102,7 +111,7 @@ export class EvaluationDetailController {
     status: 404,
     description: 'Không tìm thấy chi tiết chấm điểm.',
   })
-  remove(@Param('id') id: string) {
-    return this.evaluationDetailService.remove(id);
+  remove(@Param('id') id: string, @Request() req: any) {
+    return this.evaluationDetailService.remove(id, req.user);
   }
 }
