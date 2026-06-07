@@ -69,6 +69,9 @@ export class AcademicRecord {
     index: true,
   })
   status: string;
+
+  @Prop({ type: Boolean, default: false, index: true })
+  is_deleted: boolean;
 }
 
 export const AcademicRecordSchema =

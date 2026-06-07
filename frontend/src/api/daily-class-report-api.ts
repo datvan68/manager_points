@@ -16,22 +16,22 @@ export interface DailyClassReport {
 
 export interface CreateDailyClassReportDto {
   class_id: string;
-  user_id: string;
+  reported_by: string;
   report_date: string;
   total_present: number;
   total_absent: number;
   teacher_name: string;
-  class_note?: string;
+  class_notes?: string;
 }
 
 export interface UpdateDailyClassReportDto {
   class_id?: string;
-  user_id?: string;
+  reported_by?: string;
   report_date?: string;
   total_present?: number;
   total_absent?: number;
   teacher_name?: string;
-  class_note?: string;
+  class_notes?: string;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

@@ -48,8 +48,8 @@ export class AuthService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    await this.seedRbac();
     await this.migrateLegacyRoleCodes();
+    await this.seedRbac();
     await this.migrateLegacyRoles();
     await this.migrateLegacyUserFields();
   }
@@ -68,7 +68,7 @@ export class AuthService implements OnModuleInit {
     if (existingEmail) throw new ConflictException('Email đã được sử dụng');
 
     const pw_hash = await this.passwordService.hashPassword(dto.password);
-    const defaultRole = await this.roleModel.findOne({ name: 'User' });
+    const defaultRole = await this.roleModel.findOne({ name: 'User' }) || await this.roleModel.findOne({ name: 'Student' });
 
     await this.userModel.create({
       user_name: dto.user_name,
@@ -432,14 +432,22 @@ export class AuthService implements OnModuleInit {
   // ─── SEEDING & MIGRATION ────────────────────────────────────
 
   private async migrateLegacyRoleCodes() {
-    const roles = await this.roleModel.find({ role_code: { $exists: false } });
+    // 1. Rename 'Giảng viên chính' / LECTURER to 'Teacher' / TEACHER
+    await this.roleModel.updateOne(
+      { $or: [{ name: 'Giảng viên chính' }, { role_code: 'LECTURER' }] },
+      { $set: { name: 'Teacher', role_code: 'TEACHER', description: 'Giảng viên cố vấn học tập' } }
+    ).exec();
+
+    // 2. Assign default role_code for roles that don't have one
+    const roles = await this.roleModel.find({ role_code: { $exists: false } }).exec();
     if (roles.length > 0) {
       for (const role of roles) {
         let code = '';
         if (role.name === 'Admin') code = 'ADMIN';
-        else if (role.name === 'Giảng viên chính') code = 'LECTURER';
-        else if (role.name === 'User') code = 'USER';
+        else if (role.name === 'Teacher') code = 'TEACHER';
+        else if (role.name === 'Supervisor') code = 'SUPERVISOR';
         else if (role.name === 'Student') code = 'STUDENT';
+        else if (role.name === 'User') code = 'USER';
         else {
           code = role.name
             .normalize('NFD')
@@ -455,7 +463,7 @@ export class AuthService implements OnModuleInit {
           const existing = await this.roleModel.findOne({
             role_code: checkCode,
             _id: { $ne: role._id },
-          });
+          }).exec();
           if (!existing) {
             code = checkCode;
             break;
@@ -472,54 +480,13 @@ export class AuthService implements OnModuleInit {
   }
 
   private async seedRbac() {
-    // Đảm bảo luôn có vai trò Student trong hệ thống
-    const hasStudentRole = await this.roleModel.findOne({ name: 'Student' });
-    if (!hasStudentRole) {
-      const viewCoursePerm = await this.permissionModel.findOne({
-        code: 'view_course',
-      });
-      await this.roleModel.findOneAndUpdate(
-        { name: 'Student' },
-        {
-          $setOnInsert: {
-            name: 'Student',
-            role_code: 'STUDENT',
-            description: 'Sinh viên học sinh',
-            permissions: viewCoursePerm ? [viewCoursePerm._id] : [],
-          },
-        },
-        { upsert: true },
-      );
-      console.log('Tự động bổ sung vai trò Student vào hệ thống.');
-    }
-
-    const permissionsCount = await this.permissionModel.countDocuments();
-    const rolesCount = await this.roleModel.countDocuments();
-    const groupsCount = await this.permissionGroupModel.countDocuments();
-
-    if (permissionsCount > 0 && rolesCount > 0 && groupsCount > 0) return;
+    // Clean up G_ACADEMIC group and deleted permissions from DB
+    await this.permissionModel.deleteMany({
+      code: { $in: ['view_course', 'create_course', 'edit_content', 'delete_course', 'STUDENT_READ', 'STUDENT_CREATE'] }
+    }).exec();
+    await this.permissionGroupModel.deleteOne({ code: 'G_ACADEMIC' }).exec();
 
     const permissions = [
-      {
-        code: 'view_course',
-        name: 'Xem danh sách khóa học',
-        module: 'Quản lý Đào tạo (Academic)',
-      },
-      {
-        code: 'create_course',
-        name: 'Tạo mới khóa học',
-        module: 'Quản lý Đào tạo (Academic)',
-      },
-      {
-        code: 'edit_content',
-        name: 'Chỉnh sửa nội dung',
-        module: 'Quản lý Đào tạo (Academic)',
-      },
-      {
-        code: 'delete_course',
-        name: 'Xóa khóa học',
-        module: 'Quản lý Đào tạo (Academic)',
-      },
       {
         code: 'view_users',
         name: 'Xem danh sách người dùng',
@@ -529,16 +496,6 @@ export class AuthService implements OnModuleInit {
         code: 'reset_pwd',
         name: 'Reset mật khẩu',
         module: 'Quản lý Người dùng (Users)',
-      },
-      {
-        code: 'STUDENT_READ',
-        name: 'Xem sinh viên',
-        module: 'Quản lý Đào tạo (Academic)',
-      },
-      {
-        code: 'STUDENT_CREATE',
-        name: 'Tạo sinh viên',
-        module: 'Quản lý Đào tạo (Academic)',
       },
       { code: 'ADMIN_FULL', name: 'Toàn quyền Admin', module: 'Hệ thống' },
       {
@@ -554,7 +511,7 @@ export class AuthService implements OnModuleInit {
         { code: p.code },
         { $set: p },
         { upsert: true, returnDocument: 'after' },
-      );
+      ).exec();
       createdPerms[p.code] = perm._id;
     }
 
@@ -562,39 +519,37 @@ export class AuthService implements OnModuleInit {
       {
         name: 'Admin',
         role_code: 'ADMIN',
-        description: 'Toàn quyền truy cập hệ thống',
+        description: 'Toàn quyền quản trị hệ thống',
         permissions: Object.values(createdPerms),
       },
       {
-        name: 'Giảng viên chính',
-        role_code: 'LECTURER',
-        description: 'Quản lý lớp học và điểm số',
+        name: 'Teacher',
+        role_code: 'TEACHER',
+        description: 'Giảng viên cố vấn học tập',
         permissions: [
-          createdPerms['view_course'],
-          createdPerms['STUDENT_READ'],
           createdPerms['view_users'],
         ],
       },
       {
-        name: 'User',
-        role_code: 'USER',
-        description: 'Người dùng cơ bản',
-        permissions: [createdPerms['view_course']],
+        name: 'Supervisor',
+        role_code: 'SUPERVISOR',
+        description: 'Quản sinh và giám sát rèn luyện',
+        permissions: [],
       },
       {
         name: 'Student',
         role_code: 'STUDENT',
         description: 'Sinh viên học sinh',
-        permissions: [createdPerms['view_course']],
+        permissions: [],
       },
     ];
 
     for (const r of roles) {
       await this.roleModel.findOneAndUpdate(
-        { name: r.name },
+        { role_code: r.role_code },
         { $set: r },
         { upsert: true },
-      );
+      ).exec();
     }
 
     const groups = [
@@ -603,19 +558,6 @@ export class AuthService implements OnModuleInit {
         name: 'Hệ thống',
         description: 'Các quyền quản trị hệ thống cốt lõi',
         permissions: [createdPerms['ADMIN_FULL']],
-      },
-      {
-        code: 'G_ACADEMIC',
-        name: 'Quản lý Đào tạo',
-        description: 'Các quyền liên quan đến khóa học và sinh viên',
-        permissions: [
-          createdPerms['view_course'],
-          createdPerms['create_course'],
-          createdPerms['edit_content'],
-          createdPerms['delete_course'],
-          createdPerms['STUDENT_READ'],
-          createdPerms['STUDENT_CREATE'],
-        ],
       },
       {
         code: 'G_USER',
@@ -631,7 +573,7 @@ export class AuthService implements OnModuleInit {
         { code: g.code },
         { $set: { ...g, permissions: validPerms } },
         { upsert: true },
-      );
+      ).exec();
     }
 
     console.log('✅ RBAC Data Seeded Successfully');

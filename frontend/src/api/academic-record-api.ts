@@ -13,6 +13,7 @@ export interface AcademicRecord {
   recorded_by?: any | string;
   recorded_at?: string;
   status: 'active' | 'inactive';
+  is_deleted?: boolean;
   createdAt?: string;
   updatedAt?: string;
 

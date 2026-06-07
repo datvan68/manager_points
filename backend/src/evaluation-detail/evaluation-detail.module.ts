@@ -18,6 +18,10 @@ import {
   SummaryPoint,
   SummaryPointSchema,
 } from '../summaries-point/schemas/summary-point.schema';
+import {
+  User,
+  UserSchema,
+} from '../auth/schemas/user.schema';
 
 @Module({
   imports: [
@@ -26,6 +30,7 @@ import {
       { name: AcademicRecord.name, schema: AcademicRecordSchema },
       { name: Criterion.name, schema: CriterionSchema },
       { name: SummaryPoint.name, schema: SummaryPointSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [EvaluationDetailController],

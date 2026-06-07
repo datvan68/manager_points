@@ -12,7 +12,7 @@ import { DailyClassReportService } from './daily-class-report.service';
 import { CreateDailyClassReportDto } from './dto/create-daily-class-report.dto';
 import { UpdateDailyClassReportDto } from './dto/update-daily-class-report.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { checkPermission } from '../auth/guards/check-permission.guard';
+import { checkRole } from '../auth/guards/check-role.guard';
 
 @ApiTags('Daily Class Reports')
 @Controller('daily-class-reports')
@@ -22,11 +22,11 @@ export class DailyClassReportController {
   ) {}
 
   @Post()
-  @UseGuards(checkPermission('edit_content'))
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      'Create a new daily class report (requires edit_content permission)',
+      'Create a new daily class report (requires Admin, Teacher, or Supervisor role)',
   })
   create(@Body() createDailyClassReportDto: CreateDailyClassReportDto) {
     return this.dailyClassReportService.create(createDailyClassReportDto);
@@ -57,10 +57,10 @@ export class DailyClassReportController {
   }
 
   @Patch(':id')
-  @UseGuards(checkPermission('edit_content'))
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Update daily class report (requires edit_content permission)',
+    summary: 'Update daily class report (requires Admin, Teacher, or Supervisor role)',
   })
   update(
     @Param('id') id: string,
@@ -70,30 +70,30 @@ export class DailyClassReportController {
   }
 
   @Delete(':id')
-  @UseGuards(checkPermission('edit_content'))
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Delete daily class report (requires edit_content permission)',
+    summary: 'Delete daily class report (requires Admin, Teacher, or Supervisor role)',
   })
   remove(@Param('id') id: string) {
     return this.dailyClassReportService.remove(id);
   }
 
   @Patch(':id/restore')
-  @UseGuards(checkPermission('edit_content'))
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Restore a soft-deleted daily class report (requires edit_content permission)',
+    summary: 'Restore a soft-deleted daily class report (requires Admin, Teacher, or Supervisor role)',
   })
   restore(@Param('id') id: string) {
     return this.dailyClassReportService.restore(id);
   }
 
   @Delete(':id/force')
-  @UseGuards(checkPermission('edit_content'))
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Permanently delete daily class report (requires edit_content permission)',
+    summary: 'Permanently delete daily class report (requires Admin, Teacher, or Supervisor role)',
   })
   forceRemove(@Param('id') id: string) {
     return this.dailyClassReportService.forceRemove(id);

@@ -9,6 +9,9 @@ export class Role {
   @Prop({ required: true, unique: true })
   name: string; // VD: Admin, Manager, User
 
+  @Prop({ required: true, unique: true })
+  role_code: string; // VD: ADMIN, TEACHER, SUPERVISOR, STUDENT
+
   @Prop()
   description: string;
 

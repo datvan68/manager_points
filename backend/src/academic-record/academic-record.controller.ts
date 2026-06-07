@@ -8,12 +8,13 @@ import {
   Delete,
   UseGuards,
   Query,
+  Request,
 } from '@nestjs/common';
 import { AcademicRecordService } from './academic-record.service';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { checkPermission } from '../auth/guards/check-permission.guard';
+import { checkRole } from '../auth/guards/check-role.guard';
 
 @ApiTags('Academic Records')
 @Controller('academic-records')
@@ -21,10 +22,10 @@ export class AcademicRecordController {
   constructor(private readonly academicRecordService: AcademicRecordService) {}
 
   @Post()
-  @UseGuards(checkPermission('edit_content'))
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Create a new academic record (requires edit_content permission)',
+    summary: 'Create a new academic record (requires Admin, Teacher, or Supervisor role)',
   })
   create(@Body() createAcademicRecordDto: CreateAcademicRecordDto) {
     return this.academicRecordService.create(createAcademicRecordDto);
@@ -61,10 +62,10 @@ export class AcademicRecordController {
   }
 
   @Patch(':id')
-  @UseGuards(checkPermission('edit_content'))
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Update academic record (requires edit_content permission)',
+    summary: 'Update academic record (requires Admin, Teacher, or Supervisor role)',
   })
   update(
     @Param('id') id: string,
@@ -76,40 +77,44 @@ export class AcademicRecordController {
   }
 
   @Delete(':id')
-  @UseGuards(checkPermission('edit_content'))
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Delete academic record (requires edit_content permission)',
+    summary: 'Delete academic record (requires Admin, Teacher, Supervisor, or Student role)',
   })
   remove(
     @Param('id') id: string,
+    @Request() req: any,
     @Query('bypassDailyReportCheck') bypassDailyReportCheck?: string,
   ) {
     const bypass = bypassDailyReportCheck === 'true';
-    return this.academicRecordService.remove(id, bypass);
+    const requester = req.user;
+    return this.academicRecordService.remove(id, requester, bypass);
   }
 
   @Patch(':id/restore')
-  @UseGuards(checkPermission('edit_content'))
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Restore a soft-deleted academic record (requires edit_content permission)',
+    summary: 'Restore a soft-deleted academic record (requires Admin, Teacher, or Supervisor role)',
   })
   restore(@Param('id') id: string) {
     return this.academicRecordService.restore(id);
   }
 
   @Delete(':id/force')
-  @UseGuards(checkPermission('edit_content'))
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Permanently delete academic record (requires edit_content permission)',
+    summary: 'Permanently delete academic record (requires Admin, Teacher, or Supervisor role)',
   })
   forceRemove(
     @Param('id') id: string,
+    @Request() req: any,
     @Query('bypassDailyReportCheck') bypassDailyReportCheck?: string,
   ) {
     const bypass = bypassDailyReportCheck === 'true';
-    return this.academicRecordService.forceRemove(id, bypass);
+    const requester = req.user;
+    return this.academicRecordService.forceRemove(id, requester, bypass);
   }
 }

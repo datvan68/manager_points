@@ -33,8 +33,13 @@ import TabNavigation from '@/components/ui/TabNavigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
 import ConfirmModal from '@/components/modals/ConfirmModal';
+import { useAuth } from '@/providers/auth-provider';
 
 function GhiNhanTab() {
+    const { user } = useAuth();
+    const userRole = user?.role?.toLowerCase() || '';
+    const isSupervisorOrAdmin = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh');
+
     const [currentView, setCurrentView] = useState<'list' | 'add' | 'edit'>('list');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -876,22 +881,26 @@ function GhiNhanTab() {
                                 </Select>
                             </div>
 
-                            <button
-                                onClick={() => setIsGlobalConfigModalOpen(true)}
-                                className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shadow-sm cursor-pointer flex items-center justify-center outline-none"
-                                title="Cấu hình tiêu chí vắng mặt"
-                            >
-                                <Settings className="w-4 h-4" />
-                            </button>
+                            {isSupervisorOrAdmin && (
+                                <button
+                                    onClick={() => setIsGlobalConfigModalOpen(true)}
+                                    className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                                    title="Cấu hình tiêu chí vắng mặt"
+                                >
+                                    <Settings className="w-4 h-4" />
+                                </button>
+                            )}
 
-                            <button
-                                onClick={handleCreate}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span className="hidden sm:inline">Thêm ghi nhận</span>
-                                <span className="sm:hidden">Thêm</span>
-                            </button>
+                            {isSupervisorOrAdmin && (
+                                <button
+                                    onClick={handleCreate}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Thêm ghi nhận</span>
+                                    <span className="sm:hidden">Thêm</span>
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -950,12 +959,14 @@ function GhiNhanTab() {
                                                     {/* Checkbox & Badge */}
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedIds.includes(record.id)}
-                                                                onChange={() => toggleSelect(record.id)}
-                                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                            />
+                                                            {isSupervisorOrAdmin && (
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedIds.includes(record.id)}
+                                                                    onChange={() => toggleSelect(record.id)}
+                                                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                                />
+                                                            )}
                                                             <span className="text-[11px] font-bold text-slate-400">{record.studentId}</span>
                                                         </div>
                                                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}>
@@ -1279,12 +1290,14 @@ function GhiNhanTab() {
                                 <thead className="bg-[#F8FAFB] sticky top-0 z-10 shadow-sm shadow-gray-100/50">
                                     <tr>
                                         <th className="px-5 py-3 w-12 text-center border-b border-gray-100">
-                                            <input
-                                                type="checkbox"
-                                                checked={paginatedRecords.length > 0 && selectedIds.length === paginatedRecords.length}
-                                                onChange={toggleSelectAll}
-                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                            />
+                                            {isSupervisorOrAdmin && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={paginatedRecords.length > 0 && selectedIds.length === paginatedRecords.length}
+                                                    onChange={toggleSelectAll}
+                                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                            )}
                                         </th>
                                         <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Mã SV</th>
                                         <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Họ và tên</th>
@@ -1331,12 +1344,14 @@ function GhiNhanTab() {
                                                     key={record.id} className="hover:bg-slate-50/50 transition-colors group"
                                                 >
                                                     <td className="px-5 py-4 w-12 text-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedIds.includes(record.id)}
-                                                            onChange={() => toggleSelect(record.id)}
-                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                        />
+                                                        {isSupervisorOrAdmin && (
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedIds.includes(record.id)}
+                                                                onChange={() => toggleSelect(record.id)}
+                                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                        )}
                                                     </td>
                                                     <td className="px-5 py-4 text-sm font-medium text-gray-600">
                                                         {record.studentId}
@@ -1785,22 +1800,26 @@ function GhiNhanTab() {
                             </div>
 
 
-                            <button
-                                onClick={() => setIsGlobalConfigModalOpen(true)}
-                                className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shadow-sm cursor-pointer flex items-center justify-center outline-none"
-                                title="Cấu hình tiêu chí vắng mặt"
-                            >
-                                <Settings className="w-4 h-4" />
-                            </button>
+                            {isSupervisorOrAdmin && (
+                                <>
+                                    <button
+                                        onClick={() => setIsGlobalConfigModalOpen(true)}
+                                        className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                                        title="Cấu hình tiêu chí vắng mặt"
+                                    >
+                                        <Settings className="w-4 h-4" />
+                                    </button>
 
-                            <button
-                                onClick={handleCreate}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span className="hidden sm:inline">Thêm ghi nhận</span>
-                                <span className="sm:hidden">Thêm</span>
-                            </button>
+                                    <button
+                                        onClick={handleCreate}
+                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Thêm ghi nhận</span>
+                                        <span className="sm:hidden">Thêm</span>
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -1842,12 +1861,14 @@ function GhiNhanTab() {
                                                     {/* Checkbox & Class Name */}
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedReportIds.includes(report._id)}
-                                                                onChange={() => toggleSelectClass(report._id)}
-                                                                className="w-4.5 h-4.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                            />
+                                                            {isSupervisorOrAdmin && (
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedReportIds.includes(report._id)}
+                                                                    onChange={() => toggleSelectClass(report._id)}
+                                                                    className="w-4.5 h-4.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                                />
+                                                            )}
                                                             <div className="flex flex-col gap-0.5">
                                                                 <div className="flex items-center gap-2">
                                                                     <span className="text-sm font-bold text-slate-800">{className}</span>
@@ -1919,18 +1940,22 @@ function GhiNhanTab() {
                                                                     <Eye className="w-4 h-4" />
                                                                 </button>
                                                             </ClassReportDetailDialog>
-                                                            <button
-                                                                onClick={() => handleEditClassReport(report)}
-                                                                className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-all cursor-pointer"
-                                                            >
-                                                                <Edit className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setReportToDelete(report._id)}
-                                                                className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
+                                                            {isSupervisorOrAdmin && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => handleEditClassReport(report)}
+                                                                        className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-all cursor-pointer"
+                                                                    >
+                                                                        <Edit className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setReportToDelete(report._id)}
+                                                                        className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </motion.div>
@@ -1949,12 +1974,14 @@ function GhiNhanTab() {
                                 <thead className="bg-[#F8FAFB] sticky top-0 z-10 shadow-sm shadow-gray-100/50">
                                     <tr>
                                         <th className="px-5 py-3 w-12 text-center border-b border-gray-100">
-                                            <input
-                                                type="checkbox"
-                                                checked={paginatedClassReports.length > 0 && selectedReportIds.length === paginatedClassReports.length}
-                                                onChange={toggleSelectAllClass}
-                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                            />
+                                            {isSupervisorOrAdmin && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={paginatedClassReports.length > 0 && selectedReportIds.length === paginatedClassReports.length}
+                                                    onChange={toggleSelectAllClass}
+                                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                            )}
                                         </th>
                                         <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Lớp học</th>
                                         <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">Ngày báo cáo</th>
@@ -1998,12 +2025,14 @@ function GhiNhanTab() {
                                                     className="hover:bg-slate-50/50 transition-colors group"
                                                 >
                                                     <td className="px-5 py-4 w-12 text-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedReportIds.includes(report._id)}
-                                                            onChange={() => toggleSelectClass(report._id)}
-                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                        />
+                                                        {isSupervisorOrAdmin && (
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedReportIds.includes(report._id)}
+                                                                onChange={() => toggleSelectClass(report._id)}
+                                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                        )}
                                                     </td>
                                                     <td className="px-5 py-4 text-sm font-bold text-slate-800">
                                                         <div className="flex flex-col gap-0.5">
@@ -2073,22 +2102,26 @@ function GhiNhanTab() {
                                                             </ClassReportDetailDialog>
 
                                                             {/* Sửa */}
-                                                            <button
-                                                                onClick={() => handleEditClassReport(report)}
-                                                                className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
-                                                                title="Chỉnh sửa"
-                                                            >
-                                                                <Edit className="w-4 h-4" />
-                                                            </button>
+                                                            {isSupervisorOrAdmin && (
+                                                                <button
+                                                                    onClick={() => handleEditClassReport(report)}
+                                                                    className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
+                                                                    title="Chỉnh sửa"
+                                                                >
+                                                                    <Edit className="w-4 h-4" />
+                                                                </button>
+                                                            )}
 
                                                             {/* Xóa */}
-                                                            <button
-                                                                onClick={() => setReportToDelete(report._id)}
-                                                                className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
-                                                                title="Xóa"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
+                                                            {isSupervisorOrAdmin && (
+                                                                <button
+                                                                    onClick={() => setReportToDelete(report._id)}
+                                                                    className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
+                                                                    title="Xóa"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </motion.tr>
@@ -2140,13 +2173,15 @@ function GhiNhanTab() {
                                 <FileSpreadsheet size={13} strokeWidth={2.5} />
                                 <span>Xuất Excel ({selectedIds.length})</span>
                             </button>
-                            <button
-                                onClick={() => setIsDeleteConfirmOpen(true)}
-                                className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
-                            >
-                                <Trash2 size={13} strokeWidth={2.5} />
-                                <span>Xóa ({selectedIds.length})</span>
-                            </button>
+                            {isSupervisorOrAdmin && (
+                                <button
+                                    onClick={() => setIsDeleteConfirmOpen(true)}
+                                    className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                                >
+                                    <Trash2 size={13} strokeWidth={2.5} />
+                                    <span>Xóa ({selectedIds.length})</span>
+                                </button>
+                            )}
                         </div>
                     }
                 />
@@ -2164,13 +2199,15 @@ function GhiNhanTab() {
                                 <FileSpreadsheet size={13} strokeWidth={2.5} />
                                 <span>Xuất Excel ({selectedReportIds.length})</span>
                             </button>
-                            <button
-                                onClick={() => setIsDeleteClassConfirmOpen(true)}
-                                className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
-                            >
-                                <Trash2 size={13} strokeWidth={2.5} />
-                                <span>Xóa ({selectedReportIds.length})</span>
-                            </button>
+                            {isSupervisorOrAdmin && (
+                                <button
+                                    onClick={() => setIsDeleteClassConfirmOpen(true)}
+                                    className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                                >
+                                    <Trash2 size={13} strokeWidth={2.5} />
+                                    <span>Xóa ({selectedReportIds.length})</span>
+                                </button>
+                            )}
                         </div>
                     }
                 />

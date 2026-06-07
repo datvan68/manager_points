@@ -19,6 +19,7 @@ import {
   SummaryPoint,
   SummaryPointDocument,
 } from '../summaries-point/schemas/summary-point.schema';
+import { User, UserDocument } from '../auth/schemas/user.schema';
 
 @Injectable()
 export class EvaluationDetailService {
@@ -29,6 +30,8 @@ export class EvaluationDetailService {
     private readonly criterionModel: Model<CriterionDocument>,
     @InjectModel(SummaryPoint.name)
     private readonly summaryPointModel: Model<SummaryPointDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
   ) {}
 
   /**
@@ -38,6 +41,7 @@ export class EvaluationDetailService {
     summary: SummaryPointDocument,
     criterion: CriterionDocument,
     currentCount: number,
+    updatedByUserId?: string,
   ): Promise<void> {
     // Find all active academic records for this student, semester, and criterion
     const records = await this.academicRecordModel.find({
@@ -49,6 +53,14 @@ export class EvaluationDetailService {
 
     const diff = currentCount - records.length;
     if (diff > 0) {
+      let userName = 'Hệ thống';
+      if (updatedByUserId && Types.ObjectId.isValid(updatedByUserId)) {
+        const user = await this.userModel.findById(updatedByUserId).exec();
+        if (user) {
+          userName = user.user_name;
+        }
+      }
+
       // Create diff new records
       const promises = [];
       for (let i = 0; i < diff; i++) {
@@ -57,18 +69,32 @@ export class EvaluationDetailService {
             criterion_id: criterion._id as any,
             student_id: summary.student_id,
             semester_id: summary.semester_id,
-            record_title: `${criterion.criterion_name} (Chấm điểm trực tiếp)`,
+            record_title: criterion.criterion_name,
+            description: `(Chấm điểm trực tiếp từ ${userName})`,
             status: 'active',
+            recorded_by: updatedByUserId ? new Types.ObjectId(updatedByUserId) : undefined,
           }).save()
         );
       }
       await Promise.all(promises);
     } else if (diff < 0) {
-      // Delete excess direct grading records, do not touch daily reports or manual entries
+      // Delete excess direct grading records created by the current user
       const excessCount = Math.abs(diff);
-      const deletableRecords = records.filter(
-        (rec) => rec.record_title && rec.record_title.includes('(Chấm điểm trực tiếp)')
-      );
+      const deletableRecords = records.filter((rec) => {
+        if (!rec.recorded_by || !updatedByUserId) return false;
+        
+        const recRecordedBy = rec.recorded_by as any;
+        let creatorId = '';
+        if (typeof recRecordedBy === 'object') {
+          creatorId = recRecordedBy._id 
+            ? recRecordedBy._id.toString() 
+            : recRecordedBy.toString();
+        } else {
+          creatorId = String(recRecordedBy);
+        }
+        
+        return creatorId === updatedByUserId.toString();
+      });
       const recordsToDelete = deletableRecords.slice(0, excessCount);
       const promises = recordsToDelete.map((rec) =>
         this.academicRecordModel.findByIdAndDelete(rec._id).exec()
@@ -156,7 +182,9 @@ export class EvaluationDetailService {
     const countVal = current_count || 0;
 
     // Sync academic records first
-    await this.syncAcademicRecords(summary, criterion, countVal);
+    const firstLog = rest.log && rest.log.length > 0 ? rest.log[0] : null;
+    const createdByUserId = firstLog?.updated_by || rest.gv_reviewed_by || rest.locked_by;
+    await this.syncAcademicRecords(summary, criterion, countVal, createdByUserId);
 
     // Compute system score
     let systemScore = countVal * criterion.score_per_unit;
@@ -256,15 +284,30 @@ export class EvaluationDetailService {
         status: 'active',
       } as any).exec();
 
-      const originalCount = records.filter(
-        (rec) => !(rec.record_title && rec.record_title.includes('(Chấm điểm trực tiếp)'))
-      ).length;
+      const originalCount = records.filter((rec) => {
+        if (!rec.recorded_by || !updatedByUserId) return true;
+        const recRecordedBy = rec.recorded_by as any;
+        let creatorId = '';
+        if (typeof recRecordedBy === 'object') {
+          creatorId = recRecordedBy._id
+            ? recRecordedBy._id.toString()
+            : recRecordedBy.toString();
+        } else {
+          creatorId = String(recRecordedBy);
+        }
+        return creatorId !== updatedByUserId.toString();
+      }).length;
 
       if (newCount < originalCount) {
         newCount = originalCount;
       }
 
-      await this.syncAcademicRecords(summary, criterion, newCount);
+      const lastLog = updateEvaluationDetailDto.log && updateEvaluationDetailDto.log.length > 0
+        ? updateEvaluationDetailDto.log[updateEvaluationDetailDto.log.length - 1]
+        : null;
+      const updatedByUserId = lastLog?.updated_by || updateEvaluationDetailDto.gv_reviewed_by || updateEvaluationDetailDto.locked_by;
+
+      await this.syncAcademicRecords(summary, criterion, newCount, updatedByUserId);
       detail.current_count = newCount;
 
       let systemScore = newCount * criterion.score_per_unit;

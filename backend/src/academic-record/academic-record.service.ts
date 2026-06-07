@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -25,7 +25,7 @@ export class AcademicRecordService {
     private readonly summaryPointModel: Model<SummaryPointDocument>,
     @InjectModel(Criterion.name)
     private readonly criterionModel: Model<CriterionDocument>,
-  ) {}
+  ) { }
 
   /**
    * Helper function to sync student's criterion count and system score in SummaryPoint(s)
@@ -45,6 +45,7 @@ export class AcademicRecordService {
       semester_id: new Types.ObjectId(semesterId),
       criterion_id: new Types.ObjectId(criterionId),
       status: 'active',
+      is_deleted: { $ne: true },
     } as any).exec();
 
     // 2. Fetch the criterion definition to get details
@@ -117,7 +118,7 @@ export class AcademicRecordService {
   ): Promise<AcademicRecord> {
     const createdRecord = new this.academicRecordModel(createAcademicRecordDto);
     const saved = await createdRecord.save();
-    
+
     // Sync points to SummaryPoints
     await this.syncStudentCriterionScore(
       saved.student_id.toString(),
@@ -126,33 +127,33 @@ export class AcademicRecordService {
     );
 
     return saved.populate([
-      'criterion_id',
-      'student_id',
-      'semester_id',
-      'daily_report_id',
-      'recorded_by',
+      { path: 'criterion_id' },
+      { path: 'student_id' },
+      { path: 'semester_id' },
+      { path: 'daily_report_id' },
+      { path: 'recorded_by', populate: { path: 'role' } },
     ]);
   }
 
   async findAll(): Promise<AcademicRecord[]> {
     return this.academicRecordModel
-      .find({ status: 'active' })
+      .find({ status: 'active', is_deleted: { $ne: true } })
       .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('recorded_by')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
   }
 
   async findDeleted(): Promise<AcademicRecord[]> {
     return this.academicRecordModel
-      .find({ status: 'inactive' })
+      .find({ $or: [{ status: 'inactive' }, { is_deleted: true }] })
       .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('recorded_by')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
   }
 
@@ -161,12 +162,12 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
     const record = await this.academicRecordModel
-      .findOne({ _id: id, status: 'active' })
+      .findOne({ _id: id, status: 'active', is_deleted: { $ne: true } })
       .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('recorded_by')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
@@ -179,12 +180,12 @@ export class AcademicRecordService {
       return [];
     }
     return this.academicRecordModel
-      .find({ student_id: new Types.ObjectId(studentId), status: 'active' } as any)
+      .find({ student_id: new Types.ObjectId(studentId), status: 'active', is_deleted: { $ne: true } } as any)
       .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('recorded_by')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
   }
 
@@ -194,7 +195,7 @@ export class AcademicRecordService {
     }
     const query: any = includeDeleted
       ? { daily_report_id: new Types.ObjectId(dailyReportId) }
-      : { daily_report_id: new Types.ObjectId(dailyReportId), status: 'active' };
+      : { daily_report_id: new Types.ObjectId(dailyReportId), status: 'active', is_deleted: { $ne: true } };
 
     return this.academicRecordModel
       .find(query)
@@ -202,7 +203,7 @@ export class AcademicRecordService {
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('recorded_by')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
   }
 
@@ -215,7 +216,7 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const oldRecord = await this.academicRecordModel.findOne({ _id: id, status: 'active' }).exec();
+    const oldRecord = await this.academicRecordModel.findOne({ _id: id, status: 'active', is_deleted: { $ne: true } }).exec();
     if (!oldRecord) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
@@ -234,7 +235,7 @@ export class AcademicRecordService {
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
-      .populate('recorded_by')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
     if (!updated) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
@@ -263,12 +264,15 @@ export class AcademicRecordService {
     return updated;
   }
 
-  async remove(id: string, bypassDailyReportCheck: boolean = false): Promise<AcademicRecord> {
+  async remove(id: string, requester: any, bypassDailyReportCheck: boolean = false): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel.findOne({ _id: id, status: 'active' }).exec();
+    const record = await this.academicRecordModel.findOne({ _id: id, status: 'active', is_deleted: { $ne: true } })
+      .populate('student_id')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .exec();
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
@@ -279,9 +283,11 @@ export class AcademicRecordService {
       );
     }
 
+    this.checkHierarchyPermission(record, requester);
+
     const deleted = await this.academicRecordModel.findByIdAndUpdate(
       id,
-      { status: 'inactive' },
+      { status: 'inactive', is_deleted: true },
       { returnDocument: 'after' },
     ).exec();
 
@@ -304,12 +310,13 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel.findOne({ _id: id, status: 'inactive' }).exec();
+    const record = await this.academicRecordModel.findOne({ _id: id, $or: [{ status: 'inactive' }, { is_deleted: true }] }).exec();
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found trong thùng rác`);
     }
 
     record.status = 'active';
+    record.is_deleted = false;
     const saved = await record.save();
 
     // Sync score update
@@ -320,20 +327,23 @@ export class AcademicRecordService {
     );
 
     return saved.populate([
-      'criterion_id',
-      'student_id',
-      'semester_id',
-      'daily_report_id',
-      'recorded_by',
+      { path: 'criterion_id' },
+      { path: 'student_id' },
+      { path: 'semester_id' },
+      { path: 'daily_report_id' },
+      { path: 'recorded_by', populate: { path: 'role' } },
     ]);
   }
 
-  async forceRemove(id: string, bypassDailyReportCheck: boolean = false): Promise<AcademicRecord> {
+  async forceRemove(id: string, requester: any, bypassDailyReportCheck: boolean = false): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel.findById(id).exec();
+    const record = await this.academicRecordModel.findById(id)
+      .populate('student_id')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .exec();
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
@@ -343,6 +353,8 @@ export class AcademicRecordService {
         'Ghi nhận này thuộc báo cáo điểm danh ngày, không thể xoá vĩnh viễn trực tiếp. Vui lòng xoá báo cáo ngày tương ứng.',
       );
     }
+
+    this.checkHierarchyPermission(record, requester);
 
     const deleted = await this.academicRecordModel.findByIdAndDelete(id).exec();
     if (!deleted) {
@@ -357,5 +369,83 @@ export class AcademicRecordService {
     );
 
     return deleted;
+  }
+
+  private checkHierarchyPermission(record: any, requester: any): void {
+    if (!requester) {
+      throw new ForbiddenException('Thông tin người yêu cầu không hợp lệ.');
+    }
+
+    const getRoleLevel = (roleName?: string): number => {
+      if (!roleName) return 1;
+      const nameLower = roleName.toLowerCase();
+      if (nameLower.includes('admin')) return 4;
+      if (nameLower.includes('supervisor') || nameLower.includes('quản sinh') || nameLower.includes('quan sinh')) return 3;
+      if (
+        nameLower.includes('teacher') ||
+        nameLower.includes('adviser') ||
+        nameLower.includes('advisor') ||
+        nameLower.includes('giảng viên') ||
+        nameLower.includes('giang vien') ||
+        nameLower.includes('lecturer')
+      ) {
+        return 2;
+      }
+      return 1; // student or generic user
+    };
+
+    const requesterLevel = getRoleLevel(requester.roleName);
+    
+    // Nếu là Admin, cho phép xóa luôn
+    if (requesterLevel === 4) return;
+
+    // Nếu người yêu cầu là sinh viên (Level 1)
+    if (requesterLevel === 1) {
+      const studentEmail = record.student_id && typeof record.student_id === 'object' ? record.student_id.email : '';
+      
+      // So sánh email của tài khoản đang đăng nhập với email của sinh viên sở hữu bản ghi
+      if (requester.email && studentEmail && requester.email.toLowerCase() === studentEmail.toLowerCase()) {
+        let creatorId = '';
+        if (record.recorded_by) {
+          creatorId = typeof record.recorded_by === 'object' ? record.recorded_by._id?.toString() : record.recorded_by.toString();
+        }
+        
+        // Cho phép sinh viên xóa nếu bản ghi do chính họ tạo, hoặc bản ghi trống recorded_by
+        if (
+          !creatorId || 
+          creatorId === requester.userId
+        ) {
+          return; // Cho phép xóa!
+        }
+      }
+      throw new ForbiddenException('Bạn chỉ có thể xóa ghi nhận rèn luyện tự chấm của chính mình.');
+    }
+
+    let creatorLevel = 1;
+    let creatorId = '';
+
+    if (record.recorded_by) {
+      creatorId = typeof record.recorded_by === 'object' ? record.recorded_by._id?.toString() : record.recorded_by.toString();
+      const creatorRoleName = record.recorded_by.role 
+        ? (typeof record.recorded_by.role === 'object' ? record.recorded_by.role.name : record.recorded_by.role)
+        : '';
+      creatorLevel = getRoleLevel(creatorRoleName);
+    }
+
+    // Quyền cao hơn (requesterLevel > creatorLevel) được xóa
+    if (requesterLevel > creatorLevel) {
+      return;
+    }
+
+    // Cùng cấp (requesterLevel === creatorLevel) chỉ được xóa của chính mình
+    if (requesterLevel === creatorLevel) {
+      if (requester.userId === creatorId) {
+        return;
+      }
+      throw new ForbiddenException('Bạn chỉ có thể xóa ghi nhận rèn luyện do chính mình tạo ra.');
+    }
+
+    // Cấp thấp hơn không được xóa
+    throw new ForbiddenException('Bạn không có quyền xóa ghi nhận rèn luyện của cấp bậc cao hơn.');
   }
 }

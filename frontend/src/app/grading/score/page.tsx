@@ -1458,57 +1458,43 @@ function GradingScoreContent() {
                             return (
                               <div
                                 key={item.id}
-                                className="flex items-center justify-between gap-4 p-5 w-full hover:bg-white/40 transition-colors duration-200"
+                                className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 md:gap-4 p-4 md:p-5 w-full hover:bg-slate-50/40 border-b border-slate-100/60 transition-colors duration-200"
                               >
-                                {/* Title */}
-                                <div className="flex-1 min-w-0 pr-4">
-                                  <h5 className="font-bold text-[#1E293B] text-[14.5px] leading-relaxed break-words">
+                                {/* Left: Title & 4 Scores */}
+                                <div className="flex-1 min-w-0 flex flex-col gap-2">
+                                  <h5 className="font-bold text-[#1E293B] text-[14px] leading-relaxed break-words">
                                     {item.name}
                                   </h5>
-                                </div>
-
-                                {/* Counter Control and Points */}
-                                <div className="flex gap-6 items-center shrink-0">
-
-                                  {/* Multi-score Columns Display */}
-                                  <div className="hidden md:flex items-center gap-2 shrink-0 bg-white/50 backdrop-blur-[2px] border border-white/70 rounded-2xl p-1.5 shadow-sm">
-                                    <div className="flex flex-col items-center px-2 py-0.5 min-w-[55px] border-r border-slate-200/50">
-                                      <span className="text-[#64748B] text-[9px] font-bold uppercase tracking-wider">H.Thống</span>
-                                      <span className={`font-bold text-[12.5px] mt-0.5 ${hasViolation ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                        {evaluationDetailsMap[item.id]?.system_score !== null && evaluationDetailsMap[item.id]?.system_score !== undefined
-                                          ? `${evaluationDetailsMap[item.id].system_score >= 0 && !hasViolation ? '+' : ''}${evaluationDetailsMap[item.id].system_score}đ`
-                                          : '0đ'}
-                                      </span>
-                                    </div>
-                                    <div className="flex flex-col items-center px-2 py-0.5 min-w-[55px] border-r border-slate-200/50">
-                                      <span className="text-[#64748B] text-[9px] font-bold uppercase tracking-wider">S.Viên</span>
-                                      <span className="font-bold text-[#1A73E8] text-[12.5px] mt-0.5">
+                                  
+                                  {/* Scores Badges (SV & GV) */}
+                                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                    {/* Sinh viên */}
+                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-[#1A73E8] text-[10px] font-bold border border-blue-100/40">
+                                      <span className="opacity-70">SV:</span>
+                                      <span>
                                         {evaluationDetailsMap[item.id]?.sv_score !== null && evaluationDetailsMap[item.id]?.sv_score !== undefined
                                           ? `${evaluationDetailsMap[item.id].sv_score >= 0 && !hasViolation ? '+' : ''}${evaluationDetailsMap[item.id].sv_score}đ`
                                           : '0đ'}
                                       </span>
                                     </div>
-                                    <div className="flex flex-col items-center px-2 py-0.5 min-w-[55px] border-r border-slate-200/50">
-                                      <span className="text-[#64748B] text-[9px] font-bold uppercase tracking-wider">C.Vấn</span>
-                                      <span className="font-bold text-amber-600 text-[12.5px] mt-0.5">
+
+                                    {/* Giảng viên / Cố vấn */}
+                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100/40">
+                                      <span className="opacity-70">GV:</span>
+                                      <span>
                                         {evaluationDetailsMap[item.id]?.gv_score !== null && evaluationDetailsMap[item.id]?.gv_score !== undefined
                                           ? `${evaluationDetailsMap[item.id].gv_score >= 0 && !hasViolation ? '+' : ''}${evaluationDetailsMap[item.id].gv_score}đ`
                                           : '0đ'}
                                       </span>
                                     </div>
-                                    <div className="flex flex-col items-center px-2 py-0.5 min-w-[55px]">
-                                      <span className="text-[#64748B] text-[9px] font-bold uppercase tracking-wider">C.Quyết</span>
-                                      <span className="font-bold text-purple-700 text-[12.5px] mt-0.5">
-                                        {evaluationDetailsMap[item.id]?.final_score !== null && evaluationDetailsMap[item.id]?.final_score !== undefined
-                                          ? `${evaluationDetailsMap[item.id].final_score >= 0 && !hasViolation ? '+' : ''}${evaluationDetailsMap[item.id].final_score}đ`
-                                          : '0đ'}
-                                      </span>
-                                    </div>
                                   </div>
+                                </div>
 
-                                  {/* +/- Bộ nút tăng giảm số lượng và đơn giá - Pill Control */}
-                                  <div className="flex flex-col items-center gap-1.5 shrink-0">
-                                    <div className={`bg-white/60 backdrop-blur-sm border border-white/80 rounded-full p-1 flex gap-1 items-center shadow-sm ${item.is_locked || !canModifyScore ? 'opacity-60 bg-slate-100/50' : ''}`}>
+                                {/* Right: Counter Control & Realtime Points */}
+                                <div className="flex items-center justify-between md:justify-end gap-4 md:gap-6 shrink-0 pt-2.5 md:pt-0 border-t border-slate-100 md:border-t-0 mt-1 md:mt-0">
+                                  {/* +/- Pill Control */}
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <div className={`bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-full p-1 flex gap-1 items-center shadow-sm ${item.is_locked || !canModifyScore ? 'opacity-60 bg-slate-100/50' : ''}`}>
                                       <button
                                         onClick={() => !item.is_locked && canModifyScore && handleCountChange(item.id, -1)}
                                         disabled={count <= minCount || item.is_locked || !canModifyScore}
@@ -1520,9 +1506,9 @@ function GradingScoreContent() {
                                           }`}
                                         title={!canModifyScore ? 'Không có quyền sửa đổi trong giai đoạn này' : item.is_locked ? 'Tiêu chí đã bị khóa' : 'Giảm số lần'}
                                       >
-                                        <Minus size={12} strokeWidth={3} />
+                                        <Minus size={11} strokeWidth={3} />
                                       </button>
-                                      <div className={`w-8 flex items-center justify-center font-bold text-[14.5px] select-none ${item.is_locked || !canModifyScore ? 'text-slate-400' : 'text-[#1E293B]'}`}>
+                                      <div className={`w-8 flex items-center justify-center font-bold text-[14px] select-none ${item.is_locked || !canModifyScore ? 'text-slate-400' : 'text-[#1E293B]'}`}>
                                         {count}
                                       </div>
                                       <button
@@ -1536,29 +1522,28 @@ function GradingScoreContent() {
                                           }`}
                                         title={!canModifyScore ? 'Không có quyền sửa đổi trong giai đoạn này' : item.is_locked ? 'Tiêu chí đã bị khóa' : 'Tăng số lần'}
                                       >
-                                        <Plus size={12} strokeWidth={3} />
+                                        <Plus size={11} strokeWidth={3} />
                                       </button>
                                     </div>
-                                    <span className="text-[#64748B] text-[11px] font-semibold tracking-wide">
+                                    <span className="text-[#64748B] text-[10.5px] font-semibold tracking-wide">
                                       {item.pointsPerUnit > 0 ? '+' : ''}{item.pointsPerUnit}đ/lần
                                     </span>
                                   </div>
 
                                   {/* Realtime Points Display */}
-                                  <div className="flex flex-col items-end w-[85px] shrink-0 justify-center">
-                                    <span className={`font-bold text-[17px] ${hasViolation
+                                  <div className="flex flex-col items-end min-w-[75px] shrink-0 justify-center">
+                                    <span className={`font-bold text-[16px] ${hasViolation
                                       ? 'text-rose-600'
                                       : 'text-emerald-600'
                                       }`}>
                                       {hasViolation ? '' : '+'}{totalPoints}đ
                                     </span>
                                     {item.maxScore !== undefined && (
-                                      <span className="text-[10px] text-[#64748B] bg-white/70 border border-white/80 px-2 py-0.5 rounded-full font-bold mt-1 text-right shrink-0">
+                                      <span className="text-[9.5px] text-[#64748B] bg-white/70 border border-white/80 px-2 py-0.5 rounded-full font-bold mt-1 text-right shrink-0">
                                         Tối đa {item.maxScore}đ
                                       </span>
                                     )}
                                   </div>
-
                                 </div>
                               </div>
                             );

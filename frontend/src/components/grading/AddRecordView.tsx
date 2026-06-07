@@ -18,6 +18,7 @@ import { academicRecordApi } from '@/api/academic-record-api';
 import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi } from '@/api/evaluation-detail-api';
+import { useAuth } from '@/providers/auth-provider';
 
 interface ViolationItem {
   student_id: string;
@@ -30,6 +31,7 @@ interface ViolationItem {
 }
 
 export default function AddRecordView({ onBack, onSuccess }: { onBack: () => void, onSuccess?: () => void }) {
+  const { user } = useAuth();
   const [classes, setClasses] = useState<Class[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
@@ -231,9 +233,11 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
           student_id: violation.student_id,
           criterion_id: violation.evaluation_detail_id,
           semester_id: activeSemesterId,
-          record_title: `${violation.criterion_name} - Ghi chú: ${violation.class_note}`,
+          record_title: violation.criterion_name,
+          description: violation.class_note,
           status: 'active',
-          recorded_at: reportDate.toISOString()
+          recorded_at: reportDate.toISOString(),
+          recorded_by: user?.id
         });
       }));
       toast.success(`Đã ghi nhận ${addedViolations.length} rèn luyện thành công!`);
