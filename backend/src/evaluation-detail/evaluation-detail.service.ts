@@ -45,6 +45,11 @@ export class EvaluationDetailService {
     return role.includes('teacher') || role.includes('advisor');
   }
 
+  private isStudent(requester?: any) {
+    const role = (requester?.roleName || '').toLowerCase();
+    return role.includes('student');
+  }
+
   private async getTeacherClassIds(requester?: any) {
     if (!this.isTeacher(requester) || !requester?.userId) return null;
 
@@ -307,12 +312,12 @@ export class EvaluationDetailService {
       criterion_id: new Types.ObjectId(criterion_id),
       current_count: countVal,
       system_score: systemScore,
-      sv_score: rest.sv_score !== undefined ? rest.sv_score : systemScore,
+      sv_score: rest.sv_score !== undefined ? rest.sv_score : null,
       sv_submitted_at: rest.sv_submitted_at || null,
-      gv_score: rest.gv_score !== undefined ? rest.gv_score : systemScore,
+      gv_score: rest.gv_score !== undefined ? rest.gv_score : null,
       gv_reviewed_at: rest.gv_reviewed_at || null,
       gv_reviewed_by: rest.gv_reviewed_by ? new Types.ObjectId(rest.gv_reviewed_by) : null,
-      final_score: rest.final_score !== undefined ? rest.final_score : systemScore,
+      final_score: rest.final_score !== undefined ? rest.final_score : null,
       locked_at: rest.locked_at || null,
       locked_by: rest.locked_by ? new Types.ObjectId(rest.locked_by) : null,
       status: rest.status || 'draft',
@@ -427,6 +432,15 @@ export class EvaluationDetailService {
     // Map other update properties
     if (updateEvaluationDetailDto.sv_score !== undefined) detail.sv_score = updateEvaluationDetailDto.sv_score;
     if (updateEvaluationDetailDto.sv_submitted_at !== undefined) detail.sv_submitted_at = updateEvaluationDetailDto.sv_submitted_at ? new Date(updateEvaluationDetailDto.sv_submitted_at) : null;
+    if (
+      this.isStudent(requester) &&
+      updateEvaluationDetailDto.sv_score !== undefined &&
+      updateEvaluationDetailDto.gv_score === undefined &&
+      !detail.gv_reviewed_at &&
+      !detail.gv_reviewed_by
+    ) {
+      detail.gv_score = null;
+    }
     if (updateEvaluationDetailDto.gv_score !== undefined) detail.gv_score = updateEvaluationDetailDto.gv_score;
     if (updateEvaluationDetailDto.gv_reviewed_at !== undefined) detail.gv_reviewed_at = updateEvaluationDetailDto.gv_reviewed_at ? new Date(updateEvaluationDetailDto.gv_reviewed_at) : null;
     if (updateEvaluationDetailDto.gv_reviewed_by !== undefined) detail.gv_reviewed_by = (updateEvaluationDetailDto.gv_reviewed_by ? new Types.ObjectId(updateEvaluationDetailDto.gv_reviewed_by) : null) as any;

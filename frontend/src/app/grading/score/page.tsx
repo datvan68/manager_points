@@ -22,6 +22,7 @@ import {
   ArrowUp,
   Trash2,
   Eye,
+  Settings,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CustomPagination } from "@/components/ui/pagination";
@@ -37,6 +38,7 @@ import { classApi } from "@/api/class-api";
 import { studentApi } from "@/api/student-api";
 import { tokenStorage } from "@/api/auth-api";
 import { evaluationPeriodApi } from "@/api/evaluation-period-api";
+import SemesterModal from "@/components/grading/SemesterModal";
 
 // Interfaces
 interface StudentData {
@@ -354,6 +356,7 @@ function GradingScoreContent() {
   // States cho Kỳ đánh giá (Evaluation Periods)
   const [apiEvaluationPeriods, setApiEvaluationPeriods] = useState<any[]>([]);
   const [activePeriod, setActivePeriod] = useState<any | null>(null);
+  const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
   const [evaluationDetailsMap, setEvaluationDetailsMap] = useState<
     Record<string, any>
   >({});
@@ -417,6 +420,15 @@ function GradingScoreContent() {
   const currentUserRole = getRoleKey(currentUser?.role);
   const isAdminOrSupervisor =
     currentUserRole === "admin" || currentUserRole === "supervisor";
+  const gradingTabs = [
+    ...(currentUserRole === "student"
+      ? []
+      : [{ id: "list", label: "Danh sách" }]),
+    { id: "score", label: "Chấm điểm" },
+    ...(isAdminOrSupervisor
+      ? [{ id: "reports", label: "Danh mục" }]
+      : []),
+  ];
   const shouldShowStudentSlider = currentUserRole !== "student";
   const roleDeadline =
     currentUserRole === "student"
@@ -424,6 +436,17 @@ function GradingScoreContent() {
       : currentUserRole === "teacher"
         ? activePeriod?.gv_deadline
         : activePeriod?.admin_deadline;
+
+  const handleCloseSemesterModal = async () => {
+    setIsSemesterModalOpen(false);
+
+    try {
+      const periods = await evaluationPeriodApi.getEvaluationPeriods();
+      setApiEvaluationPeriods(periods || []);
+    } catch {
+      // Do not block closing the modal if period refresh fails.
+    }
+  };
 
   // Kiểm tra quyền chấm điểm theo vai trò và trạng thái kỳ đánh giá
   const canModifyScore = (() => {
@@ -1576,11 +1599,7 @@ function GradingScoreContent() {
           <Header />
 
           <TabNavigation
-            tabs={[
-              { id: "list", label: "Danh sách" },
-              { id: "score", label: "Chấm điểm" },
-              { id: "reports", label: "Danh mục" },
-            ]}
+            tabs={gradingTabs}
             activeTab={"score"}
             onTabChange={(id) => {
               if (id === "list") {
@@ -1667,6 +1686,17 @@ function GradingScoreContent() {
                                 ? "Đã đóng"
                                 : "Chưa bắt đầu"}
                       </span>
+                      {isAdminOrSupervisor && (
+                        <button
+                          type="button"
+                          onClick={() => setIsSemesterModalOpen(true)}
+                          className="w-9 h-9 rounded-full bg-white/80 hover:bg-[#1A73E8] text-[#64748B] hover:text-white border border-slate-200/70 shadow-sm flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                          title="Cấu hình nhanh học kỳ"
+                          aria-label="Cấu hình nhanh học kỳ"
+                        >
+                          <Settings size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1888,6 +1918,17 @@ function GradingScoreContent() {
                       hạn chấm điểm cụ thể.
                     </p>
                   </div>
+                  {isAdminOrSupervisor && (
+                    <button
+                      type="button"
+                      onClick={() => setIsSemesterModalOpen(true)}
+                      className="ml-auto w-9 h-9 rounded-full bg-white/80 hover:bg-[#1A73E8] text-[#64748B] hover:text-white border border-slate-200/70 shadow-sm flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0"
+                      title="Cấu hình nhanh học kỳ"
+                      aria-label="Cấu hình nhanh học kỳ"
+                    >
+                      <Settings size={16} />
+                    </button>
+                  )}
                 </motion.div>
               ))}
 
@@ -2116,6 +2157,12 @@ function GradingScoreContent() {
                             const hasViolation = item.type === "violation";
                             const detail = evaluationDetailsMap[item.id];
                             const isApproved = detail?.status === "locked";
+                            const hasTeacherReviewed = Boolean(
+                              detail?.gv_reviewed_at ||
+                                detail?.gv_reviewed_by ||
+                                detail?.status === "gv_reviewed" ||
+                                detail?.status === "locked",
+                            );
                             const criterionScore = calculateCriterionScore(
                               item,
                               count,
@@ -2152,7 +2199,11 @@ function GradingScoreContent() {
                                     <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100/40">
                                       <span className="opacity-70">GV:</span>
                                       <span>
-                                        {formatScoreLabel(detail?.gv_score)}
+                                        {formatScoreLabel(
+                                          hasTeacherReviewed
+                                            ? detail?.gv_score
+                                            : null,
+                                        )}
                                       </span>
                                     </div>
 
@@ -2587,6 +2638,17 @@ function GradingScoreContent() {
           </AnimatePresence>
         </div>
       </div>
+
+      <SemesterModal
+        isOpen={isSemesterModalOpen}
+        onClose={handleCloseSemesterModal}
+        apiSemesters={apiSemesters}
+        onRefreshSemesters={(updatedSemesters) =>
+          setApiSemesters(updatedSemesters || [])
+        }
+        selectedSemester={selectedSemesterId}
+        setSelectedSemester={setSelectedSemesterId}
+      />
 
       {/* Button Cuộn lên đầu trang (Scroll to Top) - Pill Styled */}
       <AnimatePresence>

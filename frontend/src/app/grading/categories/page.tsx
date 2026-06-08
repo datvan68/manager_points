@@ -24,10 +24,22 @@ import ConfirmModal from '@/components/modals/ConfirmModal';
 import { toast } from 'sonner';
 import { categoryApi } from '../../../api/category-api';
 import { criteriaApi } from '../../../api/criteria-api';
+import { tokenStorage } from '@/api/auth-api';
 
 
 export default function CategoriesPage() {
   const router = useRouter();
+  const currentUser = tokenStorage.getUser();
+  const hasCurrentUser = Boolean(currentUser);
+  const currentUserRole = (currentUser?.role || '').toLowerCase();
+  const isAdminOrSupervisor =
+    currentUserRole.includes('admin') || currentUserRole.includes('supervisor');
+  const isStudent = currentUserRole.includes('student');
+  const gradingTabs = [
+    ...(isStudent ? [] : [{ id: 'list', label: 'Danh sách' }]),
+    { id: 'score', label: 'Chấm điểm' },
+    ...(isAdminOrSupervisor ? [{ id: 'reports', label: 'Danh mục' }] : []),
+  ];
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
@@ -136,8 +148,15 @@ export default function CategoriesPage() {
   };
 
   useEffect(() => {
+    if (!hasCurrentUser) return;
+
+    if (!isAdminOrSupervisor) {
+      router.replace(isStudent ? '/grading/score' : '/grading');
+      return;
+    }
+
     fetchData();
-  }, []);
+  }, [hasCurrentUser, isAdminOrSupervisor, isStudent, router]);
 
   // Ref để lưu trữ timeout tự động mở rộng khi kéo đè tiêu chí lên danh mục đang thu gọn
   const dragTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
@@ -577,11 +596,7 @@ export default function CategoriesPage() {
           <Header />
 
           <TabNavigation
-            tabs={[
-              { id: 'list', label: 'Danh sách' },
-              { id: 'score', label: 'Chấm điểm' },
-              { id: 'reports', label: 'Danh mục' }
-            ]}
+            tabs={gradingTabs}
             activeTab={'reports'}
             onTabChange={(id) => {
               if (id === 'list') {

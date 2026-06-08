@@ -106,6 +106,13 @@ export default function GradingPage() {
   const userRole = (user?.role || '').toLowerCase();
   const canSelectSemester =
     canManageSemester || userRole === 'admin' || userRole === 'supervisor';
+  const isAdminOrSupervisor = userRole === 'admin' || userRole === 'supervisor';
+  const isStudent = userRole === 'student';
+  const gradingTabs = [
+    ...(isStudent ? [] : [{ id: 'list', label: 'Danh sách' }]),
+    { id: 'score', label: 'Chấm điểm' },
+    ...(isAdminOrSupervisor ? [{ id: 'reports', label: 'Danh mục' }] : []),
+  ];
   const currentUserId = user?.id || (user as any)?._id || '';
   const isTeacher = userRole.includes('teacher') || userRole.includes('advisor');
 
@@ -690,6 +697,12 @@ export default function GradingPage() {
   ]);
 
   useEffect(() => {
+    if (isStudent) {
+      router.replace('/grading/score');
+    }
+  }, [isStudent, router]);
+
+  useEffect(() => {
     if (!isStateRestored || apiSemesters.length === 0) return;
 
     const defaultSemesterId = getDefaultSemesterId(apiSemesters);
@@ -961,12 +974,8 @@ export default function GradingPage() {
           <Header />
 
           <TabNavigation
-            tabs={[
-              { id: 'list', label: 'Danh sách' },
-              { id: 'score', label: 'Chấm điểm' },
-              { id: 'reports', label: 'Danh mục' }
-            ]}
-            activeTab={'list'}
+            tabs={gradingTabs}
+            activeTab={isStudent ? 'score' : 'list'}
             onTabChange={(id) => {
               if (id === 'score') {
                 router.push('/grading/score');

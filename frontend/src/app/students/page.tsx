@@ -36,6 +36,7 @@ function StudentsPageContent() {
     canCreateDept: "DEPT_CREATE",
     canCreateClass: "CLASS_CREATE",
   });
+
   const [deptsList, setDeptsList] = useState<Department[]>([]);
   const [classesList, setClassesList] = useState<Class[]>([]);
   const [studentsList, setStudentsList] = useState<Student[]>([]);
@@ -103,10 +104,7 @@ function StudentsPageContent() {
         });
       }
 
-      await Promise.all([
-        fetchClasses(fetchedDepts),
-        fetchStudents()
-      ]);
+      await Promise.all([fetchClasses(fetchedDepts), fetchStudents()]);
     } catch (error: any) {
       toast.error("Không thể tải danh sách khoa: " + error.message);
     } finally {
@@ -236,7 +234,8 @@ function StudentsPageContent() {
     })
     .map((cls) => {
       const classStudents = studentsList.filter((s) => {
-        const studentClassId = typeof s.class_id === "string" ? s.class_id : s.class_id?._id;
+        const studentClassId =
+          typeof s.class_id === "string" ? s.class_id : s.class_id?._id;
         return studentClassId === cls._id;
       });
 
@@ -244,9 +243,12 @@ function StudentsPageContent() {
       const avatars = classStudents.slice(0, maxAvatars).map((s) => ({
         _id: s._id,
         full_name: s.full_name,
-        student_code: s.student_code
+        student_code: s.student_code,
       }));
-      const extraStudents = classStudents.length > maxAvatars ? classStudents.length - maxAvatars : 0;
+      const extraStudents =
+        classStudents.length > maxAvatars
+          ? classStudents.length - maxAvatars
+          : 0;
 
       return {
         id: cls._id,
@@ -255,7 +257,9 @@ function StudentsPageContent() {
         class_type: cls.class_type,
         headquarters: cls.headquarters || "",
         user_id:
-          typeof cls.user_id === "string" ? cls.user_id : cls.user_id?._id || "",
+          typeof cls.user_id === "string"
+            ? cls.user_id
+            : cls.user_id?._id || "",
         status: cls.class_name.includes("K44")
           ? "Sắp tốt nghiệp"
           : cls.class_name.includes("K43")
@@ -333,10 +337,11 @@ function StudentsPageContent() {
                       role="button"
                       tabIndex={0}
                       onClick={() => setSelectedDept(dept._id)}
-                      className={`w-full p-3 rounded-xl border text-left transition-all shrink-0 group flex flex-col cursor-pointer ${selectedDept === dept._id
-                        ? "bg-white border-primary shadow-md ring-1 ring-primary/10"
-                        : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm"
-                        }`}
+                      className={`w-full p-3 rounded-xl border text-left transition-all shrink-0 group flex flex-col cursor-pointer ${
+                        selectedDept === dept._id
+                          ? "bg-white border-primary shadow-md ring-1 ring-primary/10"
+                          : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm"
+                      }`}
                     >
                       <div className="flex items-start gap-3 w-full">
                         <div
@@ -363,10 +368,11 @@ function StudentsPageContent() {
                       </div>
 
                       <div
-                        className={`w-full flex items-center justify-end border-t overflow-hidden transition-all duration-300 ease-in-out ${selectedDept === dept._id
-                          ? "max-h-14 opacity-100 mt-3 pt-3 border-blue-100"
-                          : "max-h-0 opacity-0 mt-0 pt-0 border-transparent group-hover:max-h-14 group-hover:opacity-100 group-hover:mt-3 group-hover:pt-3 group-hover:border-gray-100"
-                          }`}
+                        className={`w-full flex items-center justify-end border-t overflow-hidden transition-all duration-300 ease-in-out ${
+                          selectedDept === dept._id
+                            ? "max-h-14 opacity-100 mt-3 pt-3 border-blue-100"
+                            : "max-h-0 opacity-0 mt-0 pt-0 border-transparent group-hover:max-h-14 group-hover:opacity-100 group-hover:mt-3 group-hover:pt-3 group-hover:border-gray-100"
+                        }`}
                       >
                         <div className="flex items-center gap-1">
                           <Action
@@ -531,12 +537,13 @@ function StudentsPageContent() {
 
                                 <div className="flex items-start justify-between">
                                   <div
-                                    className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${cls.status === "Đang học"
-                                      ? "bg-[#f0fdf4] text-[#16a34a]"
-                                      : cls.status === "Sắp tốt nghiệp"
-                                        ? "bg-[#fff7ed] text-[#ea580c]"
-                                        : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
-                                      }`}
+                                    className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${
+                                      cls.status === "Đang học"
+                                        ? "bg-[#f0fdf4] text-[#16a34a]"
+                                        : cls.status === "Sắp tốt nghiệp"
+                                          ? "bg-[#fff7ed] text-[#ea580c]"
+                                          : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
+                                    }`}
                                   >
                                     {cls.status}
                                   </div>
@@ -681,12 +688,13 @@ function StudentsPageContent() {
 
                                 <div className="flex items-start justify-between">
                                   <div
-                                    className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${cls.status === "Đang học"
-                                      ? "bg-[#f0fdf4] text-[#16a34a]"
-                                      : cls.status === "Sắp tốt nghiệp"
-                                        ? "bg-[#fff7ed] text-[#ea580c]"
-                                        : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
-                                      }`}
+                                    className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${
+                                      cls.status === "Đang học"
+                                        ? "bg-[#f0fdf4] text-[#16a34a]"
+                                        : cls.status === "Sắp tốt nghiệp"
+                                          ? "bg-[#fff7ed] text-[#ea580c]"
+                                          : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
+                                    }`}
                                   >
                                     {cls.status}
                                   </div>
@@ -801,7 +809,6 @@ function StudentsPageContent() {
         cancelLabel="Hủy"
         variant="danger"
       />
-
     </div>
   );
 }
