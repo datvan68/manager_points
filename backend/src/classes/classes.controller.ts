@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
@@ -33,15 +34,23 @@ export class ClassesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all classes (public)' })
-  findAll() {
-    return this.classesService.findAll();
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all classes scoped by requester role' })
+  findAll(@Request() req?: any) {
+    return req?.user
+      ? this.classesService.findAll(req.user)
+      : this.classesService.findAll();
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get class by ID (public)' })
-  findOne(@Param('id') id: string) {
-    return this.classesService.findOne(id);
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get class by ID scoped by requester role' })
+  findOne(@Param('id') id: string, @Request() req?: any) {
+    return req?.user
+      ? this.classesService.findOne(id, req.user)
+      : this.classesService.findOne(id);
   }
 
   @Patch(':id')

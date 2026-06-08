@@ -36,6 +36,8 @@ import { evaluationDetailApi } from '@/api/evaluation-detail-api';
 import { categoryApi } from '../../api/category-api';
 import { criteriaApi } from '../../api/criteria-api';
 import { studentApi } from '../../api/student-api';
+import { usePermission } from '@/components/guards/RouteGuard';
+import { useAuth } from '@/providers/auth-provider';
 
 const calculateCriterionScore = (criterion: any, count: number) => {
   const maxScore = criterion?.maxScore ?? criterion?.max_score ?? 10;
@@ -48,8 +50,64 @@ const calculateCriterionScore = (criterion: any, count: number) => {
     : Math.max(-maxScore, Math.min(0, rawScore));
 };
 
+const getEntityId = (value: any) => {
+  if (!value) return '';
+  if (typeof value === 'object') return value._id || value.id || '';
+  return value;
+};
+
+const getDefaultSemesterId = (semesters: any[]) => {
+  const activeSemester = semesters.find((sem) => sem.status === 'active');
+  if (activeSemester?._id) return activeSemester._id;
+
+  const sortedSemesters = [...semesters].sort((a, b) => {
+    const aDate = new Date(a.start_date || a.end_date || 0).getTime();
+    const bDate = new Date(b.start_date || b.end_date || 0).getTime();
+    return bDate - aDate;
+  });
+
+  return sortedSemesters[0]?._id || '';
+};
+
+const getClassDepartmentId = (cls: any) => {
+  return getEntityId(cls?.dept_id);
+};
+
+const getClassAdvisorId = (cls: any) => {
+  return getEntityId(cls?.advisor_id || cls?.user_id);
+};
+
+const getSummaryStudentCode = (summary: any) => {
+  const studentObj = typeof summary?.student_id === 'object' ? summary.student_id : null;
+  return (
+    studentObj?.student_code ||
+    studentObj?.id ||
+    studentObj?._id ||
+    (typeof summary?.student_id === 'string' ? summary.student_id : '') ||
+    ''
+  );
+};
+
+const getSummaryStudentKey = (summary: any, index?: number) => {
+  return (
+    getSummaryStudentCode(summary) ||
+    getEntityId(summary?.student_id) ||
+    getEntityId(summary?._id) ||
+    `student-${index ?? 'unknown'}`
+  );
+};
+
 export default function GradingPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { canManageSemester } = usePermission({
+    canManageSemester: 'GRADING_SEMESTER_MANAGE',
+  });
+  const userRole = (user?.role || '').toLowerCase();
+  const canSelectSemester =
+    canManageSemester || userRole === 'admin' || userRole === 'supervisor';
+  const currentUserId = user?.id || (user as any)?._id || '';
+  const isTeacher = userRole.includes('teacher') || userRole.includes('advisor');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -84,6 +142,19 @@ export default function GradingPage() {
   const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
   const [isBulkGradingOpen, setIsBulkGradingOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  const visibleClasses = isTeacher
+    ? apiClasses.filter((cls) => getClassAdvisorId(cls) === currentUserId)
+    : apiClasses;
+  const visibleDepartmentIds = new Set(
+    visibleClasses.map(getClassDepartmentId).filter(Boolean)
+  );
+  const visibleDepartments = isTeacher
+    ? apiDepartments.filter((dept) => visibleDepartmentIds.has(dept._id))
+    : apiDepartments;
+  const classesForSelectedDepartment = selectedDepartment
+    ? visibleClasses.filter((cls) => getClassDepartmentId(cls) === selectedDepartment)
+    : visibleClasses;
 
   const handleConfirmBulkGrading = async (criteriaId: string, count: number) => {
     if (selectedStudentIds.length === 0) {
@@ -127,8 +198,7 @@ export default function GradingPage() {
       const promises = selectedStudentIds.map(async (studentId) => {
         // Tìm summary tương ứng của sinh viên này trong class hiện tại
         const summary = (apiSummariesPoints || []).find(s => {
-          const studentObj = typeof s.student_id === 'object' ? s.student_id : null;
-          const sId = studentObj?.student_code || studentObj?.id || studentObj?._id || (typeof s.student_id === 'string' ? s.student_id : '');
+          const sId = getSummaryStudentKey(s);
           return sId === studentId;
         });
 
@@ -434,8 +504,7 @@ export default function GradingPage() {
       const promises = selectedStudentIds.map(async (studentId) => {
         // Tìm summary tương ứng của sinh viên này
         const summary = (apiSummariesPoints || []).find(s => {
-          const studentObj = typeof s.student_id === 'object' ? s.student_id : null;
-          const sId = studentObj?.student_code || studentObj?.id || studentObj?._id || (typeof s.student_id === 'string' ? s.student_id : '');
+          const sId = getSummaryStudentKey(s);
           return sId === studentId;
         });
 
@@ -620,6 +689,89 @@ export default function GradingPage() {
     isStateRestored
   ]);
 
+  useEffect(() => {
+    if (!isStateRestored || apiSemesters.length === 0) return;
+
+    const defaultSemesterId = getDefaultSemesterId(apiSemesters);
+    if (!defaultSemesterId) return;
+
+    if (!canSelectSemester) {
+      if (selectedSemester !== defaultSemesterId) {
+        setSelectedSemester(defaultSemesterId);
+      }
+      if (appliedSemester !== defaultSemesterId) {
+        setAppliedSemester(defaultSemesterId);
+      }
+      return;
+    }
+
+    if (!selectedSemester) {
+      setSelectedSemester(defaultSemesterId);
+    }
+    if (!appliedSemester) {
+      setAppliedSemester(defaultSemesterId);
+    }
+  }, [
+    apiSemesters,
+    appliedSemester,
+    canSelectSemester,
+    isStateRestored,
+    selectedSemester,
+  ]);
+
+  useEffect(() => {
+    if (!isStateRestored || !isTeacher) return;
+
+    const teacherClasses = apiClasses.filter(
+      (cls) => getClassAdvisorId(cls) === currentUserId
+    );
+
+    if (teacherClasses.length === 0) {
+      if (selectedDepartment) setSelectedDepartment('');
+      if (selectedClass) setSelectedClass('');
+      if (appliedDepartment) setAppliedDepartment('');
+      if (appliedClass) setAppliedClass('');
+      return;
+    }
+
+    const selectedClassObj = teacherClasses.find((cls) => cls._id === selectedClass);
+    const appliedClassObj = teacherClasses.find((cls) => cls._id === appliedClass);
+    const selectedDepartmentClasses = selectedDepartment
+      ? teacherClasses.filter((cls) => getClassDepartmentId(cls) === selectedDepartment)
+      : teacherClasses;
+    const appliedDepartmentClasses = appliedDepartment
+      ? teacherClasses.filter((cls) => getClassDepartmentId(cls) === appliedDepartment)
+      : teacherClasses;
+    const nextSelectedClass =
+      selectedClassObj || selectedDepartmentClasses[0] || teacherClasses[0];
+    const nextAppliedClass =
+      appliedClassObj || appliedDepartmentClasses[0] || nextSelectedClass;
+    const nextSelectedDeptId = getClassDepartmentId(nextSelectedClass);
+    const nextAppliedDeptId = getClassDepartmentId(nextAppliedClass);
+
+    if (selectedClass !== nextSelectedClass._id) {
+      setSelectedClass(nextSelectedClass._id);
+    }
+    if (selectedDepartment !== nextSelectedDeptId) {
+      setSelectedDepartment(nextSelectedDeptId);
+    }
+    if (appliedClass !== nextAppliedClass._id) {
+      setAppliedClass(nextAppliedClass._id);
+    }
+    if (appliedDepartment !== nextAppliedDeptId) {
+      setAppliedDepartment(nextAppliedDeptId);
+    }
+  }, [
+    apiClasses,
+    appliedClass,
+    appliedDepartment,
+    currentUserId,
+    isStateRestored,
+    isTeacher,
+    selectedClass,
+    selectedDepartment,
+  ]);
+
   const handleConfirmFilter = async () => {
     if (!selectedClass) {
       toast.warning('Vui lòng chọn lớp học trước khi xác nhận!');
@@ -694,9 +846,9 @@ export default function GradingPage() {
   const filteredStudents = !appliedClass
     ? []
     : (apiSummariesPoints || [])
-      .map(summary => {
+      .map((summary, idx) => {
         const studentObj = typeof summary.student_id === 'object' ? summary.student_id : null;
-        const studentId = studentObj?.student_code || studentObj?.id || studentObj?._id || (typeof summary.student_id === 'string' ? summary.student_id : '');
+        const studentId = getSummaryStudentKey(summary, idx);
         const studentName = studentObj?.full_name || studentObj?.name || 'Chưa rõ';
         const studentClassId = studentObj?.class_id?._id || studentObj?.class_id || studentObj?.classId || '';
 
@@ -850,9 +1002,17 @@ export default function GradingPage() {
                 <div className="min-w-[160px]">
                   <Select
                     value={selectedSemester}
-                    onValueChange={(val: string) => setSelectedSemester(val)}
+                    onValueChange={(val: string) => {
+                      if (canSelectSemester) {
+                        setSelectedSemester(val);
+                      }
+                    }}
+                    disabled={!canSelectSemester}
                   >
-                    <SelectTrigger className="h-[42px] bg-[#F3F4F6] border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none">
+                    <SelectTrigger
+                      className="h-[42px] bg-[#F3F4F6] border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none disabled:cursor-not-allowed disabled:opacity-75"
+                      title={canSelectSemester ? 'Chọn học kỳ' : 'Chỉ Admin/Supervisor được chọn học kỳ'}
+                    >
                       <SelectValue placeholder="-- Chọn học kỳ --" />
                     </SelectTrigger>
                     <SelectContent>
@@ -863,14 +1023,16 @@ export default function GradingPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSemesterModalOpen(true)}
-                  className="w-[42px] h-[42px] shrink-0 rounded-xl bg-[#F3F4F6] hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95 group"
-                  title="Cấu hình Học kì"
-                >
-                  <Settings size={16} className="group-hover:rotate-45 transition-transform duration-200" />
-                </button>
+                {canSelectSemester && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSemesterModalOpen(true)}
+                    className="w-[42px] h-[42px] shrink-0 rounded-xl bg-[#F3F4F6] hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95 group"
+                    title="Cấu hình Học kì"
+                  >
+                    <Settings size={16} className="group-hover:rotate-45 transition-transform duration-200" />
+                  </button>
+                )}
               </div>
 
               {/* Select Khoa */}
@@ -884,7 +1046,7 @@ export default function GradingPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">-- Chọn khoa --</SelectItem>
-                    {apiDepartments.map(dept => (
+                    {visibleDepartments.map(dept => (
                       <SelectItem key={dept._id} value={dept._id}>{dept.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -905,13 +1067,7 @@ export default function GradingPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">-- Không chọn --</SelectItem>
-                    {(selectedDepartment
-                      ? apiClasses.filter(cls => {
-                        const deptId = typeof cls.dept_id === 'object' ? cls.dept_id?._id : cls.dept_id;
-                        return deptId === selectedDepartment;
-                      })
-                      : apiClasses
-                    ).map(cls => (
+                    {classesForSelectedDepartment.map(cls => (
                       <SelectItem key={cls._id} value={cls._id}>{cls.class_name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1013,7 +1169,7 @@ export default function GradingPage() {
                           <>
                             {filteredStudents
                               .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                              .map((student) => {
+                              .map((student, idx) => {
                                 const rank = getRank(student.score);
                                 const className = apiClasses.find(c => c._id === student.classId)?.class_name || student.classId;
 
@@ -1022,7 +1178,7 @@ export default function GradingPage() {
                                     layout
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
-                                    key={student.id}
+                                    key={student.id || `student-row-${idx}`}
                                     className="hover:bg-slate-50 transition-colors group cursor-pointer"
                                   >
                                     <td className="px-6 py-4">

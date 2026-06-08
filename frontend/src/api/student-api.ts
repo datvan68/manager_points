@@ -13,6 +13,7 @@ export interface Student {
   status: 'Studying' | 'Reserved' | 'Dropped' | 'Graduated' | 'Suspended';
   class_id?: Class | string;
   training_point_id?: any;
+  user_id?: { _id: string; user_name?: string; email?: string; status?: string } | string;
   account_status?: 'active' | 'inactive' | 'locked';
   createdAt?: string;
   updatedAt?: string;
@@ -26,76 +27,69 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return data as T;
 }
 
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const token = tokenStorage.getAccessToken();
+  return {
+    ...(extra || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 export const studentApi = {
   async getStudents(): Promise<Student[]> {
-    const res = await fetch(`${API_BASE}/students`);
+    const res = await fetch(`${API_BASE}/students`, {
+      headers: authHeaders(),
+    });
     return handleResponse<Student[]>(res);
   },
 
   async getStudent(id: string): Promise<Student> {
-    const res = await fetch(`${API_BASE}/students/${id}`);
+    const res = await fetch(`${API_BASE}/students/${id}`, {
+      headers: authHeaders(),
+    });
     return handleResponse<Student>(res);
   },
 
   async createStudent(dto: Partial<Student>): Promise<Student> {
-    const token = tokenStorage.getAccessToken();
     const res = await fetch(`${API_BASE}/students`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(dto),
     });
     return handleResponse<Student>(res);
   },
 
   async createStudentBulk(dtos: Partial<Student>[]): Promise<Student[]> {
-    const token = tokenStorage.getAccessToken();
     const res = await fetch(`${API_BASE}/students/bulk`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(dtos),
     });
     return handleResponse<Student[]>(res);
   },
 
   async checkDuplicate(studentCodes: string[]): Promise<{ student_code: string; full_name: string }[]> {
-    const token = tokenStorage.getAccessToken();
     const res = await fetch(`${API_BASE}/students/check-duplicate`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ studentCodes }),
     });
     return handleResponse<{ student_code: string; full_name: string }[]>(res);
   },
 
   async updateStudent(id: string, dto: Partial<Student>): Promise<Student> {
-    const token = tokenStorage.getAccessToken();
     const res = await fetch(`${API_BASE}/students/${id}`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(dto),
     });
     return handleResponse<Student>(res);
   },
 
   async deleteStudent(id: string): Promise<Student> {
-    const token = tokenStorage.getAccessToken();
     const res = await fetch(`${API_BASE}/students/${id}`, {
       method: 'DELETE',
-      headers: {
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      }
+      headers: authHeaders(),
     });
     return handleResponse<Student>(res);
   }

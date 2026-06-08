@@ -10,6 +10,7 @@ import {
 } from '../summaries-point/schemas/summary-point.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Role, RoleSchema } from '../auth/schemas/role.schema';
+import { Class, ClassSchema } from '../classes/schemas/class.schema';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { Role, RoleSchema } from '../auth/schemas/role.schema';
       { name: SummaryPoint.name, schema: SummaryPointSchema },
       { name: User.name, schema: UserSchema },
       { name: Role.name, schema: RoleSchema },
+      { name: Class.name, schema: ClassSchema },
     ]),
   ],
   controllers: [StudentsController],

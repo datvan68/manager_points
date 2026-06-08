@@ -40,4 +40,8 @@ export class CreateStudentDto {
   @IsOptional()
   @IsMongoId()
   training_point_id?: string;
+
+  @IsOptional()
+  @IsMongoId()
+  user_id?: string;
 }

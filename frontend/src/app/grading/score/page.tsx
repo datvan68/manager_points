@@ -174,6 +174,105 @@ const formatDate = (dateStr?: string) => {
   }
 };
 
+const getEntityId = (value: any) => {
+  if (!value) return "";
+  if (typeof value === "object") {
+    return value._id || value.id || "";
+  }
+  return value;
+};
+
+const getSummaryStudentCode = (summary: any) => {
+  const studentObj =
+    typeof summary?.student_id === "object" ? summary.student_id : null;
+  return (
+    studentObj?.student_code ||
+    studentObj?.id ||
+    studentObj?._id ||
+    (typeof summary?.student_id === "string" ? summary.student_id : "") ||
+    ""
+  );
+};
+
+const getSummaryStudentKey = (summary: any, index?: number) => {
+  return (
+    getSummaryStudentCode(summary) ||
+    getEntityId(summary?.student_id) ||
+    getEntityId(summary?._id) ||
+    `student-${index ?? "unknown"}`
+  );
+};
+
+const getRoleKey = (role?: string) => {
+  const normalizedRole = role?.toLowerCase() || "";
+  if (normalizedRole.includes("admin")) return "admin";
+  if (
+    normalizedRole.includes("supervisor") ||
+    normalizedRole.includes("quản sinh")
+  ) {
+    return "supervisor";
+  }
+  if (
+    normalizedRole.includes("teacher") ||
+    normalizedRole.includes("advisor")
+  ) {
+    return "teacher";
+  }
+  return "student";
+};
+
+const matchesCurrentStudent = ({
+  currentUser,
+  studentIdParam,
+  studentId,
+  studentObj,
+  dbStudent,
+}: {
+  currentUser: any;
+  studentIdParam: string | null;
+  studentId: string;
+  studentObj?: any;
+  dbStudent?: any;
+}) => {
+  if (studentIdParam) {
+    return (
+      studentId === studentIdParam ||
+      getEntityId(dbStudent?._id) === studentIdParam
+    );
+  }
+
+  const currentUserId = currentUser?.id || currentUser?._id || "";
+  const currentUserEmail = (currentUser?.email || "").trim().toLowerCase();
+  const currentUsername = (
+    currentUser?.username ||
+    currentUser?.user_name ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const studentEmail = (dbStudent?.email || studentObj?.email || "")
+    .trim()
+    .toLowerCase();
+  const studentUserId = getEntityId(dbStudent?.user_id || studentObj?.user_id);
+  const studentName = (
+    dbStudent?.full_name ||
+    studentObj?.full_name ||
+    studentObj?.name ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+  const studentDbId = getEntityId(dbStudent?._id || studentObj?._id);
+
+  return Boolean(
+    (currentUserId &&
+      (currentUserId === studentUserId || currentUserId === studentDbId)) ||
+    (currentUserEmail && currentUserEmail === studentEmail) ||
+    (currentUsername && currentUsername === studentName),
+  );
+};
+
 function GradingScoreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -306,15 +405,19 @@ function GradingScoreContent() {
   }, [selectedSemesterId, apiEvaluationPeriods]);
 
   const currentUser = tokenStorage.getUser();
-  const currentUserRole = (() => {
+  const currentUserRoleLegacy = (() => {
     const role = currentUser?.role?.toLowerCase() || "";
     if (role.includes("admin")) return "admin";
-    if (role.includes("supervisor") || role.includes("quản sinh")) return "supervisor";
+    if (role.includes("supervisor") || role.includes("quản sinh"))
+      return "supervisor";
     if (role.includes("teacher") || role.includes("advisor")) return "teacher";
     return "student";
   })();
+  void currentUserRoleLegacy;
+  const currentUserRole = getRoleKey(currentUser?.role);
   const isAdminOrSupervisor =
     currentUserRole === "admin" || currentUserRole === "supervisor";
+  const shouldShowStudentSlider = currentUserRole !== "student";
   const roleDeadline =
     currentUserRole === "student"
       ? activePeriod?.sv_deadline
@@ -393,15 +496,36 @@ function GradingScoreContent() {
         setApiEvaluationPeriods(backendPeriods || []);
         setApiSummariesPoints(backendSummaries || []);
 
+        const currentUserId = currentUser?.id || currentUser?._id || "";
+        const roleScopedClasses =
+          currentUserRole === "teacher"
+            ? (backendClasses || []).filter((cls) => {
+                const advisorId = getEntityId(
+                  (cls as any)?.advisor_id || cls?.user_id,
+                );
+                return advisorId === currentUserId;
+              })
+            : backendClasses || [];
+
+        setApiClasses(roleScopedClasses);
+
         // Đọc học kỳ và lớp học đã áp dụng từ sessionStorage
         const savedSem =
           sessionStorage.getItem("grading_appliedSem") ||
           backendSemesters[0]?._id ||
           "";
         const savedClass = sessionStorage.getItem("grading_appliedClass") || "";
+        const effectiveClassId =
+          currentUserRole === "student"
+            ? ""
+            : currentUserRole === "teacher"
+              ? roleScopedClasses.some((cls) => cls._id === savedClass)
+                ? savedClass
+                : roleScopedClasses[0]?._id || ""
+              : savedClass;
 
         setSelectedSemesterId(savedSem);
-        setSelectedClassId(savedClass);
+        setSelectedClassId(effectiveClassId);
 
         // 2. Map dữ liệu Categories và Criteria
         const categoriesMapped: Category[] = (backendCats || [])
@@ -448,7 +572,21 @@ function GradingScoreContent() {
           return semId === savedSem;
         });
 
-        if (savedClass) {
+        if (currentUserRole === "teacher") {
+          const teacherClassIds = new Set(
+            roleScopedClasses.map((cls) => cls._id),
+          );
+          filteredSummaries = filteredSummaries.filter((summary) => {
+            const studentObj =
+              typeof summary.student_id === "object"
+                ? (summary.student_id as any)
+                : null;
+            const studentClassId = getEntityId(studentObj?.class_id);
+            return teacherClassIds.has(studentClassId);
+          });
+        }
+
+        if (effectiveClassId) {
           filteredSummaries = filteredSummaries.filter((summary) => {
             const studentObj =
               typeof summary.student_id === "object"
@@ -456,7 +594,7 @@ function GradingScoreContent() {
                 : null;
             const studentClassId =
               studentObj?.class_id?._id || studentObj?.class_id || "";
-            return studentClassId === savedClass;
+            return studentClassId === effectiveClassId;
           });
         }
 
@@ -471,18 +609,34 @@ function GradingScoreContent() {
         // Lấy danh sách Student đầy đủ để tra cứu thông tin cá nhân
         const backendStudents = await studentApi.getStudents();
 
+        if (currentUserRole === "student") {
+          filteredSummaries = filteredSummaries.filter((summary) => {
+            const studentObj =
+              typeof summary.student_id === "object"
+                ? (summary.student_id as any)
+                : null;
+            const studentId = getSummaryStudentKey(summary);
+            const dbStudent = backendStudents.find(
+              (s) => s.student_code === studentId || s._id === studentId,
+            );
+
+            return matchesCurrentStudent({
+              currentUser,
+              studentIdParam,
+              studentId,
+              studentObj,
+              dbStudent,
+            });
+          });
+        }
+
         const mappedStudents: StudentData[] = filteredSummaries.map(
           (summary, idx) => {
             const studentObj =
               typeof summary.student_id === "object"
                 ? (summary.student_id as any)
                 : null;
-            const studentId =
-              studentObj?.student_code ||
-              studentObj?.id ||
-              studentObj?._id ||
-              summary.student_id ||
-              "";
+            const studentId = getSummaryStudentKey(summary, idx);
 
             // Tra cứu thông tin chi tiết sinh viên từ API
             const dbStudent = backendStudents.find(
@@ -543,12 +697,7 @@ function GradingScoreContent() {
             typeof summary.student_id === "object"
               ? (summary.student_id as any)
               : null;
-          const studentId =
-            studentObj?.student_code ||
-            studentObj?.id ||
-            studentObj?._id ||
-            summary.student_id ||
-            "";
+          const studentId = getSummaryStudentKey(summary);
           summaryMap[studentId] = summary._id;
         });
         setStudentSummaryMap(summaryMap);
@@ -560,6 +709,8 @@ function GradingScoreContent() {
           mappedStudents.some((s) => s.id === studentIdParam)
         ) {
           targetActiveId = studentIdParam;
+        } else if (currentUserRole === "student" && mappedStudents.length > 0) {
+          targetActiveId = mappedStudents[0].id;
         } else if (mappedStudents.length > 0) {
           targetActiveId = mappedStudents[0].id;
         }
@@ -1521,165 +1672,167 @@ function GradingScoreContent() {
 
                   {/* Stepper Steps */}
                   {isAdminOrSupervisor ? (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative mt-2">
-                    {/* Step 1: SV Phase */}
-                    <div className="flex flex-col gap-2 relative">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
-                            activePeriod.status === "sv_phase"
-                              ? "bg-[#1A73E8] text-white border-[#1A73E8] ring-4 ring-blue-100 animate-pulse"
-                              : ["gv_phase", "admin_phase", "closed"].includes(
-                                    activePeriod.status,
-                                  )
-                                ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10"
-                                : "bg-white text-slate-400 border-slate-200"
-                          }`}
-                        >
-                          {["gv_phase", "admin_phase", "closed"].includes(
-                            activePeriod.status,
-                          ) ? (
-                            <Check size={14} strokeWidth={3} />
-                          ) : (
-                            "1"
-                          )}
-                        </div>
-                        <div className="flex flex-col">
-                          <span
-                            className={`text-[13.5px] font-bold ${
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative mt-2">
+                      {/* Step 1: SV Phase */}
+                      <div className="flex flex-col gap-2 relative">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
                               activePeriod.status === "sv_phase"
-                                ? "text-[#1A73E8]"
+                                ? "bg-[#1A73E8] text-white border-[#1A73E8] ring-4 ring-blue-100 animate-pulse"
                                 : [
                                       "gv_phase",
                                       "admin_phase",
                                       "closed",
                                     ].includes(activePeriod.status)
-                                  ? "text-emerald-600"
-                                  : "text-[#64748B]"
+                                  ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10"
+                                  : "bg-white text-slate-400 border-slate-200"
                             }`}
                           >
-                            Sinh viên tự chấm
-                          </span>
-                          <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
-                            Hạn: {formatDate(activePeriod.sv_deadline)}
-                          </span>
+                            {["gv_phase", "admin_phase", "closed"].includes(
+                              activePeriod.status,
+                            ) ? (
+                              <Check size={14} strokeWidth={3} />
+                            ) : (
+                              "1"
+                            )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span
+                              className={`text-[13.5px] font-bold ${
+                                activePeriod.status === "sv_phase"
+                                  ? "text-[#1A73E8]"
+                                  : [
+                                        "gv_phase",
+                                        "admin_phase",
+                                        "closed",
+                                      ].includes(activePeriod.status)
+                                    ? "text-emerald-600"
+                                    : "text-[#64748B]"
+                              }`}
+                            >
+                              Sinh viên tự chấm
+                            </span>
+                            <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                              Hạn: {formatDate(activePeriod.sv_deadline)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Step 2: GV Phase */}
-                    <div className="flex flex-col gap-2 relative">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
-                            activePeriod.status === "gv_phase"
-                              ? "bg-amber-500 text-white border-amber-500 ring-4 ring-amber-100 animate-pulse"
-                              : ["admin_phase", "closed"].includes(
-                                    activePeriod.status,
-                                  )
-                                ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10"
-                                : "bg-white text-slate-400 border-slate-200"
-                          }`}
-                        >
-                          {["admin_phase", "closed"].includes(
-                            activePeriod.status,
-                          ) ? (
-                            <Check size={14} strokeWidth={3} />
-                          ) : (
-                            "2"
-                          )}
-                        </div>
-                        <div className="flex flex-col">
-                          <span
-                            className={`text-[13.5px] font-bold ${
+                      {/* Step 2: GV Phase */}
+                      <div className="flex flex-col gap-2 relative">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
                               activePeriod.status === "gv_phase"
-                                ? "text-amber-600 font-extrabold"
+                                ? "bg-amber-500 text-white border-amber-500 ring-4 ring-amber-100 animate-pulse"
                                 : ["admin_phase", "closed"].includes(
                                       activePeriod.status,
                                     )
-                                  ? "text-emerald-600"
-                                  : "text-[#64748B]"
+                                  ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10"
+                                  : "bg-white text-slate-400 border-slate-200"
                             }`}
                           >
-                            Cố vấn đánh giá
-                          </span>
-                          <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
-                            Hạn: {formatDate(activePeriod.gv_deadline)}
-                          </span>
+                            {["admin_phase", "closed"].includes(
+                              activePeriod.status,
+                            ) ? (
+                              <Check size={14} strokeWidth={3} />
+                            ) : (
+                              "2"
+                            )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span
+                              className={`text-[13.5px] font-bold ${
+                                activePeriod.status === "gv_phase"
+                                  ? "text-amber-600 font-extrabold"
+                                  : ["admin_phase", "closed"].includes(
+                                        activePeriod.status,
+                                      )
+                                    ? "text-emerald-600"
+                                    : "text-[#64748B]"
+                              }`}
+                            >
+                              Cố vấn đánh giá
+                            </span>
+                            <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                              Hạn: {formatDate(activePeriod.gv_deadline)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Step 3: Admin Phase */}
-                    <div className="flex flex-col gap-2 relative">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
-                            activePeriod.status === "admin_phase"
-                              ? "bg-purple-600 text-white border-purple-600 ring-4 ring-purple-100 animate-pulse"
-                              : ["closed"].includes(activePeriod.status)
-                                ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10"
-                                : "bg-white text-slate-400 border-slate-200"
-                          }`}
-                        >
-                          {["closed"].includes(activePeriod.status) ? (
-                            <Check size={14} strokeWidth={3} />
-                          ) : (
-                            "3"
-                          )}
-                        </div>
-                        <div className="flex flex-col">
-                          <span
-                            className={`text-[13.5px] font-bold ${
+                      {/* Step 3: Admin Phase */}
+                      <div className="flex flex-col gap-2 relative">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
                               activePeriod.status === "admin_phase"
-                                ? "text-purple-600 font-extrabold"
+                                ? "bg-purple-600 text-white border-purple-600 ring-4 ring-purple-100 animate-pulse"
                                 : ["closed"].includes(activePeriod.status)
-                                  ? "text-emerald-600"
-                                  : "text-[#64748B]"
+                                  ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10"
+                                  : "bg-white text-slate-400 border-slate-200"
                             }`}
                           >
-                            P.HSSV phê duyệt
-                          </span>
-                          <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
-                            Hạn: {formatDate(activePeriod.admin_deadline)}
-                          </span>
+                            {["closed"].includes(activePeriod.status) ? (
+                              <Check size={14} strokeWidth={3} />
+                            ) : (
+                              "3"
+                            )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span
+                              className={`text-[13.5px] font-bold ${
+                                activePeriod.status === "admin_phase"
+                                  ? "text-purple-600 font-extrabold"
+                                  : ["closed"].includes(activePeriod.status)
+                                    ? "text-emerald-600"
+                                    : "text-[#64748B]"
+                              }`}
+                            >
+                              P.HSSV phê duyệt
+                            </span>
+                            <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                              Hạn: {formatDate(activePeriod.admin_deadline)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Step 4: Closed */}
-                    <div className="flex flex-col gap-2 relative">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
-                            activePeriod.status === "closed"
-                              ? "bg-rose-600 text-white border-rose-600 ring-4 ring-rose-100 shadow-sm"
-                              : "bg-white text-slate-400 border-slate-200"
-                          }`}
-                        >
-                          {activePeriod.status === "closed" ? (
-                            <Check size={14} strokeWidth={3} />
-                          ) : (
-                            "4"
-                          )}
-                        </div>
-                        <div className="flex flex-col">
-                          <span
-                            className={`text-[13.5px] font-bold ${
+                      {/* Step 4: Closed */}
+                      <div className="flex flex-col gap-2 relative">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
                               activePeriod.status === "closed"
-                                ? "text-rose-600 font-extrabold"
-                                : "text-[#64748B]"
+                                ? "bg-rose-600 text-white border-rose-600 ring-4 ring-rose-100 shadow-sm"
+                                : "bg-white text-slate-400 border-slate-200"
                             }`}
                           >
-                            Khóa điểm
-                          </span>
-                          <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
-                            Đóng cổng đánh giá
-                          </span>
+                            {activePeriod.status === "closed" ? (
+                              <Check size={14} strokeWidth={3} />
+                            ) : (
+                              "4"
+                            )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span
+                              className={`text-[13.5px] font-bold ${
+                                activePeriod.status === "closed"
+                                  ? "text-rose-600 font-extrabold"
+                                  : "text-[#64748B]"
+                              }`}
+                            >
+                              Khóa điểm
+                            </span>
+                            <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                              Đóng cổng đánh giá
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                       <div className="rounded-2xl border border-white/70 bg-white/55 px-4 py-4 shadow-sm">
@@ -1701,10 +1854,14 @@ function GradingScoreContent() {
                         </span>
                         <p
                           className={`mt-2 text-[16px] font-bold ${
-                            canModifyScore ? "text-emerald-700" : "text-rose-700"
+                            canModifyScore
+                              ? "text-emerald-700"
+                              : "text-rose-700"
                           }`}
                         >
-                          {canModifyScore ? "Được phép chấm điểm" : "Chưa được phép chấm điểm"}
+                          {canModifyScore
+                            ? "Được phép chấm điểm"
+                            : "Chưa được phép chấm điểm"}
                         </p>
                         <p className="mt-1 text-[12px] font-medium text-[#64748B]">
                           {rolePermissionLabel}
@@ -1735,128 +1892,130 @@ function GradingScoreContent() {
               ))}
 
             {/* ================= STUDENT HERO SLIDER ================= */}
-            <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-3xl p-5 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4 relative overflow-hidden">
-              <div className="flex items-center justify-between w-full">
-                <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase">
-                  Sinh viên đang chấm điểm
-                </h3>
-                <div className="flex gap-2 items-center">
-                  <button
-                    onClick={() => scrollSlider("left")}
-                    className="w-8 h-8 rounded-full bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
-                    title="Trượt sang trái"
-                  >
-                    <ChevronLeft size={16} strokeWidth={2.5} />
-                  </button>
-                  <button
-                    onClick={() => scrollSlider("right")}
-                    className="w-8 h-8 rounded-full bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
-                    title="Trượt sang phải"
-                  >
-                    <ChevronRight size={16} strokeWidth={2.5} />
-                  </button>
+            {shouldShowStudentSlider && (
+              <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-3xl p-5 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4 relative overflow-hidden">
+                <div className="flex items-center justify-between w-full">
+                  <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase">
+                    Sinh viên đang chấm điểm
+                  </h3>
+                  <div className="flex gap-2 items-center">
+                    <button
+                      onClick={() => scrollSlider("left")}
+                      className="w-8 h-8 rounded-full bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
+                      title="Trượt sang trái"
+                    >
+                      <ChevronLeft size={16} strokeWidth={2.5} />
+                    </button>
+                    <button
+                      onClick={() => scrollSlider("right")}
+                      className="w-8 h-8 rounded-full bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
+                      title="Trượt sang phải"
+                    >
+                      <ChevronRight size={16} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  ref={sliderRef}
+                  onMouseDown={handleSliderMouseDown}
+                  onMouseUp={handleSliderMouseUpOrLeave}
+                  onMouseLeave={handleSliderMouseUpOrLeave}
+                  onMouseMove={handleSliderMouseMove}
+                  className="flex gap-4 overflow-x-auto pl-1 pr-10 py-2.5 custom-scrollbar scroll-smooth cursor-grab select-none"
+                >
+                  {isInitialLoading
+                    ? Array.from({ length: 4 }).map((_, idx) => (
+                        <div
+                          key={`skel-hero-${idx}`}
+                          className="w-[256px] h-[83px] bg-white/50 backdrop-blur-sm rounded-2xl border border-white/60 p-3.5 flex items-center gap-3 animate-pulse shrink-0"
+                        >
+                          <Skeleton className="w-12 h-12 rounded-full bg-slate-100 shrink-0 animate-pulse" />
+                          <div className="flex-1 flex flex-col gap-1.5">
+                            <Skeleton className="h-4 w-3/4 bg-slate-100 rounded" />
+                            <Skeleton className="h-3.5 w-1/2 bg-slate-100 rounded" />
+                          </div>
+                        </div>
+                      ))
+                    : students.map((student, idx) => {
+                        const isActive = student.id === activeStudentId;
+                        const initials = getInitials(student.name);
+
+                        return (
+                          <motion.div
+                            key={student.id || `student-card-${idx}`}
+                            id={`student-card-${student.id}`}
+                            layout="position"
+                            onClick={() => setActiveStudentId(student.id)}
+                            className={`relative bg-white/55 backdrop-blur-sm border-2 rounded-2xl p-[13px] w-[256px] flex gap-[12px] items-center shrink-0 cursor-pointer transition-all duration-200 select-none shadow-sm ${
+                              isActive
+                                ? "border-[#1A73E8] bg-white/80 shadow-[0px_4px_16px_rgba(26,115,232,0.08)] scale-[1.015]"
+                                : "border-white hover:border-slate-300/40 hover:scale-[1.01]"
+                            }`}
+                          >
+                            {/* Avatar container */}
+                            <div className="relative shrink-0 w-12 h-12 rounded-full">
+                              {student.avatarUrl ? (
+                                <div className="absolute inset-0 rounded-full overflow-hidden border border-white/80 ring-2 ring-white">
+                                  <img
+                                    alt={student.name}
+                                    className="object-cover w-full h-full"
+                                    src={student.avatarUrl}
+                                  />
+                                </div>
+                              ) : (
+                                <div
+                                  className={`absolute inset-0 rounded-full flex items-center justify-center font-bold text-[15px] border border-white/80 ring-2 ring-white ${student.colorTheme?.bg} ${student.colorTheme?.text}`}
+                                >
+                                  {initials}
+                                </div>
+                              )}
+
+                              {/* Active Badge Checkmark */}
+                              {isActive && (
+                                <div className="absolute -bottom-1 -right-1 bg-[#1A73E8] text-white border-2 border-white rounded-full w-5 h-5 flex items-center justify-center shadow-md">
+                                  <Check size={11} strokeWidth={3} />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Student Info & Realtime Progress */}
+                            <div className="flex-1 min-w-0 flex flex-col">
+                              <h4
+                                className="font-bold text-[#1E293B] text-[14.5px] truncate"
+                                title={student.name}
+                              >
+                                {student.name}
+                              </h4>
+                              <span className="text-[#64748B] text-[11px] font-medium mt-0.5">
+                                MSSV: {student.id}
+                              </span>
+
+                              {/* Realtime progress bar */}
+                              <div className="flex gap-2.5 items-center mt-1.5">
+                                <div className="bg-[#EBF2FA] flex-1 h-[5px] rounded-full overflow-hidden border border-white/20">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${student.score}%` }}
+                                    transition={{
+                                      type: "spring",
+                                      stiffness: 80,
+                                      damping: 15,
+                                    }}
+                                    className="bg-[#1A73E8] h-full rounded-full"
+                                  />
+                                </div>
+                                <span className="font-bold text-[#1A73E8] text-[9.5px] tracking-wide shrink-0">
+                                  {student.score}/100
+                                </span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
                 </div>
               </div>
-
-              <div
-                ref={sliderRef}
-                onMouseDown={handleSliderMouseDown}
-                onMouseUp={handleSliderMouseUpOrLeave}
-                onMouseLeave={handleSliderMouseUpOrLeave}
-                onMouseMove={handleSliderMouseMove}
-                className="flex gap-4 overflow-x-auto pl-1 pr-10 py-2.5 custom-scrollbar scroll-smooth cursor-grab select-none"
-              >
-                {isInitialLoading
-                  ? Array.from({ length: 4 }).map((_, idx) => (
-                      <div
-                        key={`skel-hero-${idx}`}
-                        className="w-[256px] h-[83px] bg-white/50 backdrop-blur-sm rounded-2xl border border-white/60 p-3.5 flex items-center gap-3 animate-pulse shrink-0"
-                      >
-                        <Skeleton className="w-12 h-12 rounded-full bg-slate-100 shrink-0 animate-pulse" />
-                        <div className="flex-1 flex flex-col gap-1.5">
-                          <Skeleton className="h-4 w-3/4 bg-slate-100 rounded" />
-                          <Skeleton className="h-3.5 w-1/2 bg-slate-100 rounded" />
-                        </div>
-                      </div>
-                    ))
-                  : students.map((student) => {
-                      const isActive = student.id === activeStudentId;
-                      const initials = getInitials(student.name);
-
-                      return (
-                        <motion.div
-                          key={student.id}
-                          id={`student-card-${student.id}`}
-                          layout="position"
-                          onClick={() => setActiveStudentId(student.id)}
-                          className={`relative bg-white/55 backdrop-blur-sm border-2 rounded-2xl p-[13px] w-[256px] flex gap-[12px] items-center shrink-0 cursor-pointer transition-all duration-200 select-none shadow-sm ${
-                            isActive
-                              ? "border-[#1A73E8] bg-white/80 shadow-[0px_4px_16px_rgba(26,115,232,0.08)] scale-[1.015]"
-                              : "border-white hover:border-slate-300/40 hover:scale-[1.01]"
-                          }`}
-                        >
-                          {/* Avatar container */}
-                          <div className="relative shrink-0 w-12 h-12 rounded-full">
-                            {student.avatarUrl ? (
-                              <div className="absolute inset-0 rounded-full overflow-hidden border border-white/80 ring-2 ring-white">
-                                <img
-                                  alt={student.name}
-                                  className="object-cover w-full h-full"
-                                  src={student.avatarUrl}
-                                />
-                              </div>
-                            ) : (
-                              <div
-                                className={`absolute inset-0 rounded-full flex items-center justify-center font-bold text-[15px] border border-white/80 ring-2 ring-white ${student.colorTheme?.bg} ${student.colorTheme?.text}`}
-                              >
-                                {initials}
-                              </div>
-                            )}
-
-                            {/* Active Badge Checkmark */}
-                            {isActive && (
-                              <div className="absolute -bottom-1 -right-1 bg-[#1A73E8] text-white border-2 border-white rounded-full w-5 h-5 flex items-center justify-center shadow-md">
-                                <Check size={11} strokeWidth={3} />
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Student Info & Realtime Progress */}
-                          <div className="flex-1 min-w-0 flex flex-col">
-                            <h4
-                              className="font-bold text-[#1E293B] text-[14.5px] truncate"
-                              title={student.name}
-                            >
-                              {student.name}
-                            </h4>
-                            <span className="text-[#64748B] text-[11px] font-medium mt-0.5">
-                              MSSV: {student.id}
-                            </span>
-
-                            {/* Realtime progress bar */}
-                            <div className="flex gap-2.5 items-center mt-1.5">
-                              <div className="bg-[#EBF2FA] flex-1 h-[5px] rounded-full overflow-hidden border border-white/20">
-                                <motion.div
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${student.score}%` }}
-                                  transition={{
-                                    type: "spring",
-                                    stiffness: 80,
-                                    damping: 15,
-                                  }}
-                                  className="bg-[#1A73E8] h-full rounded-full"
-                                />
-                              </div>
-                              <span className="font-bold text-[#1A73E8] text-[9.5px] tracking-wide shrink-0">
-                                {student.score}/100
-                              </span>
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-              </div>
-            </div>
+            )}
 
             {/* ================= NAVIGATION TABS (Danh mục / Lịch sử) ================= */}
             <div className="flex bg-white/40 backdrop-blur-md border border-white/70 rounded-full p-1.5 gap-2 self-start shrink-0 shadow-sm">

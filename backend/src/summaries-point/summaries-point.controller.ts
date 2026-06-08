@@ -7,15 +7,20 @@ import {
   Param,
   Delete,
   Res,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { SummariesPointService } from './summaries-point.service';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import * as express from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('summaries-points')
 @Controller('summaries-points')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class SummariesPointController {
   constructor(private readonly summariesPointService: SummariesPointService) {}
 
@@ -26,8 +31,11 @@ export class SummariesPointController {
     description: 'Điểm tổng kết được tạo thành công.',
   })
   @ApiResponse({ status: 400, description: 'Dữ liệu đầu vào không hợp lệ.' })
-  create(@Body() createSummaryPointDto: CreateSummaryPointDto) {
-    return this.summariesPointService.create(createSummaryPointDto);
+  create(
+    @Body() createSummaryPointDto: CreateSummaryPointDto,
+    @Request() req: any,
+  ) {
+    return this.summariesPointService.create(createSummaryPointDto, req.user);
   }
 
   @Post('export-pdf')
@@ -75,8 +83,8 @@ export class SummariesPointController {
     status: 200,
     description: 'Trả về mảng danh sách điểm tổng kết.',
   })
-  findAll() {
-    return this.summariesPointService.findAll();
+  findAll(@Request() req: any) {
+    return this.summariesPointService.findAll(req.user);
   }
 
   @Get(':id')
@@ -86,8 +94,8 @@ export class SummariesPointController {
     description: 'Trả về dữ liệu chi tiết điểm tổng kết.',
   })
   @ApiResponse({ status: 404, description: 'Không tìm thấy điểm tổng kết.' })
-  findOne(@Param('id') id: string) {
-    return this.summariesPointService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req: any) {
+    return this.summariesPointService.findOne(id, req.user);
   }
 
   @Patch(':id')
@@ -97,15 +105,16 @@ export class SummariesPointController {
   update(
     @Param('id') id: string,
     @Body() updateSummaryPointDto: UpdateSummaryPointDto,
+    @Request() req: any,
   ) {
-    return this.summariesPointService.update(id, updateSummaryPointDto);
+    return this.summariesPointService.update(id, updateSummaryPointDto, req.user);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Xóa điểm tổng kết bằng ID' })
   @ApiResponse({ status: 200, description: 'Xóa điểm tổng kết thành công.' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy điểm tổng kết.' })
-  remove(@Param('id') id: string) {
-    return this.summariesPointService.remove(id);
+  remove(@Param('id') id: string, @Request() req: any) {
+    return this.summariesPointService.remove(id, req.user);
   }
 }

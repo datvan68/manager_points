@@ -44,8 +44,8 @@ export class EvaluationDetailController {
     status: 200,
     description: 'Trả về danh sách chi tiết chấm điểm.',
   })
-  findAll() {
-    return this.evaluationDetailService.findAll();
+  findAll(@Request() req: any) {
+    return this.evaluationDetailService.findAll(req.user);
   }
 
   @Get('pre-counts/:summaryId')
@@ -70,8 +70,8 @@ export class EvaluationDetailController {
     status: 404,
     description: 'Không tìm thấy chi tiết chấm điểm.',
   })
-  findOne(@Param('id') id: string) {
-    return this.evaluationDetailService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req: any) {
+    return this.evaluationDetailService.findOne(id, req.user);
   }
 
   @Get('summary/:summaryId')
@@ -82,8 +82,8 @@ export class EvaluationDetailController {
     status: 200,
     description: 'Trả về danh sách chi tiết chấm điểm của bảng tổng kết.',
   })
-  findBySummaryId(@Param('summaryId') summaryId: string) {
-    return this.evaluationDetailService.findBySummaryId(summaryId);
+  findBySummaryId(@Param('summaryId') summaryId: string, @Request() req: any) {
+    return this.evaluationDetailService.findBySummaryId(summaryId, req.user);
   }
 
   @Patch(':id')

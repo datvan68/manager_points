@@ -503,6 +503,11 @@ export class AuthService implements OnModuleInit {
         name: 'Xem báo cáo doanh thu',
         module: 'Tài chính & Kế toán (Finance)',
       },
+      {
+        code: 'GRADING_SEMESTER_MANAGE',
+        name: 'Quản lý học kỳ rèn luyện',
+        module: 'Rèn luyện',
+      },
     ];
 
     const createdPerms: Record<string, Types.ObjectId> = {};
@@ -534,7 +539,7 @@ export class AuthService implements OnModuleInit {
         name: 'Supervisor',
         role_code: 'SUPERVISOR',
         description: 'Quản sinh và giám sát rèn luyện',
-        permissions: [],
+        permissions: [createdPerms['GRADING_SEMESTER_MANAGE']],
       },
       {
         name: 'Student',

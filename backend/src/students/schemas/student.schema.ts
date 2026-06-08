@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 import { Class } from '../../classes/schemas/class.schema';
+import { User } from '../../auth/schemas/user.schema';
 
 export type StudentDocument = Student & Document;
 
@@ -33,6 +34,14 @@ export class Student {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'TrainingPoint' })
   training_point_id: any;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    unique: true,
+    sparse: true,
+  })
+  user_id?: User;
 }
 
 export const StudentSchema = SchemaFactory.createForClass(Student);

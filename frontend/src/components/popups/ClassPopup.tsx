@@ -89,19 +89,28 @@ export default function ClassPopup({
       if (initialData) {
         // Trích xuất ID string nếu teacherId là một Object được populate từ backend
         let extractedTeacherId = "";
-        if (initialData.teacherId) {
-          if (typeof initialData.teacherId === "object") {
-            extractedTeacherId = initialData.teacherId._id || initialData.teacherId.id || "";
+        const initialTeacher = initialData.teacherId || initialData.user_id || initialData.advisor_id;
+        if (initialTeacher) {
+          if (typeof initialTeacher === "object") {
+            extractedTeacherId = initialTeacher._id || initialTeacher.id || "";
           } else {
-            extractedTeacherId = initialData.teacherId;
+            extractedTeacherId = initialTeacher;
           }
         }
 
+        const initialDepartment =
+          typeof initialData.departmentId === "object"
+            ? initialData.departmentId._id || initialData.departmentId.id || ""
+            : initialData.departmentId ||
+              (typeof initialData.dept_id === "object"
+                ? initialData.dept_id._id || initialData.dept_id.id || ""
+                : initialData.dept_id || "");
+
         reset({
-          name: initialData.name || "",
-          year: initialData.year || "",
-          departmentId: initialData.departmentId || "",
-          degreeLevel: initialData.degreeLevel || "Trung cấp",
+          name: initialData.name || initialData.class_name || "",
+          year: initialData.year || initialData.class_year || "",
+          departmentId: initialDepartment,
+          degreeLevel: initialData.degreeLevel || initialData.class_type || initialData.class_course || "Trung cấp",
           headquarters: initialData.headquarters || "",
           teacherId: extractedTeacherId,
         });
@@ -125,9 +134,9 @@ export default function ClassPopup({
         class_name: data.name,
         class_year: data.year,
         dept_id: data.departmentId,
-        class_type: data.degreeLevel,
-        headquarters: data.headquarters || null,
-        user_id: data.teacherId || null,
+        class_course: data.degreeLevel,
+        ...(data.headquarters ? { headquarters: data.headquarters } : {}),
+        ...(data.teacherId ? { advisor_id: data.teacherId } : {}),
       };
 
       if (initialData && initialData._id) {

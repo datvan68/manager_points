@@ -22,6 +22,8 @@ import {
   User,
   UserSchema,
 } from '../auth/schemas/user.schema';
+import { Student, StudentSchema } from '../students/schemas/student.schema';
+import { Class, ClassSchema } from '../classes/schemas/class.schema';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import {
       { name: Criterion.name, schema: CriterionSchema },
       { name: SummaryPoint.name, schema: SummaryPointSchema },
       { name: User.name, schema: UserSchema },
+      { name: Student.name, schema: StudentSchema },
+      { name: Class.name, schema: ClassSchema },
     ]),
   ],
   controllers: [EvaluationDetailController],

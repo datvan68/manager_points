@@ -11,22 +11,33 @@ export class ClassesService {
     @InjectModel(Class.name) private classModel: Model<ClassDocument>,
   ) {}
 
+  private isTeacher(requester?: any) {
+    const role = (requester?.roleName || '').toLowerCase();
+    return role.includes('teacher') || role.includes('advisor');
+  }
+
   async create(createClassDto: CreateClassDto): Promise<Class> {
     const newClass = new this.classModel(createClassDto);
     return newClass.save();
   }
 
-  async findAll(): Promise<Class[]> {
+  async findAll(requester?: any): Promise<Class[]> {
+    const filter = this.isTeacher(requester)
+      ? { advisor_id: requester.userId }
+      : {};
+
     return this.classModel
-      .find()
+      .find(filter)
       .populate('dept_id', 'name code')
       .populate('advisor_id', 'user_name email')
       .exec();
   }
 
-  async findOne(id: string): Promise<Class> {
-    const classEntity = await this.classModel
-      .findById(id)
+  async findOne(id: string, requester?: any): Promise<Class> {
+    const query = this.isTeacher(requester)
+      ? this.classModel.findOne({ _id: id, advisor_id: requester.userId })
+      : this.classModel.findById(id);
+    const classEntity = await query
       .populate('dept_id', 'name code')
       .populate('advisor_id', 'user_name email')
       .exec();

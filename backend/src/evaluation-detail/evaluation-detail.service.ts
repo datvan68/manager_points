@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -20,6 +20,8 @@ import {
   SummaryPointDocument,
 } from '../summaries-point/schemas/summary-point.schema';
 import { User, UserDocument } from '../auth/schemas/user.schema';
+import { Student, StudentDocument } from '../students/schemas/student.schema';
+import { Class, ClassDocument } from '../classes/schemas/class.schema';
 
 @Injectable()
 export class EvaluationDetailService {
@@ -32,7 +34,63 @@ export class EvaluationDetailService {
     private readonly summaryPointModel: Model<SummaryPointDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(Student.name)
+    private readonly studentModel: Model<StudentDocument>,
+    @InjectModel(Class.name)
+    private readonly classModel: Model<ClassDocument>,
   ) {}
+
+  private isTeacher(requester?: any) {
+    const role = (requester?.roleName || '').toLowerCase();
+    return role.includes('teacher') || role.includes('advisor');
+  }
+
+  private async getTeacherClassIds(requester?: any) {
+    if (!this.isTeacher(requester) || !requester?.userId) return null;
+
+    const classes = await this.classModel
+      .find({ advisor_id: requester.userId })
+      .select('_id')
+      .lean()
+      .exec();
+
+    return classes.map((cls) => cls._id);
+  }
+
+  private async getTeacherStudentIds(requester?: any) {
+    const teacherClassIds = await this.getTeacherClassIds(requester);
+    if (!teacherClassIds) return null;
+
+    const students = await this.studentModel
+      .find({ class_id: { $in: teacherClassIds } } as any)
+      .select('_id')
+      .lean()
+      .exec();
+
+    return students.map((student) => student._id);
+  }
+
+  private async getSummaryScopeFilter(requester?: any) {
+    const teacherStudentIds = await this.getTeacherStudentIds(requester);
+    return teacherStudentIds
+      ? ({ student_id: { $in: teacherStudentIds } } as any)
+      : {};
+  }
+
+  private async assertCanAccessSummary(summaryId: string, requester?: any) {
+    const teacherStudentIds = await this.getTeacherStudentIds(requester);
+    if (!teacherStudentIds) return;
+
+    const summary = await this.summaryPointModel
+      .findOne({ _id: summaryId, student_id: { $in: teacherStudentIds } } as any)
+      .select('_id')
+      .lean()
+      .exec();
+
+    if (!summary) {
+      throw new ForbiddenException('Bạn không có quyền thao tác chi tiết điểm ngoài lớp GVCN.');
+    }
+  }
 
   private getRoleLevel(roleName?: string): number {
     if (!roleName) return 1;
@@ -204,6 +262,7 @@ export class EvaluationDetailService {
     requester?: any,
   ): Promise<EvaluationDetail> {
     const { summary_id, criterion_id, current_count, ...rest } = createEvaluationDetailDto;
+    await this.assertCanAccessSummary(summary_id, requester);
 
     const summary = await this.summaryPointModel.findById(summary_id).exec();
     if (!summary) {
@@ -268,19 +327,22 @@ export class EvaluationDetailService {
     return newDetail;
   }
 
-  async findAll(): Promise<EvaluationDetail[]> {
-    const summaries = await this.summaryPointModel.find().exec();
+  async findAll(requester?: any): Promise<EvaluationDetail[]> {
+    const scopeFilter = await this.getSummaryScopeFilter(requester);
+    const summaries = await this.summaryPointModel.find(scopeFilter).exec();
     return summaries.flatMap((s) => s.details || []);
   }
 
-  async findOne(id: string): Promise<EvaluationDetail> {
+  async findOne(id: string, requester?: any): Promise<EvaluationDetail> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
     }
 
+    const scopeFilter = await this.getSummaryScopeFilter(requester);
     const summary = await this.summaryPointModel.findOne({
+      ...scopeFilter,
       'details._id': new Types.ObjectId(id),
-    }).exec();
+    } as any).exec();
 
     if (!summary) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
@@ -290,11 +352,12 @@ export class EvaluationDetailService {
     return detail;
   }
 
-  async findBySummaryId(summaryId: string): Promise<EvaluationDetail[]> {
+  async findBySummaryId(summaryId: string, requester?: any): Promise<EvaluationDetail[]> {
     if (!Types.ObjectId.isValid(summaryId)) {
       throw new NotFoundException(`SummaryPoint with ID ${summaryId} not found`);
     }
 
+    await this.assertCanAccessSummary(summaryId, requester);
     const summary = await this.summaryPointModel.findById(summaryId).exec();
     return summary ? summary.details || [] : [];
   }
@@ -315,6 +378,7 @@ export class EvaluationDetailService {
     if (!summary) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
     }
+    await this.assertCanAccessSummary(summary._id.toString(), requester);
 
     const detailIndex = summary.details.findIndex((d: any) => d._id.toString() === id);
     const detail = summary.details[detailIndex];
@@ -415,6 +479,7 @@ export class EvaluationDetailService {
     if (!summary) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
     }
+    await this.assertCanAccessSummary(summary._id.toString(), requester);
 
     const detailIndex = summary.details.findIndex((d: any) => d._id.toString() === id);
     const deletedDetail = summary.details[detailIndex];

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -7,24 +7,97 @@ import {
 } from './schemas/summary-point.schema';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
+import { Student, StudentDocument } from '../students/schemas/student.schema';
+import { Class, ClassDocument } from '../classes/schemas/class.schema';
 
 @Injectable()
 export class SummariesPointService {
   constructor(
     @InjectModel(SummaryPoint.name)
     private readonly summaryPointModel: Model<SummaryPointDocument>,
+    @InjectModel(Student.name)
+    private readonly studentModel: Model<StudentDocument>,
+    @InjectModel(Class.name)
+    private readonly classModel: Model<ClassDocument>,
   ) {}
+
+  private isTeacher(requester?: any) {
+    const role = (requester?.roleName || '').toLowerCase();
+    return role.includes('teacher') || role.includes('advisor');
+  }
+
+  private async getTeacherClassIds(requester?: any) {
+    if (!this.isTeacher(requester) || !requester?.userId) return null;
+
+    const classes = await this.classModel
+      .find({ advisor_id: requester.userId })
+      .select('_id')
+      .lean()
+      .exec();
+
+    return classes.map((cls) => cls._id);
+  }
+
+  private async getTeacherStudentIds(requester?: any) {
+    const teacherClassIds = await this.getTeacherClassIds(requester);
+    if (!teacherClassIds) return null;
+
+    const students = await this.studentModel
+      .find({ class_id: { $in: teacherClassIds } } as any)
+      .select('_id')
+      .lean()
+      .exec();
+
+    return students.map((student) => student._id);
+  }
+
+  private async assertCanAccessStudent(studentId: string, requester?: any) {
+    const teacherClassIds = await this.getTeacherClassIds(requester);
+    if (!teacherClassIds) return;
+
+    const student = await this.studentModel
+      .findOne({ _id: studentId, class_id: { $in: teacherClassIds } } as any)
+      .select('_id')
+      .lean()
+      .exec();
+
+    if (!student) {
+      throw new ForbiddenException('Bạn không có quyền thao tác bảng điểm của sinh viên ngoài lớp GVCN.');
+    }
+  }
+
+  private async assertCanAccessSummary(summaryId: string, requester?: any) {
+    const teacherStudentIds = await this.getTeacherStudentIds(requester);
+    if (!teacherStudentIds) return;
+
+    const summary = await this.summaryPointModel
+      .findOne({ _id: summaryId, student_id: { $in: teacherStudentIds } } as any)
+      .select('_id')
+      .lean()
+      .exec();
+
+    if (!summary) {
+      throw new ForbiddenException('Bạn không có quyền thao tác bảng điểm ngoài lớp GVCN.');
+    }
+  }
 
   async create(
     createSummaryPointDto: CreateSummaryPointDto,
+    requester?: any,
   ): Promise<SummaryPoint> {
+    await this.assertCanAccessStudent(createSummaryPointDto.student_id, requester);
     const created = new this.summaryPointModel(createSummaryPointDto);
     return created.save();
   }
 
-  async findAll(): Promise<SummaryPoint[]> {
+  async findAll(requester?: any): Promise<SummaryPoint[]> {
+    const teacherStudentIds = await this.getTeacherStudentIds(requester);
+    const filter: any = teacherStudentIds
+      ? { student_id: { $in: teacherStudentIds } }
+      : {};
+
     return this.summaryPointModel
-      .find()
+      .find(filter)
       .populate('student_id')
       .populate('semester_id')
       .populate('period_id')
@@ -32,7 +105,8 @@ export class SummariesPointService {
       .exec();
   }
 
-  async findOne(id: string): Promise<SummaryPoint> {
+  async findOne(id: string, requester?: any): Promise<SummaryPoint> {
+    await this.assertCanAccessSummary(id, requester);
     const summaryPoint = await this.summaryPointModel
       .findById(id)
       .populate('student_id')
@@ -49,7 +123,13 @@ export class SummariesPointService {
   async update(
     id: string,
     updateSummaryPointDto: UpdateSummaryPointDto,
+    requester?: any,
   ): Promise<SummaryPoint> {
+    await this.assertCanAccessSummary(id, requester);
+    if (updateSummaryPointDto.student_id) {
+      await this.assertCanAccessStudent(updateSummaryPointDto.student_id, requester);
+    }
+
     const updated = await this.summaryPointModel
       .findByIdAndUpdate(id, updateSummaryPointDto, { returnDocument: 'after' })
       .populate('student_id')
@@ -63,7 +143,8 @@ export class SummariesPointService {
     return updated;
   }
 
-  async remove(id: string): Promise<SummaryPoint> {
+  async remove(id: string, requester?: any): Promise<SummaryPoint> {
+    await this.assertCanAccessSummary(id, requester);
     const deleted = await this.summaryPointModel.findByIdAndDelete(id).exec();
     if (!deleted) {
       throw new NotFoundException(`SummaryPoint with ID ${id} not found`);
