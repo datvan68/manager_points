@@ -93,7 +93,7 @@ function GhiNhanTab() {
     editClassRecord: "UPDATE_CLASS_RECORD",
     deleteClassRecord: "DELETE_CLASS_RECORD",
 
-    configRecord: "CONFIG_RECORD",
+    configRecord: "CONFIG_RECORD"
   });
 
   const currentUserId = String(user?.id || "");

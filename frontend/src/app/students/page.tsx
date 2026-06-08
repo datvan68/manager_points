@@ -32,8 +32,9 @@ import { studentApi, Student } from "@/api/student-api";
 
 function StudentsPageContent() {
   const router = useRouter();
-  const { canCreateDept, canCreateClass } = usePermission({
+  const permissions = usePermission({
     canCreateDept: "DEPT_CREATE",
+
     canCreateClass: "CLASS_CREATE",
   });
 
@@ -393,7 +394,7 @@ function StudentsPageContent() {
                   );
                 })}
 
-                {canCreateDept && (
+                {permissions.canCreateDept && (
                   <button
                     onClick={() => {
                       setEditingDept(null);
@@ -439,7 +440,7 @@ function StudentsPageContent() {
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
-                    {canCreateClass && (
+                    {permissions.canCreateClass && (
                       <Button
                         onClick={() => {
                           setEditingClass({ departmentId: selectedDept });

@@ -57,6 +57,10 @@ function PermissionsPageContent() {
   // State cho việc chọn hàng loạt User
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
+  // Pagination for users table
+  const USER_PAGE_SIZE = 20;
+  const [userCurrentPage, setUserCurrentPage] = useState(1);
+
   const toggleSelectUser = (userId: string) => {
     setSelectedUserIds(prev => 
       prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
@@ -515,6 +519,25 @@ function PermissionsPageContent() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  // Pagination derived data for users table
+  const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / USER_PAGE_SIZE));
+  React.useEffect(() => {
+    // Reset to first page when searching or filtering
+    setUserCurrentPage(1);
+  }, [searchTerm, filterRole, filterStatuses]);
+
+  // If current page is out of range after filters change, bring it back
+  React.useEffect(() => {
+    if (userCurrentPage > totalUserPages) {
+      setUserCurrentPage(totalUserPages);
+    }
+  }, [filteredUsers.length, totalUserPages, userCurrentPage]);
+
+  const paginatedUsers = filteredUsers.slice(
+    (userCurrentPage - 1) * USER_PAGE_SIZE,
+    userCurrentPage * USER_PAGE_SIZE,
+  );
+
   return (
     <div className="flex bg-slate-50 h-screen overflow-hidden font-sans">
       <Sidebar />
@@ -690,8 +713,8 @@ function PermissionsPageContent() {
                         <th className="px-6 py-3 w-12">
                           <input 
                             type="checkbox" 
-                            checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedUserIds.includes(u._id || u.id))}
-                            onChange={() => toggleSelectAllUsers(filteredUsers)}
+                            checked={paginatedUsers.length > 0 && paginatedUsers.every(u => selectedUserIds.includes(u._id || u.id))}
+                            onChange={() => toggleSelectAllUsers(paginatedUsers)}
                             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer" 
                           />
                         </th>
@@ -704,7 +727,7 @@ function PermissionsPageContent() {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {isDataLoading ? (
-                        Array.from({ length: 5 }).map((_, i) => (
+                        Array.from({ length: USER_PAGE_SIZE }).map((_, i) => (
                           <tr key={i}>
                             <td className="px-6 py-3 border-b border-gray-50"><Skeleton className="w-4 h-4 rounded" /></td>
                             <td className="px-6 py-3 border-b border-gray-50">
@@ -741,7 +764,7 @@ function PermissionsPageContent() {
                         ))
                       ) : (
                         <AnimatePresence>
-                          {filteredUsers.map((user, idx) => (
+                          {paginatedUsers.map((user, idx) => (
                             <motion.tr
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
@@ -812,11 +835,12 @@ function PermissionsPageContent() {
 
                 {/* Footer Pagination */}
                 <CustomPagination
-                  currentPage={1}
-                  pageSize={10}
+                  currentPage={userCurrentPage}
+                  pageSize={USER_PAGE_SIZE}
                   totalItems={filteredUsers.length}
-                  onPageChange={() => { }}
+                  onPageChange={setUserCurrentPage}
                   label="người"
+                  isLoading={isDataLoading}
                 />
               </>
             )}

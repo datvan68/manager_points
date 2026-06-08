@@ -35,6 +35,7 @@ import {
 import StudentPopup from '@/components/popups/StudentPopup';
 import ImportStudentPopup from '@/components/popups/ImportStudentPopup';
 import Action from '@/components/ui/Action';
+import { RouteGuard, usePermission } from '@/components/guards/RouteGuard';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { StudentAvatar } from '@/components/ui/StudentAvatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,10 +43,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CustomPagination } from '@/components/ui/pagination';
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
 
+
 function ClassStudentsPageContent() {
     const router = useRouter();
     const params = useParams();
     const classId = params.classId as string;
+    const permissions = usePermission({
+        canCreateStudent: 'STUDENT_CREATE',
+        canImportStudent: 'STUDENT_IMPORT',
+        canExportStudent: 'STUDENT_EXPORT',
+        canActivateStudentAccount: 'STUDENT_ACCOUNT_ACTIVATE',
+        canTransferStudent: 'STUDENT_TRANSFER',
+        canUpdateStudent: 'STUDENT_UPDATE',
+        canDeleteStudent: 'STUDENT_DELETE',
+    });
+
 
     const [activeTab, setActiveTab] = useState('Tất cả');
     const [searchTerm, setSearchTerm] = useState('');
@@ -420,18 +432,22 @@ function ClassStudentsPageContent() {
                                 </div>
 
                                 <div className="flex-1" />
+                                {permissions.canImportStudent && (
                                 <button
                                     onClick={() => setIsImportPopupOpen(true)}
                                     className="flex items-center gap-2 px-[10px] py-[7px] text-[14px] font-bold text-[#475569] border border-gray-200 hover:bg-gray-50 rounded-[10px] hover:text-slate-700 shadow-sm transition-colors z-10 whitespace-nowrap bg-white"
                                 >
                                     <Download className="w-4 h-4" /> Import
                                 </button>
+                                )}
+                                {permissions.canCreateStudent && (
                                 <button
                                     onClick={() => { setEditingStudent(null); setIsStudentPopupOpen(true); }}
                                     className="flex items-center gap-2 px-[10px] py-[7px] text-[14px] font-bold text-white bg-[#155dfc] rounded-[10px] hover:bg-blue-700 shadow-sm transition-colors z-10 whitespace-nowrap"
                                 >
                                     <Plus className="w-4 h-4" /> Thêm sinh viên
                                 </button>
+                                )}
                             </div>
                         </div>
 
@@ -449,7 +465,7 @@ function ClassStudentsPageContent() {
                                     />
                                 </div>
 
-                                {selectedStudentIds.length > 0 && (
+                                {selectedStudentIds.length > 0 && permissions.canDeleteStudent && (
                                     <button
                                         onClick={handleDelete}
                                         disabled={isDataLoading}
@@ -585,6 +601,9 @@ function ClassStudentsPageContent() {
                                                                     onView={() => setOpenDrawerId(student._id)}
                                                                     onEdit={() => handleEditStudent(student)}
                                                                     onDelete={() => handleDeleteSingle(student._id, student.full_name)}
+                                                                    permissionView="STUDENT_READ"
+                                                                    permissionEdit="STUDENT_UPDATE"
+                                                                    permissionDelete="STUDENT_DELETE"
                                                                 />
                                                             </div>
                                                         </td>
@@ -755,10 +774,13 @@ function ClassStudentsPageContent() {
 
                             <div className="flex flex-col gap-4">
                                 <h4 className="text-sm font-bold text-[#135bec] uppercase tracking-wider">Hành động</h4>
+                                {permissions.canTransferStudent && (
                                 <button className="flex items-center justify-center gap-2 w-full py-3 bg-[#eff6ff] text-[#135bec] rounded-xl font-bold text-sm">
                                     <ArrowRightLeft className="w-5 h-5" /> Chuyển lớp
                                 </button>
+                                )}
                                 <div className="flex gap-3">
+                                    {permissions.canUpdateStudent && (
                                     <button
                                         onClick={() => {
                                             handleEditStudent(drawerStudent);
@@ -768,6 +790,8 @@ function ClassStudentsPageContent() {
                                     >
                                         <Edit className="w-4 h-4" /> Sửa
                                     </button>
+                                    )}
+                                    {permissions.canDeleteStudent && (
                                     <button
                                         onClick={() => {
                                             handleDeleteSingle(drawerStudent._id, drawerStudent.full_name);
@@ -777,6 +801,7 @@ function ClassStudentsPageContent() {
                                     >
                                         <Trash2 className="w-4 h-4" /> Xóa
                                     </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -790,13 +815,16 @@ function ClassStudentsPageContent() {
                 variant="light"
                 actions={
                     <>
+                        {permissions.canExportStudent && (
                         <button
                             onClick={handleExport}
                             className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-slate-600 bg-white/80 border border-slate-200 rounded-full hover:bg-slate-50 transition-all select-none shadow-sm"
                         >
                             <Download className="w-3.5 h-3.5" /> Xuất file
                         </button>
+                        )}
 
+                        {permissions.canActivateStudentAccount && (
                         <button
                             onClick={handleActivateAccounts}
                             disabled={isDataLoading}
@@ -805,6 +833,7 @@ function ClassStudentsPageContent() {
                             {isDataLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
                             Kích hoạt
                         </button>
+                        )}
                     </>
                 }
             />
@@ -816,7 +845,9 @@ function ClassStudentsPageContent() {
 export default function ClassStudentsPage() {
     return (
         <Suspense fallback={<div className="flex h-screen items-center justify-center bg-gray-50 text-gray-400">Loading students...</div>}>
+            <RouteGuard requiredPermission="STUDENT_PAGE">
             <ClassStudentsPageContent />
+            </RouteGuard>
         </Suspense>
     );
 }

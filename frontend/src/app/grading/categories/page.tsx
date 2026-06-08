@@ -41,6 +41,9 @@ export default function CategoriesPage() {
     ...(isAdminOrSupervisor ? [{ id: 'reports', label: 'Danh mục' }] : []),
   ];
 
+  // Reusable glass card class per design tokens
+  const glassCardClass = 'bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 p-4';
+
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
 
@@ -590,7 +593,7 @@ export default function CategoriesPage() {
           background: rgba(156, 163, 175, 0.4);
         }
       `}</style>
-      <div className="flex h-screen bg-[#f6f7f8] font-sans">
+      <div className="flex h-screen bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] font-sans">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <Header />
@@ -609,13 +612,13 @@ export default function CategoriesPage() {
 
           <main className="flex-1 p-4 md:px-8 flex flex-col gap-3 w-full overflow-hidden">
             {/* Tab Cấu hình danh mục - Giao diện kéo thả Kanban cao cấp theo Figma */}
-            <div className="flex-1 flex flex-col gap-5 min-h-0 overflow-hidden w-full font-sans">
+            <div className={`${glassCardClass} flex-1 flex flex-col gap-5 min-h-0 overflow-hidden w-full font-sans`}> 
               {/* Header chứa các chỉ số thống kê bento và nút Thêm danh mục đặt chung một hàng flex */}
               <div className="flex items-center justify-between w-full shrink-0 px-1 pt-1 gap-[32px]">
                 {/* Stats Row */}
                 <div className="flex flex-1 gap-[12px] items-start min-w-px">
                   {/* Tổng số danh mục */}
-                  <div className="bg-white border-[#005bbf] border-l-4 border-solid drop-shadow-[0px_2px_4px_rgba(0,0,0,0.04)] flex flex-1 flex-col items-start min-w-px pl-[4px] relative rounded-[8px] w-full" data-node-id="479:2005">
+                  <div className={`${glassCardClass} flex flex-1 flex-col items-start min-w-px relative w-full`} data-node-id="479:2005">
                     <div className="relative shrink-0 w-full">
                       <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
                         <div className="flex flex-col items-start relative shrink-0">
@@ -626,7 +629,7 @@ export default function CategoriesPage() {
                         <div className="flex flex-col items-start relative shrink-0">
                           <span className="font-sans font-bold text-[#005bbf] text-[18px] leading-[27px] whitespace-nowrap min-h-[27px] flex items-center">
                             {isInitialLoading ? (
-                              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded" />
+                              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
                             ) : (
                               categories.length
                             )}
@@ -637,7 +640,7 @@ export default function CategoriesPage() {
                   </div>
 
                   {/* Tiêu chí khen thưởng */}
-                  <div className="bg-white border-[#006d2b] border-l-4 border-solid drop-shadow-[0px_2px_4px_rgba(0,0,0,0.04)] flex flex-1 flex-col items-start min-w-px pl-[4px] relative rounded-[8px] w-full" data-node-id="479:2011">
+                  <div className={`${glassCardClass} flex flex-1 flex-col items-start min-w-px relative w-full`} data-node-id="479:2011">
                     <div className="relative shrink-0 w-full">
                       <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
                         <div className="flex flex-col items-start relative shrink-0">
@@ -648,7 +651,7 @@ export default function CategoriesPage() {
                         <div className="flex flex-col items-start relative shrink-0">
                           <span className="font-sans font-bold text-[#006d2b] text-[18px] leading-[27px] whitespace-nowrap min-h-[27px] flex items-center">
                             {isInitialLoading ? (
-                              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded" />
+                              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
                             ) : (
                               criteria.filter(c => c.type === 'khen_thuong' || c.type === 'cong_diem').length
                             )}
@@ -659,7 +662,7 @@ export default function CategoriesPage() {
                   </div>
 
                   {/* Tiêu chí kỷ luật */}
-                  <div className="bg-white border-[#ba1a1a] border-l-4 border-solid drop-shadow-[0px_2px_4px_rgba(0,0,0,0.04)] flex flex-1 flex-col items-start min-w-px pl-[4px] relative rounded-[8px] w-full" data-node-id="479:2017">
+                  <div className={`${glassCardClass} flex flex-1 flex-col items-start min-w-px relative w-full`} data-node-id="479:2017">
                     <div className="relative shrink-0 w-full">
                       <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
                         <div className="flex flex-col items-start relative shrink-0">
@@ -670,7 +673,7 @@ export default function CategoriesPage() {
                         <div className="flex flex-col items-start relative shrink-0">
                           <span className="font-sans font-bold text-[#ba1a1a] text-[18px] leading-[27px] whitespace-nowrap min-h-[27px] flex items-center">
                             {isInitialLoading ? (
-                              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded" />
+                              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
                             ) : (
                               criteria.filter(c => c.type === 'ky_luat').length
                             )}
@@ -681,7 +684,7 @@ export default function CategoriesPage() {
                   </div>
 
                   {/* Điểm tối đa TB */}
-                  <div className="bg-white border-[#f9ab00] border-l-4 border-solid drop-shadow-[0px_2px_4px_rgba(0,0,0,0.04)] flex flex-1 flex-col items-start min-w-px pl-[4px] relative rounded-[8px] w-full" data-node-id="479:2023">
+                  <div className={`${glassCardClass} flex flex-1 flex-col items-start min-w-px relative w-full`} data-node-id="479:2023">
                     <div className="relative shrink-0 w-full">
                       <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
                         <div className="flex flex-col items-start relative shrink-0">
@@ -692,7 +695,7 @@ export default function CategoriesPage() {
                         <div className="flex flex-col items-start relative shrink-0">
                           <span className="font-sans font-bold text-[#f9ab00] text-[18px] leading-[27px] whitespace-nowrap min-h-[27px] flex items-center">
                             {isInitialLoading ? (
-                              <Skeleton className="h-5 w-12 bg-slate-100/80 rounded" />
+                              <Skeleton className="h-5 w-12 bg-slate-100/80 rounded-xl" />
                             ) : (
                               Math.min(categories.reduce((sum, c) => sum + c.maxPoints, 0), 100)
                             )}
@@ -706,15 +709,11 @@ export default function CategoriesPage() {
                 {/* Toggle View Mode + Nút Thêm danh mục */}
                 <div className="flex items-center gap-2 shrink-0">
                   {/* Toggle chế độ xem */}
-                  <div className="flex items-center bg-[#F3F4F6] rounded-lg p-0.5 h-[40px]">
+                  <div className="flex items-center bg-white/45 backdrop-blur-md border border-white/70 rounded-xl p-1 h-[40px]">
                     <button
                       disabled={isInitialLoading}
                       onClick={() => setViewMode('kanban')}
-                      className={`flex items-center gap-1.5 px-3 h-full rounded-md text-[12px] font-semibold transition-all duration-200 ${isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                        } ${viewMode === 'kanban'
-                          ? 'bg-white text-[#135bec] shadow-sm'
-                          : 'text-slate-500 hover:text-slate-700'
-                        }`}
+                      className={`flex items-center gap-1.5 px-3 h-full rounded-xl text-[12px] font-semibold transition-all duration-150 ${isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${viewMode === 'kanban' ? 'bg-white/70 text-[#1A73E8] shadow-sm' : 'text-[#64748B] hover:bg-white/50'}`}
                       title="Chế độ Kanban"
                     >
                       <LayoutGrid size={15} strokeWidth={2} />
@@ -728,11 +727,7 @@ export default function CategoriesPage() {
                           setSelectedCategoryId(categories[0].id);
                         }
                       }}
-                      className={`flex items-center gap-1.5 px-3 h-full rounded-md text-[12px] font-semibold transition-all duration-200 ${isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                        } ${viewMode === 'master-detail'
-                          ? 'bg-white text-[#135bec] shadow-sm'
-                          : 'text-slate-500 hover:text-slate-700'
-                        }`}
+                      className={`flex items-center gap-1.5 px-3 h-full rounded-xl text-[12px] font-semibold transition-all duration-150 ${isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${viewMode === 'master-detail' ? 'bg-white/70 text-[#1A73E8] shadow-sm' : 'text-[#64748B] hover:bg-white/50'}`}
                       title="Chế độ Chi tiết"
                     >
                       <PanelLeftClose size={15} strokeWidth={2} />
@@ -748,10 +743,7 @@ export default function CategoriesPage() {
                       setSelectedCategory(null);
                       setIsModalOpen(true);
                     }}
-                    className={`text-white px-[20px] py-[10px] rounded-[8px] flex items-center justify-center gap-2 font-semibold text-[14px] transition-all shrink-0 h-[40px] w-[180px] bg-[#135bec] ${isInitialLoading
-                      ? 'opacity-60 cursor-not-allowed shadow-none'
-                      : 'hover:bg-[#004dc7] active:scale-95 shadow-[0px_10px_15px_-3px_rgba(19,91,236,0.3),0px_4px_6px_-4px_rgba(19,91,236,0.3)] hover:shadow-[0px_12px_20px_-3px_rgba(19,91,236,0.4),0px_6px_8px_-4px_rgba(19,91,236,0.4)] cursor-pointer'
-                      }`}
+                    className={`text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 font-semibold text-[14px] transition-all shrink-0 h-[40px] w-[180px] bg-[#1A73E8] ${isInitialLoading ? 'opacity-60 cursor-not-allowed shadow-none' : 'hover:bg-[#155FC0] hover:scale-[1.01] shadow-sm cursor-pointer'}`}
                   >
                     <Plus size={16} strokeWidth={2.5} className="shrink-0" />
                     <span>Thêm danh mục</span>
@@ -783,7 +775,7 @@ export default function CategoriesPage() {
                             placeholder="Tìm danh mục..."
                             value={categorySearchTerm}
                             onChange={(e) => setCategorySearchTerm(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-[13px] font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all outline-none"
+                            className="w-full bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl pl-9 pr-4 py-2.5 text-[13px] font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-[#1A73E8]/10 focus:border-[#1A73E8] transition-all outline-none text-[#1E293B]"
                           />
                         </div>
 
@@ -791,13 +783,13 @@ export default function CategoriesPage() {
                         <div className="flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-320px)] pr-1 custom-scrollbar">
                           {isInitialLoading ? (
                             Array.from({ length: 4 }).map((_, i) => (
-                              <div key={`skel-cat-${i}`} className="bg-white rounded-xl p-4 border border-slate-100 animate-pulse">
+                              <div key={`skel-cat-${i}`} className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4 animate-pulse">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-1 h-10 rounded-full bg-slate-100" />
+                                  <div className="w-1 h-10 rounded-xl bg-slate-100" />
                                   <div className="flex-1 flex flex-col gap-2">
-                                    <Skeleton className="h-3 w-14 bg-slate-100 rounded" />
-                                    <Skeleton className="h-4 w-3/4 bg-slate-100 rounded" />
-                                    <Skeleton className="h-3 w-1/2 bg-slate-100 rounded" />
+                                    <Skeleton className="h-3 w-14 bg-slate-100 rounded-xl" />
+                                    <Skeleton className="h-4 w-3/4 bg-slate-100 rounded-xl" />
+                                    <Skeleton className="h-3 w-1/2 bg-slate-100 rounded-xl" />
                                   </div>
                                 </div>
                               </div>
@@ -834,14 +826,11 @@ export default function CategoriesPage() {
                                 >
                                   <div
                                     onClick={() => setSelectedCategoryId(cat.id)}
-                                    className={`group relative bg-white rounded-xl p-4 border transition-all duration-200 cursor-pointer flex items-start gap-3 ${isActive
-                                      ? 'border-blue-200 shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_4px_12px_rgba(59,130,246,0.08)] bg-blue-50/20'
-                                      : 'border-slate-100 hover:border-slate-200 hover:shadow-sm'
-                                      }`}
+                                    className={`group relative ${'bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4'} transition-all duration-200 cursor-pointer flex items-start gap-3 ${isActive ? 'shadow-sm ring-1 ring-[#1A73E8]/8' : 'hover:shadow-sm'}`}
                                   >
                                     {/* Color indicator */}
-                                    <div
-                                      className="w-1 min-h-[40px] self-stretch rounded-full shrink-0 transition-all"
+                                      <div
+                                      className="w-1 min-h-[40px] self-stretch rounded transition-all"
                                       style={{ backgroundColor: borderColor }}
                                     />
                                     <div className="flex-1 min-w-0">
@@ -853,14 +842,14 @@ export default function CategoriesPage() {
                                         <div className={`flex gap-0.5 items-center transition-opacity duration-150 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                                           <button
                                             onClick={(e) => { e.stopPropagation(); setIsEditing(true); setSelectedCategory(cat); setIsModalOpen(true); }}
-                                            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                                            className="p-1 text-slate-400 hover:text-[#1A73E8] hover:bg-white/50 rounded-xl transition-colors cursor-pointer"
                                             title="Sửa danh mục"
                                           >
                                             <Pencil size={12} strokeWidth={2.5} />
                                           </button>
                                           <button
                                             onClick={(e) => { e.stopPropagation(); setCategoryToDelete(cat); setIsDeleteModalOpen(true); }}
-                                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
                                             title="Xóa danh mục"
                                           >
                                             <Trash2 size={12} strokeWidth={2.5} />
@@ -885,7 +874,7 @@ export default function CategoriesPage() {
                                     {isActive && (
                                       <motion.div
                                         layoutId="activeCatIndicator"
-                                        className="absolute right-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-blue-500 rounded-l-full"
+                                            className="absolute right-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-[#1A73E8] rounded-l-xl"
                                         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                                       />
                                     )}
@@ -901,47 +890,47 @@ export default function CategoriesPage() {
                       <div className="w-3/5 flex flex-col gap-0 min-h-[500px]">
                         {isInitialLoading ? (
                           /* Skeleton Detail Panel cho Panel bên phải */
-                          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+                          <div className={`${glassCardClass} overflow-hidden flex flex-col min-h-[500px] animate-pulse`}>
                             {/* Header thông tin danh mục skeleton */}
                             <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white animate-pulse">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3 w-full">
-                                  <div className="w-1.5 h-10 rounded-full bg-slate-100 shrink-0" />
+                                  <div className="w-1.5 h-10 rounded-xl bg-slate-100 shrink-0" />
                                   <div className="flex flex-col gap-2 w-2/3">
-                                    <Skeleton className="h-3 w-16 bg-slate-100 rounded" />
-                                    <Skeleton className="h-5 w-full bg-slate-100 rounded mt-1" />
+                                    <Skeleton className="h-3 w-16 bg-slate-100 rounded-xl" />
+                                    <Skeleton className="h-5 w-full bg-slate-100 rounded-xl mt-1" />
                                   </div>
                                 </div>
                               </div>
                               <div className="flex items-center gap-4 text-[11px] text-slate-500 font-medium pl-[18px] mt-2">
-                                <Skeleton className="h-4 w-28 bg-slate-100 rounded" />
-                                <Skeleton className="h-4 w-28 bg-slate-100 rounded" />
+                                <Skeleton className="h-4 w-28 bg-slate-100 rounded-xl" />
+                                <Skeleton className="h-4 w-28 bg-slate-100 rounded-xl" />
                               </div>
                             </div>
 
                             {/* Toolbar skeleton */}
-                            <div className="px-6 py-2 flex items-center justify-between animate-pulse border-b border-slate-50">
+                              <div className="px-6 py-2 flex items-center justify-between animate-pulse border-b border-slate-50">
                               <div className="flex items-center gap-2">
-                                <Skeleton className="w-3.5 h-3.5 rounded bg-slate-100" />
-                                <Skeleton className="h-4 w-20 bg-slate-100 rounded" />
+                                <Skeleton className="w-3.5 h-3.5 rounded-xl bg-slate-100" />
+                                <Skeleton className="h-4 w-20 bg-slate-100 rounded-xl" />
                               </div>
-                              <Skeleton className="h-7 w-24 bg-slate-100 rounded-lg" />
+                              <Skeleton className="h-7 w-24 bg-slate-100 rounded-xl" />
                             </div>
 
                             {/* Criteria List skeleton */}
                             <div className="flex-1 overflow-y-auto px-3 custom-scrollbar py-3">
                               <div className="flex flex-col gap-2.5">
-                                {Array.from({ length: 3 }).map((_, i) => (
-                                  <div key={`skel-cri-${i}`} className="bg-white border border-slate-100 rounded-xl p-4 flex items-center gap-4 animate-pulse">
-                                    <Skeleton className="w-3.5 h-3.5 rounded bg-slate-100 shrink-0" />
+                                  {Array.from({ length: 3 }).map((_, i) => (
+                                      <div key={`skel-cri-${i}`} className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4 flex items-center gap-4 animate-pulse">
+                                    <Skeleton className="w-3.5 h-3.5 rounded-xl bg-slate-100 shrink-0" />
                                     <div className="flex-1 flex flex-col gap-2">
-                                      <Skeleton className="h-4 w-3/4 bg-slate-100 rounded" />
+                                      <Skeleton className="h-4 w-3/4 bg-slate-100 rounded-xl" />
                                       <div className="flex items-center gap-2 mt-1">
-                                        <Skeleton className="h-3 w-16 bg-slate-100 rounded-full" />
-                                        <Skeleton className="h-3 w-28 bg-slate-100 rounded" />
+                                        <Skeleton className="h-3 w-16 bg-slate-100 rounded-xl" />
+                                        <Skeleton className="h-3 w-28 bg-slate-100 rounded-xl" />
                                       </div>
                                     </div>
-                                    <Skeleton className="h-7 w-12 bg-slate-100 rounded-lg shrink-0" />
+                                    <Skeleton className="h-7 w-12 bg-slate-100 rounded-xl shrink-0" />
                                   </div>
                                 ))}
                               </div>
@@ -949,7 +938,7 @@ export default function CategoriesPage() {
                           </div>
                         ) : !activeCat ? (
                           /* Empty state: chưa chọn danh mục */
-                          <div className="flex-1 flex flex-col items-center justify-center bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center min-h-[500px]">
+                          <div className={`${glassCardClass} flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[500px]`}>
                             <div className="p-5 bg-slate-50 rounded-2xl mb-4">
                               <PanelLeftClose size={40} strokeWidth={1.5} className="text-slate-300" />
                             </div>
@@ -960,17 +949,17 @@ export default function CategoriesPage() {
                           </div>
                         ) : (
                           /* Panel hiển thị tiêu chí của danh mục đang chọn */
-                          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+                          <div className={`${glassCardClass} overflow-hidden flex flex-col min-h-[500px]`}>
                             {/* Header thông tin danh mục */}
                             <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                   <div
-                                    className="w-1.5 h-10 rounded-full shrink-0"
+                                    className="w-1.5 h-10 rounded-xl shrink-0"
                                     style={{ backgroundColor: borderColors[categories.findIndex(c => c.id === activeCat.id) % borderColors.length] }}
                                   />
                                   <div className="flex items-center gap-2.5 flex-wrap">
-                                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase shrink-0 ${bgBadgeColors[categories.findIndex(c => c.id === activeCat.id) % bgBadgeColors.length]}`}>
+                                    <span className={`px-2 py-0.5 rounded-xl text-[9px] font-bold tracking-wider uppercase shrink-0 ${bgBadgeColors[categories.findIndex(c => c.id === activeCat.id) % bgBadgeColors.length]}`}>
                                       {activeCat.id}
                                     </span>
                                     <h2 className="font-bold text-slate-800 text-[16px] leading-[22px]" title={activeCat.name}>
@@ -1005,7 +994,7 @@ export default function CategoriesPage() {
                                 {activeCriteria.some(c => isCriteriaSelected(c.id)) && (
                                   <button
                                     onClick={() => handleDeleteSelectedCriteria(activeCat.id)}
-                                    className="ml-2 flex items-center gap-1 px-2.5 py-1 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-md text-[11px] font-semibold transition-colors cursor-pointer"
+                                    className="ml-2 flex items-center gap-1 px-2.5 py-1 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer"
                                   >
                                     <Trash2 size={12} strokeWidth={2.5} />
                                     Xóa đã chọn
@@ -1014,7 +1003,7 @@ export default function CategoriesPage() {
                               </div>
                               <button
                                 onClick={() => { setIsEditingCriteria(false); setSelectedCriteria(null); setTargetCategoryId(activeCat.id); setIsCriteriaModalOpen(true); }}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-[12px] font-bold transition-colors cursor-pointer"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[12px] font-bold transition-colors cursor-pointer"
                               >
                                 <Plus size={14} strokeWidth={2.5} />
                                 Thêm tiêu chí
@@ -1067,7 +1056,7 @@ export default function CategoriesPage() {
                                           exit={{ opacity: 0, x: -20 }}
                                           transition={{ delay: itemIdx * 0.02 }}
                                         >
-                                          <div className="group bg-white border border-slate-100 hover:border-slate-200 rounded-xl p-4 flex items-center gap-4 transition-all duration-200 hover:shadow-sm">
+                                          <div className="group bg-white/55 backdrop-blur-sm border border-white/70 hover:border-white/80 rounded-xl p-4 flex items-center gap-4 transition-all duration-200 hover:shadow-sm">
                                             {/* Checkbox */}
                                             <input
                                               type="checkbox"
@@ -1082,7 +1071,7 @@ export default function CategoriesPage() {
                                                 {item.name.length > 50 ? item.name.slice(0, 50) + '...' : item.name}
                                               </h4>
                                               <div className="flex items-center gap-2 mt-1.5">
-                                                <span className={`px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase border tracking-wider ${typeClass}`}>
+                                                <span className={`px-2 py-0.5 rounded-xl text-[8px] font-extrabold uppercase border tracking-wider ${typeClass}`}>
                                                   {typeLabel}
                                                 </span>
                                                 <div className="flex items-center gap-1">
@@ -1095,7 +1084,7 @@ export default function CategoriesPage() {
                                             </div>
 
                                             {/* Points */}
-                                            <div className={`px-3 py-1.5 rounded-lg ${pointBg} shrink-0`}>
+                                            <div className={`px-3 py-1.5 rounded-xl ${pointBg} shrink-0`}>
                                               <span className={`font-black text-[12px] ${pointClass}`}>{formattedPoints}</span>
                                             </div>
 
@@ -1103,14 +1092,14 @@ export default function CategoriesPage() {
                                             <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
                                               <button
                                                 onClick={() => { setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(activeCat.id); setIsCriteriaModalOpen(true); }}
-                                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                                className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-[#1A73E8] hover:bg-white/70 transition-all duration-150 cursor-pointer"
                                                 title="Sửa tiêu chí"
                                               >
                                                 <Pencil size={13} strokeWidth={2.5} />
                                               </button>
                                               <button
                                                 onClick={() => { setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }}
-                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                                className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-rose-600 hover:bg-rose-50/70 transition-all duration-150 cursor-pointer"
                                                 title="Xóa tiêu chí"
                                               >
                                                 <Trash2 size={13} strokeWidth={2.5} />
@@ -1138,45 +1127,45 @@ export default function CategoriesPage() {
                       onDragOver={(e) => handleColumnDragOver(e, 'col-1')}
                       onDragLeave={handleColumnDragLeave}
                       onDrop={(e) => handleColumnDrop(e, 'col-1')}
-                      className={`flex-1 flex flex-col gap-4 p-4 rounded-2xl border-2 transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-1' ? 'border-dashed border-blue-400 bg-blue-50/20' : 'border-dashed border-slate-200/60 bg-slate-50/10'}`}
+                      className={`flex-1 flex flex-col gap-4 p-4 rounded-2xl transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-1' ? 'ring-2 ring-[#1A73E8]/30 bg-white/45 border border-[#1A73E8]/30' : 'bg-white/30 backdrop-blur-md border border-white/60'}`}
                     >
                       {isInitialLoading ? (
                         <>
-                          <div className="bg-white border-t-[3px] border-[#60a5fa] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-[16px] shadow-[0px_4px_12px_rgba(0,0,0,0.03)] w-full animate-pulse">
+                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#60a5fa] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm w-full animate-pulse">
                             <div className="w-full px-5 py-4 flex flex-col gap-2">
                               <div className="flex items-start justify-between w-full">
                                 <div className="flex flex-col gap-1.5 w-2/3">
-                                  <Skeleton className="h-4 w-16 bg-slate-100/80 rounded" />
-                                  <Skeleton className="h-5 w-full bg-slate-100/80 rounded mt-1" />
+                                  <Skeleton className="h-4 w-16 bg-slate-100/80 rounded-xl" />
+                                  <Skeleton className="h-5 w-full bg-slate-100/80 rounded-xl mt-1" />
                                 </div>
                                 <div className="flex gap-1.5 items-center">
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
                                 </div>
                               </div>
                               <div className="flex gap-4 items-center mt-1">
-                                <Skeleton className="h-4 w-24 bg-slate-100/80 rounded" />
-                                <Skeleton className="h-4 w-20 bg-slate-100/80 rounded" />
+                                <Skeleton className="h-4 w-24 bg-slate-100/80 rounded-xl" />
+                                <Skeleton className="h-4 w-20 bg-slate-100/80 rounded-xl" />
                               </div>
                             </div>
                           </div>
-                          <div className="bg-white border-t-[3px] border-[#34d399] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-[16px] shadow-[0px_4px_12px_rgba(0,0,0,0.03)] w-full animate-pulse">
+                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#34d399] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm w-full animate-pulse">
                             <div className="w-full px-5 py-4 flex flex-col gap-2">
                               <div className="flex items-start justify-between w-full">
                                 <div className="flex flex-col gap-1.5 w-2/3">
-                                  <Skeleton className="h-4 w-16 bg-slate-100/80 rounded" />
-                                  <Skeleton className="h-5 w-full bg-slate-100/80 rounded mt-1" />
+                                  <Skeleton className="h-4 w-16 bg-slate-100/80 rounded-xl" />
+                                  <Skeleton className="h-5 w-full bg-slate-100/80 rounded-xl mt-1" />
                                 </div>
                                 <div className="flex gap-1.5 items-center">
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
                                 </div>
                               </div>
                               <div className="flex gap-4 items-center mt-1">
-                                <Skeleton className="h-4 w-24 bg-slate-100/80 rounded" />
-                                <Skeleton className="h-4 w-20 bg-slate-100/80 rounded" />
+                                <Skeleton className="h-4 w-24 bg-slate-100/80 rounded-xl" />
+                                <Skeleton className="h-4 w-20 bg-slate-100/80 rounded-xl" />
                               </div>
                             </div>
                           </div>
@@ -1192,30 +1181,30 @@ export default function CategoriesPage() {
                           const badgeClass = bgBadgeColors[idx % bgBadgeColors.length];
                           return (
                             <motion.div layout="position" key={cat.id} className={`w-full ${draggingCategoryId === cat.id ? 'opacity-40' : ''}`}>
-                              <div draggable onDragStart={(e) => handleCategoryDragStart(e, cat.id)} onDragEnd={handleCategoryDragEnd} onDragOver={(e) => handleDragOver(e, cat.id)} onDragLeave={() => handleDragLeave(cat.id)} onDrop={(e) => handleDrop(e, cat.id)} className={`bg-white border-t-[3px] ${borderClass} border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-[16px] shadow-[0px_4px_12px_rgba(0,0,0,0.03)] transition-all duration-300 w-full cursor-grab active:cursor-grabbing hover:shadow-md ${isOver ? 'ring-2 ring-blue-500 scale-[1.01] bg-blue-50/10' : ''}`}>
+                              <div draggable onDragStart={(e) => handleCategoryDragStart(e, cat.id)} onDragEnd={handleCategoryDragEnd} onDragOver={(e) => handleDragOver(e, cat.id)} onDragLeave={() => handleDragLeave(cat.id)} onDrop={(e) => handleDrop(e, cat.id)} className={`bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] ${borderClass} border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm transition-all duration-300 w-full cursor-grab active:cursor-grabbing hover:shadow-md ${isOver ? 'ring-2 ring-[#1A73E8] scale-[1.01] bg-white/45' : ''}`}>
                                 <div className={`border-[#f1f5f9] ${isExpanded ? 'border-b' : ''} border-solid w-full px-5 py-4 flex flex-col gap-2 cursor-pointer select-none hover:bg-slate-50/40 transition-colors`} onClick={() => toggleCategoryExpand(cat.id)}>
                                   <div className="flex items-start justify-between w-full">
                                     <div className="flex flex-col gap-0.5">
-                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase inline-block w-fit ${badgeClass}`}>{cat.id}</span>
+                                      <span className={`px-2 py-0.5 rounded-xl text-[10px] font-bold tracking-wider uppercase inline-block w-fit ${badgeClass}`}>{cat.id}</span>
                                       <h3 className="font-bold text-slate-800 text-[15px] leading-[20px] mt-1" title={cat.name}>
                                         {cat.name.length > 100 ? cat.name.slice(0, 100) + '...' : cat.name}
                                       </h3>
                                     </div>
                                     <div className="flex gap-1 items-center">
-                                      <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); setSelectedCategory(cat); setIsModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Sửa danh mục"><Pencil size={14} strokeWidth={2.5} /></button>
-                                      <button onClick={(e) => { e.stopPropagation(); setCategoryToDelete(cat); setIsDeleteModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Xóa danh mục"><Trash2 size={14} strokeWidth={2.5} /></button>
-                                      <button onClick={(e) => { e.stopPropagation(); toggleCategoryExpand(cat.id); }} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer ml-0.5" title={isExpanded ? "Thu gọn" : "Mở rộng"}><motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}><ChevronDown size={15} strokeWidth={2.5} /></motion.div></button>
+                                      <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); setSelectedCategory(cat); setIsModalOpen(true); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-[#1A73E8] hover:bg-white/70 transition-all duration-150 cursor-pointer" title="Sửa danh mục"><Pencil size={14} strokeWidth={2.5} /></button>
+                                      <button onClick={(e) => { e.stopPropagation(); setCategoryToDelete(cat); setIsDeleteModalOpen(true); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-rose-600 hover:bg-rose-50/70 transition-all duration-150 cursor-pointer" title="Xóa danh mục"><Trash2 size={14} strokeWidth={2.5} /></button>
+                                      <button onClick={(e) => { e.stopPropagation(); toggleCategoryExpand(cat.id); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-slate-700 hover:bg-white/60 transition-all cursor-pointer ml-0.5" title={isExpanded ? "Thu gọn" : "Mở rộng"}><motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}><ChevronDown size={15} strokeWidth={2.5} /></motion.div></button>
                                     </div>
                                   </div>
-                                  <div className="flex gap-4 items-center text-[11px] text-slate-500 font-medium tracking-wide">
-                                    <div className="flex gap-1 items-center"><span>Điểm tối đa:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded">{cat.maxPoints}</span></div>
-                                    <div className="flex gap-1 items-center"><span>Số tiêu chí:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded">{String(catCriteria.length).padStart(2, '0')}</span></div>
+                                    <div className="flex gap-4 items-center text-[11px] text-slate-500 font-medium tracking-wide">
+                                    <div className="flex gap-1 items-center"><span>Điểm tối đa:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-xl">{cat.maxPoints}</span></div>
+                                    <div className="flex gap-1 items-center"><span>Số tiêu chí:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-xl">{String(catCriteria.length).padStart(2, '0')}</span></div>
                                   </div>
                                 </div>
                                 <AnimatePresence initial={false}>
                                   {isExpanded && (
                                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: 'easeInOut' }} className="w-full overflow-hidden">
-                                      <div className="bg-[#faf9fd]/70 w-full p-5 flex flex-col gap-4">
+                                      <div className="bg-white/35 backdrop-blur-md border-t border-white/60 w-full p-5 flex flex-col gap-4">
                                         <div className="flex items-center justify-between w-full">
                                           <div className="flex items-center gap-2 select-none">
                                             <input
@@ -1254,7 +1243,7 @@ export default function CategoriesPage() {
                                                 else if (item.type === 'ky_luat') { typeLabel = 'KỶ LUẬT'; typeClass = 'bg-[rgba(255,218,214,0.3)] text-[#ba1a1a] border-[#ffdad6]/20'; pointClass = 'text-[#ba1a1a]'; formattedPoints = `${item.points}đ/lần`; }
                                                 return (
                                                   <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} layout key={item.id} className="w-full">
-                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white border border-slate-100/80 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all duration-200 group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
+                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all duration-200 group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
                                                       <div className="flex items-center justify-between w-full">
                                                         <div className="flex items-center gap-3">
                                                           <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>
@@ -1262,7 +1251,7 @@ export default function CategoriesPage() {
                                                             <h4 className="font-bold text-slate-800 text-[13px]" title={item.name}>
                                                               {item.name.length > 50 ? item.name.slice(0, 50) + '...' : item.name}
                                                             </h4>
-                                                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase border tracking-wider w-fit ${typeClass}`}>{typeLabel}</span>
+                                                            <span className={`px-2 py-0.5 rounded-xl text-[8px] font-extrabold uppercase border tracking-wider w-fit ${typeClass}`}>{typeLabel}</span>
                                                           </div>
                                                         </div>
                                                         <div className="flex items-center gap-2">
@@ -1284,7 +1273,10 @@ export default function CategoriesPage() {
                                                             <Lock size={13} className="text-red-500 shrink-0" strokeWidth={2.5} />
                                                           )}
                                                         </div>
-                                                        <div className="flex gap-2 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Sửa tiêu chí"><Pencil size={14} strokeWidth={2.5} /></button><button onClick={(e) => { e.stopPropagation(); setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Xóa tiêu chí"><Trash2 size={14} strokeWidth={2.5} /></button></div>
+                                                        <div className="flex gap-2 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                          <button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-[#1A73E8] hover:bg-white/70 transition-all duration-150 cursor-pointer" title="Sửa tiêu chí"><Pencil size={14} strokeWidth={2.5} /></button>
+                                                          <button onClick={(e) => { e.stopPropagation(); setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-rose-600 hover:bg-rose-50/70 transition-all duration-150 cursor-pointer" title="Xóa tiêu chí"><Trash2 size={14} strokeWidth={2.5} /></button>
+                                                        </div>
                                                       </div>
                                                     </div>
                                                   </motion.div>
@@ -1307,45 +1299,45 @@ export default function CategoriesPage() {
                       onDragOver={(e) => handleColumnDragOver(e, 'col-2')}
                       onDragLeave={handleColumnDragLeave}
                       onDrop={(e) => handleColumnDrop(e, 'col-2')}
-                      className={`flex-1 flex flex-col gap-4 p-4 rounded-2xl border-2 transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-2' ? 'border-dashed border-blue-400 bg-blue-50/20' : 'border-dashed border-slate-200/60 bg-slate-50/10'}`}
+                      className={`flex-1 flex flex-col gap-4 p-4 rounded-2xl transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-2' ? 'ring-2 ring-[#1A73E8]/30 bg-white/45 border border-[#1A73E8]/30' : 'bg-white/30 backdrop-blur-md border border-white/60'}`}
                     >
                       {isInitialLoading ? (
                         <>
-                          <div className="bg-white border-t-[3px] border-[#fbbf24] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-[16px] shadow-[0px_4px_12px_rgba(0,0,0,0.03)] w-full animate-pulse">
+                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#fbbf24] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm w-full animate-pulse">
                             <div className="w-full px-5 py-4 flex flex-col gap-2">
                               <div className="flex items-start justify-between w-full">
                                 <div className="flex flex-col gap-1.5 w-2/3">
-                                  <Skeleton className="h-4 w-16 bg-slate-100/80 rounded" />
-                                  <Skeleton className="h-5 w-full bg-slate-100/80 rounded mt-1" />
+                                  <Skeleton className="h-4 w-16 bg-slate-100/80 rounded-xl" />
+                                  <Skeleton className="h-5 w-full bg-slate-100/80 rounded-xl mt-1" />
                                 </div>
                                 <div className="flex gap-1.5 items-center">
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
                                 </div>
                               </div>
                               <div className="flex gap-4 items-center mt-1">
-                                <Skeleton className="h-4 w-24 bg-slate-100/80 rounded" />
-                                <Skeleton className="h-4 w-20 bg-slate-100/80 rounded" />
+                                <Skeleton className="h-4 w-24 bg-slate-100/80 rounded-xl" />
+                                <Skeleton className="h-4 w-20 bg-slate-100/80 rounded-xl" />
                               </div>
                             </div>
                           </div>
-                          <div className="bg-white border-t-[3px] border-[#c084fc] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-[16px] shadow-[0px_4px_12px_rgba(0,0,0,0.03)] w-full animate-pulse">
+                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#c084fc] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm w-full animate-pulse">
                             <div className="w-full px-5 py-4 flex flex-col gap-2">
                               <div className="flex items-start justify-between w-full">
                                 <div className="flex flex-col gap-1.5 w-2/3">
-                                  <Skeleton className="h-4 w-16 bg-slate-100/80 rounded" />
-                                  <Skeleton className="h-5 w-full bg-slate-100/80 rounded mt-1" />
+                                  <Skeleton className="h-4 w-16 bg-slate-100/80 rounded-xl" />
+                                  <Skeleton className="h-5 w-full bg-slate-100/80 rounded-xl mt-1" />
                                 </div>
                                 <div className="flex gap-1.5 items-center">
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
-                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-lg animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
+                                  <Skeleton className="h-7 w-7 bg-slate-100/80 rounded-xl animate-pulse" />
                                 </div>
                               </div>
                               <div className="flex gap-4 items-center mt-1">
-                                <Skeleton className="h-4 w-24 bg-slate-100/80 rounded" />
-                                <Skeleton className="h-4 w-20 bg-slate-100/80 rounded" />
+                                <Skeleton className="h-4 w-24 bg-slate-100/80 rounded-xl" />
+                                <Skeleton className="h-4 w-20 bg-slate-100/80 rounded-xl" />
                               </div>
                             </div>
                           </div>
@@ -1361,30 +1353,30 @@ export default function CategoriesPage() {
                           const badgeClass = bgBadgeColors[(idx + 2) % bgBadgeColors.length];
                           return (
                             <motion.div layout="position" key={cat.id} className={`w-full ${draggingCategoryId === cat.id ? 'opacity-40' : ''}`}>
-                              <div draggable onDragStart={(e) => handleCategoryDragStart(e, cat.id)} onDragEnd={handleCategoryDragEnd} onDragOver={(e) => handleDragOver(e, cat.id)} onDragLeave={() => handleDragLeave(cat.id)} onDrop={(e) => handleDrop(e, cat.id)} className={`bg-white border-t-[3px] ${borderClass} border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-[16px] shadow-[0px_4px_12px_rgba(0,0,0,0.03)] transition-all duration-300 w-full cursor-grab active:cursor-grabbing hover:shadow-md ${isOver ? 'ring-2 ring-blue-500 scale-[1.01] bg-blue-50/10' : ''}`}>
+                              <div draggable onDragStart={(e) => handleCategoryDragStart(e, cat.id)} onDragEnd={handleCategoryDragEnd} onDragOver={(e) => handleDragOver(e, cat.id)} onDragLeave={() => handleDragLeave(cat.id)} onDrop={(e) => handleDrop(e, cat.id)} className={`bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] ${borderClass} border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm transition-all duration-300 w-full cursor-grab active:cursor-grabbing hover:shadow-md ${isOver ? 'ring-2 ring-[#1A73E8] scale-[1.01] bg-white/45' : ''}`}>
                                 <div className={`border-[#f1f5f9] ${isExpanded ? 'border-b' : ''} border-solid w-full px-5 py-4 flex flex-col gap-2 cursor-pointer select-none hover:bg-slate-50/40 transition-colors`} onClick={() => toggleCategoryExpand(cat.id)}>
                                   <div className="flex items-start justify-between w-full">
                                     <div className="flex flex-col gap-0.5">
-                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase inline-block w-fit ${badgeClass}`}>{cat.id}</span>
+                                      <span className={`px-2 py-0.5 rounded-xl text-[10px] font-bold tracking-wider uppercase inline-block w-fit ${badgeClass}`}>{cat.id}</span>
                                       <h3 className="font-bold text-slate-800 text-[15px] leading-[20px] mt-1" title={cat.name}>
                                         {cat.name.length > 100 ? cat.name.slice(0, 100) + '...' : cat.name}
                                       </h3>
                                     </div>
                                     <div className="flex gap-1 items-center">
-                                      <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); setSelectedCategory(cat); setIsModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Sửa danh mục"><Pencil size={14} strokeWidth={2.5} /></button>
-                                      <button onClick={(e) => { e.stopPropagation(); setCategoryToDelete(cat); setIsDeleteModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Xóa danh mục"><Trash2 size={14} strokeWidth={2.5} /></button>
-                                      <button onClick={(e) => { e.stopPropagation(); toggleCategoryExpand(cat.id); }} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer ml-0.5" title={isExpanded ? "Thu gọn" : "Mở rộng"}><motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}><ChevronDown size={15} strokeWidth={2.5} /></motion.div></button>
+                                      <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); setSelectedCategory(cat); setIsModalOpen(true); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-[#1A73E8] hover:bg-white/70 transition-all duration-150 cursor-pointer" title="Sửa danh mục"><Pencil size={14} strokeWidth={2.5} /></button>
+                                      <button onClick={(e) => { e.stopPropagation(); setCategoryToDelete(cat); setIsDeleteModalOpen(true); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-rose-600 hover:bg-rose-50/70 transition-all duration-150 cursor-pointer" title="Xóa danh mục"><Trash2 size={14} strokeWidth={2.5} /></button>
+                                      <button onClick={(e) => { e.stopPropagation(); toggleCategoryExpand(cat.id); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-slate-700 hover:bg-white/60 transition-all cursor-pointer ml-0.5" title={isExpanded ? "Thu gọn" : "Mở rộng"}><motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}><ChevronDown size={15} strokeWidth={2.5} /></motion.div></button>
                                     </div>
                                   </div>
-                                  <div className="flex gap-4 items-center text-[11px] text-slate-500 font-medium tracking-wide">
-                                    <div className="flex gap-1 items-center"><span>Điểm tối đa:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded">{cat.maxPoints}</span></div>
-                                    <div className="flex gap-1 items-center"><span>Số tiêu chí:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded">{String(catCriteria.length).padStart(2, '0')}</span></div>
+                                    <div className="flex gap-4 items-center text-[11px] text-slate-500 font-medium tracking-wide">
+                                    <div className="flex gap-1 items-center"><span>Điểm tối đa:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-xl">{cat.maxPoints}</span></div>
+                                    <div className="flex gap-1 items-center"><span>Số tiêu chí:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-xl">{String(catCriteria.length).padStart(2, '0')}</span></div>
                                   </div>
                                 </div>
                                 <AnimatePresence initial={false}>
                                   {isExpanded && (
                                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: 'easeInOut' }} className="w-full overflow-hidden">
-                                      <div className="bg-[#faf9fd]/70 w-full p-5 flex flex-col gap-4">
+                                      <div className="bg-white/35 backdrop-blur-md border-t border-white/60 w-full p-5 flex flex-col gap-4">
                                         <div className="flex items-center justify-between w-full">
                                           <div className="flex items-center gap-2 select-none">
                                             <input
@@ -1423,7 +1415,7 @@ export default function CategoriesPage() {
                                                 else if (item.type === 'ky_luat') { typeLabel = 'KỶ LUẬT'; typeClass = 'bg-[rgba(255,218,214,0.3)] text-[#ba1a1a] border-[#ffdad6]/20'; pointClass = 'text-[#ba1a1a]'; formattedPoints = `${item.points}đ/lần`; }
                                                 return (
                                                   <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} layout key={item.id} className="w-full">
-                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white border border-slate-100/80 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all duration-200 group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
+                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all duration-200 group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
                                                       <div className="flex items-center justify-between w-full">
                                                         <div className="flex items-center gap-3">
                                                           <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>
@@ -1431,7 +1423,7 @@ export default function CategoriesPage() {
                                                             <h4 className="font-bold text-slate-800 text-[13px]" title={item.name}>
                                                               {item.name.length > 50 ? item.name.slice(0, 50) + '...' : item.name}
                                                             </h4>
-                                                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase border tracking-wider w-fit ${typeClass}`}>{typeLabel}</span>
+                                                            <span className={`px-2 py-0.5 rounded-xl text-[8px] font-extrabold uppercase border tracking-wider w-fit ${typeClass}`}>{typeLabel}</span>
                                                           </div>
                                                         </div>
                                                         <div className="flex items-center gap-2">
@@ -1453,7 +1445,10 @@ export default function CategoriesPage() {
                                                             <Lock size={11} className="text-red-500 shrink-0" strokeWidth={2.5} />
                                                           )}
                                                         </div>
-                                                        <div className="flex gap-2 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Sửa tiêu chí"><Pencil size={14} strokeWidth={2.5} /></button><button onClick={(e) => { e.stopPropagation(); setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Xóa tiêu chí"><Trash2 size={14} strokeWidth={2.5} /></button></div>
+                                                        <div className="flex gap-2 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                          <button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-[#1A73E8] hover:bg-white/70 transition-all duration-150 cursor-pointer" title="Sửa tiêu chí"><Pencil size={14} strokeWidth={2.5} /></button>
+                                                          <button onClick={(e) => { e.stopPropagation(); setCriteriaToDelete(item); setIsDeleteCriteriaModalOpen(true); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-rose-600 hover:bg-rose-50/70 transition-all duration-150 cursor-pointer" title="Xóa tiêu chí"><Trash2 size={14} strokeWidth={2.5} /></button>
+                                                        </div>
                                                       </div>
                                                     </div>
                                                   </motion.div>

@@ -28,6 +28,10 @@ import {
 import { TokenService } from './token.service';
 import { PasswordService } from './password.service';
 import { RbacService } from './rbac.service';
+import {
+  DECLARED_PERMISSION_SEEDS,
+  UNGROUPED_PERMISSION_GROUP,
+} from '../permissions.registry';
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_DURATION_MINUTES = 15;
@@ -50,6 +54,7 @@ export class AuthService implements OnModuleInit {
   async onModuleInit() {
     await this.migrateLegacyRoleCodes();
     await this.seedRbac();
+    await this.seedDeclaredPermissions();
     await this.migrateLegacyRoles();
     await this.migrateLegacyUserFields();
   }
@@ -482,7 +487,7 @@ export class AuthService implements OnModuleInit {
   private async seedRbac() {
     // Clean up G_ACADEMIC group and deleted permissions from DB
     await this.permissionModel.deleteMany({
-      code: { $in: ['view_course', 'create_course', 'edit_content', 'delete_course', 'STUDENT_READ', 'STUDENT_CREATE'] }
+      code: { $in: ['view_course', 'create_course', 'edit_content', 'delete_course'] }
     }).exec();
     await this.permissionGroupModel.deleteOne({ code: 'G_ACADEMIC' }).exec();
 
@@ -582,6 +587,45 @@ export class AuthService implements OnModuleInit {
     }
 
     console.log('✅ RBAC Data Seeded Successfully');
+  }
+
+  private async seedDeclaredPermissions() {
+    const group = await this.permissionGroupModel.findOneAndUpdate(
+      {
+        $or: [
+          { code: UNGROUPED_PERMISSION_GROUP.code },
+          { name: UNGROUPED_PERMISSION_GROUP.name },
+        ],
+      },
+      {
+        $set: UNGROUPED_PERMISSION_GROUP,
+        $setOnInsert: { permissions: [] },
+      },
+      { upsert: true, returnDocument: 'after' },
+    ).exec();
+
+    const permissionIds: Types.ObjectId[] = [];
+
+    for (const permissionSeed of DECLARED_PERMISSION_SEEDS) {
+      const permission = await this.permissionModel.findOneAndUpdate(
+        { code: permissionSeed.code },
+        { $setOnInsert: permissionSeed },
+        { upsert: true, returnDocument: 'after' },
+      ).exec();
+
+      permissionIds.push(permission._id);
+    }
+
+    if (permissionIds.length > 0) {
+      await this.permissionGroupModel.updateOne(
+        { _id: group._id },
+        { $addToSet: { permissions: { $each: permissionIds } } },
+      ).exec();
+    }
+
+    console.log(
+      `✅ Declared permissions synced to "${UNGROUPED_PERMISSION_GROUP.name}" group`,
+    );
   }
 
   private async migrateLegacyRoles() {
