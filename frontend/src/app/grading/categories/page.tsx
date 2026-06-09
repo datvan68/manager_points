@@ -713,7 +713,7 @@ export default function CategoriesPage() {
                     <button
                       disabled={isInitialLoading}
                       onClick={() => setViewMode('kanban')}
-                      className={`flex items-center gap-1.5 px-3 h-full rounded-xl text-[12px] font-semibold transition-all duration-150 ${isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${viewMode === 'kanban' ? 'bg-white/70 text-[#1A73E8] shadow-sm' : 'text-[#64748B] hover:bg-white/50'}`}
+                      className={`flex items-center gap-1.5 px-3 h-full rounded-xl text-[12px] font-semibold transition-all duration-150 ease-out hover:scale-[1.01] ${isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${viewMode === 'kanban' ? 'bg-white/70 text-[#1A73E8] shadow-sm' : 'text-[#64748B] hover:bg-white/50'}`}
                       title="Chế độ Kanban"
                     >
                       <LayoutGrid size={15} strokeWidth={2} />
@@ -727,7 +727,7 @@ export default function CategoriesPage() {
                           setSelectedCategoryId(categories[0].id);
                         }
                       }}
-                      className={`flex items-center gap-1.5 px-3 h-full rounded-xl text-[12px] font-semibold transition-all duration-150 ${isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${viewMode === 'master-detail' ? 'bg-white/70 text-[#1A73E8] shadow-sm' : 'text-[#64748B] hover:bg-white/50'}`}
+                      className={`flex items-center gap-1.5 px-3 h-full rounded-xl text-[12px] font-semibold transition-all duration-150 ease-out hover:scale-[1.01] ${isInitialLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${viewMode === 'master-detail' ? 'bg-white/70 text-[#1A73E8] shadow-sm' : 'text-[#64748B] hover:bg-white/50'}`}
                       title="Chế độ Chi tiết"
                     >
                       <PanelLeftClose size={15} strokeWidth={2} />
@@ -743,7 +743,7 @@ export default function CategoriesPage() {
                       setSelectedCategory(null);
                       setIsModalOpen(true);
                     }}
-                    className={`text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 font-semibold text-[14px] transition-all shrink-0 h-[40px] w-[180px] bg-[#1A73E8] ${isInitialLoading ? 'opacity-60 cursor-not-allowed shadow-none' : 'hover:bg-[#155FC0] hover:scale-[1.01] shadow-sm cursor-pointer'}`}
+                    className={`text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 font-semibold text-[14px] transition-all duration-150 ease-out shrink-0 h-[40px] w-[180px] bg-[#1A73E8] ${isInitialLoading ? 'opacity-60 cursor-not-allowed shadow-none' : 'hover:bg-[#155FC0] hover:scale-[1.01] shadow-sm cursor-pointer'}`}
                   >
                     <Plus size={16} strokeWidth={2.5} className="shrink-0" />
                     <span>Thêm danh mục</span>
@@ -826,11 +826,11 @@ export default function CategoriesPage() {
                                 >
                                   <div
                                     onClick={() => setSelectedCategoryId(cat.id)}
-                                    className={`group relative ${'bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4'} transition-all duration-200 cursor-pointer flex items-start gap-3 ${isActive ? 'shadow-sm ring-1 ring-[#1A73E8]/8' : 'hover:shadow-sm'}`}
+                                    className={`group relative bg-white/45 backdrop-blur-md border border-white/70 rounded-xl p-4 transition-all duration-150 ease-out cursor-pointer flex items-start gap-3 hover:scale-[1.01] ${isActive ? 'shadow-sm ring-1 ring-[#1A73E8]/8 bg-white/70' : 'hover:shadow-sm'}`}
                                   >
                                     {/* Color indicator */}
                                       <div
-                                      className="w-1 min-h-[40px] self-stretch rounded transition-all"
+                                      className="w-1 min-h-[40px] self-stretch rounded-xl transition-all"
                                       style={{ backgroundColor: borderColor }}
                                     />
                                     <div className="flex-1 min-w-0">
@@ -1056,7 +1056,7 @@ export default function CategoriesPage() {
                                           exit={{ opacity: 0, x: -20 }}
                                           transition={{ delay: itemIdx * 0.02 }}
                                         >
-                                          <div className="group bg-white/55 backdrop-blur-sm border border-white/70 hover:border-white/80 rounded-xl p-4 flex items-center gap-4 transition-all duration-200 hover:shadow-sm">
+                                          <div className="group bg-white/55 backdrop-blur-sm border border-white/70 hover:border-white/80 rounded-xl p-4 flex items-center gap-4 transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-md">
                                             {/* Checkbox */}
                                             <input
                                               type="checkbox"
@@ -1243,7 +1243,7 @@ export default function CategoriesPage() {
                                                 else if (item.type === 'ky_luat') { typeLabel = 'KỶ LUẬT'; typeClass = 'bg-[rgba(255,218,214,0.3)] text-[#ba1a1a] border-[#ffdad6]/20'; pointClass = 'text-[#ba1a1a]'; formattedPoints = `${item.points}đ/lần`; }
                                                 return (
                                                   <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} layout key={item.id} className="w-full">
-                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all duration-200 group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
+                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all duration-150 ease-out hover:scale-[1.01] group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
                                                       <div className="flex items-center justify-between w-full">
                                                         <div className="flex items-center gap-3">
                                                           <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>
@@ -1415,7 +1415,7 @@ export default function CategoriesPage() {
                                                 else if (item.type === 'ky_luat') { typeLabel = 'KỶ LUẬT'; typeClass = 'bg-[rgba(255,218,214,0.3)] text-[#ba1a1a] border-[#ffdad6]/20'; pointClass = 'text-[#ba1a1a]'; formattedPoints = `${item.points}đ/lần`; }
                                                 return (
                                                   <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} layout key={item.id} className="w-full">
-                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all duration-200 group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
+                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all duration-150 ease-out hover:scale-[1.01] group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
                                                       <div className="flex items-center justify-between w-full">
                                                         <div className="flex items-center gap-3">
                                                           <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>

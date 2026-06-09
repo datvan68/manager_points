@@ -1,10 +1,13 @@
 'use client';
+
 import React, { useState, useRef, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { Bell, Search, Plus, Filter, SlidersHorizontal, LayoutGrid, User, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { Bell, Search, LayoutGrid, User, Settings as SettingsIcon, LogOut } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
-
+import SubsystemPopup from '@/components/popups/SubsystemPopup';
+import NotificationPopup from '@/components/popups/NotificationPopup';
 import Breadcrumb from '@/components/ui/Breadcrumb';
+import { getNotifications, markAllRead, markRead, NotificationItem } from '@/lib/notifications';
 
 interface HeaderProps {
     customMappings?: Record<string, string>;
@@ -13,31 +16,62 @@ interface HeaderProps {
 const Header = ({ customMappings = {} }: HeaderProps) => {
     const { user, logout } = useAuth();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+    const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
+    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+    
     const profileRef = useRef<HTMLDivElement>(null);
+    const notificationRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
+
+    useEffect(() => {
+        // Load notifications initially
+        setNotifications(getNotifications());
+
+        // Listen for updates from other components
+        const handleNotificationsUpdate = () => {
+            setNotifications(getNotifications());
+        };
+
+        window.addEventListener('notifications-updated', handleNotificationsUpdate);
+        return () => {
+            window.removeEventListener('notifications-updated', handleNotificationsUpdate);
+        };
+    }, []);
+
+    const handleMarkAllRead = () => {
+        markAllRead();
+    };
+
+    const handleMarkRead = (id: string) => {
+        markRead(id);
+    };
 
     const getInitials = (name: string) => {
         if (!name || typeof name !== 'string') return '??';
         return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
     };
 
-    // Close popup when clicking outside
+    // Close popups when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+            const target = event.target as Node;
+            if (profileRef.current && !profileRef.current.contains(target)) {
                 setIsProfileOpen(false);
+            }
+            if (notificationRef.current && !notificationRef.current.contains(target)) {
+                setIsNotificationOpen(false);
             }
         };
 
-        if (isProfileOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-        
+        document.addEventListener('mousedown', handleClickOutside);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [isProfileOpen]);
+    }, []);
+
+    const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 relative z-50">
@@ -51,11 +85,34 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
         <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
           <Search size={20} />
         </button>
-        <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors relative">
-          <Bell size={20} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-        </button>
-        <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+        
+        {/* Notification Bell with Dropdown */}
+        <div className="relative" ref={notificationRef}>
+            <button 
+              onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+              className="p-2 text-gray-400 hover:text-gray-600 transition-colors relative cursor-pointer"
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[14px] h-[14px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            
+            <NotificationPopup 
+              isOpen={isNotificationOpen}
+              onClose={() => setIsNotificationOpen(false)}
+              notifications={notifications}
+              onMarkAllRead={handleMarkAllRead}
+              onMarkRead={handleMarkRead}
+            />
+        </div>
+
+        <button 
+          onClick={() => setIsSubsystemOpen(true)}
+          className="p-2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+        >
           <LayoutGrid size={20} />
         </button>
         
@@ -124,6 +181,7 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
            )}
         </div>
       </div>
+      <SubsystemPopup isOpen={isSubsystemOpen} onClose={() => setIsSubsystemOpen(false)} />
     </header>
   );
 };

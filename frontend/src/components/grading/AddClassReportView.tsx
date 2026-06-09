@@ -18,16 +18,90 @@ import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
 import { useAuth } from '@/providers/auth-provider';
 import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
-import { evaluationDetailApi } from '@/api/evaluation-detail-api';
+import { evaluationDetailApi, EvaluationDetail } from '@/api/evaluation-detail-api';
 
 interface ViolationItem {
   student_id: string;
   student_name: string;
   student_code: string;
-  evaluation_detail_id: string;
+  // `criterion_id` is the actual Criterion ObjectId string
+  criterion_id: string;
+  // `evaluation_detail_id` is the optional EvaluationDetail id after it's created/fetched
+  evaluation_detail_id?: string;
   criterion_name: string;
   points_effect: number;
   class_note: string;
+}
+
+const OBJECT_ID_REGEX = /^[a-fA-F0-9]{24}$/;
+
+function getIdValue(value: any): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value._id) return value._id;
+  return '';
+}
+
+function isValidObjectId(value: string): boolean {
+  return typeof value === 'string' && OBJECT_ID_REGEX.test(value);
+}
+
+function normalizeText(value: string): string {
+  return (value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function resolveCriterionByName(criteria: Criterion[], names: Array<string | undefined | null>) {
+  const normalizedNames = names
+    .map(name => normalizeText(name || ''))
+    .filter(Boolean);
+
+  if (normalizedNames.length === 0) return null;
+
+  const exactMatches = criteria.filter(criterion => {
+    const criterionName = normalizeText(criterion.criterion_name);
+    return normalizedNames.some(name => criterionName === name);
+  });
+
+  if (exactMatches.length === 1) return exactMatches[0];
+
+  if (exactMatches.length > 1) {
+    return exactMatches.find(criterion => {
+      const criterionName = normalizeText(criterion.criterion_name);
+      return normalizedNames.includes(criterionName);
+    }) || exactMatches[0];
+  }
+
+  const includesMatches = criteria.filter(criterion => {
+    const criterionName = normalizeText(criterion.criterion_name);
+    return normalizedNames.some(name => criterionName.includes(name) || name.includes(criterionName));
+  });
+
+  if (includesMatches.length === 1) return includesMatches[0];
+
+  return null;
+}
+
+function resolveCriterionFromRecord(rec: AcademicRecord, criteria: Criterion[]) {
+  const criterionIdFromPrimary = getIdValue((rec as any).criterion_id);
+  const criterionIdFromCriteria = getIdValue((rec as any).criteria_id);
+  const evalDetailObj = typeof rec.evaluation_detail_id === 'object' ? rec.evaluation_detail_id : null;
+  const criterionIdFromEval = evalDetailObj ? getIdValue(evalDetailObj.criterion_id) : '';
+
+  const canonicalName = (rec.record_title || rec.description || '').trim();
+  const criterionNameFromRecord = (rec as any).criterion_name || canonicalName;
+
+  const directId = criterionIdFromPrimary || criterionIdFromCriteria || criterionIdFromEval;
+  if (directId) {
+    const matchedById = criteria.find(c => c._id === directId);
+    if (matchedById) return matchedById;
+  }
+
+  return resolveCriterionByName(criteria, [criterionNameFromRecord, canonicalName]);
 }
 
 interface AddClassReportViewProps {
@@ -143,19 +217,20 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             const records = await academicRecordApi.getAcademicRecordsByDailyReport(reportToEdit._id);
             const violationsMapped: ViolationItem[] = records.map(rec => {
               const stObj = typeof rec.student_id === 'object' ? rec.student_id : null;
-              const critObj = typeof rec.evaluation_detail_id === 'object' ? rec.evaluation_detail_id : null;
-              const criterionId = rec.criteria_id
-                ? (typeof rec.criteria_id === 'object' ? rec.criteria_id?._id : rec.criteria_id)
-                : (critObj
-                  ? (typeof critObj.criterion_id === 'object' ? critObj.criterion_id?._id : critObj.criterion_id)
-                  : rec.evaluation_detail_id);
+              const matchedCriterion = resolveCriterionFromRecord(rec, criteria);
+              const evalDetailObj = typeof rec.evaluation_detail_id === 'object' ? rec.evaluation_detail_id : null;
+              const evaluationDetailId = evalDetailObj ? (evalDetailObj._id || '') : (typeof rec.evaluation_detail_id === 'string' ? rec.evaluation_detail_id : '');
+              const originalCriterionId = getIdValue((rec as any).criterion_id) || getIdValue((rec as any).criteria_id) || (evalDetailObj ? getIdValue(evalDetailObj.criterion_id) : '');
+              const criterionName = matchedCriterion?.criterion_name || rec.record_title || (rec as any).criterion_name || 'Vi phạm';
+              const pointsEffect = matchedCriterion?.score_per_unit || matchedCriterion?.min_score || rec.points_effect || -5;
               return {
                 student_id: stObj ? stObj._id : rec.student_id,
                 student_name: stObj ? stObj.full_name : 'Sinh viên',
                 student_code: stObj ? stObj.student_code : '',
-                evaluation_detail_id: criterionId,
-                criterion_name: rec.record_title || 'Vi phạm',
-                points_effect: rec.points_effect || -5,
+                criterion_id: matchedCriterion?._id || originalCriterionId || '',
+                evaluation_detail_id: evaluationDetailId,
+                criterion_name: criterionName,
+                points_effect: pointsEffect,
                 class_note: rec.description || ''
               };
             });
@@ -175,6 +250,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   }, [reportToEdit]);
 
   const [isStudentsLoading, setIsStudentsLoading] = useState(false);
+  const [summaryPointCache, setSummaryPointCache] = useState<Record<string, string>>({});
+  const [evaluationDetailCache, setEvaluationDetailCache] = useState<Record<string, string>>({});
 
   // Lọc sinh viên theo lớp học đang chọn
   useEffect(() => {
@@ -213,7 +290,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     if (classStudents.length > 0) {
       // Chỉ đếm những vi phạm thuộc tiêu chí được cấu hình tính vắng mặt hoặc có chứa từ khóa "vắng"
       const absentViolations = addedViolations.filter(v => 
-        absentCriteriaIds.includes(v.evaluation_detail_id) || 
+        absentCriteriaIds.includes(v.criterion_id) || 
         v.criterion_name.toLowerCase().includes('vắng')
       );
       const uniqueAbsentIds = new Set(absentViolations.map(v => v.student_id));
@@ -248,7 +325,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
     // Check trùng vi phạm cùng sinh viên
     const isDuplicate = addedViolations.some(
-      v => v.student_id === selectedStudentId && v.evaluation_detail_id === selectedCriterionId
+      v => v.student_id === selectedStudentId && v.criterion_id === selectedCriterionId
     );
     if (isDuplicate) {
       toast.error('Sinh viên này đã bị ghi nhận tiêu chí vi phạm này!');
@@ -258,12 +335,23 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     const student = classStudents.find(s => s._id === selectedStudentId);
     const criterion = criteria.find(c => c._id === selectedCriterionId);
 
+    if (!student) {
+      toast.error('Không tìm thấy sinh viên đã chọn, vui lòng tải lại danh sách');
+      return;
+    }
+
+    if (!criterion) {
+      toast.error('Không tìm thấy tiêu chí đã chọn, vui lòng tải lại danh sách tiêu chí');
+      return;
+    }
+
     if (student && criterion) {
       const newViolation: ViolationItem = {
         student_id: student._id,
         student_name: student.full_name,
         student_code: student.student_code,
-        evaluation_detail_id: criterion._id,
+        criterion_id: criterion._id,
+        evaluation_detail_id: undefined,
         criterion_name: criterion.criterion_name,
         points_effect: criterion.score_per_unit || criterion.min_score || -5,
         class_note: violationNote.trim() || 'Không có ghi chú'
@@ -343,14 +431,37 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       // 2. Lưu từng bản ghi vi phạm rèn luyện từ bảng tạm
       if (addedViolations.length > 0) {
         const summaryList = await summariesPointApi.getSummariesPoints();
+        const localSummaryCache = new Map<string, string>();
+        const localDetailCache = new Map<string, string>();
+        for (const violation of addedViolations) {
+          const resolvedCriterion = criteria.find(c => c._id === violation.criterion_id) || resolveCriterionByName(criteria, [violation.criterion_name]);
+          if (!resolvedCriterion) {
+            throw new Error(`Khong tim thay tieu chi cho ghi nhan: ${violation.criterion_name}. Vui long tai lai danh sach tieu chi hoac chon lai tieu chi`);
+          }
 
-        await Promise.all(addedViolations.map(async (violation) => {
-          // 1. Tìm hoặc tạo SummaryPoint cho học sinh & kì học
-          let studentSummary = summaryList.find(s => {
-            const sId = typeof s.student_id === 'object' ? s.student_id?._id : s.student_id;
-            const semId = typeof s.semester_id === 'object' ? s.semester_id?._id : s.semester_id;
-            return sId === violation.student_id && semId === activeSemesterId;
-          });
+          violation.criterion_id = resolvedCriterion._id;
+          if (!violation.criterion_name || normalizeText(violation.criterion_name) !== normalizeText(resolvedCriterion.criterion_name)) {
+            violation.criterion_name = resolvedCriterion.criterion_name;
+          }
+          if (!isValidObjectId(violation.student_id)) {
+            throw new Error(`Khong tim thay hoc sinh hop le cho ghi nhan: ${violation.student_name}`);
+          }
+          if (!isValidObjectId(activeSemesterId)) {
+            throw new Error('Du lieu hoc ky khong hop le, vui long kiem tra lai');
+          }
+          if (!isValidObjectId(dailyReportId)) {
+            throw new Error('Du lieu bao cao ngay khong hop le, khong the luu ghi nhan');
+          }
+
+          const summaryCacheKey = `${violation.student_id}:${activeSemesterId}`;
+          let studentSummaryId = localSummaryCache.get(summaryCacheKey) || summaryPointCache[summaryCacheKey];
+          let studentSummary = studentSummaryId
+            ? summaryList.find(s => s._id === studentSummaryId)
+            : summaryList.find(s => {
+                const sId = typeof s.student_id === 'object' ? s.student_id?._id : s.student_id;
+                const semId = typeof s.semester_id === 'object' ? s.semester_id?._id : s.semester_id;
+                return sId === violation.student_id && semId === activeSemesterId;
+              });
 
           if (!studentSummary) {
             studentSummary = await summariesPointApi.createSummariesPoint({
@@ -362,39 +473,52 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             });
           }
 
-          // 2. Tìm hoặc tạo EvaluationDetail liên kết SummaryPoint và Criterion
-          const detailsList = await evaluationDetailApi.getEvaluationDetailsBySummary(studentSummary._id);
-          let evalDetail = detailsList.find(d => {
-            const cId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
-            return cId === violation.evaluation_detail_id;
-          });
+          localSummaryCache.set(summaryCacheKey, studentSummary._id);
+          setSummaryPointCache(prev => ({ ...prev, [summaryCacheKey]: studentSummary._id }));
+
+          const criterionId = violation.criterion_id;
+          if (!isValidObjectId(criterionId)) {
+            throw new Error(`Du lieu tieu chi khong hop le, vui long chon lai tieu chi: ${violation.criterion_name}`);
+          }
+
+          const detailCacheKey = `${studentSummary._id}:${criterionId}`;
+          const cachedDetailId = localDetailCache.get(detailCacheKey) || evaluationDetailCache[detailCacheKey];
+          let evalDetail: { _id: string } | EvaluationDetail | null = cachedDetailId ? { _id: cachedDetailId } as any : null;
+
+          if (!evalDetail) {
+            const detailsList = await evaluationDetailApi.getEvaluationDetailsBySummary(studentSummary._id);
+            evalDetail = detailsList.find(d => {
+              const cId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
+              return cId === criterionId;
+            }) || null;
+          }
 
           if (!evalDetail) {
             evalDetail = await evaluationDetailApi.createEvaluationDetail({
               summary_id: studentSummary._id,
-              criterion_id: violation.evaluation_detail_id,
+              criterion_id: criterionId,
               current_count: 0,
               status: 'draft',
-              description: `Khởi tạo ghi nhận thủ công`,
+              description: 'Khoi tao ghi nhan thu cong',
               log: []
             });
           }
-          // Lưu ý: Không gọi updateEvaluationDetail ở đây nếu đã có evalDetail,
-          // vì hàm createAcademicRecord ở dưới sẽ tự động kích hoạt backend cộng thêm 1 vào current_count.
 
-          // 3. Tạo AcademicRecord với evaluation_detail_id chính xác
-          return academicRecordApi.createAcademicRecord({
+          localDetailCache.set(detailCacheKey, evalDetail._id);
+          setEvaluationDetailCache(prev => ({ ...prev, [detailCacheKey]: evalDetail._id }));
+
+          await academicRecordApi.createAcademicRecord({
             student_id: violation.student_id,
-            criterion_id: violation.evaluation_detail_id,
+            criterion_id: violation.criterion_id,
             semester_id: activeSemesterId,
             record_title: `${violation.criterion_name}`,
             description: violation.class_note,
             daily_report_id: dailyReportId,
             status: 'active',
             recorded_at: reportDate.toISOString(),
-            recorded_by: user?.id
+            recorded_by: isValidObjectId(user?.id || '') ? user?.id : undefined
           });
-        }));
+        }
         toast.success(`Đã ghi nhận ${addedViolations.length} vi phạm rèn luyện thành công!`);
       }
 
@@ -645,7 +769,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       </thead>
                       <tbody className="divide-y divide-white/20 bg-white/25">
                         {addedViolations.map((violation, idx) => {
-                          const criterion = criteria.find(c => c._id === violation.evaluation_detail_id);
+                          const criterion = criteria.find(c => c._id === violation.criterion_id);
                           const type = criterion?.criterion_type || (violation.points_effect > 0 ? 'cong_diem' : 'ky_luat');
 
                           let badgeClass = 'bg-blue-50 text-blue-600 border border-blue-100';

@@ -9,12 +9,12 @@ import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/Input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
 import { studentApi, Student } from '@/api/student-api';
 import { criteriaApi, Criterion } from '@/api/criteria-api';
-import { academicRecordApi } from '@/api/academic-record-api';
+import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
 import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi } from '@/api/evaluation-detail-api';
@@ -30,7 +30,13 @@ interface ViolationItem {
   class_note: string;
 }
 
-export default function AddRecordView({ onBack, onSuccess }: { onBack: () => void, onSuccess?: () => void }) {
+interface AddRecordViewProps {
+  onBack: () => void;
+  onSuccess?: () => void;
+  recordToEdit?: AcademicRecord | null;
+}
+
+export default function AddRecordView({ onBack, onSuccess, recordToEdit }: AddRecordViewProps) {
   const { user } = useAuth();
   const [classes, setClasses] = useState<Class[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -54,6 +60,8 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
   const [violationNote, setViolationNote] = useState('');
   const [addedViolations, setAddedViolations] = useState<ViolationItem[]>([]);
   const [activeSemesterId, setActiveSemesterId] = useState('60d0fe4f5311236168a109cb');
+
+  const isEditMode = Boolean(recordToEdit && recordToEdit._id);
 
   // Load classes, students, criteria
   useEffect(() => {
@@ -81,6 +89,69 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
         } catch (semErr) {
           console.warn('Lỗi khi nạp kì học:', semErr);
         }
+
+        if (recordToEdit) {
+          const studentObj = typeof recordToEdit.student_id === 'object' ? recordToEdit.student_id : null;
+          const studentIdStr = studentObj ? studentObj._id : (typeof recordToEdit.student_id === 'string' ? recordToEdit.student_id : '');
+          
+          // Resolve class from student object or by looking up in allStudents
+          let classIdFromRecord = '';
+          if (studentObj?.class_id) {
+            classIdFromRecord = typeof studentObj.class_id === 'object' ? studentObj.class_id?._id : studentObj.class_id;
+          } else if (studentIdStr && allStudents.length > 0) {
+            // Fallback: look up student in allStudents by _id
+            const foundStudent = allStudents.find(s => s._id === studentIdStr);
+            if (foundStudent) {
+              classIdFromRecord = typeof foundStudent.class_id === 'object' ? foundStudent.class_id?._id : foundStudent.class_id;
+            }
+          }
+
+          const criterionObj = typeof recordToEdit.criterion_id === 'object'
+            ? recordToEdit.criterion_id
+            : typeof recordToEdit.evaluation_detail_id === 'object'
+              ? recordToEdit.evaluation_detail_id
+              : null;
+          const criterionIdFromRecord = recordToEdit.criterion_id
+            ? (typeof recordToEdit.criterion_id === 'object' ? recordToEdit.criterion_id?._id : recordToEdit.criterion_id)
+            : recordToEdit.criteria_id
+              ? (typeof recordToEdit.criteria_id === 'object' ? recordToEdit.criteria_id?._id : recordToEdit.criteria_id)
+              : criterionObj
+                ? (typeof criterionObj.criterion_id === 'object' ? criterionObj.criterion_id?._id : criterionObj.criterion_id)
+                : recordToEdit.evaluation_detail_id;
+          const semesterId = typeof recordToEdit.semester_id === 'object'
+            ? recordToEdit.semester_id?._id
+            : recordToEdit.semester_id;
+
+          if (classIdFromRecord) {
+            setClassId(classIdFromRecord);
+          }
+          if (criterionIdFromRecord) {
+            setCriterionId(String(criterionIdFromRecord));
+          }
+          if (studentIdStr) {
+            setSelectedStudentId(studentIdStr);
+          }
+          setViolationNote(recordToEdit.description || '');
+
+          try {
+            const sourceDate = recordToEdit.recorded_at || recordToEdit.date_record || recordToEdit.createdAt;
+            if (sourceDate) {
+              const parsed = sourceDate.includes('/')
+                ? parse(sourceDate, 'dd/MM/yyyy', new Date())
+                : new Date(sourceDate);
+              if (!Number.isNaN(parsed.getTime())) {
+                setReportDate(parsed);
+              }
+            }
+          } catch (dateErr) {
+            console.warn('Lỗi parse ngày ghi nhận:', dateErr);
+          }
+
+          if (semesterId) {
+            setActiveSemesterId(String(semesterId));
+          }
+          setAddedViolations([]);
+        }
       } catch (err) {
         console.error('Lỗi nạp dữ liệu:', err);
         toast.error('Không thể nạp dữ liệu ban đầu');
@@ -89,7 +160,14 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
       }
     }
     loadData();
-  }, []);
+  }, [recordToEdit]);
+
+  const handleClassChange = (nextClassId: string) => {
+    setClassId(nextClassId);
+    setSelectedStudentId('');
+    setViolationNote('');
+    setAddedViolations([]);
+  };
 
   // Lọc sinh viên theo lớp học đang chọn
   useEffect(() => {
@@ -116,8 +194,6 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
       setAddedViolations([]);
       setIsStudentsLoading(false);
     }
-    setSelectedStudentId('');
-    setViolationNote('');
   }, [classId, allStudents]);
 
   // Lọc danh sách tiêu chí (lấy tất cả không cần qua danh mục)
@@ -181,6 +257,66 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isEditMode) {
+      if (!recordToEdit?._id) {
+        toast.error('Không thể cập nhật vì bản ghi chưa có mã định danh.');
+        return;
+      }
+      if (!classId) {
+        toast.error('Vui lòng chọn lớp học!');
+        return;
+      }
+      if (!selectedStudentId) {
+        toast.error('Vui lòng chọn sinh viên!');
+        return;
+      }
+      if (!criterionId) {
+        toast.error('Vui lòng chọn tiêu chí rèn luyện!');
+        return;
+      }
+      if (!reportDate) {
+        toast.error('Vui lòng chọn ngày ghi nhận!');
+        return;
+      }
+
+      const selectedCriterion = criteria.find(c => c._id === criterionId);
+      const recordedById = typeof recordToEdit.recorded_by === 'object' 
+        ? recordToEdit.recorded_by?._id 
+        : recordToEdit.recorded_by;
+      const semesterIdToUse = typeof recordToEdit.semester_id === 'object'
+        ? recordToEdit.semester_id?._id
+        : recordToEdit.semester_id || activeSemesterId;
+      
+      setIsSaving(true);
+      try {
+        await academicRecordApi.updateAcademicRecord(recordToEdit._id, {
+          student_id: selectedStudentId,
+          criterion_id: criterionId,
+          semester_id: semesterIdToUse,
+          record_title: selectedCriterion?.criterion_name || recordToEdit.record_title || 'Ghi nhận rèn luyện',
+          description: violationNote.trim(),
+          status: recordToEdit.status || 'active',
+          recorded_at: reportDate.toISOString(),
+          recorded_by: recordedById,
+        });
+
+        toast.success('Cập nhật ghi nhận thành công!');
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          onBack();
+        }
+        return;
+      } catch (err: any) {
+        console.error('Lỗi khi cập nhật ghi nhận:', err);
+        toast.error(err.message || 'Cập nhật ghi nhận thất bại!');
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     if (addedViolations.length === 0) {
       toast.error('Vui lòng thêm ít nhất 1 sinh viên vào danh sách ghi nhận!');
       return;
@@ -283,10 +419,10 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
 
             <div className="flex flex-col items-start min-w-0">
               <h2 className="font-bold text-[20px] lg:text-[23px] text-[#005bbf] leading-tight truncate">
-                Thêm Ghi nhận Rèn luyện
+                {isEditMode ? 'Chỉnh sửa Ghi nhận Rèn luyện' : 'Thêm Ghi nhận Rèn luyện'}
               </h2>
               <p className="font-normal text-[#414754] text-[13px] lg:text-[14px] leading-relaxed">
-                Ghi nhận khen thưởng hoặc vi phạm của sinh viên
+                {isEditMode ? 'Cập nhật thông tin ghi nhận hiện tại của sinh viên' : 'Ghi nhận khen thưởng hoặc vi phạm của sinh viên'}
               </p>
             </div>
           </div>
@@ -342,7 +478,7 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
                     <div className="flex flex-col w-full relative">
                       <Select
                         value={classId}
-                        onValueChange={setClassId}
+                        onValueChange={handleClassChange}
                         label="Lớp học"
                         required
                         error={""}
@@ -460,22 +596,27 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
                         containerClassName="col-span-12 md:col-span-6 w-full"
                       />
 
-                      {/* Nút Thêm sử dụng Button Component */}
-                      <div className="col-span-12 flex justify-end w-full mt-1">
-                        <Button
-                          type="button"
-                          onClick={handleAddViolationToList}
-                          className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold h-[36px] px-6 rounded-full shadow-[0px_4px_6px_-1px_rgba(0,91,191,0.1),0px_2px_4px_-2px_rgba(0,91,191,0.1)] flex items-center justify-center gap-2 cursor-pointer transition-all border-none outline-none text-[12px] min-w-[120px]"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Thêm vào danh sách</span>
-                        </Button>
-                      </div>
+                      {!isEditMode && (
+                        <div className="col-span-12 flex justify-end w-full mt-1">
+                          <Button
+                            type="button"
+                            onClick={handleAddViolationToList}
+                            className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold h-[36px] px-6 rounded-full shadow-[0px_4px_6px_-1px_rgba(0,91,191,0.1),0px_2px_4px_-2px_rgba(0,91,191,0.1)] flex items-center justify-center gap-2 cursor-pointer transition-all border-none outline-none text-[12px] min-w-[120px]"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Thêm vào danh sách</span>
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Bảng chi tiết ghi nhận */}
-                  <div className="w-full overflow-hidden border border-white/30 rounded-[12px] shadow-sm bg-white/20">
+                  {isEditMode ? (
+                    <div className="rounded-[12px] border border-blue-100 bg-blue-50/90 p-3 text-[12px] text-blue-700 shadow-sm">
+                      Bạn đang chỉnh sửa một bản ghi duy nhất. Các thay đổi sẽ được lưu bằng API cập nhật và không tạo thêm bản ghi mới.
+                    </div>
+                  ) : (
+                    <div className="w-full overflow-hidden border border-white/30 rounded-[12px] shadow-sm bg-white/20">
                     <table className="w-full text-left border-collapse">
                       <thead className="bg-[#005bbf]/5 border-b border-white/20">
                         <tr>
@@ -538,6 +679,7 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
                       </tbody>
                     </table>
                   </div>
+                  )}
 
                   {/* Hiển thị sĩ số/tổng hợp xem nhanh */}
                   <div className="flex flex-wrap items-center gap-4 lg:gap-6 text-[12px] font-bold text-slate-500 px-2 mt-1">
@@ -588,7 +730,7 @@ export default function AddRecordView({ onBack, onSuccess }: { onBack: () => voi
                   ) : (
                     <>
                       <Save className="w-3.5 h-3.5" />
-                      <span>Lưu ghi nhận</span>
+                      <span>{isEditMode ? 'Cập nhật ghi nhận' : 'Lưu ghi nhận'}</span>
                     </>
                   )}
                 </Button>

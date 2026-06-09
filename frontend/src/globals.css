@@ -51,3 +51,10 @@ body {
 .scrollbar-hover:hover::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8; /* gray-400 */
 }
+
+/* Mobile adjustments for Bottom Nav Bar */
+@media (max-width: 767px) {
+  main {
+    padding-bottom: 4.5rem !important;
+  }
+}

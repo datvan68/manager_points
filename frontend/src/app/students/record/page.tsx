@@ -55,6 +55,8 @@ import {
 import { CustomCalendar } from "@/components/calendar/CustomCalendar";
 import { format } from "date-fns";
 import AddRecordView from "@/components/grading/AddRecordView";
+import ImportStudentRecordPopup from '@/components/popups/ImportStudentRecordPopup';
+import ImportClassRecordPopup from '@/components/popups/ImportClassRecordPopup';
 import AddClassReportView from "@/components/grading/AddClassReportView";
 import {
   dailyClassReportApi,
@@ -191,6 +193,8 @@ function GhiNhanTab() {
   const [deletedRecords, setDeletedRecords] = useState<AcademicRecord[]>([]);
   const [deletedReports, setDeletedReports] = useState<DailyClassReport[]>([]);
   const [isTrashLoading, setIsTrashLoading] = useState(false);
+  const [isImportRecordPopupOpen, setIsImportRecordPopupOpen] = useState(false);
+  const [isImportClassRecordPopupOpen, setIsImportClassRecordPopupOpen] = useState(false);
   const [trashTab, setTrashTab] = useState<"student" | "class">("student");
   const [recordToForceDelete, setRecordToForceDelete] = useState<string | null>(
     null,
@@ -219,6 +223,10 @@ function GhiNhanTab() {
   const [editingReport, setEditingReport] = useState<DailyClassReport | null>(
     null,
   );
+  const [editingAcademicRecord, setEditingAcademicRecord] =
+    useState<AcademicRecord | null>(null);
+  const [isOpeningEditRecord, setIsOpeningEditRecord] = useState(false);
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [classCurrentPage, setClassCurrentPage] = useState(1);
   const [classReportRecordCounts, setClassReportRecordCounts] = useState<
     Record<string, number>
@@ -1098,8 +1106,36 @@ function GhiNhanTab() {
     setCurrentView("add");
   };
 
-  const handleEdit = (recordId: string) => {
-    toast.info(`Chỉnh sửa ghi nhận có mã: ${recordId}`);
+  const handleEdit = async (recordId: string) => {
+    if (!ghiNhanAccess.editStudentRecord) {
+      toast.error("Bạn không có quyền chỉnh sửa ghi nhận HSSV.");
+      return;
+    }
+
+    setIsOpeningEditRecord(true);
+    setEditingRecordId(recordId);
+    try {
+      const existingRecord =
+        academicRecords.find((record) => record._id === recordId) ||
+        (await academicRecordApi.getAcademicRecord(recordId));
+
+      if (!existingRecord) {
+        throw new Error("Không tìm thấy ghi nhận để chỉnh sửa.");
+      }
+
+      setEditingAcademicRecord(existingRecord);
+      setEditingReport(null);
+      setActiveSubTab("student");
+      setCurrentView("edit");
+    } catch (err: any) {
+      console.error("Lỗi khi mở form chỉnh sửa ghi nhận:", err);
+      toast.error(err.message || "Không thể tải ghi nhận để chỉnh sửa.");
+      setCurrentView("list");
+      setEditingAcademicRecord(null);
+    } finally {
+      setIsOpeningEditRecord(false);
+      setEditingRecordId(null);
+    }
   };
 
   const handleEditClassReport = (report: DailyClassReport) => {
@@ -1139,6 +1175,42 @@ function GhiNhanTab() {
   }
 
   if (currentView === "edit") {
+    // Validate edit mode state - must have either editingReport or editingAcademicRecord
+    if (!editingReport && !editingAcademicRecord) {
+      return (
+        <motion.div
+          key="edit-error-view"
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.2 }}
+          className="flex-1 w-full h-full relative flex items-center justify-center"
+        >
+          <div className="flex flex-col items-center gap-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-8 max-w-sm">
+            <AlertCircle className="w-12 h-12 text-red-500" />
+            <div className="text-center">
+              <h2 className="text-lg font-bold text-slate-900 mb-2">
+                Không tìm thấy bản ghi để chỉnh sửa
+              </h2>
+              <p className="text-sm text-slate-500 mb-6">
+                Vui lòng chọn một bản ghi từ danh sách để chỉnh sửa.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setCurrentView("list");
+                setEditingAcademicRecord(null);
+                setEditingReport(null);
+              }}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
+              Quay lại danh sách
+            </button>
+          </div>
+        </motion.div>
+      );
+    }
+
     return (
       <motion.div
         key="edit-view"
@@ -1148,18 +1220,33 @@ function GhiNhanTab() {
         transition={{ duration: 0.2 }}
         className="flex-1 w-full h-full relative"
       >
-        <AddClassReportView
-          onBack={() => {
-            setCurrentView("list");
-            setEditingReport(null);
-          }}
-          reportToEdit={editingReport}
-          onSuccess={() => {
-            setCurrentView("list");
-            setEditingReport(null);
-            fetchClassReports();
-          }}
-        />
+        {editingReport ? (
+          <AddClassReportView
+            onBack={() => {
+              setCurrentView("list");
+              setEditingReport(null);
+            }}
+            reportToEdit={editingReport}
+            onSuccess={() => {
+              setCurrentView("list");
+              setEditingReport(null);
+              fetchClassReports();
+            }}
+          />
+        ) : (
+          <AddRecordView
+            onBack={() => {
+              setCurrentView("list");
+              setEditingAcademicRecord(null);
+            }}
+            recordToEdit={editingAcademicRecord}
+            onSuccess={() => {
+              setCurrentView("list");
+              setEditingAcademicRecord(null);
+              fetchAcademicRecords();
+            }}
+          />
+        )}
       </motion.div>
     );
   }
@@ -1263,7 +1350,7 @@ function GhiNhanTab() {
                 </Select>
               </div>
 
-              {ghiNhanAccess.manageSetup && (
+              {ghiNhanAccess.configRecord && (
                 <button
                   onClick={() => setIsGlobalConfigModalOpen(true)}
                   className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shadow-sm cursor-pointer flex items-center justify-center outline-none"
@@ -1286,7 +1373,7 @@ function GhiNhanTab() {
             </div>
           </div>
 
-          {/* Table Content */}
+          {/* Table Content student record */}
           <div className="flex-1 overflow-auto bg-white">
             {viewLayout === "card" ? (
               <div className="p-4 bg-slate-50/30">
@@ -2489,10 +2576,19 @@ function GhiNhanTab() {
                                 {ghiNhanAccess.editStudentRecord && (
                                   <button
                                     onClick={() => handleEdit(record.id)}
-                                    className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
+                                    disabled={isOpeningEditRecord && editingRecordId === record.id}
+                                    className={`p-1.5 rounded-md transition-colors ${
+                                      isOpeningEditRecord && editingRecordId === record.id
+                                        ? "text-gray-300 cursor-not-allowed bg-gray-50"
+                                        : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                    }`}
                                     title="Chỉnh sửa"
                                   >
-                                    <Edit className="w-4 h-4" />
+                                    {isOpeningEditRecord && editingRecordId === record.id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <Edit className="w-4 h-4" />
+                                    )}
                                   </button>
                                 )}
 
@@ -2643,7 +2739,7 @@ function GhiNhanTab() {
                 </Select>
               </div>
 
-              {ghiNhanAccess.manageSetup && (
+              {ghiNhanAccess.configRecord && (
                 <>
                   <button
                     onClick={() => setIsGlobalConfigModalOpen(true)}
@@ -2652,19 +2748,9 @@ function GhiNhanTab() {
                   >
                     <Settings className="w-4 h-4" />
                   </button>
-
-                  <button
-                    onClick={handleCreate}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span className="hidden sm:inline">Thêm ghi nhận</span>
-                    <span className="sm:hidden">Thêm</span>
-                  </button>
                 </>
               )}
-              {ghiNhanAccess.createClassRecord &&
-                !ghiNhanAccess.manageSetup && (
+              {ghiNhanAccess.createClassRecord && (
                   <button
                     onClick={handleCreate}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
@@ -2674,10 +2760,11 @@ function GhiNhanTab() {
                     <span className="sm:hidden">Thêm</span>
                   </button>
                 )}
+              {/* Import button for class moved to Global Config modal per taskscope */}
             </div>
           </div>
 
-          {/* Table Content */}
+          {/* Table Content class record */}
           <div className="flex-1 overflow-auto bg-white">
             {viewLayout === "card" ? (
               <div className="p-4 bg-slate-50/30">
@@ -2729,7 +2816,6 @@ function GhiNhanTab() {
                           {/* Checkbox & Class Name */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              {canDeleteClassReport(report) && (
                                 <input
                                   type="checkbox"
                                   checked={selectedReportIds.includes(
@@ -2737,8 +2823,7 @@ function GhiNhanTab() {
                                   )}
                                   onChange={() => toggleSelectClass(report._id)}
                                   className="w-4.5 h-4.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                />
-                              )}
+                                /> 
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm font-bold text-slate-800">
@@ -3064,7 +3149,7 @@ function GhiNhanTab() {
                                   </button>
                                 </ClassReportDetailDialog>
 
-                                {/* Sửa */}
+                                {/* Sửa ghi nhận lớp */}
                                 {ghiNhanAccess.editClassRecord && (
                                   <button
                                     onClick={() =>
@@ -3235,6 +3320,19 @@ function GhiNhanTab() {
         variant="danger"
       />
 
+      {/* Import Student Record Popup */}
+      <ImportStudentRecordPopup
+        isOpen={isImportRecordPopupOpen}
+        onClose={() => setIsImportRecordPopupOpen(false)}
+        onSuccess={fetchAcademicRecords}
+      />
+      {/* Import Class Record Popup */}
+      <ImportClassRecordPopup
+        isOpen={isImportClassRecordPopupOpen}
+        onClose={() => setIsImportClassRecordPopupOpen(false)}
+        onSuccess={fetchClassReports}
+      />
+
       {/* Modal thông báo lỗi từ backend */}
       <ConfirmModal
         isOpen={isErrorModalOpen}
@@ -3272,6 +3370,7 @@ function GhiNhanTab() {
                 }}
                 className="w-full flex items-center justify-between p-3.5 bg-white border border-slate-100 hover:bg-slate-50/50 hover:border-slate-200 rounded-2xl transition-all cursor-pointer shadow-sm text-left group"
               >
+              
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center group-hover:scale-105 transition-transform">
                     <Trash2 className="w-4.5 h-4.5" />
@@ -3290,6 +3389,46 @@ function GhiNhanTab() {
                   style={{ transform: "rotate(-90deg)" }}
                 />
               </button>
+              {activeSubTab === 'student' && ghiNhanAccess.createStudentRecord && (
+                <button
+                  onClick={() => {
+                    setIsGlobalConfigModalOpen(false);
+                    setIsImportRecordPopupOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 bg-white border border-slate-100 hover:bg-slate-50/50 hover:border-slate-200 rounded-2xl transition-all cursor-pointer shadow-sm text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <FileSpreadsheet className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-bold text-slate-800">Import Ghi nhận</div>
+                      <div className="text-[11px] text-slate-400 font-medium mt-0.5">Import ghi nhận HSSV từ file Excel</div>
+                    </div>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-slate-400" style={{ transform: "rotate(-90deg)" }} />
+                </button>
+              )}
+              {activeSubTab === 'class' && ghiNhanAccess.createClassRecord && (
+                <button
+                  onClick={() => {
+                    setIsGlobalConfigModalOpen(false);
+                    setIsImportClassRecordPopupOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 bg-white border border-slate-100 hover:bg-slate-50/50 hover:border-slate-200 rounded-2xl transition-all cursor-pointer shadow-sm text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-green-50 text-green-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <FileSpreadsheet className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-bold text-slate-800">Import báo cáo lớp</div>
+                      <div className="text-[11px] text-slate-400 font-medium mt-0.5">Import tình hình lớp học và ghi nhận sinh viên từ file Excel</div>
+                    </div>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-slate-400" style={{ transform: "rotate(-90deg)" }} />
+                </button>
+              )}
             </div>
 
             {/* Cột phải: Cấu hình */}
@@ -4077,11 +4216,14 @@ function StudentRecordPageContent() {
           tabs={[
             { id: "Danh sách", label: "Danh sách" },
             { id: "Ghi nhận", label: "Ghi nhận" },
+            { id: "Nhiệm vụ", label: "Nhiệm vụ" },
           ]}
           activeTab="Ghi nhận"
           onTabChange={(id) => {
             if (id === "Danh sách") {
               router.push("/students");
+            } else if (id === "Nhiệm vụ") {
+              router.push("/students/tasks");
             }
           }}
         />

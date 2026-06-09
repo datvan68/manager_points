@@ -29,6 +29,7 @@ import Action from "@/components/ui/Action";
 import { departmentApi, Department } from "@/api/department-api";
 import { classApi, Class } from "@/api/class-api";
 import { studentApi, Student } from "@/api/student-api";
+import { addNotification } from "@/lib/notifications";
 
 function StudentsPageContent() {
   const router = useRouter();
@@ -289,11 +290,14 @@ function StudentsPageContent() {
           tabs={[
             { id: "Danh sách", label: "Danh sách" },
             { id: "Ghi nhận", label: "Ghi nhận" },
+            { id: "Nhiệm vụ", label: "Nhiệm vụ" },
           ]}
           activeTab="Danh sách"
           onTabChange={(id) => {
             if (id === "Ghi nhận") {
               router.push("/students/record");
+            } else if (id === "Nhiệm vụ") {
+              router.push("/students/tasks");
             }
           }}
         />
@@ -776,13 +780,35 @@ function StudentsPageContent() {
         isOpen={isClassPopupOpen}
         onClose={() => setIsClassPopupOpen(false)}
         initialData={editingClass}
-        onSuccess={fetchDepartments}
+        onSuccess={(data?: any) => {
+          fetchDepartments();
+          const isCreate = !editingClass?._id && !editingClass?.id;
+          if (isCreate) {
+            addNotification(
+              'Lớp học mới được tạo',
+              `Lớp học "${data?.class_name || 'Mới'}" vừa được khởi tạo thành công thuộc hệ đào tạo ${data?.class_type || 'Cao đẳng'}.`,
+              'system',
+              '/students'
+            );
+          }
+        }}
       />
       <DepartmentPopup
         isOpen={isDeptPopupOpen}
         onClose={() => setIsDeptPopupOpen(false)}
         initialData={editingDept}
-        onSuccess={fetchDepartments}
+        onSuccess={(data?: any) => {
+          fetchDepartments();
+          const isCreate = !editingDept?._id;
+          if (isCreate) {
+            addNotification(
+              'Khoa mới được tạo',
+              `Khoa mới "${data?.name || 'Mới'}" (${data?.code || ''}) vừa được khởi tạo thành công trên hệ thống.`,
+              'system',
+              '/students'
+            );
+          }
+        }}
       />
       <ConfirmModal
         isOpen={isDeleteModalOpen}

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -20,11 +20,20 @@ export class DailyClassReportService {
   async create(
     createDailyClassReportDto: CreateDailyClassReportDto,
   ): Promise<DailyClassReport> {
-    const createdReport = new this.dailyClassReportModel(
-      createDailyClassReportDto,
-    );
-    const saved = await createdReport.save();
-    return saved.populate(['class_id', 'reported_by']);
+    try {
+      const createdReport = new this.dailyClassReportModel(
+        createDailyClassReportDto,
+      );
+      const saved = await createdReport.save();
+      return saved.populate(['class_id', 'reported_by']);
+    } catch (error) {
+      if ((error as any)?.code === 11000) {
+        throw new ConflictException(
+          'Daily class report already exists for this class and report date',
+        );
+      }
+      throw error;
+    }
   }
 
   async findAll(): Promise<DailyClassReport[]> {
