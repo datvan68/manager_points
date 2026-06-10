@@ -22,6 +22,9 @@ import { EvaluationDetailModule } from './evaluation-detail/evaluation-detail.mo
 import { DailyClassReportModule } from './daily-class-report/daily-class-report.module';
 import { AcademicRecordModule } from './academic-record/academic-record.module';
 import { EvaluationPeriodsModule } from './evaluation-periods/evaluation-periods.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { StudentTasksModule } from './student-tasks/student-tasks.module';
+import { StudentTaskProgressModule } from './student-task-progress/student-task-progress.module';
 
 @Module({
   imports: [
@@ -67,6 +70,9 @@ import { EvaluationPeriodsModule } from './evaluation-periods/evaluation-periods
     DailyClassReportModule,
     AcademicRecordModule,
     EvaluationPeriodsModule,
+    NotificationsModule,
+    StudentTasksModule,
+    StudentTaskProgressModule,
   ],
   controllers: [AppController],
   providers: [AppService],

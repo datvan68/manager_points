@@ -23,6 +23,7 @@ import {
   Trash2,
   Eye,
   Settings,
+  Info,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CustomPagination } from "@/components/ui/pagination";
@@ -39,6 +40,11 @@ import { studentApi } from "@/api/student-api";
 import { tokenStorage } from "@/api/auth-api";
 import { evaluationPeriodApi } from "@/api/evaluation-period-api";
 import SemesterModal from "@/components/grading/SemesterModal";
+import { RouteGuard } from "@/components/guards/RouteGuard";
+import { useLinkedTaskProgress } from "@/hooks/useLinkedTaskProgress";
+import { studentTaskApi } from "@/api/task-api";
+import { normalizeLinkedPath, getLinkedTaskMode } from "@/lib/task-linked-page";
+
 
 // Interfaces
 interface StudentData {
@@ -85,6 +91,180 @@ const calculateCriterionScore = (criterion: Criteria, count: number) => {
 const formatScoreLabel = (score?: number | null) => {
   if (score === null || score === undefined) return "Chưa chấm";
   return `${score > 0 ? "+" : ""}${score}đ`;
+};
+
+// Component CriteriaTooltip dùng để hiển thị text dài của tiêu chí
+const CriteriaTooltip = ({ content }: { content: string }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  // Click ra ngoài để đóng tooltip
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (tooltipRef.current && !tooltipRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  return (
+    <div ref={tooltipRef} className="relative inline-flex items-center ml-1 z-20">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="text-slate-400 hover:text-[#1A73E8] transition-colors focus:outline-none p-0.5"
+      >
+        <Info size={14} className="shrink-0" />
+      </button>
+      {isOpen && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-3 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-xl shadow-xl border border-white/10 z-50 text-left">
+          <div className="font-semibold mb-1 text-white/90">Nội dung đầy đủ:</div>
+          <div className="leading-relaxed text-slate-300 font-medium">{content}</div>
+          {/* Mũi tên chỉ lên trên */}
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-900/95" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Component CupertinoHorizontalPicker dùng cho việc kéo/cuộn trượt số chấm điểm
+interface CupertinoPickerProps {
+  count: number;
+  minCount: number;
+  maxCount: number;
+  onChange: (val: number) => void;
+  isLocked: boolean;
+  canModifyScore: boolean;
+  hasViolation: boolean;
+}
+
+const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
+  count,
+  minCount,
+  maxCount,
+  onChange,
+  isLocked,
+  canModifyScore,
+  hasViolation,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isProgrammaticScroll = useRef(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const numbers = [];
+  for (let i = minCount; i <= maxCount; i++) {
+    numbers.push(i);
+  }
+
+  // Khi count thay đổi từ bên ngoài (nút +/- hoặc click)
+  useEffect(() => {
+    if (containerRef.current) {
+      const targetScrollLeft = (count - minCount) * 36;
+      if (Math.abs(containerRef.current.scrollLeft - targetScrollLeft) > 1) {
+        isProgrammaticScroll.current = true;
+        containerRef.current.scrollTo({
+          left: targetScrollLeft,
+          behavior: "smooth",
+        });
+        
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+          isProgrammaticScroll.current = false;
+        }, 150);
+      }
+    }
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [count, minCount]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isProgrammaticScroll.current || isLocked || !canModifyScore) return;
+    
+    const container = e.currentTarget;
+    const scrollLeft = container.scrollLeft;
+    const activeIndex = Math.round(scrollLeft / 36);
+    const targetVal = minCount + activeIndex;
+
+    if (targetVal !== count && targetVal >= minCount && targetVal <= maxCount) {
+      onChange(targetVal);
+    }
+  };
+
+  return (
+    <div 
+      className={`relative w-[130px] sm:w-[150px] md:w-[162px] h-9 overflow-hidden flex items-center justify-center select-none bg-slate-100/40 border border-slate-200/40 rounded-xl ${
+        isLocked || !canModifyScore ? "opacity-50" : ""
+      }`}
+    >
+      {/* Highlight Bar ở giữa */}
+      <div 
+        className={`absolute inset-y-1 w-9 border-l border-r rounded-md pointer-events-none z-10 ${
+          hasViolation
+            ? "bg-rose-500/10 border-rose-500/25"
+            : "bg-[#1A73E8]/10 border-[#1A73E8]/25"
+        }`}
+      />
+
+      {/* Scroll Container */}
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className={`w-full h-full flex items-center scrollbar-none snap-x snap-mandatory touch-pan-x ${
+          isLocked || !canModifyScore ? "overflow-x-hidden pointer-events-none" : "overflow-x-auto"
+        }`}
+        style={{
+          scrollSnapType: "x mandatory",
+          WebkitOverflowScrolling: "touch",
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+        }}
+      >
+        {/* Padding 2 đầu để item đầu/cuối căn giữa */}
+        <div className="w-[47px] sm:w-[57px] md:w-[63px] shrink-0" />
+
+        {numbers.map((num) => {
+          const diff = Math.abs(num - count);
+          const scale = diff === 0 ? 1.25 : diff === 1 ? 0.95 : 0.7;
+          const opacity = diff === 0 ? 1 : diff === 1 ? 0.6 : 0.25;
+          const isSelected = diff === 0;
+
+          return (
+            <button
+              key={num}
+              type="button"
+              onClick={() => {
+                if (!isLocked && canModifyScore) {
+                  onChange(num);
+                }
+              }}
+              disabled={isLocked || !canModifyScore}
+              className={`w-9 h-9 shrink-0 snap-center flex items-center justify-center font-bold tracking-tight transition-all focus:outline-none ${
+                isSelected
+                  ? (hasViolation ? "text-rose-600 font-extrabold" : "text-[#1A73E8] font-extrabold")
+                  : "text-[#64748B]"
+              }`}
+              style={{
+                transform: `scale(${scale})`,
+                opacity: opacity,
+              }}
+            >
+              {String(num).padStart(2, "0")}
+            </button>
+          );
+        })}
+
+        <div className="w-[47px] sm:w-[57px] md:w-[63px] shrink-0" />
+      </div>
+    </div>
+  );
 };
 
 // Bảng tiêu chí và danh mục chuẩn hóa theo Figma
@@ -275,10 +455,131 @@ const matchesCurrentStudent = ({
   );
 };
 
+interface HistoryCardProps {
+  rec: HistoryRecord;
+  index: number;
+  total: number;
+  onDelete: () => void;
+}
+
+const HistoryCard: React.FC<HistoryCardProps> = ({ rec, index, onDelete }) => {
+  const isViolation = rec.type === "violation";
+
+  let statusLabel = "Bản nháp";
+  let statusStyle = "bg-slate-500/10 text-[#64748B] border-slate-500/10";
+  if (rec.status === "teacher_evaluated") {
+    statusLabel = "Cố vấn đã chấm";
+    statusStyle = "bg-sky-500/10 text-sky-700 border-sky-500/25";
+  } else if (rec.status === "supervisor_evaluated") {
+    statusLabel = "Quản sinh đã chấm";
+    statusStyle = "bg-amber-500/10 text-amber-700 border-amber-500/25";
+  } else if (rec.status === "finalized") {
+    statusLabel = "Đã phê duyệt";
+    statusStyle = "bg-emerald-500/10 text-emerald-700 border-emerald-500/25";
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03 }}
+      className="relative flex flex-col gap-3.5 p-4.5 md:p-5 w-full bg-white/70 backdrop-blur-md border border-white/85 rounded-[24px] transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.015)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:-translate-y-1"
+    >
+      {/* Header: Tiêu chí và Tổng điểm */}
+      <div className="flex justify-between items-start gap-4">
+        <div className="flex flex-col gap-1.5 min-w-0">
+          <h5 className="font-bold text-[#1E293B] text-[14.5px] leading-snug break-words">
+            {rec.title}
+          </h5>
+          <span
+            className={`inline-flex items-center gap-1 self-start px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
+              isViolation
+                ? "bg-rose-500/10 text-rose-700 border-rose-500/20"
+                : "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+            }`}
+          >
+            {isViolation ? "Vi phạm" : "Khen thưởng"}
+          </span>
+        </div>
+
+        <div className="flex flex-col items-end shrink-0 text-right">
+          <span
+            className={`font-extrabold text-[17.5px] leading-none ${
+              isViolation ? "text-rose-600" : "text-emerald-600"
+            }`}
+          >
+            {isViolation ? "" : "+"}
+            {rec.points}đ
+          </span>
+          <span className="text-[10px] text-[#64748B] font-bold mt-1.5 bg-slate-100/50 px-2 py-0.5 rounded-md border border-slate-200/20 font-sans">
+            Đã chấm: {rec.count} lần
+          </span>
+        </div>
+      </div>
+
+      {/* Footer: Thông tin phụ & Nút xóa */}
+      <div className="flex flex-wrap items-center justify-between gap-3.5 pt-2.5 border-t border-slate-100/50 mt-1">
+        <div className="flex flex-wrap items-center gap-2 text-[10.5px] text-[#64748B] font-medium">
+          {/* Ngày & Buổi */}
+          <span className="bg-slate-100/70 border border-slate-200/30 px-2 py-0.5 rounded-lg shrink-0 font-bold font-sans">
+            {rec.date} ({rec.session})
+          </span>
+
+          {/* Vai trò người chấm */}
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-bold ${
+              rec.role === "admin"
+                ? "bg-purple-500/10 text-purple-700 border-purple-500/20"
+                : rec.role === "teacher"
+                  ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
+                  : rec.role === "supervisor"
+                    ? "bg-amber-500/10 text-amber-700 border-amber-500/20"
+                    : "bg-slate-500/10 text-[#64748B] border-slate-500/20"
+            }`}
+          >
+            Người chấm: {
+              rec.role === "admin"
+                ? "Quản trị viên"
+                : rec.role === "teacher"
+                  ? "Cố vấn"
+                  : rec.role === "supervisor"
+                    ? "Quản sinh"
+                    : "Sinh viên"
+            }
+          </span>
+
+          {/* Trạng thái duyệt */}
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-bold ${statusStyle}`}
+          >
+            {statusLabel}
+          </span>
+        </div>
+
+        {/* Nút xóa lịch sử */}
+        <button
+          onClick={onDelete}
+          className="w-8 h-8 rounded-full flex items-center justify-center bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
+          title="Xóa lịch sử ghi nhận này"
+        >
+          <Trash2 size={13} strokeWidth={2.5} />
+        </button>
+      </div>
+    </motion.div>
+  );
+};
+
 function GradingScoreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const studentIdParam = searchParams.get("studentId");
+  const taskId = searchParams.get("taskId");
+
+  const { markStarted, markCompleted } = useLinkedTaskProgress({
+    taskId,
+    linkedPage: "/grading/score",
+    sourceType: "grading_score",
+  });
 
   // Slider scroll ref
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -366,6 +667,22 @@ function GradingScoreContent() {
   const [studentSummaryMap, setStudentSummaryMap] = useState<
     Record<string, string>
   >({});
+
+  const syncLinkedTaskCompleted = async (summaryId: string) => {
+    if (!taskId) return;
+    try {
+      await markCompleted(summaryId, { studentId: activeStudentId });
+    } catch (syncErr) {
+      toast.warning("Nghiệp vụ đã lưu nhưng trạng thái nhiệm vụ chưa được đồng bộ!");
+      console.warn("Failed to sync task completed status. Debug info:", {
+        taskId,
+        summaryId,
+        activeStudentId,
+        sourceType: "grading_score",
+        error: syncErr
+      });
+    }
+  };
 
   // State lưu trữ số lượng (lần thực hiện) của từng tiêu chí cho từng sinh viên
   // Cấu trúc: { [studentId]: { [criteriaId]: count } }
@@ -739,6 +1056,10 @@ function GradingScoreContent() {
         }
         setActiveStudentId(targetActiveId);
 
+        if (currentUserRole === "student" && !targetActiveId) {
+          toast.error("Không thể xác định thông tin sinh viên của bạn để chấm điểm!");
+        }
+
         // Nạp chi tiết chấm điểm rèn luyện của active student trước
         if (targetActiveId) {
           const activeSummaryId = summaryMap[targetActiveId];
@@ -1000,6 +1321,14 @@ function GradingScoreContent() {
   const handleCountChange = (criteriaId: string, delta: number) => {
     if (!activeStudentId) return;
 
+    const summaryId = studentSummaryMap[activeStudentId];
+    if (taskId && summaryId) {
+      markStarted(summaryId, { studentId: activeStudentId }).catch((err) => {
+        toast.warning("Không thể tự động đồng bộ trạng thái nhiệm vụ sang 'Đang làm'!");
+        console.warn("Failed to sync task in_progress status:", err);
+      });
+    }
+
     // Lấy min count từ pre-existing records (không cho giảm dưới giá trị gốc)
     const studentPreCounts = preExistingCountsState[activeStudentId] || {};
     const minCount = studentPreCounts[criteriaId]?.original_count || 0;
@@ -1010,6 +1339,42 @@ function GradingScoreContent() {
         : {};
       const currentCount = studentCounts[criteriaId] || 0;
       const newCount = Math.max(minCount, currentCount + delta); // không giảm dưới giá trị gốc
+
+      const updatedCounts = {
+        ...prev,
+        [activeStudentId]: {
+          ...studentCounts,
+          [criteriaId]: newCount,
+        },
+      };
+
+      // Tự động tính toán lại điểm số realtime của sinh viên này
+      calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId]);
+
+      return updatedCounts;
+    });
+  };
+
+  // Hàm gán trực tiếp số lượng chấm của tiêu chí (dùng cho thanh trượt Slider)
+  const handleCountSet = (criteriaId: string, value: number) => {
+    if (!activeStudentId) return;
+
+    const summaryId = studentSummaryMap[activeStudentId];
+    if (taskId && summaryId) {
+      markStarted(summaryId, { studentId: activeStudentId }).catch((err) => {
+        toast.warning("Không thể tự động đồng bộ trạng thái nhiệm vụ sang 'Đang làm'!");
+        console.warn("Failed to sync task in_progress status:", err);
+      });
+    }
+
+    const studentPreCounts = preExistingCountsState[activeStudentId] || {};
+    const minCount = studentPreCounts[criteriaId]?.original_count || 0;
+
+    setEvaluationCounts((prev) => {
+      const studentCounts = prev[activeStudentId]
+        ? { ...prev[activeStudentId] }
+        : {};
+      const newCount = Math.max(minCount, value); // không giảm dưới giá trị gốc
 
       const updatedCounts = {
         ...prev,
@@ -1382,6 +1747,10 @@ function GradingScoreContent() {
       toast.success(
         `Đã lưu thành công điểm rèn luyện ${clampedFinalScore}/100đ cho sinh viên ${activeStudent.name}!`,
       );
+
+      if (taskId) {
+        await syncLinkedTaskCompleted(summaryId);
+      }
     } catch (error: any) {
       toast.dismiss("save-loading");
       toast.error("Lỗi khi lưu kết quả chấm điểm: " + error.message);
@@ -2059,26 +2428,28 @@ function GradingScoreContent() {
             )}
 
             {/* ================= NAVIGATION TABS (Danh mục / Lịch sử) ================= */}
-            <div className="flex bg-white/40 backdrop-blur-md border border-white/70 rounded-full p-1.5 gap-2 self-start shrink-0 shadow-sm">
+            <div className="flex w-full sm:w-auto bg-white/40 backdrop-blur-md border border-white/70 rounded-full p-1.5 gap-2 self-stretch sm:self-start shrink-0 shadow-sm">
               <button
                 onClick={() => setSubTab("category")}
-                className={`px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-full cursor-pointer relative ${
+                className={`flex-1 sm:flex-none text-center px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-full cursor-pointer relative whitespace-nowrap ${
                   subTab === "category"
                     ? "bg-white text-[#1A73E8] shadow-sm shadow-blue-900/5"
                     : "text-[#64748B] hover:text-[#1E293B]"
                 }`}
               >
-                Danh mục tiêu chí
+                <span className="hidden sm:inline">Danh mục tiêu chí</span>
+                <span className="inline sm:hidden">Danh mục</span>
               </button>
               <button
                 onClick={() => setSubTab("history")}
-                className={`px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-full cursor-pointer relative ${
+                className={`flex-1 sm:flex-none text-center px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-full cursor-pointer relative whitespace-nowrap ${
                   subTab === "history"
                     ? "bg-white text-[#1A73E8] shadow-sm shadow-blue-900/5"
                     : "text-[#64748B] hover:text-[#1E293B]"
                 }`}
               >
-                Lịch sử ghi nhận
+                <span className="hidden sm:inline">Lịch sử ghi nhận</span>
+                <span className="inline sm:hidden">Lịch sử</span>
               </button>
             </div>
 
@@ -2134,14 +2505,15 @@ function GradingScoreContent() {
                         className="bg-white/45 backdrop-blur-md border border-white/75 rounded-[24px] overflow-hidden shadow-sm shadow-slate-300/40 flex flex-col w-full hover:scale-[1.002] transition-all duration-300"
                       >
                         {/* Category Header */}
-                        <div className="bg-white/40 flex items-center justify-between p-5 w-full select-none border-b border-white/40">
-                          <h4 className="font-bold text-[#1E293B] text-[15px] tracking-wide flex items-center gap-2">
+                        <div className="bg-white/40 flex items-center justify-between p-5 w-full select-none border-b border-white/40 gap-3">
+                          <h4 className="font-bold text-[#1E293B] text-[15px] tracking-wide flex items-center gap-2 min-w-0 flex-1">
                             {category.code && (
                               <span className="text-[#1A73E8] font-mono text-[12px] bg-[#1A73E8]/10 border border-[#1A73E8]/15 px-2.5 py-1 rounded-full font-bold shrink-0">
                                 {category.code}
                               </span>
                             )}
-                            <span>{category.title}</span>
+                            <span className="truncate" title={category.title}>{category.title}</span>
+                            {category.title.length > 35 && <CriteriaTooltip content={category.title} />}
                           </h4>
                           <div
                             className={`px-4.5 py-1.5 border rounded-full font-bold text-[12.5px] tracking-wide shrink-0 transition-colors duration-300 ${badgeStyle}`}
@@ -2151,7 +2523,7 @@ function GradingScoreContent() {
                         </div>
 
                         {/* Criteria List Rows */}
-                        <div className="flex flex-col w-full divide-y divide-white/50 bg-white/20">
+                <div className="flex flex-col w-full gap-3 p-4 bg-white/10">
                           {category.items.map((item) => {
                             const count = studentCounts[item.id] || 0;
                             const hasViolation = item.type === "violation";
@@ -2173,19 +2545,46 @@ function GradingScoreContent() {
                               preExistingCountsState[activeStudentId] || {};
                             const minCount =
                               studentPreCounts[item.id]?.original_count || 0;
+                            const maxScore = item.maxScore ?? 10;
+                            const pointsPerUnit = Math.abs(item.pointsPerUnit || 1);
+                            const maxCount = Math.max(minCount, Math.ceil(maxScore / pointsPerUnit));
+                            const sliderMax = Math.max(maxCount, count);
+                            const numbers = [];
+                            for (let i = minCount; i <= sliderMax; i++) {
+                              numbers.push(i);
+                            }
 
                             return (
                               <div
                                 key={item.id}
-                                className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 md:gap-4 p-4 md:p-5 w-full hover:bg-slate-50/40 border-b border-slate-100/60 transition-colors duration-200"
+                                className={`flex flex-col md:flex-row md:items-center justify-between gap-3.5 md:gap-4 p-4.5 md:p-5 w-full rounded-2xl border transition-all duration-200 ${
+                                  hasViolation
+                                    ? "bg-rose-500/5 hover:bg-rose-500/10 border-rose-200/45 shadow-none hover:shadow-[0_4px_12px_rgba(244,63,94,0.03)]"
+                                    : "bg-[#1A73E8]/5 hover:bg-[#1A73E8]/10 border-blue-200/45 shadow-none hover:shadow-[0_4px_12px_rgba(26,115,232,0.03)]"
+                                }`}
                               >
-                                {/* Left: Title & 4 Scores */}
+                                {/* Left Column: Title, Badges (Desktop & Mobile) */}
                                 <div className="flex-1 min-w-0 flex flex-col gap-2">
-                                  <h5 className="font-bold text-[#1E293B] text-[14px] leading-relaxed break-words">
-                                    {item.name}
-                                  </h5>
+                                  <div className="flex items-start justify-between gap-3 md:block">
+                                    <h5 className="font-bold text-[#1E293B] text-[14px] leading-relaxed break-words flex items-center flex-wrap gap-1 flex-1">
+                                      <span className={item.name.length > 35 ? "line-clamp-2 overflow-hidden text-ellipsis" : ""}>{item.name}</span>
+                                      {item.name.length > 35 && <CriteriaTooltip content={item.name} />}
+                                    </h5>
+                                    
+                                    {/* Mobile-only Realtime Points Display on the right of title */}
+                                    <div className="flex flex-col items-end shrink-0 md:hidden">
+                                      <span className={`font-bold text-[16px] ${hasViolation ? "text-rose-600" : "text-emerald-600"}`}>
+                                        {formatScoreLabel(achievedPoints)}
+                                      </span>
+                                      {item.maxScore !== undefined && (
+                                        <span className="text-[8.5px] text-[#64748B] font-bold">
+                                          Tối đa {item.maxScore}đ
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
 
-                                  {/* Scores Badges */}
+                                  {/* Scores Badges + Đơn giá */}
                                   <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                                     {/* Sinh viên */}
                                     <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-[#1A73E8] text-[10px] font-bold border border-blue-100/40">
@@ -2218,16 +2617,18 @@ function GradingScoreContent() {
                                         </span>
                                       </div>
                                     )}
+
                                   </div>
                                 </div>
 
-                                {/* Right: Counter Control & Realtime Points */}
-                                <div className="flex items-center justify-between md:justify-end gap-4 md:gap-6 shrink-0 pt-2.5 md:pt-0 border-t border-slate-100 md:border-t-0 mt-1 md:mt-0">
-                                  {/* +/- Pill Control */}
-                                  <div className="flex items-center gap-2 shrink-0">
+                                {/* Right Column: Counter Control & Desktop Realtime Points */}
+                                <div className="flex flex-col md:flex-row md:items-center justify-end gap-3 md:gap-6 shrink-0 pt-2 md:pt-0 border-t border-slate-100/80 md:border-t-0 mt-1 md:mt-0 w-full md:w-auto">
+                                  {/* Cupertino Horizontal Wheel Picker & Points Per Unit underneath */}
+                                  <div className="flex flex-col items-end w-full md:w-auto mt-1 md:mt-0 gap-1 shrink-0">
                                     <div
-                                      className={`bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-full p-1 flex gap-1 items-center shadow-sm ${item.is_locked || !canModifyScore ? "opacity-60 bg-slate-100/50" : ""}`}
+                                      className={`bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-full py-1 px-2 flex gap-2 items-center shadow-sm ${item.is_locked || !canModifyScore ? "opacity-60 bg-slate-100/50" : ""}`}
                                     >
+                                      {/* Nút giảm */}
                                       <button
                                         onClick={() =>
                                           !item.is_locked &&
@@ -2239,7 +2640,7 @@ function GradingScoreContent() {
                                           item.is_locked ||
                                           !canModifyScore
                                         }
-                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all shrink-0 ${
                                           count <= minCount ||
                                           item.is_locked ||
                                           !canModifyScore
@@ -2259,11 +2660,18 @@ function GradingScoreContent() {
                                       >
                                         <Minus size={11} strokeWidth={3} />
                                       </button>
-                                      <div
-                                        className={`w-8 flex items-center justify-center font-bold text-[14px] select-none ${item.is_locked || !canModifyScore ? "text-slate-400" : "text-[#1E293B]"}`}
-                                      >
-                                        {count}
-                                      </div>
+
+                                      <CupertinoHorizontalPicker
+                                        count={count}
+                                        minCount={minCount}
+                                        maxCount={sliderMax}
+                                        onChange={(val) => handleCountSet(item.id, val)}
+                                        isLocked={item.is_locked || false}
+                                        canModifyScore={canModifyScore}
+                                        hasViolation={hasViolation}
+                                      />
+
+                                      {/* Nút tăng */}
                                       <button
                                         onClick={() =>
                                           !item.is_locked &&
@@ -2271,10 +2679,14 @@ function GradingScoreContent() {
                                           handleCountChange(item.id, 1)
                                         }
                                         disabled={
-                                          item.is_locked || !canModifyScore
+                                          count >= sliderMax ||
+                                          item.is_locked ||
+                                          !canModifyScore
                                         }
-                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                                          item.is_locked || !canModifyScore
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all shrink-0 ${
+                                          count >= sliderMax ||
+                                          item.is_locked ||
+                                          !canModifyScore
                                             ? "opacity-30 cursor-not-allowed text-slate-400"
                                             : "cursor-pointer " +
                                               (hasViolation
@@ -2292,14 +2704,15 @@ function GradingScoreContent() {
                                         <Plus size={11} strokeWidth={3} />
                                       </button>
                                     </div>
-                                    <span className="text-[#64748B] text-[10.5px] font-semibold tracking-wide">
-                                      {item.pointsPerUnit > 0 ? "+" : ""}
-                                      {item.pointsPerUnit}đ/lần
+
+                                    {/* Đơn giá nằm dưới Picker */}
+                                    <span className="text-[#64748B] text-[10px] font-bold tracking-wide pr-3 select-none">
+                                      {item.pointsPerUnit > 0 ? "+" : ""}{item.pointsPerUnit}đ/lần
                                     </span>
                                   </div>
 
-                                  {/* Realtime Points Display */}
-                                  <div className="flex flex-col items-end min-w-[75px] shrink-0 justify-center">
+                                  {/* Desktop-only Realtime Points Display */}
+                                  <div className="hidden md:flex flex-col items-end min-w-[75px] shrink-0 justify-center">
                                     <span
                                       className={`font-bold text-[16px] ${
                                         hasViolation
@@ -2415,167 +2828,47 @@ function GradingScoreContent() {
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="bg-white/45 backdrop-blur-md border border-white/75 rounded-[24px] shadow-sm shadow-slate-300/40 overflow-hidden flex flex-col min-h-0"
+                          className="flex flex-col min-h-0 w-full gap-5"
                         >
                           <div
-                            className={`overflow-x-auto ${paginatedRecords.length > 10 ? "max-h-[460px] overflow-y-auto custom-scrollbar" : ""}`}
+                            className={`flex flex-col gap-4 px-1 pt-4 pb-8 w-full ${
+                              records.length > 6
+                                ? "max-h-[640px] overflow-y-auto custom-scrollbar"
+                                : ""
+                            }`}
                           >
-                            <table className="w-full border-collapse">
-                              <thead>
-                                <tr className="bg-white/40 border-b border-white/50 text-left text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
-                                  <th className="px-6 py-4">Ngày ghi nhận</th>
-                                  <th className="px-6 py-4">Tiêu chí</th>
-                                  <th className="px-6 py-4">Người chấm</th>
-                                  <th className="px-6 py-4">Trạng thái</th>
-                                  <th className="px-6 py-4 text-center">
-                                    Số lần
-                                  </th>
-                                  <th className="px-6 py-4 text-right">
-                                    Tổng điểm
-                                  </th>
-                                  <th className="px-6 py-4 text-right">
-                                    Hành động
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/40 text-[13.5px] relative bg-white/10">
-                                {paginatedRecords.map((rec) => {
-                                  const isViolation = rec.type === "violation";
-
-                                  // Helper xác định nhãn trạng thái
-                                  let statusLabel = "Bản nháp";
-                                  let statusStyle =
-                                    "bg-slate-500/10 text-[#64748B] border-slate-500/10";
-                                  if (rec.status === "teacher_evaluated") {
-                                    statusLabel = "Cố vấn đã chấm";
-                                    statusStyle =
-                                      "bg-sky-500/10 text-sky-700 border-sky-500/25";
-                                  } else if (
-                                    rec.status === "supervisor_evaluated"
-                                  ) {
-                                    statusLabel = "Quản sinh đã chấm";
-                                    statusStyle =
-                                      "bg-amber-500/10 text-amber-700 border-amber-500/25";
-                                  } else if (rec.status === "finalized") {
-                                    statusLabel = "Đã phê duyệt";
-                                    statusStyle =
-                                      "bg-emerald-500/10 text-emerald-700 border-emerald-500/25";
-                                  }
-
-                                  return (
-                                    <tr
-                                      key={rec.id}
-                                      className="hover:bg-white/40 transition-colors"
-                                    >
-                                      <td className="px-6 py-4 text-[#64748B] font-medium">
-                                        {rec.date}
-                                      </td>
-                                      <td className="px-6 py-4">
-                                        <div className="flex flex-col gap-1.5">
-                                          <span className="font-bold text-[#1E293B]">
-                                            {rec.title}
-                                          </span>
-                                          <span
-                                            className={`inline-flex items-center gap-1 self-start px-2.5 py-0.5 rounded-full text-[9.5px] font-bold uppercase tracking-wider border ${
-                                              isViolation
-                                                ? "bg-rose-500/10 text-rose-700 border-rose-500/20"
-                                                : "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
-                                            }`}
-                                          >
-                                            {isViolation
-                                              ? "Vi phạm"
-                                              : "Khen thưởng"}
-                                          </span>
-                                        </div>
-                                      </td>
-                                      <td className="px-6 py-4">
-                                        <span
-                                          className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold tracking-wide border ${
-                                            rec.role === "admin"
-                                              ? "bg-purple-500/10 text-purple-700 border-purple-500/20"
-                                              : rec.role === "teacher"
-                                                ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
-                                                : rec.role === "supervisor"
-                                                  ? "bg-amber-500/10 text-amber-700 border-amber-500/20"
-                                                  : "bg-slate-500/10 text-[#64748B] border-slate-500/20"
-                                          }`}
-                                        >
-                                          {rec.role === "admin"
-                                            ? "Quản trị viên"
-                                            : rec.role === "teacher"
-                                              ? "Cố vấn"
-                                              : rec.role === "supervisor"
-                                                ? "Quản sinh"
-                                                : "Sinh viên"}
-                                        </span>
-                                      </td>
-                                      <td className="px-6 py-4">
-                                        <span
-                                          className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold border ${statusStyle}`}
-                                        >
-                                          {statusLabel}
-                                        </span>
-                                      </td>
-                                      <td className="px-6 py-4 text-center font-bold text-[#1E293B]">
-                                        {rec.count}
-                                      </td>
-                                      <td className="px-6 py-4 text-right">
-                                        <span
-                                          className={`font-extrabold text-[14.5px] ${
-                                            isViolation
-                                              ? "text-rose-600"
-                                              : "text-emerald-600"
-                                          }`}
-                                        >
-                                          {isViolation ? "" : "+"}
-                                          {rec.points}đ
-                                        </span>
-                                      </td>
-                                      <td className="px-6 py-4 text-right">
-                                        <button
-                                          onClick={() => {
-                                            setRecordToDelete(rec);
-                                            setIsConfirmDeleteOpen(true);
-                                          }}
-                                          className="w-8 h-8 rounded-full flex items-center justify-center bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-all active:scale-95 cursor-pointer ml-auto shadow-sm"
-                                          title="Xóa lịch sử ghi nhận này"
-                                        >
-                                          <Trash2 size={13} />
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                                {isHistoryFetching && (
-                                  <tr className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] z-20 pointer-events-none">
-                                    <td
-                                      colSpan={7}
-                                      className="h-full w-full p-0"
-                                    >
-                                      <div className="w-full h-full animate-pulse bg-gradient-to-r from-transparent via-slate-100/50 to-transparent" />
-                                    </td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
+                            {paginatedRecords.map((rec, index) => (
+                              <HistoryCard
+                                key={rec.id}
+                                rec={rec}
+                                index={index}
+                                total={paginatedRecords.length}
+                                onDelete={() => {
+                                  setRecordToDelete(rec);
+                                  setIsConfirmDeleteOpen(true);
+                                }}
+                              />
+                            ))}
                           </div>
 
-                          {/* Render Pagination ở dưới cùng bảng lịch sử */}
+                          {/* Render Pagination ở dưới cùng danh sách lịch sử */}
                           {records.length > 0 && (
-                            <CustomPagination
-                              currentPage={historyPage}
-                              totalItems={records.length}
-                              pageSize={historyPageSize}
-                              onPageChange={(page) => {
-                                setIsHistoryFetching(true);
-                                setTimeout(() => {
-                                  setHistoryPage(page);
-                                  setIsHistoryFetching(false);
-                                }, 400);
-                              }}
-                              label="lịch sử"
-                              isLoading={isHistoryFetching}
-                            />
+                            <div className="bg-white/45 backdrop-blur-sm border border-white/70 rounded-3xl p-3 shadow-sm shadow-slate-300/10">
+                              <CustomPagination
+                                currentPage={historyPage}
+                                totalItems={records.length}
+                                pageSize={historyPageSize}
+                                onPageChange={(page) => {
+                                  setIsHistoryFetching(true);
+                                  setTimeout(() => {
+                                    setHistoryPage(page);
+                                    setIsHistoryFetching(false);
+                                  }, 400);
+                                }}
+                                label="lịch sử"
+                                isLoading={isHistoryFetching}
+                              />
+                            </div>
                           )}
                         </motion.div>
                       )}
@@ -2660,7 +2953,7 @@ function GradingScoreContent() {
             whileHover={{ scale: 1.1, translateY: -2 }}
             whileTap={{ scale: 0.9 }}
             onClick={scrollToTop}
-            className="fixed bottom-8 right-8 z-50 bg-[#1A73E8] text-white p-3.5 rounded-full shadow-[0px_4px_20px_rgba(26,115,232,0.35)] hover:bg-[#155cc4] transition-all cursor-pointer border border-white/20 flex items-center justify-center"
+            className="fixed bottom-20 md:bottom-8 right-8 z-50 bg-[#1A73E8] text-white p-3.5 rounded-full shadow-[0px_4px_20px_rgba(26,115,232,0.35)] hover:bg-[#155cc4] transition-all cursor-pointer border border-white/20 flex items-center justify-center"
             title="Cuộn lên đầu trang"
           >
             <ArrowUp size={22} strokeWidth={2.5} />
@@ -2671,8 +2964,104 @@ function GradingScoreContent() {
   );
 }
 
-// Bọc component trong Suspense để tránh lỗi static generation do useSearchParams ở client-side.
-export default function GradingScorePage() {
+// Component wrapper để kiểm tra quyền truy cập hoặc bypass khi có taskId hợp lệ.
+function GradingScoreWithGuard() {
+  const searchParams = useSearchParams();
+  const taskId = searchParams.get("taskId");
+
+  const [isValidating, setIsValidating] = useState(!!taskId);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!taskId) {
+      setValidationError(null);
+      setIsValidating(false);
+      return;
+    }
+
+    setIsValidating(true);
+    setValidationError(null);
+
+    let isMounted = true;
+    const validateTaskAccess = async () => {
+      try {
+        const result = await studentTaskApi.checkTaskAccess(taskId);
+        
+        if (!result || !result.allowed) {
+          throw new Error("Nhiệm vụ không thuộc quyền quản lý của bạn hoặc tiến độ đã bị hủy áp dụng");
+        }
+
+        if (result.mode !== "auto" || normalizeLinkedPath(result.linkedPage) !== "/grading/score") {
+          throw new Error("Nhiệm vụ này không liên kết với trang chấm điểm tự động");
+        }
+
+        if (isMounted) {
+          setIsValidating(false);
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setValidationError(err.message || "Bạn không có quyền truy cập nhiệm vụ này");
+          setIsValidating(false);
+        }
+      }
+    };
+
+    validateTaskAccess();
+    return () => {
+      isMounted = false;
+    };
+  }, [taskId]);
+
+  if (taskId) {
+    if (isValidating) {
+      return (
+        <div className="flex h-screen bg-[#f6f7f8] font-sans items-center justify-center">
+          <div className="text-center flex flex-col items-center gap-4">
+            <Skeleton className="w-12 h-12 rounded-full animate-bounce bg-slate-100" />
+            <div className="font-bold text-slate-500 text-[14px]">
+              Đang xác thực thông tin nhiệm vụ...
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (validationError) {
+      return (
+        <div className="flex h-screen bg-[#f6f7f8] font-sans items-center justify-center p-4">
+          <div className="bg-white/80 backdrop-blur-md p-8 rounded-[24px] border border-white max-w-md w-full text-center shadow-lg flex flex-col items-center gap-4">
+            <div className="p-4 bg-rose-500/10 text-rose-600 rounded-full">
+              <AlertTriangle size={32} />
+            </div>
+            <h3 className="font-bold text-slate-800 text-[17px]">
+              Truy cập bị từ chối
+            </h3>
+            <p className="text-slate-500 text-[13.5px] leading-relaxed">
+              {validationError}
+            </p>
+            <Button
+              onClick={() => window.location.href = "/students/tasks"}
+              className="mt-2 w-full rounded-full bg-[#1A73E8] hover:bg-[#155cc4] text-white font-bold"
+            >
+              Quay lại danh sách nhiệm vụ
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return <GradingScoreContent />;
+  }
+
+  return (
+    <RouteGuard requiredPermission="GRADING_PAGE">
+      <GradingScoreContent />
+    </RouteGuard>
+  );
+}
+
+// Bọc component trong Suspense và RouteGuard để bảo vệ quyền truy cập và tránh lỗi static generation.
+export default function ProtectedGradingScorePage() {
   return (
     <Suspense
       fallback={
@@ -2686,7 +3075,7 @@ export default function GradingScorePage() {
         </div>
       }
     >
-      <GradingScoreContent />
+      <GradingScoreWithGuard />
     </Suspense>
   );
 }

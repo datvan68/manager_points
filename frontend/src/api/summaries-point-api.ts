@@ -1,6 +1,6 @@
+import { httpClient, handleResponse } from './http-client';
 import { Student } from './student-api';
 import { Semester } from './semester-api';
-import { tokenStorage } from './auth-api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -31,59 +31,38 @@ export interface UpdateSummaryPointDto {
   status?: 'draft' | 'sv_submitted' | 'gv_reviewed' | 'locked';
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || 'Đã xảy ra lỗi');
-  }
-  return data as T;
-}
-
-function authHeaders(extra?: HeadersInit): HeadersInit {
-  const token = tokenStorage.getAccessToken();
-  return {
-    ...(extra || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
 export const summariesPointApi = {
   async getSummariesPoints(): Promise<SummaryPoint[]> {
-    const res = await fetch(`${API_BASE}/summaries-points`, {
-      headers: authHeaders(),
-    });
+    const res = await httpClient(`${API_BASE}/summaries-points`);
     return handleResponse<SummaryPoint[]>(res);
   },
 
   async getSummariesPoint(id: string): Promise<SummaryPoint> {
-    const res = await fetch(`${API_BASE}/summaries-points/${id}`, {
-      headers: authHeaders(),
-    });
+    const res = await httpClient(`${API_BASE}/summaries-points/${id}`);
     return handleResponse<SummaryPoint>(res);
   },
 
   async createSummariesPoint(dto: CreateSummaryPointDto): Promise<SummaryPoint> {
-    const res = await fetch(`${API_BASE}/summaries-points`, {
+    const res = await httpClient(`${API_BASE}/summaries-points`, {
       method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
     return handleResponse<SummaryPoint>(res);
   },
 
   async updateSummariesPoint(id: string, dto: UpdateSummaryPointDto): Promise<SummaryPoint> {
-    const res = await fetch(`${API_BASE}/summaries-points/${id}`, {
+    const res = await httpClient(`${API_BASE}/summaries-points/${id}`, {
       method: 'PATCH',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
     return handleResponse<SummaryPoint>(res);
   },
 
   async deleteSummariesPoint(id: string): Promise<SummaryPoint> {
-    const res = await fetch(`${API_BASE}/summaries-points/${id}`, {
+    const res = await httpClient(`${API_BASE}/summaries-points/${id}`, {
       method: 'DELETE',
-      headers: authHeaders(),
     });
     return handleResponse<SummaryPoint>(res);
   }

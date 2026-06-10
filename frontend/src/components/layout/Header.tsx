@@ -7,7 +7,7 @@ import { useAuth } from '@/providers/auth-provider';
 import SubsystemPopup from '@/components/popups/SubsystemPopup';
 import NotificationPopup from '@/components/popups/NotificationPopup';
 import Breadcrumb from '@/components/ui/Breadcrumb';
-import { getNotifications, markAllRead, markRead, NotificationItem } from '@/lib/notifications';
+import { notificationApi, NotificationItem } from '@/api/notification-api';
 
 interface HeaderProps {
     customMappings?: Record<string, string>;
@@ -20,18 +20,32 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
     const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
     
     const profileRef = useRef<HTMLDivElement>(null);
     const notificationRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
 
+    const fetchNotifications = async () => {
+        try {
+            const [countRes, listRes] = await Promise.all([
+                notificationApi.getUnreadCount(),
+                notificationApi.getNotifications({ page: 1, limit: 5 })
+            ]);
+            setUnreadCount(countRes.count);
+            setNotifications(listRes.items);
+        } catch (error) {
+            console.error('Failed to fetch notifications:', error);
+        }
+    };
+
     useEffect(() => {
         // Load notifications initially
-        setNotifications(getNotifications());
+        fetchNotifications();
 
         // Listen for updates from other components
         const handleNotificationsUpdate = () => {
-            setNotifications(getNotifications());
+            fetchNotifications();
         };
 
         window.addEventListener('notifications-updated', handleNotificationsUpdate);
@@ -40,12 +54,22 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
         };
     }, []);
 
-    const handleMarkAllRead = () => {
-        markAllRead();
+    const handleMarkAllRead = async () => {
+        try {
+            await notificationApi.markAllRead();
+            window.dispatchEvent(new Event('notifications-updated'));
+        } catch (error) {
+            console.error('Failed to mark all read:', error);
+        }
     };
 
-    const handleMarkRead = (id: string) => {
-        markRead(id);
+    const handleMarkRead = async (id: string) => {
+        try {
+            await notificationApi.markRead(id);
+            window.dispatchEvent(new Event('notifications-updated'));
+        } catch (error) {
+            console.error('Failed to mark read:', error);
+        }
     };
 
     const getInitials = (name: string) => {
@@ -71,7 +95,6 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
         };
     }, []);
 
-    const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 relative z-50">

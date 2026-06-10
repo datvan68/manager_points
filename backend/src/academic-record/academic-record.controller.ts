@@ -32,9 +32,12 @@ export class AcademicRecordController {
   }
 
   @Get()
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all academic records' })
-  findAll() {
-    return this.academicRecordService.findAll();
+  findAll(@Request() req: any) {
+    const requester = req.user;
+    return this.academicRecordService.findAll(requester);
   }
 
   @Get('deleted/all')

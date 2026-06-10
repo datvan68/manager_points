@@ -36,7 +36,7 @@ import { evaluationDetailApi } from '@/api/evaluation-detail-api';
 import { categoryApi } from '../../api/category-api';
 import { criteriaApi } from '../../api/criteria-api';
 import { studentApi } from '../../api/student-api';
-import { usePermission } from '@/components/guards/RouteGuard';
+import { RouteGuard, usePermission } from '@/components/guards/RouteGuard';
 import { useAuth } from '@/providers/auth-provider';
 
 const calculateCriterionScore = (criterion: any, count: number) => {
@@ -97,7 +97,7 @@ const getSummaryStudentKey = (summary: any, index?: number) => {
   );
 };
 
-export default function GradingPage() {
+function GradingPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { canManageSemester } = usePermission({
@@ -644,9 +644,13 @@ export default function GradingPage() {
     }
   };
 
+  const { isLoading: authLoading } = useAuth();
+
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (!authLoading && user) {
+      fetchData();
+    }
+  }, [user, authLoading]);
 
   // Effect 1: Khôi phục trạng thái từ sessionStorage khi mount
   useEffect(() => {
@@ -1405,3 +1409,12 @@ export default function GradingPage() {
     </>
   );
 }
+
+export default function ProtectedGradingPage() {
+  return (
+    <RouteGuard requiredPermission="GRADING_PAGE">
+      <GradingPage />
+    </RouteGuard>
+  );
+}
+

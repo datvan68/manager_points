@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { RouteGuard, usePermission } from "@/components/guards/RouteGuard";
+import { useAuth } from "@/providers/auth-provider";
 import {
   Search,
   Plus,
@@ -33,6 +34,17 @@ import { addNotification } from "@/lib/notifications";
 
 function StudentsPageContent() {
   const router = useRouter();
+  const { user } = useAuth();
+  
+  const userRole = String(user?.role || "").toLowerCase();
+  const isStudent = userRole.includes("student") || userRole.includes("học sinh") || userRole.includes("sinh viên");
+
+  useEffect(() => {
+    if (isStudent) {
+      router.replace("/students/record");
+    }
+  }, [isStudent, router]);
+
   const permissions = usePermission({
     canCreateDept: "DEPT_CREATE",
 
@@ -287,11 +299,18 @@ function StudentsPageContent() {
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header customMappings={{ students: "Danh sách sinh viên" }} />
         <TabNavigation
-          tabs={[
-            { id: "Danh sách", label: "Danh sách" },
-            { id: "Ghi nhận", label: "Ghi nhận" },
-            { id: "Nhiệm vụ", label: "Nhiệm vụ" },
-          ]}
+          tabs={
+            isStudent
+              ? [
+                  { id: "Ghi nhận", label: "Ghi nhận" },
+                  { id: "Nhiệm vụ", label: "Nhiệm vụ" },
+                ]
+              : [
+                  { id: "Danh sách", label: "Danh sách" },
+                  { id: "Ghi nhận", label: "Ghi nhận" },
+                  { id: "Nhiệm vụ", label: "Nhiệm vụ" },
+                ]
+          }
           activeTab="Danh sách"
           onTabChange={(id) => {
             if (id === "Ghi nhận") {
@@ -841,6 +860,12 @@ function StudentsPageContent() {
 }
 
 export default function StudentsPage() {
+  const { user } = useAuth();
+  const userRole = String(user?.role || '').toLowerCase();
+  const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
+  const isTeacher = userRole.includes('teacher') || userRole.includes('advisor') || userRole.includes('giảng viên') || userRole.includes('giáo viên');
+  const bypassGuard = isStudent || isTeacher;
+
   return (
     <Suspense
       fallback={
@@ -849,9 +874,13 @@ export default function StudentsPage() {
         </div>
       }
     >
-      <RouteGuard requiredPermission="STUDENT_PAGE">
+      {bypassGuard ? (
         <StudentsPageContent />
-      </RouteGuard>
+      ) : (
+        <RouteGuard requiredPermission="STUDENT_PAGE">
+          <StudentsPageContent />
+        </RouteGuard>
+      )}
     </Suspense>
   );
 }

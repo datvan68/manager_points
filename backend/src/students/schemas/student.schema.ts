@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Class } from '../../classes/schemas/class.schema';
 import { User } from '../../auth/schemas/user.schema';
 
@@ -30,7 +30,7 @@ export class Student {
   status: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Class' })
-  class_id: Class;
+  class_id: Types.ObjectId | Class;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'TrainingPoint' })
   training_point_id: any;
@@ -41,7 +41,7 @@ export class Student {
     unique: true,
     sparse: true,
   })
-  user_id?: User;
+  user_id?: Types.ObjectId | User;
 }
 
 export const StudentSchema = SchemaFactory.createForClass(Student);

@@ -60,7 +60,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const academicRecordApi = {
   async getAcademicRecords(): Promise<AcademicRecord[]> {
-    const res = await fetch(`${API_BASE}/academic-records`);
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+    });
     return handleResponse<AcademicRecord[]>(res);
   },
 

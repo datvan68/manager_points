@@ -8,6 +8,12 @@
 - **Text Color System:** Main: `#1E293B` (Xanh đen sẫm) | Muted: `#64748B` (Xám bạc)
 - **Accent Primary:** `#1A73E8` (Xanh dương hoàng gia cho các điểm chạm điều hướng)
 - **Soft Shadow:** `shadow-sm shadow-slate-300/40` (Bóng đáy siêu mịn, không đổ bóng đôi)
+- **Semantic States (Trạng thái - Từ /grading/score):**
+  - Active: `bg-blue-500/10 text-[#1A73E8] border-blue-500/20`
+  - Warning: `bg-amber-500/10 text-amber-700 border-amber-500/20`
+  - Approved/Info: `bg-purple-500/10 text-purple-700 border-purple-500/20`
+  - Locked/Danger: `bg-rose-500/10 text-rose-700 border-rose-500/20`
+  - Draft/Muted: `bg-slate-500/10 text-[#64748B] border-slate-500/20`
 
 ## Radius Rule
 

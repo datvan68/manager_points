@@ -1,5 +1,5 @@
+import { httpClient, handleResponse } from './http-client';
 import { Class } from './class-api';
-import { tokenStorage } from './auth-api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -19,77 +19,56 @@ export interface Student {
   updatedAt?: string;
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || 'Đã xảy ra lỗi');
-  }
-  return data as T;
-}
-
-function authHeaders(extra?: HeadersInit): HeadersInit {
-  const token = tokenStorage.getAccessToken();
-  return {
-    ...(extra || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
 export const studentApi = {
   async getStudents(): Promise<Student[]> {
-    const res = await fetch(`${API_BASE}/students`, {
-      headers: authHeaders(),
-    });
+    const res = await httpClient(`${API_BASE}/students`);
     return handleResponse<Student[]>(res);
   },
 
   async getStudent(id: string): Promise<Student> {
-    const res = await fetch(`${API_BASE}/students/${id}`, {
-      headers: authHeaders(),
-    });
+    const res = await httpClient(`${API_BASE}/students/${id}`);
     return handleResponse<Student>(res);
   },
 
   async createStudent(dto: Partial<Student>): Promise<Student> {
-    const res = await fetch(`${API_BASE}/students`, {
+    const res = await httpClient(`${API_BASE}/students`, {
       method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
     return handleResponse<Student>(res);
   },
 
   async createStudentBulk(dtos: Partial<Student>[]): Promise<Student[]> {
-    const res = await fetch(`${API_BASE}/students/bulk`, {
+    const res = await httpClient(`${API_BASE}/students/bulk`, {
       method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dtos),
     });
     return handleResponse<Student[]>(res);
   },
 
   async checkDuplicate(studentCodes: string[]): Promise<{ student_code: string; full_name: string }[]> {
-    const res = await fetch(`${API_BASE}/students/check-duplicate`, {
+    const res = await httpClient(`${API_BASE}/students/check-duplicate`, {
       method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ studentCodes }),
     });
     return handleResponse<{ student_code: string; full_name: string }[]>(res);
   },
 
   async updateStudent(id: string, dto: Partial<Student>): Promise<Student> {
-    const res = await fetch(`${API_BASE}/students/${id}`, {
+    const res = await httpClient(`${API_BASE}/students/${id}`, {
       method: 'PATCH',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
     return handleResponse<Student>(res);
   },
 
   async deleteStudent(id: string): Promise<Student> {
-    const res = await fetch(`${API_BASE}/students/${id}`, {
+    const res = await httpClient(`${API_BASE}/students/${id}`, {
       method: 'DELETE',
-      headers: authHeaders(),
     });
     return handleResponse<Student>(res);
   }

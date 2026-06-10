@@ -27,7 +27,10 @@ import { criteriaApi } from '../../../api/criteria-api';
 import { tokenStorage } from '@/api/auth-api';
 
 
-export default function CategoriesPage() {
+import { RouteGuard } from '@/components/guards/RouteGuard';
+
+
+function CategoriesPage() {
   const router = useRouter();
   const currentUser = tokenStorage.getUser();
   const hasCurrentUser = Boolean(currentUser);
@@ -1527,3 +1530,12 @@ export default function CategoriesPage() {
     </>
   );
 }
+
+export default function ProtectedCategoriesPage() {
+  return (
+    <RouteGuard requiredPermission="GRADING_PAGE">
+      <CategoriesPage />
+    </RouteGuard>
+  );
+}
+

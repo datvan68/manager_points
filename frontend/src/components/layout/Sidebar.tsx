@@ -8,7 +8,8 @@ import {
   GraduationCap,
   ChevronLeft,
   Settings,
-  LayoutGrid
+  LayoutGrid,
+  Bell
 } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { authApi } from "@/api/auth-api";
@@ -122,43 +123,43 @@ const Sidebar = () => {
     <>
       {/* Desktop Left Sidebar (Hidden on mobile) */}
       <div
-        className={`hidden md:flex flex-col h-screen ${isCollapsed ? "w-20" : "w-64"} bg-white border-r border-gray-200 justify-between transition-all duration-300 shrink-0`}
+        className={`hidden md:flex flex-col h-screen ${isCollapsed ? "w-20" : "w-64"} bg-white/45 backdrop-blur-md border-r border-white/75 justify-between transition-all duration-300 shrink-0 shadow-sm shadow-slate-300/40`}
       >
         {/* Header */}
         <div className={`p-4 ${isCollapsed ? "flex justify-center" : "block"}`}>
           <div
             className={`flex items-center gap-2 mb-2 ${isCollapsed ? "justify-center" : ""}`}
           >
-            <div className="w-8 h-8 min-w-[32px] bg-primary rounded-lg flex items-center justify-center text-white font-bold">
+            <div className="w-8 h-8 min-w-[32px] bg-[#1A73E8] rounded-xl flex items-center justify-center text-white font-bold shadow-sm">
               E
             </div>
             {!isCollapsed && (
-              <span className="text-xl font-bold text-gray-800 animate-in fade-in duration-200">
+              <span className="text-xl font-bold text-[#1E293B] animate-in fade-in duration-200">
                 EduManager
               </span>
             )}
           </div>
           {!isCollapsed && (
-            <div className="text-sm text-gray-500 px-1 animate-in fade-in duration-200">
+            <div className="text-[11px] text-[#64748B] font-semibold px-1 animate-in fade-in duration-200">
               Quản lý sinh viên
             </div>
           )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-hidden">
+        <nav className="flex-1 px-3 py-4 space-y-2 overflow-hidden">
           {isSidebarLoading
             ? Array.from({ length: 3 }).map((_, index) => {
               const widthClass = skeletonWidths[index % skeletonWidths.length];
               return (
                 <div
                   key={index}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg animate-pulse ${isCollapsed ? "justify-center" : ""
+                  className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl animate-pulse ${isCollapsed ? "justify-center" : ""
                     }`}
                 >
-                  <div className="w-5 h-5 bg-slate-100 rounded shrink-0" />
+                  <div className="w-5 h-5 bg-white/40 border border-white/50 rounded-xl shrink-0" />
                   {!isCollapsed && (
-                    <div className={`h-4 bg-slate-100 rounded ${widthClass}`} />
+                    <div className={`h-4 bg-white/40 border border-white/50 rounded-xl ${widthClass}`} />
                   )}
                 </div>
               );
@@ -169,13 +170,13 @@ const Sidebar = () => {
                 <Link
                   key={index}
                   href={item.href}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
-                    ? "bg-blue-50 text-primary"
-                    : "text-text-secondary hover:bg-gray-50 hover:text-text-main"
+                  className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold transition-all duration-300 ease-in-out hover:scale-[1.01] ${isActive
+                    ? "bg-[#1A73E8]/10 border border-[#1A73E8]/20 text-[#1A73E8] shadow-sm shadow-slate-200/20"
+                    : "text-[#64748B] border border-transparent hover:bg-[#1A73E8]/10 hover:border-[#1A73E8]/20 hover:text-[#1A73E8] hover:shadow-sm"
                     } ${isCollapsed ? "justify-center" : ""}`}
                   title={isCollapsed ? item.label : ""}
                 >
-                  <item.icon size={20} className="min-w-5" />
+                  <item.icon size={18} className="min-w-4.5" />
                   {!isCollapsed && (
                     <span className="truncate">{item.label}</span>
                   )}
@@ -185,30 +186,30 @@ const Sidebar = () => {
         </nav>
 
         {/* Footer */}
-        <div className="p-3 border-t border-gray-200 space-y-1">
+        <div className="p-3 border-t border-white/75 space-y-1.5">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 ${isCollapsed ? "justify-center" : ""}`}
+            className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold text-[#64748B] border border-transparent hover:bg-white/50 hover:text-[#1E293B] hover:scale-[1.01] hover:shadow-sm transition-all duration-150 ease-out ${isCollapsed ? "justify-center" : ""}`}
             data-id="btn/Compact"
           >
             <ChevronLeft
-              size={20}
+              size={18}
               className={`transition-transform duration-300 ${isCollapsed ? "rotate-180" : ""}`}
             />
             {!isCollapsed && <span>Thu gọn</span>}
           </button>
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-            <Settings size={20} />
+          <button className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold text-[#64748B] border border-transparent hover:bg-white/50 hover:text-[#1E293B] hover:scale-[1.01] hover:shadow-sm transition-all duration-150 ease-out ${isCollapsed ? "justify-center" : ""}`}>
+            <Settings size={18} />
             {!isCollapsed && <span>Cài đặt</span>}
           </button>
         </div>
       </div>
 
       {/* Mobile Bottom Navigation Bar (Hidden on desktop) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-t border-gray-200 flex items-center justify-around z-40 px-4 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
+      <div className="md:hidden fixed bottom-3 left-4 right-4 h-[52px] bg-white/40 backdrop-blur-lg border border-white/50 rounded-full flex items-center justify-around z-40 px-2 shadow-[0_8px_32px_rgba(0,0,0,0.08)] ring-1 ring-white/20">
         {isSidebarLoading ? (
           Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="w-10 h-10 bg-slate-100 rounded-full animate-pulse shrink-0" />
+            <div key={index} className="w-9 h-9 bg-white/40 border border-white/50 rounded-full animate-pulse shrink-0" />
           ))
         ) : (
           <>
@@ -219,25 +220,36 @@ const Sidebar = () => {
                 <Link
                   key={index}
                   href={item.href}
-                  className={`flex flex-col items-center justify-center gap-1 flex-1 py-1.5 transition-colors cursor-pointer ${isActive
-                    ? "text-primary font-bold"
-                    : "text-text-secondary hover:text-text-main"
-                    }`}
+                  className="flex flex-col items-center justify-center flex-1 py-1 transition-all duration-150 ease-out cursor-pointer"
                 >
-                  <item.icon size={20} />
-                  <span className="text-[10px] tracking-tight font-medium">{item.label}</span>
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out ${
+                      isActive
+                        ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] scale-[1.08] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
+                        : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
+                    }`}
+                  >
+                    <item.icon size={18} />
+                  </div>
                 </Link>
               );
             })}
 
-            {/* LayoutGrid Subsystem Trigger */}
-            <button
-              onClick={() => setIsSubsystemOpen(true)}
-              className="flex flex-col items-center justify-center gap-1 flex-1 py-1.5 text-text-secondary hover:text-text-main transition-colors cursor-pointer"
+            {/* Notifications Link */}
+            <Link
+              href="/notifications"
+              className="flex flex-col items-center justify-center flex-1 py-1 transition-all duration-150 ease-out cursor-pointer"
             >
-              <LayoutGrid size={20} />
-              <span className="text-[10px] tracking-tight font-medium">Phân hệ</span>
-            </button>
+              <div
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out ${
+                  pathname === "/notifications" || pathname.startsWith("/notifications")
+                    ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] scale-[1.08] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
+                    : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
+                }`}
+              >
+                <Bell size={18} />
+              </div>
+            </Link>
           </>
         )}
       </div>

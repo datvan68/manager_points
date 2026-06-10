@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Search, Plus, Filter, Play, Check, AlertCircle, 
   Calendar, ChevronLeft, ChevronRight, 
@@ -12,7 +12,10 @@ import AddTaskModal from './AddTaskModal';
 import Action from '@/components/ui/Action';
 import { usePermission } from '@/components/guards/RouteGuard';
 import { toast } from 'sonner';
-import { addNotification } from '@/lib/notifications';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { getLinkedTaskMode } from '@/lib/task-linked-page';
+
+import { studentTaskApi, StudentTask as BackendTask, CreateTaskDto, UpdateTaskDto } from '@/api/task-api';
 
 interface Task {
   id: string;
@@ -26,85 +29,122 @@ interface Task {
   targetType: 'HSSV' | 'Giáo viên' | 'Quản sinh';
   targetScope: 'Tất cả' | 'Cụ thể';
   targetDetail?: string;
+  targetStudentIds?: string[];
+  targetClassIds?: string[];
+  targetTeacherIds?: string[];
+  userProgress?: {
+    id: string;
+    status: 'Chưa bắt đầu' | 'Đang làm' | 'Đã xong';
+  };
 }
 
-const INITIAL_TASKS: Task[] = [
-  {
-    id: 't-1',
-    title: 'Thiết kế UI cho Mobile App',
-    type: 'Dự án',
-    subject: 'Môn: Thiết kế trải nghiệm người dùng',
-    deadline: '25/10/2026',
-    priority: 'High',
-    status: 'Đang làm',
-    linkedPage: '/students',
-    targetType: 'HSSV',
-    targetScope: 'Cụ thể',
-    targetDetail: 'Lớp CNTT-K45A'
-  },
-  {
-    id: 't-2',
-    title: 'Giải bài tập giải tích 3',
-    type: 'Bài tập',
-    subject: 'Môn: Toán cao cấp',
-    deadline: '20/10/2026',
-    priority: 'Medium',
-    status: 'Chưa bắt đầu',
-    linkedPage: '/students/record',
-    targetType: 'HSSV',
-    targetScope: 'Tất cả'
-  },
-  {
-    id: 't-3',
-    title: 'Tiểu luận Lịch sử Đảng',
-    type: 'Bài tập',
-    subject: 'Môn: Lý luận chính trị',
-    deadline: '15/10/2026',
-    priority: 'Low',
-    status: 'Đã xong',
-    linkedPage: '/grading/categories',
-    targetType: 'HSSV',
-    targetScope: 'Tất cả'
-  },
-  {
-    id: 't-4',
-    title: 'Tham gia CLB Robot',
-    type: 'Hoạt động',
-    subject: 'Hoạt động ngoại khóa',
-    deadline: '30/10/2026',
-    priority: 'Medium',
-    status: 'Chưa bắt đầu',
-    linkedPage: '/',
-    targetType: 'HSSV',
-    targetScope: 'Tất cả'
-  },
-  // Seed more tasks to get exactly 24 tasks, with 12 completed and 5 urgent/High priority not completed.
-  // Completed tasks (11 more to reach 12 completed)
-  { id: 't-5', title: 'Thuyết trình môn Triết học', type: 'Bài tập', subject: 'Môn: Triết học Mác-Lênin', deadline: '05/09/2026', priority: 'Medium', status: 'Đã xong', linkedPage: '/grading/categories', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-6', title: 'Nộp báo cáo thực tập cơ sở', type: 'Dự án', subject: 'Môn: Thực tập cơ sở', deadline: '10/09/2026', priority: 'High', status: 'Đã xong', linkedPage: '/students', targetType: 'HSSV', targetScope: 'Cụ thể', targetDetail: 'Nguyễn Văn A' },
-  { id: 't-7', title: 'Lập trình website bán hàng', type: 'Dự án', subject: 'Môn: Phát triển Web', deadline: '20/09/2026', priority: 'High', status: 'Đã xong', linkedPage: '/students', targetType: 'HSSV', targetScope: 'Cụ thể', targetDetail: 'Lớp CNTT-K45B' },
-  { id: 't-8', title: 'Bài tập tuần 3 cấu trúc dữ liệu', type: 'Bài tập', subject: 'Môn: Cấu trúc dữ liệu và giải thuật', deadline: '12/09/2026', priority: 'Medium', status: 'Đã xong', linkedPage: '/students/record', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-9', title: 'Tham gia hiến máu nhân đạo', type: 'Hoạt động', subject: 'Đoàn thanh niên', deadline: '18/09/2026', priority: 'Low', status: 'Đã xong', linkedPage: '/', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-10', title: 'Viết bài thu hoạch quân sự', type: 'Bài tập', subject: 'Môn: Giáo dục quốc phòng', deadline: '22/09/2026', priority: 'Low', status: 'Đã xong', linkedPage: '/students/record', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-11', title: 'Bài tập lớn OOP Java', type: 'Dự án', subject: 'Môn: Lập trình hướng đối tượng', deadline: '28/09/2026', priority: 'Medium', status: 'Đã xong', linkedPage: '/students', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-12', title: 'Chuẩn bị slide giới thiệu nhóm', type: 'Bài tập', subject: 'Môn: Kỹ năng mềm', deadline: '01/10/2026', priority: 'Low', status: 'Đã xong', linkedPage: '/students/record', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-13', title: 'Luyện tập nói tiếng Anh chủ đề học tập', type: 'Bài tập', subject: 'Môn: Tiếng Anh chuyên ngành', deadline: '03/10/2026', priority: 'Medium', status: 'Đã xong', linkedPage: '/students/record', targetType: 'HSSV', targetScope: 'Cụ thể', targetDetail: 'Trần Thị B' },
-  { id: 't-14', title: 'Hội thảo hướng nghiệp CNTT', type: 'Hoạt động', subject: 'Hoạt động ngoại khóa', deadline: '06/10/2026', priority: 'Low', status: 'Đã xong', linkedPage: '/students', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-15', title: 'Giải bài tập xác suất thống kê', type: 'Bài tập', subject: 'Môn: Xác suất thống kê', deadline: '10/10/2026', priority: 'Medium', status: 'Đã xong', linkedPage: '/students/record', targetType: 'HSSV', targetScope: 'Tất cả' },
+const mapBackendToClientTask = (t: BackendTask): Task => {
+  let type: Task['type'] = 'Bài tập';
+  if (t.type === 'project') type = 'Dự án';
+  else if (t.type === 'activity') type = 'Hoạt động';
 
-  // Urgent/High priority tasks not completed (4 more to reach 5 total: t-1 + 4 items below)
-  { id: 't-16', title: 'Nộp báo cáo đồ án chuyên ngành', type: 'Dự án', subject: 'Môn: Đồ án chuyên ngành', deadline: '26/10/2026', priority: 'High', status: 'Đang làm', linkedPage: '/students', targetType: 'HSSV', targetScope: 'Cụ thể', targetDetail: 'Nguyễn Văn A' },
-  { id: 't-17', title: 'Luyện thi chứng chỉ tiếng Anh', type: 'Bài tập', subject: 'Môn: Tiếng Anh đầu ra', deadline: '28/10/2026', priority: 'High', status: 'Chưa bắt đầu', linkedPage: '/students/record', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-18', title: 'Sửa lỗi phần mềm quản lý điểm', type: 'Dự án', subject: 'Môn: Đảm bảo chất lượng phần mềm', deadline: '29/10/2026', priority: 'High', status: 'Đang làm', linkedPage: '/grading/categories', targetType: 'Giáo viên', targetScope: 'Cụ thể', targetDetail: 'GV Nguyễn Văn B' },
-  { id: 't-19', title: 'Chuẩn bị đề tài nghiên cứu khoa học', type: 'Dự án', subject: 'Nghiên cứu khoa học HSSV', deadline: '31/10/2026', priority: 'High', status: 'Chưa bắt đầu', linkedPage: '/students', targetType: 'Giáo viên', targetScope: 'Tất cả' },
+  let priority: Task['priority'] = 'Medium';
+  if (t.priority === 'high') priority = 'High';
+  else if (t.priority === 'low') priority = 'Low';
 
-  // Other tasks (Medium/Low priority, not completed) to make a total of 24 tasks
-  { id: 't-20', title: 'Ôn tập lý thuyết hệ điều hành', type: 'Bài tập', subject: 'Môn: Hệ điều hành', deadline: '01/11/2026', priority: 'Medium', status: 'Chưa bắt đầu', linkedPage: '/students/record', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-21', title: 'Thực hành lab 4 mạng máy tính', type: 'Bài tập', subject: 'Môn: Mạng máy tính', deadline: '03/11/2026', priority: 'Medium', status: 'Đang làm', linkedPage: '/students/record', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-22', title: 'Tham gia giải chạy Marathon trường', type: 'Hoạt động', subject: 'Câu lạc bộ Thể thao', deadline: '05/11/2026', priority: 'Low', status: 'Chưa bắt đầu', linkedPage: '/', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-23', title: 'Bài tập lập trình Python cơ bản', type: 'Bài tập', subject: 'Môn: Cơ sở lập trình', deadline: '10/11/2026', priority: 'Low', status: 'Chưa bắt đầu', linkedPage: '/students/record', targetType: 'HSSV', targetScope: 'Tất cả' },
-  { id: 't-24', title: 'Dọn dẹp phòng Lab và sắp xếp thiết bị', type: 'Hoạt động', subject: 'Hoạt động tình nguyện', deadline: '12/11/2026', priority: 'Low', status: 'Đang làm', linkedPage: '/', targetType: 'Quản sinh', targetScope: 'Tất cả' }
-];
+  let status: Task['status'] = 'Chưa bắt đầu';
+  if (t.status === 'in_progress') status = 'Đang làm';
+  else if (t.status === 'completed') status = 'Đã xong';
+
+  let targetType: Task['targetType'] = 'HSSV';
+  if (t.targetType === 'teacher') targetType = 'Giáo viên';
+  else if (t.targetType === 'supervisor') targetType = 'Quản sinh';
+
+  let targetScope: Task['targetScope'] = 'Tất cả';
+  if (t.targetScope === 'specific') targetScope = 'Cụ thể';
+
+  let deadlineStr = '';
+  if (t.deadline) {
+    const isoDateStr = t.deadline.split('T')[0];
+    const dateParts = isoDateStr.split('-');
+    if (dateParts.length === 3) {
+      deadlineStr = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+    } else {
+      deadlineStr = t.deadline;
+    }
+  }
+
+  let userProgress: Task['userProgress'] = undefined;
+  if (t.userProgress) {
+    let upStatus: Task['status'] = 'Chưa bắt đầu';
+    if (t.userProgress.status === 'in_progress') upStatus = 'Đang làm';
+    else if (t.userProgress.status === 'completed') upStatus = 'Đã xong';
+    userProgress = {
+      id: t.userProgress.id,
+      status: upStatus,
+    };
+  }
+
+  return {
+    id: t.id,
+    title: t.title,
+    type,
+    subject: t.subject,
+    deadline: deadlineStr,
+    priority,
+    status,
+    linkedPage: t.linkedPage,
+    targetType,
+    targetScope,
+    targetDetail: t.targetDetail,
+    targetStudentIds: t.targetStudentIds || [],
+    targetClassIds: t.targetClassIds || [],
+    targetTeacherIds: t.targetTeacherIds || [],
+    userProgress,
+  };
+};
+
+const mapClientToBackendDto = (t: any): CreateTaskDto => {
+  let type: CreateTaskDto['type'] = 'assignment';
+  if (t.type === 'Dự án') type = 'project';
+  else if (t.type === 'Hoạt động') type = 'activity';
+
+  let priority: CreateTaskDto['priority'] = 'medium';
+  if (t.priority === 'High') priority = 'high';
+  else if (t.priority === 'Low') priority = 'low';
+
+  let status: CreateTaskDto['status'] = 'not_started';
+  if (t.status === 'Đang làm') status = 'in_progress';
+  else if (t.status === 'Đã xong') status = 'completed';
+
+  let targetType: CreateTaskDto['targetType'] = 'student';
+  if (t.targetType === 'Giáo viên') targetType = 'teacher';
+  else if (t.targetType === 'Quản sinh') targetType = 'supervisor';
+
+  let targetScope: CreateTaskDto['targetScope'] = 'all';
+  if (t.targetScope === 'Cụ thể') targetScope = 'specific';
+
+  let deadlineIso = '';
+  if (t.deadline) {
+    const parts = t.deadline.split('/');
+    if (parts.length === 3) {
+      deadlineIso = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    } else {
+      deadlineIso = t.deadline;
+    }
+  }
+
+  return {
+    title: t.title,
+    type,
+    subject: t.subject,
+    deadline: deadlineIso,
+    priority,
+    status,
+    linkedPage: t.linkedPage,
+    targetType,
+    targetScope,
+    targetDetail: t.targetDetail,
+    targetStudentIds: t.targetStudentIds || [],
+    targetClassIds: t.targetClassIds || [],
+    targetTeacherIds: t.targetTeacherIds || [],
+  };
+};
 
 const StudentTasksTab = () => {
   const router = useRouter();
@@ -120,160 +160,205 @@ const StudentTasksTab = () => {
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
   const isTeacher = userRole.includes('teacher') || userRole.includes('giáo viên') || userRole.includes('giảng viên');
   const isStudentOrTeacher = isStudent || isTeacher;
+
+  // States từ API
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [summary, setSummary] = useState({
+    totalTasks: 0,
+    urgentTasks: 0,
+    completedTasks: 0,
+    progressPercentage: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // States bộ lọc & phân trang
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeTabFilter, setActiveTabFilter] = useState<'Mới nhất' | 'Hoàn thành' | 'Đang làm' | 'Chưa bắt đầu'>('Mới nhất');
   const [priorityFilter, setPriorityFilter] = useState<'All' | 'High' | 'Medium' | 'Low'>('All');
   const [targetFilter, setTargetFilter] = useState<'All' | 'HSSV' | 'Giáo viên' | 'Quản sinh'>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const itemsPerPage = 6; 
 
-  // Load tasks from LocalStorage or seed defaults
+  // Debounce search term
   useEffect(() => {
-    const cached = localStorage.getItem('student_tasks');
-    if (cached) {
-      try {
-        setTasks(JSON.parse(cached));
-      } catch (e) {
-        setTasks(INITIAL_TASKS);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Fetch tasks
+  const fetchTasks = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      let statusQuery = 'all';
+      if (activeTabFilter === 'Hoàn thành') statusQuery = 'completed';
+      else if (activeTabFilter === 'Đang làm') statusQuery = 'in_progress';
+      else if (activeTabFilter === 'Chưa bắt đầu') statusQuery = 'not_started';
+
+      let priorityQuery = 'all';
+      if (priorityFilter === 'High') priorityQuery = 'high';
+      else if (priorityFilter === 'Medium') priorityQuery = 'medium';
+      else if (priorityFilter === 'Low') priorityQuery = 'low';
+
+      let targetTypeQuery = 'all';
+      if (targetFilter === 'HSSV') targetTypeQuery = 'student';
+      else if (targetFilter === 'Giáo viên') targetTypeQuery = 'teacher';
+      else if (targetFilter === 'Quản sinh') targetTypeQuery = 'supervisor';
+
+      const response = await studentTaskApi.getTasks({
+        page: currentPage,
+        limit: itemsPerPage,
+        status: statusQuery,
+        priority: priorityQuery,
+        targetType: targetTypeQuery,
+        search: debouncedSearch,
+        sort: 'newest',
+      });
+
+      setTasks((response.items || []).map(mapBackendToClientTask));
+      if (response.summary) {
+        setSummary(response.summary);
       }
-    } else {
-      setTasks(INITIAL_TASKS);
-      localStorage.setItem('student_tasks', JSON.stringify(INITIAL_TASKS));
+      setTotalPages(response.totalPages || 1);
+      setTotalCount(response.total || 0);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Không thể tải danh sách nhiệm vụ.');
+      toast.error(err.message || 'Lỗi kết nối máy chủ khi lấy danh sách nhiệm vụ.');
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
+  }, [activeTabFilter, priorityFilter, targetFilter, debouncedSearch, currentPage]);
 
-  const saveTasks = (newTasks: Task[]) => {
-    setTasks(newTasks);
-    localStorage.setItem('student_tasks', JSON.stringify(newTasks));
-  };
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
 
-  // KPI Calculations
-  const totalTasks = tasks.length;
-  const urgentTasks = tasks.filter(t => t.status !== 'Đã xong' && t.priority === 'High').length;
-  const completedTasks = tasks.filter(t => t.status === 'Đã xong').length;
-  const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  // Refetch when window gets focus
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchTasks();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchTasks]);
 
   // Toggle task status quick action
-  const handleQuickAction = (task: Task, e: React.MouseEvent) => {
+  const handleQuickAction = async (task: Task, e: React.MouseEvent) => {
     e.stopPropagation();
-    let nextStatus: Task['status'];
-    if (task.status === 'Chưa bắt đầu') nextStatus = 'Đang làm';
-    else if (task.status === 'Đang làm') nextStatus = 'Đã xong';
-    else nextStatus = 'Chưa bắt đầu';
+    
+    const isManager = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask;
+    
+    // Nếu có progress cá nhân và không phải manager
+    if (!isManager && task.userProgress) {
+      let nextStatus: Task['status'];
+      if (task.userProgress.status === 'Chưa bắt đầu') nextStatus = 'Đang làm';
+      else if (task.userProgress.status === 'Đang làm') nextStatus = 'Đã xong';
+      else nextStatus = 'Chưa bắt đầu';
 
-    const updated = tasks.map(t => t.id === task.id ? { ...t, status: nextStatus } : t);
-    saveTasks(updated);
-    toast.success(`Đã cập nhật trạng thái nhiệm vụ sang "${nextStatus}"`);
+      let statusBackend = 'not_started';
+      if (nextStatus === 'Đang làm') statusBackend = 'in_progress';
+      else if (nextStatus === 'Đã xong') statusBackend = 'completed';
 
-    // Gửi thông báo tự động khi hoàn thành
-    if (nextStatus === 'Đã xong') {
-      addNotification(
-        'Nhiệm vụ đã hoàn thành',
-        `Nhiệm vụ "${task.title}" thuộc "${task.subject}" đã được chuyển sang trạng thái Hoàn thành xuất sắc!`,
-        'success',
-        '/students/tasks'
-      );
+      try {
+        await studentTaskApi.updateTaskProgressStatus(task.userProgress.id, statusBackend);
+        toast.success(`Đã cập nhật trạng thái tiến độ cá nhân sang "${nextStatus}"`);
+        fetchTasks();
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err.message || 'Không thể đổi trạng thái tiến độ cá nhân.');
+      }
+    } else {
+      let nextStatus: Task['status'];
+      if (task.status === 'Chưa bắt đầu') nextStatus = 'Đang làm';
+      else if (task.status === 'Đang làm') nextStatus = 'Đã xong';
+      else nextStatus = 'Chưa bắt đầu';
+
+      let statusBackend = 'not_started';
+      if (nextStatus === 'Đang làm') statusBackend = 'in_progress';
+      else if (nextStatus === 'Đã xong') statusBackend = 'completed';
+
+      try {
+        await studentTaskApi.updateTaskStatus(task.id, statusBackend);
+        toast.success(`Đã cập nhật trạng thái tổng hợp nhiệm vụ sang "${nextStatus}"`);
+        fetchTasks();
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err.message || 'Không thể đổi trạng thái nhanh.');
+      }
     }
   };
 
   // Click card to navigate to page
   const handleCardClick = (task: Task) => {
-    if (task.linkedPage) {
-      toast.info(`Đang chuyển hướng sang trang: ${task.linkedPage}`);
+    const mode = getLinkedTaskMode(task.linkedPage);
+    if (mode === 'none') {
+      return;
+    }
+    toast.info(`Đang chuyển hướng sang trang: ${task.linkedPage}`);
+    const isManager = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask;
+    if (isManager) {
       router.push(task.linkedPage);
     } else {
-      toast.error('Nhiệm vụ này chưa được cấu hình trang liên kết.');
+      const separator = task.linkedPage.includes('?') ? '&' : '?';
+      router.push(`${task.linkedPage}${separator}taskId=${task.id}`);
     }
   };
 
   // Add or Edit save action
-  const handleSaveTask = (taskData: Omit<Task, 'id'> & { id?: string }) => {
-    if (taskData.id) {
-      // Edit mode
-      const oldTask = tasks.find(t => t.id === taskData.id);
-      const updated = tasks.map(t => t.id === taskData.id ? { ...t, ...taskData } as Task : t);
-      saveTasks(updated);
-      toast.success('Đã cập nhật nhiệm vụ thành công!');
-
-      // Gửi thông báo tự động khi chuyển sang Đã xong
-      if (oldTask && oldTask.status !== 'Đã xong' && taskData.status === 'Đã xong') {
-        addNotification(
-          'Nhiệm vụ đã hoàn thành',
-          `Nhiệm vụ "${taskData.title}" thuộc "${taskData.subject}" đã được chuyển sang trạng thái Hoàn thành xuất sắc!`,
-          'success',
-          '/students/tasks'
-        );
+  const handleSaveTask = async (taskData: Omit<Task, 'id'> & { id?: string }) => {
+    setIsSaving(true);
+    try {
+      const dto = mapClientToBackendDto(taskData);
+      if (taskData.id) {
+        await studentTaskApi.updateTask(taskData.id, dto as UpdateTaskDto);
+        toast.success('Đã cập nhật nhiệm vụ thành công!');
+      } else {
+        await studentTaskApi.createTask(dto);
+        toast.success('Đã tạo nhiệm vụ mới thành công!');
       }
-    } else {
-      // Add mode
-      const newTask: Task = {
-        ...taskData,
-        id: `t-${Date.now()}`
-      };
-      const updated = [newTask, ...tasks];
-      saveTasks(updated);
-      toast.success('Đã tạo nhiệm vụ mới thành công!');
-
-      // Gửi thông báo tự động khi tạo nhiệm vụ mới
-      addNotification(
-        'Nhiệm vụ học tập mới',
-        `Nhiệm vụ mới "${taskData.title}" (${taskData.type}) thuộc "${taskData.subject}" đã được phân công cho ${taskData.targetType} (${taskData.targetScope === 'Cụ thể' ? taskData.targetDetail : 'Tất cả'}).`,
-        'info',
-        taskData.linkedPage || '/students/tasks'
-      );
+      setIsModalOpen(false);
+      setEditingTask(null);
+      fetchTasks();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Lưu nhiệm vụ thất bại.');
+      throw err; // Ném lỗi để modal biết và không đóng form
+    } finally {
+      setIsSaving(false);
     }
-    setEditingTask(null);
   };
 
-  const handleDeleteTask = (id: string) => {
-    const updated = tasks.filter(t => t.id !== id);
-    saveTasks(updated);
-    toast.success('Đã xóa nhiệm vụ thành công!');
+  const handleDeleteTask = async (id: string) => {
+    try {
+      await studentTaskApi.deleteTask(id);
+      toast.success('Đã xóa nhiệm vụ thành công!');
+      fetchTasks();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Không thể xóa nhiệm vụ.');
+    }
   };
 
-  // Filter tasks
-  const filteredTasks = tasks.filter(task => {
-    // Search filter
-    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          task.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (task.targetDetail && task.targetDetail.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    // Tab filter
-    let matchesTab = true;
-    if (activeTabFilter === 'Hoàn thành') {
-      matchesTab = task.status === 'Đã xong';
-    } else if (activeTabFilter === 'Đang làm') {
-      matchesTab = task.status === 'Đang làm';
-    } else if (activeTabFilter === 'Chưa bắt đầu') {
-      matchesTab = task.status === 'Chưa bắt đầu';
-    }
+  // Tính toán KPI lấy trực tiếp từ state summary cập nhật từ API
+  const totalTasks = summary.totalTasks;
+  const urgentTasks = summary.urgentTasks;
+  const completedTasks = summary.completedTasks;
+  const progressPercentage = summary.progressPercentage;
 
-    // Priority filter
-    const matchesPriority = priorityFilter === 'All' || task.priority === priorityFilter;
-
-    // Target filter based on user role
-    let matchesTarget = true;
-    if (isTeacher) {
-      matchesTarget = task.targetType === 'Giáo viên';
-    } else if (isStudent) {
-      matchesTarget = task.targetType === 'HSSV';
-    } else {
-      matchesTarget = targetFilter === 'All' || task.targetType === targetFilter;
-    }
-
-    return matchesSearch && matchesTab && matchesPriority && matchesTarget;
-  });
-
-  // Pagination calculation
-  const totalFiltered = filteredTasks.length;
-  const totalPages = Math.ceil(totalFiltered / itemsPerPage) || 1;
-  const paginatedTasks = filteredTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const startItem = totalFiltered > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-  const endItem = Math.min(currentPage * itemsPerPage, totalFiltered);
+  const startItem = totalCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const endItem = Math.min(currentPage * itemsPerPage, totalCount);
 
 
 
@@ -305,54 +390,54 @@ const StudentTasksTab = () => {
 
       {/* KPI Cards Grid */}
       {!isStudentOrTeacher && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
           {/* KPI Card 1: Total */}
-          <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-2xl p-4 shadow-sm shadow-slate-300/20 hover:scale-[1.01] hover:bg-white/60 transition-all duration-150 ease-out flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold text-[#64748B] tracking-wider uppercase">TỔNG NHIỆM VỤ</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-[#1E293B]">{totalTasks}</span>
-                <span className="inline-flex items-center text-[10px] font-semibold text-[#1A73E8] bg-blue-50/70 border border-blue-100/60 px-1.5 py-0.5 rounded-xl">
+          <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-xl p-2.5 shadow-sm shadow-slate-300/10 hover:bg-white/60 transition-all flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold text-[#64748B] tracking-wider uppercase">TỔNG NHIỆM VỤ</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl font-bold text-[#1E293B]">{totalTasks}</span>
+                <span className="inline-flex items-center text-[9px] font-semibold text-[#1A73E8] bg-blue-50/70 border border-blue-100/60 px-1.5 py-0.5 rounded-lg">
                   +3 tuần này
                 </span>
               </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-[#1A73E8] shrink-0 border border-blue-100/30">
-              <Clock size={20} />
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[#1A73E8] shrink-0 border border-blue-100/30">
+              <Clock size={16} />
             </div>
           </div>
 
           {/* KPI Card 2: Urgent */}
-          <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-2xl p-4 shadow-sm shadow-slate-300/20 hover:scale-[1.01] hover:bg-white/60 transition-all duration-150 ease-out flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold text-[#64748B] tracking-wider uppercase">SẮP HẾT HẠN</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-red-600">
+          <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-xl p-2.5 shadow-sm shadow-slate-300/10 hover:bg-white/60 transition-all flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold text-[#64748B] tracking-wider uppercase">SẮP HẾT HẠN</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl font-bold text-red-600">
                   {String(urgentTasks).padStart(2, '0')}
                 </span>
-                <span className="inline-flex items-center text-[10px] font-semibold text-red-600 bg-red-50/70 border border-red-100/60 px-1.5 py-0.5 rounded-xl">
+                <span className="inline-flex items-center text-[9px] font-semibold text-red-600 bg-red-50/70 border border-red-100/60 px-1.5 py-0.5 rounded-lg">
                   Cần xử lý ngay
                 </span>
               </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600 shrink-0 border border-red-100/30">
-              <AlertCircle size={20} />
+            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-600 shrink-0 border border-red-100/30">
+              <AlertCircle size={16} />
             </div>
           </div>
 
           {/* KPI Card 3: Completed */}
-          <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-2xl p-4 shadow-sm shadow-slate-300/20 hover:scale-[1.01] hover:bg-white/60 transition-all duration-150 ease-out flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold text-[#64748B] tracking-wider uppercase">HOÀN THÀNH</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-emerald-600">{completedTasks}</span>
-                <span className="inline-flex items-center text-[10px] font-semibold text-emerald-600 bg-emerald-50/70 border border-emerald-100/60 px-1.5 py-0.5 rounded-xl">
+          <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-xl p-2.5 shadow-sm shadow-slate-300/10 hover:bg-white/60 transition-all flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold text-[#64748B] tracking-wider uppercase">HOÀN THÀNH</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl font-bold text-emerald-600">{completedTasks}</span>
+                <span className="inline-flex items-center text-[9px] font-semibold text-emerald-600 bg-emerald-50/70 border border-emerald-100/60 px-1.5 py-0.5 rounded-lg">
                   {progressPercentage}% tiến độ
                 </span>
               </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0 border border-emerald-100/30">
-              <CheckCircle2 size={20} />
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0 border border-emerald-100/30">
+              <CheckCircle2 size={16} />
             </div>
           </div>
         </div>
@@ -386,40 +471,46 @@ const StudentTasksTab = () => {
           <div className="flex items-center gap-2">
             {/* Lọc đối tượng áp dụng */}
             {!isStudentOrTeacher && (
-              <div className="relative shrink-0">
-                <select
+              <div className="relative shrink-0 w-36">
+                <Select
                   value={targetFilter}
-                  onChange={(e) => {
-                    setTargetFilter(e.target.value as any);
+                  onValueChange={(val: any) => {
+                    setTargetFilter(val);
                     setCurrentPage(1);
                   }}
-                  className="pl-3 pr-8 py-2 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all appearance-none cursor-pointer"
                 >
-                  <option value="All">Đối tượng: Tất cả</option>
-                  <option value="HSSV">Đối tượng: HSSV</option>
-                  <option value="Giáo viên">Đối tượng: Giáo viên</option>
-                  <option value="Quản sinh">Đối tượng: Quản sinh</option>
-                </select>
-                <Users className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                  <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
+                    <SelectValue placeholder="Đối tượng: Tất cả" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">Đối tượng: Tất cả</SelectItem>
+                    <SelectItem value="HSSV">Đối tượng: HSSV</SelectItem>
+                    <SelectItem value="Giáo viên">Đối tượng: Giáo viên</SelectItem>
+                    <SelectItem value="Quản sinh">Đối tượng: Quản sinh</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
             {/* Lọc Mức Độ (Priority) */}
-            <div className="relative shrink-0">
-              <select
+            <div className="relative shrink-0 w-36">
+              <Select
                 value={priorityFilter}
-                onChange={(e) => {
-                  setPriorityFilter(e.target.value as any);
+                onValueChange={(val: any) => {
+                  setPriorityFilter(val);
                   setCurrentPage(1);
                 }}
-                className="pl-3 pr-8 py-2 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all appearance-none cursor-pointer"
               >
-                <option value="All">Độ ưu tiên: Tất cả</option>
-                <option value="High">Độ ưu tiên: Cao</option>
-                <option value="Medium">Độ ưu tiên: Trung bình</option>
-                <option value="Low">Độ ưu tiên: Thấp</option>
-              </select>
-              <Filter className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
+                  <SelectValue placeholder="Độ ưu tiên: Tất cả" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">Độ ưu tiên: Tất cả</SelectItem>
+                  <SelectItem value="High">Độ ưu tiên: Cao</SelectItem>
+                  <SelectItem value="Medium">Độ ưu tiên: Trung bình</SelectItem>
+                  <SelectItem value="Low">Độ ưu tiên: Thấp</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Tìm kiếm */}
@@ -440,139 +531,191 @@ const StudentTasksTab = () => {
         </div>
 
         {/* Task Cards Grid */}
-        <div className="flex-1 p-4 overflow-y-auto min-h-0 bg-white/10">
-          {paginatedTasks.length > 0 ? (
+        <div className="flex-1 p-4 overflow-y-auto min-h-0 bg-white/10 flex flex-col">
+          {isLoading ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white/20 min-h-[300px]">
+              <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-3"></div>
+              <p className="text-sm font-semibold text-gray-500">Đang tải danh sách nhiệm vụ...</p>
+            </div>
+          ) : error ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white/20 min-h-[300px]">
+              <AlertCircle size={32} className="text-red-500 mb-2" />
+              <p className="text-sm font-semibold text-red-500">Đã xảy ra lỗi</p>
+              <p className="text-xs text-gray-500 mt-1">{error}</p>
+              <button
+                onClick={fetchTasks}
+                className="mt-3 px-4 py-1.5 text-xs font-semibold text-[#1A73E8] bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-100 transition-all cursor-pointer"
+              >
+                Thử lại
+              </button>
+            </div>
+          ) : tasks.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {paginatedTasks.map((task) => (
-                <div
-                  key={task.id}
-                  onClick={() => handleCardClick(task)}
-                  className={`bg-white/60 backdrop-blur-sm border rounded-2xl p-5 shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-blue-400/60 transition-all duration-150 ease-out flex flex-col justify-between min-h-[230px] relative group border-slate-200/50 cursor-pointer`}
-                >
-                  {/* Actions */}
-                  <div className="absolute top-4 right-4 z-10" onClick={(e) => e.stopPropagation()}>
-                    <Action
-                      permissionEdit="UPDATE_STUDENT_TASK"
-                      permissionDelete="DELETE_STUDENT_TASK"
-                      onEdit={() => {
-                        setEditingTask(task);
-                        setIsModalOpen(true);
-                      }}
-                      onDelete={() => {
-                        if (confirm('Bạn có chắc chắn muốn xóa nhiệm vụ này?')) {
-                          handleDeleteTask(task.id);
-                        }
-                      }}
-                      hideView
-                    />
-                  </div>
-
-                  {/* Top: Category Tag & Targets */}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      {/* Category Type */}
-                      <span className={`inline-flex px-2.5 py-1 text-[10px] font-bold rounded-xl border ${
-                        task.type === 'Dự án' ? 'text-blue-600 bg-blue-50 border-blue-100/60' :
-                        task.type === 'Bài tập' ? 'text-amber-600 bg-amber-50 border-amber-100/60' :
-                        'text-purple-600 bg-purple-50 border-purple-100/60'
-                      }`}>
-                        {task.type}
-                      </span>
-                      
-
+              {tasks.map((task) => {
+                const isCardManager = !isStudent && (userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask);
+                const displayStatus = (!isCardManager && task.userProgress) ? task.userProgress.status : task.status;
+                const linkMode = getLinkedTaskMode(task.linkedPage);
+                const isChecklist = linkMode === 'none';
+                return (
+                  <div
+                    key={task.id}
+                    onClick={() => handleCardClick(task)}
+                    className={`bg-white/60 backdrop-blur-sm border rounded-2xl p-5 shadow-sm transition-all duration-150 ease-out flex flex-col justify-between min-h-[230px] relative group border-slate-200/50 ${
+                      isChecklist
+                        ? 'cursor-default'
+                        : 'hover:shadow-md hover:scale-[1.01] hover:border-blue-400/60 cursor-pointer'
+                    }`}
+                  >
+                    {/* Actions */}
+                    <div className="absolute top-4 right-4 z-10" onClick={(e) => e.stopPropagation()}>
+                      <Action
+                        permissionEdit="UPDATE_STUDENT_TASK"
+                        permissionDelete="DELETE_STUDENT_TASK"
+                        onEdit={() => {
+                          setEditingTask(task);
+                          setIsModalOpen(true);
+                        }}
+                        onDelete={() => {
+                          if (confirm('Bạn có chắc chắn muốn xóa nhiệm vụ này?')) {
+                            handleDeleteTask(task.id);
+                          }
+                        }}
+                        hideView
+                      />
                     </div>
 
-                    {/* Task Title */}
-                    <h3 className="mt-3 text-sm font-bold text-[#1E293B] line-clamp-2 leading-5 group-hover:text-[#1A73E8] transition-colors">
-                      {task.title}
-                    </h3>
-                    
-                    {/* Subject/Description */}
-                    <span className="mt-1 block text-[11px] text-[#64748B] font-medium truncate">
-                      {task.subject}
-                    </span>
-
-                    {/* Target Audience Badge */}
-                    <div className="mt-3 flex items-center gap-1.5 w-fit">
-                      <span className="text-[10px] font-bold text-[#64748B]">Áp dụng:</span>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
-                        task.targetType === 'HSSV' 
-                          ? 'bg-blue-50 text-blue-600 border-blue-100/50' 
-                          : task.targetType === 'Giáo viên' 
-                          ? 'bg-purple-50 text-purple-600 border-purple-100/50' 
-                          : 'bg-amber-50 text-amber-600 border-amber-100/50'
-                      }`}>
-                        {task.targetType === 'HSSV' ? <Users size={10} /> : task.targetType === 'Giáo viên' ? <UserCheck size={10} /> : <ShieldAlert size={10} />}
-                        <span>
-                          {task.targetType} ({task.targetScope === 'Cụ thể' ? task.targetDetail : 'Tất cả'})
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Bottom: Date, Priority & Actions */}
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-end justify-between">
-                    <div className="space-y-1.5">
-                      {/* Deadline */}
-                      <div className="flex items-center gap-1.5 text-[11px] text-[#64748B] font-medium">
-                        <Calendar size={13} className="text-gray-400" />
-                        <span>Hạn: {task.deadline}</span>
-                      </div>
-                      
-                      {/* Priority Tag */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-[#64748B]">Độ ưu tiên:</span>
-                        <span className={`inline-flex px-1.5 py-0.5 text-[9px] font-bold rounded-md ${
-                          task.priority === 'High' ? 'text-red-600 bg-red-50 border border-red-100/50' :
-                          task.priority === 'Medium' ? 'text-amber-600 bg-amber-50 border border-amber-100/50' :
-                          'text-emerald-600 bg-emerald-50 border border-emerald-100/50'
+                    {/* Top: Category Tag & Targets */}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        {/* Category Type */}
+                        <span className={`inline-flex px-2.5 py-1 text-[10px] font-bold rounded-xl border ${
+                          task.type === 'Dự án' ? 'text-blue-600 bg-blue-50 border-blue-100/60' :
+                          task.type === 'Bài tập' ? 'text-amber-600 bg-amber-50 border-amber-100/60' :
+                          'text-purple-600 bg-purple-50 border-purple-100/60'
                         }`}>
-                          {task.priority === 'High' ? 'Cao' : task.priority === 'Medium' ? 'Trung bình' : 'Thấp'}
+                          {task.type}
+                        </span>
+                      </div>
+
+                      {/* Task Title */}
+                      <h3 className="mt-3 text-sm font-bold text-[#1E293B] line-clamp-2 leading-5 group-hover:text-[#1A73E8] transition-colors">
+                        {task.title}
+                      </h3>
+                      
+                      {/* Subject/Description */}
+                      <span className="mt-1 block text-[11px] text-[#64748B] font-medium truncate">
+                        {task.subject}
+                      </span>
+
+                      {/* Target Audience Badge */}
+                      <div className="mt-3 flex items-center gap-1.5 w-fit">
+                        <span className="text-[10px] font-bold text-[#64748B]">Áp dụng:</span>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                          task.targetType === 'HSSV' 
+                            ? 'bg-blue-50 text-blue-600 border-blue-100/50' 
+                            : task.targetType === 'Giáo viên' 
+                            ? 'bg-purple-50 text-purple-600 border-purple-100/50' 
+                            : 'bg-amber-50 text-amber-600 border-amber-100/50'
+                        }`}>
+                          {task.targetType === 'HSSV' ? <Users size={10} /> : task.targetType === 'Giáo viên' ? <UserCheck size={10} /> : <ShieldAlert size={10} />}
+                          <span>
+                            {task.targetType} ({task.targetScope === 'Cụ thể' ? task.targetDetail : 'Tất cả'})
+                          </span>
                         </span>
                       </div>
                     </div>
 
-                    {/* Status Circle & Actions */}
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      {/* Status indicator */}
-                      <div className="flex items-center gap-1">
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          task.status === 'Đã xong' ? 'bg-emerald-500' :
-                          task.status === 'Đang làm' ? 'bg-blue-500' :
-                          'bg-gray-400'
-                        }`} />
-                        <span className="text-[11px] font-bold text-[#1E293B]">
-                          {task.status}
-                        </span>
+                    {/* Bottom: Date, Priority & Actions */}
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-end justify-between">
+                      <div className="space-y-1.5">
+                        {/* Deadline */}
+                        <div className="flex items-center gap-1.5 text-[11px] text-[#64748B] font-medium">
+                          <Calendar size={13} className="text-gray-400" />
+                          <span>Hạn: {task.deadline}</span>
+                        </div>
+                        
+                        {/* Priority Tag */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-[#64748B]">Độ ưu tiên:</span>
+                          <span className={`inline-flex px-1.5 py-0.5 text-[9px] font-bold rounded-md ${
+                            task.priority === 'High' ? 'text-red-600 bg-red-50 border border-red-100/50' :
+                            task.priority === 'Medium' ? 'text-amber-600 bg-amber-50 border border-amber-100/50' :
+                            'text-emerald-600 bg-emerald-50 border border-emerald-100/50'
+                          }`}>
+                            {task.priority === 'High' ? 'Cao' : task.priority === 'Medium' ? 'Trung bình' : 'Thấp'}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Link to page button */}
-                      <button
-                        onClick={() => router.push(task.linkedPage)}
-                        className="w-7 h-7 rounded-xl flex items-center justify-center border border-slate-200 text-slate-500 bg-white hover:border-[#1A73E8] hover:text-[#1A73E8] transition-all"
-                        title="Chuyển hướng đến trang liên kết"
-                      >
-                        <ExternalLink size={12} />
-                      </button>
+                      {/* Status Circle & Actions */}
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        {/* Status indicator */}
+                        <div className="flex items-center gap-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            displayStatus === 'Đã xong' ? 'bg-emerald-500' :
+                            displayStatus === 'Đang làm' ? 'bg-blue-500' :
+                            'bg-gray-400'
+                          }`} />
+                          <span className="text-[11px] font-bold text-[#1E293B]">
+                            {displayStatus}
+                          </span>
+                        </div>
 
-                      {/* Quick change status button */}
-                      <button
-                        onClick={(e) => handleQuickAction(task, e)}
-                        className={`w-7 h-7 rounded-xl flex items-center justify-center border transition-all duration-150 ${
-                          task.status === 'Đã xong'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
-                            : task.status === 'Đang làm'
-                            ? 'bg-blue-50 border-blue-200 text-[#1A73E8] hover:bg-blue-100'
-                            : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
-                        }`}
-                        title="Đổi trạng thái nhanh"
-                      >
-                        {task.status === 'Đã xong' ? <Check size={14} strokeWidth={2.5} /> : <Play size={12} strokeWidth={2.5} className={task.status === 'Đang làm' ? '' : 'translate-x-0.5'} />}
-                      </button>
+                        {/* Link to page button */}
+                        {linkMode !== 'none' && (
+                          <button
+                            onClick={() => {
+                              const isManager = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask;
+                              if (isManager) {
+                                router.push(task.linkedPage);
+                              } else {
+                                const separator = task.linkedPage.includes('?') ? '&' : '?';
+                                router.push(`${task.linkedPage}${separator}taskId=${task.id}`);
+                              }
+                            }}
+                            className="w-7 h-7 rounded-xl flex items-center justify-center border border-slate-200 text-slate-500 bg-white hover:border-[#1A73E8] hover:text-[#1A73E8] transition-all"
+                            title="Chuyển hướng đến trang liên kết"
+                          >
+                            <ExternalLink size={12} />
+                          </button>
+                        )}
+
+                        {/* Quick change status button */}
+                        {(() => {
+                          const showQuickAction = linkMode === 'none' || linkMode === 'manual' || isCardManager;
+                          
+                          let quickActionTitle = 'Đổi trạng thái nhanh';
+                          if (linkMode === 'auto') {
+                            if (isCardManager) {
+                              quickActionTitle = 'Cập nhật thủ công (Quyền quản trị)';
+                            } else {
+                              quickActionTitle = 'Cập nhật thủ công';
+                            }
+                          }
+
+                          if (!showQuickAction) return null;
+
+                          return (
+                            <button
+                              onClick={(e) => handleQuickAction(task, e)}
+                              className={`w-7 h-7 rounded-xl flex items-center justify-center border transition-all duration-150 ${
+                                displayStatus === 'Đã xong'
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
+                                  : displayStatus === 'Đang làm'
+                                  ? 'bg-blue-50 border-blue-200 text-[#1A73E8] hover:bg-blue-100'
+                                  : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                              }`}
+                              title={quickActionTitle}
+                            >
+                              {displayStatus === 'Đã xong' ? <Check size={14} strokeWidth={2.5} /> : <Play size={12} strokeWidth={2.5} className={displayStatus === 'Đang làm' ? '' : 'translate-x-0.5'} />}
+                            </button>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="h-64 border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-center p-6 bg-white/20">
@@ -586,7 +729,7 @@ const StudentTasksTab = () => {
         {/* Footer (Pagination) */}
         <div className="px-5 py-3 border-t border-white/80 bg-white/20 flex items-center justify-between shrink-0">
           <span className="text-xs font-semibold text-[#64748B]">
-            Hiển thị {startItem}-{endItem} trên tổng số {totalFiltered} nhiệm vụ
+            Hiển thị {startItem}-{endItem} trên tổng số {totalCount} nhiệm vụ
           </span>
 
           <div className="flex items-center gap-1.5">
@@ -633,6 +776,7 @@ const StudentTasksTab = () => {
         }}
         onSave={handleSaveTask}
         editingTask={editingTask}
+        isSaving={isSaving}
       />
     </div>
   );

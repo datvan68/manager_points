@@ -1,0 +1,173 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { X, Bell } from 'lucide-react';
+import { NotificationItem } from '@/lib/notifications';
+
+interface NotificationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: {
+    title: string;
+    description: string;
+    type: NotificationItem['type'];
+    routeUrl?: string;
+  }) => Promise<void>;
+  editingNotification?: NotificationItem | null;
+}
+
+const NotificationModal: React.FC<NotificationModalProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  editingNotification,
+}) => {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState<NotificationItem['type']>('system');
+  const [routeUrl, setRouteUrl] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsSubmitting(false);
+    }
+    if (editingNotification) {
+      setTitle(editingNotification.title);
+      setDescription(editingNotification.description);
+      setType(editingNotification.type);
+      setRouteUrl(editingNotification.routeUrl || '');
+    } else {
+      setTitle('');
+      setDescription('');
+      setType('system');
+      setRouteUrl('');
+    }
+  }, [editingNotification, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !description.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSave({
+        title: title.trim(),
+        description: description.trim(),
+        type,
+        routeUrl: routeUrl.trim() || undefined,
+      });
+      onClose();
+    } catch (err) {
+      console.error('Failed to save notification modal:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[999] flex items-center justify-center p-4">
+      <div className="w-full max-w-lg bg-white/95 backdrop-blur-md border border-white/80 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[95vh]">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white/40">
+          <div className="flex items-center gap-2">
+            <Bell className="text-[#1A73E8] w-5 h-5" />
+            <h3 className="font-bold text-base text-[#1E293B]">
+              {editingNotification ? 'Cập nhật thông báo' : 'Thêm thông báo mới'}
+            </h3>
+          </div>
+          <button 
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-5 flex-1 overflow-y-auto space-y-4">
+          {/* Tiêu đề */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#64748B] block">Tiêu đề thông báo</label>
+            <input 
+              type="text"
+              required
+              disabled={isSubmitting}
+              placeholder="Nhập tiêu đề thông báo..."
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            />
+          </div>
+
+          {/* Loại thông báo */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#64748B] block">Loại thông báo</label>
+            <select
+              value={type}
+              disabled={isSubmitting}
+              onChange={(e) => setType(e.target.value as NotificationItem['type'])}
+              className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <option value="system">Hệ thống (System)</option>
+              <option value="info">Nhiệm vụ & Công việc (Info)</option>
+              <option value="success">Khen thưởng & Điểm số (Success)</option>
+              <option value="warning">Cảnh báo chuyên cần (Warning)</option>
+            </select>
+          </div>
+
+          {/* Nội dung mô tả */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#64748B] block">Nội dung chi tiết</label>
+            <textarea 
+              required
+              rows={4}
+              disabled={isSubmitting}
+              placeholder="Nhập mô tả nội dung thông báo..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+            />
+          </div>
+
+          {/* Đường dẫn liên kết */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#64748B] block">Đường dẫn liên kết (Tùy chọn)</label>
+            <input 
+              type="text"
+              disabled={isSubmitting}
+              placeholder="Ví dụ: /students/record, /students/tasks"
+              value={routeUrl}
+              onChange={(e) => setRouteUrl(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-gray-100 bg-white/40 -mx-5 -mb-5 p-5">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-xl text-sm font-semibold text-[#64748B] hover:bg-gray-100 active:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`px-5 py-2 rounded-xl text-sm font-semibold text-white bg-[#1A73E8] hover:bg-[#155cb4] active:scale-[0.99] transition-all duration-150 hover:scale-[1.01] shadow-sm shadow-blue-500/10 ${isSubmitting ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default NotificationModal;

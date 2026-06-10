@@ -68,7 +68,7 @@ import { criteriaApi, Criterion } from "@/api/criteria-api";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { RouteGuard, usePermission } from "@/components/guards/RouteGuard";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import TabNavigation from "@/components/ui/TabNavigation";
 import {
   Select,
@@ -83,6 +83,10 @@ import { useAuth } from "@/providers/auth-provider";
 
 function GhiNhanTab() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const taskId = searchParams.get("taskId");
+  const userRole = String(user?.role || '').toLowerCase();
+  const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
 
   const ghiNhanAccess = usePermission({
     viewStudentRecord: "READ_STUDENT_RECORD",
@@ -142,7 +146,8 @@ function GhiNhanTab() {
 
   const canDeleteClassReport = (report: DailyClassReport) => {
     if (!ghiNhanAccess.deleteClassRecord) return false;
-    if (ghiNhanAccess.manageSetup) return true;
+    const isAdmin = String(user?.role || "").toLowerCase().includes("admin");
+    if (isAdmin || ghiNhanAccess.configRecord) return true;
     if (!currentUserId) return false;
     return getClassReportCreatorId(report) === currentUserId;
   };
@@ -193,6 +198,8 @@ function GhiNhanTab() {
   const [deletedRecords, setDeletedRecords] = useState<AcademicRecord[]>([]);
   const [deletedReports, setDeletedReports] = useState<DailyClassReport[]>([]);
   const [isTrashLoading, setIsTrashLoading] = useState(false);
+  const [isDeleteAllRecordsConfirmOpen, setIsDeleteAllRecordsConfirmOpen] = useState(false);
+  const [isDeleteAllReportsConfirmOpen, setIsDeleteAllReportsConfirmOpen] = useState(false);
   const [isImportRecordPopupOpen, setIsImportRecordPopupOpen] = useState(false);
   const [isImportClassRecordPopupOpen, setIsImportClassRecordPopupOpen] = useState(false);
   const [trashTab, setTrashTab] = useState<"student" | "class">("student");
@@ -231,6 +238,7 @@ function GhiNhanTab() {
   const [classReportRecordCounts, setClassReportRecordCounts] = useState<
     Record<string, number>
   >({});
+  const [isDeletingClassReports, setIsDeletingClassReports] = useState(false);
 
   // Global configurations for absent criteria
   const [globalCriteria, setGlobalCriteria] = useState<Criterion[]>([]);
@@ -813,44 +821,68 @@ function GhiNhanTab() {
 
     if (deletableIds.length === 0) return;
 
-    if (deletableIds.every((id) => selectedReportIds.includes(id))) {
-      setSelectedReportIds([]);
-    } else {
-      setSelectedReportIds(deletableIds);
-    }
+    setSelectedReportIds((prev) => {
+      const selectedSet = new Set(prev);
+      const allSelected = deletableIds.every((id) => selectedSet.has(id));
+
+      if (allSelected) {
+        return prev.filter((id) => !deletableIds.includes(id));
+      }
+
+      return Array.from(new Set([...prev, ...deletableIds]));
+    });
   };
 
   const toggleSelectClass = (id: string) => {
+    const target = classReports.find((report) => report._id === id);
+    if (!target || !canDeleteClassReport(target)) return;
+
     setSelectedReportIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
   const handleDeleteClassReportsBulk = async () => {
-    try {
-      const deletableIds = selectedReportIds.filter((id) => {
+    const deletableIds = Array.from(new Set(
+      selectedReportIds.filter((id) => {
         const target = classReports.find((report) => report._id === id);
         return target ? canDeleteClassReport(target) : false;
-      });
+      })
+    ));
 
-      if (deletableIds.length === 0) {
-        toast.error("Bạn không có quyền xóa các báo cáo đã chọn.");
-        return;
+    if (deletableIds.length === 0) {
+      toast.error("Bạn không có quyền xóa các báo cáo đã chọn.");
+      return;
+    }
+
+    if (deletableIds.length !== selectedReportIds.length) {
+      toast.warning("Một số báo cáo đã chọn không đủ quyền xóa và đã được bỏ qua.");
+    }
+
+    setIsDeletingClassReports(true);
+    const toastId = toast.loading("Đang xóa các báo cáo lớp học...");
+    try {
+      const result = await dailyClassReportApi.deleteDailyClassReportsBulk(deletableIds);
+      toast.dismiss(toastId);
+
+      if (result.failed && result.failed.length > 0) {
+        if (result.deletedCount > 0) {
+          toast.success(`Đã xóa thành công ${result.deletedCount} báo cáo lớp học. Tuy nhiên có ${result.failed.length} báo cáo gặp lỗi.`);
+        } else {
+          toast.error(`Xóa hàng loạt thất bại. Chi tiết: ${result.failed[0].message}`);
+        }
+      } else {
+        toast.success(`Đã xóa thành công ${result.deletedCount} báo cáo lớp học.`);
       }
 
-      await Promise.all(
-        deletableIds.map((id) =>
-          dailyClassReportApi.deleteDailyClassReport(id),
-        ),
-      );
-      toast.success(
-        `Đã xóa thành công ${deletableIds.length} báo cáo lớp học.`,
-      );
       setSelectedReportIds([]);
       fetchClassReports();
-    } catch (err) {
+    } catch (err: any) {
+      toast.dismiss(toastId);
       console.error(err);
-      toast.error("Có lỗi xảy ra khi xóa hàng loạt.");
+      toast.error(err.message || "Có lỗi xảy ra khi xóa hàng loạt.");
+    } finally {
+      setIsDeletingClassReports(false);
     }
   };
 
@@ -933,6 +965,42 @@ function GhiNhanTab() {
     } catch (err: any) {
       console.error("Lỗi khi xóa vĩnh viễn báo cáo:", err);
       toast.error(err.message || "Không thể xóa vĩnh viễn báo cáo.");
+    }
+  };
+
+  const handleForceDeleteAllRecords = async () => {
+    setIsDeleteAllRecordsConfirmOpen(false);
+    if (deletedRecords.length === 0) return;
+    const toastId = toast.loading("Đang xóa vĩnh viễn tất cả ghi nhận vi phạm...");
+    try {
+      await Promise.all(
+        deletedRecords.map((rec) =>
+          academicRecordApi.forceDeleteAcademicRecord(rec._id, true),
+        ),
+      );
+      toast.success("Đã xóa vĩnh viễn tất cả ghi nhận vi phạm thành công!", { id: toastId });
+      fetchDeletedItems();
+    } catch (err: any) {
+      console.error("Lỗi khi xóa vĩnh viễn tất cả ghi nhận:", err);
+      toast.error(err.message || "Xóa vĩnh viễn thất bại.", { id: toastId });
+    }
+  };
+
+  const handleForceDeleteAllReports = async () => {
+    setIsDeleteAllReportsConfirmOpen(false);
+    if (deletedReports.length === 0) return;
+    const toastId = toast.loading("Đang xóa vĩnh viễn tất cả báo cáo lớp học...");
+    try {
+      await Promise.all(
+        deletedReports.map((rep) =>
+          dailyClassReportApi.forceDeleteDailyClassReport(rep._id),
+        ),
+      );
+      toast.success("Đã xóa vĩnh viễn tất cả báo cáo lớp học thành công!", { id: toastId });
+      fetchDeletedItems();
+    } catch (err: any) {
+      console.error("Lỗi khi xóa vĩnh viễn tất cả báo cáo:", err);
+      toast.error(err.message || "Xóa vĩnh viễn thất bại.", { id: toastId });
     }
   };
 
@@ -1168,6 +1236,7 @@ function GhiNhanTab() {
               setCurrentView("list");
               fetchAcademicRecords();
             }}
+            taskId={taskId}
           />
         )}
       </motion.div>
@@ -1245,6 +1314,7 @@ function GhiNhanTab() {
               setEditingAcademicRecord(null);
               fetchAcademicRecords();
             }}
+            taskId={taskId}
           />
         )}
       </motion.div>
@@ -1260,20 +1330,26 @@ function GhiNhanTab() {
           <div className="p-4 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white shrink-0">
             <div className="flex flex-row items-center gap-3 flex-1">
               {/* Tab điều hướng dạng Pill Shape Glassmorphic */}
-              <div className="flex bg-gray-100/80 border border-gray-200/15 rounded-full p-1 gap-1.5 shrink-0 shadow-sm">
-                <button
-                  onClick={() => setActiveSubTab("student")}
-                  className="px-5 py-1.5 font-bold text-[12.5px] transition-all rounded-full cursor-pointer whitespace-nowrap bg-white text-[#1A73E8] shadow-sm"
-                >
-                  Tình hình HSSV
-                </button>
-                <button
-                  onClick={() => setActiveSubTab("class")}
-                  className={`px-5 py-1.5 font-bold text-[12.5px] transition-all rounded-full whitespace-nowrap ${canAccessClassTab ? "cursor-pointer text-gray-500 hover:text-gray-800" : "hidden"}`}
-                >
-                  Tình hình lớp học
-                </button>
-              </div>
+              {isStudent ? (
+                <div className="text-sm font-bold text-slate-800 px-3 py-1.5 bg-slate-50/50 rounded-lg border border-slate-100">
+                  Ghi nhận rèn luyện cá nhân
+                </div>
+              ) : (
+                <div className="flex bg-gray-100/80 border border-gray-200/15 rounded-full p-1 gap-1.5 shrink-0 shadow-sm">
+                  <button
+                    onClick={() => setActiveSubTab("student")}
+                    className="px-5 py-1.5 font-bold text-[12.5px] transition-all rounded-full cursor-pointer whitespace-nowrap bg-white text-[#1A73E8] shadow-sm"
+                  >
+                    Tình hình HSSV
+                  </button>
+                  <button
+                    onClick={() => setActiveSubTab("class")}
+                    className={`px-5 py-1.5 font-bold text-[12.5px] transition-all rounded-full whitespace-nowrap ${canAccessClassTab ? "cursor-pointer text-gray-500 hover:text-gray-800" : "hidden"}`}
+                  >
+                    Tình hình lớp học
+                  </button>
+                </div>
+              )}
 
               <div className="relative flex-1 min-w-0 max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -1328,27 +1404,29 @@ function GhiNhanTab() {
               </Popover>
 
               {/* Class Dropdown for Student */}
-              <div className="w-[180px]">
-                <Select
-                  value={selectedClassIdForStudent}
-                  onValueChange={(val: string) => {
-                    setSelectedClassIdForStudent(val);
-                    setCurrentPage(1);
-                  }}
-                >
-                  <SelectTrigger className="h-10 bg-white border border-gray-200 text-slate-700 hover:bg-gray-50 transition-colors font-semibold text-sm rounded-lg shadow-sm">
-                    <SelectValue placeholder="Tất cả các lớp" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tất cả các lớp</SelectItem>
-                    {classes.map((c) => (
-                      <SelectItem key={c._id} value={c._id}>
-                        {c.class_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!isStudent && (
+                <div className="w-[180px]">
+                  <Select
+                    value={selectedClassIdForStudent}
+                    onValueChange={(val: string) => {
+                      setSelectedClassIdForStudent(val);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-10 bg-white border border-gray-200 text-slate-700 hover:bg-gray-50 transition-colors font-semibold text-sm rounded-lg shadow-sm">
+                      <SelectValue placeholder="Tất cả các lớp" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả các lớp</SelectItem>
+                      {classes.map((c) => (
+                        <SelectItem key={c._id} value={c._id}>
+                          {c.class_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {ghiNhanAccess.configRecord && (
                 <button
@@ -1435,7 +1513,7 @@ function GhiNhanTab() {
                           {/* Checkbox & Badge */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              {record.original && (
+                              {record.original && !isStudent && (
                                 <input
                                   type="checkbox"
                                   checked={selectedIds.includes(record.id)}
@@ -1952,21 +2030,23 @@ function GhiNhanTab() {
               <table className="w-full text-left border-collapse min-w-max">
                 <thead className="bg-[#F8FAFB] sticky top-0 z-10 shadow-sm shadow-gray-100/50">
                   <tr>
-                    <th className="px-5 py-3 w-12 text-center border-b border-gray-100">
-                      {ghiNhanAccess.deleteStudentRecord &&
-                        paginatedRecords.length > 0 && (
-                        <input
-                          type="checkbox"
-                          checked={
-                            paginatedRecords.every((record) =>
-                              selectedIds.includes(record.id),
-                            )
-                          }
-                          onChange={toggleSelectAll}
-                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                      )}
-                    </th>
+                    {!isStudent && (
+                      <th className="px-5 py-3 w-12 text-center border-b border-gray-100">
+                        {ghiNhanAccess.deleteStudentRecord &&
+                          paginatedRecords.length > 0 && (
+                          <input
+                            type="checkbox"
+                            checked={
+                              paginatedRecords.every((record) =>
+                                selectedIds.includes(record.id),
+                              )
+                            }
+                            onChange={toggleSelectAll}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        )}
+                      </th>
+                    )}
                     <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
                       Mã SV
                     </th>
@@ -1997,9 +2077,11 @@ function GhiNhanTab() {
                   {isLoading
                     ? Array.from({ length: itemsPerPage }).map((_, i) => (
                         <tr key={i}>
-                          <td className="px-5 py-4 border-b border-gray-50 text-center">
-                            <Skeleton className="w-4 h-4 rounded mx-auto" />
-                          </td>
+                          {!isStudent && (
+                            <td className="px-5 py-4 border-b border-gray-50 text-center">
+                              <Skeleton className="w-4 h-4 rounded mx-auto" />
+                            </td>
+                          )}
                           <td className="px-5 py-4 border-b border-gray-50">
                             <Skeleton className="w-20 h-4" />
                           </td>
@@ -2051,16 +2133,18 @@ function GhiNhanTab() {
                             key={record.id}
                             className="hover:bg-slate-50/50 transition-colors group"
                           >
-                            <td className="px-5 py-4 w-12 text-center">
-                              {ghiNhanAccess.deleteStudentRecord && (
-                                <input
-                                  type="checkbox"
-                                  checked={selectedIds.includes(record.id)}
-                                  onChange={() => toggleSelect(record.id)}
-                                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                              )}
-                            </td>
+                            {!isStudent && (
+                              <td className="px-5 py-4 w-12 text-center">
+                                {ghiNhanAccess.deleteStudentRecord && (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.includes(record.id)}
+                                    onChange={() => toggleSelect(record.id)}
+                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                )}
+                              </td>
+                            )}
                             <td className="px-5 py-4 text-sm font-medium text-gray-600">
                               {record.studentId}
                             </td>
@@ -2491,85 +2575,87 @@ function GhiNhanTab() {
                                     </div>
 
                                     {/* Modal Footer actions */}
-                                    <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)] shrink-0 flex items-center justify-between gap-3">
-                                      {isSelectingHistory ? (
-                                        <>
-                                          <button
-                                            onClick={() => {
-                                              setIsSelectingHistory(false);
-                                              setSelectedHistoryItems([]);
-                                            }}
-                                            className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-slate-50 border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-100 transition-colors shadow-sm"
-                                          >
-                                            Hủy
-                                          </button>
-                                          <button
-                                            onClick={async () => {
-                                              if (
-                                                selectedHistoryItems.length > 0
-                                              ) {
-                                                setIsLoading(true);
-                                                try {
-                                                  const deletePromises =
-                                                    selectedHistoryItems.map(
-                                                      (idx) => {
-                                                        const targetRecord =
-                                                          drawerHistory[idx];
-                                                        return academicRecordApi.deleteAcademicRecord(
-                                                          targetRecord.id,
-                                                        );
-                                                      },
+                                    {!isStudent && (
+                                      <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)] shrink-0 flex items-center justify-between gap-3">
+                                        {isSelectingHistory ? (
+                                          <>
+                                            <button
+                                              onClick={() => {
+                                                setIsSelectingHistory(false);
+                                                setSelectedHistoryItems([]);
+                                              }}
+                                              className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-slate-50 border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-100 transition-colors shadow-sm"
+                                            >
+                                              Hủy
+                                            </button>
+                                            <button
+                                              onClick={async () => {
+                                                if (
+                                                  selectedHistoryItems.length > 0
+                                                ) {
+                                                  setIsLoading(true);
+                                                  try {
+                                                    const deletePromises =
+                                                      selectedHistoryItems.map(
+                                                        (idx) => {
+                                                          const targetRecord =
+                                                            drawerHistory[idx];
+                                                          return academicRecordApi.deleteAcademicRecord(
+                                                            targetRecord.id,
+                                                          );
+                                                        },
+                                                      );
+                                                    await Promise.all(
+                                                      deletePromises,
                                                     );
-                                                  await Promise.all(
-                                                    deletePromises,
-                                                  );
-                                                  toast.success(
-                                                    `Đã xóa thành công ${selectedHistoryItems.length} ghi nhận.`,
-                                                  );
-                                                  setIsSelectingHistory(false);
-                                                  setSelectedHistoryItems([]);
-                                                  fetchAcademicRecords();
-                                                } catch (err: any) {
-                                                  console.error(
-                                                    "Lỗi khi xóa ghi nhận lịch sử:",
-                                                    err,
-                                                  );
-                                                  toast.error(
-                                                    err.message ||
-                                                      "Có lỗi xảy ra khi xóa ghi nhận.",
-                                                  );
-                                                } finally {
-                                                  setIsLoading(false);
+                                                    toast.success(
+                                                      `Đã xóa thành công ${selectedHistoryItems.length} ghi nhận.`,
+                                                    );
+                                                    setIsSelectingHistory(false);
+                                                    setSelectedHistoryItems([]);
+                                                    fetchAcademicRecords();
+                                                  } catch (err: any) {
+                                                    console.error(
+                                                      "Lỗi khi xóa ghi nhận lịch sử:",
+                                                      err,
+                                                    );
+                                                    toast.error(
+                                                      err.message ||
+                                                        "Có lỗi xảy ra khi xóa ghi nhận.",
+                                                    );
+                                                  } finally {
+                                                    setIsLoading(false);
+                                                  }
                                                 }
+                                              }}
+                                              disabled={
+                                                selectedHistoryItems.length === 0
                                               }
-                                            }}
-                                            disabled={
-                                              selectedHistoryItems.length === 0
-                                            }
-                                            className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-50 border border-rose-100 text-[13px] font-bold text-rose-600 hover:bg-rose-100 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                          >
-                                            <Trash2 className="w-4 h-4 text-rose-500" />
-                                            Xóa ({selectedHistoryItems.length})
-                                          </button>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <button className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm">
-                                            <Edit className="w-4 h-4 text-slate-600" />
-                                            Sửa ghi nhận
-                                          </button>
-                                          <button
-                                            onClick={() =>
-                                              setIsSelectingHistory(true)
-                                            }
-                                            className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
-                                          >
-                                            <CheckSquare className="w-4 h-4 text-slate-600" />
-                                            Chọn
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
+                                              className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-50 border border-rose-100 text-[13px] font-bold text-rose-600 hover:bg-rose-100 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                              <Trash2 className="w-4 h-4 text-rose-500" />
+                                              Xóa ({selectedHistoryItems.length})
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <button className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm">
+                                              <Edit className="w-4 h-4 text-slate-600" />
+                                              Sửa ghi nhận
+                                            </button>
+                                            <button
+                                              onClick={() =>
+                                                setIsSelectingHistory(true)
+                                              }
+                                              className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
+                                            >
+                                              <CheckSquare className="w-4 h-4 text-slate-600" />
+                                              Chọn
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    )}
                                   </DrawerContent>
                                 </Drawer>
 
@@ -2610,7 +2696,7 @@ function GhiNhanTab() {
                   {paginatedRecords.length === 0 && (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={isStudent ? 8 : 9}
                         className="px-5 py-8 text-center text-sm text-gray-500 bg-gray-50/50"
                       >
                         Không tìm thấy ghi nhận nào.
@@ -2816,6 +2902,7 @@ function GhiNhanTab() {
                           {/* Checkbox & Class Name */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
+                              {canDeleteClassReport(report) && (
                                 <input
                                   type="checkbox"
                                   checked={selectedReportIds.includes(
@@ -2823,7 +2910,8 @@ function GhiNhanTab() {
                                   )}
                                   onChange={() => toggleSelectClass(report._id)}
                                   className="w-4.5 h-4.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                /> 
+                                />
+                              )}
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm font-bold text-slate-800">
@@ -2964,13 +3052,13 @@ function GhiNhanTab() {
                         <input
                           type="checkbox"
                           checked={
-                            paginatedClassReports.filter((report) =>
-                              canDeleteClassReport(report),
-                            ).length > 0 &&
-                            selectedReportIds.length ===
-                              paginatedClassReports.filter((report) =>
-                                canDeleteClassReport(report),
-                              ).length
+                            (() => {
+                              const deletableIdsOnPage = paginatedClassReports
+                                .filter((report) => canDeleteClassReport(report))
+                                .map((report) => report._id);
+                              return deletableIdsOnPage.length > 0 &&
+                                deletableIdsOnPage.every((id) => selectedReportIds.includes(id));
+                            })()
                           }
                           onChange={toggleSelectAllClass}
                           className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -3257,9 +3345,14 @@ function GhiNhanTab() {
                 ghiNhanAccess.deleteClassRecord && (
                   <button
                     onClick={() => setIsDeleteClassConfirmOpen(true)}
-                    className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                    disabled={isDeletingClassReports}
+                    className={`bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0 ${isDeletingClassReports ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
-                    <Trash2 size={13} strokeWidth={2.5} />
+                    {isDeletingClassReports ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 size={13} strokeWidth={2.5} />
+                    )}
                     <span>Xóa ({selectedReportIds.length})</span>
                   </button>
                 )}
@@ -3529,29 +3622,50 @@ function GhiNhanTab() {
           </DialogDescription>
 
           {/* Tabs */}
-          <div className="flex border-b border-slate-100 mt-4 mb-4 gap-2">
-            <button
-              type="button"
-              onClick={() => setTrashTab("student")}
-              className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
-                trashTab === "student"
-                  ? "border-rose-500 text-rose-600"
-                  : "border-transparent text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              Vi phạm sinh viên ({deletedRecords.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setTrashTab("class")}
-              className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
-                trashTab === "class"
-                  ? "border-rose-500 text-rose-600"
-                  : "border-transparent text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              Báo cáo của lớp ({deletedReports.length})
-            </button>
+          <div className="flex items-center justify-between border-b border-slate-100 mt-4 mb-4">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTrashTab("student")}
+                className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                  trashTab === "student"
+                    ? "border-rose-500 text-rose-600"
+                    : "border-transparent text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                Vi phạm sinh viên ({deletedRecords.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrashTab("class")}
+                className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                  trashTab === "class"
+                    ? "border-rose-500 text-rose-600"
+                    : "border-transparent text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                Báo cáo của lớp ({deletedReports.length})
+              </button>
+            </div>
+
+            {/* Nút Xóa tất cả */}
+            {((trashTab === "student" && deletedRecords.length > 0) ||
+              (trashTab === "class" && deletedReports.length > 0)) && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (trashTab === "student") {
+                    setIsDeleteAllRecordsConfirmOpen(true);
+                  } else {
+                    setIsDeleteAllReportsConfirmOpen(true);
+                  }
+                }}
+                className="pb-2.5 px-4 text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Trash2 size={13} />
+                <span>Xóa tất cả</span>
+              </button>
+            )}
           </div>
 
           <div className="mt-2 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
@@ -3780,6 +3894,30 @@ function GhiNhanTab() {
             title="Xác nhận xoá vĩnh viễn"
             message="Bạn có chắc chắn muốn xoá vĩnh viễn báo cáo lớp học này? Hành động này sẽ xoá sạch báo cáo và các ghi nhận vi phạm liên quan vĩnh viễn khỏi database."
             confirmLabel="Xoá vĩnh viễn"
+            cancelLabel="Huỷ"
+            variant="danger"
+          />
+
+          {/* Confirm force delete all AcademicRecords */}
+          <ConfirmModal
+            isOpen={isDeleteAllRecordsConfirmOpen}
+            onClose={() => setIsDeleteAllRecordsConfirmOpen(false)}
+            onConfirm={handleForceDeleteAllRecords}
+            title="Xác nhận xoá vĩnh viễn tất cả"
+            message="Bạn có chắc chắn muốn xoá vĩnh viễn TẤT CẢ ghi nhận vi phạm hiện có trong thùng rác? Hành động này sẽ xoá sạch dữ liệu và không thể hoàn tác."
+            confirmLabel="Xoá tất cả"
+            cancelLabel="Huỷ"
+            variant="danger"
+          />
+
+          {/* Confirm force delete all DailyClassReports */}
+          <ConfirmModal
+            isOpen={isDeleteAllReportsConfirmOpen}
+            onClose={() => setIsDeleteAllReportsConfirmOpen(false)}
+            onConfirm={handleForceDeleteAllReports}
+            title="Xác nhận xoá vĩnh viễn tất cả"
+            message="Bạn có chắc chắn muốn xoá vĩnh viễn TẤT CẢ báo cáo lớp học trong thùng rác? Hành động này sẽ xoá sạch tất cả báo cáo và các ghi nhận liên quan vĩnh viễn khỏi database."
+            confirmLabel="Xoá tất cả"
             cancelLabel="Huỷ"
             variant="danger"
           />
@@ -4205,6 +4343,10 @@ function ClassReportDetailDialog({
 
 function StudentRecordPageContent() {
   const router = useRouter();
+  const { user } = useAuth();
+  const userRole = String(user?.role || '').toLowerCase();
+  const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
+
   return (
     <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
       <Sidebar />
@@ -4213,11 +4355,18 @@ function StudentRecordPageContent() {
           customMappings={{ record: "Ghi nhận chuyên cần & rèn luyện" }}
         />
         <TabNavigation
-          tabs={[
-            { id: "Danh sách", label: "Danh sách" },
-            { id: "Ghi nhận", label: "Ghi nhận" },
-            { id: "Nhiệm vụ", label: "Nhiệm vụ" },
-          ]}
+          tabs={
+            isStudent
+              ? [
+                  { id: "Ghi nhận", label: "Ghi nhận" },
+                  { id: "Nhiệm vụ", label: "Nhiệm vụ" },
+                ]
+              : [
+                  { id: "Danh sách", label: "Danh sách" },
+                  { id: "Ghi nhận", label: "Ghi nhận" },
+                  { id: "Nhiệm vụ", label: "Nhiệm vụ" },
+                ]
+          }
           activeTab="Ghi nhận"
           onTabChange={(id) => {
             if (id === "Danh sách") {
@@ -4236,6 +4385,12 @@ function StudentRecordPageContent() {
 }
 
 export default function StudentRecordPage() {
+  const { user } = useAuth();
+  const userRole = String(user?.role || '').toLowerCase();
+  const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
+  const isTeacher = userRole.includes('teacher') || userRole.includes('advisor') || userRole.includes('giảng viên') || userRole.includes('giáo viên');
+  const bypassGuard = isStudent || isTeacher;
+
   return (
     <Suspense
       fallback={
@@ -4244,9 +4399,13 @@ export default function StudentRecordPage() {
         </div>
       }
     >
-      <RouteGuard requiredPermission="STUDENT_PAGE">
+      {bypassGuard ? (
         <StudentRecordPageContent />
-      </RouteGuard>
+      ) : (
+        <RouteGuard requiredPermission="STUDENT_PAGE">
+          <StudentRecordPageContent />
+        </RouteGuard>
+      )}
     </Suspense>
   );
 }

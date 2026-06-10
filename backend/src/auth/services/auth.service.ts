@@ -509,9 +509,34 @@ export class AuthService implements OnModuleInit {
         module: 'Tài chính & Kế toán (Finance)',
       },
       {
+        code: 'GRADING_PAGE',
+        name: 'Truy cập trang rèn luyện',
+        module: 'Rèn luyện',
+      },
+      {
         code: 'GRADING_SEMESTER_MANAGE',
         name: 'Quản lý học kỳ rèn luyện',
         module: 'Rèn luyện',
+      },
+      {
+        code: 'READ_STUDENT_TASK',
+        name: 'Xem nhiệm vụ học tập',
+        module: 'Nhiệm vụ học tập',
+      },
+      {
+        code: 'CREATE_STUDENT_TASK',
+        name: 'Tạo nhiệm vụ học tập',
+        module: 'Nhiệm vụ học tập',
+      },
+      {
+        code: 'UPDATE_STUDENT_TASK',
+        name: 'Cập nhật nhiệm vụ học tập',
+        module: 'Nhiệm vụ học tập',
+      },
+      {
+        code: 'DELETE_STUDENT_TASK',
+        name: 'Xóa nhiệm vụ học tập',
+        module: 'Nhiệm vụ học tập',
       },
     ];
 
@@ -538,19 +563,34 @@ export class AuthService implements OnModuleInit {
         description: 'Giảng viên cố vấn học tập',
         permissions: [
           createdPerms['view_users'],
+          createdPerms['GRADING_PAGE'],
+          createdPerms['READ_STUDENT_TASK'],
+          createdPerms['CREATE_STUDENT_TASK'],
+          createdPerms['UPDATE_STUDENT_TASK'],
+          createdPerms['DELETE_STUDENT_TASK'],
         ],
       },
       {
         name: 'Supervisor',
         role_code: 'SUPERVISOR',
         description: 'Quản sinh và giám sát rèn luyện',
-        permissions: [createdPerms['GRADING_SEMESTER_MANAGE']],
+        permissions: [
+          createdPerms['GRADING_SEMESTER_MANAGE'],
+          createdPerms['GRADING_PAGE'],
+          createdPerms['READ_STUDENT_TASK'],
+          createdPerms['CREATE_STUDENT_TASK'],
+          createdPerms['UPDATE_STUDENT_TASK'],
+          createdPerms['DELETE_STUDENT_TASK'],
+        ],
       },
       {
         name: 'Student',
         role_code: 'STUDENT',
         description: 'Sinh viên học sinh',
-        permissions: [],
+        permissions: [
+          createdPerms['GRADING_PAGE'],
+          createdPerms['READ_STUDENT_TASK'],
+        ],
       },
     ];
 

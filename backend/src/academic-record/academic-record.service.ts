@@ -15,6 +15,8 @@ import {
 } from '../criteria/schemas/criterion.schema';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
+import { Student } from '../students/schemas/student.schema';
+import { Class } from '../classes/schemas/class.schema';
 
 @Injectable()
 export class AcademicRecordService {
@@ -25,7 +27,22 @@ export class AcademicRecordService {
     private readonly summaryPointModel: Model<SummaryPointDocument>,
     @InjectModel(Criterion.name)
     private readonly criterionModel: Model<CriterionDocument>,
+    @InjectModel(Student.name)
+    private readonly studentModel: Model<any>,
+    @InjectModel(Class.name)
+    private readonly classModel: Model<any>,
   ) { }
+
+  private async safeSync(record: any): Promise<void> {
+    if (!record) return;
+    const studentId = record.student_id ? record.student_id.toString() : '';
+    const semesterId = record.semester_id ? record.semester_id.toString() : '';
+    const criterionId = record.criterion_id ? record.criterion_id.toString() : '';
+    
+    if (studentId && semesterId && criterionId) {
+      await this.syncStudentCriterionScore(studentId, semesterId, criterionId);
+    }
+  }
 
   /**
    * Helper function to sync student's criterion count and system score in SummaryPoint(s)
@@ -120,11 +137,7 @@ export class AcademicRecordService {
     const saved = await createdRecord.save();
 
     // Sync points to SummaryPoints
-    await this.syncStudentCriterionScore(
-      saved.student_id.toString(),
-      saved.semester_id.toString(),
-      saved.criterion_id.toString(),
-    );
+    await this.safeSync(saved);
 
     return saved.populate([
       { path: 'criterion_id' },
@@ -135,9 +148,35 @@ export class AcademicRecordService {
     ]);
   }
 
-  async findAll(): Promise<AcademicRecord[]> {
+  async findAll(requester?: any): Promise<AcademicRecord[]> {
+    const filter: any = { status: 'active', is_deleted: { $ne: true } };
+
+    if (requester) {
+      const roleName = (requester.roleName || '').toLowerCase();
+      
+      // Nếu là Student, chỉ trả về các bản ghi thuộc student của user đó
+      if (roleName.includes('student')) {
+        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+        if (!student) {
+          return []; // Không có sinh viên liên kết, không trả về gì
+        }
+        filter.student_id = student._id;
+      } 
+      // Nếu là Teacher, chỉ trả về các bản ghi thuộc class của teacher phụ trách
+      else if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
+        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+        const classIds = classes.map(c => c._id);
+        
+        const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
+        const studentIds = students.map(s => s._id);
+        
+        filter.student_id = { $in: studentIds };
+      }
+      // Admin và Supervisor có quyền xem toàn bộ, không cần filter thêm
+    }
+
     return this.academicRecordModel
-      .find({ status: 'active', is_deleted: { $ne: true } })
+      .find(filter)
       .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
@@ -242,23 +281,19 @@ export class AcademicRecordService {
     }
 
     // Sync old key
-    await this.syncStudentCriterionScore(
-      oldRecord.student_id.toString(),
-      oldRecord.semester_id.toString(),
-      oldRecord.criterion_id.toString(),
-    );
+    await this.safeSync(oldRecord);
 
     // Sync new key if changed
-    if (
-      updated.student_id.toString() !== oldRecord.student_id.toString() ||
-      updated.semester_id.toString() !== oldRecord.semester_id.toString() ||
-      updated.criterion_id.toString() !== oldRecord.criterion_id.toString()
-    ) {
-      await this.syncStudentCriterionScore(
-        updated.student_id.toString(),
-        updated.semester_id.toString(),
-        updated.criterion_id.toString(),
-      );
+    const oldStudent = oldRecord.student_id ? oldRecord.student_id.toString() : '';
+    const oldSemester = oldRecord.semester_id ? oldRecord.semester_id.toString() : '';
+    const oldCriterion = oldRecord.criterion_id ? oldRecord.criterion_id.toString() : '';
+    
+    const newStudent = updated.student_id ? updated.student_id.toString() : '';
+    const newSemester = updated.semester_id ? updated.semester_id.toString() : '';
+    const newCriterion = updated.criterion_id ? updated.criterion_id.toString() : '';
+
+    if (oldStudent !== newStudent || oldSemester !== newSemester || oldCriterion !== newCriterion) {
+      await this.safeSync(updated);
     }
 
     return updated;
@@ -283,7 +318,9 @@ export class AcademicRecordService {
       );
     }
 
-    this.checkHierarchyPermission(record, requester);
+    if (!bypassDailyReportCheck) {
+      this.checkHierarchyPermission(record, requester);
+    }
 
     const deleted = await this.academicRecordModel.findByIdAndUpdate(
       id,
@@ -296,11 +333,7 @@ export class AcademicRecordService {
     }
 
     // Sync score update
-    await this.syncStudentCriterionScore(
-      deleted.student_id.toString(),
-      deleted.semester_id.toString(),
-      deleted.criterion_id.toString(),
-    );
+    await this.safeSync(deleted);
 
     return deleted;
   }
@@ -320,11 +353,7 @@ export class AcademicRecordService {
     const saved = await record.save();
 
     // Sync score update
-    await this.syncStudentCriterionScore(
-      saved.student_id.toString(),
-      saved.semester_id.toString(),
-      saved.criterion_id.toString(),
-    );
+    await this.safeSync(saved);
 
     return saved.populate([
       { path: 'criterion_id' },
@@ -354,7 +383,9 @@ export class AcademicRecordService {
       );
     }
 
-    this.checkHierarchyPermission(record, requester);
+    if (!bypassDailyReportCheck) {
+      this.checkHierarchyPermission(record, requester);
+    }
 
     const deleted = await this.academicRecordModel.findByIdAndDelete(id).exec();
     if (!deleted) {
@@ -362,11 +393,7 @@ export class AcademicRecordService {
     }
 
     // Sync score update
-    await this.syncStudentCriterionScore(
-      deleted.student_id.toString(),
-      deleted.semester_id.toString(),
-      deleted.criterion_id.toString(),
-    );
+    await this.safeSync(deleted);
 
     return deleted;
   }

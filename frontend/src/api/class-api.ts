@@ -1,5 +1,5 @@
+import { httpClient, handleResponse } from './http-client';
 import { Department } from './department-api';
-import { tokenStorage } from './auth-api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -29,43 +29,23 @@ function normalizeClasses(data: any[]): Class[] {
   return data.map(normalizeClass);
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || 'Đã xảy ra lỗi');
-  }
-  return data as T;
-}
-
-function authHeaders(extra?: HeadersInit): HeadersInit {
-  const token = tokenStorage.getAccessToken();
-  return {
-    ...(extra || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
 export const classApi = {
   async getClasses(): Promise<Class[]> {
-    const res = await fetch(`${API_BASE}/classes`, {
-      headers: authHeaders(),
-    });
+    const res = await httpClient(`${API_BASE}/classes`);
     const data = await handleResponse<any[]>(res);
     return normalizeClasses(data);
   },
 
   async getClass(id: string): Promise<Class> {
-    const res = await fetch(`${API_BASE}/classes/${id}`, {
-      headers: authHeaders(),
-    });
+    const res = await httpClient(`${API_BASE}/classes/${id}`);
     const data = await handleResponse<any>(res);
     return normalizeClass(data);
   },
 
   async createClass(dto: any): Promise<Class> {
-    const res = await fetch(`${API_BASE}/classes`, {
+    const res = await httpClient(`${API_BASE}/classes`, {
       method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
     const data = await handleResponse<any>(res);
@@ -73,9 +53,9 @@ export const classApi = {
   },
 
   async updateClass(id: string, dto: any): Promise<Class> {
-    const res = await fetch(`${API_BASE}/classes/${id}`, {
+    const res = await httpClient(`${API_BASE}/classes/${id}`, {
       method: 'PATCH',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
     const data = await handleResponse<any>(res);
@@ -83,9 +63,8 @@ export const classApi = {
   },
 
   async deleteClass(id: string): Promise<Class> {
-    const res = await fetch(`${API_BASE}/classes/${id}`, {
+    const res = await httpClient(`${API_BASE}/classes/${id}`, {
       method: 'DELETE',
-      headers: authHeaders(),
     });
     return handleResponse<Class>(res);
   }

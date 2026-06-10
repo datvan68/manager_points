@@ -27,6 +27,13 @@ Hệ màu công nghệ hiện đại dựa trên bộ ba **Xanh dương, Trắng
 - `--color-text-main`: `#1E293B` (Xanh dương đen sẫm mang lại độ tương phản cao nhưng dịu mắt).
 - `--color-text-muted`: `#64748B` (Màu xám bạc/slate phục vụ cho các thông tin phụ trợ).
 
+- **Semantic State Colors (Hệ màu trạng thái - Dựa theo trang /grading/score)**:
+  - **Active / Blue**: `bg-blue-500/10 text-[#1A73E8] border-blue-500/20` (Trạng thái hoạt động, tự chấm)
+  - **Warning / Amber**: `bg-amber-500/10 text-amber-700 border-amber-500/20` (Cần xem xét, chờ duyệt)
+  - **Info / Approved / Purple**: `bg-purple-500/10 text-purple-700 border-purple-500/20` (Đã duyệt, hoàn thành)
+  - **Danger / Locked / Rose**: `bg-rose-500/10 text-rose-700 border-rose-500/20` (Khóa, dừng hoạt động)
+  - **Draft / Muted / Slate**: `bg-slate-500/10 text-[#64748B] border-slate-500/20` (Bản nháp, mặc định)
+
 ---
 
 ## 3. Typography

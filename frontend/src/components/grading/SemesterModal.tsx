@@ -36,6 +36,9 @@ export default function SemesterModal({
   setSelectedSemester
 }: SemesterModalProps) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isSvCalendarOpen, setIsSvCalendarOpen] = useState(false);
+  const [isGvCalendarOpen, setIsGvCalendarOpen] = useState(false);
+  const [isAdminCalendarOpen, setIsAdminCalendarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'period'>('info');
   const [semesterForm, setSemesterForm] = useState({
     _id: '',
@@ -539,12 +542,44 @@ export default function SemesterModal({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                           Hạn chót Sinh viên tự chấm (SV Deadline)
                         </label>
-                        <input
-                          type="date"
-                          className="w-full bg-slate-50/60 border border-slate-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 transition-all outline-none"
-                          value={periodForm.sv_deadline}
-                          onChange={(e) => setPeriodForm({ ...periodForm, sv_deadline: e.target.value })}
-                        />
+                        <Popover open={isSvCalendarOpen} onOpenChange={setIsSvCalendarOpen}>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className="w-full bg-slate-50/60 border border-slate-100 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-100/40 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-left flex items-center justify-between cursor-pointer h-[42px]"
+                            >
+                              <span>
+                                {periodForm.sv_deadline ? formatDateToDisplay(periodForm.sv_deadline) : 'Chọn hạn chót'}
+                              </span>
+                              <Calendar size={15} className="text-slate-400" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-auto p-0 z-[100] bg-transparent border-none shadow-none"
+                            align="start"
+                            side="bottom"
+                            sideOffset={6}
+                          >
+                            <CustomCalendar
+                              startDate={periodForm.sv_deadline ? new Date(periodForm.sv_deadline) : null}
+                              endDate={null}
+                              onRangeSelect={(start) => {
+                                setPeriodForm({
+                                  ...periodForm,
+                                  sv_deadline: formatDateToString(start)
+                                });
+                              }}
+                              onCancel={() => {
+                                setPeriodForm({
+                                  ...periodForm,
+                                  sv_deadline: ''
+                                });
+                                setIsSvCalendarOpen(false);
+                              }}
+                              onConfirm={() => setIsSvCalendarOpen(false)}
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
 
                       {/* GV Deadline */}
@@ -552,12 +587,44 @@ export default function SemesterModal({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                           Hạn chót Cố vấn chấm (GV Deadline)
                         </label>
-                        <input
-                          type="date"
-                          className="w-full bg-slate-50/60 border border-slate-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 transition-all outline-none"
-                          value={periodForm.gv_deadline}
-                          onChange={(e) => setPeriodForm({ ...periodForm, gv_deadline: e.target.value })}
-                        />
+                        <Popover open={isGvCalendarOpen} onOpenChange={setIsGvCalendarOpen}>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className="w-full bg-slate-50/60 border border-slate-100 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-100/40 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-left flex items-center justify-between cursor-pointer h-[42px]"
+                            >
+                              <span>
+                                {periodForm.gv_deadline ? formatDateToDisplay(periodForm.gv_deadline) : 'Chọn hạn chót'}
+                              </span>
+                              <Calendar size={15} className="text-slate-400" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-auto p-0 z-[100] bg-transparent border-none shadow-none"
+                            align="start"
+                            side="bottom"
+                            sideOffset={6}
+                          >
+                            <CustomCalendar
+                              startDate={periodForm.gv_deadline ? new Date(periodForm.gv_deadline) : null}
+                              endDate={null}
+                              onRangeSelect={(start) => {
+                                setPeriodForm({
+                                  ...periodForm,
+                                  gv_deadline: formatDateToString(start)
+                                });
+                              }}
+                              onCancel={() => {
+                                setPeriodForm({
+                                  ...periodForm,
+                                  gv_deadline: ''
+                                });
+                                setIsGvCalendarOpen(false);
+                              }}
+                              onConfirm={() => setIsGvCalendarOpen(false)}
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
 
                       {/* Admin Deadline */}
@@ -565,12 +632,44 @@ export default function SemesterModal({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                           Hạn chót Hội đồng phê duyệt (Admin Deadline)
                         </label>
-                        <input
-                          type="date"
-                          className="w-full bg-slate-50/60 border border-slate-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 transition-all outline-none"
-                          value={periodForm.admin_deadline}
-                          onChange={(e) => setPeriodForm({ ...periodForm, admin_deadline: e.target.value })}
-                        />
+                        <Popover open={isAdminCalendarOpen} onOpenChange={setIsAdminCalendarOpen}>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className="w-full bg-slate-50/60 border border-slate-100 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-100/40 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-left flex items-center justify-between cursor-pointer h-[42px]"
+                            >
+                              <span>
+                                {periodForm.admin_deadline ? formatDateToDisplay(periodForm.admin_deadline) : 'Chọn hạn chót'}
+                              </span>
+                              <Calendar size={15} className="text-slate-400" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-auto p-0 z-[100] bg-transparent border-none shadow-none"
+                            align="start"
+                            side="bottom"
+                            sideOffset={6}
+                          >
+                            <CustomCalendar
+                              startDate={periodForm.admin_deadline ? new Date(periodForm.admin_deadline) : null}
+                              endDate={null}
+                              onRangeSelect={(start) => {
+                                setPeriodForm({
+                                  ...periodForm,
+                                  admin_deadline: formatDateToString(start)
+                                });
+                              }}
+                              onCancel={() => {
+                                setPeriodForm({
+                                  ...periodForm,
+                                  admin_deadline: ''
+                                });
+                                setIsAdminCalendarOpen(false);
+                              }}
+                              onConfirm={() => setIsAdminCalendarOpen(false)}
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
                     </div>
                   )}

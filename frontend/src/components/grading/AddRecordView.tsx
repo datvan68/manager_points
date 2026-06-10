@@ -19,6 +19,7 @@ import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi } from '@/api/evaluation-detail-api';
 import { useAuth } from '@/providers/auth-provider';
+import { useLinkedTaskProgress } from '@/hooks/useLinkedTaskProgress';
 
 interface ViolationItem {
   student_id: string;
@@ -34,10 +35,25 @@ interface AddRecordViewProps {
   onBack: () => void;
   onSuccess?: () => void;
   recordToEdit?: AcademicRecord | null;
+  taskId?: string | null;
 }
 
-export default function AddRecordView({ onBack, onSuccess, recordToEdit }: AddRecordViewProps) {
+export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId }: AddRecordViewProps) {
   const { user } = useAuth();
+
+  const { markStarted, markCompleted } = useLinkedTaskProgress({
+    taskId,
+    linkedPage: '/students/record',
+    sourceType: 'student_record',
+  });
+
+  useEffect(() => {
+    if (taskId) {
+      markStarted().catch((err) => {
+        console.warn('Không thể tự động chuyển trạng thái nhiệm vụ sang Đang làm:', err);
+      });
+    }
+  }, [taskId, markStarted]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
@@ -302,6 +318,13 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit }: AddRe
         });
 
         toast.success('Cập nhật ghi nhận thành công!');
+        if (taskId && recordToEdit?._id) {
+          try {
+            await markCompleted(recordToEdit._id);
+          } catch (syncErr) {
+            toast.warning('Nghiệp vụ đã lưu nhưng trạng thái nhiệm vụ chưa được đồng bộ!');
+          }
+        }
         if (onSuccess) {
           onSuccess();
         } else {
@@ -326,7 +349,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit }: AddRe
     try {
       const summaryList = await summariesPointApi.getSummariesPoints();
 
-      await Promise.all(addedViolations.map(async (violation) => {
+      const createdRecords = await Promise.all(addedViolations.map(async (violation) => {
         // 1. Tìm hoặc tạo SummaryPoint cho học sinh & kì học
         let studentSummary = summaryList.find(s => {
           const sId = typeof s.student_id === 'object' ? s.student_id?._id : s.student_id;
@@ -377,6 +400,14 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit }: AddRe
         });
       }));
       toast.success(`Đã ghi nhận ${addedViolations.length} rèn luyện thành công!`);
+      if (taskId) {
+        try {
+          const firstRecordId = createdRecords[0]?._id;
+          await markCompleted(firstRecordId);
+        } catch (syncErr) {
+          toast.warning('Nghiệp vụ đã lưu nhưng trạng thái nhiệm vụ chưa được đồng bộ!');
+        }
+      }
       if (onSuccess) {
         onSuccess();
       } else {

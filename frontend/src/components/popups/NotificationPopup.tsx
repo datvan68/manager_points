@@ -3,16 +3,18 @@
 import React from 'react';
 import { 
   AlertTriangle, Sparkles, ClipboardList, Info, 
-  Check, CheckCircle2, ChevronRight, BellOff 
+  ChevronRight, BellOff, CheckCircle2 
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
+import { vi } from 'date-fns/locale';
 
 export interface NotificationItem {
   id: string;
   title: string;
   description: string;
-  time: string;
+  createdAt?: string;
   type: 'warning' | 'success' | 'info' | 'system';
   isRead: boolean;
   routeUrl?: string;
@@ -78,6 +80,15 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
+  const formatTime = (createdAt?: string) => {
+    if (!createdAt) return 'Vừa xong';
+    try {
+      return formatDistanceToNow(new Date(createdAt), { addSuffix: true, locale: vi });
+    } catch (e) {
+      return 'Không rõ';
+    }
+  };
+
   return (
     <div 
       className="absolute right-0 top-full mt-2 w-80 md:w-96 bg-white/95 backdrop-blur-md border border-white/80 rounded-2xl shadow-xl py-2 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[480px]"
@@ -134,7 +145,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({
                   {item.description}
                 </p>
                 <span className="text-[10px] text-[#64748B] font-medium mt-1.5 block">
-                  {item.time}
+                  {formatTime(item.createdAt)}
                 </span>
               </div>
             </div>
@@ -152,7 +163,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({
       <div className="px-4 py-2 border-t border-gray-100 bg-white/40 flex items-center justify-center shrink-0">
         <button 
           onClick={() => {
-            toast.info('Tính năng đang được phát triển thêm!');
+            router.push('/notifications');
             onClose();
           }}
           className="text-xs font-bold text-[#64748B] hover:text-[#1E293B] hover:scale-[1.01] transition-all flex items-center gap-1 cursor-pointer"

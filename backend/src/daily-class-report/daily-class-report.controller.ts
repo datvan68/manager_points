@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { DailyClassReportService } from './daily-class-report.service';
 import { CreateDailyClassReportDto } from './dto/create-daily-class-report.dto';
@@ -75,8 +76,8 @@ export class DailyClassReportController {
   @ApiOperation({
     summary: 'Delete daily class report (requires Admin, Teacher, or Supervisor role)',
   })
-  remove(@Param('id') id: string) {
-    return this.dailyClassReportService.remove(id);
+  remove(@Param('id') id: string, @Request() req: any) {
+    return this.dailyClassReportService.remove(id, req.user);
   }
 
   @Patch(':id/restore')
@@ -95,7 +96,17 @@ export class DailyClassReportController {
   @ApiOperation({
     summary: 'Permanently delete daily class report (requires Admin, Teacher, or Supervisor role)',
   })
-  forceRemove(@Param('id') id: string) {
-    return this.dailyClassReportService.forceRemove(id);
+  forceRemove(@Param('id') id: string, @Request() req: any) {
+    return this.dailyClassReportService.forceRemove(id, req.user);
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Bulk delete daily class reports (requires Admin, Teacher, or Supervisor role)',
+  })
+  bulkDelete(@Body() body: { ids: string[] }, @Request() req: any) {
+    return this.dailyClassReportService.bulkRemove(body.ids, req.user);
   }
 }

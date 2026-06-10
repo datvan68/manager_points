@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useAuth } from '@/providers/auth-provider';
 
 interface SubsystemPopupProps {
   isOpen: boolean;
@@ -17,6 +18,16 @@ interface SubsystemPopupProps {
 export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
+  const { user } = useAuth();
+
+  const userRole = String(user?.role || '').toLowerCase();
+  const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
+  const isTeacher = userRole.includes('teacher') || userRole.includes('advisor') || userRole.includes('giảng viên') || userRole.includes('giáo viên');
+
+  const getInitials = (name: string) => {
+    if (!name || typeof name !== 'string') return '??';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  };
 
   // Preset modules mapped with system routes
   const modules = [
@@ -140,11 +151,19 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
   };
 
 
+  const filteredModules = modules.filter(mod => {
+    const matchesSearch = mod.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      mod.desc.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
 
-  const filteredModules = modules.filter(mod => 
-    mod.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    mod.desc.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    if (isStudent) {
+      return mod.group === 'Học sinh';
+    }
+    if (isTeacher) {
+      return ['sv-profile', 'grading', 'attendance', 'events', 'dormitory', 'club', 'notifications'].includes(mod.id);
+    }
+    return true;
+  });
 
   return (
     <AnimatePresence>
@@ -446,15 +465,17 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
               {/* User badge */}
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 font-bold text-sm">
-                  AD
+                  {user ? getInitials(user.user_name || user.username || '') : 'AD'}
                 </div>
                 <div>
-                  <h5 className="font-bold text-slate-700 text-[13px] leading-tight">Admin User</h5>
-                  <p className="text-[10px] text-slate-400 font-medium">Super Administrator</p>
+                  <h5 className="font-bold text-slate-700 text-[13px] leading-tight">
+                    {user?.user_name || user?.username || 'Guest'}
+                  </h5>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    {user?.role || 'User'}
+                  </p>
                 </div>
               </div>
-
-
             </div>
           </motion.div>
         </div>

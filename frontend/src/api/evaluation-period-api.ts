@@ -1,4 +1,4 @@
-import { tokenStorage } from './auth-api';
+import { httpClient, handleResponse } from './http-client';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -30,72 +30,38 @@ export interface UpdateEvaluationPeriodDto {
   admin_deadline?: string;
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || data.error || 'Đã xảy ra lỗi');
-  }
-  return data as T;
-}
-
 export const evaluationPeriodApi = {
   async getEvaluationPeriods(): Promise<EvaluationPeriod[]> {
-    const accessToken = tokenStorage.getAccessToken();
-    const headers: HeadersInit = {};
-    if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-    const res = await fetch(`${API_BASE}/api/evaluation-periods`, { headers });
+    const res = await httpClient(`${API_BASE}/api/evaluation-periods`);
     return handleResponse<EvaluationPeriod[]>(res);
   },
 
   async getEvaluationPeriod(id: string): Promise<EvaluationPeriod> {
-    const accessToken = tokenStorage.getAccessToken();
-    const headers: HeadersInit = {};
-    if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-    const res = await fetch(`${API_BASE}/api/evaluation-periods/${id}`, { headers });
+    const res = await httpClient(`${API_BASE}/api/evaluation-periods/${id}`);
     return handleResponse<EvaluationPeriod>(res);
   },
 
   async createEvaluationPeriod(dto: CreateEvaluationPeriodDto): Promise<EvaluationPeriod> {
-    const accessToken = tokenStorage.getAccessToken();
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-    const res = await fetch(`${API_BASE}/api/evaluation-periods`, {
+    const res = await httpClient(`${API_BASE}/api/evaluation-periods`, {
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
     return handleResponse<EvaluationPeriod>(res);
   },
 
   async updateEvaluationPeriod(id: string, dto: UpdateEvaluationPeriodDto): Promise<EvaluationPeriod> {
-    const accessToken = tokenStorage.getAccessToken();
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-    const res = await fetch(`${API_BASE}/api/evaluation-periods/${id}`, {
+    const res = await httpClient(`${API_BASE}/api/evaluation-periods/${id}`, {
       method: 'PATCH',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
     return handleResponse<EvaluationPeriod>(res);
   },
 
   async deleteEvaluationPeriod(id: string): Promise<{ message: string }> {
-    const accessToken = tokenStorage.getAccessToken();
-    const headers: HeadersInit = {};
-    if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-    const res = await fetch(`${API_BASE}/api/evaluation-periods/${id}`, {
+    const res = await httpClient(`${API_BASE}/api/evaluation-periods/${id}`, {
       method: 'DELETE',
-      headers,
     });
     return handleResponse<{ message: string }>(res);
   }
