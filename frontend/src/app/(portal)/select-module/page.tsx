@@ -8,6 +8,10 @@ export default function SelectModulePage() {
   const router = useRouter();
 
   useEffect(() => {
+    router.replace('/');
+  }, [router]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key === '1') {
         router.push('/'); // Thay đổi route tương ứng với trang quản lý (ví dụ: /admin hoặc /students)

@@ -7,11 +7,14 @@ import {
   Param,
   Delete,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { CriteriaService } from './criteria.service';
 import { CreateCriterionDto } from './dto/create-criterion.dto';
 import { UpdateCriterionDto } from './dto/update-criterion.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { checkPermission } from '../auth/guards/check-permission.guard';
 
 @ApiTags('criteria')
 @Controller('criteria')
@@ -19,6 +22,8 @@ export class CriteriaController {
   constructor(private readonly criteriaService: CriteriaService) {}
 
   @Post()
+  @UseGuards(checkPermission('CONFIG_RECORD'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo mới một tiêu chí đánh giá' })
   @ApiResponse({ status: 201, description: 'Tạo tiêu chí thành công' })
   create(@Body() createCriterionDto: CreateCriterionDto) {
@@ -26,6 +31,8 @@ export class CriteriaController {
   }
 
   @Post('bulk-delete')
+  @UseGuards(checkPermission('CONFIG_RECORD'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa nhiều tiêu chí đánh giá cùng lúc' })
   @ApiResponse({ status: 200, description: 'Xóa thành công các tiêu chí' })
   bulkDelete(@Body('ids') ids: string[]) {
@@ -33,6 +40,8 @@ export class CriteriaController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Lấy danh sách tất cả các tiêu chí (có thể lọc theo category_id)',
   })
@@ -50,6 +59,8 @@ export class CriteriaController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Lấy chi tiết tiêu chí theo MongoDB ID' })
   @ApiResponse({ status: 200, description: 'Lấy chi tiết thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy tiêu chí' })
@@ -58,6 +69,8 @@ export class CriteriaController {
   }
 
   @Patch(':id')
+  @UseGuards(checkPermission('CONFIG_RECORD'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật tiêu chí theo MongoDB ID' })
   @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy tiêu chí' })
@@ -69,6 +82,8 @@ export class CriteriaController {
   }
 
   @Delete(':id')
+  @UseGuards(checkPermission('CONFIG_RECORD'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa tiêu chí theo MongoDB ID' })
   @ApiResponse({ status: 200, description: 'Xóa thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy tiêu chí' })

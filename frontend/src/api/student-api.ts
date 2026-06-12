@@ -25,6 +25,11 @@ export const studentApi = {
     return handleResponse<Student[]>(res);
   },
 
+  async getMyStudent(): Promise<Student> {
+    const res = await httpClient(`${API_BASE}/students/me`);
+    return handleResponse<Student>(res);
+  },
+
   async getStudent(id: string): Promise<Student> {
     const res = await httpClient(`${API_BASE}/students/${id}`);
     return handleResponse<Student>(res);

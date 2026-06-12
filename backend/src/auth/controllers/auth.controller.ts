@@ -40,7 +40,10 @@ import {
   CreateRoutePermissionDto,
   UpdateRoutePermissionDto,
   UpdateUserDto,
+  UpdateMeDto,
 } from '../dto/auth.dto';
+
+import { isAdminUser } from '../utils/role.util';
 
 @ApiTags('Authentication & RBAC')
 @Controller('api/auth')
@@ -139,8 +142,10 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout and clear session' })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const token = req.cookies?.['refresh_token'];
+    const rawIp = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
+    const ip = Array.isArray(rawIp) ? rawIp[0] : rawIp;
     if (token) {
-      await this.authService.revokeToken(token);
+      await this.authService.revokeToken(token, ip);
     }
     res.clearCookie('refresh_token', { path: '/api/auth' });
     return { message: 'Logged out successfully' };
@@ -154,6 +159,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user profile with permissions' })
   async getMe(@Req() req: any) {
     return this.authService.getMe(req.user.userId);
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update current user profile' })
+  async updateMe(@Req() req: any, @Body() dto: UpdateMeDto) {
+    return this.authService.updateMe(req.user.userId, dto);
   }
 
   // ─── ROLE & PERMISSION MANAGEMENT (ADMIN ONLY) ──────────────
@@ -305,8 +318,13 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'User ID' })
   @ApiOperation({ summary: 'Update a user (Admin only)' })
-  async updateUser(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.authService.updateUser(id, dto);
+  async updateUser(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @Req() req: any,
+  ) {
+    const ip = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
+    return this.authService.updateUser(id, dto, ip);
   }
 
   @Delete('users/:id')
@@ -331,11 +349,20 @@ export class AuthController {
   // ─── ROUTE PERMISSION MANAGEMENT (ADMIN ONLY) ─────────
 
   @Get('route-permissions/all')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Get all route-permission mappings (public for RouteGuard)',
+    summary: 'Get all route-permission mappings (requires login for RouteGuard)',
   })
   async getRoutePermissionsPublic() {
-    return this.authService.getRoutePermissions();
+    const list = await this.authService.getRoutePermissions();
+    return list.map((item: any) => ({
+      route_path: item.route_path,
+      permissions: item.permissions?.map((p: any) => p.code) || [],
+      check_type: item.check_type,
+      type: item.type,
+      is_active: item.is_active,
+    }));
   }
 
   @Get('route-permissions')
@@ -360,7 +387,7 @@ export class AuthController {
       return { allowed: true, message: 'Route không được cấu hình' };
 
     const user = req.user;
-    if (user.roleName === 'Admin') return { allowed: true };
+    if (isAdminUser(user)) return { allowed: true };
 
     const userPermissions: string[] = user.permissions || [];
     const requiredCodes = (mapping.permissions as any[]).map(

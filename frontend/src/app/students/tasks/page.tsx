@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -14,6 +14,13 @@ function StudentTasksPageContent() {
   const router = useRouter();
   const { user } = useAuth();
   const [internalTab, setInternalTab] = useState<'tasks' | 'progress'>('tasks');
+  const [hasOpenedProgressTab, setHasOpenedProgressTab] = useState(false);
+
+  useEffect(() => {
+    if (internalTab === 'progress') {
+      setHasOpenedProgressTab(true);
+    }
+  }, [internalTab]);
 
   const taskAccess = usePermission({
     viewTask: "READ_STUDENT_TASK",
@@ -75,7 +82,14 @@ function StudentTasksPageContent() {
             </div>
           )}
 
-          {internalTab === 'tasks' ? <StudentTasksTab /> : <StudentTaskProgressTab />}
+          <div className={internalTab === 'tasks' ? 'contents' : 'hidden'}>
+            <StudentTasksTab />
+          </div>
+          {canViewProgress && hasOpenedProgressTab && (
+            <div className={internalTab === 'progress' ? 'contents' : 'hidden'}>
+              <StudentTaskProgressTab />
+            </div>
+          )}
         </main>
       </div>
     </div>

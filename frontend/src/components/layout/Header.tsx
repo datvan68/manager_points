@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Bell, Search, LayoutGrid, User, Settings as SettingsIcon, LogOut } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import SubsystemPopup from '@/components/popups/SubsystemPopup';
 import NotificationPopup from '@/components/popups/NotificationPopup';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import { notificationApi, NotificationItem } from '@/api/notification-api';
+import { studentApi } from '@/api/student-api';
+import { toast } from 'sonner';
 
 interface HeaderProps {
     customMappings?: Record<string, string>;
@@ -15,12 +17,14 @@ interface HeaderProps {
 
 const Header = ({ customMappings = {} }: HeaderProps) => {
     const { user, logout } = useAuth();
+    const router = useRouter();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [isResolvingProfile, setIsResolvingProfile] = useState(false);
     
     const profileRef = useRef<HTMLDivElement>(null);
     const notificationRef = useRef<HTMLDivElement>(null);
@@ -77,6 +81,46 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
         return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
     };
 
+    const handleProfileClick = async () => {
+        if (isResolvingProfile) return;
+        setIsProfileOpen(false);
+        if (!user) {
+            toast.error('Vui lòng đăng nhập.');
+            router.push('/login');
+            return;
+        }
+
+        setIsResolvingProfile(true);
+        const role = (user?.role || user?.roleName || '').toLowerCase();
+        const isStudent = role.includes('student') || role.includes('sinh vien') || role.includes('hoc sinh');
+
+        if (isStudent) {
+            try {
+                const student = await studentApi.getMyStudent();
+                const classId = typeof student.class_id === 'object' 
+                    ? (student.class_id as any)?._id 
+                    : student.class_id;
+                const studentId = student._id;
+                
+                if (classId && studentId) {
+                    router.push(`/students/${classId}/${studentId}`);
+                } else {
+                    toast.error('Hồ sơ học sinh thiếu thông tin lớp học. Fallback về trang hồ sơ cá nhân.');
+                    router.push('/profile');
+                }
+            } catch (error: any) {
+                console.error('Failed to resolve student profile:', error);
+                toast.error(error.message || 'Không thể tải hồ sơ sinh viên. Fallback về trang hồ sơ cá nhân.');
+                router.push('/profile');
+            } finally {
+                setIsResolvingProfile(false);
+            }
+        } else {
+            setIsResolvingProfile(false);
+            router.push('/profile');
+        }
+    };
+
     // Close popups when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -97,115 +141,121 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
 
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 relative z-50">
-      {/* Left: Breadcrumbs/Title */}
-      <div className="flex items-center gap-2">
-         <Breadcrumb customMappings={customMappings} />
-      </div>
-
-      {/* Right: Actions */}
-      <div className="flex items-center gap-2">
-        <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-          <Search size={20} />
-        </button>
-        
-        {/* Notification Bell with Dropdown */}
-        <div className="relative" ref={notificationRef}>
-            <button 
-              onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors relative cursor-pointer"
-            >
-              <Bell size={20} />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 min-w-[14px] h-[14px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 animate-pulse">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-            
-            <NotificationPopup 
-              isOpen={isNotificationOpen}
-              onClose={() => setIsNotificationOpen(false)}
-              notifications={notifications}
-              onMarkAllRead={handleMarkAllRead}
-              onMarkRead={handleMarkRead}
-            />
+    <>
+      <header className="h-16 bg-white/45 backdrop-blur-md border-b border-white/70 flex items-center justify-between px-4 relative z-50 shadow-sm shadow-slate-200/20">
+        {/* Left: Breadcrumbs/Title */}
+        <div className="flex items-center gap-2">
+           <Breadcrumb customMappings={customMappings} />
         </div>
 
-        <button 
-          onClick={() => setIsSubsystemOpen(true)}
-          className="p-2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-        >
-          <LayoutGrid size={20} />
-        </button>
-        
-          {/* User Profile */}
-        <div className="relative pl-4 border-l border-gray-200 ml-2" ref={profileRef}>
-           <button 
-             onClick={() => setIsProfileOpen(!isProfileOpen)}
-             className="relative w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-[#135bec] font-bold text-xs ring-2 ring-white shadow-sm hover:ring-blue-100 transition-all focus:outline-none focus:ring-2 focus:ring-[#135bec]/20"
-             data-id="btn/Profile"
-           >
-             {user ? getInitials(user.user_name || user.username || '') : '??'}
-             <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-           </button>
- 
-           {/* Profile Popup */}
-           {isProfileOpen && (
-             <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-[100] animate-in fade-in zoom-in-95 duration-200" data-id="popup/Profile">
-                <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-3">
-                    <div className="relative w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-[#135bec] font-bold text-sm">
-                        {user ? getInitials(user.user_name || user.username || '') : '??'}
-                        <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{user?.user_name || user?.username || 'Guest'}</p>
-                        <p className="text-xs text-gray-500 truncate">ID: {user?.id?.substring(0, 8)}...</p>
-                    </div>
-                </div>
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2">
+          <button className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer">
+            <Search size={18} />
+          </button>
+          
+          {/* Notification Bell with Dropdown */}
+          <div className="relative" ref={notificationRef}>
+              <button 
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out relative cursor-pointer"
+              >
+                <Bell size={18} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 min-w-[12px] h-[12px] bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5 animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              
+              <NotificationPopup 
+                isOpen={isNotificationOpen}
+                onClose={() => setIsNotificationOpen(false)}
+                notifications={notifications}
+                onMarkAllRead={handleMarkAllRead}
+                onMarkRead={handleMarkRead}
+              />
+          </div>
 
-                <div className="px-4 py-2 flex items-center justify-between border-b border-gray-50">
-                    <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-700">Trạng thái</span>
-                        <span className="text-xs text-gray-500">{isOnline ? 'Đang hoạt động' : 'Vắng mặt'}</span>
-                    </div>
-                    <button 
-                        onClick={() => setIsOnline(!isOnline)}
-                        className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors duration-200 ${isOnline ? 'bg-green-500' : 'bg-gray-200'}`}
-                    >
-                        <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isOnline ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </button>
+          <button 
+            onClick={() => setIsSubsystemOpen(true)}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer"
+          >
+            <LayoutGrid size={18} />
+          </button>
+          
+            {/* User Profile */}
+          <div className="relative pl-3 border-l border-white/60 ml-1.5" ref={profileRef}>
+             <button 
+               onClick={() => setIsProfileOpen(!isProfileOpen)}
+               className="relative w-8 h-8 rounded-full bg-[#1A73E8]/10 flex items-center justify-center text-[#1A73E8] font-bold text-xs ring-2 ring-white/80 shadow-sm hover:ring-[#1A73E8]/30 transition-all focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20"
+               data-id="btn/Profile"
+             >
+               {user ? getInitials(user.user_name || user.username || '') : '??'}
+               <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+             </button>
+   
+             {/* Profile Popup */}
+             {isProfileOpen && (
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-md shadow-slate-300/40 border border-slate-100 py-2 z-[100] animate-in fade-in zoom-in-95 duration-200" data-id="popup/Profile">
+                  <div className="px-4 py-3 border-b border-white/50 flex items-center gap-3">
+                      <div className="relative w-10 h-10 rounded-full bg-[#1A73E8]/10 flex items-center justify-center text-[#1A73E8] font-bold text-sm">
+                          {user ? getInitials(user.user_name || user.username || '') : '??'}
+                          <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-[#1E293B] truncate">{user?.user_name || user?.username || 'Guest'}</p>
+                          <p className="text-xs text-[#64748B] truncate">ID: {user?.id?.substring(0, 8)}...</p>
+                      </div>
+                  </div>
+
+                  <div className="px-4 py-2 flex items-center justify-between border-b border-white/50">
+                      <div className="flex flex-col">
+                          <span className="text-sm font-medium text-[#1E293B]">Trạng thái</span>
+                          <span className="text-xs text-[#64748B]">{isOnline ? 'Đang hoạt động' : 'Vắng mặt'}</span>
+                      </div>
+                      <button 
+                          onClick={() => setIsOnline(!isOnline)}
+                          className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors duration-200 cursor-pointer ${isOnline ? 'bg-[#1A73E8]' : 'bg-gray-200/80'}`}
+                      >
+                          <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isOnline ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
+                  </div>
+                  
+                  <div className="py-1 px-1">
+                      <button 
+                          onClick={handleProfileClick}
+                          disabled={isResolvingProfile}
+                          className={`w-full text-left px-3 py-1.5 text-sm rounded-lg flex items-center gap-2 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] ${isResolvingProfile ? 'text-gray-400 cursor-not-allowed bg-transparent' : 'text-[#1E293B] hover:bg-white/60'}`}
+                      >
+                          <User size={16} className={isResolvingProfile ? "text-gray-400" : "text-[#64748B]"} />
+                          {isResolvingProfile ? 'Đang tải hồ sơ...' : 'Thông tin cá nhân'}
+                      </button>
+                      <button className="w-full text-left px-3 py-1.5 text-sm text-[#1E293B] hover:bg-white/60 rounded-lg flex items-center gap-2 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01]">
+                          <SettingsIcon size={16} className="text-[#64748B]" />
+                          Cài đặt
+                      </button>
+                  </div>
+                  
+                  <div className="border-t border-white/50 py-1 px-1">
+                      <button 
+                          onClick={() => {
+                              setIsProfileOpen(false);
+                              logout();
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-500/10 rounded-lg flex items-center gap-2 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01]"
+                      >
+                          <LogOut size={16} />
+                          Đăng xuất
+                      </button>
+                  </div>
                 </div>
-                
-                <div className="py-1">
-                    <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <User size={16} className="text-gray-400" />
-                        Thông tin cá nhân
-                    </button>
-                    <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <SettingsIcon size={16} className="text-gray-400" />
-                        Cài đặt
-                    </button>
-                </div>
-                
-                <div className="border-t border-gray-50 py-1">
-                    <button 
-                        onClick={() => {
-                            setIsProfileOpen(false);
-                            logout();
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                    >
-                        <LogOut size={16} />
-                        Đăng xuất
-                    </button>
-                </div>
-             </div>
-           )}
+             )}
+          </div>
         </div>
-      </div>
+      </header>
       <SubsystemPopup isOpen={isSubsystemOpen} onClose={() => setIsSubsystemOpen(false)} />
-    </header>
+    </>
   );
 };
 

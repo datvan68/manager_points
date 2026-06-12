@@ -17,56 +17,179 @@ import {
   Star,
   MinusCircle,
   Settings,
-  Calendar
+  Calendar,
+  AlertCircle,
 } from 'lucide-react';
-import {
-  classes,
-  mockRecords,
-  mockCategories
-} from '@/lib/mock-data/students';
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
 import { studentApi, Student } from '@/api/student-api';
+import { categoryApi, Category } from '@/api/category-api';
+import { criteriaApi, Criterion } from '@/api/criteria-api';
+import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
+import { useAuth } from '@/providers/auth-provider';
+
+// ─── Kiểu dữ liệu nội bộ cho danh mục kèm tiêu chí ───
+interface CategoryWithCriteria extends Category {
+  criteria: Criterion[];
+}
+
+// ─── Helper: xác định loại criterion ───
+function getCriterionType(record: AcademicRecord): 'reward' | 'violation' {
+  const criterion = record.criterion_id as any;
+  if (!criterion) return 'reward';
+  const t = criterion.criterion_type as string;
+  return t === 'ky_luat' ? 'violation' : 'reward';
+}
+
+function getRecordLabel(record: AcademicRecord): string {
+  return getCriterionType(record) === 'reward' ? 'Khen thưởng / Cộng điểm' : 'Kỷ luật / Trừ điểm';
+}
+
+function getRecordTitle(record: AcademicRecord): string {
+  if (record.record_title) return record.record_title;
+  const criterion = record.criterion_id as any;
+  return criterion?.criterion_name || 'Ghi nhận rèn luyện';
+}
+
+function getRecordPoints(record: AcademicRecord): string {
+  const criterion = record.criterion_id as any;
+  if (!criterion) return '0';
+  const score = criterion.score_per_unit ?? 0;
+  return score >= 0 ? `+${score}` : `${score}`;
+}
+
+function formatRecordDate(dateStr?: string): string {
+  if (!dateStr) return 'N/A';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function StudentProfilePage() {
   const router = useRouter();
   const params = useParams();
   const studentId = params.id as string;
   const classId = params.classId as string;
+  const { user } = useAuth();
+  
+  const role = (user?.role || user?.roleName || '').toLowerCase();
+  const isStudent = role.includes('student') || role.includes('sinh vien') || role.includes('hoc sinh');
+
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'category' | 'history'>('category');
   const [isTabLoading, setIsTabLoading] = useState(false);
-  const [expandedCategory, setExpandedCategory] = useState<number | null>(null);
-
-  const handleTabChange = (tab: 'category' | 'history') => {
-    setActiveTab(tab);
-    setIsTabLoading(true);
-    setTimeout(() => setIsTabLoading(false), 300);
-  };
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const [student, setStudent] = useState<Student | null>(null);
   const [targetClass, setTargetClass] = useState<Class | null>(null);
+  const [categories, setCategories] = useState<CategoryWithCriteria[]>([]);
+  const [records, setRecords] = useState<AcademicRecord[]>([]);
+  const [dataError, setDataError] = useState<string | null>(null);
 
+  const getLinkedUserId = (studentObj: any) => {
+    if (!studentObj?.user_id) return '';
+    if (typeof studentObj.user_id === 'object') {
+      return studentObj.user_id?._id || studentObj.user_id?.id || '';
+    }
+    return studentObj.user_id.toString();
+  };
+
+  const isSelfStudent = isStudent && (
+    (student && getLinkedUserId(student) === user?.id) ||
+    studentId === user?.studentId
+  );
+
+  // ─── Tải dữ liệu ban đầu: student, class, categories, criteria ───
   useEffect(() => {
     setIsLoading(true);
+    setDataError(null);
+
     Promise.all([
       classApi.getClass(classId),
-      studentApi.getStudent(studentId)
+      studentApi.getStudent(studentId),
+      categoryApi.getCategories(),
+      criteriaApi.getCriteria(),
     ])
-      .then(([classData, studentData]) => {
+      .then(([classData, studentData, cats, allCriteria]) => {
         setTargetClass(classData);
         setStudent(studentData);
+
+        // Gắn criteria vào từng category
+        const catsWithCriteria: CategoryWithCriteria[] = cats
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map((cat) => ({
+            ...cat,
+            criteria: allCriteria.filter((cr) => {
+              const catId = typeof cr.category_id === 'object'
+                ? (cr.category_id as any)._id ?? (cr.category_id as any)
+                : cr.category_id;
+              return catId?.toString() === cat._id?.toString();
+            }),
+          }));
+
+        setCategories(catsWithCriteria);
         setIsLoading(false);
       })
-      .catch((err) => {
-        console.error('Lỗi khi tải thông tin chi tiết sinh viên:', err);
+      .catch((err: any) => {
+        console.error('Lỗi khi tải thông tin sinh viên:', err);
+        if (err.status === 403) {
+          setDataError('Bạn không có quyền truy cập hồ sơ sinh viên này.');
+        } else if (err.status === 404) {
+          setDataError('Không tìm thấy sinh viên trong hệ thống.');
+        } else {
+          setDataError('Không thể tải dữ liệu. Vui lòng thử lại.');
+        }
         setIsLoading(false);
       });
   }, [classId, studentId]);
 
+  // ─── Tải lịch sử ghi nhận khi chuyển sang tab lịch sử ───
+  useEffect(() => {
+    if (activeTab !== 'history') return;
+
+    setIsTabLoading(true);
+    academicRecordApi
+      .getAcademicRecordsByStudent(studentId)
+      .then((data) => {
+        setRecords(data);
+        setIsTabLoading(false);
+      })
+      .catch((err) => {
+        console.error('Lỗi khi tải lịch sử ghi nhận:', err);
+        toast.error('Không thể tải lịch sử ghi nhận.');
+        setIsTabLoading(false);
+      });
+  }, [activeTab, studentId]);
+
+  const handleTabChange = (tab: 'category' | 'history') => {
+    setActiveTab(tab);
+    if (tab === 'category') {
+      setIsTabLoading(false);
+    }
+  };
+
   const handleSave = () => {
     toast.success('Thông tin đã được lưu thành công!');
   };
+
+  // ─── Tính toán stats từ records ───
+  const bonusPoints = records
+    .filter((r) => getCriterionType(r) === 'reward')
+    .reduce((sum, r) => {
+      const criterion = r.criterion_id as any;
+      return sum + (criterion?.score_per_unit ?? 0);
+    }, 0);
+
+  const violationPoints = records
+    .filter((r) => getCriterionType(r) === 'violation')
+    .reduce((sum, r) => {
+      const criterion = r.criterion_id as any;
+      return sum + Math.abs(criterion?.score_per_unit ?? 0);
+    }, 0);
 
   const formatDob = (dobString?: string) => {
     if (!dobString) return 'N/A';
@@ -89,13 +212,11 @@ export default function StudentProfilePage() {
     return 'Khác';
   };
 
-  // --- Personal info data rows (Figma: label left, value right, horizontal justified) ---
   const personalInfoRows = [
     { label: 'Họ và Tên', value: student?.full_name || '' },
     { label: 'Ngày sinh', value: formatDob(student?.date_bir) },
     { label: 'Giới tính', value: formatGender(student?.sex) },
     { label: 'Email', value: student?.email || 'N/A' },
-    { label: 'Số điện thoại', value: '0987 654 321' },
   ];
 
   const academicInfoRows = [
@@ -104,14 +225,14 @@ export default function StudentProfilePage() {
     { label: 'Lớp', value: typeof student?.class_id === 'object' ? (student.class_id as any)?.class_name : (targetClass ? targetClass.class_name : 'N/A') },
   ];
 
-  // --- LOADING STATE ---
+  // ─── LOADING STATE ───
   if (isLoading) {
     return (
-      <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
+      <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full">
           <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.full_name : studentId }} />
-          <main className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-[40px]">
+          <main className="flex-1 overflow-y-auto flex flex-col items-center pb-[40px]">
             <div className="w-full px-[24px] pt-[24px] pb-[17px] flex items-center justify-between">
               <div className="flex gap-[16px] items-center">
                 <Skeleton className="w-[40px] h-[40px] rounded-full" />
@@ -120,29 +241,24 @@ export default function StudentProfilePage() {
                   <Skeleton className="w-[120px] h-[20px] rounded-md" />
                 </div>
               </div>
-              <Skeleton className="w-[183px] h-[44px] rounded-[12px]" />
+              <Skeleton className="w-[183px] h-[44px] rounded-xl" />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-[32px] w-full max-w-7xl px-4 sm:px-6 mt-[40px]">
-              <div className="flex flex-col gap-[32px]">
-                <Skeleton className="w-full h-[144px] rounded-[24px]" />
-                <Skeleton className="w-full h-[271px] rounded-[24px]" />
-                <Skeleton className="w-full h-[198px] rounded-[24px]" />
+            <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 w-full max-w-7xl px-4 sm:px-6 mt-[40px]">
+              <div className="flex flex-col gap-4">
+                <Skeleton className="w-full h-[144px] rounded-2xl" />
+                <Skeleton className="w-full h-[271px] rounded-2xl" />
+                <Skeleton className="w-full h-[198px] rounded-2xl" />
               </div>
-              <div className="flex flex-col gap-[24px]">
-                {/* Stats row skeleton */}
-                <Skeleton className="w-full h-[80px] rounded-[16px]" />
-
-                {/* Tabs Container Skeleton */}
-                <div className="bg-[#f9fafb] flex flex-col rounded-[24px] shadow-sm overflow-hidden w-full h-[722px]">
-                  {/* Tab header skeleton */}
-                  <div className="border-b border-gray-100 px-[32px] pt-[32px] flex gap-[24px]">
+              <div className="flex flex-col gap-4">
+                <Skeleton className="w-full h-[80px] rounded-2xl" />
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex flex-col rounded-2xl shadow-sm overflow-hidden w-full h-[722px]">
+                  <div className="border-b border-white/50 px-[32px] pt-[32px] flex gap-[24px]">
                     <Skeleton className="w-[80px] h-[20px] mb-[16px]" />
                     <Skeleton className="w-[120px] h-[20px] mb-[16px]" />
                   </div>
-                  {/* Content skeleton - list of cards */}
                   <div className="flex flex-col gap-[16px] p-[24px]">
                     {[1, 2, 3, 4].map((i) => (
-                      <Skeleton key={i} className="w-full h-[100px] rounded-[12px]" />
+                      <Skeleton key={i} className="w-full h-[100px] rounded-xl" />
                     ))}
                   </div>
                 </div>
@@ -154,22 +270,27 @@ export default function StudentProfilePage() {
     );
   }
 
-  // --- NOT FOUND ---
+  // ─── NOT FOUND ───
   if (!student) {
     return (
-      <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
+      <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full">
           <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: studentId }} />
-          <main className="flex-1 overflow-y-auto bg-white flex items-center justify-center">
-            <div className="text-center flex flex-col items-center gap-4">
-              <p className="text-[20px] font-bold text-slate-800">Không tìm thấy sinh viên</p>
-              <p className="text-[14px] text-slate-500">Mã sinh viên <strong>{studentId}</strong> không tồn tại trong hệ thống.</p>
+          <main className="flex-1 overflow-y-auto flex items-center justify-center">
+            <div className="text-center flex flex-col items-center gap-4 bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl p-8 shadow-sm shadow-slate-300/40 max-w-md">
+              <AlertCircle className="w-12 h-12 text-[#64748B]" />
+              <p className="text-[20px] font-bold text-[#1E293B]">
+                {dataError || 'Không tìm thấy sinh viên'}
+              </p>
+              <p className="text-[14px] text-[#64748B]">
+                Mã sinh viên <strong>{studentId}</strong> không tồn tại trong hệ thống.
+              </p>
               <button
-                onClick={() => router.push(`/students/${classId}`)}
-                className="mt-4 px-6 py-3 bg-[#135bec] text-white rounded-[12px] font-semibold hover:bg-blue-700 transition-colors"
+                onClick={() => router.push(isStudent ? '/profile' : `/students/${classId}`)}
+                className="mt-4 px-6 py-3 bg-[#1A73E8] text-white rounded-xl font-semibold hover:bg-[#1A73E8]/90 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer"
               >
-                Quay lại danh sách lớp
+                {isStudent ? 'Quay lại hồ sơ tài khoản' : 'Quay lại danh sách lớp'}
               </button>
             </div>
           </main>
@@ -179,7 +300,7 @@ export default function StudentProfilePage() {
   }
 
   return (
-    <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
+    <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header customMappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.full_name : studentId }} />
@@ -188,114 +309,118 @@ export default function StudentProfilePage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
-          className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-[73px]"
+          className="flex-1 overflow-y-auto flex flex-col items-center pb-[73px]"
         >
-          {/* ═══ MainHeader ═══ Figma: 1280x81, HORIZONTAL, SPACE_BETWEEN, pad 16 24 */}
-          <div className="sticky top-0 z-10 backdrop-blur-[6px] bg-[rgba(255,255,255,0.92)] border-b border-[#f3f4f6] flex items-center justify-between py-[16px] px-[24px] w-full">
+          {/* ═══ MainHeader ═══ */}
+          <div className="sticky top-0 z-10 backdrop-blur-md bg-white/45 border-b border-white/70 flex items-center justify-between py-[16px] px-[24px] w-full">
             <div className="flex gap-[16px] items-center">
-              <button
-                onClick={() => router.push(`/students/${classId}`)}
-                className="w-[40px] h-[40px] flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="w-[24px] h-[24px] text-slate-800" />
-              </button>
+              {!isSelfStudent && (
+                <button
+                  onClick={() => router.push(`/students/${classId}`)}
+                  className="w-[36px] h-[36px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer"
+                >
+                  <ArrowLeft className="w-[20px] h-[20px] text-[#1E293B]" />
+                </button>
+              )}
               <div className="flex flex-col">
-                <h1 className="font-sans font-bold text-[#111827] text-[20px] leading-[28px]">
+                <h1 className="font-sans font-bold text-[#1E293B] text-[20px] leading-[28px]">
                   {student.full_name}
                 </h1>
-                <p className="font-sans font-normal text-[#6b7280] text-[14px] leading-[20px]">
+                <p className="font-sans font-normal text-[#64748B] text-[13px] leading-[18px]">
                   MSSV: {student.student_code}
                 </p>
               </div>
             </div>
 
-            {/* Figma: 183x44, bg #135bec, radius 12, pad 10 24, gap 8 */}
-            <Button
-              onClick={handleSave}
-            >
-              <Check className="w-[20px] h-[20px]" />
-              Lưu Thay Đổi
-            </Button>
+            {!isSelfStudent && (
+              <Button 
+                onClick={handleSave}
+                className="rounded-xl bg-[#1A73E8] hover:bg-[#1A73E8]/90 hover:scale-[1.01] transition-all duration-150 ease-out text-white shadow-sm font-semibold"
+              >
+                <Check className="w-[18px] h-[18px]" />
+                Lưu Thay Đổi
+              </Button>
+            )}
           </div>
 
-          {/* ═══ Main Content ═══ Figma: 1200x830, CSS GRID */}
-          <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-[24px] w-full max-w-7xl px-4 sm:px-6 mt-[12px]">
+          {/* ═══ Main Content ═══ */}
+          <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 w-full max-w-7xl px-4 sm:px-6 mt-[12px]">
 
-            {/* ═══ LEFT COLUMN ═══ Figma: 481px, VERTICAL, gap 32 */}
-            <div className="flex flex-col gap-[32px] pb-[40px]">
+            {/* ═══ LEFT COLUMN ═══ */}
+            <div className="flex flex-col gap-4 pb-[40px]">
 
-              {/* ── Profile Picture Upload Area ── Figma: 481x144, HORIZONTAL, gap 24, pad 24, radius 24 */}
+              {/* ── Profile Picture Upload Area ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
-                className="bg-[#f9fafb] flex items-center gap-[24px] p-[24px] rounded-[24px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-full"
+                className="bg-white/40 backdrop-blur-md border border-white/70 p-[24px] rounded-2xl shadow-sm shadow-slate-300/40 flex items-center gap-[24px] w-full"
               >
-                {/* Avatar Container — Figma: 96x96 */}
                 <div className="relative shrink-0">
-                  <div className="relative rounded-[16px] shadow-[0px_0px_0px_4px_white,0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] w-[96px] h-[96px] overflow-hidden group cursor-pointer">
+                  <div className="relative rounded-full shadow-[0px_0px_0px_4px_white,0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] w-[96px] h-[96px] overflow-hidden group cursor-pointer">
                     <StudentAvatar
                       fullName={student.full_name}
                       sizeClass="w-full h-full"
-                      className="rounded-[16px]"
                       textClassName="text-3xl font-extrabold"
                     />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-[16px]">
-                      <Pen className="w-[24px] h-[24px] text-white" />
-                    </div>
+                    {!isSelfStudent && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                        <Pen className="w-[24px] h-[24px] text-white" />
+                      </div>
+                    )}
                   </div>
-                  {/* Small edit button — Figma: 26x26, pad 6, radius 8 */}
-                  <button className="absolute bottom-[-4px] right-[-4px] bg-[#135bec] p-[6px] rounded-[8px] shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1),0px_4px_6px_-4px_rgba(0,0,0,0.1)] hover:bg-blue-700 transition-colors cursor-pointer">
-                    <Pen className="w-[14px] h-[14px] text-white" strokeWidth={1.17} />
-                  </button>
+                  {!isSelfStudent && (
+                    <button className="absolute bottom-0 right-0 bg-[#1A73E8] p-[6px] rounded-full shadow-md hover:bg-[#1A73E8]/90 hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer border border-white/70">
+                      <Pen className="w-[12px] h-[12px] text-white" strokeWidth={2} />
+                    </button>
+                  )}
                 </div>
 
-                {/* Name + MSSV + Change Photo link — Figma: VERTICAL */}
                 <div className="flex flex-col">
-                  <h3 className="font-sans font-bold text-[#111827] text-[20px] leading-[28px]">
+                  <h3 className="font-sans font-bold text-[#1E293B] text-[18px] leading-[26px]">
                     {student.full_name}
                   </h3>
-                  <p className="font-sans font-medium text-[#6b7280] text-[14px] leading-[20px]">
+                  <p className="font-sans font-medium text-[#64748B] text-[13px] leading-[18px]">
                     MSSV: {student.student_code}
                   </p>
-                  {/* Change photo button — Figma: font Roboto 600 12px, color #135bec */}
-                  <button className="mt-[7.5px] text-left cursor-pointer hover:underline">
-                    <span className="font-sans font-semibold text-[#135bec] text-[12px] leading-[18px]">
-                      Thay đổi ảnh chân dung
-                    </span>
-                  </button>
+                  {!isSelfStudent && (
+                    <button className="mt-[6px] text-left cursor-pointer hover:underline">
+                      <span className="font-sans font-semibold text-[#1A73E8] text-[12px] leading-[18px]">
+                        Thay đổi ảnh chân dung
+                      </span>
+                    </button>
+                  )}
                 </div>
               </motion.div>
 
-              {/* ── Personal Information Section ── Figma: 481x271, VERTICAL, gap 24, pad 24, radius 24 */}
+              {/* ── Personal Information Section ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.2 }}
-                className="bg-[#f9fafb] flex flex-col gap-[24px] p-[24px] rounded-[24px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-full"
+                className="bg-white/40 backdrop-blur-md border border-white/70 p-[24px] rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-[20px] w-full"
               >
-                {/* Section Header — Figma: HORIZONTAL, SPACE_BETWEEN */}
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-[8px]">
-                    <div className="bg-[#135bec] h-[24px] w-[6px] rounded-[9999px]" />
-                    <h2 className="font-sans font-bold text-[#1f2937] text-[18px] tracking-[-0.45px] leading-[28px]">
+                    <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
+                    <h2 className="font-sans font-bold text-[#1E293B] text-[16px] tracking-tight leading-[24px]">
                       Thông tin cá nhân
                     </h2>
                   </div>
-                  {/* Edit button icon — Figma: 31x31, pad 8, radius 9999 */}
-                  <button className="w-[31px] h-[31px] flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors cursor-pointer">
-                    <Settings className="w-[15px] h-[15px] text-[#9ca3af]" />
-                  </button>
+                  {!isSelfStudent && (
+                    <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer">
+                      <Settings className="w-[14px] h-[14px] text-[#64748B]" />
+                    </button>
+                  )}
                 </div>
 
-                {/* Info rows — Figma: VERTICAL, gap 15.8 */}
-                <div className="flex flex-col gap-[16px] w-full">
+                <div className="flex flex-col gap-[12px] w-full">
                   {personalInfoRows.map((row, idx) => (
-                    <div key={idx} className="flex items-center justify-between w-full">
-                      <span className="font-sans font-medium text-[#6b7280] text-[13px] leading-[20px]">
+                    <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0">
+                      <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px]">
                         {row.label}
                       </span>
-                      <span className="font-sans font-bold text-[#1f2937] text-[14px] leading-[21px]">
+                      <span className="font-sans font-bold text-[#1E293B] text-[13px] leading-[18px]">
                         {row.value}
                       </span>
                     </div>
@@ -303,34 +428,34 @@ export default function StudentProfilePage() {
                 </div>
               </motion.div>
 
-              {/* ── Academic Information Section ── Figma: 481x198, VERTICAL, gap 24, pad 24, radius 24 */}
+              {/* ── Academic Information Section ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.3 }}
-                className="bg-[#f9fafb] flex flex-col gap-[24px] p-[24px] rounded-[24px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-full"
+                className="bg-white/40 backdrop-blur-md border border-white/70 p-[24px] rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-[20px] w-full"
               >
-                {/* Section Header */}
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-[8px]">
-                    <div className="bg-[#135bec] h-[24px] w-[6px] rounded-[9999px]" />
-                    <h2 className="font-sans font-bold text-[#1f2937] text-[18px] tracking-[-0.45px] leading-[28px]">
+                    <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
+                    <h2 className="font-sans font-bold text-[#1E293B] text-[16px] tracking-tight leading-[24px]">
                       Thông tin học tập
                     </h2>
                   </div>
-                  <button className="w-[31px] h-[31px] flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors cursor-pointer">
-                    <Settings className="w-[15px] h-[15px] text-[#9ca3af]" />
-                  </button>
+                  {!isSelfStudent && (
+                    <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer">
+                      <Settings className="w-[14px] h-[14px] text-[#64748B]" />
+                    </button>
+                  )}
                 </div>
 
-                {/* Info rows — Figma: VERTICAL, gap 15.8 */}
-                <div className="flex flex-col gap-[16px] w-full">
+                <div className="flex flex-col gap-[12px] w-full">
                   {academicInfoRows.map((row, idx) => (
-                    <div key={idx} className="flex items-center justify-between w-full">
-                      <span className="font-sans font-medium text-[#6b7280] text-[13px] leading-[20px]">
+                    <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0">
+                      <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px]">
                         {row.label}
                       </span>
-                      <span className="font-sans font-bold text-[#1f2937] text-[14px] leading-[21px]">
+                      <span className="font-sans font-bold text-[#1E293B] text-[13px] leading-[18px]">
                         {row.value}
                       </span>
                     </div>
@@ -340,24 +465,24 @@ export default function StudentProfilePage() {
 
             </div>
 
-            {/* ═══ RIGHT COLUMN ═══ Figma: 687px, VERTICAL, gap 24 */}
+            {/* ═══ RIGHT COLUMN ═══ */}
             <div className="flex flex-col gap-[24px]">
 
-              {/* ── Summary Stats Cards ── Figma: 687x80, CSS GRID 3 cols, each 218x80 */}
+              {/* ── Summary Stats Cards ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.15 }}
-                className="grid grid-cols-3 gap-[16px] w-full"
+                className="grid grid-cols-3 gap-3 w-full"
               >
                 {/* Card 1 — Điểm rèn luyện */}
-                <div className="bg-[#eff6ff] flex gap-[12px] items-center p-[20px] rounded-[16px] h-[80px]">
-                  <div className="bg-white flex items-center justify-center rounded-[12px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-[40px] h-[40px] shrink-0">
-                    <ShieldCheck className="w-[20px] h-[20px] text-blue-500" strokeWidth={1.67} />
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-[12px] items-center p-[16px] rounded-2xl h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out">
+                  <div className="bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center rounded-xl shadow-sm w-[36px] h-[36px] shrink-0">
+                    <ShieldCheck className="w-[18px] h-[18px] text-[#1A73E8]" strokeWidth={2} />
                   </div>
-                  <div className="flex flex-col">
-                    <p className="font-sans font-bold text-[#2563eb] text-[10px] tracking-[0.5px] uppercase leading-[15px]">Điểm rèn luyện</p>
-                    <p className="font-sans font-bold text-[#1e3a8a] text-[20px] leading-[25px]">
+                  <div className="flex flex-col min-w-0">
+                    <p className="font-sans font-bold text-[#64748B] text-[9px] tracking-wider uppercase leading-none">Rèn luyện</p>
+                    <p className="font-sans font-bold text-[#1E293B] text-[20px] leading-tight mt-1 truncate">
                       {student?.training_point_id?.score != null
                         ? (student.training_point_id.score > 100
                           ? Math.round(student.training_point_id.score / 100)
@@ -367,66 +492,60 @@ export default function StudentProfilePage() {
                   </div>
                 </div>
 
-                {/* Card 2 — Điểm thưởng */}
-                <div className="bg-[#f0fdf4] flex gap-[12px] items-center p-[20px] rounded-[16px] h-[80px]">
-                  <div className="bg-white flex items-center justify-center rounded-[12px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-[40px] h-[40px] shrink-0">
-                    <Star className="w-[20px] h-[20px] text-green-500" strokeWidth={1.67} />
+                {/* Card 2 — Điểm thưởng (tính từ records thật) */}
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-[12px] items-center p-[16px] rounded-2xl h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out">
+                  <div className="bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center rounded-xl shadow-sm w-[36px] h-[36px] shrink-0">
+                    <Star className="w-[18px] h-[18px] text-emerald-500" strokeWidth={2} />
                   </div>
-                  <div className="flex flex-col">
-                    <p className="font-sans font-bold text-[#16a34a] text-[10px] tracking-[0.5px] uppercase leading-[15px]">Điểm thưởng</p>
-                    <p className="font-sans font-bold text-[#14532d] text-[20px] leading-[25px]">+10</p>
+                  <div className="flex flex-col min-w-0">
+                    <p className="font-sans font-bold text-emerald-700 text-[9px] tracking-wider uppercase leading-none">Thưởng</p>
+                    <p className="font-sans font-bold text-emerald-600 text-[20px] leading-tight mt-1 truncate">
+                      {activeTab === 'history' && !isTabLoading
+                        ? `+${bonusPoints}`
+                        : <span className="text-[14px] text-[#64748B]">—</span>}
+                    </p>
                   </div>
                 </div>
 
-                {/* Card 3 — Vi phạm */}
-                <div className="bg-[#fef2f2] flex gap-[12px] items-center p-[20px] rounded-[16px] h-[80px]">
-                  <div className="bg-white flex items-center justify-center rounded-[12px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-[40px] h-[40px] shrink-0">
-                    <MinusCircle className="w-[20px] h-[20px] text-red-500" strokeWidth={1.67} />
+                {/* Card 3 — Vi phạm (tính từ records thật) */}
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-[12px] items-center p-[16px] rounded-2xl h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out">
+                  <div className="bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center rounded-xl shadow-sm w-[36px] h-[36px] shrink-0">
+                    <MinusCircle className="w-[18px] h-[18px] text-rose-500" strokeWidth={2} />
                   </div>
-                  <div className="flex flex-col">
-                    <p className="font-sans font-bold text-[#dc2626] text-[10px] tracking-[0.5px] uppercase leading-[15px]">Vi phạm</p>
-                    <p className="font-sans font-bold text-[#7f1d1d] text-[20px] leading-[25px]">-10</p>
+                  <div className="flex flex-col min-w-0">
+                    <p className="font-sans font-bold text-rose-700 text-[9px] tracking-wider uppercase leading-none">Vi phạm</p>
+                    <p className="font-sans font-bold text-rose-600 text-[20px] leading-tight mt-1 truncate">
+                      {activeTab === 'history' && !isTabLoading
+                        ? `-${violationPoints}`
+                        : <span className="text-[14px] text-[#64748B]">—</span>}
+                    </p>
                   </div>
                 </div>
               </motion.div>
 
-              {/* ── Records History Container ── Figma: 687x722, VERTICAL, bg #f9fafb, radius 24 */}
+              {/* ── Records / Category Container ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.25 }}
-                className="bg-[#f9fafb] flex flex-col rounded-[24px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] overflow-hidden w-full h-[722px]"
+                className="bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col overflow-hidden w-full h-[722px]"
               >
-                {/* ─ Tabs & Actions Header ─ Figma: 687x71, pad 32 32 0 32, border-bottom */}
-                <div className="border-b border-[#f3f4f6] px-[32px] pt-[32px] w-full shrink-0">
+                {/* ─ Tabs Header ─ */}
+                <div className="border-b border-white/50 px-[24px] pt-[24px] w-full shrink-0">
                   <div className="flex items-center gap-[24px]">
-                    {/* Tab 1: Danh mục — Figma: Lexend 500 14px active #135bec, border-bottom 1px when active */}
                     <button
                       onClick={() => handleTabChange('category')}
-                      className={`pb-[16px] border-b transition-colors cursor-pointer ${activeTab === 'category'
-                        ? 'border-[#135bec]'
-                        : 'border-transparent'
-                        }`}
+                      className={`pb-[12px] border-b-2 transition-all duration-150 ease-out cursor-pointer ${activeTab === 'category' ? 'border-[#1A73E8]' : 'border-transparent'}`}
                     >
-                      <span className={`font-sans text-[14px] leading-[20px] font-bold ${activeTab === 'category'
-                        ? 'text-[#135bec]'
-                        : 'text-[#595959]'
-                        }`}>
+                      <span className={`font-sans text-[13px] leading-[18px] font-bold transition-colors ${activeTab === 'category' ? 'text-[#1A73E8]' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
                         Danh mục
                       </span>
                     </button>
-                    {/* Tab 2: Lịch sử ghi nhận — Figma: Lexend 700 14px inactive #595959 */}
                     <button
                       onClick={() => handleTabChange('history')}
-                      className={`pb-[16px] border-b transition-colors cursor-pointer ${activeTab === 'history'
-                        ? 'border-[#135bec]'
-                        : 'border-transparent'
-                        }`}
+                      className={`pb-[12px] border-b-2 transition-all duration-150 ease-out cursor-pointer ${activeTab === 'history' ? 'border-[#1A73E8]' : 'border-transparent'}`}
                     >
-                      <span className={`font-sans text-[14px] leading-[20px] font-bold ${activeTab === 'history'
-                        ? 'text-[#135bec]'
-                        : 'text-[#595959]'
-                        }`}>
+                      <span className={`font-sans text-[13px] leading-[18px] font-bold transition-colors ${activeTab === 'history' ? 'text-[#1A73E8]' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
                         Lịch sử ghi nhận
                       </span>
                     </button>
@@ -436,10 +555,7 @@ export default function StudentProfilePage() {
                 {/* ─ Content Area ─ */}
                 <div
                   className="flex flex-col gap-[16px] px-[24px] pt-[24px] pb-[24px] w-full flex-1 min-h-0 overflow-y-auto"
-                  style={{
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: '#d1d5db transparent',
-                  }}
+                  style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.3) transparent' }}
                 >
                   {isTabLoading ? (
                     <div className="flex flex-col gap-[16px] w-full">
@@ -448,135 +564,189 @@ export default function StudentProfilePage() {
                       ))}
                     </div>
                   ) : activeTab === 'category' ? (
-                    /* ─── Category List ─── Figma: VERTICAL, gap 16, pad 24 */
-                    mockCategories.map((cat, idx) => (
-                      <motion.div
-                        key={cat.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.2, delay: 0.3 + idx * 0.08 }}
-                        className="bg-white border border-[#f1f5f9] rounded-[12px] w-full  shadow-[0px_1px_2px_0px_rgba(0,0,0,0.02)]"
-                      >
-                        {/* Card Header — Figma: HORIZONTAL, SPACE_BETWEEN, pad 20 */}
-                        <div
-                          className="flex items-center justify-between px-[20px] pt-[20px] pb-[20px] cursor-pointer hover:bg-slate-50/50 transition-colors"
-                          onClick={() => setExpandedCategory(expandedCategory === cat.id ? null : cat.id)}
-                        >
-                          <div className="flex items-center gap-[8px]">
-                            {/* Title — Figma: Lexend 700 16px #111827 */}
-                            <h4 className="font-sans font-bold text-[#111827] text-[16px] leading-[24px]">
-                              {cat.title}
-                            </h4>
-                            {/* Chevron — Figma: 10x6, color #9ca3af */}
-                            <ChevronDown className={`w-[10px] h-[6px] text-[#9ca3af] transition-transform duration-300 ${expandedCategory === cat.id ? 'rotate-180' : ''}`} />
-                          </div>
-                          {/* Badge — Figma: bg #eff6ff, radius 9999, border 1px, pad 4 10, Lexend 700 11px #1d4ed8 */}
-                          <div className="bg-[#eff6ff] border border-[#bfdbfe] px-[10px] py-[4px] rounded-[9999px] shrink-0">
-                            <span className="font-sans font-bold text-[#1d4ed8] text-[11px] tracking-[0.275px]">
-                              Tối đa: {cat.maxPoints}đ
-                            </span>
-                          </div>
-                        </div>
-                        {/* Description — ALWAYS VISIBLE (Figma: gap 7.375 from header, Lexend 400 14px #6b7280) */}
-                        <div className="px-[20px] pb-[20px]">
-                          <p className="font-sans font-normal text-[#6b7280] text-[14px] leading-[23px]">
-                            {cat.description}
-                          </p>
-                        </div>
-                        {/* Accordion Details → List — TOGGLE (Figma: VERTICAL, gap 8, padTop 20.6, border-top 1px) */}
+                    /* ─── Tab Danh Mục: dữ liệu thật từ API ─── */
+                    categories.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-12">
+                        <AlertCircle className="w-10 h-10 text-[#64748B]" />
+                        <p className="text-[13px] text-[#64748B]">Chưa có danh mục nào được cấu hình.</p>
+                      </div>
+                    ) : (
+                      categories.map((cat, idx) => (
                         <motion.div
-                          initial={false}
-                          animate={{
-                            height: expandedCategory === cat.id ? 'auto' : 0,
-                            opacity: expandedCategory === cat.id ? 1 : 0
-                          }}
-                          transition={{ duration: 0.25 }}
-                          className="overflow-hidden"
+                          key={cat._id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.15, delay: 0.1 + idx * 0.05 }}
+                          className="bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl shadow-sm shadow-blue-900/5 hover:scale-[1.01] transition-all duration-150 ease-out w-full"
                         >
-                          <div className="flex flex-col gap-[8px] px-[20px] pb-[20px] pt-[20px] border-t border-[#f1f5f9]">
-                            {cat.items.map((item, itemIdx) => (
-                              <div
-                                key={itemIdx}
-                                className="flex items-center justify-between px-[16px] py-[12px] bg-[#f9fafb] rounded-[8px] border border-[#f1f5f9]"
-                              >
-                                <span className="font-sans font-medium text-[#4b5563] text-[14px] leading-[20px]">
-                                  {item.label}
-                                </span>
-                                <span className="font-sans font-bold text-[#2563eb] text-[14px] leading-[20px]">
-                                  {item.points}
-                                </span>
-                              </div>
-                            ))}
+                          {/* Card Header */}
+                          <div
+                            className="flex items-center justify-between px-[16px] pt-[16px] pb-[12px] cursor-pointer hover:bg-white/30 transition-colors"
+                            onClick={() => setExpandedCategory(expandedCategory === cat._id ? null : cat._id)}
+                          >
+                            <div className="flex items-center gap-[8px]">
+                              <h4 className="font-sans font-bold text-[#1E293B] text-[15px] leading-[22px]">
+                                {cat.category_name}
+                              </h4>
+                              <ChevronDown className={`w-[12px] h-[12px] text-[#64748B] transition-transform duration-300 ${expandedCategory === cat._id ? 'rotate-180' : ''}`} />
+                            </div>
+                            <div className="bg-[#1A73E8]/10 border border-[#1A73E8]/20 px-[10px] py-[3px] rounded-xl shrink-0">
+                              <span className="font-sans font-bold text-[#1A73E8] text-[11px] tracking-wide">
+                                Tối đa: {cat.max_score}đ
+                              </span>
+                            </div>
                           </div>
+
+                          {/* Code danh mục — luôn hiển thị */}
+                          <div className="px-[16px] pb-[16px]">
+                            <p className="font-sans font-normal text-[#64748B] text-[12px] leading-[18px]">
+                              Mã danh mục: <span className="font-semibold text-[#1E293B]">{cat.category_code}</span>
+                              {cat.criteria.length > 0 && (
+                                <span className="ml-2 text-[#64748B]">· {cat.criteria.length} tiêu chí</span>
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Accordion: danh sách tiêu chí */}
+                          <motion.div
+                            initial={false}
+                            animate={{
+                              height: expandedCategory === cat._id ? 'auto' : 0,
+                              opacity: expandedCategory === cat._id ? 1 : 0
+                            }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="flex flex-col gap-[8px] px-[16px] pb-[16px] pt-[16px] border-t border-white/50 bg-white/20">
+                              {cat.criteria.length === 0 ? (
+                                <p className="text-[12px] text-[#64748B] italic">Chưa có tiêu chí nào.</p>
+                              ) : (
+                                cat.criteria.map((criterion) => {
+                                  const isPositive = criterion.criterion_type !== 'ky_luat';
+                                  const scoreDisplay = isPositive
+                                    ? `+${criterion.score_per_unit}đ`
+                                    : `${criterion.score_per_unit}đ`;
+                                  return (
+                                    <div
+                                      key={criterion._id}
+                                      className="flex items-center justify-between px-[14px] py-[10px] bg-white/40 backdrop-blur-xs rounded-xl border border-white/60 shadow-sm"
+                                    >
+                                      <div className="flex flex-col gap-[2px]">
+                                        <span className="font-sans font-medium text-[#1E293B] text-[13px] leading-[18px]">
+                                          {criterion.criterion_name}
+                                        </span>
+                                        <span className="font-sans text-[11px] text-[#64748B]">
+                                          {criterion.criterion_type === 'khen_thuong' && 'Khen thưởng'}
+                                          {criterion.criterion_type === 'cong_diem' && 'Cộng điểm'}
+                                          {criterion.criterion_type === 'ky_luat' && 'Kỷ luật'}
+                                          {' · '}Max: {criterion.max_score}đ
+                                        </span>
+                                      </div>
+                                      <span className={`font-sans font-bold text-[13px] leading-[18px] ${isPositive ? 'text-[#1A73E8]' : 'text-rose-600'}`}>
+                                        {scoreDisplay}
+                                      </span>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </motion.div>
                         </motion.div>
-                      </motion.div>
-                    ))
+                      ))
+                    )
                   ) : (
-                    /* ─── History List ─── Figma: Node 316:1314 */
-                    mockRecords.map((record, idx) => (
-                      <motion.div
-                        key={record.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.2, delay: 0.3 + idx * 0.08 }}
-                        className="bg-white border border-[#f1f5f9] flex items-center justify-between p-[20px] rounded-[16px] w-full shadow-[0px_1px_2px_0px_rgba(0,0,0,0.02)]"
-                      >
-                        <div className="flex flex-col gap-[8px] flex-1 min-w-0">
-                          {/* Row 1: Title + Badge — Figma: HORIZONTAL, gap 12 */}
-                          <div className="flex items-center gap-[12px]">
-                            <h4 className="font-sans font-bold text-[#111827] text-[16px] leading-[24px] truncate">
-                              {record.title}
-                            </h4>
-                            <div className={`px-[10px] py-[2px] rounded-full border shrink-0 ${record.type === 'reward'
-                              ? 'bg-[#f0fdf4] border-[#dcfce7]'
-                              : 'bg-[#fef2f2] border-[#fee2e2]'
-                              }`}>
-                              <span className={`font-sans font-bold text-[10px] ${record.type === 'reward' ? 'text-[#15803d]' : 'text-[#b91c1c]'
-                                }`}>
-                                {record.label}
+                    /* ─── Tab Lịch Sử Ghi Nhận: dữ liệu thật từ API ─── */
+                    records.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-12">
+                        <AlertCircle className="w-10 h-10 text-[#64748B]" />
+                        <p className="text-[13px] text-[#64748B]">Sinh viên chưa có ghi nhận rèn luyện nào.</p>
+                      </div>
+                    ) : (
+                      records.map((record, idx) => {
+                        const type = getCriterionType(record);
+                        const label = getRecordLabel(record);
+                        const title = getRecordTitle(record);
+                        const points = getRecordPoints(record);
+                        const date = formatRecordDate(record.recorded_at || record.createdAt);
+                        const criterion = record.criterion_id as any;
+                        const semesterName = record.semester_id
+                          ? (typeof record.semester_id === 'object'
+                            ? (record.semester_id as any)?.semester_name || ''
+                            : '')
+                          : '';
+
+                        return (
+                          <motion.div
+                            key={record._id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.15, delay: 0.1 + idx * 0.04 }}
+                            className="bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-between p-[16px] rounded-xl w-full shadow-sm hover:scale-[1.01] transition-all duration-150 ease-out"
+                          >
+                            <div className="flex flex-col gap-[6px] flex-1 min-w-0">
+                              {/* Row 1: Title + Badge */}
+                              <div className="flex items-center gap-[12px] flex-wrap">
+                                <h4 className="font-sans font-bold text-[#1E293B] text-[15px] leading-[22px] truncate">
+                                  {title}
+                                </h4>
+                                <div className={`px-[8px] py-[2px] rounded-xl border shrink-0 ${type === 'reward' ? 'bg-blue-500/10 border-blue-500/20 text-[#1A73E8]' : 'bg-rose-500/10 border-rose-500/20 text-rose-700'}`}>
+                                  <span className="font-sans font-bold text-[9px] tracking-wider uppercase">
+                                    {label}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Row 2: Metadata */}
+                              <div className="flex items-center gap-[16px] flex-wrap">
+                                <div className="flex items-center gap-[4px]">
+                                  <Calendar className="w-[12px] h-[12px] text-[#64748B]" />
+                                  <span className="font-sans font-medium text-[#64748B] text-[12px]">
+                                    {date}
+                                  </span>
+                                </div>
+                                {criterion?.criterion_name && (
+                                  <span className="font-sans font-medium text-[#64748B] text-[12px]">
+                                    Tiêu chí: {criterion.criterion_name}
+                                  </span>
+                                )}
+                                {semesterName && (
+                                  <span className="font-sans font-medium text-[#64748B] text-[12px]">
+                                    {semesterName}
+                                  </span>
+                                )}
+                                {record.description && (
+                                  <span className="font-sans font-medium text-[#64748B]/70 text-[12px] truncate max-w-[200px]" title={record.description}>
+                                    {record.description}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Points Display */}
+                            <div className="flex flex-col items-end gap-[1px] shrink-0 ml-4">
+                              <span className="font-sans font-bold text-[#64748B] text-[9px] leading-none uppercase tracking-wider">
+                                Điểm
+                              </span>
+                              <span className={`font-sans font-bold text-[15px] leading-tight mt-1 ${type === 'reward' ? 'text-[#1A73E8]' : 'text-rose-600'}`}>
+                                {points}
                               </span>
                             </div>
-                          </div>
-
-                          {/* Row 2: Metadata — Figma: HORIZONTAL, gap 24, Lexend 500 12px */}
-                          <div className="flex items-center gap-[24px]">
-                            <div className="flex items-center gap-[6px]">
-                              <Calendar className="w-[12px] h-[12px] text-[#6b7280]" />
-                              <span className="font-sans font-medium text-[#6b7280] text-[12px]">
-                                {record.date}
-                              </span>
-                            </div>
-                            <span className="font-sans font-medium text-[#6b7280] text-[12px]">
-                              Số lần: {record.count}
-                            </span>
-                            <span className="font-sans font-medium text-[#6b7280] text-[12px]">
-                              Buổi: {record.session}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Points Display — Figma: VERTICAL, gap 2, text-right */}
-                        <div className="flex flex-col items-end gap-[2px] shrink-0 ml-4">
-                          <span className="font-sans font-bold text-[#9ca3af] text-[10px] leading-[15px] uppercase">
-                            Điểm
-                          </span>
-                          <span className={`font-sans font-bold text-[14px] leading-[20px] ${record.type === 'reward' ? 'text-[#16a34a]' : 'text-[#dc2626]'
-                            }`}>
-                            {record.points}
-                          </span>
-                        </div>
-                      </motion.div>
-                    ))
+                          </motion.div>
+                        );
+                      })
+                    )
                   )}
                 </div>
 
-                {/* ─ Footer Note ─ Figma: 687x65, pad 24, bg #f9fafb, border-top, Lexend 500 12px #9ca3af */}
-                <div className="bg-[#f9fafb] border-t border-[#f3f4f6] px-[24px] py-[24px] w-full shrink-0">
+                {/* ─ Footer Note ─ */}
+                <div className="bg-white/20 border-t border-white/50 px-[24px] py-[20px] w-full shrink-0">
                   <div className="flex justify-center">
-                    <span className="font-['Lexend',sans-serif] font-medium text-[#9ca3af] text-[12px]">
+                    <span className="font-['Lexend',sans-serif] font-medium text-[#64748B] text-[12px] text-center">
                       {activeTab === 'category'
-                        ? 'Danh sách các danh mục đánh giá điểm rèn luyện năm học 2024-2025.'
-                        : 'Hiển thị 3 bản ghi khen thưởng gần nhất. Xem toàn bộ lịch sử trong báo cáo chi tiết.'}
+                        ? `${categories.length} danh mục đánh giá điểm rèn luyện đang được cấu hình trong hệ thống.`
+                        : records.length > 0
+                          ? `Hiển thị ${records.length} bản ghi ghi nhận rèn luyện của sinh viên.`
+                          : 'Chưa có bản ghi ghi nhận nào.'}
                     </span>
                   </div>
                 </div>

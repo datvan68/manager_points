@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Class, ClassDocument } from './schemas/class.schema';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
+import { isStudent } from '../auth/utils/role.util';
 
 @Injectable()
 export class ClassesService {
@@ -22,6 +23,17 @@ export class ClassesService {
   }
 
   async findAll(requester?: any): Promise<Class[]> {
+    if (requester && isStudent(requester) && requester.userId) {
+      const studentModel = this.classModel.db.model('Student');
+      const student = await studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+      if (!student || !student.class_id) return [];
+      return this.classModel
+        .find({ _id: student.class_id })
+        .populate('dept_id', 'name code')
+        .populate('advisor_id', 'user_name email')
+        .exec();
+    }
+
     const filter = this.isTeacher(requester)
       ? { advisor_id: requester.userId }
       : {};
@@ -34,6 +46,14 @@ export class ClassesService {
   }
 
   async findOne(id: string, requester?: any): Promise<Class> {
+    if (requester && isStudent(requester) && requester.userId) {
+      const studentModel = this.classModel.db.model('Student');
+      const student = await studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+      if (!student || student.class_id?.toString() !== id) {
+        throw new ForbiddenException('Bạn không có quyền truy cập thông tin của lớp học khác.');
+      }
+    }
+
     const query = this.isTeacher(requester)
       ? this.classModel.findOne({ _id: id, advisor_id: requester.userId })
       : this.classModel.findById(id);

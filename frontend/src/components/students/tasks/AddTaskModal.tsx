@@ -1,12 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, PlusCircle, Link as LinkIcon, UserCheck } from 'lucide-react';
+import { X, PlusCircle, Link as LinkIcon, UserCheck, Calendar as CalendarIcon } from 'lucide-react';
 import { studentApi } from '@/api/student-api';
 import { classApi } from '@/api/class-api';
 import { studentTaskApi } from '@/api/task-api';
 import { toast } from 'sonner';
 import { getLinkedTaskMode } from '@/lib/task-linked-page';
+import { cn } from '@/lib/utils';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CustomCalendar } from '@/components/calendar/CustomCalendar';
+import { format } from 'date-fns';
 
 interface Task {
   id: string;
@@ -67,6 +72,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   useEffect(() => {
     if (editingTask) {
@@ -227,7 +233,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[999] flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white/90 backdrop-blur-md border border-white/80 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[95vh]">
+      <div className="w-full md:max-w-3xl lg:max-w-4xl bg-white/90 backdrop-blur-md border border-white/80 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[95vh]">
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white/40">
           <div className="flex items-center gap-2">
@@ -247,346 +253,390 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 flex-1 overflow-y-auto space-y-4">
-          
-          {/* Tên nhiệm vụ */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#64748B] block">Tên nhiệm vụ</label>
-            <input 
-              type="text"
-              required
-              placeholder="Nhập tên nhiệm vụ học tập..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Loại nhiệm vụ */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#64748B] block">Loại nhiệm vụ</label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as any)}
-                className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
-              >
-                <option value="Bài tập">Bài tập</option>
-                <option value="Dự án">Dự án</option>
-                <option value="Hoạt động">Hoạt động</option>
-              </select>
-            </div>
-
-            {/* Mức độ ưu tiên */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#64748B] block">Độ ưu tiên</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as any)}
-                className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
-              >
-                <option value="Low">Thấp (Low)</option>
-                <option value="Medium">Trung bình (Medium)</option>
-                <option value="High">Cao (High)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Môn học / Lĩnh vực */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#64748B] block">Môn học / Lĩnh vực</label>
-            <input 
-              type="text"
-              required
-              placeholder="Ví dụ: Thiết kế trải nghiệm người dùng, Toán cao cấp..."
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
-            />
-          </div>
-
-          {/* Cấu hình Đối tượng áp dụng (Target Audience) */}
-          <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3.5 space-y-3.5">
-            <div className="flex items-center gap-1.5 border-b border-slate-200/40 pb-2">
-              <UserCheck size={16} className="text-[#1A73E8]" />
-              <span className="text-xs font-bold text-[#1E293B]">Đối tượng áp dụng nhiệm vụ</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              {(['HSSV', 'Giáo viên', 'Quản sinh'] as const).map((role) => (
-                <label 
-                  key={role} 
-                  className={`flex items-center justify-center gap-2 p-2 rounded-xl border cursor-pointer text-xs font-semibold transition-all ${
-                    targetType === role 
-                      ? 'bg-blue-50/60 border-blue-300 text-[#1A73E8] shadow-xs' 
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <input 
-                    type="radio" 
-                    name="targetType" 
-                    value={role} 
-                    checked={targetType === role}
-                    onChange={() => {
-                      setTargetType(role);
-                      if (role === 'Quản sinh') {
-                        setTargetScope('Tất cả');
-                      }
-                    }}
-                    className="sr-only"
-                  />
-                  <span>{role}</span>
-                </label>
-              ))}
-            </div>
-
-            {targetType !== 'Quản sinh' && (
-              <div className="space-y-3 pt-1 animate-in fade-in slide-in-from-top-1 duration-150">
-                {/* Phạm vi áp dụng */}
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="p-5 flex-1 overflow-y-auto space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              
+              {/* Cột trái: Thông tin nhiệm vụ */}
+              <div className="space-y-4">
+                {/* Tên nhiệm vụ */}
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-[#64748B] block">Phạm vi</label>
-                  <select
-                    value={targetScope}
-                    onChange={(e) => setTargetScope(e.target.value as any)}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
-                  >
-                    <option value="Tất cả">Tất cả {targetType}</option>
-                    <option value="Cụ thể">{targetType} cụ thể</option>
-                  </select>
-                </div>
-
-                {/* Giao diện chọn các ID thật khi scope cụ thể */}
-                {targetScope === 'Cụ thể' && (
-                  <div className="space-y-3 pt-2 animate-in fade-in slide-in-from-top-1 duration-150 border-t border-slate-200/40">
-                    {isLoadingSpecificData ? (
-                      <div className="flex items-center justify-center py-4">
-                        <div className="w-5 h-5 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-                        <span className="text-xs text-gray-500 ml-2">Đang tải dữ liệu đối tượng...</span>
-                      </div>
-                    ) : (
-                      <>
-                        {targetType === 'HSSV' && (
-                          <div className="space-y-3">
-                            {/* Chọn lớp học */}
-                            <div className="space-y-1">
-                              <label className="text-xs font-semibold text-[#64748B] block">Chọn Lớp học áp dụng (Có thể chọn nhiều)</label>
-                              <div className="border border-gray-200 rounded-xl p-2 bg-white max-h-32 overflow-y-auto space-y-1.5">
-                                {classesList.map((cls) => {
-                                  const isChecked = selectedClassIds.includes(cls._id);
-                                  return (
-                                    <label key={cls._id} className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer hover:bg-slate-50 p-1.5 rounded-md">
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        onChange={() => {
-                                          if (isChecked) {
-                                            setSelectedClassIds(selectedClassIds.filter(id => id !== cls._id));
-                                          } else {
-                                            setSelectedClassIds([...selectedClassIds, cls._id]);
-                                          }
-                                        }}
-                                        className="rounded border-gray-300 text-[#1A73E8] focus:ring-[#1A73E8]"
-                                      />
-                                      <span>{cls.class_name} ({cls.class_type})</span>
-                                    </label>
-                                  );
-                                })}
-                                {classesList.length === 0 && <div className="text-xs text-gray-400 p-2">Không có lớp học nào</div>}
-                              </div>
-                            </div>
-
-                            {/* Chọn học sinh */}
-                            <div className="space-y-1">
-                              <label className="text-xs font-semibold text-[#64748B] block">Chọn Học sinh cụ thể (Không bắt buộc nếu đã chọn lớp)</label>
-                              <div className="border border-gray-200 rounded-xl p-2 bg-white max-h-40 overflow-y-auto space-y-1.5">
-                                {studentsList.map((stud) => {
-                                  const isChecked = selectedStudentIds.includes(stud._id);
-                                  return (
-                                    <label key={stud._id} className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer hover:bg-slate-50 p-1.5 rounded-md">
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        onChange={() => {
-                                          if (isChecked) {
-                                            setSelectedStudentIds(selectedStudentIds.filter(id => id !== stud._id));
-                                          } else {
-                                            setSelectedStudentIds([...selectedStudentIds, stud._id]);
-                                          }
-                                        }}
-                                        className="rounded border-gray-300 text-[#1A73E8] focus:ring-[#1A73E8]"
-                                      />
-                                      <span>{stud.full_name} ({stud.student_code})</span>
-                                    </label>
-                                  );
-                                })}
-                                {studentsList.length === 0 && <div className="text-xs text-gray-400 p-2">Không có học sinh nào</div>}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {targetType === 'Giáo viên' && (
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-[#64748B] block">Chọn Giáo viên áp dụng (Có thể chọn nhiều)</label>
-                            <div className="border border-gray-200 rounded-xl p-2 bg-white max-h-40 overflow-y-auto space-y-1.5">
-                              {teachersList.map((teacher) => {
-                                const isChecked = selectedTeacherIds.includes(teacher._id);
-                                return (
-                                  <label key={teacher._id} className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer hover:bg-slate-50 p-1.5 rounded-md">
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() => {
-                                        if (isChecked) {
-                                          setSelectedTeacherIds(selectedTeacherIds.filter(id => id !== teacher._id));
-                                        } else {
-                                          setSelectedTeacherIds([...selectedTeacherIds, teacher._id]);
-                                        }
-                                      }}
-                                      className="rounded border-gray-300 text-[#1A73E8] focus:ring-[#1A73E8]"
-                                    />
-                                    <span>{teacher.user_name || teacher.username} ({teacher.email})</span>
-                                  </label>
-                                );
-                              })}
-                              {teachersList.length === 0 && <div className="text-xs text-gray-400 p-2">Không có giáo viên nào hoặc không thể tải danh sách</div>}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Mô tả cụ thể / Nhóm */}
-                        <div className="space-y-1">
-                          <label className="text-xs font-semibold text-[#64748B] block">Tên cụ thể / Nhóm hiển thị</label>
-                          <input 
-                            type="text"
-                            required
-                            placeholder={targetType === 'HSSV' ? 'Ví dụ: Lớp K45A, Nguyễn Văn A...' : 'Ví dụ: GV Nguyễn Văn B...'}
-                            value={targetDetail}
-                            onChange={(e) => setTargetDetail(e.target.value)}
-                            className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
-                          />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Cấu hình Trang liên kết (Linked Route) */}
-          <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3.5 space-y-3.5">
-            <div className="flex items-center gap-1.5 border-b border-slate-200/40 pb-2">
-              <LinkIcon size={15} className="text-[#1A73E8]" />
-              <span className="text-xs font-bold text-[#1E293B]">Trang liên kết nhiệm vụ</span>
-            </div>
- 
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#64748B] block">Chọn trang đích</label>
-                <select
-                  value={pageSelection}
-                  onChange={(e) => setPageSelection(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
-                >
-                  {PRESET_PAGES.map(page => (
-                    <option key={page.value} value={page.value}>
-                      {page.label} {page.value !== 'none' ? `(${page.value})` : ''}
-                    </option>
-                  ))}
-                  <option value="custom">Nhập trang tùy chỉnh (Custom URL)...</option>
-                </select>
-              </div>
- 
-              {pageSelection === 'custom' && (
-                <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
-                  <label className="text-xs font-semibold text-[#64748B] block">Nhập đường dẫn trang (Route)</label>
+                  <label className="text-xs font-semibold text-[#64748B] block">Tên nhiệm vụ</label>
                   <input 
                     type="text"
                     required
-                    placeholder="Ví dụ: /students/123, /classes"
-                    value={customPageUrl}
-                    onChange={(e) => setCustomPageUrl(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
+                    placeholder="Nhập tên nhiệm vụ học tập..."
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
                   />
                 </div>
-              )}
- 
-              {/* Hiển thị thông tin phân loại liên kết trang */}
-              {(() => {
-                const currentPath = pageSelection === 'none' 
-                  ? '' 
-                  : pageSelection === 'custom' 
-                    ? customPageUrl 
-                    : pageSelection;
-                const linkMode = getLinkedTaskMode(currentPath);
- 
-                if (linkMode === 'none') {
-                  return (
-                    <p className="text-[11px] text-gray-500 italic mt-1 leading-relaxed">
-                      * Nhiệm vụ không gắn trang (checklist): Người thực hiện sẽ tự cập nhật trạng thái thủ công trên danh sách nhiệm vụ.
-                    </p>
-                  );
-                }
-                if (linkMode === 'auto') {
-                  return (
-                    <p className="text-[11px] text-[#10B981] font-medium mt-1 leading-relaxed flex items-start gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] shrink-0 mt-1"></span>
-                      <span>Nhiệm vụ tự động đồng bộ: Trạng thái sẽ tự động chuyển sang "Đang làm" khi bắt đầu thao tác và "Đã xong" khi hoàn thành nghiệp vụ trên trang đích.</span>
-                    </p>
-                  );
-                }
-                if (linkMode === 'manual') {
-                  return (
-                    <p className="text-[11px] text-[#F59E0B] font-medium mt-1 leading-relaxed flex items-start gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] shrink-0 mt-1"></span>
-                      <span>Nhiệm vụ liên kết điều hướng: Nhấp vào nhiệm vụ sẽ điều hướng đến trang đích, người thực hiện cần cập nhật trạng thái thủ công.</span>
-                    </p>
-                  );
-                }
-                return null;
-              })()}
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Hạn chót */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#64748B] block">Hạn chót (Deadline)</label>
-              <input 
-                type="date"
-                required
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
-              />
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Loại nhiệm vụ */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#64748B] block">Loại nhiệm vụ</label>
+                    <Select value={type} onValueChange={(val: any) => setType(val)}>
+                      <SelectTrigger className="rounded-xl bg-white/50 border-gray-200">
+                        <SelectValue placeholder="Chọn loại nhiệm vụ" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Bài tập">Bài tập</SelectItem>
+                        <SelectItem value="Dự án">Dự án</SelectItem>
+                        <SelectItem value="Hoạt động">Hoạt động</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            {/* Trạng thái */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#64748B] block">
-                {editingTask ? 'Trạng thái tổng hợp' : 'Trạng thái ban đầu'}
-              </label>
-              <select
-                value={status}
-                disabled={Boolean(editingTask)}
-                onChange={(e) => setStatus(e.target.value as any)}
-                className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-              >
-                <option value="Chưa bắt đầu">Chưa bắt đầu</option>
-                <option value="Đang làm">Đang làm</option>
-                <option value="Đã xong">Đã xong</option>
-              </select>
-              {editingTask && (
-                <p className="text-[10px] text-[#64748B] italic mt-1 leading-normal">
-                  * Trạng thái được tính toán tự động từ tiến độ cá nhân của các thành viên.
-                </p>
-              )}
+                  {/* Mức độ ưu tiên */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#64748B] block">Độ ưu tiên</label>
+                    <Select value={priority} onValueChange={(val: any) => setPriority(val)}>
+                      <SelectTrigger className="rounded-xl bg-white/50 border-gray-200">
+                        <SelectValue placeholder="Chọn độ ưu tiên" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Thấp (Low)</SelectItem>
+                        <SelectItem value="Medium">Trung bình (Medium)</SelectItem>
+                        <SelectItem value="High">Cao (High)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Môn học / Lĩnh vực */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[#64748B] block">Môn học / Lĩnh vực</label>
+                  <input 
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Thiết kế trải nghiệm người dùng, Toán cao cấp..."
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Hạn chót */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#64748B] block">Hạn chót (Deadline)</label>
+                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-white/50 px-3 py-2.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all text-left"
+                        >
+                          <span className={deadline ? 'text-[#1E293B]' : 'text-gray-400'}>
+                            {deadline ? format(new Date(deadline), 'dd/MM/yyyy') : 'Chọn ngày...'}
+                          </span>
+                          <CalendarIcon className="h-4 w-4 text-gray-400" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 z-[1000] bg-transparent border-none shadow-none" align="start">
+                        <CustomCalendar
+                          startDate={deadline ? new Date(deadline) : null}
+                          endDate={deadline ? new Date(deadline) : null}
+                          onRangeSelect={(start, end) => {
+                            const yyyy = start.getFullYear();
+                            const mm = String(start.getMonth() + 1).padStart(2, '0');
+                            const dd = String(start.getDate()).padStart(2, '0');
+                            setDeadline(`${yyyy}-${mm}-${dd}`);
+                          }}
+                          onCancel={() => {
+                            setIsCalendarOpen(false);
+                          }}
+                          onConfirm={() => {
+                            setIsCalendarOpen(false);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* Trạng thái */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#64748B] block">
+                      {editingTask ? 'Trạng thái tổng hợp' : 'Trạng thái ban đầu'}
+                    </label>
+                    <Select value={status} onValueChange={(val: any) => setStatus(val)}>
+                      <SelectTrigger 
+                        className={cn(
+                          "rounded-xl bg-white/50 border-gray-200",
+                          editingTask && "pointer-events-none bg-slate-100 text-slate-500"
+                        )}
+                      >
+                        <SelectValue placeholder="Chọn trạng thái" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Chưa bắt đầu">Chưa bắt đầu</SelectItem>
+                        <SelectItem value="Đang làm">Đang làm</SelectItem>
+                        <SelectItem value="Đã xong">Đã xong</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {editingTask && (
+                  <p className="text-[10px] text-[#64748B] italic mt-1 leading-normal">
+                    * Trạng thái được tính toán tự động từ tiến độ cá nhân của các thành viên.
+                  </p>
+                )}
+              </div>
+
+              {/* Cột phải: Đối tượng & Liên kết */}
+              <div className="space-y-4">
+                {/* Cấu hình Đối tượng áp dụng (Target Audience) */}
+                <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3.5 space-y-3.5">
+                  <div className="flex items-center gap-1.5 border-b border-slate-200/40 pb-2">
+                    <UserCheck size={16} className="text-[#1A73E8]" />
+                    <span className="text-xs font-bold text-[#1E293B]">Đối tượng áp dụng nhiệm vụ</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    {(['HSSV', 'Giáo viên', 'Quản sinh'] as const).map((role) => (
+                      <label 
+                        key={role} 
+                        className={`flex items-center justify-center gap-2 p-2 rounded-xl border cursor-pointer text-xs font-semibold transition-all ${
+                          targetType === role 
+                            ? 'bg-blue-50/60 border-blue-300 text-[#1A73E8] shadow-xs' 
+                            : 'bg-white border-gray-200 text-gray-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input 
+                          type="radio" 
+                          name="targetType" 
+                          value={role} 
+                          checked={targetType === role}
+                          onChange={() => {
+                            setTargetType(role);
+                            if (role === 'Quản sinh') {
+                              setTargetScope('Tất cả');
+                            }
+                          }}
+                          className="sr-only"
+                        />
+                        <span>{role}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {targetType !== 'Quản sinh' && (
+                    <div className="space-y-3 pt-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                      {/* Phạm vi áp dụng */}
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-[#64748B] block">Phạm vi</label>
+                        <Select value={targetScope} onValueChange={(val: any) => setTargetScope(val)}>
+                          <SelectTrigger className="rounded-xl bg-white border-gray-200">
+                            <SelectValue placeholder="Chọn phạm vi" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Tất cả">Tất cả {targetType}</SelectItem>
+                            <SelectItem value="Cụ thể">{targetType} cụ thể</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Giao diện chọn các ID thật khi scope cụ thể */}
+                      {targetScope === 'Cụ thể' && (
+                        <div className="space-y-3 pt-2 animate-in fade-in slide-in-from-top-1 duration-150 border-t border-slate-200/40">
+                          {isLoadingSpecificData ? (
+                            <div className="flex items-center justify-center py-4">
+                              <div className="w-5 h-5 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+                              <span className="text-xs text-gray-500 ml-2">Đang tải dữ liệu đối tượng...</span>
+                            </div>
+                          ) : (
+                            <>
+                              {targetType === 'HSSV' && (
+                                <div className="space-y-3">
+                                  {/* Chọn lớp học */}
+                                  <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-[#64748B] block">Chọn Lớp học áp dụng (Có thể chọn nhiều)</label>
+                                    <div className="border border-gray-200 rounded-xl p-2 bg-white max-h-32 overflow-y-auto space-y-1.5">
+                                      {classesList.map((cls) => {
+                                        const isChecked = selectedClassIds.includes(cls._id);
+                                        return (
+                                          <label key={cls._id} className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer hover:bg-slate-50 p-1.5 rounded-md">
+                                            <input
+                                              type="checkbox"
+                                              checked={isChecked}
+                                              onChange={() => {
+                                                if (isChecked) {
+                                                  setSelectedClassIds(selectedClassIds.filter(id => id !== cls._id));
+                                                } else {
+                                                  setSelectedClassIds([...selectedClassIds, cls._id]);
+                                                }
+                                              }}
+                                              className="rounded border-gray-300 text-[#1A73E8] focus:ring-[#1A73E8]"
+                                            />
+                                            <span>{cls.class_name} ({cls.class_type})</span>
+                                          </label>
+                                        );
+                                      })}
+                                      {classesList.length === 0 && <div className="text-xs text-gray-400 p-2">Không có lớp học nào</div>}
+                                    </div>
+                                  </div>
+
+                                  {/* Chọn học sinh */}
+                                  <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-[#64748B] block">Chọn Học sinh cụ thể (Không bắt buộc nếu đã chọn lớp)</label>
+                                    <div className="border border-gray-200 rounded-xl p-2 bg-white max-h-40 overflow-y-auto space-y-1.5">
+                                      {studentsList.map((stud) => {
+                                        const isChecked = selectedStudentIds.includes(stud._id);
+                                        return (
+                                          <label key={stud._id} className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer hover:bg-slate-50 p-1.5 rounded-md">
+                                            <input
+                                              type="checkbox"
+                                              checked={isChecked}
+                                              onChange={() => {
+                                                if (isChecked) {
+                                                  setSelectedStudentIds(selectedStudentIds.filter(id => id !== stud._id));
+                                                } else {
+                                                  setSelectedStudentIds([...selectedStudentIds, stud._id]);
+                                                }
+                                              }}
+                                              className="rounded border-gray-300 text-[#1A73E8] focus:ring-[#1A73E8]"
+                                            />
+                                            <span>{stud.full_name} ({stud.student_code})</span>
+                                          </label>
+                                        );
+                                      })}
+                                      {studentsList.length === 0 && <div className="text-xs text-gray-400 p-2">Không có học sinh nào</div>}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {targetType === 'Giáo viên' && (
+                                <div className="space-y-1">
+                                  <label className="text-xs font-semibold text-[#64748B] block">Chọn Giáo viên áp dụng (Có thể chọn nhiều)</label>
+                                  <div className="border border-gray-200 rounded-xl p-2 bg-white max-h-40 overflow-y-auto space-y-1.5">
+                                    {teachersList.map((teacher) => {
+                                      const isChecked = selectedTeacherIds.includes(teacher._id);
+                                      return (
+                                        <label key={teacher._id} className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer hover:bg-slate-50 p-1.5 rounded-md">
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => {
+                                              if (isChecked) {
+                                                setSelectedTeacherIds(selectedTeacherIds.filter(id => id !== teacher._id));
+                                              } else {
+                                                setSelectedTeacherIds([...selectedTeacherIds, teacher._id]);
+                                              }
+                                            }}
+                                            className="rounded border-gray-300 text-[#1A73E8] focus:ring-[#1A73E8]"
+                                          />
+                                          <span>{teacher.user_name || teacher.username} ({teacher.email})</span>
+                                        </label>
+                                      );
+                                    })}
+                                    {teachersList.length === 0 && <div className="text-xs text-gray-400 p-2">Không có giáo viên nào hoặc không thể tải danh sách</div>}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Mô tả cụ thể / Nhóm */}
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold text-[#64748B] block">Tên cụ thể / Nhóm hiển thị</label>
+                                <input 
+                                  type="text"
+                                  required
+                                  placeholder={targetType === 'HSSV' ? 'Ví dụ: Lớp K45A, Nguyễn Văn A...' : 'Ví dụ: GV Nguyễn Văn B...'}
+                                  value={targetDetail}
+                                  onChange={(e) => setTargetDetail(e.target.value)}
+                                  className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
+                                />
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Cấu hình Trang liên kết (Linked Route) */}
+                <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3.5 space-y-3.5">
+                  <div className="flex items-center gap-1.5 border-b border-slate-200/40 pb-2">
+                    <LinkIcon size={15} className="text-[#1A73E8]" />
+                    <span className="text-xs font-bold text-[#1E293B]">Trang liên kết nhiệm vụ</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-[#64748B] block">Chọn trang đích</label>
+                      <Select value={pageSelection} onValueChange={setPageSelection}>
+                        <SelectTrigger className="rounded-xl bg-white border-gray-200">
+                          <SelectValue placeholder="Chọn trang đích" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRESET_PAGES.map(page => (
+                            <SelectItem key={page.value} value={page.value}>
+                              {page.label} {page.value !== 'none' ? `(${page.value})` : ''}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="custom">Nhập trang tùy chỉnh (Custom URL)...</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {pageSelection === 'custom' && (
+                      <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <label className="text-xs font-semibold text-[#64748B] block">Nhập đường dẫn trang (Route)</label>
+                        <input 
+                          type="text"
+                          required
+                          placeholder="Ví dụ: /students/123, /classes"
+                          value={customPageUrl}
+                          onChange={(e) => setCustomPageUrl(e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
+                        />
+                      </div>
+                    )}
+
+                    {/* Hiển thị thông tin phân loại liên kết trang */}
+                    {(() => {
+                      const currentPath = pageSelection === 'none' 
+                        ? '' 
+                        : pageSelection === 'custom' 
+                          ? customPageUrl 
+                          : pageSelection;
+                      const linkMode = getLinkedTaskMode(currentPath);
+
+                      if (linkMode === 'none') {
+                        return (
+                          <p className="text-[11px] text-gray-500 italic mt-1 leading-relaxed">
+                            * Nhiệm vụ không gắn trang (checklist): Người thực hiện sẽ tự cập nhật trạng thái thủ công trên danh sách nhiệm vụ.
+                          </p>
+                        );
+                      }
+                      if (linkMode === 'auto') {
+                        return (
+                          <p className="text-[11px] text-[#10B981] font-medium mt-1 leading-relaxed flex items-start gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] shrink-0 mt-1"></span>
+                            <span>Nhiệm vụ tự động đồng bộ: Trạng thái sẽ tự động chuyển sang "Đang làm" khi bắt đầu thao tác và "Đã xong" khi hoàn thành nghiệp vụ trên trang đích.</span>
+                          </p>
+                        );
+                      }
+                      if (linkMode === 'manual') {
+                        return (
+                          <p className="text-[11px] text-[#F59E0B] font-medium mt-1 leading-relaxed flex items-start gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] shrink-0 mt-1"></span>
+                            <span>Nhiệm vụ liên kết điều hướng: Nhấp vào nhiệm vụ sẽ điều hướng đến trang đích, người thực hiện cần cập nhật trạng thái thủ công.</span>
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-gray-100 bg-white/40 -mx-5 -mb-5 p-5">
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-gray-100 bg-white/40 p-5 shrink-0">
             <button
               type="button"
               onClick={onClose}

@@ -5,12 +5,16 @@ import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
 import { ChevronRight, Home } from 'lucide-react';
 import { departments, classes, mockStudents } from '@/lib/mock-data/students';
+import { useAuth } from '@/providers/auth-provider';
 
 interface BreadcrumbProps {
   customMappings?: Record<string, string>;
 }
 
 export default function Breadcrumb({ customMappings = {} }: BreadcrumbProps) {
+  const { user } = useAuth();
+  const role = (user?.role || user?.roleName || '').toLowerCase();
+  const isStudent = role.includes('student') || role.includes('sinh vien') || role.includes('hoc sinh') || role.includes('học sinh') || role.includes('sinh viên');
   const pathname = usePathname();
   const params = useParams();
 
@@ -65,12 +69,17 @@ export default function Breadcrumb({ customMappings = {} }: BreadcrumbProps) {
         </li>
 
         {pathSegments.map((segment, index) => {
-          const href = `/${pathSegments.slice(0, index + 1).join('/')}`;
+          const originalHref = `/${pathSegments.slice(0, index + 1).join('/')}`;
+          let targetHref = originalHref;
+          if (originalHref === '/students' && isStudent) {
+            targetHref = '/students/tasks';
+          }
           const isLast = index === pathSegments.length - 1;
           const label = getLabel(segment);
+          const itemKey = `${index}-${segment}-${originalHref}`;
 
           return (
-            <li key={href} className="flex items-center space-x-2">
+            <li key={itemKey} className="flex items-center space-x-2">
               <ChevronRight size={14} className="text-gray-300 shrink-0" />
               {isLast ? (
                 <span className="text-gray-900 font-bold truncate max-w-[150px] sm:max-w-[200px]">
@@ -78,7 +87,7 @@ export default function Breadcrumb({ customMappings = {} }: BreadcrumbProps) {
                 </span>
               ) : (
                 <Link
-                  href={href}
+                  href={targetHref}
                   className="text-gray-500 hover:text-[#135bec] transition-colors truncate max-w-[120px] sm:max-w-[150px]"
                 >
                   {label}

@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { Mail, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { Mail, ArrowRight, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -18,6 +18,7 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 export default function ForgotPasswordPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const {
     register,
@@ -35,9 +36,9 @@ export default function ForgotPasswordPage() {
     try {
       await authApi.forgotPassword(data.email);
       toast.success('Yêu cầu đã được gửi', {
-        description: `Vui lòng kiểm tra hòm thư ${data.email} để đặt lại mật khẩu.`,
+        description: `Một liên kết đặt lại mật khẩu đã được gửi đến email của bạn nếu nó tồn tại trong hệ thống.`,
       });
-      router.push('/reset-password');
+      setIsSuccess(true);
     } catch (err: any) {
       toast.error('Gửi yêu cầu thất bại', {
         description: err.message || 'Đã xảy ra lỗi.',
@@ -46,6 +47,57 @@ export default function ForgotPasswordPage() {
       setIsLoading(false);
     }
   };
+
+  if (isSuccess) {
+    return (
+      <>
+        {/* Background Gradient */}
+        <div 
+          className="fixed inset-0 z-0 pointer-events-none" 
+          style={{ 
+            backgroundImage: "linear-gradient(135deg, rgb(235, 242, 250) 0%, rgb(220, 230, 241) 100%)" 
+          }} 
+        />
+
+        <div className="w-full max-w-[512px] z-10 px-4">
+          {/* Glass Card Container */}
+          <div className="backdrop-blur-[6px] bg-white/45 border border-white/75 flex flex-col gap-[32px] items-stretch p-6 sm:p-[49px] relative rounded-[32px] shadow-[0px_4px_20px_rgba(203,213,225,0.4)]">
+            
+            {/* Checkmark Circle Icon */}
+            <div className="flex justify-center w-full">
+              <div className="backdrop-blur-[2px] bg-emerald-50 border border-emerald-100 flex items-center justify-center w-[64px] h-[64px] rounded-full shadow-[0px_1px_2px_rgba(0,0,0,0.05)] shrink-0 text-emerald-600">
+                <ShieldCheck size={28} />
+              </div>
+            </div>
+
+            {/* Heading Container */}
+            <div className="flex flex-col gap-[12px] items-center text-center">
+              <h1 className="font-['Inter'] font-semibold text-[#111c2d] text-[32px] tracking-tight leading-[40px]">
+                Kiểm tra email của bạn
+              </h1>
+              <p className="font-['Inter'] font-medium text-[#64748b] text-[14px] leading-[22px] max-w-[360px]">
+                Nếu email bạn nhập tồn tại trên hệ thống, chúng tôi đã gửi một hướng dẫn thiết lập lại mật khẩu vào hòm thư của bạn.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-[16px] w-full text-center">
+              <p className="text-xs text-slate-500">
+                Vui lòng kiểm tra cả thư mục thư rác (Spam) nếu bạn không thấy email trong vài phút.
+              </p>
+              
+              <Link 
+                href="/login" 
+                className="bg-[#005bbf] hover:bg-[#004da3] text-white rounded-full h-[48px] flex items-center justify-center gap-2 relative shadow-[0px_4px_6px_rgba(0,0,0,0.05)] transition-all mt-4 w-full font-['Inter'] font-semibold text-[16px]"
+              >
+                Quay lại trang đăng nhập
+              </Link>
+            </div>
+
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

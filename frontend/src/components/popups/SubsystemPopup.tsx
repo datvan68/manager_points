@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Search, LayoutGrid, Users, ArrowUpRight, 
@@ -8,134 +8,246 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { useAuth } from '@/providers/auth-provider';
+import { useAuth, isAdminUser } from '@/providers/auth-provider';
+import { authApi } from '@/api/auth-api';
+
+
 
 interface SubsystemPopupProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+// Inline fallback since GraduationCap is not imported from lucide-react directly in original file
+const GraduationCapIcon = (props: any) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" />
+    <path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5" />
+  </svg>
+);
+
+const INITIAL_MODULES = [
+  {
+    id: 'sv-profile',
+    group: 'Học sinh',
+    name: 'Hồ sơ sinh viên',
+    desc: 'Quản lý thông tin cá nhân, học bạ và lịch sử đào tạo tập trung.',
+    status: 'ACTIVE',
+    stat: { type: 'avatar', count: 12 },
+    href: '/students',
+    icon: Users
+  },
+  {
+    id: 'grading',
+    group: 'Học sinh',
+    name: 'Đánh giá điểm số',
+    desc: 'Hệ thống tính toán điểm trung bình và xếp loại học tập tự động.',
+    status: 'ACTIVE',
+    stat: { type: 'growth', label: '+8% tháng này' },
+    href: '/grading',
+    icon: GraduationCapIcon
+  },
+  {
+    id: 'attendance',
+    group: 'Học sinh',
+    name: 'Theo dõi chuyên cần',
+    desc: 'Điểm danh thông minh và báo cáo tỷ lệ vắng mặt thời gian thực.',
+    status: 'ACTIVE',
+    stat: { type: 'time', label: 'Cập nhật: 5 phút trước' },
+    href: '/students/record',
+    icon: Calendar
+  },
+  {
+    id: 'dormitory',
+    group: 'KTX',
+    name: 'Quản lý KTX',
+    desc: 'Quản lý phòng ốc, đăng ký lưu trú và hóa đơn dịch vụ ký túc xá.',
+    status: 'ACTIVE',
+    stat: { type: 'time', label: 'Mới cập nhật' },
+    href: '/dormitory',
+    icon: Building2
+  },
+  {
+    id: 'club',
+    group: 'Club',
+    name: 'Câu lạc bộ',
+    desc: 'Nơi sinh hoạt ngoại khóa, đăng ký thành viên và lên kế hoạch hoạt động CLB.',
+    status: 'ACTIVE',
+    stat: { type: 'event', label: 'Đang mở đăng ký' },
+    href: '/club',
+    icon: Compass
+  },
+  {
+    id: 'security',
+    group: 'Hệ thống',
+    name: 'Kiểm soát phân quyền',
+    desc: 'Thiết lập vai trò, quyền truy cập tài liệu và bảo mật hệ thống.',
+    status: 'RESTRICTED',
+    stat: { type: 'restricted', label: 'Bị giới hạn' },
+    href: '/permissions',
+    icon: Shield
+  },
+  {
+    id: 'config',
+    group: 'Hệ thống',
+    name: 'Quản trị hệ thống',
+    desc: 'Theo dõi logs, quản lý các yêu cầu vận hành và sao lưu dữ liệu hệ thống.',
+    status: 'ACTIVE',
+    stat: { type: 'progress', percent: 65, label: '65%' },
+    href: '/system',
+    icon: Settings
+  },
+  {
+    id: 'events',
+    group: 'Học sinh',
+    name: 'Nhiệm vụ',
+    desc: 'Lên lịch biểu, quản lý các kỳ thi và giao nhiệm vụ học tập cho HSSV.',
+    status: 'ACTIVE',
+    stat: { type: 'event', label: '2 sự kiện sắp tới' },
+    href: '/students/tasks',
+    icon: Calendar
+  },
+  {
+    id: 'reports',
+    group: 'Hệ thống',
+    name: 'Thống kê báo cáo',
+    desc: 'Tổng hợp số liệu rèn luyện, chuyên cần và học tập toàn trường.',
+    status: 'ACTIVE',
+    stat: { type: 'growth', label: 'Xuất PDF/Excel' },
+    href: '/reports',
+    icon: BarChart3
+  },
+  {
+    id: 'notifications',
+    group: 'Hệ thống',
+    name: 'Quản lý thông báo',
+    desc: 'Cấu hình và gửi thông báo tự động, theo dõi lịch sử thông báo hệ thống.',
+    status: 'ACTIVE',
+    stat: { type: 'event', label: 'Hoạt động' },
+    href: '/notifications',
+    icon: Bell
+  }
+];
+
 export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
-  const { user } = useAuth();
+  const [modulesState, setModulesState] = useState(INITIAL_MODULES);
+  const { user, hasPermission, hasAnyPermission, hasAllPermissions } = useAuth();
+  const [routeMappings, setRouteMappings] = useState<any[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Trigger reload on update event
+  useEffect(() => {
+    const handleUpdate = () => {
+      setRefreshTrigger((prev) => prev + 1);
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('route-permissions-updated', handleUpdate);
+      return () => window.removeEventListener('route-permissions-updated', handleUpdate);
+    }
+  }, []);
 
   const userRole = String(user?.role || '').toLowerCase();
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
   const isTeacher = userRole.includes('teacher') || userRole.includes('advisor') || userRole.includes('giảng viên') || userRole.includes('giáo viên');
+  const isAdmin = isAdminUser(user);
+
+  // Tải danh sách cấu hình phân quyền động từ Database khi mở popup
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchMappings = async () => {
+      try {
+        const { tokenStorage } = await import('@/api/auth-api');
+        const token = tokenStorage.getAccessToken() || '';
+        const data = await authApi.getRoutePermissionsPublic(token);
+        setRouteMappings(data);
+      } catch (err) {
+        console.error('Failed to fetch route permission mappings:', err);
+      }
+    };
+    fetchMappings();
+  }, [isOpen, refreshTrigger]);
+
+  // Đồng bộ trạng thái bảo trì từ localStorage khi mount hoặc mở popup
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem('subsystems_maintenance_states');
+      if (stored) {
+        const states = JSON.parse(stored);
+        setModulesState(prev => prev.map(mod => {
+          const isMaint = states[mod.id] === true;
+          return {
+            ...mod,
+            status: isMaint ? 'MAINTENANCE' : (mod.id === 'security' ? 'RESTRICTED' : 'ACTIVE')
+          };
+        }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [isOpen]);
 
   const getInitials = (name: string) => {
     if (!name || typeof name !== 'string') return '??';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   };
 
-  // Preset modules mapped with system routes
-  const modules = [
-    {
-      id: 'sv-profile',
-      group: 'Học sinh',
-      name: 'Hồ sơ sinh viên',
-      desc: 'Quản lý thông tin cá nhân, học bạ và lịch sử đào tạo tập trung.',
-      status: 'ACTIVE',
-      stat: { type: 'avatar', count: 12 },
-      href: '/students',
-      icon: Users
-    },
-    {
-      id: 'grading',
-      group: 'Học sinh',
-      name: 'Đánh giá điểm số',
-      desc: 'Hệ thống tính toán điểm trung bình và xếp loại học tập tự động.',
-      status: 'ACTIVE',
-      stat: { type: 'growth', label: '+8% tháng này' },
-      href: '/grading',
-      icon: GraduationCapIcon
-    },
-    {
-      id: 'attendance',
-      group: 'Học sinh',
-      name: 'Theo dõi chuyên cần',
-      desc: 'Điểm danh thông minh và báo cáo tỷ lệ vắng mặt thời gian thực.',
-      status: 'ACTIVE',
-      stat: { type: 'time', label: 'Cập nhật: 5 phút trước' },
-      href: '/students/record',
-      icon: Calendar
-    },
-    {
-      id: 'dormitory',
-      group: 'KTX',
-      name: 'Quản lý KTX',
-      desc: 'Quản lý phòng ốc, đăng ký lưu trú và hóa đơn dịch vụ ký túc xá.',
-      status: 'ACTIVE',
-      stat: { type: 'time', label: 'Mới cập nhật' },
-      href: '/dormitory',
-      icon: Building2
-    },
-    {
-      id: 'club',
-      group: 'Club',
-      name: 'Câu lạc bộ',
-      desc: 'Nơi sinh hoạt ngoại khóa, đăng ký thành viên và lên kế hoạch hoạt động CLB.',
-      status: 'ACTIVE',
-      stat: { type: 'event', label: 'Đang mở đăng ký' },
-      href: '/club',
-      icon: Compass
-    },
-    {
-      id: 'security',
-      group: 'Hệ thống',
-      name: 'Kiểm soát phân quyền',
-      desc: 'Thiết lập vai trò, quyền truy cập tài liệu và bảo mật hệ thống.',
-      status: 'RESTRICTED',
-      stat: { type: 'restricted', label: 'Bị giới hạn' },
-      href: '/permissions',
-      icon: Shield
-    },
-    {
-      id: 'config',
-      group: 'Hệ thống',
-      name: 'Cấu hình hệ thống',
-      desc: 'Điều chỉnh thông số kỹ thuật, API và các kết nối cơ sở dữ liệu.',
-      status: 'MAINTENANCE',
-      stat: { type: 'progress', percent: 65, label: '65%' },
-      href: '/settings',
-      icon: Settings
-    },
-    {
-      id: 'events',
-      group: 'Học sinh',
-      name: 'Nhiệm vụ',
-      desc: 'Lên lịch biểu, quản lý các kỳ thi và giao nhiệm vụ học tập cho HSSV.',
-      status: 'ACTIVE',
-      stat: { type: 'event', label: '2 sự kiện sắp tới' },
-      href: '/students/tasks',
-      icon: Calendar
-    },
-    {
-      id: 'reports',
-      group: 'Hệ thống',
-      name: 'Thống kê báo cáo',
-      desc: 'Tổng hợp số liệu rèn luyện, chuyên cần và học tập toàn trường.',
-      status: 'ACTIVE',
-      stat: { type: 'growth', label: 'Xuất PDF/Excel' },
-      href: '/reports',
-      icon: BarChart3
-    },
-    {
-      id: 'notifications',
-      group: 'Hệ thống',
-      name: 'Quản lý thông báo',
-      desc: 'Cấu hình và gửi thông báo tự động, theo dõi lịch sử thông báo hệ thống.',
-      status: 'ACTIVE',
-      stat: { type: 'event', label: 'Hoạt động' },
-      href: '/notifications',
-      icon: Bell
-    }
-  ];
+  const toggleMaintenance = (moduleId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    try {
+      const stored = localStorage.getItem('subsystems_maintenance_states');
+      const states = stored ? JSON.parse(stored) : {};
+      const newState = e.target.checked;
+      states[moduleId] = newState;
+      localStorage.setItem('subsystems_maintenance_states', JSON.stringify(states));
 
-  const handleAccess = (moduleName: string, href: string) => {
+      // Phát sự kiện storage để đồng bộ các component khác
+      window.dispatchEvent(new Event('storage'));
+
+      // Cập nhật local state
+      setModulesState(prev => prev.map(mod => {
+        if (mod.id === moduleId) {
+          return {
+            ...mod,
+            status: newState ? 'MAINTENANCE' : (mod.id === 'security' ? 'RESTRICTED' : 'ACTIVE')
+          };
+        }
+        return mod;
+      }));
+
+      toast.success(`Đã ${newState ? 'bật' : 'tắt'} chế độ bảo trì cho phân hệ.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Không thể cập nhật trạng thái bảo trì.');
+    }
+  };
+
+  const handleAccess = (moduleName: string, href: string, status: string) => {
+    if (status === 'MAINTENANCE' && !isAdmin) {
+      toast.error(`Phân hệ "${moduleName}" đang được bảo trì. Bạn không thể truy cập vào lúc này.`);
+      return;
+    }
+    
+    let targetHref = href;
+    if (href === '/students' && isStudent) {
+      targetHref = '/students/tasks';
+    }
+
     toast.info(`Đang điều hướng sang phân hệ: ${moduleName}`);
-    router.push(href);
+    router.push(targetHref);
     onClose();
   };
 
@@ -151,18 +263,87 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
   };
 
 
-  const filteredModules = modules.filter(mod => {
-    const matchesSearch = mod.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      mod.desc.toLowerCase().includes(searchTerm.toLowerCase());
-    if (!matchesSearch) return false;
+  const checkModulePermission = (mod: typeof INITIAL_MODULES[0]) => {
+    // 1. Admin always has full access
+    if (isAdmin) return true;
 
+    // 2. Try dynamic database mapping
+    const mapping = routeMappings.find(
+      (m) => m.route_path === mod.href && m.is_active !== false
+    );
+
+    if (mapping) {
+      if (!mapping.permissions || mapping.permissions.length === 0) {
+        return true;
+      }
+      const requiredCodes = mapping.permissions.map((p: any) => p.code || p);
+      if (mapping.check_type === 'any') {
+        return hasAnyPermission(...requiredCodes);
+      } else {
+        return hasAllPermissions(...requiredCodes);
+      }
+    }
+
+    // 3. Fallback to default static check
+    if (mod.id === 'config') {
+      return (
+        isAdmin ||
+        hasAnyPermission(
+          'SYSTEM_ADMIN',
+          'LOGIN_LOG_READ',
+          'SYSTEM_REQUEST_READ',
+          'SYSTEM_REQUEST_MANAGE',
+          'DATABASE_BACKUP_READ',
+          'DATABASE_BACKUP_CREATE',
+          'DATABASE_BACKUP_DOWNLOAD',
+          'DATABASE_BACKUP_DELETE'
+        )
+      );
+    }
+
+    if (mod.id === 'security') {
+      return isAdmin || hasPermission('admin');
+    }
+
+    if (mod.id === 'sv-profile') {
+      return hasPermission('STUDENT_PAGE') || isTeacher;
+    }
+
+    if (mod.id === 'grading') {
+      return hasPermission('GRADING_PAGE') || isTeacher;
+    }
+
+    if (mod.id === 'attendance') {
+      return isStudent || isTeacher || hasPermission('STUDENT_PAGE');
+    }
+
+    if (mod.id === 'events') {
+      return isStudent || isTeacher || hasPermission('STUDENT_PAGE') || hasPermission('READ_STUDENT_TASK');
+    }
+
+    if (mod.id === 'reports') {
+      return isAdmin;
+    }
+
+    // Legacy role fallback for other modules (e.g. dormitory, club, notifications)
     if (isStudent) {
       return mod.group === 'Học sinh';
     }
     if (isTeacher) {
-      return ['sv-profile', 'grading', 'attendance', 'events', 'dormitory', 'club', 'notifications'].includes(mod.id);
+      return ['sv-profile', 'grading', 'attendance', 'events', 'club'].includes(mod.id);
+    }
+    if (mod.group === 'Hệ thống') {
+      return false;
     }
     return true;
+  };
+
+  const filteredModules = modulesState.filter(mod => {
+    const matchesSearch = mod.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      mod.desc.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+
+    return checkModulePermission(mod);
   });
 
   return (
@@ -240,7 +421,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                       return (
                         <div 
                           key={mod.id} 
-                          onClick={() => handleAccess(mod.name, mod.href)}
+                          onClick={() => handleAccess(mod.name, mod.href, mod.status)}
                           className="bg-white/60 backdrop-blur-sm border border-white/80 hover:border-blue-400 hover:bg-white/80 rounded-xl p-4 flex flex-col justify-between h-[145px] transition-all duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99]"
                         >
                           <div>
@@ -251,9 +432,23 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                 </div>
                                 <h4 className="font-bold text-slate-800 text-[14px] truncate">{mod.name}</h4>
                               </div>
-                              <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider shrink-0`}>
-                                {mod.status}
-                              </span>
+                              <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                {isAdmin && (
+                                  <label className="relative inline-flex items-center cursor-pointer" title="Bật/Tắt chế độ bảo trì">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={mod.status === 'MAINTENANCE'} 
+                                      onChange={(e) => toggleMaintenance(mod.id, e)} 
+                                      className="sr-only peer" 
+                                    />
+                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-red-500"></div>
+                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-red-500">Bảo trì</span>
+                                  </label>
+                                )}
+                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider`}>
+                                  {mod.status}
+                                </span>
+                              </div>
                             </div>
                             <p className="text-[11px] text-slate-400 font-medium mt-2.5 leading-relaxed line-clamp-2">{mod.desc}</p>
                           </div>
@@ -304,7 +499,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                       return (
                         <div 
                           key={mod.id} 
-                          onClick={() => handleAccess(mod.name, mod.href)}
+                          onClick={() => handleAccess(mod.name, mod.href, mod.status)}
                           className="bg-white/60 backdrop-blur-sm border border-white/80 hover:border-blue-400 hover:bg-white/80 rounded-xl p-4 flex flex-col justify-between h-[145px] transition-all duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99]"
                         >
                           <div>
@@ -315,9 +510,23 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                 </div>
                                 <h4 className="font-bold text-slate-800 text-[14px] truncate">{mod.name}</h4>
                               </div>
-                              <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider shrink-0`}>
-                                {mod.status}
-                              </span>
+                              <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                {isAdmin && (
+                                  <label className="relative inline-flex items-center cursor-pointer" title="Bật/Tắt chế độ bảo trì">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={mod.status === 'MAINTENANCE'} 
+                                      onChange={(e) => toggleMaintenance(mod.id, e)} 
+                                      className="sr-only peer" 
+                                    />
+                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-red-500"></div>
+                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-red-500">Bảo trì</span>
+                                  </label>
+                                )}
+                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider`}>
+                                  {mod.status}
+                                </span>
+                              </div>
                             </div>
                             <p className="text-[11px] text-slate-400 font-medium mt-2.5 leading-relaxed line-clamp-2">{mod.desc}</p>
                           </div>
@@ -354,7 +563,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                       return (
                         <div 
                           key={mod.id} 
-                          onClick={() => handleAccess(mod.name, mod.href)}
+                          onClick={() => handleAccess(mod.name, mod.href, mod.status)}
                           className="bg-white/60 backdrop-blur-sm border border-white/80 hover:border-blue-400 hover:bg-white/80 rounded-xl p-4 flex flex-col justify-between h-[145px] transition-all duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99]"
                         >
                           <div>
@@ -365,9 +574,23 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                 </div>
                                 <h4 className="font-bold text-slate-800 text-[14px] truncate">{mod.name}</h4>
                               </div>
-                              <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider shrink-0`}>
-                                {mod.status}
-                              </span>
+                              <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                {isAdmin && (
+                                  <label className="relative inline-flex items-center cursor-pointer" title="Bật/Tắt chế độ bảo trì">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={mod.status === 'MAINTENANCE'} 
+                                      onChange={(e) => toggleMaintenance(mod.id, e)} 
+                                      className="sr-only peer" 
+                                    />
+                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-red-500"></div>
+                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-red-500">Bảo trì</span>
+                                  </label>
+                                )}
+                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider`}>
+                                  {mod.status}
+                                </span>
+                              </div>
                             </div>
                             <p className="text-[11px] text-slate-400 font-medium mt-2.5 leading-relaxed line-clamp-2">{mod.desc}</p>
                           </div>
@@ -404,7 +627,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                       return (
                         <div 
                           key={mod.id} 
-                          onClick={() => handleAccess(mod.name, mod.href)}
+                          onClick={() => handleAccess(mod.name, mod.href, mod.status)}
                           className="bg-white/60 backdrop-blur-sm border border-white/80 hover:border-blue-400 hover:bg-white/80 rounded-xl p-4 flex flex-col justify-between h-[145px] transition-all duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99]"
                         >
                           <div>
@@ -415,9 +638,23 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                 </div>
                                 <h4 className="font-bold text-slate-800 text-[14px] truncate">{mod.name}</h4>
                               </div>
-                              <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider shrink-0`}>
-                                {mod.status}
-                              </span>
+                              <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                {isAdmin && (
+                                  <label className="relative inline-flex items-center cursor-pointer" title="Bật/Tắt chế độ bảo trì">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={mod.status === 'MAINTENANCE'} 
+                                      onChange={(e) => toggleMaintenance(mod.id, e)} 
+                                      className="sr-only peer" 
+                                    />
+                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-red-500"></div>
+                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-red-500">Bảo trì</span>
+                                  </label>
+                                )}
+                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider`}>
+                                  {mod.status}
+                                </span>
+                              </div>
                             </div>
                             <p className="text-[11px] text-slate-400 font-medium mt-2.5 leading-relaxed line-clamp-2">{mod.desc}</p>
                           </div>
@@ -484,21 +721,4 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
   );
 }
 
-// Inline fallback since GraduationCap is not imported from lucide-react directly in original file
-const GraduationCapIcon = (props: any) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" />
-    <path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5" />
-  </svg>
-);
+

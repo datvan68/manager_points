@@ -227,7 +227,7 @@ export const SelectContent = React.forwardRef<any, any>(
     return (
       <div
         className={cn(
-          "absolute left-0 right-0 z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-slate-100/60 p-1 overflow-hidden transition-all duration-200",
+          "absolute left-0 z-[100] min-w-full w-max max-w-[280px] bg-white rounded-xl shadow-xl border border-slate-100/60 p-1 overflow-hidden transition-all duration-200",
           openUp ? "bottom-full mb-1.5" : "top-full mt-1.5",
           open
             ? "opacity-100 visible scale-100 translate-y-0"
@@ -297,7 +297,7 @@ export const SelectItem = React.forwardRef<any, any>(
       <div
         onClick={handleSelect}
         className={cn(
-          "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-sm outline-none text-slate-700 hover:bg-slate-50 transition-all",
+          "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-sm outline-none text-slate-700 hover:bg-slate-50 transition-all whitespace-nowrap",
           isSelected && "bg-blue-50 text-blue-700 font-bold",
           className
         )}

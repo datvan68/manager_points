@@ -17,6 +17,10 @@ import {
   PermissionGroupDocument,
 } from '../schemas/permission-group.schema';
 import {
+  RoutePermission,
+  RoutePermissionDocument,
+} from '../schemas/route-permission.schema';
+import {
   RegisterDto,
   LoginDto,
   ForgotPasswordDto,
@@ -24,6 +28,7 @@ import {
   ChangePasswordDto,
   AssignRoleDto,
   UpdateUserDto,
+  UpdateMeDto,
 } from '../dto/auth.dto';
 import { TokenService } from './token.service';
 import { PasswordService } from './password.service';
@@ -46,6 +51,8 @@ export class AuthService implements OnModuleInit {
     private permissionModel: Model<PermissionDocument>,
     @InjectModel(PermissionGroup.name)
     private permissionGroupModel: Model<PermissionGroupDocument>,
+    @InjectModel(RoutePermission.name)
+    private routePermissionModel: Model<RoutePermissionDocument>,
     private tokenService: TokenService,
     private passwordService: PasswordService,
     private rbacService: RbacService,
@@ -53,8 +60,8 @@ export class AuthService implements OnModuleInit {
 
   async onModuleInit() {
     await this.migrateLegacyRoleCodes();
-    await this.seedRbac();
     await this.seedDeclaredPermissions();
+    await this.seedRbac();
     await this.migrateLegacyRoles();
     await this.migrateLegacyUserFields();
   }
@@ -187,7 +194,7 @@ export class AuthService implements OnModuleInit {
   // ─── PASSWORD WRAPPERS ──────────────────────────────────────
 
   async forgotPassword(dto: ForgotPasswordDto, ip: string) {
-    const result = await this.passwordService.forgotPassword(dto);
+    const result = await this.passwordService.forgotPassword(dto, ip);
     if (result.userId) {
       await this.logAction(
         result.userId,
@@ -202,7 +209,7 @@ export class AuthService implements OnModuleInit {
   async resetPassword(dto: ResetPasswordDto, ip: string) {
     const result = await this.passwordService.resetPassword(dto);
     await this.logAction(result.userId, ip, 'password_reset', 'Completed');
-    return { message: 'Password updated successfully' };
+    return { message: 'Đặt lại mật khẩu thành công' };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto, ip: string) {
@@ -213,7 +220,7 @@ export class AuthService implements OnModuleInit {
       'password_change',
       'Updated by user',
     );
-    return { message: 'Password updated successfully' };
+    return { message: 'Đổi mật khẩu thành công' };
   }
 
   // ─── TOKEN WRAPPERS ─────────────────────────────────────────
@@ -222,7 +229,13 @@ export class AuthService implements OnModuleInit {
     return this.tokenService.refreshToken(token);
   }
 
-  async revokeToken(token: string) {
+  async revokeToken(token: string, ip?: string) {
+    if (ip) {
+      const storedToken = await this.tokenService.findToken(token);
+      if (storedToken) {
+        await this.logAction(storedToken.user_id, ip, 'logout', 'Logged out by user');
+      }
+    }
     return this.tokenService.revokeToken(token);
   }
 
@@ -305,16 +318,54 @@ export class AuthService implements OnModuleInit {
       id: user._id.toString(),
       user_name: user.user_name,
       email: user.email,
+      phone_number: user.phone_number || '',
+      department: user.department || '',
+      date_birth: user.date_birth || null,
+      status: user.status,
       roleName: role?.name || 'User',
+      roleCode: role?.role_code || 'USER',
+      role: role ? {
+        _id: role._id.toString(),
+        name: role.name,
+        role_code: role.role_code,
+        permissions: role.permissions || [],
+      } : null,
       permissions,
     };
+  }
+
+  async updateMe(userId: string, dto: UpdateMeDto) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('ID người dùng không hợp lệ');
+    }
+
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new BadRequestException('Người dùng không tồn tại');
+    }
+
+    // Check duplicate username if provided
+    if (dto.user_name && dto.user_name !== user.user_name) {
+      const existingUsername = await this.userModel.findOne({
+        user_name: dto.user_name,
+      });
+      if (existingUsername) throw new ConflictException('Username đã tồn tại');
+      user.user_name = dto.user_name;
+    }
+
+    if (dto.phone_number !== undefined) user.phone_number = dto.phone_number;
+    if (dto.department !== undefined) user.department = dto.department;
+    if (dto.date_birth !== undefined) user.date_birth = dto.date_birth;
+
+    await user.save();
+    return this.getMe(userId);
   }
 
   async getUsers() {
     return this.userModel.find().populate('role').select('-pw_hash');
   }
 
-  async updateUser(userId: string, dto: UpdateUserDto) {
+  async updateUser(userId: string, dto: UpdateUserDto, ip: string) {
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('ID người dùng không hợp lệ');
     }
@@ -378,6 +429,12 @@ export class AuthService implements OnModuleInit {
       user.pw_hash = await this.passwordService.hashPassword(dto.password);
       user.failed_login_attempts = 0;
       user.locked_until = null;
+      await this.logAction(
+        user._id,
+        ip,
+        'admin_reset_password',
+        'Password reset by administrator',
+      );
     }
 
     await user.save();
@@ -425,13 +482,26 @@ export class AuthService implements OnModuleInit {
     action: string,
     details: string | null,
   ) {
-    await this.loginLogModel.create({
+    const log = await this.loginLogModel.create({
       user_id: userId,
       ip_address: ip,
       action,
       login_time: new Date(),
       details: details || undefined,
     });
+
+    try {
+      const populatedLog = await log.populate({
+        path: 'user_id',
+        select: 'user_name email role',
+        populate: { path: 'role', select: 'name role_code' },
+      });
+      // Dynamically load to prevent circular imports
+      const { systemEventEmitter } = require('../../system/system-event-emitter');
+      systemEventEmitter.emit('login_log', populatedLog);
+    } catch (err) {
+      console.error('Failed to emit login_log event:', err);
+    }
   }
 
   // ─── SEEDING & MIGRATION ────────────────────────────────────
@@ -491,56 +561,46 @@ export class AuthService implements OnModuleInit {
     }).exec();
     await this.permissionGroupModel.deleteOne({ code: 'G_ACADEMIC' }).exec();
 
+    // Load all existing permissions from database first (including declared permissions from registry)
+    const allDbPerms = await this.permissionModel.find({}).exec();
+    const createdPerms: Record<string, Types.ObjectId> = {};
+    for (const p of allDbPerms) {
+      createdPerms[p.code] = p._id;
+    }
+
     const permissions = [
       {
         code: 'view_users',
         name: 'Xem danh sách người dùng',
         module: 'Quản lý Người dùng (Users)',
+        description: 'Cho phép xem danh sách người dùng trong hệ thống.',
       },
       {
         code: 'reset_pwd',
         name: 'Reset mật khẩu',
         module: 'Quản lý Người dùng (Users)',
+        description: 'Cho phép đổi/mới mật khẩu cho người dùng.',
       },
-      { code: 'ADMIN_FULL', name: 'Toàn quyền Admin', module: 'Hệ thống' },
+      {
+        code: 'ADMIN_FULL',
+        name: 'Toàn quyền Admin',
+        module: 'Hệ thống',
+        description: '⚠️ QUYỀN HẠN TỐI CAO: Toàn quyền quản trị và bypass tất cả các cơ chế bảo mật hệ thống.',
+      },
       {
         code: 'view_revenue',
         name: 'Xem báo cáo doanh thu',
         module: 'Tài chính & Kế toán (Finance)',
-      },
-      {
-        code: 'GRADING_PAGE',
-        name: 'Truy cập trang rèn luyện',
-        module: 'Rèn luyện',
+        description: 'Cho phép xem báo cáo thống kê doanh thu tài chính.',
       },
       {
         code: 'GRADING_SEMESTER_MANAGE',
         name: 'Quản lý học kỳ rèn luyện',
         module: 'Rèn luyện',
-      },
-      {
-        code: 'READ_STUDENT_TASK',
-        name: 'Xem nhiệm vụ học tập',
-        module: 'Nhiệm vụ học tập',
-      },
-      {
-        code: 'CREATE_STUDENT_TASK',
-        name: 'Tạo nhiệm vụ học tập',
-        module: 'Nhiệm vụ học tập',
-      },
-      {
-        code: 'UPDATE_STUDENT_TASK',
-        name: 'Cập nhật nhiệm vụ học tập',
-        module: 'Nhiệm vụ học tập',
-      },
-      {
-        code: 'DELETE_STUDENT_TASK',
-        name: 'Xóa nhiệm vụ học tập',
-        module: 'Nhiệm vụ học tập',
+        description: 'Cho phép khởi tạo, đóng học kỳ đánh giá rèn luyện.',
       },
     ];
 
-    const createdPerms: Record<string, Types.ObjectId> = {};
     for (const p of permissions) {
       const perm = await this.permissionModel.findOneAndUpdate(
         { code: p.code },
@@ -592,6 +652,45 @@ export class AuthService implements OnModuleInit {
           createdPerms['READ_STUDENT_TASK'],
         ],
       },
+      {
+        name: 'Security Admin',
+        role_code: 'SECURITY_ADMIN',
+        description: 'Quản trị viên an ninh và phân quyền hệ thống',
+        permissions: [
+          createdPerms['admin'],
+          createdPerms['view_users'],
+          createdPerms['reset_pwd'],
+        ].filter(Boolean),
+      },
+      {
+        name: 'System Operator',
+        role_code: 'SYSTEM_OPERATOR',
+        description: 'Vận hành hệ thống (không có quyền xóa/tải backup)',
+        permissions: [
+          createdPerms['SYSTEM_ADMIN'],
+          createdPerms['LOGIN_LOG_READ'],
+          createdPerms['SYSTEM_REQUEST_READ'],
+          createdPerms['SYSTEM_REQUEST_MANAGE'],
+          createdPerms['DATABASE_BACKUP_READ'],
+        ].filter(Boolean),
+      },
+      {
+        name: 'Audit Viewer',
+        role_code: 'AUDIT_VIEWER',
+        description: 'Chỉ xem nhật ký hệ thống',
+        permissions: [
+          createdPerms['LOGIN_LOG_READ'],
+        ].filter(Boolean),
+      },
+      {
+        name: 'Backup Operator',
+        role_code: 'BACKUP_OPERATOR',
+        description: 'Vận hành sao lưu hệ thống (không có quyền xóa/tải backup)',
+        permissions: [
+          createdPerms['DATABASE_BACKUP_READ'],
+          createdPerms['DATABASE_BACKUP_CREATE'],
+        ].filter(Boolean),
+      },
     ];
 
     for (const r of roles) {
@@ -615,6 +714,21 @@ export class AuthService implements OnModuleInit {
         description: 'Các quyền liên quan đến tài khoản và phân quyền',
         permissions: [createdPerms['view_users'], createdPerms['reset_pwd']],
       },
+      {
+        code: 'G_SYSTEM_OPERATIONS',
+        name: 'Quản trị vận hành hệ thống',
+        description: 'Các quyền quản trị vận hành hệ thống, xem log đăng nhập, quản lý yêu cầu và sao lưu cơ sở dữ liệu.',
+        permissions: [
+          createdPerms['SYSTEM_ADMIN'],
+          createdPerms['LOGIN_LOG_READ'],
+          createdPerms['SYSTEM_REQUEST_READ'],
+          createdPerms['SYSTEM_REQUEST_MANAGE'],
+          createdPerms['DATABASE_BACKUP_READ'],
+          createdPerms['DATABASE_BACKUP_CREATE'],
+          createdPerms['DATABASE_BACKUP_DOWNLOAD'],
+          createdPerms['DATABASE_BACKUP_DELETE'],
+        ],
+      },
     ];
 
     for (const g of groups) {
@@ -625,6 +739,90 @@ export class AuthService implements OnModuleInit {
         { upsert: true },
       ).exec();
     }
+
+    // Seed default route permissions
+    const permMap = createdPerms;
+
+    const routeMappings = [
+      {
+        route_path: '/system',
+        route_name: 'Quản trị vận hành hệ thống',
+        description: 'Lịch sử đăng nhập, request vận hành và backup database',
+        permissions: [
+          permMap['SYSTEM_ADMIN'],
+          permMap['LOGIN_LOG_READ'],
+          permMap['SYSTEM_REQUEST_READ'],
+          permMap['SYSTEM_REQUEST_MANAGE'],
+          permMap['DATABASE_BACKUP_READ'],
+          permMap['DATABASE_BACKUP_CREATE'],
+          permMap['DATABASE_BACKUP_DOWNLOAD'],
+          permMap['DATABASE_BACKUP_DELETE'],
+        ],
+        check_type: 'any',
+        is_active: true,
+        type: 'page',
+      },
+      {
+        route_path: '/permissions',
+        route_name: 'Quản lý phân quyền (RBAC)',
+        description: 'Quản lý vai trò, quyền, nhóm quyền và route mapping',
+        permissions: [permMap['admin']],
+        check_type: 'any',
+        is_active: true,
+        type: 'page',
+      },
+      {
+        route_path: '/students',
+        route_name: 'Quản lý sinh viên',
+        description: 'Xem, thêm, sửa, xóa và quản lý hồ sơ sinh viên',
+        permissions: [permMap['STUDENT_PAGE']],
+        check_type: 'any',
+        is_active: true,
+        type: 'page',
+      },
+      {
+        route_path: '/grading',
+        route_name: 'Đánh giá điểm rèn luyện',
+        description: 'Chấm điểm, duyệt điểm rèn luyện của sinh viên',
+        permissions: [permMap['GRADING_PAGE']],
+        check_type: 'any',
+        is_active: true,
+        type: 'page',
+      },
+    ];
+
+
+    for (const mapping of routeMappings) {
+      const validPerms = mapping.permissions.filter((p) => !!p);
+      if (validPerms.length > 0) {
+        await this.routePermissionModel.findOneAndUpdate(
+          { route_path: mapping.route_path },
+          { $set: { ...mapping, permissions: validPerms } },
+          { upsert: true },
+        ).exec();
+      }
+    }
+
+    // Dọn dẹp nhóm G_UNGROUPED: loại bỏ các quyền đã được phân vào nhóm nghiệp vụ khác
+    try {
+      const otherGroups = await this.permissionGroupModel.find({ code: { $ne: 'G_UNGROUPED' } }).exec();
+      const groupedPermissionIds = otherGroups.reduce((acc, g) => {
+        return acc.concat(g.permissions.map(p => p.toString()));
+      }, [] as string[]);
+      
+      if (groupedPermissionIds.length > 0) {
+        await this.permissionGroupModel.updateOne(
+          { code: 'G_UNGROUPED' },
+          { $pull: { permissions: { $in: groupedPermissionIds.map(id => new Types.ObjectId(id)) } } }
+        ).exec();
+        console.log('🧹 Cleaned up G_UNGROUPED permissions successfully');
+      }
+    } catch (err) {
+      console.error('Failed to cleanup G_UNGROUPED:', err);
+    }
+
+    // Clean up old /settings route mapping if any
+    await this.routePermissionModel.deleteOne({ route_path: '/settings' }).exec();
 
     console.log('✅ RBAC Data Seeded Successfully');
   }
@@ -649,7 +847,7 @@ export class AuthService implements OnModuleInit {
     for (const permissionSeed of DECLARED_PERMISSION_SEEDS) {
       const permission = await this.permissionModel.findOneAndUpdate(
         { code: permissionSeed.code },
-        { $setOnInsert: permissionSeed },
+        { $set: permissionSeed },
         { upsert: true, returnDocument: 'after' },
       ).exec();
 

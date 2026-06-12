@@ -359,3 +359,25 @@ export class UpdateUserDto {
   @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
   password?: string;
 }
+
+export class UpdateMeDto {
+  @ApiProperty({ example: 'nguyenvanb', required: false })
+  @IsString()
+  @IsOptional()
+  user_name?: string;
+
+  @ApiProperty({ example: '0987654321', required: false })
+  @IsString()
+  @IsOptional()
+  phone_number?: string;
+
+  @ApiProperty({ example: 'Academic', required: false })
+  @IsString()
+  @IsOptional()
+  department?: string;
+
+  @ApiProperty({ example: '2000-01-01', required: false })
+  @IsOptional()
+  date_birth?: Date;
+}
+

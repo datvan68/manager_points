@@ -15,6 +15,7 @@ import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { checkRole } from '../auth/guards/check-role.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Academic Records')
 @Controller('academic-records')
@@ -53,9 +54,11 @@ export class AcademicRecordController {
   }
 
   @Get('student/:studentId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get academic records by Student ID' })
-  findByStudentId(@Param('studentId') studentId: string) {
-    return this.academicRecordService.findByStudentId(studentId);
+  findByStudentId(@Param('studentId') studentId: string, @Request() req: any) {
+    return this.academicRecordService.findByStudentId(studentId, req.user);
   }
 
   @Get('daily-report/:dailyReportId')

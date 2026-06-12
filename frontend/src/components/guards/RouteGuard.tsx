@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/providers/auth-provider';
+import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { authApi } from '@/api/auth-api';
 import { toast } from 'sonner';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Settings } from 'lucide-react';
 
 interface RouteGuardProps {
   /** Permission code required to access this route (e.g. 'view_users', 'STUDENT_READ') */
@@ -20,6 +20,8 @@ interface RouteGuardProps {
   forbiddenMessage?: string;
   /** If true, also check dynamic route-permission mappings from DB */
   useDynamicMapping?: boolean;
+  /** If true, fail closed when DB mapping API fails */
+  failClosed?: boolean;
   children: React.ReactNode;
 }
 
@@ -28,13 +30,13 @@ let cachedMappings: any[] | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL = 60_000; // 60 seconds
 
-async function fetchRouteMappings(): Promise<any[]> {
+async function fetchRouteMappings(token?: string): Promise<any[]> {
   const now = Date.now();
   if (cachedMappings && (now - cacheTimestamp) < CACHE_TTL) {
     return cachedMappings;
   }
   try {
-    const data = await authApi.getRoutePermissionsPublic();
+    const data = await authApi.getRoutePermissionsPublic(token);
     cachedMappings = data;
     cacheTimestamp = now;
     return data;
@@ -60,6 +62,19 @@ async function fetchRouteMappings(): Promise<any[]> {
  *     <StudentsPage />
  *   </RouteGuard>
  */
+const PATH_TO_MODULE_ID: Record<string, string> = {
+  '/students': 'sv-profile',
+  '/grading': 'grading',
+  '/students/record': 'attendance',
+  '/dormitory': 'dormitory',
+  '/club': 'club',
+  '/permissions': 'security',
+  '/system': 'config',
+  '/students/tasks': 'events',
+  '/reports': 'reports',
+  '/notifications': 'notifications',
+};
+
 export function RouteGuard({
   requiredPermission,
   requiredPermissions,
@@ -67,6 +82,7 @@ export function RouteGuard({
   fallbackPath,
   forbiddenMessage = 'Bạn không có quyền truy cập trang này',
   useDynamicMapping = false,
+  failClosed = false,
   children,
 }: RouteGuardProps) {
   const { user, isLoading, hasPermission, hasAnyPermission, hasAllPermissions } = useAuth();
@@ -74,40 +90,111 @@ export function RouteGuard({
   const pathname = usePathname();
   const [dynamicCheckDone, setDynamicCheckDone] = useState(!useDynamicMapping);
   const [dynamicAllowed, setDynamicAllowed] = useState(true);
+  const [isUnderMaintenance, setIsUnderMaintenance] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Invalidate cache and trigger reload on update event
+  useEffect(() => {
+    const handleUpdate = () => {
+      invalidateRoutePermissionCache();
+      setRefreshTrigger((prev) => prev + 1);
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('route-permissions-updated', handleUpdate);
+      return () => window.removeEventListener('route-permissions-updated', handleUpdate);
+    }
+  }, []);
+
+  // Maintenance mode check
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const getModuleIdByPath = (path: string): string | null => {
+      const sortedPaths = Object.keys(PATH_TO_MODULE_ID).sort((a, b) => b.length - a.length);
+      for (const p of sortedPaths) {
+        if (path === p || path.startsWith(p + '/')) {
+          return PATH_TO_MODULE_ID[p];
+        }
+      }
+      return null;
+    };
+
+    const checkMaintenance = () => {
+      // Nếu user là Admin thì bỏ qua kiểm tra bảo trì
+      if (isAdminUser(user)) {
+        setIsUnderMaintenance(false);
+        return;
+      }
+
+      const moduleId = getModuleIdByPath(pathname);
+      if (!moduleId) {
+        setIsUnderMaintenance(false);
+        return;
+      }
+      try {
+        const stored = localStorage.getItem('subsystems_maintenance_states');
+        if (stored) {
+          const states = JSON.parse(stored);
+          if (states[moduleId] === true) {
+            setIsUnderMaintenance(true);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      setIsUnderMaintenance(false);
+    };
+
+    checkMaintenance();
+    window.addEventListener('storage', checkMaintenance);
+    return () => window.removeEventListener('storage', checkMaintenance);
+  }, [pathname, user, isLoading]);
 
   // Dynamic mapping check
   useEffect(() => {
-    if (!useDynamicMapping || !user || isLoading || !requiredPermission) return;
+    if (!useDynamicMapping || !user || isLoading) return;
 
     (async () => {
+      const isSensitive = ['/system', '/permissions'].includes(pathname);
       try {
-        const mappings = await fetchRouteMappings();
+        const { tokenStorage } = await import('@/api/auth-api');
+        const token = tokenStorage.getAccessToken() || '';
+        const mappings = await fetchRouteMappings(token);
         const match = mappings.find(
           (m: any) => m.route_path === pathname && m.is_active !== false
         );
 
         if (!match || !match.permissions || match.permissions.length === 0) {
-          setDynamicAllowed(true);
+          if (failClosed || isSensitive) {
+            setDynamicAllowed(false);
+          } else {
+            setDynamicAllowed(true);
+          }
           setDynamicCheckDone(true);
           return;
         }
 
         const requiredCodes = match.permissions.map((p: any) => p.code || p);
 
-        if (user.role === 'Admin') {
+        if (isAdminUser(user)) {
           setDynamicAllowed(true);
         } else if (match.check_type === 'any') {
           setDynamicAllowed(hasAnyPermission(...requiredCodes));
         } else {
           setDynamicAllowed(hasAllPermissions(...requiredCodes));
         }
-      } catch {
-        setDynamicAllowed(true); // Fail open
+      } catch (err) {
+        if (failClosed || isSensitive) {
+          setDynamicAllowed(false); // Fail closed
+        } else {
+          setDynamicAllowed(true); // Fail open
+        }
       } finally {
         setDynamicCheckDone(true);
       }
     })();
-  }, [useDynamicMapping, user, isLoading, pathname]);
+  }, [useDynamicMapping, user, isLoading, pathname, failClosed, refreshTrigger]);
 
   // Compute static permission check (no hooks, just logic)
   let isStaticAllowed = true;
@@ -121,12 +208,23 @@ export function RouteGuard({
     }
   }
 
+  // Check if this path is a student self-profile detail route
+  const isStudentSelfProfileRoute = () => {
+    if (!user || !user.studentId) return false;
+    const parts = pathname.split('/');
+    if (parts.length === 4 && parts[1] === 'students') {
+      const routeStudentId = parts[3];
+      return routeStudentId === user.studentId;
+    }
+    return false;
+  };
+
   // Final decision
-  const isAllowed = isStaticAllowed && dynamicAllowed;
+  const isAllowed = (isStaticAllowed && dynamicAllowed) || isStudentSelfProfileRoute();
 
   // Redirect effect — MUST be declared before any early returns
   useEffect(() => {
-    if (!isLoading && dynamicCheckDone && !isAllowed && user) {
+    if (!isLoading && dynamicCheckDone && !isAllowed && user && !isUnderMaintenance) {
       toast.error(forbiddenMessage, {
         id: 'permission-denied-toast',
         description: 'Liên hệ quản trị viên để được cấp quyền truy cập.',
@@ -134,7 +232,7 @@ export function RouteGuard({
       });
       router.replace(fallbackPath || '/');
     }
-  }, [isAllowed, isLoading, dynamicCheckDone, user]);
+  }, [isAllowed, isLoading, dynamicCheckDone, user, isUnderMaintenance]);
 
   // --- All hooks above, early returns below ---
 
@@ -142,6 +240,31 @@ export function RouteGuard({
     return (
       <div className="flex h-full w-full items-center justify-center p-8">
         <div className="h-8 w-8 animate-spin rounded-full border-3 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  if (isUnderMaintenance) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center select-none animate-in fade-in duration-300">
+        <div className="relative flex items-center justify-center mb-6">
+          <div className="absolute inset-0 rounded-full bg-red-500/10 blur-xl w-20 h-20 animate-pulse"></div>
+          <div className="w-16 h-16 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-500 shadow-sm relative z-10 animate-spin" style={{ animationDuration: '6s' }}>
+            <Settings size={28} />
+          </div>
+        </div>
+        
+        <h3 className="text-xl font-bold text-slate-800 leading-tight">Phân hệ đang bảo trì</h3>
+        <p className="text-sm text-slate-400 font-medium mt-2 max-w-sm">
+          Hệ thống đang tiến hành nâng cấp kỹ thuật cho phân hệ này. Vui lòng quay lại sau ít phút.
+        </p>
+
+        <button
+          onClick={() => router.replace('/')}
+          className="mt-6 px-5 py-2 text-xs font-bold text-white bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-xl transition-all shadow-sm cursor-pointer"
+        >
+          Quay lại Trang chủ
+        </button>
       </div>
     );
   }

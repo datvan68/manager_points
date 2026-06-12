@@ -252,6 +252,25 @@ export const authApi = {
     });
     return handleResponse<any>(res);
   },
+
+  async getMe(accessToken: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    return handleResponse<any>(res);
+  },
+
+  async updateMe(data: any, accessToken: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      method: 'PATCH',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}` 
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<any>(res);
+  },
   
   async deleteUser(userId: string, accessToken: string): Promise<any> {
     const res = await fetch(`${API_BASE}/api/auth/users/${userId}`, {
@@ -282,8 +301,14 @@ export const authApi = {
     return handleResponse<any[]>(res);
   },
 
-  async getRoutePermissionsPublic(): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/api/auth/route-permissions/all`);
+  async getRoutePermissionsPublic(accessToken?: string): Promise<any[]> {
+    const headers: Record<string, string> = {};
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    const res = await fetch(`${API_BASE}/api/auth/route-permissions/all`, {
+      headers
+    });
     return handleResponse<any[]>(res);
   },
 

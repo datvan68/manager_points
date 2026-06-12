@@ -50,7 +50,7 @@ export default function LoginPage() {
       toast.success('Đăng nhập thành công', {
         description: `Chào mừng ${result.user.username} quay trở lại!`,
       });
-      router.push('/select-module');
+      router.push('/');
     } catch (err: any) {
       toast.error('Đăng nhập thất bại', {
         description: err.message || 'Vui lòng kiểm tra lại thông tin đăng nhập.',

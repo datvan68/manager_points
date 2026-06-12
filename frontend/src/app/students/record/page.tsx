@@ -209,7 +209,8 @@ function GhiNhanTab() {
   const [reportToForceDelete, setReportToForceDelete] = useState<string | null>(
     null,
   );
-  const itemsPerPage = 20;
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [classItemsPerPage, setClassItemsPerPage] = useState(20);
 
   // Academic record states
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
@@ -250,6 +251,15 @@ function GhiNhanTab() {
   const [creatorFilter, setCreatorFilter] = useState<
     "all" | "student" | "teacher" | "admin" | "supervisor"
   >("all");
+
+  // Reset page index on search filters or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedClassIdForStudent, creatorFilter, itemsPerPage, filterDateRange]);
+
+  useEffect(() => {
+    setClassCurrentPage(1);
+  }, [classSearchTerm, selectedClassId, classItemsPerPage, selectedReportDateRange]);
 
   const toggleExpandCard = (index: number) => {
     setExpandedCards((prev) => ({
@@ -746,10 +756,10 @@ function GhiNhanTab() {
     return matchesClass && matchesDate && matchesSearch;
   });
 
-  const totalClassPages = Math.ceil(filteredClassReports.length / itemsPerPage);
+  const totalClassPages = Math.ceil(filteredClassReports.length / classItemsPerPage);
   const paginatedClassReports = filteredClassReports.slice(
-    (classCurrentPage - 1) * itemsPerPage,
-    classCurrentPage * itemsPerPage,
+    (classCurrentPage - 1) * classItemsPerPage,
+    classCurrentPage * classItemsPerPage,
   );
 
   // Student list toggle selects
@@ -2719,6 +2729,7 @@ function GhiNhanTab() {
                 setCurrentPage(page);
                 setTimeout(() => setIsLoading(false), 300);
               }}
+              onPageSizeChange={setItemsPerPage}
               label="ghi nhận"
               isLoading={isLoading}
             />
@@ -3287,13 +3298,14 @@ function GhiNhanTab() {
           {filteredClassReports.length > 0 && (
             <CustomPagination
               currentPage={classCurrentPage}
-              pageSize={itemsPerPage}
+              pageSize={classItemsPerPage}
               totalItems={filteredClassReports.length}
               onPageChange={(page) => {
                 setIsClassLoading(true);
                 setClassCurrentPage(page);
                 setTimeout(() => setIsClassLoading(false), 300);
               }}
+              onPageSizeChange={setClassItemsPerPage}
               label="báo cáo lớp"
               isLoading={isClassLoading}
             />

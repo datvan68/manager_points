@@ -145,7 +145,12 @@ function ClassStudentsPageContent() {
         fetchDrawerStudent();
     }, [openDrawerId]);
 
-    const itemsPerPage = 50;
+    const [itemsPerPage, setItemsPerPage] = useState(50);
+
+    // Reset về trang 1 khi tìm kiếm, lọc hoặc đổi số lượng phần tử mỗi trang
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, activeTab, itemsPerPage]);
 
     // Định dạng ngày sinh YYYY-MM-DD sang DD/MM/YYYY
     const formatDob = (dobString?: string) => {
@@ -622,6 +627,7 @@ function ClassStudentsPageContent() {
                                 pageSize={itemsPerPage}
                                 totalItems={filteredStudents.length}
                                 onPageChange={(page) => setCurrentPage(page)}
+                                onPageSizeChange={setItemsPerPage}
                                 label="sinh viên"
                                 isLoading={isDataLoading}
                             />

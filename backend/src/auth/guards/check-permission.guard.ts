@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
+import { isAdminUser } from '../utils/role.util';
+
 /**
  * Factory function: checkPermission(requiredPermission)
  *
@@ -45,7 +47,7 @@ export function checkPermission(
       }
 
       // Admin bypass: allow all
-      if (user.roleName === 'Admin') return true;
+      if (isAdminUser(user)) return true;
 
       const userPermissions: string[] = user.permissions || [];
 

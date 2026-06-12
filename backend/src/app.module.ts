@@ -25,6 +25,7 @@ import { EvaluationPeriodsModule } from './evaluation-periods/evaluation-periods
 import { NotificationsModule } from './notifications/notifications.module';
 import { StudentTasksModule } from './student-tasks/student-tasks.module';
 import { StudentTaskProgressModule } from './student-task-progress/student-task-progress.module';
+import { SystemModule } from './system/system.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { StudentTaskProgressModule } from './student-task-progress/student-task-
     NotificationsModule,
     StudentTasksModule,
     StudentTaskProgressModule,
+    SystemModule,
   ],
   controllers: [AppController],
   providers: [AppService],

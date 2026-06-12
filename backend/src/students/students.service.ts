@@ -4,6 +4,8 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -16,6 +18,7 @@ import { SummaryPoint } from '../summaries-point/schemas/summary-point.schema';
 import { User, UserDocument, UserStatus } from '../auth/schemas/user.schema';
 import { Role, RoleDocument } from '../auth/schemas/role.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
+import { getRequesterRoleName, isStudent, isTeacher, isSupervisor, isAdmin } from '../auth/utils/role.util';
 
 @Injectable()
 export class StudentsService implements OnModuleInit {
@@ -87,8 +90,7 @@ export class StudentsService implements OnModuleInit {
   }
 
   private isTeacher(requester?: any) {
-    const role = (requester?.roleName || '').toLowerCase();
-    return role.includes('teacher') || role.includes('advisor');
+    return isTeacher(requester);
   }
 
   private async getTeacherClassIds(requester?: any) {
@@ -327,7 +329,10 @@ export class StudentsService implements OnModuleInit {
     return createdUser;
   }
 
-  async create(createStudentDto: CreateStudentDto): Promise<Student> {
+  async create(createStudentDto: CreateStudentDto, requester?: any): Promise<Student> {
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền tạo hồ sơ sinh viên.');
+    }
     try {
       const payload = {
         ...createStudentDto,
@@ -405,7 +410,10 @@ export class StudentsService implements OnModuleInit {
     }
   }
 
-  async createBulk(createStudentDtos: CreateStudentDto[]) {
+  async createBulk(createStudentDtos: CreateStudentDto[], requester?: any) {
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền import hồ sơ sinh viên.');
+    }
     try {
       const payloads = createStudentDtos.map((dto) => ({
         ...dto,
@@ -501,7 +509,11 @@ export class StudentsService implements OnModuleInit {
 
   async checkDuplicate(
     studentCodes: string[],
+    requester?: any,
   ): Promise<{ student_code: string; full_name: string }[]> {
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền kiểm tra trùng lặp sinh viên.');
+    }
     const existing = await this.studentModel
       .find({ student_code: { $in: studentCodes } })
       .select('student_code full_name')
@@ -513,6 +525,26 @@ export class StudentsService implements OnModuleInit {
   }
 
   async findAll(requester?: any): Promise<any[]> {
+    const isRequesterStudent = isStudent(requester);
+
+    if (isRequesterStudent) {
+      if (!requester?.userId || !Types.ObjectId.isValid(requester.userId)) {
+        return [];
+      }
+      const student = await this.studentModel
+        .findOne({ user_id: new Types.ObjectId(requester.userId) })
+        .populate({
+          path: 'class_id',
+          populate: { path: 'dept_id', select: 'name code' },
+        })
+        .populate('training_point_id')
+        .populate('user_id', 'user_name email status role')
+        .exec();
+      if (!student) return [];
+      const attached = await this.attachAccountStatus(student);
+      return [attached];
+    }
+
     const teacherClassIds = await this.getTeacherClassIds(requester);
     const filter: any = teacherClassIds ? { class_id: { $in: teacherClassIds } } : {};
 
@@ -531,7 +563,58 @@ export class StudentsService implements OnModuleInit {
     );
   }
 
+  async findMe(requester: any): Promise<any> {
+    if (!requester?.userId || !Types.ObjectId.isValid(requester.userId)) {
+      throw new UnauthorizedException('Thông tin người dùng không hợp lệ');
+    }
+
+    const student = await this.studentModel
+      .findOne({ user_id: new Types.ObjectId(requester.userId) })
+      .populate({
+        path: 'class_id',
+        populate: { path: 'dept_id', select: 'name code' },
+      })
+      .populate('training_point_id')
+      .populate('user_id', 'user_name email status role')
+      .exec();
+
+    if (!student) {
+      throw new NotFoundException('Tài khoản chưa liên kết với hồ sơ sinh viên');
+    }
+
+    return this.attachAccountStatus(student);
+  }
+
   async findOne(id: string, requester?: any): Promise<any> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Student with ID ${id} not found`);
+    }
+
+    const isRequesterStudent = isStudent(requester);
+
+    if (isRequesterStudent) {
+      const student = await this.studentModel
+        .findOne({ _id: id })
+        .populate({
+          path: 'class_id',
+          populate: { path: 'dept_id', select: 'name code' },
+        })
+        .populate('training_point_id')
+        .populate('user_id', 'user_name email status role')
+        .exec();
+
+      if (!student) {
+        throw new NotFoundException(`Student with ID ${id} not found`);
+      }
+
+      const linkedUserId = this.getLinkedUserId(student);
+      if (linkedUserId !== requester?.userId) {
+        throw new ForbiddenException('Bạn không có quyền truy cập hồ sơ sinh viên này.');
+      }
+
+      return this.attachAccountStatus(student);
+    }
+
     const teacherClassIds = await this.getTeacherClassIds(requester);
     const filter: any = teacherClassIds
       ? { _id: id, class_id: { $in: teacherClassIds } }
@@ -575,7 +658,14 @@ export class StudentsService implements OnModuleInit {
   async update(
     id: string,
     updateStudentDto: UpdateStudentDto,
+    requester?: any,
   ): Promise<Student> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Student with ID ${id} not found`);
+    }
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền chỉnh sửa hồ sơ sinh viên.');
+    }
     try {
       const normalizedUpdateDto = {
         ...updateStudentDto,
@@ -591,7 +681,7 @@ export class StudentsService implements OnModuleInit {
       if (!updatedStudent) {
         throw new NotFoundException(`Student with ID ${id} not found`);
       }
-      return (await this.findOne(id)) as any;
+      return (await this.findOne(id, requester)) as any;
     } catch (error: any) {
       if (error.code === 11000) {
         const duplicateField = Object.keys(error.keyPattern || {})[0];
@@ -613,7 +703,13 @@ export class StudentsService implements OnModuleInit {
     }
   }
 
-  async remove(id: string): Promise<Student> {
+  async remove(id: string, requester?: any): Promise<Student> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Student with ID ${id} not found`);
+    }
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền xóa hồ sơ sinh viên.');
+    }
     const student = await this.studentModel.findById(id).exec();
     if (!student) {
       throw new NotFoundException(`Student with ID ${id} not found`);

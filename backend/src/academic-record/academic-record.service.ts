@@ -17,6 +17,7 @@ import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
 import { Student } from '../students/schemas/student.schema';
 import { Class } from '../classes/schemas/class.schema';
+import { getRequesterRoleName, isStudent, isTeacher } from '../auth/utils/role.util';
 
 @Injectable()
 export class AcademicRecordService {
@@ -214,10 +215,32 @@ export class AcademicRecordService {
     return record;
   }
 
-  async findByStudentId(studentId: string): Promise<AcademicRecord[]> {
+  async findByStudentId(studentId: string, requester?: any): Promise<AcademicRecord[]> {
     if (!Types.ObjectId.isValid(studentId)) {
       return [];
     }
+
+    if (requester) {
+      const roleName = getRequesterRoleName(requester);
+      const isRequesterStudent = roleName === 'Student';
+      const isRequesterTeacher = roleName === 'Teacher';
+
+      if (isRequesterStudent) {
+        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+        if (!student || student._id.toString() !== studentId) {
+          throw new ForbiddenException('Bạn không có quyền truy cập ghi nhận rèn luyện của sinh viên khác.');
+        }
+      } else if (isRequesterTeacher) {
+        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+        const classIds = classes.map(c => c._id.toString());
+        
+        const student = await this.studentModel.findById(studentId).exec();
+        if (!student || !student.class_id || !classIds.includes(student.class_id.toString())) {
+          throw new ForbiddenException('Bạn không có quyền truy cập sinh viên ngoài lớp phụ trách.');
+        }
+      }
+    }
+
     return this.academicRecordModel
       .find({ student_id: new Types.ObjectId(studentId), status: 'active', is_deleted: { $ne: true } } as any)
       .populate('criterion_id')

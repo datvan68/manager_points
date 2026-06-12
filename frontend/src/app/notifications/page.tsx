@@ -22,7 +22,7 @@ import { vi } from 'date-fns/locale';
 function NotificationsPageContent() {
   const router = useRouter();
   const { user } = useAuth();
-  const isPrivileged = user?.role === 'Admin' || user?.role === 'Teacher' || user?.role === 'Supervisor';
+  const isPrivileged = user?.role === 'Admin' || user?.role === 'Supervisor';
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [counts, setCounts] = useState({

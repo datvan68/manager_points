@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Search, Plus, Filter, Play, Check, AlertCircle, 
   Calendar, ChevronLeft, ChevronRight, 
@@ -146,6 +146,29 @@ const mapClientToBackendDto = (t: any): CreateTaskDto => {
   };
 };
 
+const LINKED_PAGE_NAMES: Record<string, string> = {
+  '/students': 'Hồ sơ sinh viên',
+  '/grading': 'Đánh giá điểm số',
+  '/grading/score': 'Ghi nhận điểm số',
+  '/grading/categories': 'Danh mục điểm số',
+  '/students/record': 'Theo dõi chuyên cần',
+  '/students/tasks': 'Nhiệm vụ',
+  '/dormitory': 'Quản lý KTX',
+  '/club': 'Câu lạc bộ',
+  '/permissions': 'Kiểm soát phân quyền',
+  '/system': 'Quản trị hệ thống',
+  '/reports': 'Thống kê báo cáo',
+  '/notifications': 'Quản lý thông báo',
+  '/profile': 'Thông tin cá nhân',
+};
+
+const getLinkedPageName = (url: string): string => {
+  if (!url) return 'Trang liên kết';
+  const path = url.split('?')[0].trim();
+  const normalizedPath = (path.startsWith('/') ? path : '/' + path).replace(/\/$/, '');
+  return LINKED_PAGE_NAMES[normalizedPath] || url;
+};
+
 const StudentTasksTab = () => {
   const router = useRouter();
   const { user } = useAuth();
@@ -185,18 +208,25 @@ const StudentTasksTab = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const itemsPerPage = 6; 
+  const hasLoadedOnceRef = useRef(false);
+  const fetchIdRef = useRef(0);
+  const lastFetchedTimeRef = useRef(0);
 
   // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
   // Fetch tasks
   const fetchTasks = useCallback(async () => {
-    setIsLoading(true);
+    const currentFetchId = ++fetchIdRef.current;
+    if (!hasLoadedOnceRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
     try {
       let statusQuery = 'all';
@@ -224,18 +254,27 @@ const StudentTasksTab = () => {
         sort: 'newest',
       });
 
-      setTasks((response.items || []).map(mapBackendToClientTask));
+      if (currentFetchId !== fetchIdRef.current) return;
+
+      lastFetchedTimeRef.current = Date.now();
+      hasLoadedOnceRef.current = true;
+
+      const mappedItems = (response.items || []).map(mapBackendToClientTask);
+      setTasks(mappedItems);
       if (response.summary) {
         setSummary(response.summary);
       }
       setTotalPages(response.totalPages || 1);
       setTotalCount(response.total || 0);
     } catch (err: any) {
+      if (currentFetchId !== fetchIdRef.current) return;
       console.error(err);
       setError(err.message || 'Không thể tải danh sách nhiệm vụ.');
       toast.error(err.message || 'Lỗi kết nối máy chủ khi lấy danh sách nhiệm vụ.');
     } finally {
-      setIsLoading(false);
+      if (currentFetchId === fetchIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [activeTabFilter, priorityFilter, targetFilter, debouncedSearch, currentPage]);
 
@@ -246,7 +285,9 @@ const StudentTasksTab = () => {
   // Refetch when window gets focus
   useEffect(() => {
     const handleFocus = () => {
-      fetchTasks();
+      if (Date.now() - lastFetchedTimeRef.current > 30000) {
+        fetchTasks();
+      }
     };
     window.addEventListener('focus', handleFocus);
     return () => {
@@ -306,7 +347,7 @@ const StudentTasksTab = () => {
     if (mode === 'none') {
       return;
     }
-    toast.info(`Đang chuyển hướng sang trang: ${task.linkedPage}`);
+    toast.info(`Đang chuyển hướng sang trang: ${getLinkedPageName(task.linkedPage)}`);
     const isManager = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask;
     if (isManager) {
       router.push(task.linkedPage);
@@ -366,27 +407,7 @@ const StudentTasksTab = () => {
 
   return (
     <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-0 bg-transparent">
-      {/* Header section */}
-      {!isStudentOrTeacher && (
-        <div className="flex items-center justify-between shrink-0 mt-1">
-          <div>
-            <h2 className="text-[20px] font-bold text-[#1E293B] leading-7">Quản lý nhiệm vụ</h2>
-            <p className="text-xs text-[#64748B] mt-0.5">Tổ chức công việc học tập một cách hiệu quả và khoa học.</p>
-          </div>
-          {taskAccess.createTask && (
-            <button
-              onClick={() => {
-                setEditingTask(null);
-                setIsModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-[#1A73E8] hover:bg-[#155cb4] active:scale-[0.99] rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-blue-500/10 cursor-pointer"
-            >
-              <Plus size={16} />
-              <span>Thêm nhiệm vụ mới</span>
-            </button>
-          )}
-        </div>
-      )}
+
 
       {/* KPI Cards Grid */}
       {!isStudentOrTeacher && (
@@ -480,13 +501,13 @@ const StudentTasksTab = () => {
                   }}
                 >
                   <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
-                    <SelectValue placeholder="Đối tượng: Tất cả" />
+                    <SelectValue placeholder="-- Đối tượng --" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All">Đối tượng: Tất cả</SelectItem>
-                    <SelectItem value="HSSV">Đối tượng: HSSV</SelectItem>
-                    <SelectItem value="Giáo viên">Đối tượng: Giáo viên</SelectItem>
-                    <SelectItem value="Quản sinh">Đối tượng: Quản sinh</SelectItem>
+                    <SelectItem value="All">Tất cả</SelectItem>
+                    <SelectItem value="HSSV">HSSV</SelectItem>
+                    <SelectItem value="Giáo viên">Giáo viên</SelectItem>
+                    <SelectItem value="Quản sinh">Quản sinh</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -502,13 +523,13 @@ const StudentTasksTab = () => {
                 }}
               >
                 <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
-                  <SelectValue placeholder="Độ ưu tiên: Tất cả" />
+                  <SelectValue placeholder="-- Độ ưu tiên --" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">Độ ưu tiên: Tất cả</SelectItem>
-                  <SelectItem value="High">Độ ưu tiên: Cao</SelectItem>
-                  <SelectItem value="Medium">Độ ưu tiên: Trung bình</SelectItem>
-                  <SelectItem value="Low">Độ ưu tiên: Thấp</SelectItem>
+                  <SelectItem value="All">Tất cả</SelectItem>
+                  <SelectItem value="High">Cao</SelectItem>
+                  <SelectItem value="Medium">Trung bình</SelectItem>
+                  <SelectItem value="Low">Thấp</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -522,17 +543,30 @@ const StudentTasksTab = () => {
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
-                  setCurrentPage(1);
                 }}
                 className="pl-9 pr-4 py-2 text-xs rounded-xl border border-gray-200 bg-white/70 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all w-48 sm:w-56"
               />
             </div>
+
+            {/* Button Thêm nhiệm vụ mới */}
+            {!isStudentOrTeacher && taskAccess.createTask && (
+              <button
+                onClick={() => {
+                  setEditingTask(null);
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#1A73E8] hover:bg-[#155cb4] active:scale-[0.99] rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-blue-500/10 cursor-pointer h-8 shrink-0"
+              >
+                <Plus size={14} />
+                <span>Thêm nhiệm vụ mới</span>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Task Cards Grid */}
         <div className="flex-1 p-4 overflow-y-auto min-h-0 bg-white/10 flex flex-col">
-          {isLoading ? (
+          {isLoading && !hasLoadedOnceRef.current ? (
             <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white/20 min-h-[300px]">
               <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-3"></div>
               <p className="text-sm font-semibold text-gray-500">Đang tải danh sách nhiệm vụ...</p>
@@ -550,7 +584,7 @@ const StudentTasksTab = () => {
               </button>
             </div>
           ) : tasks.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity duration-200 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
               {tasks.map((task) => {
                 const isCardManager = !isStudent && (userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask);
                 const displayStatus = (!isCardManager && task.userProgress) ? task.userProgress.status : task.status;
@@ -666,6 +700,7 @@ const StudentTasksTab = () => {
                           <button
                             onClick={() => {
                               const isManager = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask;
+                              toast.info(`Đang chuyển hướng sang trang: ${getLinkedPageName(task.linkedPage)}`);
                               if (isManager) {
                                 router.push(task.linkedPage);
                               } else {
@@ -718,7 +753,7 @@ const StudentTasksTab = () => {
               })}
             </div>
           ) : (
-            <div className="h-64 border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-center p-6 bg-white/20">
+            <div className={`h-64 border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-center p-6 bg-white/20 transition-opacity duration-200 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
               <AlertCircle size={32} className="text-gray-300 mb-2" />
               <p className="text-sm font-semibold text-gray-500">Không tìm thấy nhiệm vụ nào.</p>
               <p className="text-xs text-gray-400 mt-1">Hãy tạo nhiệm vụ mới hoặc thay đổi các bộ lọc.</p>

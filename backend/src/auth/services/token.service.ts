@@ -75,6 +75,10 @@ export class TokenService {
     );
   }
 
+  async findToken(token: string) {
+    return this.refreshTokenModel.findOne({ token });
+  }
+
   generateAccessToken(payload: any) {
     return this.jwtService.sign(payload);
   }

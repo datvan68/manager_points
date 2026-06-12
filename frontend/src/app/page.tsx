@@ -1,175 +1,439 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
-import { 
-  Users, 
-  GraduationCap, 
-  Building2, 
-  TrendingUp, 
-  ArrowUpRight, 
-  Calendar as CalendarIcon,
-  CheckCircle2,
-  Clock
-} from 'lucide-react';
-import { motion } from 'framer-motion';
+import { useAuth } from '@/providers/auth-provider';
+import { studentApi } from '@/api/student-api';
+import { classApi } from '@/api/class-api';
+import { departmentApi } from '@/api/department-api';
+import { semesterApi, Semester } from '@/api/semester-api';
+import { evaluationPeriodApi } from '@/api/evaluation-period-api';
+import { summariesPointApi } from '@/api/summaries-point-api';
+import { academicRecordApi } from '@/api/academic-record-api';
+import { studentTaskApi } from '@/api/task-api';
+import { notificationApi } from '@/api/notification-api';
+import { systemApi } from '@/api/system-api';
+import { criteriaApi } from '@/api/criteria-api';
+import { categoryApi } from '@/api/category-api';
+import { buildDashboardOverview, DashboardMetrics } from '../components/dashboard/dashboard-helpers';
+import { AlertTriangle, Info, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
-const StatCard = ({ title, value, change, icon: Icon, color }: any) => (
-  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-    <div className="flex justify-between items-start mb-4">
-      <div className={`p-3 rounded-xl ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
-        <Icon size={24} />
-      </div>
-      <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg text-xs font-bold">
-        <TrendingUp size={12} />
-        {change}
-      </div>
-    </div>
-    <h3 className="text-gray-500 text-sm font-medium mb-1">{title}</h3>
-    <p className="text-2xl font-black text-gray-900">{value}</p>
-  </div>
-);
+// Dashboard sub-components
+import DashboardHeader from '../components/dashboard/DashboardHeader';
+import KpiGrid from '../components/dashboard/KpiGrid';
+import EvaluationProgressPanel from '../components/dashboard/EvaluationProgressPanel';
+import AcademicOverviewPanel from '../components/dashboard/AcademicOverviewPanel';
+import AttendanceRecordPanel from '../components/dashboard/AttendanceRecordPanel';
+import TaskPanel from '../components/dashboard/TaskPanel';
+import SystemOperationsPanel from '../components/dashboard/SystemOperationsPanel';
+import QuickActionsPanel from '../components/dashboard/QuickActionsPanel';
+import ScoreDistributionChart from '../components/dashboard/ScoreDistributionChart';
+import StudentSpotlightPanel from '../components/dashboard/StudentSpotlightPanel';
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  
+  // Filtering & State
+  const [semestersList, setSemestersList] = useState<Semester[]>([]);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  
+  // Extra system state
+  const [systemRequests, setSystemRequests] = useState<any[]>([]);
+  const [backups, setBackups] = useState<any[]>([]);
+
+  // Raw fetched arrays to re-aggregate when filter changes without re-fetching
+  const [rawState, setRawState] = useState<{
+    students: any[];
+    classes: any[];
+    departments: any[];
+    semesters: any[];
+    periods: any[];
+    summaries: any[];
+    academicRecords: any[];
+    criteria: any[];
+    categories: any[];
+    tasks: any[];
+    notifications: any[];
+    unreadCount: number;
+    systemData: any;
+  } | null>(null);
+
+  const loadData = useCallback(async (showIndicator = true) => {
+    if (!user) return;
+    if (showIndicator) {
+      setIsRefreshing(true);
+    }
+
+    try {
+      const role = (user?.roleCode || user?.roleName || user?.role || '').toUpperCase();
+      const isSysAdmin = role === 'ADMIN' || (user?.permissions || []).includes('ADMIN_FULL');
+      const isTeacher = role.includes('TEACHER') || role.includes('ADVISOR') || role.includes('GIANG VIEN') || role.includes('CO VAN');
+      const isStudent = role.includes('STUDENT') || role.includes('SINH VIEN') || role.includes('HOC SINH');
+      const isSystemOp = (user?.permissions || []).some(p => ['LOGIN_LOG_READ', 'SYSTEM_REQUEST_READ', 'DATABASE_BACKUP_READ'].includes(p));
+
+      // Construct promises arrays to call concurrent APIs safely using .catch() wrappers
+      const pStudents = (isSysAdmin || isTeacher) 
+        ? studentApi.getStudents().catch(() => []) 
+        : isStudent 
+          ? studentApi.getMyStudent().then(s => s ? [s] : []).catch(() => [])
+          : Promise.resolve([]);
+
+      const pClasses = (isSysAdmin || isTeacher)
+        ? classApi.getClasses().catch(() => [])
+        : Promise.resolve([]);
+
+      const pDepts = (isSysAdmin || isTeacher)
+        ? departmentApi.getDepartments().catch(() => [])
+        : Promise.resolve([]);
+
+      const pSemesters = semesterApi.getSemesters().catch(() => []);
+      const pPeriods = evaluationPeriodApi.getEvaluationPeriods().catch(() => []);
+      const pSummaries = summariesPointApi.getSummariesPoints().catch(() => []);
+
+      const pAcademicRecords = (isSysAdmin || isTeacher)
+        ? academicRecordApi.getAcademicRecords().catch(() => [])
+        : (isStudent && user.studentId)
+          ? academicRecordApi.getAcademicRecordsByStudent(user.studentId).catch(() => [])
+          : Promise.resolve([]);
+
+      const pCriteria = criteriaApi.getCriteria().catch(() => []);
+      const pCategories = categoryApi.getCategories().catch(() => []);
+
+      const pTasks = studentTaskApi.getTasks({ page: 1, limit: 10, sort: 'deadline_asc' })
+        .then(res => res.items || [])
+        .catch(() => []);
+
+      const pUnreadCount = notificationApi.getUnreadCount()
+        .then(res => res.count || 0)
+        .catch(() => 0);
+
+      const pNotifications = notificationApi.getNotifications({ page: 1, limit: 10 })
+        .then(res => res.items || [])
+        .catch(() => []);
+
+      // System Operator exclusive promises
+      const pLoginSummary = (isSysAdmin || isSystemOp)
+        ? systemApi.getLoginLogsSummary().catch(() => null)
+        : Promise.resolve(null);
+
+      const pRequests = (isSysAdmin || isSystemOp)
+        ? systemApi.getRequests({ page: 1, limit: 5 }).then(res => res.items || []).catch(() => [])
+        : Promise.resolve([]);
+
+      const pBackupsList = (isSysAdmin || isSystemOp)
+        ? systemApi.getBackups({ page: 1, limit: 5 }).then(res => res.items || []).catch(() => [])
+        : Promise.resolve([]);
+
+      // Resolve all promises concurrently
+      const [
+        students,
+        classes,
+        departments,
+        semesters,
+        periods,
+        summaries,
+        academicRecords,
+        criteria,
+        categories,
+        tasks,
+        unreadCount,
+        notifications,
+        loginSummary,
+        requests,
+        backupsList
+      ] = await Promise.all([
+        pStudents,
+        pClasses,
+        pDepts,
+        pSemesters,
+        pPeriods,
+        pSummaries,
+        pAcademicRecords,
+        pCriteria,
+        pCategories,
+        pTasks,
+        pUnreadCount,
+        pNotifications,
+        pLoginSummary,
+        pRequests,
+        pBackupsList
+      ]);
+
+      setSemestersList(semesters);
+
+      // Default selectedSemesterId to active semester if not already set
+      if (!selectedSemesterId && semesters.length > 0) {
+        const activeSem = semesters.find(s => s.status === 'active') || semesters[0];
+        if (activeSem) {
+          setSelectedSemesterId(activeSem._id);
+        }
+      }
+
+      const systemData = {
+        loginSummary,
+        systemRequests: requests,
+        backups: backupsList
+      };
+
+      // Store raw state for filtering
+      setRawState({
+        students,
+        classes,
+        departments,
+        semesters,
+        periods,
+        summaries,
+        academicRecords,
+        criteria,
+        categories,
+        tasks,
+        notifications,
+        unreadCount,
+        systemData
+      });
+
+      setSystemRequests(requests);
+      setBackups(backupsList);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Failed to load dashboard statistics:', err);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [user, selectedSemesterId]);
+
+  // Run initial load
+  useEffect(() => {
+    if (user) {
+      loadData(false);
+    }
+  }, [user, loadData]);
+
+  // Re-aggregate when selected semester filters change or raw state loads
+  useEffect(() => {
+    if (user && rawState) {
+      const computedMetrics = buildDashboardOverview({
+        user,
+        students: rawState.students,
+        classes: rawState.classes,
+        departments: rawState.departments,
+        semesters: rawState.semesters,
+        periods: rawState.periods,
+        summaries: rawState.summaries,
+        academicRecords: rawState.academicRecords,
+        criteria: rawState.criteria,
+        categories: rawState.categories,
+        tasks: rawState.tasks,
+        notifications: rawState.notifications,
+        unreadCount: rawState.unreadCount,
+        systemData: rawState.systemData,
+        selectedSemesterId
+      });
+      setMetrics(computedMetrics);
+    }
+  }, [selectedSemesterId, rawState, user]);
+
+  const handleRefresh = () => {
+    loadData(true);
+  };
+
+  const handleSemesterChange = (semesterId: string) => {
+    setSelectedSemesterId(semesterId);
+  };
+
+  // Compute Attention Warnings
+  const getAttentionItems = () => {
+    if (!metrics) return [];
+    const items: Array<{ text: string; type: 'warning' | 'danger' | 'info' | 'success' }> = [];
+
+    // 1. Evaluation period ending soon
+    if (metrics.activePeriod) {
+      let deadlineStr = '';
+      let phaseName = '';
+      switch (metrics.activePeriod.status) {
+        case 'sv_phase':
+          deadlineStr = metrics.activePeriod.sv_deadline;
+          phaseName = 'SV tự đánh giá';
+          break;
+        case 'gv_phase':
+          deadlineStr = metrics.activePeriod.gv_deadline;
+          phaseName = 'GV duyệt điểm';
+          break;
+        case 'admin_phase':
+          deadlineStr = metrics.activePeriod.admin_deadline;
+          phaseName = 'Admin chốt điểm';
+          break;
+      }
+      if (deadlineStr) {
+        const diffDays = Math.ceil((new Date(deadlineStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 3 && diffDays >= 0) {
+          items.push({
+            text: `Đợt đánh giá rèn luyện (Giai đoạn: ${phaseName}) sẽ kết thúc sau ${diffDays} ngày nữa! Hãy hoàn thành tiến trình kịp thời.`,
+            type: 'warning'
+          });
+        } else if (diffDays < 0) {
+          items.push({
+            text: `Đợt đánh giá rèn luyện (Giai đoạn: ${phaseName}) đã quá hạn chót ${Math.abs(diffDays)} ngày!`,
+            type: 'danger'
+          });
+        }
+      }
+    }
+
+    // 2. High login failures
+    if (metrics.kpis.todayLoginFailure > 5) {
+      items.push({
+        text: `Số lượt đăng nhập thất bại tăng đột biến hôm nay (${metrics.kpis.todayLoginFailure} lượt). Hãy kiểm tra hệ thống bảo mật!`,
+        type: 'danger'
+      });
+    }
+
+    // 3. Last backup failed
+    if (metrics.kpis.lastBackupStatus === 'failed') {
+      items.push({
+        text: 'Bản sao lưu dữ liệu gần nhất đã thất bại! Hãy thực hiện lại hoặc kiểm tra log hệ thống.',
+        type: 'danger'
+      });
+    }
+
+    return items;
+  };
+
+  if (isLoading || !metrics) {
+    return (
+      <div className="flex h-screen bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] font-sans text-[#1E293B]">
+        <Sidebar />
+        <main className="flex-1 flex flex-col overflow-hidden">
+          <Header />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#1A73E8] border-t-transparent shadow-md"></div>
+              <p className="text-xs font-semibold text-[#64748B] animate-pulse">
+                Đang tải dữ liệu vận hành...
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  const role = (user?.roleCode || user?.roleName || user?.role || '').toUpperCase();
+  const isSysAdmin = role === 'ADMIN' || (user?.permissions || []).includes('ADMIN_FULL');
+  const isSystemOp = (user?.permissions || []).some(p => ['LOGIN_LOG_READ', 'SYSTEM_REQUEST_READ', 'DATABASE_BACKUP_READ'].includes(p));
+  const showSystemPanel = isSysAdmin || isSystemOp;
+  const attentionItems = getAttentionItems();
+
   return (
-    <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
+    <div className="flex h-screen bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] font-sans text-[#1E293B]">
       <Sidebar />
       
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header />
         
-        <div className="flex-1 overflow-auto p-8">
-          <div className="max-w-7xl mx-auto space-y-8">
-            {/* Welcome Section */}
-            <div>
-              <h1 className="text-2xl font-black text-gray-900 tracking-tight">Tổng quan hệ thống</h1>
-              <p className="text-gray-500 text-sm mt-1">Chào mừng bạn quay trở lại. Đây là những gì đang diễn ra hôm nay.</p>
-            </div>
+        <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-6 scrollbar-hover">
+          <div className="max-w-screen-2xl mx-auto space-y-6">
+            
+            {/* Header section with Semester Selector */}
+            <DashboardHeader 
+              userName={user?.user_name || user?.username || 'Người dùng'}
+              roleName={user?.roleName || user?.role || 'Khách'}
+              roleScope={metrics.roleScope}
+              activeSemester={metrics.activeSemester}
+              activePeriod={metrics.activePeriod}
+              lastUpdated={lastUpdated}
+              onRefresh={handleRefresh}
+              isRefreshing={isRefreshing}
+              semesters={semestersList}
+              selectedSemesterId={selectedSemesterId}
+              onSemesterChange={handleSemesterChange}
+            />
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatCard 
-                title="Tổng sinh viên" 
-                value="1,284" 
-                change="+12%" 
-                icon={Users} 
-                color="bg-blue-500" 
-              />
-              <StatCard 
-                title="Khóa học đang mở" 
-                value="42" 
-                change="+5%" 
-                icon={GraduationCap} 
-                color="bg-purple-500" 
-              />
-              <StatCard 
-                title="Phòng KTX trống" 
-                value="128" 
-                change="-2%" 
-                icon={Building2} 
-                color="bg-amber-500" 
-              />
-              <StatCard 
-                title="Tỉ lệ hoàn thành" 
-                value="94.2%" 
-                change="+3.4%" 
-                icon={TrendingUp} 
-                color="bg-emerald-500" 
-              />
-            </div>
+            {/* Student Spotlight & Leaderboards */}
+            <StudentSpotlightPanel metrics={metrics} />
 
-            {/* Bottom Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Main Content Area */}
+            {/* Attention Alerts / Warnings */}
+            {attentionItems.length > 0 && (
+              <div className="space-y-2">
+                {attentionItems.map((item, idx) => (
+                  <div 
+                    key={idx}
+                    className={`flex items-center gap-2.5 p-3.5 border rounded-2xl text-xs font-bold shadow-sm transition-all duration-150 ${
+                      item.type === 'danger' 
+                        ? 'bg-rose-500/10 text-rose-700 border-rose-500/20' 
+                        : 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+                    }`}
+                  >
+                    {item.type === 'danger' ? <ShieldAlert size={16} className="shrink-0 text-rose-600" /> : <AlertTriangle size={16} className="shrink-0 text-amber-600" />}
+                    <span>{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* KPI Cards Grid */}
+            <KpiGrid metrics={metrics} />
+
+            {/* Quick Actions Panel */}
+            <QuickActionsPanel roleScope={metrics.roleScope} />
+
+            {/* Main dashboard columns */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Left Column (2 spans wide on lg) */}
               <div className="lg:col-span-2 space-y-6">
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="font-bold text-gray-800">Biểu đồ tăng trưởng</h2>
-                    <select className="bg-gray-50 border-none text-xs font-bold text-gray-500 rounded-lg px-3 py-2 outline-none">
-                      <option>7 ngày qua</option>
-                      <option>30 ngày qua</option>
-                    </select>
+                
+                {/* Attendance & Evaluation Progress Panels */}
+                {metrics.roleScope !== 'system' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <AttendanceRecordPanel metrics={metrics} />
+                    <EvaluationProgressPanel metrics={metrics} />
                   </div>
-                  <div className="h-64 flex items-end justify-between gap-2">
-                    {[40, 70, 45, 90, 65, 80, 55].map((h, i) => (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                        <div className="w-full bg-blue-50 rounded-lg relative overflow-hidden h-full flex items-end">
-                          <motion.div 
-                            initial={{ height: 0 }}
-                            animate={{ height: `${h}%` }}
-                            transition={{ delay: i * 0.1, duration: 1 }}
-                            className="w-full bg-blue-600 rounded-lg group-hover:bg-blue-700 transition-colors"
-                          />
-                        </div>
-                        <span className="text-[10px] font-bold text-gray-400">T{i+2}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                )}
 
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                   <h2 className="font-bold text-gray-800 mb-4">Hoạt động gần đây</h2>
-                   <div className="space-y-4">
-                      {[
-                        { title: 'Cập nhật điểm thi học kỳ 1', time: '10 phút trước', icon: CheckCircle2, color: 'text-emerald-500' },
-                        { title: 'Đăng ký phòng KTX mới: Nguyễn Văn A', time: '25 phút trước', icon: Clock, color: 'text-blue-500' },
-                        { title: 'Tạo tài khoản giảng viên mới', time: '1 giờ trước', icon: Users, color: 'text-purple-500' },
-                      ].map((item, i) => (
-                        <div key={i} className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer">
-                           <div className={`p-2 rounded-lg bg-gray-50 ${item.color}`}>
-                              <item.icon size={18} />
-                           </div>
-                           <div className="flex-1">
-                              <p className="text-sm font-bold text-gray-800">{item.title}</p>
-                              <p className="text-xs text-gray-400">{item.time}</p>
-                           </div>
-                           <ArrowUpRight size={16} className="text-gray-300" />
-                        </div>
-                      ))}
-                   </div>
-                </div>
+                {/* Score Distribution Chart & Student Roster Statuses */}
+                {metrics.roleScope !== 'system' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ScoreDistributionChart distribution={metrics.distributions.scoreDistribution} />
+                    <AcademicOverviewPanel metrics={metrics} />
+                  </div>
+                )}
+                
+                {/* For system operator role only */}
+                {metrics.roleScope === 'system' && (
+                  <TaskPanel metrics={metrics} />
+                )}
+
               </div>
 
-              {/* Sidebar Info Area */}
+              {/* Right Column (1 span wide on lg) */}
               <div className="space-y-6">
-                 <div className="bg-primary bg-opacity-90 p-8 rounded-3xl text-white relative overflow-hidden shadow-xl shadow-blue-600/20">
-                    <div className="relative z-10">
-                       <h3 className="text-xl font-black mb-2">Upgrade to Pro</h3>
-                       <p className="text-blue-100 text-sm mb-6 leading-relaxed">Mở khóa các tính năng quản lý cao cấp và hệ thống báo cáo nâng cao.</p>
-                       <button className="bg-white text-primary px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-50 transition-colors">
-                          Nâng cấp ngay
-                       </button>
-                    </div>
-                    {/* Decorative elements */}
-                    <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white opacity-10 rounded-full blur-3xl"></div>
-                    <div className="absolute -left-4 -top-4 w-24 h-24 bg-blue-400 opacity-20 rounded-full blur-2xl"></div>
-                 </div>
+                
+                {/* Task Panel (For student, teacher, admin) */}
+                {metrics.roleScope !== 'system' && (
+                  <TaskPanel metrics={metrics} />
+                )}
 
-                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                       <h2 className="font-bold text-gray-800">Thông báo</h2>
-                       <button className="text-primary text-xs font-bold hover:underline">Xem hết</button>
-                    </div>
-                    <div className="space-y-4">
-                       <div className="flex gap-4">
-                          <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2"></div>
-                          <div className="flex flex-col gap-1">
-                             <p className="text-xs font-bold text-gray-800">Hệ thống bảo trì định kỳ</p>
-                             <p className="text-[11px] text-gray-500">22:00 hôm nay - 02:00 ngày mai</p>
-                          </div>
-                       </div>
-                       <div className="flex gap-4">
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2"></div>
-                          <div className="flex flex-col gap-1">
-                             <p className="text-xs font-bold text-gray-800">Nhắc nhở nộp báo cáo quý</p>
-                             <p className="text-[11px] text-gray-500">Hạn chót vào cuối tuần này</p>
-                          </div>
-                       </div>
-                    </div>
-                 </div>
+
               </div>
+
             </div>
+
+            {/* System operations dashboard card for admins & operators */}
+            {showSystemPanel && (
+              <SystemOperationsPanel 
+                metrics={metrics} 
+                systemRequests={systemRequests}
+                backups={backups}
+              />
+            )}
+
           </div>
         </div>
       </main>

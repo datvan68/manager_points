@@ -78,9 +78,9 @@ export default function ResetPasswordPage() {
   };
 
   const strengthInfo = getPasswordStrength(passwordValue);
+  const token = searchParams.get('token');
 
   const onSubmit = async (data: ResetPasswordFormValues) => {
-    const token = searchParams.get('token');
     if (!token) {
       toast.error('Token không hợp lệ', {
         description: 'Vui lòng sử dụng liên kết từ email để đặt lại mật khẩu.',
@@ -102,6 +102,53 @@ export default function ResetPasswordPage() {
       setIsLoading(false);
     }
   };
+
+  if (!token) {
+    return (
+      <>
+        {/* Background Gradient */}
+        <div 
+          className="fixed inset-0 z-0 pointer-events-none" 
+          style={{ 
+            backgroundImage: "linear-gradient(135deg, rgb(235, 242, 250) 0%, rgb(220, 230, 241) 100%)" 
+          }} 
+        />
+
+        <div className="w-full max-w-[512px] z-10 px-4">
+          {/* Glass Card Container */}
+          <div className="backdrop-blur-[6px] bg-white/45 border border-white/75 flex flex-col gap-[32px] items-stretch p-6 sm:p-[49px] relative rounded-[32px] shadow-[0px_4px_20px_rgba(203,213,225,0.4)] text-center">
+            
+            {/* Warning Circle Icon */}
+            <div className="flex justify-center w-full">
+              <div className="backdrop-blur-[2px] bg-red-50 border border-red-100 flex items-center justify-center w-[64px] h-[64px] rounded-full shadow-[0px_1px_2px_rgba(0,0,0,0.05)] shrink-0 text-red-500">
+                <ShieldCheck size={28} />
+              </div>
+            </div>
+
+            {/* Heading Container */}
+            <div className="flex flex-col gap-[12px] items-center">
+              <h1 className="font-['Inter'] font-semibold text-[#111c2d] text-[28px] tracking-tight leading-[36px]">
+                Đường dẫn không hợp lệ
+              </h1>
+              <p className="font-['Inter'] font-medium text-[#64748b] text-[14px] leading-[22px] max-w-[360px]">
+                Thiếu mã xác thực (token) đặt lại mật khẩu hoặc liên kết đã bị thay đổi. Vui lòng sử dụng liên kết chính xác được gửi từ hòm thư của bạn.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-[16px] w-full mt-4">
+              <Link 
+                href="/login" 
+                className="bg-[#005bbf] hover:bg-[#004da3] text-white rounded-full h-[48px] flex items-center justify-center gap-2 relative shadow-[0px_4px_6px_rgba(0,0,0,0.05)] transition-all w-full font-['Inter'] font-semibold text-[16px]"
+              >
+                Quay lại trang đăng nhập
+              </Link>
+            </div>
+
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -130,7 +177,7 @@ export default function ResetPasswordPage() {
               Đặt lại mật khẩu
             </h1>
             <p className="font-['Inter'] font-semibold text-[#64748b] text-[14px] leading-[20px] max-w-[340px]">
-              Nhập mật khẩu mới của bạn bên dưới để khôi phục quyền truy cập vào Lumina Auth.
+              Nhập mật khẩu mới của bạn bên dưới để khôi phục quyền truy cập vào Manager Point.
             </p>
           </div>
 

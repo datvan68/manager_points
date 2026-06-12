@@ -50,3 +50,4 @@ outputs/
 .agents/logs/
 .agents/**/reports/*.html
 mcp_config.json
+backend/storage/

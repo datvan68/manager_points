@@ -7,6 +7,8 @@ import {
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 
+import { isAdminUser } from '../utils/role.util';
+
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
@@ -24,7 +26,7 @@ export class PermissionsGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
 
     // Admin case: allow all
-    if (user.roleName === 'Admin') return true;
+    if (isAdminUser(user)) return true;
 
     const userPermissions: string[] = user.permissions || [];
 

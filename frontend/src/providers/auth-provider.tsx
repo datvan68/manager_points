@@ -16,7 +16,11 @@ interface UserInfo {
   user_name?: string;
   username?: string;
   role?: string;
+  roleName?: string;
+  roleCode?: string;
   permissions?: string[];
+  studentId?: string;
+  classId?: string;
 }
 
 interface AuthContextType {
@@ -50,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Permission checking utilities
   const hasPermission = useCallback(
     (permission: string): boolean => {
-      if (user?.role === "Admin") return true;
+      if (isAdminUser(user)) return true;
       return permissions.includes(permission);
     },
     [user, permissions],
@@ -58,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasAnyPermission = useCallback(
     (...perms: string[]): boolean => {
-      if (user?.role === "Admin") return true;
+      if (isAdminUser(user)) return true;
       return perms.some((p) => permissions.includes(p));
     },
     [user, permissions],
@@ -66,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasAllPermissions = useCallback(
     (...perms: string[]): boolean => {
-      if (user?.role === "Admin") return true;
+      if (isAdminUser(user)) return true;
       return perms.every((p) => permissions.includes(p));
     },
     [user, permissions],
@@ -74,10 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUserPermissions = async (token: string) => {
     try {
-      // Decode JWT payload to get user_id, then fetch permissions via /api/auth/me
-      // For now, we extract permissions from the JWT token payload directly
-      const payload = JSON.parse(atob(token.split(".")[1]));
-
       // Fetch user details with populated role & permissions
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/me`,
@@ -89,13 +89,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const perms: string[] = data.permissions || [];
         setPermissions(perms);
 
-        // Update stored user with permissions
+        // Update stored user with permissions and student details if Student role
         const storedUser = tokenStorage.getUser();
+        const role = data.roleName || storedUser?.role || "User";
+        const isStudent = role.toLowerCase().includes("student") || role.toLowerCase().includes("sinh vien") || role.toLowerCase().includes("hoc sinh");
+
+        let studentId = storedUser?.studentId;
+        let classId = storedUser?.classId;
+
+        if (isStudent && !studentId) {
+          try {
+            const studentRes = await fetch(
+              `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/students/me`,
+              { headers: { Authorization: `Bearer ${token}` } },
+            );
+            if (studentRes.ok) {
+              const studentData = await studentRes.json();
+              studentId = studentData._id;
+              classId = typeof studentData.class_id === "object" ? studentData.class_id?._id : studentData.class_id;
+            }
+          } catch (studentErr) {
+            console.error("Failed to load student link in auth provider:", studentErr);
+          }
+        }
+
         if (storedUser) {
           const updatedUser = {
             ...storedUser,
             permissions: perms,
             role: data.roleName || storedUser.role,
+            roleName: data.roleName || storedUser.roleName || storedUser.role,
+            roleCode: data.roleCode || storedUser.roleCode,
+            studentId,
+            classId,
           };
           tokenStorage.setUser(updatedUser);
           setUser(updatedUser);
@@ -172,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         router.push("/login");
       } else if (user && isPublicRoute) {
-        router.push("/select-module");
+        router.push("/");
       }
     }
   }, [user, isLoading, pathname, isPublicRoute, router]);
@@ -227,4 +253,14 @@ export function useAuth() {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
+}
+
+export function isAdminUser(user: UserInfo | null): boolean {
+  if (!user) return false;
+  return (
+    user.role === "Admin" ||
+    user.roleName === "Admin" ||
+    user.roleCode === "ADMIN" ||
+    user.permissions?.includes("ADMIN_FULL") === true
+  );
 }

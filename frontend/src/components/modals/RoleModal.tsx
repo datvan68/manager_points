@@ -280,30 +280,57 @@ export default function RoleModal({
 
                             {/* Permissions Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 px-1">
-                              {group.filteredPermissions.map((perm: any) => (
-                                <motion.div
-                                  key={perm._id || perm.id}
-                                  whileHover={{ x: 4 }}
-                                  onClick={() => togglePermission(perm._id || perm.id)}
-                                  className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                                    formData.permissions.includes(perm._id || perm.id)
-                                      ? 'bg-blue-50/30 border-blue-200 ring-2 ring-blue-500/5'
-                                      : 'bg-white border-slate-100 hover:border-blue-100 hover:bg-slate-50/50'
-                                  }`}
-                                >
-                                  <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded-md border flex items-center justify-center transition-all ${
-                                    formData.permissions.includes(perm._id || perm.id)
-                                      ? 'bg-blue-600 border-blue-600 text-white'
-                                      : 'bg-white border-slate-300 group-hover:border-blue-400'
-                                  }`}>
-                                    {formData.permissions.includes(perm._id || perm.id) && <Check className="w-3.5 h-3.5" strokeWidth={4} />}
-                                  </div>
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-sm font-bold text-slate-800 leading-none">{perm.name}</span>
-                                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-tight">{perm.code}</span>
-                                  </div>
-                                </motion.div>
-                              ))}
+                              {group.filteredPermissions.map((perm: any) => {
+                                const isSensitive = ['ADMIN_FULL', 'DATABASE_BACKUP_DOWNLOAD', 'DATABASE_BACKUP_DELETE'].includes(perm.code);
+                                const isChecked = formData.permissions.includes(perm._id || perm.id);
+
+                                return (
+                                  <motion.div
+                                    key={perm._id || perm.id}
+                                    whileHover={{ x: 4 }}
+                                    onClick={() => togglePermission(perm._id || perm.id)}
+                                    className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                                      isChecked
+                                        ? isSensitive
+                                          ? 'bg-rose-50/40 border-rose-300 ring-2 ring-rose-500/5'
+                                          : 'bg-blue-50/30 border-blue-200 ring-2 ring-blue-500/5'
+                                        : isSensitive
+                                          ? 'bg-rose-50/5 border-rose-100 hover:border-rose-300 hover:bg-rose-50/20'
+                                          : 'bg-white border-slate-100 hover:border-blue-100 hover:bg-slate-50/50'
+                                    }`}
+                                  >
+                                    <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded-md border flex items-center justify-center transition-all ${
+                                      isChecked
+                                        ? isSensitive
+                                          ? 'bg-rose-600 border-rose-600 text-white'
+                                          : 'bg-blue-600 border-blue-600 text-white'
+                                        : isSensitive
+                                          ? 'bg-white border-rose-300 group-hover:border-rose-400'
+                                          : 'bg-white border-slate-300 group-hover:border-blue-400'
+                                    }`}>
+                                      {isChecked && <Check className="w-3.5 h-3.5" strokeWidth={4} />}
+                                    </div>
+                                    <div className="flex flex-col gap-1 w-full min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-sm font-bold text-slate-800 leading-none">{perm.name}</span>
+                                        {isSensitive && (
+                                          <span className="bg-rose-500/10 text-rose-600 border border-rose-500/20 text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider shrink-0">
+                                            Nhạy cảm
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-tight">{perm.code}</span>
+                                      {perm.description && (
+                                        <span className={`text-[11px] leading-relaxed mt-1 ${
+                                          isSensitive ? 'text-rose-600/90 font-semibold' : 'text-slate-500'
+                                        }`}>
+                                          {perm.description}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
                             </div>
                           </div>
                         );

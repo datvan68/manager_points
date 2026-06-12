@@ -4,6 +4,7 @@ import * as React from 'react'
 import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './select'
 
 interface PaginationProps {
   totalItems: number
@@ -13,6 +14,8 @@ interface PaginationProps {
   label?: string
   className?: string
   isLoading?: boolean
+  pageSizeOptions?: number[]
+  onPageSizeChange?: (pageSize: number) => void
 }
 
 /**
@@ -27,6 +30,8 @@ export function CustomPagination({
   label = 'sự kiện',
   className,
   isLoading,
+  pageSizeOptions = [5, 10, 20, 50, 100],
+  onPageSizeChange,
 }: PaginationProps) {
   const totalPages = Math.ceil(totalItems / pageSize)
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
@@ -63,9 +68,37 @@ export function CustomPagination({
         className
       )}
     >
-      {/* Summary Text */}
-      <div className="text-[#4a5565] text-[14px] leading-[20px] font-sans">
-        Hiển thị {startItem} - {endItem} trong tổng số {totalItems} {label}
+      {/* Summary Text & Page Size Selector */}
+      <div className="flex items-center gap-4 text-[#4a5565] text-[14px] leading-[20px] font-sans">
+        <span>
+          Hiển thị {startItem} - {endItem} trong tổng số {totalItems} {label}
+        </span>
+        {onPageSizeChange && (
+          <div className="flex items-center gap-1.5 ml-2 border-l border-slate-200 pl-4 h-6">
+            <span className="text-slate-500 text-[13px]">Số dòng:</span>
+            <div className="w-[72px]">
+              <Select
+                value={String(pageSize)}
+                onValueChange={(val: string) => onPageSizeChange(Number(val))}
+              >
+                <SelectTrigger className="h-7 text-[13px] font-medium text-slate-700 border-slate-200 rounded-[6px] bg-white px-2 py-0.5">
+                  <SelectValue placeholder={String(pageSize)} />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-slate-100 shadow-xl rounded-lg min-w-[72px] z-[50]">
+                  {pageSizeOptions.map((option) => (
+                    <SelectItem
+                      key={option}
+                      value={String(option)}
+                      className="text-[13px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer py-1 px-2.5"
+                    >
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}

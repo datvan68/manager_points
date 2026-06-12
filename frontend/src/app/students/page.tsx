@@ -41,9 +41,17 @@ function StudentsPageContent() {
 
   useEffect(() => {
     if (isStudent) {
-      router.replace("/students/record");
+      router.replace("/students/tasks");
     }
   }, [isStudent, router]);
+
+  if (isStudent) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50 text-gray-400">
+        Đang chuyển hướng...
+      </div>
+    );
+  }
 
   const permissions = usePermission({
     canCreateDept: "DEPT_CREATE",
@@ -864,7 +872,7 @@ export default function StudentsPage() {
   const userRole = String(user?.role || '').toLowerCase();
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
   const isTeacher = userRole.includes('teacher') || userRole.includes('advisor') || userRole.includes('giảng viên') || userRole.includes('giáo viên');
-  const bypassGuard = isStudent || isTeacher;
+  const bypassGuard = isTeacher;
 
   return (
     <Suspense
@@ -874,7 +882,9 @@ export default function StudentsPage() {
         </div>
       }
     >
-      {bypassGuard ? (
+      {isStudent ? (
+        <StudentsPageContent />
+      ) : bypassGuard ? (
         <StudentsPageContent />
       ) : (
         <RouteGuard requiredPermission="STUDENT_PAGE">

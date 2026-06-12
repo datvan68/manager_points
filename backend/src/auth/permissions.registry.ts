@@ -40,12 +40,20 @@ export const TASK_MANAGER_GROUP = {
   status: 'Active',
 };
 
+export const SYSTEM_OPERATIONS_GROUP = {
+  code: 'G_SYSTEM_OPERATIONS',
+  name: 'Quản trị vận hành hệ thống',
+  description: 'Các quyền quản trị vận hành hệ thống, xem log đăng nhập, quản lý yêu cầu và sao lưu cơ sở dữ liệu.',
+  status: 'Active',
+};
+
 export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
   // 1. Nhóm Trang Phân Quyền
   {
     code: 'admin',
     name: 'Truy cập trang quản trị phân quyền',
     module: SYSTEM_PERMISSIONS_GROUP.name,
+    description: 'Quyền truy cập trang quản lý phân quyền (RBAC), quản lý người dùng, vai trò và route mappings.',
   },
 
   // 2. Nhóm Quản lý Học Sinh Sinh Viên
@@ -53,76 +61,91 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'STUDENT_PAGE',
     name: 'Truy cập trang quản lý sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép truy cập menu và giao diện quản lý thông tin sinh viên, lớp học, khoa.',
   },
   {
     code: 'STUDENT_READ',
     name: 'Xem sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép xem thông tin chi tiết và hồ sơ cá nhân của sinh viên trong hệ thống.',
   },
   {
     code: 'STUDENT_CREATE',
     name: 'Thêm sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép đăng ký, tạo mới hồ sơ sinh viên thủ công.',
   },
   {
     code: 'STUDENT_UPDATE',
     name: 'Cập nhật sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép chỉnh sửa thông tin hồ sơ sinh viên đã tồn tại.',
   },
   {
     code: 'STUDENT_DELETE',
     name: 'Xóa sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép xóa hồ sơ sinh viên ra khỏi hệ thống quản lý.',
   },
   {
     code: 'STUDENT_IMPORT',
     name: 'Import danh sách sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép import hàng loạt hồ sơ sinh viên từ file excel.',
   },
   {
     code: 'STUDENT_EXPORT',
     name: 'Xuất danh sách sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép xuất dữ liệu sinh viên ra file Excel/PDF.',
   },
   {
     code: 'STUDENT_ACCOUNT_ACTIVATE',
     name: 'Kích hoạt tài khoản sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép kích hoạt hoặc tạm khóa tài khoản đăng nhập của sinh viên.',
   },
   {
     code: 'STUDENT_TRANSFER',
     name: 'Chuyển lớp sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép thực hiện chuyển lớp sinh viên từ lớp này sang lớp khác.',
   },
   {
     code: 'DEPT_CREATE',
     name: 'Thêm khoa',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép tạo mới khoa đào tạo trong trường.',
   },
   {
     code: 'DEPT_UPDATE',
     name: 'Cập nhật khoa',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép cập nhật thông tin khoa đào tạo.',
   },
   {
     code: 'DEPT_DELETE',
     name: 'Xóa khoa',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép xóa khoa đào tạo (chỉ khi không còn lớp học thuộc khoa).',
   },
   {
     code: 'CLASS_CREATE',
     name: 'Thêm lớp',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép tạo mới lớp quản lý.',
   },
   {
     code: 'CLASS_UPDATE',
     name: 'Cập nhật lớp',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép thay đổi thông tin lớp, giảng viên chủ nhiệm.',
   },
   {
     code: 'CLASS_DELETE',
     name: 'Xóa lớp',
     module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép xóa lớp quản lý (chỉ khi lớp không còn sinh viên).',
   },
 
   // 3. Nhóm Quản lý Điểm Rèn Luyện
@@ -130,51 +153,61 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'GRADING_PAGE',
     name: 'Truy cập trang rèn luyện',
     module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép truy cập menu và giao diện quản lý rèn luyện sinh viên.',
   },
   {
     code: 'READ_STUDENT_RECORD',
     name: 'Xem ghi nhận sinh viên',
     module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép xem lịch sử ghi nhận điểm rèn luyện cá nhân của sinh viên.',
   },
   {
     code: 'CREATE_STUDENT_RECORD',
     name: 'Thêm ghi nhận sinh viên',
     module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép thêm mới ghi nhận rèn luyện cho sinh viên.',
   },
   {
     code: 'UPDATE_STUDENT_RECORD',
     name: 'Cập nhật ghi nhận sinh viên',
     module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép sửa thông tin ghi nhận rèn luyện sinh viên.',
   },
   {
     code: 'DELETE_STUDENT_RECORD',
     name: 'Xóa ghi nhận sinh viên',
     module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép xóa ghi nhận rèn luyện sinh viên.',
   },
   {
     code: 'READ_CLASS_RECORD',
     name: 'Xem ghi nhận lớp',
     module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép xem tổng hợp ghi nhận rèn luyện của cả lớp học.',
   },
   {
     code: 'CREATE_CLASS_RECORD',
     name: 'Thêm ghi nhận lớp',
     module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép thêm ghi nhận rèn luyện tập thể cho cả lớp.',
   },
   {
     code: 'UPDATE_CLASS_RECORD',
     name: 'Cập nhật ghi nhận lớp',
     module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép chỉnh sửa ghi nhận rèn luyện tập thể.',
   },
   {
     code: 'DELETE_CLASS_RECORD',
     name: 'Xóa ghi nhận lớp',
     module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép xóa ghi nhận rèn luyện tập thể.',
   },
   {
     code: 'CONFIG_RECORD',
     name: 'Cấu hình ghi nhận',
     module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép cấu hình các tiêu chí, điểm cộng/trừ rèn luyện.',
   },
 
   // 4. Nhóm Quản lý Nhiệm Vụ
@@ -182,20 +215,74 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'READ_STUDENT_TASK',
     name: 'Xem nhiệm vụ học tập',
     module: TASK_MANAGER_GROUP.name,
+    description: 'Cho phép xem danh sách nhiệm vụ rèn luyện, học tập được giao.',
   },
   {
     code: 'CREATE_STUDENT_TASK',
     name: 'Tạo nhiệm vụ học tập',
     module: TASK_MANAGER_GROUP.name,
+    description: 'Cho phép tạo mới và phân công nhiệm vụ rèn luyện cho sinh viên/lớp.',
   },
   {
     code: 'UPDATE_STUDENT_TASK',
     name: 'Cập nhật nhiệm vụ học tập',
     module: TASK_MANAGER_GROUP.name,
+    description: 'Cho phép chỉnh sửa nội dung, hạn chót, trạng thái nhiệm vụ.',
   },
   {
     code: 'DELETE_STUDENT_TASK',
     name: 'Xóa nhiệm vụ học tập',
     module: TASK_MANAGER_GROUP.name,
+    description: 'Cho phép xóa nhiệm vụ học tập đã giao.',
+  },
+
+  // 5. Nhóm Quản trị vận hành hệ thống
+  {
+    code: 'SYSTEM_ADMIN',
+    name: 'Truy cập trang quản trị hệ thống',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: 'Cho phép truy cập menu và giao diện tổng quan Quản trị vận hành hệ thống.',
+  },
+  {
+    code: 'LOGIN_LOG_READ',
+    name: 'Xem lịch sử đăng nhập',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: 'Cho phép xem nhật ký hoạt động đăng nhập và thay đổi bảo mật hệ thống.',
+  },
+  {
+    code: 'SYSTEM_REQUEST_READ',
+    name: 'Xem request hệ thống',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: 'Cho phép xem các yêu cầu thay đổi dữ liệu/hỗ trợ kỹ thuật hệ thống.',
+  },
+  {
+    code: 'SYSTEM_REQUEST_MANAGE',
+    name: 'Quản lý request hệ thống',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: 'Cho phép phê duyệt, từ chối, phân công và xóa các yêu cầu vận hành hệ thống.',
+  },
+  {
+    code: 'DATABASE_BACKUP_READ',
+    name: 'Xem danh sách backup',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: 'Cho phép xem danh sách và trạng thái các bản sao lưu cơ sở dữ liệu hệ thống.',
+  },
+  {
+    code: 'DATABASE_BACKUP_CREATE',
+    name: 'Tạo backup database',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: 'Cho phép kích hoạt tiến trình tạo bản sao lưu cơ sở dữ liệu tức thời.',
+  },
+  {
+    code: 'DATABASE_BACKUP_DOWNLOAD',
+    name: 'Tải backup database',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: '⚠️ QUYỀN HẠN NGUY HIỂM: Cho phép tải xuống tệp sao lưu chứa toàn bộ cơ sở dữ liệu của hệ thống về máy cá nhân.',
+  },
+  {
+    code: 'DATABASE_BACKUP_DELETE',
+    name: 'Xóa backup database',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: '⚠️ QUYỀN HẠN NHẠY CẢM: Cho phép xóa vĩnh viễn tệp sao lưu dữ liệu trên server, không thể khôi phục.',
   },
 ];

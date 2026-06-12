@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Search, Users, CheckCircle2, Clock, 
   ChevronLeft, ChevronRight, AlertCircle, Play, Check, ExternalLink,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon, LayoutGrid, List
 } from 'lucide-react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { studentTaskApi, StudentTaskProgress } from '@/api/task-api';
 import { classApi } from '@/api/class-api';
 import { toast } from 'sonner';
@@ -33,8 +32,6 @@ export default function StudentTaskProgressTab() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'not_started' | 'in_progress' | 'completed'>('all');
   const [assigneeTypeFilter, setAssigneeTypeFilter] = useState<'all' | 'student' | 'teacher' | 'supervisor'>('all');
-  const [deadlineFrom, setDeadlineFrom] = useState('');
-  const [deadlineTo, setDeadlineTo] = useState('');
   
   // New filters data source & state
   const [tasksList, setTasksList] = useState<any[]>([]);
@@ -43,44 +40,35 @@ export default function StudentTaskProgressTab() {
   const [classIdFilter, setClassIdFilter] = useState<string>('');
   const [sortFilter, setSortFilter] = useState<string>('newest');
 
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const itemsPerPage = 10;
+ 
+  const hasLoadedOnceRef = useRef(false);
+  const fetchIdRef = useRef(0);
 
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  const formatDateToString = (date: Date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-
-  const formatDateToDisplay = (dateStr: string) => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    const d = String(date.getDate()).padStart(2, '0');
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const y = date.getFullYear();
-    return `${d}/${m}/${y}`;
-  };
 
   // Load tasks and classes for filters
   useEffect(() => {
     const loadFiltersData = async () => {
       try {
-        const classes = await classApi.getClasses();
+        const [classes, tasksRes] = await Promise.all([
+          classApi.getClasses().catch(err => {
+            console.error('Lỗi load classes list:', err);
+            return [];
+          }),
+          studentTaskApi.getTasks({ page: 1, limit: 100 }).catch(err => {
+            console.error('Lỗi load tasks list:', err);
+            return { items: [] };
+          })
+        ]);
         setClassesList(classes);
-      } catch (err) {
-        console.error('Lỗi load classes list:', err);
-      }
-
-      try {
-        const tasksRes = await studentTaskApi.getTasks({ page: 1, limit: 100 });
         setTasksList(tasksRes.items || []);
       } catch (err) {
-        console.error('Lỗi load tasks list:', err);
+        console.error('Lỗi load filter data:', err);
       }
     };
     loadFiltersData();
@@ -94,8 +82,11 @@ export default function StudentTaskProgressTab() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const fetchOverview = async () => {
-    setIsLoading(true);
+  const fetchOverview = useCallback(async () => {
+    const currentFetchId = ++fetchIdRef.current;
+    if (!hasLoadedOnceRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
     try {
       const res = await studentTaskApi.getTaskProgressOverview({
@@ -104,28 +95,32 @@ export default function StudentTaskProgressTab() {
         status: statusFilter,
         assigneeType: assigneeTypeFilter,
         search: debouncedSearch,
-        deadlineFrom: deadlineFrom || undefined,
-        deadlineTo: deadlineTo || undefined,
         taskId: taskIdFilter || undefined,
         classId: classIdFilter || undefined,
         sort: sortFilter || undefined,
       });
+      if (currentFetchId !== fetchIdRef.current) return;
+
       setItems(res.items);
+      hasLoadedOnceRef.current = true;
       setSummary(res.summary);
       setTotalPages(res.totalPages);
       setTotalCount(res.total);
     } catch (err: any) {
+      if (currentFetchId !== fetchIdRef.current) return;
       console.error(err);
       setError(err.message || 'Không thể tải dữ liệu tiến độ.');
       toast.error('Lỗi khi lấy danh sách tiến độ.');
     } finally {
-      setIsLoading(false);
+      if (currentFetchId === fetchIdRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [currentPage, statusFilter, assigneeTypeFilter, debouncedSearch, taskIdFilter, classIdFilter, sortFilter]);
 
   useEffect(() => {
     fetchOverview();
-  }, [currentPage, statusFilter, assigneeTypeFilter, debouncedSearch, deadlineFrom, deadlineTo, taskIdFilter, classIdFilter, sortFilter]);
+  }, [fetchOverview]);
 
   const handleUpdateStatus = async (id: string, currentStatus: string) => {
     let nextStatus = 'in_progress';
@@ -147,6 +142,9 @@ export default function StudentTaskProgressTab() {
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
   const taskAccess = usePermission({ updateTask: "UPDATE_STUDENT_TASK" });
   const hasManagePermission = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.updateTask;
+
+  const startItem = totalCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const endItem = Math.min(currentPage * itemsPerPage, totalCount);
 
   return (
     <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-0 bg-transparent">
@@ -192,13 +190,13 @@ export default function StudentTaskProgressTab() {
               }}
             >
               <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
-                <SelectValue placeholder="Trạng thái: Tất cả" />
+                <SelectValue placeholder="-- Trạng thái --" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Trạng thái: Tất cả</SelectItem>
-                <SelectItem value="not_started">Trạng thái: Chưa xong</SelectItem>
-                <SelectItem value="in_progress">Trạng thái: Đang làm</SelectItem>
-                <SelectItem value="completed">Trạng thái: Đã xong</SelectItem>
+                <SelectItem value="all">Tất cả</SelectItem>
+                <SelectItem value="not_started">Chưa xong</SelectItem>
+                <SelectItem value="in_progress">Đang làm</SelectItem>
+                <SelectItem value="completed">Đã xong</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -213,13 +211,13 @@ export default function StudentTaskProgressTab() {
               }}
             >
               <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
-                <SelectValue placeholder="Đối tượng: Tất cả" />
+                <SelectValue placeholder="-- Đối tượng --" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Đối tượng: Tất cả</SelectItem>
-                <SelectItem value="student">Đối tượng: HSSV</SelectItem>
-                <SelectItem value="teacher">Đối tượng: Giáo viên</SelectItem>
-                <SelectItem value="supervisor">Đối tượng: Quản sinh</SelectItem>
+                <SelectItem value="all">Tất cả</SelectItem>
+                <SelectItem value="student">HSSV</SelectItem>
+                <SelectItem value="teacher">Giáo viên</SelectItem>
+                <SelectItem value="supervisor">Quản sinh</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -234,10 +232,10 @@ export default function StudentTaskProgressTab() {
               }}
             >
               <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
-                <SelectValue placeholder="Lớp: Tất cả" />
+                <SelectValue placeholder="-- Lớp --" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Lớp: Tất cả</SelectItem>
+                <SelectItem value="all">Tất cả</SelectItem>
                 {classesList.map(c => (
                   <SelectItem key={c._id} value={c._id}>{c.class_name}</SelectItem>
                 ))}
@@ -255,10 +253,10 @@ export default function StudentTaskProgressTab() {
               }}
             >
               <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
-                <SelectValue placeholder="Nhiệm vụ: Tất cả" />
+                <SelectValue placeholder="-- Nhiệm vụ --" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Nhiệm vụ: Tất cả</SelectItem>
+                <SelectItem value="all">Tất cả</SelectItem>
                 {tasksList.map(task => (
                   <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>
                 ))}
@@ -266,93 +264,66 @@ export default function StudentTaskProgressTab() {
             </Select>
           </div>
 
-          {/* Sắp xếp */}
-          <div className="relative shrink-0 w-36">
-            <Select
-              value={sortFilter}
-              onValueChange={(val: any) => {
-                setSortFilter(val);
-                setCurrentPage(1);
-              }}
-            >
-              <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
-                <SelectValue placeholder="Sắp xếp: Mới nhất" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="newest">Sắp xếp: Mới nhất</SelectItem>
-                <SelectItem value="deadline_asc">Hạn chót: Tăng dần</SelectItem>
-                <SelectItem value="deadline_desc">Hạn chót: Giảm dần</SelectItem>
-                <SelectItem value="status">Sắp xếp: Trạng thái</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
-          {/* Hạn chót (CustomCalendar) */}
-          <div className="relative shrink-0">
-            <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 h-8 px-3 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl hover:bg-slate-50 transition-all cursor-pointer"
-                >
-                  <CalendarIcon className="w-3.5 h-3.5 text-gray-400" />
-                  <span>
-                    {deadlineFrom || deadlineTo
-                      ? `${deadlineFrom ? formatDateToDisplay(deadlineFrom) : '...'} - ${deadlineTo ? formatDateToDisplay(deadlineTo) : '...'}`
-                      : 'Hạn chót: Tất cả'}
-                  </span>
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-auto p-0 z-50 bg-transparent border-none shadow-none"
-                align="start"
-                side="bottom"
-                sideOffset={6}
+
+
+
+          {/* Ô Tìm kiếm & Chuyển đổi View Mode */}
+          <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Tìm theo tên người thực hiện hoặc tên nhiệm vụ..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 h-8 text-xs rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+              />
+            </div>
+            
+            {/* View Mode Switcher */}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200/50 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'table' 
+                    ? 'bg-white text-[#1A73E8] shadow-sm' 
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+                title="Xem dạng bảng"
               >
-                <CustomCalendar
-                  startDate={deadlineFrom ? new Date(deadlineFrom) : null}
-                  endDate={deadlineTo ? new Date(deadlineTo) : null}
-                  onRangeSelect={(start, end) => {
-                    setDeadlineFrom(formatDateToString(start));
-                    setDeadlineTo(formatDateToString(end));
-                  }}
-                  onCancel={() => {
-                    setDeadlineFrom('');
-                    setDeadlineTo('');
-                    setIsCalendarOpen(false);
-                  }}
-                  onConfirm={() => setIsCalendarOpen(false)}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Ô Tìm kiếm */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Tìm theo tên người thực hiện hoặc tên nhiệm vụ..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 h-8 text-xs rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
-            />
+                <List size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('card')}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'card' 
+                    ? 'bg-white text-[#1A73E8] shadow-sm' 
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+                title="Xem dạng thẻ"
+              >
+                <LayoutGrid size={14} />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Table */}
         <div className="flex-1 overflow-auto p-4">
-          {isLoading ? (
+          {isLoading && !hasLoadedOnceRef.current ? (
             <div className="flex justify-center py-10"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
           ) : error ? (
             <div className="text-center text-red-500 py-10">{error}</div>
           ) : items.length === 0 ? (
-            <div className="text-center text-gray-500 py-10">Không có dữ liệu tiến độ.</div>
-          ) : (
+            <div className={`text-center text-gray-500 py-10 transition-opacity duration-200 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>Không có dữ liệu tiến độ.</div>
+          ) : viewMode === 'table' ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-gray-600">
+              <table className={`w-full min-w-[1200px] text-left text-sm text-gray-600 transition-opacity duration-200 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
                 <thead className="text-xs uppercase bg-slate-50 text-slate-500 sticky top-0">
-                  <tr>
+                  <tr className="whitespace-nowrap">
                     <th className="px-4 py-3 rounded-tl-xl">Người thực hiện</th>
                     <th className="px-4 py-3">Vai trò</th>
                     <th className="px-4 py-3">Lớp</th>
@@ -370,7 +341,7 @@ export default function StudentTaskProgressTab() {
                   {items.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/50 bg-white">
                       <td className="px-4 py-3 font-semibold text-slate-800 max-w-[130px] truncate" title={item.assigneeName || '-'}>{item.assigneeName || '-'}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         {item.assigneeType === 'student' ? 'HSSV' : item.assigneeType === 'teacher' ? 'Giáo viên' : 'Quản sinh'}
                       </td>
                       <td className="px-4 py-3 max-w-[100px] truncate" title={item.className || '-'}>{item.className || '-'}</td>
@@ -381,11 +352,11 @@ export default function StudentTaskProgressTab() {
                           </div>
                           {item.linkedPage && (
                             <a
-                              href={item.linkedPage}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-blue-500 hover:text-blue-700 shrink-0"
-                              title="Mở liên kết nhiệm vụ"
+                                href={item.linkedPage}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-500 hover:text-blue-700 shrink-0"
+                                title="Mở liên kết nhiệm vụ"
                             >
                               <ExternalLink size={12} />
                             </a>
@@ -393,13 +364,13 @@ export default function StudentTaskProgressTab() {
                         </div>
                         <div className="text-xs text-slate-400 mt-0.5 max-w-[180px] truncate" title={item.subject || ''}>{item.subject}</div>
                       </td>
-                      <td className="px-4 py-3 text-xs capitalize text-slate-500">
+                      <td className="px-4 py-3 text-xs capitalize text-slate-500 whitespace-nowrap">
                         {item.taskType === 'project' ? 'Dự án' : item.taskType === 'assignment' ? 'Bài tập' : 'Hoạt động'}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         {item.deadline ? new Date(item.deadline).toLocaleDateString('vi-VN') : '-'}
                       </td>
-                      <td className="px-4 py-3 text-xs">
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
                         {item.statusSource === 'linked_event' ? (
                           <span className="inline-flex items-center text-blue-600 bg-blue-50/70 border border-blue-100/60 px-1.5 py-0.5 rounded-lg font-semibold">
                             Tự động
@@ -414,13 +385,13 @@ export default function StudentTaskProgressTab() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 max-w-[120px] truncate" title={item.updatedBy?.name || '-'}>
+                      <td className="px-4 py-3 max-w-[120px] truncate whitespace-nowrap" title={item.updatedBy?.name || '-'}>
                         {item.updatedBy?.name || '-'}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         {item.updatedAt ? new Date(item.updatedAt).toLocaleString('vi-VN') : '-'}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-[10px] font-bold rounded-lg border ${
                           item.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
                           item.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border-blue-200' :
@@ -429,7 +400,7 @@ export default function StudentTaskProgressTab() {
                           {item.status === 'completed' ? 'Đã hoàn thành' : item.status === 'in_progress' ? 'Đang thực hiện' : 'Chưa hoàn thành'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
                         {(hasManagePermission || user?.id === item.assigneeUserId) ? (
                           <button
                             onClick={() => handleUpdateStatus(item.id, item.status)}
@@ -447,29 +418,160 @@ export default function StudentTaskProgressTab() {
                 </tbody>
               </table>
             </div>
+          ) : (
+            /* Card View */
+            <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 transition-opacity duration-200 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
+              {items.map((item) => (
+                <div 
+                  key={item.id}
+                  className="bg-white/70 backdrop-blur-sm border border-slate-200/50 rounded-2xl p-4.5 shadow-sm hover:shadow-md hover:border-blue-400/50 transition-all flex flex-col justify-between min-h-[240px] group"
+                >
+                  {/* Card Header: Category & Status */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`inline-flex px-2 py-0.5 text-[9px] font-bold rounded-lg border uppercase ${
+                      item.taskType === 'project' ? 'text-blue-600 bg-blue-50 border-blue-100/60' :
+                      item.taskType === 'assignment' ? 'text-amber-600 bg-amber-50 border-amber-100/60' :
+                      'text-purple-600 bg-purple-50 border-purple-100/60'
+                    }`}>
+                      {item.taskType === 'project' ? 'Dự án' : item.taskType === 'assignment' ? 'Bài tập' : 'Hoạt động'}
+                    </span>
+                    <span className={`inline-flex px-2 py-0.5 text-[9px] font-bold rounded-lg border ${
+                      item.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                      item.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                      'bg-gray-50 text-gray-600 border-gray-200'
+                    }`}>
+                      {item.status === 'completed' ? 'Đã xong' : item.status === 'in_progress' ? 'Đang làm' : 'Chưa xong'}
+                    </span>
+                  </div>
+
+                  {/* Card Body: Task details & Assignee */}
+                  <div className="mt-3 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-800 line-clamp-2 leading-5 group-hover:text-[#1A73E8] transition-colors" title={item.taskTitle}>
+                        {item.taskTitle}
+                      </h4>
+                      {item.subject && (
+                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-1 font-medium" title={item.subject}>
+                          {item.subject}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-3 pt-3 border-t border-slate-100/60 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400 font-medium">Người thực hiện:</span>
+                        <span className="font-bold text-slate-700 max-w-[140px] truncate" title={item.assigneeName || '-'}>
+                          {item.assigneeName || '-'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400 font-medium">Vai trò / Lớp:</span>
+                        <span className="text-slate-600 font-semibold truncate max-w-[140px]" title={`${item.assigneeType === 'student' ? 'HSSV' : item.assigneeType === 'teacher' ? 'Giáo viên' : 'Quản sinh'} ${item.className ? `• ${item.className}` : ''}`}>
+                          {item.assigneeType === 'student' ? 'HSSV' : item.assigneeType === 'teacher' ? 'Giáo viên' : 'Quản sinh'} 
+                          {item.className && ` • ${item.className}`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400 font-medium">Hạn chót:</span>
+                        <div className="flex items-center gap-1 text-slate-600 font-semibold">
+                          <CalendarIcon size={11} className="text-slate-400" />
+                          <span>{item.deadline ? new Date(item.deadline).toLocaleDateString('vi-VN') : '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Footer: Metadata & Actions */}
+                  <div className="mt-4 pt-3 border-t border-slate-100/60 flex items-center justify-between gap-2">
+                    <div className="text-[9px] text-slate-400 font-medium space-y-0.5">
+                      <div className="flex items-center gap-1">
+                        <span>Nguồn:</span>
+                        <span className={`font-semibold ${
+                          item.statusSource === 'linked_event' ? 'text-blue-600' :
+                          item.statusSource === 'system' ? 'text-purple-600' :
+                          'text-slate-600'
+                        }`}>
+                          {item.statusSource === 'linked_event' ? 'Tự động' : item.statusSource === 'system' ? 'Hệ thống' : 'Thủ công'}
+                        </span>
+                      </div>
+                      {item.updatedBy?.name && (
+                        <div className="truncate max-w-[110px]" title={`Cập nhật bởi ${item.updatedBy.name}`}>
+                          Bởi: {item.updatedBy.name}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      {item.linkedPage && (
+                        <a
+                          href={item.linkedPage}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-7 h-7 rounded-xl border border-slate-200 text-slate-500 bg-white hover:border-[#1A73E8] hover:text-[#1A73E8] flex items-center justify-center transition-all"
+                          title="Mở liên kết nhiệm vụ"
+                        >
+                          <ExternalLink size={12} />
+                        </a>
+                      )}
+                      {(hasManagePermission || user?.id === item.assigneeUserId) && (
+                        <button
+                          onClick={() => handleUpdateStatus(item.id, item.status)}
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center border transition-all duration-150 cursor-pointer ${
+                            item.status === 'completed'
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
+                              : item.status === 'in_progress'
+                              ? 'bg-blue-50 border-blue-200 text-[#1A73E8] hover:bg-blue-100'
+                              : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                          }`}
+                          title="Chuyển trạng thái"
+                        >
+                          {item.status === 'completed' ? <Check size={14} className="text-emerald-500" /> : <Play size={14} className="text-blue-500" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
         {/* Pagination */}
         {totalCount > 0 && (
-          <div className="p-4 border-t border-white/80 flex items-center justify-between shrink-0">
-            <span className="text-xs text-slate-500">
-              Tổng số {totalCount} bản ghi
+          <div className="px-5 py-3 border-t border-white/80 bg-white/20 flex items-center justify-between shrink-0">
+            <span className="text-xs font-semibold text-[#64748B]">
+              Hiển thị {startItem}-{endItem} trên tổng số {totalCount} bản ghi
             </span>
-            <div className="flex gap-1">
+
+            <div className="flex items-center gap-1.5">
               <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                className="w-7 h-7 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={14} />
               </button>
+              
+              {Array.from({ length: totalPages }).map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentPage(idx + 1)}
+                  className={`w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    currentPage === idx + 1
+                      ? 'bg-[#1A73E8] text-white shadow-sm shadow-blue-500/15'
+                      : 'border border-gray-200 bg-white text-[#64748B] hover:bg-slate-50'
+                  }`}
+                >
+                  {idx + 1}
+                </button>
+              ))}
+
               <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                className="w-7 h-7 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
               >
-                <ChevronRight size={16} />
+                <ChevronRight size={14} />
               </button>
             </div>
           </div>

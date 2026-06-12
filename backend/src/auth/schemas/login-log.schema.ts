@@ -22,3 +22,8 @@ export class LoginLog {
 }
 
 export const LoginLogSchema = SchemaFactory.createForClass(LoginLog);
+
+LoginLogSchema.index({ login_time: -1 });
+LoginLogSchema.index({ user_id: 1, login_time: -1 });
+LoginLogSchema.index({ action: 1, login_time: -1 });
+LoginLogSchema.index({ ip_address: 1 });
