@@ -44,6 +44,17 @@ import { RouteGuard } from "@/components/guards/RouteGuard";
 import { useLinkedTaskProgress } from "@/hooks/useLinkedTaskProgress";
 import { studentTaskApi } from "@/api/task-api";
 import { normalizeLinkedPath, getLinkedTaskMode } from "@/lib/task-linked-page";
+import dynamic from "next/dynamic";
+import { isStudentRole, isAdminRole } from "@/utils/role.util";
+
+const ActiveStudentRankCard = dynamic(
+  () => import("@/components/grading/ActiveStudentRankCard"),
+  {
+    ssr: false,
+    loading: () => <div className="h-[110px] w-full bg-slate-100/50 rounded-2xl animate-pulse" />,
+  }
+);
+
 
 
 // Interfaces
@@ -55,6 +66,7 @@ interface StudentData {
   gender: string;
   score: number;
   status: string;
+  gradingStatus: "draft" | "sv_submitted" | "gv_reviewed" | "locked";
   classId: string;
   avatarUrl?: string;
   colorTheme?: { bg: string; text: string };
@@ -1028,6 +1040,7 @@ function GradingScoreContent() {
                     : "Khác",
               score: summary.total_score || 0,
               status: dbStudent?.status || studentObj?.status || "Studying",
+              gradingStatus: summary.status || "draft",
               classId:
                 typeof studentClassId === "object"
                   ? studentClassId?._id
@@ -1303,6 +1316,9 @@ function GradingScoreContent() {
 
   // Sinh viên đang active
   const activeStudent = students.find((s) => s.id === activeStudentId);
+
+  const shouldShowActiveStudentRankCard = isStudentRole(currentUser) || isAdminRole(currentUser);
+
 
   // Lấy chữ viết tắt tên sinh viên (ví dụ: Lê Công Thành -> LC)
   const getInitials = (name: string) => {
@@ -1584,9 +1600,9 @@ function GradingScoreContent() {
                 scorePayload.gv_reviewed_at = new Date();
                 scorePayload.gv_reviewed_by = currentUser?.id;
               } else if (userRole === "admin") {
-                scorePayload.final_score = calculatedScore;
-                scorePayload.locked_at = new Date();
-                scorePayload.locked_by = currentUser?.id;
+                scorePayload.gv_score = calculatedScore;
+                scorePayload.gv_reviewed_at = new Date();
+                scorePayload.gv_reviewed_by = currentUser?.id;
               }
 
               promises.push(
@@ -1623,9 +1639,9 @@ function GradingScoreContent() {
                 scorePayload.gv_reviewed_at = new Date();
                 scorePayload.gv_reviewed_by = currentUser?.id;
               } else if (userRole === "admin") {
-                scorePayload.final_score = calculatedScore;
-                scorePayload.locked_at = new Date();
-                scorePayload.locked_by = currentUser?.id;
+                scorePayload.gv_score = calculatedScore;
+                scorePayload.gv_reviewed_at = new Date();
+                scorePayload.gv_reviewed_by = currentUser?.id;
               }
 
               promises.push(
@@ -2437,6 +2453,11 @@ function GradingScoreContent() {
                       })}
                 </div>
               </div>
+            )}
+
+            {/* ================= ACTIVE STUDENT RANK CARD ================= */}
+            {shouldShowActiveStudentRankCard && activeStudent && (
+              <ActiveStudentRankCard activeStudent={activeStudent} />
             )}
 
             {/* ================= NAVIGATION TABS (Danh mục / Lịch sử) ================= */}

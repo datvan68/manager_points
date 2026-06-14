@@ -18,3 +18,11 @@ export function isAdminOrSupervisor(user: any): boolean {
   const role = String(user.roleName || user.role || '').toLowerCase();
   return role.includes('admin') || role.includes('supervisor') || role.includes('quản sinh');
 }
+
+export function isAdminRole(user: any): boolean {
+  if (!user) return false;
+  if (user.roleCode === 'ADMIN') return true;
+  const role = String(user.roleName || user.role || '').toLowerCase();
+  return role.includes('admin');
+}
+

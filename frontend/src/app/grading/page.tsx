@@ -822,7 +822,7 @@ function GradingPage() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl px-4 flex gap-3 items-center shrink-0 h-[68px] shadow-sm shadow-slate-300/40"
+              className="relative z-20 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl px-4 flex gap-3 items-center shrink-0 h-[68px] shadow-sm shadow-slate-300/40"
             >
               <div className="flex-1 relative">
 

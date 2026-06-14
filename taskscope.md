@@ -1,113 +1,148 @@
-# Task Scope: Student Still Sees Evaluation Period Progress In Admin Approval Phase
+# Task Scope: Active Student Rank Card Lazy Load And Visibility Check
 
-## User Report
+## User Request
 
-When the current evaluation phase is shown as `Hội đồng phê duyệt` (`admin_phase`), the student account still sees the `Tiến trình kỳ đánh giá rèn luyện` bar on the grading score page.
+Check whether the `ACTIVE STUDENT RANK CARD` has been lazy-loaded and whether its visibility is restricted so only `student` and `admin` users can see it.
 
-## Root Cause
-
-The progress bar is rendered by `frontend/src/app/grading/score/page.tsx` whenever the page has finished initial loading and an `activePeriod` exists.
-
-Relevant render condition:
-
-- `!isInitialLoading && activePeriod` at `frontend/src/app/grading/score/page.tsx:2017`
-
-That condition does not check whether the logged-in user is a student, nor whether the current period status is `sv_phase`. Because of this, the student role still enters the evaluation progress section when the selected semester has any configured evaluation period.
-
-The role-specific branching inside the same component only changes the content below the header:
-
-- Admin/supervisor users see the full 4-step timeline.
-- Non-admin users, including students, see the two role cards: their deadline and their operation permission.
-
-This is why the student account still sees the section header, semester, and current phase badge even when `activePeriod.status === "admin_phase"`.
-
-## Supporting Findings
-
-- `frontend/src/app/grading/score/page.tsx:717` selects the `activePeriod` only by matching `semester_id` with the selected semester.
-- `frontend/src/app/grading/score/page.tsx:749` hides the student slider for students with `shouldShowStudentSlider = currentUserRole !== "student"`, but there is no equivalent guard for the evaluation-period progress panel.
-- `frontend/src/app/grading/score/page.tsx:769` correctly blocks score modification for students outside `sv_phase`.
-- `frontend/src/app/grading/score/page.tsx:796` allows student editing only when `activePeriod.status === "sv_phase"` and the summary is still `draft`.
-- `frontend/src/api/evaluation-period-api.ts:34` loads all evaluation periods through `GET /api/evaluation-periods`.
-- `backend/src/evaluation-periods/evaluation-periods.controller.ts:32` allows any authenticated user to read evaluation periods.
-- `backend/src/evaluation-periods/schemas/evaluation-period.schema.ts:21` defines `admin_phase` as a valid evaluation period status.
-
-## Why This Is Not A Permission-Edit Bug
-
-The student can see the progress panel, but the score editing permission is already blocked by `canModifyScore`.
-
-For a student in `admin_phase`, `canModifyScore` becomes `false` because the student branch only returns true during `sv_phase`. The observed issue is therefore a visibility/UX scope issue, not direct write access.
-
-## Recommended Fix Scope
-
-Decide the intended student UX first:
-
-1. Hide the whole evaluation progress panel for students once the period is outside `sv_phase`.
-2. Keep the panel visible for transparency, but change the student-facing copy so it is clear that the period has moved to approval and the student can only view results.
-3. Hide only the `Giai đoạn hiện tại` badge for students outside `sv_phase`, while keeping deadline/permission cards.
-
-If the desired behavior is "student should not see the progress bar during `Hội đồng phê duyệt`", the frontend condition should be narrowed with a derived boolean, for example:
-
-```ts
-const shouldShowEvaluationProgress =
-  !!activePeriod &&
-  (currentUserRole !== "student" || activePeriod.status === "sv_phase");
-```
-
-Then replace the render guard around the evaluation-period section with `!isInitialLoading && shouldShowEvaluationProgress`.
-
-## Files To Touch If Fixing
+## Scope Checked
 
 - `frontend/src/app/grading/score/page.tsx`
+- `frontend/src/components/guards/RouteGuard.tsx`
+- `frontend/src/providers/auth-provider.tsx`
+- `frontend/src/utils/role.util.ts`
+- `backend/src/auth/services/auth.service.ts`
 
-Optional backend change only if the product decision is that students should not receive evaluation-period metadata outside their own phase:
+## Finding 1: The Active Student Rank Card Is Not Component-Lazy-Loaded
 
-- `backend/src/evaluation-periods/evaluation-periods.controller.ts`
-- `backend/src/evaluation-periods/evaluation-periods.service.ts`
+Status: **Not satisfied**
 
-## Acceptance Criteria
+The `ACTIVE STUDENT RANK CARD` is rendered inline inside `frontend/src/app/grading/score/page.tsx`.
 
-- Student account does not see `Tiến trình kỳ đánh giá rèn luyện` when the active period status is `admin_phase`, if hide behavior is chosen.
-- Student account still cannot edit scores outside `sv_phase`.
-- Admin/supervisor users still see the full evaluation period stepper in `admin_phase`.
-- Teacher users keep the expected advisor-phase visibility/permission behavior.
-- No changes are made to score approval or locking logic unless explicitly requested.
+Relevant evidence:
 
-## Additional Review: Is `rankCard` Displayed For Students?
-
-There is no literal `rankCard`, `RankCard`, or rank-card component rendered inside `frontend/src/app/grading/score/page.tsx`.
-
-The student-facing rank UI currently exists in two other places:
-
-1. `frontend/src/app/profile/page.tsx`
-   - The profile page calls `summariesPointApi.getMyLatestSummary()` only when the logged-in profile is detected as a student.
-   - The rank badge/card is rendered for students when `latestSummary && latestSummary.status === 'locked'`.
-   - If no locked summary exists, the student still sees the fallback badge text meaning no finalized training score exists yet.
-
-2. `frontend/src/components/layout/StudentCongratsModalGate.tsx`
-   - This component calls `summariesPointApi.getMyLatestSummary()` only when `isStudentRole(user)` is true.
-   - It opens the congratulation/rank modal when the latest summary exists and `summary.status === 'locked'`.
-   - The modal is mounted globally from `frontend/src/components/layout/Header.tsx`, so every page that renders `Header` can show it for a student after a locked summary is available.
-   - The modal is session-gated by `sessionStorage` using `congrats_shown_${userId}_${summaryId}_${lockedAt || 'locked'}`.
-
-Backend support:
-
-- `frontend/src/api/summaries-point-api.ts` calls `GET /summaries-points/me/latest`.
-- `backend/src/summaries-point/summaries-point.controller.ts` exposes `GET /summaries-points/me/latest`.
-- `backend/src/summaries-point/summaries-point.service.ts` implements `findLatestForStudent()` by querying the current student's latest summary with `status: 'locked'`.
-- This backend query does not check the current evaluation period phase; it only checks that the summary is locked, plus optional `semesterId` or `periodId` filters when provided.
+- The rank card render block starts at `frontend/src/app/grading/score/page.tsx:2540`.
+- The file imports `Suspense` from React at `frontend/src/app/grading/score/page.tsx:3`, but there is no `next/dynamic` import in this file.
+- The page-level `Suspense` wrapper around `GradingScoreWithGuard` appears near `frontend/src/app/grading/score/page.tsx:3361`, but that only wraps the page/search-param flow. It does not lazy-load the rank card itself.
+- The rank card JSX includes animated UI, rank tier rendering, avatar rendering, sparkles, and score display directly in the main page bundle.
 
 Conclusion:
 
-- If `rankCard` means the rank badge on the profile page, then yes, it is intentionally displayed for student accounts after their latest summary is locked.
-- If `rankCard` means the congratulation/rank modal, then yes, it can also be displayed for student accounts globally because `StudentCongratsModalGate` is mounted in `Header`.
-- If `rankCard` means a card inside the grading score page, then no matching rank card is currently rendered there.
+- The page is route-split by Next.js as a page, but the `ACTIVE STUDENT RANK CARD` itself is not lazy-loaded as a separate component.
+- If the requirement means card-level lazy loading, this still needs implementation.
 
-Potential mismatch:
+## Finding 2: The Rank Card Is Not Restricted To Student And Admin Only
 
-The evaluation progress bar issue is controlled by `activePeriod.status` in the grading score page, while the rank card/modal is controlled by the latest locked summary. These are separate state models. A student can be in a current `admin_phase` period and still see rank UI if any latest summary is already `locked`.
+Status: **Not satisfied**
 
-Recommended clarification before fixing:
+The current render condition is:
 
-- Keep rank UI visible for students only when a summary is fully `locked`; this matches the current backend and profile behavior.
-- If rank must be hidden while the current period is still `admin_phase`, the frontend must additionally pass the selected semester/period context into `getMyLatestSummary()` or compare the locked summary period with the current `activePeriod`.
-- Avoid tying the profile rank badge to the grading score page's progress panel unless product wants one global visibility rule for both features.
+```tsx
+{activeStudent && activeStudentRankStyle && activeStudentCongrats && (
+  <motion.div>
+    ...
+  </motion.div>
+)}
+```
+
+This condition only checks whether there is an active student and rank view data. It does not check the current user's role.
+
+Supporting evidence:
+
+- `currentUserRole` is derived in `frontend/src/app/grading/score/page.tsx` near the role setup block.
+- `shouldShowStudentSlider` already hides the student slider for students with `currentUserRole !== "student"`, but there is no equivalent derived boolean for the rank card.
+- The page is wrapped with `<RouteGuard requiredPermission="GRADING_PAGE">` near `frontend/src/app/grading/score/page.tsx:3352`.
+- `RouteGuard` checks permissions, not the rank card visibility rule.
+- Seeded roles in `backend/src/auth/services/auth.service.ts` give `GRADING_PAGE` to `Teacher`, `Supervisor`, and `Student`. Admin receives all permissions.
+
+Practical impact:
+
+- Any role that can reach `/grading/score` and has an `activeStudent` can see the rank card.
+- Teacher and supervisor users are not explicitly excluded by the rank card render condition.
+- The `taskId` access path can bypass the normal `RouteGuard` after task validation and render `GradingScoreContent` directly, so the card still needs its own role-level visibility guard if the rule is strict.
+
+## Recommended Fix Scope
+
+### 1. Add a Card-Specific Visibility Boolean
+
+Use a clear derived boolean before rendering the card:
+
+```tsx
+const shouldShowActiveStudentRankCard =
+  isStudentRole(currentUser) || isAdminUser(currentUser);
+```
+
+Then update the render guard:
+
+```tsx
+{shouldShowActiveStudentRankCard &&
+  activeStudent &&
+  activeStudentRankStyle &&
+  activeStudentCongrats && (
+    <ActiveStudentRankCard ... />
+  )}
+```
+
+Notes:
+
+- If `admin` must include only `ADMIN`, use `isAdminUser(currentUser)`.
+- If `admin` should include `SUPERVISOR`, use `isAdminOrSupervisor(currentUser)` from `frontend/src/utils/role.util.ts` instead. The user request says `student & admin`, so the conservative interpretation is `STUDENT` and `ADMIN` only.
+
+### 2. Extract The Rank Card Into A Separate Component
+
+Create a dedicated component, for example:
+
+- `frontend/src/components/grading/ActiveStudentRankCard.tsx`
+
+Move the rank card JSX and its helper-only visual subcomponents into that file if they are only used by the card:
+
+- `DiamondSparkle`
+- `FloatingDiamond`
+- the card JSX currently under `ACTIVE STUDENT RANK CARD`
+
+Keep shared rank calculations in the page unless the component should own presentation-only calculations.
+
+### 3. Lazy-Load The Component With `next/dynamic`
+
+In `frontend/src/app/grading/score/page.tsx`:
+
+```tsx
+import dynamic from "next/dynamic";
+
+const ActiveStudentRankCard = dynamic(
+  () => import("@/components/grading/ActiveStudentRankCard"),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-[110px] w-full rounded-2xl" />,
+  },
+);
+```
+
+This matches the local Next.js pattern already used in `frontend/src/app/grading/page.tsx` for heavy grading UI components.
+
+## Acceptance Criteria
+
+- The rank card code is no longer rendered inline in `frontend/src/app/grading/score/page.tsx`.
+- The page imports the card through `next/dynamic`.
+- The card only renders when the current user is a student or admin.
+- Teacher users with `GRADING_PAGE` can still access `/grading/score`, but do not see the `ACTIVE STUDENT RANK CARD`.
+- Supervisor users do not see the card unless product explicitly decides supervisors count as admin for this feature.
+- The `taskId` access path also respects the same card-level visibility rule.
+- Existing score editing, approval, and rank calculation logic remains unchanged.
+
+## Manual Verification Checklist
+
+1. Log in as `STUDENT` and open `/grading/score`; verify the rank card appears when an active student exists.
+2. Log in as `ADMIN` and open `/grading/score`; verify the rank card appears.
+3. Log in as `TEACHER` and open `/grading/score`; verify the rank card does not appear.
+4. Log in as `SUPERVISOR` and open `/grading/score`; verify the rank card does not appear unless the product decision changes.
+5. Open `/grading/score?taskId=...` with a valid task flow for a non-student/non-admin role; verify the rank card still does not appear.
+6. Build or run the frontend and confirm no dynamic import/type errors are introduced.
+
+## Current Conclusion
+
+The current implementation does **not** satisfy the requested checks:
+
+- The `ACTIVE STUDENT RANK CARD` is not lazy-loaded at component level.
+- The card is not restricted to only `student` and `admin` users.
+
+The fix should be frontend-only unless backend/API authorization rules also need to hide the underlying score/rank data from non-student/non-admin users.

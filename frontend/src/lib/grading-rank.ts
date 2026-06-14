@@ -120,3 +120,45 @@ export function resolveRankTier(score: number | null, status?: string): RankTier
   if (score >= 50) return 'bronze';
   return 'unranked';
 }
+
+export interface CongratsMessage {
+  msg: string;
+  gradient: string;
+  rgb: string;
+}
+
+export function getCongratsMessage(tier: RankTier): CongratsMessage {
+  switch (tier) {
+    case 'diamond':
+      return {
+        msg: "Xuất sắc! Sự nỗ lực vượt bậc của bạn đã đạt đến đỉnh cao. Hãy tiếp tục phát huy tinh thần dẫn đầu này nhé! 💎🚀",
+        gradient: "from-cyan-400 to-blue-500",
+        rgb: "34, 211, 238",
+      };
+    case 'gold':
+      return {
+        msg: "Chúc mừng bạn! Kết quả học tập và rèn luyện vô cùng ấn tượng. Bạn đã làm rất tốt, tiếp tục duy trì phong độ này nhé! 🥇✨",
+        gradient: "from-amber-400 to-orange-500",
+        rgb: "245, 158, 11",
+      };
+    case 'silver':
+      return {
+        msg: "Thành tích rất tốt! Sự cố gắng của bạn đang gặt hái những quả ngọt. Tiến thêm một bước nữa để chạm tới đỉnh cao mới nào! 🥈💪",
+        gradient: "from-slate-400 to-slate-600",
+        rgb: "148, 163, 184",
+      };
+    case 'bronze':
+      return {
+        msg: "Cảm ơn nỗ lực rèn luyện của bạn! Bạn đã hoàn thành tốt chặng đường này. Hãy giữ vững ngọn lửa nhiệt huyết để bứt phá hơn nữa nhé! 🥉🔥",
+        gradient: "from-orange-400 to-amber-700",
+        rgb: "180, 83, 9",
+      };
+    default:
+      return {
+        msg: "Chúc mừng bạn đã hoàn thành đợt chấm điểm rèn luyện! Mỗi nỗ lực nhỏ hôm nay là bước đệm lớn cho thành công ngày mai. Tiến lên nhé! 🌟",
+        gradient: "from-blue-400 to-indigo-500",
+        rgb: "59, 130, 246",
+      };
+  }
+}
+

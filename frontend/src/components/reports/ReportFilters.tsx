@@ -76,7 +76,7 @@ export default function ReportFilters({
   };
 
   return (
-    <div className="mx-6 mt-6 p-5 bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl shadow-sm space-y-4">
+    <div className="relative z-20 mx-6 mt-6 p-5 bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl shadow-sm space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-[13px] font-bold text-[#1E293B] uppercase tracking-wider">Bộ lọc dữ liệu</h3>
         <button
