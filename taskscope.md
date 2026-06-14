@@ -1,148 +1,122 @@
-# Task Scope: Active Student Rank Card Lazy Load And Visibility Check
+# Task Scope: Profile Role toLowerCase Runtime Error
 
-## User Request
+## User Report
 
-Check whether the `ACTIVE STUDENT RANK CARD` has been lazy-loaded and whether its visibility is restricted so only `student` and `admin` users can see it.
+Opening the personal profile page fails with:
 
-## Scope Checked
-
-- `frontend/src/app/grading/score/page.tsx`
-- `frontend/src/components/guards/RouteGuard.tsx`
-- `frontend/src/providers/auth-provider.tsx`
-- `frontend/src/utils/role.util.ts`
-- `backend/src/auth/services/auth.service.ts`
-
-## Finding 1: The Active Student Rank Card Is Not Component-Lazy-Loaded
-
-Status: **Not satisfied**
-
-The `ACTIVE STUDENT RANK CARD` is rendered inline inside `frontend/src/app/grading/score/page.tsx`.
-
-Relevant evidence:
-
-- The rank card render block starts at `frontend/src/app/grading/score/page.tsx:2540`.
-- The file imports `Suspense` from React at `frontend/src/app/grading/score/page.tsx:3`, but there is no `next/dynamic` import in this file.
-- The page-level `Suspense` wrapper around `GradingScoreWithGuard` appears near `frontend/src/app/grading/score/page.tsx:3361`, but that only wraps the page/search-param flow. It does not lazy-load the rank card itself.
-- The rank card JSX includes animated UI, rank tier rendering, avatar rendering, sparkles, and score display directly in the main page bundle.
-
-Conclusion:
-
-- The page is route-split by Next.js as a page, but the `ACTIVE STUDENT RANK CARD` itself is not lazy-loaded as a separate component.
-- If the requirement means card-level lazy loading, this still needs implementation.
-
-## Finding 2: The Rank Card Is Not Restricted To Student And Admin Only
-
-Status: **Not satisfied**
-
-The current render condition is:
-
-```tsx
-{activeStudent && activeStudentRankStyle && activeStudentCongrats && (
-  <motion.div>
-    ...
-  </motion.div>
-)}
+```text
+profile?.role?.toLowerCase is not a function
 ```
 
-This condition only checks whether there is an active student and rank view data. It does not check the current user's role.
+The affected screen is the profile page that loads the current user through `GET /api/auth/me`.
 
-Supporting evidence:
+## Primary Finding
 
-- `currentUserRole` is derived in `frontend/src/app/grading/score/page.tsx` near the role setup block.
-- `shouldShowStudentSlider` already hides the student slider for students with `currentUserRole !== "student"`, but there is no equivalent derived boolean for the rank card.
-- The page is wrapped with `<RouteGuard requiredPermission="GRADING_PAGE">` near `frontend/src/app/grading/score/page.tsx:3352`.
-- `RouteGuard` checks permissions, not the rank card visibility rule.
-- Seeded roles in `backend/src/auth/services/auth.service.ts` give `GRADING_PAGE` to `Teacher`, `Supervisor`, and `Student`. Admin receives all permissions.
+The profile page treats `role` as both a string and an object.
 
-Practical impact:
+In `frontend/src/app/profile/page.tsx`, student detection calls:
 
-- Any role that can reach `/grading/score` and has an `activeStudent` can see the rank card.
-- Teacher and supervisor users are not explicitly excluded by the rank card render condition.
-- The `taskId` access path can bypass the normal `RouteGuard` after task validation and render `GradingScoreContent` directly, so the card still needs its own role-level visibility guard if the rule is strict.
+```ts
+data?.role?.toLowerCase() === 'student'
+profile?.role?.toLowerCase() === 'student'
+```
+
+However, the backend `AuthService.getMe(...)` returns `role` as a populated object:
+
+```ts
+role: role ? {
+  _id: role._id.toString(),
+  name: role.name,
+  role_code: role.role_code,
+  permissions: role.permissions || [],
+} : null
+```
+
+Because `role` is an object, not a string, optional chaining only protects against `null` or `undefined`. It does not protect against calling `toLowerCase()` on a non-string value. When the profile page evaluates this expression, the browser throws the reported runtime error.
+
+## Contract Mismatch
+
+The current `GET /api/auth/me` response already exposes normalized role fields for role checks:
+
+- `roleName`: display/name value such as `Student`
+- `roleCode`: stable code such as `STUDENT`
+- `permissions`: flattened permission codes
+- `role`: populated role object for role metadata and permission details
+
+Therefore, profile role checks should use `roleCode`, `roleName`, or a small role-normalization helper. They should not call string methods directly on `profile.role`.
+
+## Affected Code
+
+- `frontend/src/app/profile/page.tsx`
+  - The `fetchProfile` student check uses `data?.role?.toLowerCase()`.
+  - The header rank badge condition uses `profile?.role?.toLowerCase()`.
+  - The permissions tab correctly assumes `profile.role` is an object when reading `profile?.role?.permissions`.
+
+- `backend/src/auth/services/auth.service.ts`
+  - `getMe(...)` intentionally returns `role` as an object and should not need to change for this bug.
 
 ## Recommended Fix Scope
 
-### 1. Add a Card-Specific Visibility Boolean
+1. Add a local helper or reuse the existing role utility to detect student users safely.
 
-Use a clear derived boolean before rendering the card:
+   Recommended local helper shape:
 
-```tsx
-const shouldShowActiveStudentRankCard =
-  isStudentRole(currentUser) || isAdminUser(currentUser);
-```
+   ```ts
+   const isStudentProfile = (user: any): boolean => {
+     if (!user) return false;
+     if (user.roleCode === 'STUDENT') return true;
+     const roleName = String(user.roleName || user.role?.name || '').toLowerCase();
+     return roleName === 'student';
+   };
+   ```
 
-Then update the render guard:
+2. Replace both profile-page student checks with the helper.
 
-```tsx
-{shouldShowActiveStudentRankCard &&
-  activeStudent &&
-  activeStudentRankStyle &&
-  activeStudentCongrats && (
-    <ActiveStudentRankCard ... />
-  )}
-```
+   The two call sites should become:
 
-Notes:
+   ```ts
+   const isStudent = isStudentProfile(data);
+   ```
 
-- If `admin` must include only `ADMIN`, use `isAdminUser(currentUser)`.
-- If `admin` should include `SUPERVISOR`, use `isAdminOrSupervisor(currentUser)` from `frontend/src/utils/role.util.ts` instead. The user request says `student & admin`, so the conservative interpretation is `STUDENT` and `ADMIN` only.
+   and:
 
-### 2. Extract The Rank Card Into A Separate Component
+   ```tsx
+   {isStudentProfile(profile) && (...)}
+   ```
 
-Create a dedicated component, for example:
+3. Keep `profile.role.permissions` usage unchanged.
 
-- `frontend/src/components/grading/ActiveStudentRankCard.tsx`
+   That part matches the backend response contract because `role` is a populated object.
 
-Move the rank card JSX and its helper-only visual subcomponents into that file if they are only used by the card:
+4. Avoid changing the backend response shape unless there is a broader API contract decision.
 
-- `DiamondSparkle`
-- `FloatingDiamond`
-- the card JSX currently under `ACTIVE STUDENT RANK CARD`
+   Changing `role` back to a string would likely break the permissions tab and any code that expects populated role details.
 
-Keep shared rank calculations in the page unless the component should own presentation-only calculations.
+## Files To Touch If Fixing
 
-### 3. Lazy-Load The Component With `next/dynamic`
+- `frontend/src/app/profile/page.tsx`
 
-In `frontend/src/app/grading/score/page.tsx`:
+Optional follow-up:
 
-```tsx
-import dynamic from "next/dynamic";
-
-const ActiveStudentRankCard = dynamic(
-  () => import("@/components/grading/ActiveStudentRankCard"),
-  {
-    ssr: false,
-    loading: () => <Skeleton className="h-[110px] w-full rounded-2xl" />,
-  },
-);
-```
-
-This matches the local Next.js pattern already used in `frontend/src/app/grading/page.tsx` for heavy grading UI components.
+- `frontend/src/utils/role.util.ts`
+  - Consider extending `isStudentRole(...)` to handle `user.role?.name`, because the current helper safely stringifies `user.role` but would produce `[object Object]` for populated role objects.
 
 ## Acceptance Criteria
 
-- The rank card code is no longer rendered inline in `frontend/src/app/grading/score/page.tsx`.
-- The page imports the card through `next/dynamic`.
-- The card only renders when the current user is a student or admin.
-- Teacher users with `GRADING_PAGE` can still access `/grading/score`, but do not see the `ACTIVE STUDENT RANK CARD`.
-- Supervisor users do not see the card unless product explicitly decides supervisors count as admin for this feature.
-- The `taskId` access path also respects the same card-level visibility rule.
-- Existing score editing, approval, and rank calculation logic remains unchanged.
+- Opening `/profile` no longer throws `profile?.role?.toLowerCase is not a function`.
+- Student users still trigger `summariesPointApi.getMyLatestSummary()`.
+- The rank badge still appears for Student profiles.
+- Non-student profiles do not call the latest summary endpoint.
+- The permissions tab still renders `profile.role.permissions`.
+- No backend API contract change is required.
 
-## Manual Verification Checklist
+## Manual Verification
 
-1. Log in as `STUDENT` and open `/grading/score`; verify the rank card appears when an active student exists.
-2. Log in as `ADMIN` and open `/grading/score`; verify the rank card appears.
-3. Log in as `TEACHER` and open `/grading/score`; verify the rank card does not appear.
-4. Log in as `SUPERVISOR` and open `/grading/score`; verify the rank card does not appear unless the product decision changes.
-5. Open `/grading/score?taskId=...` with a valid task flow for a non-student/non-admin role; verify the rank card still does not appear.
-6. Build or run the frontend and confirm no dynamic import/type errors are introduced.
-
-## Current Conclusion
-
-The current implementation does **not** satisfy the requested checks:
-
-- The `ACTIVE STUDENT RANK CARD` is not lazy-loaded at component level.
-- The card is not restricted to only `student` and `admin` users.
-
-The fix should be frontend-only unless backend/API authorization rules also need to hide the underlying score/rank data from non-student/non-admin users.
+1. Log in as a Student user.
+2. Open the personal profile page.
+3. Confirm the page renders without a runtime error.
+4. Confirm the rank badge area appears and the latest summary request is made.
+5. Switch to the role and permissions tab.
+6. Confirm the permissions list still renders from `profile.role.permissions`.
+7. Log in as a non-student user.
+8. Open the profile page and confirm no latest summary request is made.

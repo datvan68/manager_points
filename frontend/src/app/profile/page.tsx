@@ -35,6 +35,7 @@ import { motion } from "framer-motion";
 import { authApi, tokenStorage } from "../../api/auth-api";
 import { summariesPointApi } from "@/api/summaries-point-api";
 import { getRankStyle } from "@/lib/grading-rank";
+import { isStudentRole } from "@/utils/role.util";
 import { useAuth } from "../../providers/auth-provider";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -105,10 +106,7 @@ export default function ProfilePage() {
         department: data.department || "Khoa Công nghệ thông tin",
       });
 
-      const isStudent = data?.roleCode === 'STUDENT' || 
-                        data?.roleName?.toLowerCase() === 'student' || 
-                        data?.role?.toLowerCase() === 'student' || 
-                        data?.roles?.some((r: any) => r.name?.toLowerCase() === 'student');
+      const isStudent = isStudentRole(data);
       
       if (isStudent) {
         try {
@@ -307,7 +305,7 @@ export default function ProfilePage() {
                     </div>
 
                     {/* Điểm rèn luyện / Xếp hạng */}
-                    {(profile?.roleCode === 'STUDENT' || profile?.roleName?.toLowerCase() === 'student' || profile?.role?.toLowerCase() === 'student' || profile?.roles?.some((r: any) => r.name?.toLowerCase() === 'student')) && (
+                    {isStudentRole(profile) && (
                       latestSummary && latestSummary.status === 'locked' ? (() => {
                         const style = getRankStyle(latestSummary.rank_tier);
                         return (
