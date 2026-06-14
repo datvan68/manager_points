@@ -369,25 +369,46 @@ export class StudentsService implements OnModuleInit {
           semesters = await this.semesterModel.find().exec();
         }
 
-        const summariesToCreate = semesters.map((sem) => ({
-          student_id: (createdStudent as any)._id,
-          semester_id: sem._id,
-          total_score: 0,
-          grading: 'chưa xếp loại',
-          status: 'draft',
+        const bulkOps = semesters.map((sem) => ({
+          updateOne: {
+            filter: {
+              student_id: (createdStudent as any)._id,
+              semester_id: sem._id,
+              period_id: null,
+            },
+            update: {
+              $setOnInsert: {
+                student_id: (createdStudent as any)._id,
+                semester_id: sem._id,
+                period_id: null,
+                total_score: 0,
+                grading: 'chưa xếp loại',
+                status: 'draft',
+                details: [],
+              },
+            },
+            upsert: true,
+          },
         }));
 
-        if (summariesToCreate.length > 0) {
-          await this.summaryPointModel.insertMany(summariesToCreate);
+        if (bulkOps.length > 0) {
+          await this.summaryPointModel.bulkWrite(bulkOps, { ordered: false });
           this.logger.log(
-            `Auto-created ${summariesToCreate.length} summary point rows for ${createStudentDto.full_name}.`,
+            `Auto-created or verified summary point rows for ${createStudentDto.full_name}.`,
           );
         }
-      } catch (sumErr) {
-        this.logger.error(
-          'Failed to auto-create summary points for new student:',
-          sumErr,
-        );
+      } catch (sumErr: any) {
+        const isDupKey = sumErr.code === 11000 || (sumErr.writeErrors && sumErr.writeErrors.some((e: any) => e.code === 11000));
+        if (isDupKey) {
+          this.logger.warn(
+            `Summary points already existed for student ${createStudentDto.full_name} (${createdStudent.student_code}).`,
+          );
+        } else {
+          this.logger.error(
+            `Failed to auto-create summary points for new student ${createStudentDto.full_name}:`,
+            sumErr,
+          );
+        }
       }
 
       return (await this.findOne((createdStudent as any)._id.toString())) as any;
@@ -449,30 +470,51 @@ export class StudentsService implements OnModuleInit {
           semesters = await this.semesterModel.find().exec();
         }
 
-        const summariesToCreate: any[] = [];
+        const bulkOps: any[] = [];
         createdStudents.forEach((student) => {
           semesters.forEach((sem) => {
-            summariesToCreate.push({
-              student_id: (student as any)._id,
-              semester_id: sem._id,
-              total_score: 0,
-              grading: 'chưa xếp loại',
-              status: 'draft',
+            bulkOps.push({
+              updateOne: {
+                filter: {
+                  student_id: (student as any)._id,
+                  semester_id: sem._id,
+                  period_id: null,
+                },
+                update: {
+                  $setOnInsert: {
+                    student_id: (student as any)._id,
+                    semester_id: sem._id,
+                    period_id: null,
+                    total_score: 0,
+                    grading: 'chưa xếp loại',
+                    status: 'draft',
+                    details: [],
+                  },
+                },
+                upsert: true,
+              },
             });
           });
         });
 
-        if (summariesToCreate.length > 0) {
-          await this.summaryPointModel.insertMany(summariesToCreate);
+        if (bulkOps.length > 0) {
+          await this.summaryPointModel.bulkWrite(bulkOps, { ordered: false });
           this.logger.log(
-            `Auto-created ${summariesToCreate.length} summary point rows for bulk import.`,
+            `Auto-created or verified ${bulkOps.length} summary point rows for bulk import.`,
           );
         }
-      } catch (sumErr) {
-        this.logger.error(
-          'Failed to auto-create summary points for bulk imported students:',
-          sumErr,
-        );
+      } catch (sumErr: any) {
+        const isDupKey = sumErr.code === 11000 || (sumErr.writeErrors && sumErr.writeErrors.some((e: any) => e.code === 11000));
+        if (isDupKey) {
+          this.logger.warn(
+            `Summary points already existed for some of the bulk imported students.`,
+          );
+        } else {
+          this.logger.error(
+            'Failed to auto-create summary points for bulk imported students:',
+            sumErr,
+          );
+        }
       }
 
       const ids = createdStudents.map((student) => student._id);
@@ -524,15 +566,25 @@ export class StudentsService implements OnModuleInit {
     }));
   }
 
-  async findAll(requester?: any): Promise<any[]> {
-    const isRequesterStudent = isStudent(requester);
+  async findAll(query?: { classId?: string }, requester?: any): Promise<any[]> {
+    let classId: string | undefined;
+    let actualRequester = requester;
+
+    if (query && ('roleName' in query || 'userId' in query || 'role' in query || 'username' in query)) {
+      actualRequester = query;
+      classId = undefined;
+    } else if (query) {
+      classId = query.classId;
+    }
+
+    const isRequesterStudent = isStudent(actualRequester);
 
     if (isRequesterStudent) {
-      if (!requester?.userId || !Types.ObjectId.isValid(requester.userId)) {
+      if (!actualRequester?.userId || !Types.ObjectId.isValid(actualRequester.userId)) {
         return [];
       }
       const student = await this.studentModel
-        .findOne({ user_id: new Types.ObjectId(requester.userId) })
+        .findOne({ user_id: new Types.ObjectId(actualRequester.userId) })
         .populate({
           path: 'class_id',
           populate: { path: 'dept_id', select: 'name code' },
@@ -542,11 +594,40 @@ export class StudentsService implements OnModuleInit {
         .exec();
       if (!student) return [];
       const attached = await this.attachAccountStatus(student);
+
+      if (classId) {
+        if (!Types.ObjectId.isValid(classId)) {
+          return [];
+        }
+        const studentClassId = typeof student.class_id === 'object'
+          ? (student.class_id as any)?._id?.toString()
+          : (student.class_id as any)?.toString();
+        if (studentClassId !== classId) {
+          return [];
+        }
+      }
+
       return [attached];
     }
 
-    const teacherClassIds = await this.getTeacherClassIds(requester);
-    const filter: any = teacherClassIds ? { class_id: { $in: teacherClassIds } } : {};
+    const teacherClassIds = await this.getTeacherClassIds(actualRequester);
+    const filter: any = {};
+
+    if (classId) {
+      if (!Types.ObjectId.isValid(classId)) {
+        return [];
+      }
+
+      if (teacherClassIds) {
+        const isAssigned = teacherClassIds.some((id) => id.toString() === classId);
+        if (!isAssigned) {
+          return [];
+        }
+      }
+      filter.class_id = new Types.ObjectId(classId);
+    } else if (teacherClassIds) {
+      filter.class_id = { $in: teacherClassIds };
+    }
 
     const students = await this.studentModel
       .find(filter)

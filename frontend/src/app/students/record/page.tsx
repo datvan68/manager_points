@@ -22,12 +22,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import {
-  DUMMY_RECORDS,
-  RecordItem,
-  MOCK_HISTORY,
-  MOCK_CLASS_REPORTS,
-} from "@/lib/mock-data/ghinhan";
+
 import { CustomPagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1332,29 +1327,29 @@ function GhiNhanTab() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="flex flex-col h-full bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 overflow-hidden">
       {activeSubTab === "student" ? (
         // ==================== TAB 1: TÌNH HÌNH HSSV ====================
         <>
           {/* Top Bar */}
-          <div className="p-4 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white shrink-0">
+          <div className="p-4 border-b border-white/70 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/45 backdrop-blur-md shadow-sm shrink-0">
             <div className="flex flex-row items-center gap-3 flex-1">
               {/* Tab điều hướng dạng Pill Shape Glassmorphic */}
               {isStudent ? (
-                <div className="text-sm font-bold text-slate-800 px-3 py-1.5 bg-slate-50/50 rounded-lg border border-slate-100">
+                <div className="text-sm font-bold text-[#1E293B] px-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl shadow-sm">
                   Ghi nhận rèn luyện cá nhân
                 </div>
               ) : (
-                <div className="flex bg-gray-100/80 border border-gray-200/15 rounded-full p-1 gap-1.5 shrink-0 shadow-sm">
+                <div className="flex bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl p-1 gap-1.5 shrink-0 shadow-sm">
                   <button
                     onClick={() => setActiveSubTab("student")}
-                    className="px-5 py-1.5 font-bold text-[12.5px] transition-all rounded-full cursor-pointer whitespace-nowrap bg-white text-[#1A73E8] shadow-sm"
+                    className="px-4 py-1.5 font-bold text-[12.5px] transition-all duration-150 ease-out hover:scale-[1.01] rounded-xl cursor-pointer whitespace-nowrap bg-white/85 text-[#1A73E8] shadow-sm"
                   >
                     Tình hình HSSV
                   </button>
                   <button
                     onClick={() => setActiveSubTab("class")}
-                    className={`px-5 py-1.5 font-bold text-[12.5px] transition-all rounded-full whitespace-nowrap ${canAccessClassTab ? "cursor-pointer text-gray-500 hover:text-gray-800" : "hidden"}`}
+                    className={`px-4 py-1.5 font-bold text-[12.5px] transition-all duration-150 ease-out hover:scale-[1.01] rounded-xl whitespace-nowrap ${canAccessClassTab ? "cursor-pointer text-slate-500 hover:text-slate-800" : "hidden"}`}
                   >
                     Tình hình lớp học
                   </button>
@@ -1362,13 +1357,13 @@ function GhiNhanTab() {
               )}
 
               <div className="relative flex-1 min-w-0 max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <input
                   type="text"
                   placeholder="Tìm kiếm..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-gray-400"
+                  className="w-full pl-9 pr-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B]"
                 />
               </div>
             </div>
@@ -1377,10 +1372,10 @@ function GhiNhanTab() {
               <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                 <PopoverTrigger asChild>
                   <button
-                    className={`flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold transition-colors shadow-sm whitespace-nowrap ${filterDateRange ? "border-blue-400 bg-blue-50/50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap ${filterDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
                   >
                     <CalendarIcon
-                      className={`w-4 h-4 ${filterDateRange ? "text-blue-500" : "text-gray-500"}`}
+                      className={`w-4 h-4 ${filterDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
                     />
                     <span className="hidden sm:inline">
                       {filterDateRange
@@ -1393,7 +1388,7 @@ function GhiNhanTab() {
                   </button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className="w-auto p-0 z-[100] bg-transparent border-none shadow-none"
+                  className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
                   align="end"
                   side="bottom"
                   sideOffset={6}
@@ -1423,7 +1418,7 @@ function GhiNhanTab() {
                       setCurrentPage(1);
                     }}
                   >
-                    <SelectTrigger className="h-10 bg-white border border-gray-200 text-slate-700 hover:bg-gray-50 transition-colors font-semibold text-sm rounded-lg shadow-sm">
+                    <SelectTrigger className="h-8.5 bg-white/50 border border-white/80 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-sm rounded-xl shadow-sm">
                       <SelectValue placeholder="Tất cả các lớp" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1441,7 +1436,7 @@ function GhiNhanTab() {
               {ghiNhanAccess.configRecord && (
                 <button
                   onClick={() => setIsGlobalConfigModalOpen(true)}
-                  className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                  className="p-2 bg-white/50 border border-white/80 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
                   title="Cấu hình tiêu chí vắng mặt"
                 >
                   <Settings className="w-4 h-4" />
@@ -1451,7 +1446,7 @@ function GhiNhanTab() {
               {ghiNhanAccess.createStudentRecord && (
                 <button
                   onClick={handleCreate}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
+                  className="flex items-center gap-2 px-3.5 py-1.5 bg-[#1A73E8] text-white text-sm font-semibold rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span className="hidden sm:inline">Thêm ghi nhận</span>
@@ -1462,23 +1457,23 @@ function GhiNhanTab() {
           </div>
 
           {/* Table Content student record */}
-          <div className="flex-1 overflow-auto bg-white">
+          <div className="flex-1 overflow-x-auto overflow-y-auto w-full max-w-full bg-transparent border-t border-white/60">
             {viewLayout === "card" ? (
-              <div className="p-4 bg-slate-50/30">
+              <div className="p-4 bg-blue-50/30 backdrop-blur-md">
                 {isLoading ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Array.from({ length: 9 }).map((_, i) => (
                       <div
                         key={i}
-                        className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3"
+                        className="bg-white/40 backdrop-blur-md p-4 rounded-xl border border-white/70 shadow-sm flex flex-col gap-3"
                       >
                         <div className="flex justify-between items-start">
                           <Skeleton className="w-20 h-4" />
-                          <Skeleton className="w-20 h-6 rounded-full" />
+                          <Skeleton className="w-20 h-6 rounded-xl" />
                         </div>
                         <Skeleton className="w-40 h-5" />
                         <Skeleton className="w-32 h-4" />
-                        <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
+                        <div className="border-t border-white/60 pt-3 flex justify-between items-center">
                           <Skeleton className="w-24 h-4" />
                           <Skeleton className="w-8 h-8 rounded-full" />
                         </div>
@@ -1493,19 +1488,19 @@ function GhiNhanTab() {
                       const isCongDiem = record.recordType === "Cộng điểm";
 
                       let badgeStyle =
-                        "bg-blue-50 text-blue-600 border-blue-100/50";
-                      let dotStyle = "bg-blue-500";
+                        "bg-blue-500/10 text-[#1A73E8] border-blue-500/20";
+                      let dotStyle = "bg-[#1A73E8]";
                       let pointStyle = "text-emerald-500";
 
                       if (isKhenThuong) {
                         badgeStyle =
-                          "bg-emerald-50 text-emerald-600 border-emerald-100/50";
+                          "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
                         dotStyle = "bg-emerald-500";
                       } else if (isKyLuat) {
                         badgeStyle =
-                          "bg-rose-50 text-rose-600 border-rose-100/50";
+                          "bg-rose-500/10 text-rose-700 border-rose-500/20";
                         dotStyle = "bg-rose-500";
-                        pointStyle = "text-rose-500";
+                        pointStyle = "text-rose-550";
                       }
 
                       return (
@@ -1514,10 +1509,10 @@ function GhiNhanTab() {
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ duration: 0.15, delay: idx * 0.03 }}
                           key={record.id}
-                          className={`bg-white border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-3 relative group ${
+                          className={`bg-white/45 backdrop-blur-md border rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] hover:border-[#1A73E8]/50 flex flex-col gap-3 relative group ${
                             selectedIds.includes(record.id)
-                              ? "border-blue-400 bg-blue-50/10 shadow-[0_2px_12px_rgba(59,130,246,0.08)]"
-                              : "border-slate-100"
+                              ? "border-[#1A73E8] bg-blue-50/20 shadow-[0_2px_12px_rgba(26,115,232,0.15)]"
+                              : "border-white/70"
                           }`}
                         >
                           {/* Checkbox & Badge */}
@@ -1531,12 +1526,12 @@ function GhiNhanTab() {
                                   className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                 />
                               )}
-                              <span className="text-[11px] font-bold text-slate-400">
+                              <span className="text-[11px] font-bold text-[#64748B]">
                                 {record.studentId}
                               </span>
                             </div>
                             <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}
                             >
                               <span
                                 className={`w-1.5 h-1.5 rounded-full ${dotStyle}`}
@@ -1547,7 +1542,7 @@ function GhiNhanTab() {
 
                           <div>
                             <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-bold text-slate-800 leading-snug">
+                              <h3 className="text-sm font-bold text-[#1E293B] leading-snug">
                                 {record.fullName}
                               </h3>
                               {record.original?.createdAt &&
@@ -1556,28 +1551,28 @@ function GhiNhanTab() {
                                     record.original.createdAt,
                                   ).getTime() <
                                   24 * 60 * 60 * 1000 && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
                                     New
                                   </span>
                                 )}
                             </div>
-                            <p className="text-[11.5px] font-semibold text-slate-400 mt-0.5">
+                            <p className="text-[11.5px] font-semibold text-[#64748B] mt-0.5">
                               {record.className}
                             </p>
                           </div>
 
                           {/* Criteria */}
-                          <div className="bg-slate-50/50 rounded-xl p-2.5 text-[12px] text-slate-600 font-medium line-clamp-2 h-10 flex items-center">
+                          <div className="bg-white/30 border border-white/50 rounded-xl p-2.5 text-[12px] text-[#1E293B] font-medium line-clamp-2 h-10 flex items-center">
                             {record.criteria || "Không có tiêu chí"}
                           </div>
 
                           {/* Date, Point & Action */}
-                          <div className="border-t border-slate-100/60 pt-2.5 mt-1 flex items-center justify-between">
+                          <div className="border-t border-white/40 pt-2.5 mt-1 flex items-center justify-between">
                             <div className="flex flex-col">
-                              <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">
+                              <span className="text-[9px] text-[#64748B] font-semibold uppercase tracking-wider">
                                 Ngày ghi nhận
                               </span>
-                              <span className="text-[11px] font-bold text-slate-600 mt-0.5">
+                              <span className="text-[11px] font-bold text-[#1E293B] mt-0.5">
                                 {record.date}
                               </span>
                             </div>
@@ -1595,7 +1590,7 @@ function GhiNhanTab() {
                                 }
                               >
                                 <DrawerTrigger asChild>
-                                  <button className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-all cursor-pointer shadow-sm">
+                                  <button className="w-8 h-8 rounded-xl border border-white/70 hover:border-[#1A73E8]/50 bg-white/50 hover:bg-white/80 text-[#64748B] hover:text-[#1E293B] flex items-center justify-center transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm">
                                     <MoreHorizontal className="w-4.5 h-4.5" />
                                   </button>
                                 </DrawerTrigger>
@@ -1755,19 +1750,19 @@ function GhiNhanTab() {
                                                     !!expandedCards[i];
 
                                                   let bulletBg =
-                                                    "bg-blue-500 shadow-blue-200";
+                                                    "bg-[#1A73E8] shadow-blue-200/50";
                                                   let badgeClass =
-                                                    "bg-blue-50 text-blue-600";
+                                                    "bg-blue-500/10 text-[#1A73E8] border border-blue-500/20";
                                                   if (isKhenThuong) {
                                                     bulletBg =
-                                                      "bg-emerald-500 shadow-emerald-200";
+                                                      "bg-emerald-500 shadow-emerald-200/50";
                                                     badgeClass =
-                                                      "bg-emerald-50 text-emerald-600";
+                                                      "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20";
                                                   } else if (isKyLuat) {
                                                     bulletBg =
-                                                      "bg-rose-500 shadow-rose-200";
+                                                      "bg-rose-500 shadow-rose-200/50";
                                                     badgeClass =
-                                                      "bg-rose-50 text-rose-600";
+                                                      "bg-rose-500/10 text-rose-700 border border-rose-500/20";
                                                   }
 
                                                   return (
@@ -2038,10 +2033,10 @@ function GhiNhanTab() {
               </div>
             ) : (
               <table className="w-full text-left border-collapse min-w-max">
-                <thead className="bg-[#F8FAFB] sticky top-0 z-10 shadow-sm shadow-gray-100/50">
+                <thead className="bg-white/90 backdrop-blur-md sticky top-0 z-10 shadow-sm shadow-slate-100/30 border-b border-white/80">
                   <tr>
                     {!isStudent && (
-                      <th className="px-5 py-3 w-12 text-center border-b border-gray-100">
+                      <th className="px-5 py-3 w-12 text-center border-b border-white/80">
                         {ghiNhanAccess.deleteStudentRecord &&
                           paginatedRecords.length > 0 && (
                           <input
@@ -2057,64 +2052,64 @@ function GhiNhanTab() {
                         )}
                       </th>
                     )}
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Mã SV
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Họ và tên
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Lớp
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Loại ghi nhận
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Tiêu chí
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Ngày ghi nhận
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Tính điểm
                     </th>
-                    <th className="px-5 py-3 w-16 text-center text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 w-16 text-center text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Hành động
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-white/40">
                   {isLoading
                     ? Array.from({ length: itemsPerPage }).map((_, i) => (
                         <tr key={i}>
                           {!isStudent && (
-                            <td className="px-5 py-4 border-b border-gray-50 text-center">
-                              <Skeleton className="w-4 h-4 rounded mx-auto" />
+                            <td className="px-5 py-4 border-b border-white/40 text-center">
+                              <Skeleton className="w-4 h-4 rounded-xl mx-auto" />
                             </td>
                           )}
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-20 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-32 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-24 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
-                            <Skeleton className="w-24 h-6 rounded-full" />
+                          <td className="px-5 py-4 border-b border-white/40">
+                            <Skeleton className="w-24 h-6 rounded-xl" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-40 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-24 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-10 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50 text-center">
-                            <Skeleton className="w-6 h-6 rounded-md mx-auto" />
+                          <td className="px-5 py-4 border-b border-white/40 text-center">
+                            <Skeleton className="w-6 h-6 rounded-xl mx-auto" />
                           </td>
                         </tr>
                       ))
@@ -2124,15 +2119,15 @@ function GhiNhanTab() {
                         const isKyLuat = record.recordType === "Kỷ luật";
 
                         let badgeStyle =
-                          "bg-blue-50 text-blue-600 border-blue-100/50";
-                        let dotStyle = "bg-blue-500";
+                          "bg-blue-500/10 text-[#1A73E8] border-blue-500/20";
+                        let dotStyle = "bg-[#1A73E8]";
                         if (isKhenThuong) {
                           badgeStyle =
-                            "bg-emerald-50 text-emerald-600 border-emerald-100/50";
+                            "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
                           dotStyle = "bg-emerald-500";
                         } else if (isKyLuat) {
                           badgeStyle =
-                            "bg-rose-50 text-rose-600 border-rose-100/50";
+                            "bg-rose-500/10 text-rose-700 border-rose-500/20";
                           dotStyle = "bg-rose-500";
                         }
                         return (
@@ -2141,7 +2136,7 @@ function GhiNhanTab() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.1, delay: idx * 0.05 }}
                             key={record.id}
-                            className="hover:bg-slate-50/50 transition-colors group"
+                            className="hover:bg-white/65 transition-colors duration-150 ease-out group"
                           >
                             {!isStudent && (
                               <td className="px-5 py-4 w-12 text-center">
@@ -2155,10 +2150,10 @@ function GhiNhanTab() {
                                 )}
                               </td>
                             )}
-                            <td className="px-5 py-4 text-sm font-medium text-gray-600">
+                            <td className="px-5 py-4 text-sm font-medium text-[#64748B]">
                               {record.studentId}
                             </td>
-                            <td className="px-5 py-4 text-sm font-bold text-slate-800">
+                            <td className="px-5 py-4 text-sm font-bold text-[#1E293B]">
                               <div className="flex items-center gap-2">
                                 <span>{record.fullName}</span>
                                 {record.original?.createdAt &&
@@ -2167,18 +2162,18 @@ function GhiNhanTab() {
                                       record.original.createdAt,
                                     ).getTime() <
                                     24 * 60 * 60 * 1000 && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
                                       New
                                     </span>
                                   )}
                               </div>
                             </td>
-                            <td className="px-5 py-4 text-sm font-semibold text-gray-600">
+                            <td className="px-5 py-4 text-sm font-semibold text-[#64748B]">
                               {record.className}
                             </td>
                             <td className="px-5 py-4">
                               <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${badgeStyle}`}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold uppercase tracking-wider border ${badgeStyle}`}
                               >
                                 <span
                                   className={`w-1.5 h-1.5 rounded-full ${dotStyle}`}
@@ -2192,7 +2187,7 @@ function GhiNhanTab() {
                             >
                               {record.criteria || "Chưa có"}
                             </td>
-                            <td className="px-5 py-4 text-sm font-medium text-gray-600">
+                            <td className="px-5 py-4 text-sm font-medium text-[#64748B]">
                               {record.date}
                             </td>
                             <td className="px-5 py-4">
@@ -2213,14 +2208,14 @@ function GhiNhanTab() {
                                 >
                                   <DrawerTrigger asChild>
                                     <button
-                                      className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
+                                      className="text-slate-500 hover:text-[#1A73E8] hover:bg-white/70 p-1.5 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                                       title="Xem chi tiết"
                                     >
                                       <Eye className="w-4 h-4" />
                                     </button>
                                   </DrawerTrigger>
 
-                                  <DrawerContent className="w-[450px] sm:max-w-md h-full bg-white border-l border-gray-100 flex flex-col items-stretch outline-none overflow-hidden">
+                                  <DrawerContent className="w-[450px] sm:max-w-md h-full bg-white/90 backdrop-blur-xl border-l border-white/60 flex flex-col items-stretch outline-none overflow-hidden">
                                     {/* Modal Header */}
                                     <div className="flex justify-between items-center py-[17px] px-6 border-b border-gray-100 bg-white shrink-0">
                                       <DrawerTitle className="text-base font-bold text-slate-900">
@@ -2379,19 +2374,19 @@ function GhiNhanTab() {
                                                         !!expandedCards[i];
 
                                                       let bulletBg =
-                                                        "bg-blue-500 shadow-blue-200";
+                                                        "bg-[#1A73E8] shadow-blue-200/50";
                                                       let badgeClass =
-                                                        "bg-blue-50 text-blue-600";
+                                                        "bg-blue-500/10 text-[#1A73E8] border border-blue-500/20";
                                                       if (isKhenThuong) {
                                                         bulletBg =
-                                                          "bg-emerald-500 shadow-emerald-200";
+                                                          "bg-emerald-500 shadow-emerald-200/50";
                                                         badgeClass =
-                                                          "bg-emerald-50 text-emerald-600";
+                                                          "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20";
                                                       } else if (isKyLuat) {
                                                         bulletBg =
-                                                          "bg-rose-500 shadow-rose-200";
+                                                          "bg-rose-500 shadow-rose-200/50";
                                                         badgeClass =
-                                                          "bg-rose-50 text-rose-600";
+                                                          "bg-rose-500/10 text-rose-700 border border-rose-500/20";
                                                       }
 
                                                       return (
@@ -2673,10 +2668,10 @@ function GhiNhanTab() {
                                   <button
                                     onClick={() => handleEdit(record.id)}
                                     disabled={isOpeningEditRecord && editingRecordId === record.id}
-                                    className={`p-1.5 rounded-md transition-colors ${
+                                    className={`p-1.5 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] ${
                                       isOpeningEditRecord && editingRecordId === record.id
-                                        ? "text-gray-300 cursor-not-allowed bg-gray-50"
-                                        : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                        ? "text-gray-300 cursor-not-allowed bg-slate-50/40"
+                                        : "text-slate-500 hover:text-[#1A73E8] hover:bg-white/70"
                                     }`}
                                     title="Chỉnh sửa"
                                   >
@@ -2739,32 +2734,32 @@ function GhiNhanTab() {
         // ==================== TAB 2: TÌNH HÌNH LỚP HỌC ====================
         <>
           {/* Top Bar */}
-          <div className="p-4 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white shrink-0">
+          <div className="p-4 border-b border-white/70 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/45 backdrop-blur-md shadow-sm shrink-0">
             <div className="flex flex-row items-center gap-3 flex-1">
               {/* Tab điều hướng dạng Pill Shape */}
-              <div className="flex bg-gray-100/80 border border-gray-200/15 rounded-full p-1 gap-1.5 shrink-0 shadow-sm">
+              <div className="flex bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl p-1 gap-1.5 shrink-0 shadow-sm">
                 <button
                   onClick={() => setActiveSubTab("student")}
-                  className="px-5 py-1.5 font-bold text-[12.5px] transition-all rounded-full cursor-pointer whitespace-nowrap text-gray-500 hover:text-gray-800"
+                  className="px-4 py-1.5 font-bold text-[12.5px] transition-all duration-150 ease-out hover:scale-[1.01] rounded-xl cursor-pointer whitespace-nowrap text-slate-500 hover:text-slate-800"
                 >
                   Tình hình HSSV
                 </button>
                 <button
                   onClick={() => setActiveSubTab("class")}
-                  className="px-5 py-1.5 font-bold text-[12.5px] transition-all rounded-full cursor-pointer whitespace-nowrap bg-white text-[#1A73E8] shadow-sm"
+                  className="px-4 py-1.5 font-bold text-[12.5px] transition-all duration-150 ease-out hover:scale-[1.01] rounded-xl cursor-pointer whitespace-nowrap bg-white/85 text-[#1A73E8] shadow-sm"
                 >
                   Tình hình lớp học
                 </button>
               </div>
 
               <div className="relative flex-1 min-w-0 max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <input
                   type="text"
                   placeholder="Nhập tên giảng viên hoặc ghi chú lớp..."
                   value={classSearchTerm}
                   onChange={(e) => setClassSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-gray-400"
+                  className="w-full pl-9 pr-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B]"
                 />
               </div>
             </div>
@@ -2777,10 +2772,10 @@ function GhiNhanTab() {
               >
                 <PopoverTrigger asChild>
                   <button
-                    className={`flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold transition-colors shadow-sm whitespace-nowrap ${selectedReportDateRange ? "border-blue-400 bg-blue-50/50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap ${selectedReportDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
                   >
                     <CalendarIcon
-                      className={`w-4 h-4 ${selectedReportDateRange ? "text-blue-500" : "text-gray-500"}`}
+                      className={`w-4 h-4 ${selectedReportDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
                     />
                     <span className="hidden sm:inline">
                       {selectedReportDateRange
@@ -2793,7 +2788,7 @@ function GhiNhanTab() {
                   </button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className="w-auto p-0 z-[100] bg-transparent border-none shadow-none"
+                  className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
                   align="end"
                   side="bottom"
                   sideOffset={6}
@@ -2822,7 +2817,7 @@ function GhiNhanTab() {
                     setClassCurrentPage(1);
                   }}
                 >
-                  <SelectTrigger className="h-10 bg-white border border-gray-200 text-slate-700 hover:bg-gray-50 transition-colors font-semibold text-sm rounded-lg shadow-sm">
+                  <SelectTrigger className="h-8.5 bg-white/50 border border-white/80 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-sm rounded-xl shadow-sm">
                     <SelectValue placeholder="Tất cả các lớp" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2840,7 +2835,7 @@ function GhiNhanTab() {
                 <>
                   <button
                     onClick={() => setIsGlobalConfigModalOpen(true)}
-                    className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                    className="p-2 bg-white/50 border border-white/80 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
                     title="Cấu hình tiêu chí vắng mặt"
                   >
                     <Settings className="w-4 h-4" />
@@ -2850,7 +2845,7 @@ function GhiNhanTab() {
               {ghiNhanAccess.createClassRecord && (
                   <button
                     onClick={handleCreate}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
+                    className="flex items-center gap-2 px-3.5 py-1.5 bg-[#1A73E8] text-white text-sm font-semibold rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span className="hidden sm:inline">Thêm ghi nhận</span>
@@ -2862,15 +2857,15 @@ function GhiNhanTab() {
           </div>
 
           {/* Table Content class record */}
-          <div className="flex-1 overflow-auto bg-white">
+          <div className="flex-1 overflow-x-auto overflow-y-auto w-full max-w-full bg-transparent border-t border-white/60">
             {viewLayout === "card" ? (
-              <div className="p-4 bg-slate-50/30">
+              <div className="p-4 bg-blue-50/30 backdrop-blur-md">
                 {isClassLoading ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div
                         key={i}
-                        className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3"
+                        className="bg-white/40 backdrop-blur-md p-4 rounded-xl border border-white/70 shadow-sm flex flex-col gap-3"
                       >
                         <Skeleton className="w-24 h-5" />
                         <Skeleton className="w-32 h-4" />
@@ -2904,10 +2899,10 @@ function GhiNhanTab() {
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ duration: 0.15, delay: idx * 0.03 }}
                           key={report._id}
-                          className={`bg-white border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-3 relative group ${
+                          className={`bg-white/45 backdrop-blur-md border rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] hover:border-[#1A73E8]/50 flex flex-col gap-3 relative group ${
                             selectedReportIds.includes(report._id)
-                              ? "border-blue-400 bg-blue-50/10 shadow-[0_2px_12px_rgba(59,130,246,0.08)]"
-                              : "border-slate-100"
+                              ? "border-[#1A73E8] bg-blue-50/20 shadow-[0_2px_12px_rgba(26,115,232,0.15)]"
+                              : "border-white/70"
                           }`}
                         >
                           {/* Checkbox & Class Name */}
@@ -2925,27 +2920,27 @@ function GhiNhanTab() {
                               )}
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm font-bold text-slate-800">
+                                  <span className="text-sm font-bold text-[#1E293B]">
                                     {className}
                                   </span>
                                   {report.createdAt &&
                                     new Date().getTime() -
                                       new Date(report.createdAt).getTime() <
                                       24 * 60 * 60 * 1000 && (
-                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
                                         New
                                       </span>
                                     )}
                                 </div>
                                 {classObj?.headquarters && (
-                                  <span className="text-[10.5px] font-semibold text-slate-400">
+                                  <span className="text-[10.5px] font-semibold text-[#64748B]">
                                     {classObj.headquarters}
                                   </span>
                                 )}
                               </div>
                             </div>
                             <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border ${
                                 percent >= 80
                                   ? "bg-emerald-50 text-emerald-600 border-emerald-100/50"
                                   : "bg-rose-50 text-rose-600 border-rose-100/50"
@@ -2959,11 +2954,11 @@ function GhiNhanTab() {
                           </div>
 
                           {/* Present stats */}
-                          <div className="bg-slate-50/50 rounded-xl p-2.5 flex items-center justify-between text-[11.5px] text-slate-600 font-semibold">
+                          <div className="bg-white/30 border border-white/50 rounded-xl p-2.5 flex items-center justify-between text-[11.5px] text-[#1E293B] font-semibold">
                             <span>
                               Hiện diện: {totalPresent}/{totalStudents}
                             </span>
-                            <span className="text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded">
+                            <span className="text-[#1A73E8] font-bold bg-blue-50 px-1.5 py-0.5 rounded-xl border border-blue-100/50">
                               {classReportRecordCounts[report._id] || 0} ghi
                               nhận
                             </span>
@@ -2972,11 +2967,11 @@ function GhiNhanTab() {
 
                           {/* Teacher name & note */}
                           <div className="flex flex-col gap-1">
-                            <div className="text-[12px] font-bold text-slate-700">
+                            <div className="text-[12px] font-bold text-[#1E293B]">
                               GV: {report.teacher_name}
                             </div>
                             <div
-                              className="text-[11.5px] text-slate-400 font-medium line-clamp-2 h-8"
+                              className="text-[11.5px] text-[#64748B] font-medium line-clamp-2 h-8"
                               title={report.class_note || "Ghi nhận đầy đủ..."}
                             >
                               {report.class_note || "Ghi nhận đầy đủ..."}
@@ -2984,12 +2979,12 @@ function GhiNhanTab() {
                           </div>
 
                           {/* Date & Actions */}
-                          <div className="border-t border-slate-100/60 pt-2.5 mt-1 flex items-center justify-between">
+                          <div className="border-t border-white/40 pt-2.5 mt-1 flex items-center justify-between">
                             <div className="flex flex-col">
-                              <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">
+                              <span className="text-[9px] text-[#64748B] font-semibold uppercase tracking-wider">
                                 Ngày báo cáo
                               </span>
-                              <span className="text-[11px] font-bold text-slate-600 mt-0.5">
+                              <span className="text-[11px] font-bold text-[#1E293B] mt-0.5">
                                 {(() => {
                                   const dStr = report.report_date;
                                   if (!dStr) return "N/A";
@@ -3010,7 +3005,7 @@ function GhiNhanTab() {
                                 totalAbsent={totalAbsent}
                                 allCriteria={allCriteria}
                               >
-                                <button className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-all cursor-pointer">
+                                <button className="w-8 h-8 rounded-xl border border-white/70 hover:border-[#1A73E8]/50 bg-white/50 hover:bg-white/80 text-[#64748B] hover:text-[#1A73E8] flex items-center justify-center transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm">
                                   <Eye className="w-4 h-4" />
                                 </button>
                               </ClassReportDetailDialog>
@@ -3022,7 +3017,7 @@ function GhiNhanTab() {
                                       onClick={() =>
                                         handleEditClassReport(report)
                                       }
-                                      className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-all cursor-pointer"
+                                      className="w-8 h-8 rounded-xl border border-white/70 hover:border-[#1A73E8]/50 bg-white/50 hover:bg-white/80 text-[#64748B] hover:text-[#1A73E8] flex items-center justify-center transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm"
                                     >
                                       <Edit className="w-4 h-4" />
                                     </button>
@@ -3032,7 +3027,7 @@ function GhiNhanTab() {
                                       onClick={() =>
                                         setReportToDelete(report._id)
                                       }
-                                      className="w-8 h-8 rounded-lg border border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer"
+                                      className="w-8 h-8 rounded-xl border border-white/70 hover:border-rose-600/50 bg-white/50 hover:bg-white/80 text-[#64748B] hover:text-rose-600 flex items-center justify-center transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm"
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </button>
@@ -3054,9 +3049,9 @@ function GhiNhanTab() {
               </div>
             ) : (
               <table className="w-full text-left border-collapse min-w-max">
-                <thead className="bg-[#F8FAFB] sticky top-0 z-10 shadow-sm shadow-gray-100/50">
+                <thead className="bg-white/90 backdrop-blur-md sticky top-0 z-10 shadow-sm shadow-slate-100/30 border-b border-white/80">
                   <tr>
-                    <th className="px-5 py-3 w-12 text-center border-b border-gray-100">
+                    <th className="px-5 py-3 w-12 text-center border-b border-white/80">
                       {paginatedClassReports.some((report) =>
                         canDeleteClassReport(report),
                       ) && (
@@ -3076,56 +3071,56 @@ function GhiNhanTab() {
                         />
                       )}
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Lớp học
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Ngày báo cáo
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Sĩ số có mặt
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Ghi nhận sv
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Giảng viên ghi nhận
                     </th>
-                    <th className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Ghi chú lớp
                     </th>
-                    <th className="px-5 py-3 w-16 text-center text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                    <th className="px-5 py-3 w-16 text-center text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Hành động
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-white/40">
                   {isClassLoading
                     ? Array.from({ length: 6 }).map((_, i) => (
                         <tr key={i}>
-                          <td className="px-5 py-4 border-b border-gray-50 text-center">
-                            <Skeleton className="w-4 h-4 rounded mx-auto" />
+                          <td className="px-5 py-4 border-b border-white/40 text-center">
+                            <Skeleton className="w-4 h-4 rounded-xl mx-auto" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-24 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-20 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
-                            <Skeleton className="w-28 h-6 rounded-full" />
+                          <td className="px-5 py-4 border-b border-white/40">
+                            <Skeleton className="w-28 h-6 rounded-xl" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-24 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-28 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50">
+                          <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-44 h-4" />
                           </td>
-                          <td className="px-5 py-4 border-b border-gray-50 text-center">
-                            <Skeleton className="w-12 h-6 rounded-md mx-auto" />
+                          <td className="px-5 py-4 border-b border-white/40 text-center">
+                            <Skeleton className="w-12 h-6 rounded-xl mx-auto" />
                           </td>
                         </tr>
                       ))
@@ -3152,7 +3147,7 @@ function GhiNhanTab() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.1, delay: idx * 0.04 }}
                             key={report._id}
-                            className="hover:bg-slate-50/50 transition-colors group"
+                            className="hover:bg-white/65 hover:scale-[1.002] transition-all duration-150 ease-out group"
                           >
                             <td className="px-5 py-4 w-12 text-center">
                               {canDeleteClassReport(report) && (
@@ -3166,7 +3161,7 @@ function GhiNhanTab() {
                                 />
                               )}
                             </td>
-                            <td className="px-5 py-4 text-sm font-bold text-slate-800">
+                            <td className="px-5 py-4 text-sm font-bold text-[#1E293B]">
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-2">
                                   <span>{className}</span>
@@ -3174,37 +3169,37 @@ function GhiNhanTab() {
                                     new Date().getTime() -
                                       new Date(report.createdAt).getTime() <
                                       24 * 60 * 60 * 1000 && (
-                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider animate-pulse">
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
                                         New
                                       </span>
                                     )}
                                 </div>
                                 {classObj?.headquarters && (
-                                  <span className="text-[11px] font-medium text-slate-400">
+                                  <span className="text-[11px] font-medium text-[#64748B]">
                                     {classObj.headquarters}
                                   </span>
                                 )}
                               </div>
                             </td>
-                            <td className="px-5 py-4 text-sm font-medium text-gray-600">
+                            <td className="px-5 py-4 text-sm font-medium text-[#64748B]">
                               {(() => {
                                 const dStr = report.report_date;
                                 if (!dStr) return "N/A";
-                                if (dStr.includes("/")) return dStr;
-                                try {
-                                  return format(new Date(dStr), "dd/MM/yyyy");
-                                } catch {
-                                  return dStr;
-                                }
+                                  if (dStr.includes("/")) return dStr;
+                                  try {
+                                    return format(new Date(dStr), "dd/MM/yyyy");
+                                  } catch {
+                                    return dStr;
+                                  }
                               })()}
                             </td>
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-gray-600">
+                                <span className="text-sm font-semibold text-[#64748B]">
                                   {totalPresent}/{totalStudents}
                                 </span>
                                 <span
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border ${
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-xl text-[11px] font-bold uppercase tracking-wider border ${
                                     percent >= 80
                                       ? "bg-emerald-50 text-emerald-600 border-emerald-100/50"
                                       : "bg-rose-50 text-rose-600 border-rose-100/50"
@@ -3217,15 +3212,15 @@ function GhiNhanTab() {
                                 </span>
                               </div>
                             </td>
-                            <td className="px-5 py-4 text-sm font-semibold text-slate-600">
+                            <td className="px-5 py-4 text-sm font-semibold text-[#64748B]">
                               {classReportRecordCounts[report._id] || 0} ghi
                               nhận
                             </td>
-                            <td className="px-5 py-4 text-sm font-bold text-slate-700">
+                            <td className="px-5 py-4 text-sm font-bold text-[#1E293B]">
                               {report.teacher_name}
                             </td>
                             <td
-                              className="px-5 py-4 text-sm font-medium text-gray-600 max-w-[200px] truncate"
+                              className="px-5 py-4 text-sm font-medium text-[#64748B] max-w-[200px] truncate"
                               title={report.class_note || "Ghi nhận đầy đủ..."}
                             >
                               {report.class_note || "Ghi nhận đầy đủ..."}
@@ -3241,7 +3236,7 @@ function GhiNhanTab() {
                                   allCriteria={allCriteria}
                                 >
                                   <button
-                                    className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
+                                    className="text-slate-500 hover:text-[#1A73E8] hover:bg-white/70 p-1.5 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                                     title="Xem chi tiết"
                                   >
                                     <Eye className="w-4 h-4" />
@@ -3254,7 +3249,7 @@ function GhiNhanTab() {
                                     onClick={() =>
                                       handleEditClassReport(report)
                                     }
-                                    className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-md transition-colors"
+                                    className="text-slate-500 hover:text-[#1A73E8] hover:bg-white/70 p-1.5 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                                     title="Chỉnh sửa"
                                   >
                                     <Edit className="w-4 h-4" />
@@ -3267,7 +3262,7 @@ function GhiNhanTab() {
                                     onClick={() =>
                                       setReportToDelete(report._id)
                                     }
-                                    className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
+                                    className="text-slate-500 hover:text-rose-600 hover:bg-rose-50/50 p-1.5 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                                     title="Xóa"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -3455,16 +3450,16 @@ function GhiNhanTab() {
         open={isGlobalConfigModalOpen}
         onOpenChange={setIsGlobalConfigModalOpen}
       >
-        <DialogContent className="max-w-[760px] w-[95vw] rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
-          <DialogTitle className="text-[17px] font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
-            <Settings className="w-4 h-4 text-blue-500" />
+        <DialogContent className="max-w-[760px] w-[95vw] rounded-2xl border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
+          <DialogTitle className="text-[17px] font-bold text-[#1E293B] flex items-center gap-2 border-b border-white/60 pb-3">
+            <Settings className="w-4 h-4 text-[#1A73E8]" />
             Cấu hình & Tiện ích hệ thống
           </DialogTitle>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
             {/* Cột trái: Tiện ích */}
             <div className="flex flex-col gap-3">
-              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
                 Tiện ích
               </h4>
               <button
@@ -3473,7 +3468,7 @@ function GhiNhanTab() {
                   setIsTrashOpen(true);
                   fetchDeletedItems();
                 }}
-                className="w-full flex items-center justify-between p-3.5 bg-white border border-slate-100 hover:bg-slate-50/50 hover:border-slate-200 rounded-2xl transition-all cursor-pointer shadow-sm text-left group"
+                className="w-full flex items-center justify-between p-3.5 bg-white/40 border border-white/70 hover:bg-white/65 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm text-left group"
               >
               
                 <div className="flex items-center gap-3">
@@ -3481,10 +3476,10 @@ function GhiNhanTab() {
                     <Trash2 className="w-4.5 h-4.5" />
                   </div>
                   <div>
-                    <div className="text-[13px] font-bold text-slate-800">
+                    <div className="text-[13px] font-bold text-[#1E293B]">
                       Thùng rác
                     </div>
-                    <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                    <div className="text-[11px] text-[#64748B] font-medium mt-0.5">
                       Xem các ghi nhận đã bị xóa gần đây
                     </div>
                   </div>
@@ -3500,15 +3495,15 @@ function GhiNhanTab() {
                     setIsGlobalConfigModalOpen(false);
                     setIsImportRecordPopupOpen(true);
                   }}
-                  className="w-full flex items-center justify-between p-3.5 bg-white border border-slate-100 hover:bg-slate-50/50 hover:border-slate-200 rounded-2xl transition-all cursor-pointer shadow-sm text-left group"
+                  className="w-full flex items-center justify-between p-3.5 bg-white/40 border border-white/70 hover:bg-white/65 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm text-left group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-650 flex items-center justify-center group-hover:scale-105 transition-transform">
                       <FileSpreadsheet className="w-4.5 h-4.5" />
                     </div>
                     <div>
-                      <div className="text-[13px] font-bold text-slate-800">Import Ghi nhận</div>
-                      <div className="text-[11px] text-slate-400 font-medium mt-0.5">Import ghi nhận HSSV từ file Excel</div>
+                      <div className="text-[13px] font-bold text-[#1E293B]">Import Ghi nhận</div>
+                      <div className="text-[11px] text-[#64748B] font-medium mt-0.5">Import ghi nhận HSSV từ file Excel</div>
                     </div>
                   </div>
                   <ChevronDown className="w-4 h-4 text-slate-400" style={{ transform: "rotate(-90deg)" }} />
@@ -3520,15 +3515,15 @@ function GhiNhanTab() {
                     setIsGlobalConfigModalOpen(false);
                     setIsImportClassRecordPopupOpen(true);
                   }}
-                  className="w-full flex items-center justify-between p-3.5 bg-white border border-slate-100 hover:bg-slate-50/50 hover:border-slate-200 rounded-2xl transition-all cursor-pointer shadow-sm text-left group"
+                  className="w-full flex items-center justify-between p-3.5 bg-white/40 border border-white/70 hover:bg-white/65 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm text-left group"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-green-50 text-green-600 flex items-center justify-center group-hover:scale-105 transition-transform">
                       <FileSpreadsheet className="w-4.5 h-4.5" />
                     </div>
                     <div>
-                      <div className="text-[13px] font-bold text-slate-800">Import báo cáo lớp</div>
-                      <div className="text-[11px] text-slate-400 font-medium mt-0.5">Import tình hình lớp học và ghi nhận sinh viên từ file Excel</div>
+                      <div className="text-[13px] font-bold text-[#1E293B]">Import báo cáo lớp</div>
+                      <div className="text-[11px] text-[#64748B] font-medium mt-0.5">Import tình hình lớp học và ghi nhận sinh viên từ file Excel</div>
                     </div>
                   </div>
                   <ChevronDown className="w-4 h-4 text-slate-400" style={{ transform: "rotate(-90deg)" }} />
@@ -3537,9 +3532,9 @@ function GhiNhanTab() {
             </div>
 
             {/* Cột phải: Cấu hình */}
-            <div className="border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6 flex flex-col gap-4">
+            <div className="border-t md:border-t-0 md:border-l border-white/60 pt-4 md:pt-0 md:pl-6 flex flex-col gap-4">
               <div>
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider mb-2.5">
                   Cấu hình hiển thị
                 </h4>
                 <div className="grid grid-cols-2 gap-2">
@@ -3549,10 +3544,10 @@ function GhiNhanTab() {
                       setViewLayout("table");
                       localStorage.setItem("ghinhan_view_layout", "table");
                     }}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-[12px] font-bold transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-[12px] font-bold transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer ${
                       viewLayout === "table"
-                        ? "bg-blue-50 border-blue-200 text-blue-600 shadow-sm"
-                        : "bg-white border-slate-100 text-slate-500 hover:text-slate-800"
+                        ? "bg-blue-50 border-blue-200 text-[#1A73E8] shadow-sm"
+                        : "bg-white border-slate-100 text-[#64748B] hover:text-[#1E293B]"
                     }`}
                   >
                     Dạng bảng
@@ -3563,10 +3558,10 @@ function GhiNhanTab() {
                       setViewLayout("card");
                       localStorage.setItem("ghinhan_view_layout", "card");
                     }}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-[12px] font-bold transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-[12px] font-bold transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer ${
                       viewLayout === "card"
-                        ? "bg-blue-50 border-blue-200 text-blue-600 shadow-sm"
-                        : "bg-white border-slate-100 text-slate-500 hover:text-slate-800"
+                        ? "bg-blue-50 border-blue-200 text-[#1A73E8] shadow-sm"
+                        : "bg-white border-slate-100 text-[#64748B] hover:text-[#1E293B]"
                     }`}
                   >
                     Dạng thẻ
@@ -3587,7 +3582,7 @@ function GhiNhanTab() {
                       setCurrentPage(1);
                     }}
                   >
-                    <SelectTrigger className="h-10 bg-white border border-gray-200 text-slate-700 hover:bg-gray-50 transition-colors font-semibold text-sm rounded-lg shadow-sm">
+                    <SelectTrigger className="h-8.5 bg-white/50 border border-white/80 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-sm rounded-xl shadow-sm">
                       <SelectValue placeholder="Lọc theo đối tượng tạo" />
                     </SelectTrigger>
                     <SelectContent>
@@ -3602,18 +3597,18 @@ function GhiNhanTab() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
                   Tiêu chí tính vắng
                 </h4>
               </div>
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end border-t border-slate-100 pt-4">
+          <div className="mt-6 flex justify-end border-t border-white/60 pt-4">
             <button
               type="button"
               onClick={() => setIsGlobalConfigModalOpen(false)}
-              className="bg-slate-900 text-white font-semibold rounded-full px-5 py-1.5 hover:bg-slate-800 text-[12.5px] cursor-pointer border-none outline-none"
+              className="bg-[#1A73E8] text-white font-bold rounded-xl px-5 py-1.5 hover:bg-[#1A73E8]/90 transition-all duration-150 ease-out hover:scale-[1.01] text-[12.5px] cursor-pointer border-none shadow-sm outline-none"
             >
               Hoàn tất
             </button>
@@ -3623,26 +3618,26 @@ function GhiNhanTab() {
 
       {/* Dialog Thùng rác thực tế */}
       <Dialog open={isTrashOpen} onOpenChange={setIsTrashOpen}>
-        <DialogContent className="max-w-[760px] w-[95vw] rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
-          <DialogTitle className="text-[17px] font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
+        <DialogContent className="max-w-[760px] w-[95vw] rounded-2xl border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
+          <DialogTitle className="text-[17px] font-bold text-[#1E293B] flex items-center gap-2 border-b border-white/60 pb-3">
             <Trash2 className="w-4.5 h-4.5 text-rose-500" />
             Thùng rác hệ thống
           </DialogTitle>
-          <DialogDescription className="text-[12.5px] text-slate-500 mt-1">
+          <DialogDescription className="text-[12.5px] text-[#64748B] mt-1">
             Danh sách các báo cáo ngày và ghi nhận vi phạm đã bị xóa tạm thời.
             Bạn có thể khôi phục lại hoặc xóa vĩnh viễn chúng.
           </DialogDescription>
 
           {/* Tabs */}
-          <div className="flex items-center justify-between border-b border-slate-100 mt-4 mb-4">
+          <div className="flex items-center justify-between border-b border-white/60 mt-4 mb-4">
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setTrashTab("student")}
-                className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                className={`pb-2.5 px-4 text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] border-b-2 cursor-pointer ${
                   trashTab === "student"
                     ? "border-rose-500 text-rose-600"
-                    : "border-transparent text-slate-400 hover:text-slate-600"
+                    : "border-transparent text-[#64748B] hover:text-[#1E293B]"
                 }`}
               >
                 Vi phạm sinh viên ({deletedRecords.length})
@@ -3650,10 +3645,10 @@ function GhiNhanTab() {
               <button
                 type="button"
                 onClick={() => setTrashTab("class")}
-                className={`pb-2.5 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                className={`pb-2.5 px-4 text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] border-b-2 cursor-pointer ${
                   trashTab === "class"
                     ? "border-rose-500 text-rose-600"
-                    : "border-transparent text-slate-400 hover:text-slate-600"
+                    : "border-transparent text-[#64748B] hover:text-[#1E293B]"
                 }`}
               >
                 Báo cáo của lớp ({deletedReports.length})
@@ -3672,7 +3667,7 @@ function GhiNhanTab() {
                     setIsDeleteAllReportsConfirmOpen(true);
                   }
                 }}
-                className="pb-2.5 px-4 text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="pb-2.5 px-4 text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1.5 transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
               >
                 <Trash2 size={13} />
                 <span>Xóa tất cả</span>
@@ -3691,22 +3686,22 @@ function GhiNhanTab() {
                 {deletedRecords.length > 0 ? (
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-500 font-semibold">
-                        <th className="p-3 border-b border-slate-100">
+                      <tr className="bg-white/90 backdrop-blur-md text-[#334155] font-semibold border-b border-white/80">
+                        <th className="p-3 border-b border-white/80">
                           Sinh viên
                         </th>
-                        <th className="p-3 border-b border-slate-100">
+                        <th className="p-3 border-b border-white/80">
                           Nội dung ghi nhận
                         </th>
-                        <th className="p-3 border-b border-slate-100 text-center">
+                        <th className="p-3 border-b border-white/80 text-center">
                           Điểm ảnh hưởng
                         </th>
-                        <th className="p-3 border-b border-slate-100 text-center">
+                        <th className="p-3 border-b border-white/80 text-center">
                           Hành động
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-white/40">
                       {deletedRecords.map((rec) => {
                         const stdName =
                           typeof rec.student_id === "object"
@@ -3720,18 +3715,18 @@ function GhiNhanTab() {
                         return (
                           <tr
                             key={rec._id}
-                            className="hover:bg-slate-50/40 transition-colors"
+                            className="hover:bg-white/60 transition-colors"
                           >
                             <td className="p-3">
-                              <div className="font-bold text-slate-700">
+                              <div className="font-bold text-[#1E293B]">
                                 {stdName}
                               </div>
-                              <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                              <div className="text-[10px] text-[#64748B] font-medium mt-0.5">
                                 {stdCode}
                               </div>
                             </td>
                             <td
-                              className="p-3 text-slate-600 max-w-[240px] truncate"
+                              className="p-3 text-[#1E293B] max-w-[240px] truncate"
                               title={criName}
                             >
                               {criName}
@@ -3748,7 +3743,7 @@ function GhiNhanTab() {
                                 <button
                                   type="button"
                                   onClick={() => handleRestoreRecord(rec._id)}
-                                  className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 bg-blue-50/50 text-[#1A73E8] border border-blue-500/10 hover:bg-blue-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                                   title="Khôi phục"
                                 >
                                   <RotateCcw className="w-3.5 h-3.5" />
@@ -3758,7 +3753,7 @@ function GhiNhanTab() {
                                   onClick={() =>
                                     setRecordToForceDelete(rec._id)
                                   }
-                                  className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 bg-rose-50/50 text-rose-600 border border-rose-500/10 hover:bg-rose-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                                   title="Xóa vĩnh viễn"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -3771,7 +3766,7 @@ function GhiNhanTab() {
                     </tbody>
                   </table>
                 ) : (
-                  <div className="text-center py-12 text-slate-400 italic text-[12.5px]">
+                  <div className="text-center py-12 text-[#64748B] italic text-[12.5px]">
                     Thùng rác ghi nhận vi phạm trống.
                   </div>
                 )}
@@ -3781,22 +3776,22 @@ function GhiNhanTab() {
                 {deletedReports.length > 0 ? (
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-500 font-semibold">
-                        <th className="p-3 border-b border-slate-100">
+                      <tr className="bg-white/90 backdrop-blur-md text-[#334155] font-semibold border-b border-white/80">
+                        <th className="p-3 border-b border-white/80">
                           Lớp học
                         </th>
-                        <th className="p-3 border-b border-slate-100">
+                        <th className="p-3 border-b border-white/80">
                           Ngày báo cáo
                         </th>
-                        <th className="p-3 border-b border-slate-100">
+                        <th className="p-3 border-b border-white/80">
                           Giảng viên ghi nhận
                         </th>
-                        <th className="p-3 border-b border-slate-100 text-center">
+                        <th className="p-3 border-b border-white/80 text-center">
                           Hành động
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-white/40">
                       {deletedReports.map((rep) => {
                         const classObj =
                           typeof rep.class_id === "object"
@@ -3808,12 +3803,12 @@ function GhiNhanTab() {
                         return (
                           <tr
                             key={rep._id}
-                            className="hover:bg-slate-50/40 transition-colors"
+                            className="hover:bg-white/60 transition-colors"
                           >
-                            <td className="p-3 font-bold text-slate-700">
+                            <td className="p-3 font-bold text-[#1E293B]">
                               {className}
                             </td>
-                            <td className="p-3 text-slate-600 font-medium">
+                            <td className="p-3 text-[#1E293B] font-medium">
                               {rep.report_date
                                 ? format(
                                     new Date(rep.report_date),
@@ -3821,7 +3816,7 @@ function GhiNhanTab() {
                                   )
                                 : "N/A"}
                             </td>
-                            <td className="p-3 text-slate-600 font-semibold">
+                            <td className="p-3 text-[#1E293B] font-semibold">
                               {rep.teacher_name}
                             </td>
                             <td className="p-3">
@@ -3829,7 +3824,7 @@ function GhiNhanTab() {
                                 <button
                                   type="button"
                                   onClick={() => handleRestoreReport(rep._id)}
-                                  className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 bg-blue-50/50 text-[#1A73E8] border border-blue-500/10 hover:bg-blue-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                                   title="Khôi phục"
                                 >
                                   <RotateCcw className="w-3.5 h-3.5" />
@@ -3839,7 +3834,7 @@ function GhiNhanTab() {
                                   onClick={() =>
                                     setReportToForceDelete(rep._id)
                                   }
-                                  className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 bg-rose-50/50 text-rose-600 border border-rose-500/10 hover:bg-rose-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                                   title="Xóa vĩnh viễn"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -3852,7 +3847,7 @@ function GhiNhanTab() {
                     </tbody>
                   </table>
                 ) : (
-                  <div className="text-center py-12 text-slate-400 italic text-[12.5px]">
+                  <div className="text-center py-12 text-[#64748B] italic text-[12.5px]">
                     Thùng rác báo cáo lớp trống.
                   </div>
                 )}
@@ -3860,21 +3855,21 @@ function GhiNhanTab() {
             )}
           </div>
 
-          <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <div className="mt-6 flex justify-end gap-2 border-t border-white/60 pt-4">
             <button
               type="button"
               onClick={() => {
                 setIsTrashOpen(false);
                 setIsGlobalConfigModalOpen(true);
               }}
-              className="bg-slate-100 text-slate-600 font-bold rounded-xl px-5 py-2 hover:bg-slate-200 text-xs transition-colors cursor-pointer"
+              className="bg-white/50 border border-white/80 text-slate-700 font-bold rounded-xl px-5 py-2 hover:bg-white/85 text-xs transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm"
             >
               Quay lại cấu hình
             </button>
             <button
               type="button"
               onClick={() => setIsTrashOpen(false)}
-              className="bg-slate-900 text-white font-bold rounded-xl px-5 py-2 hover:bg-slate-800 text-xs transition-colors cursor-pointer border-none outline-none"
+              className="bg-slate-900 text-white font-bold rounded-xl px-5 py-2 hover:bg-slate-800 text-xs transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer border-none outline-none shadow-sm"
             >
               Đóng thùng rác
             </button>
@@ -4092,11 +4087,11 @@ function ClassReportDetailDialog({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="max-w-[440px] sm:max-w-[480px] bg-white rounded-2xl p-6 border border-slate-100 shadow-2xl z-50 overflow-hidden gap-0">
+      <DialogContent className="max-w-[440px] sm:max-w-[480px] bg-white/45 backdrop-blur-xl rounded-2xl p-6 border border-white/70 shadow-2xl z-50 overflow-hidden gap-0 text-[#1E293B]">
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 pr-6">
+          <div className="flex items-center justify-between border-b border-white/60 pb-3 pr-6">
             <div className="flex flex-col">
-              <DialogTitle className="font-bold text-slate-900 text-[16px]">
+              <DialogTitle className="font-bold text-[#1E293B] text-[16px]">
                 Chi tiết báo cáo buổi học
               </DialogTitle>
               <DialogDescription className="sr-only">
@@ -4104,15 +4099,15 @@ function ClassReportDetailDialog({
                 viên bị ghi nhận vi phạm trong buổi học của lớp {className}.
               </DialogDescription>
             </div>
-            <span className="text-xs bg-blue-50 text-blue-600 px-3 py-0.5 rounded-full font-bold border border-blue-100/50">
+            <span className="text-xs bg-blue-50/80 text-[#1A73E8] px-3 py-0.5 rounded-xl font-bold border border-blue-500/20">
               {className}
             </span>
           </div>
 
-          <div className="flex flex-col gap-2.5 text-xs font-semibold text-slate-500 bg-slate-50/70 rounded-xl p-3.5 border border-slate-100/50">
+          <div className="flex flex-col gap-2.5 text-xs font-semibold text-[#64748B] bg-white/40 rounded-xl p-3.5 border border-white/60">
             <div className="flex justify-between items-center w-full">
-              <span className="text-slate-400 text-left">Ngày báo cáo:</span>
-              <span className="font-bold text-slate-800 text-right">
+              <span className="text-[#64748B] text-left">Ngày báo cáo:</span>
+              <span className="font-bold text-[#1E293B] text-right">
                 {(() => {
                   const dStr = report.report_date;
                   if (!dStr) return "N/A";
@@ -4126,19 +4121,19 @@ function ClassReportDetailDialog({
               </span>
             </div>
             <div className="flex justify-between items-center w-full">
-              <span className="text-slate-400 text-left">Giảng viên:</span>
-              <span className="font-bold text-slate-800 text-right">
+              <span className="text-[#64748B] text-left">Giảng viên:</span>
+              <span className="font-bold text-[#1E293B] text-right">
                 {report.teacher_name}
               </span>
             </div>
             <div className="flex justify-between items-center w-full">
-              <span className="text-slate-400 text-left">Có mặt:</span>
+              <span className="text-[#64748B] text-left">Có mặt:</span>
               <span className="font-bold text-emerald-600 text-right">
                 {totalPresent} sinh viên
               </span>
             </div>
             <div className="flex justify-between items-center w-full">
-              <span className="text-slate-400 text-left">Vắng mặt:</span>
+              <span className="text-[#64748B] text-left">Vắng mặt:</span>
               <span className="font-bold text-rose-600 text-right">
                 {totalAbsent} sinh viên
               </span>
@@ -4146,27 +4141,27 @@ function ClassReportDetailDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
               Ghi chú lớp
             </span>
-            <p className="text-xs text-slate-600 italic bg-slate-50 rounded-lg p-3 border border-slate-100/50 min-h-[45px] leading-relaxed">
+            <p className="text-xs text-[#1E293B] italic bg-white/40 rounded-xl p-3 border border-white/60 min-h-[45px] leading-relaxed">
               "{report.class_note || "Không có ghi chú thêm."}"
             </p>
           </div>
 
-          <div className="border-t border-slate-100 pt-3.5 flex flex-col gap-2">
+          <div className="border-t border-white/60 pt-3.5 flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
                 Sinh viên bị ghi nhận vi phạm
               </span>
-              <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">
+              <span className="text-[10px] bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-xl font-bold whitespace-nowrap">
                 {violations.length} mục
               </span>
             </div>
 
             {isLoading ? (
-              <div className="flex items-center justify-center py-8 gap-2 text-xs text-slate-400 font-medium">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+              <div className="flex items-center justify-center py-8 gap-2 text-xs text-[#64748B] font-medium">
+                <Loader2 className="w-4 h-4 animate-spin text-[#1A73E8]" />
                 <span>Đang tải thông tin sinh viên...</span>
               </div>
             ) : violations.length > 0 ? (
@@ -4174,13 +4169,13 @@ function ClassReportDetailDialog({
                 {violations.map((violation, idx) => (
                   <div
                     key={idx}
-                    className="flex items-start justify-between p-3 rounded-lg border border-slate-100 bg-white shadow-[0px_1px_2px_rgba(0,0,0,0.02)]"
+                    className="flex items-start justify-between p-3 rounded-xl border border-white/60 bg-white/50 backdrop-blur-sm shadow-[0px_1px_2px_rgba(0,0,0,0.02)]"
                   >
                     <div className="flex flex-col min-w-0 pr-2 items-start text-left">
-                      <span className="text-xs font-bold text-slate-800 truncate">
+                      <span className="text-xs font-bold text-[#1E293B] truncate">
                         {violation.student_name}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-medium mt-0.5 text-left">
+                      <span className="text-[10px] text-[#64748B] font-medium mt-0.5 text-left">
                         Tiêu chí: {violation.criterion_name}
                       </span>
                       {violation.class_note && (
@@ -4190,7 +4185,7 @@ function ClassReportDetailDialog({
                       )}
                     </div>
                     <span
-                      className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full shrink-0 border uppercase tracking-wider ${
+                      className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-xl shrink-0 border uppercase tracking-wider ${
                         violation.points_effect < 0
                           ? "bg-rose-50 text-rose-600 border-rose-100/50"
                           : "bg-emerald-50 text-emerald-600 border-emerald-100/50"
@@ -4203,12 +4198,12 @@ function ClassReportDetailDialog({
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-6 bg-emerald-50/20 border border-emerald-100/40 rounded-xl gap-1 text-center">
+              <div className="flex flex-col items-center justify-center py-6 bg-emerald-500/10 border border-emerald-500/20 rounded-xl gap-1 text-center backdrop-blur-sm">
                 <Check className="w-5 h-5 text-emerald-500 animate-bounce" />
                 <span className="text-[11px] text-emerald-700 font-semibold">
                   Lớp học đầy đủ chuyên cần!
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-[#64748B]">
                   Không ghi nhận trường hợp vi phạm kỷ luật.
                 </span>
               </div>
@@ -4216,11 +4211,11 @@ function ClassReportDetailDialog({
           </div>
 
           {/* Footer Actions Panel */}
-          <div className="border-t border-slate-100 pt-4 flex items-center justify-end">
+          <div className="border-t border-white/60 pt-4 flex items-center justify-end">
             <button
               type="button"
               onClick={handleCopyAsImage}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-[#005bbf] hover:bg-[#004ca0] text-white text-xs font-bold rounded-full transition-colors cursor-pointer shadow-[0px_4px_10px_-1px_rgba(0,91,191,0.2)] border-none outline-none w-full"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white text-xs font-bold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm border-none outline-none w-full"
               title="Sao chép ảnh báo cáo"
             >
               <Copy className="w-3.5 h-3.5" />
@@ -4360,11 +4355,11 @@ function StudentRecordPageContent() {
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
 
   return (
-    <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
+    <div className="flex bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header
-          customMappings={{ record: "Ghi nhận chuyên cần & rèn luyện" }}
+          customMappings={{ record: "Ghi nhận" }}
         />
         <TabNavigation
           tabs={
@@ -4388,7 +4383,7 @@ function StudentRecordPageContent() {
             }
           }}
         />
-        <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-gray-50 relative">
+        <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-transparent relative">
           <GhiNhanTab />
         </main>
       </div>

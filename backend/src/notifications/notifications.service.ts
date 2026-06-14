@@ -41,6 +41,7 @@ export class NotificationsService {
         : null,
       createdBy: creatorId ? new Types.ObjectId(creatorId) : null,
       readByUserIds: [],
+      targetRole: createDto.targetRole || 'all',
     };
 
     const created = new this.notificationModel(payload);
@@ -62,20 +63,64 @@ export class NotificationsService {
     const filter: any = { deletedAt: null };
 
     // Apply role-based filtering
+    const roleNameLower = (currentUserRole || '').toLowerCase();
     const isPrivileged = this.isPrivilegedRole(currentUserRole);
-    if (!isPrivileged && currentUserId) {
-      // Students only see their own notifications or global ones
-      filter.$or = [
-        { recipientUserId: new Types.ObjectId(currentUserId) },
-        { recipientUserId: null },
-        { recipientUserId: { $exists: false } },
-      ];
-    } else if (isPrivileged && query.recipientUserId) {
-      // Admins/Teachers can filter specifically
-      filter.recipientUserId =
-        query.recipientUserId === 'null'
-          ? null
-          : new Types.ObjectId(query.recipientUserId);
+
+    if (roleNameLower.includes('admin')) {
+      // Admins see everything, but can filter specifically by recipientUserId or targetRole
+      if (query.recipientUserId) {
+        filter.recipientUserId =
+          query.recipientUserId === 'null'
+            ? null
+            : new Types.ObjectId(query.recipientUserId);
+      }
+      if (query.targetRole) {
+        filter.targetRole = query.targetRole;
+      }
+    } else {
+      // Non-admins (Student, Teacher, Supervisor) only see notifications targeted to their role or sent directly to them
+      const allowedRoles = ['all'];
+      if (roleNameLower.includes('student')) {
+        allowedRoles.push('student');
+      } else if (
+        roleNameLower.includes('teacher') ||
+        roleNameLower.includes('advisor') ||
+        roleNameLower.includes('giảng viên') ||
+        roleNameLower.includes('giang vien')
+      ) {
+        allowedRoles.push('teacher');
+      } else if (
+        roleNameLower.includes('supervisor') ||
+        roleNameLower.includes('quản sinh') ||
+        roleNameLower.includes('quan sinh')
+      ) {
+        allowedRoles.push('supervisor');
+      }
+
+      if (currentUserId) {
+        filter.$or = [
+          // Private notifications sent directly to this user
+          { recipientUserId: new Types.ObjectId(currentUserId) },
+          // Global or targeted notifications matching the user's role
+          {
+            recipientUserId: null,
+            $or: [
+              { targetRole: { $in: allowedRoles } },
+              { targetRole: { $exists: false } },
+              { targetRole: null },
+            ],
+          },
+          // Fallback if recipientUserId is undefined
+          {
+            recipientUserId: { $exists: false },
+            $or: [
+              { targetRole: { $in: allowedRoles } },
+              { targetRole: { $exists: false } },
+              { targetRole: null },
+            ],
+          },
+        ];
+      }
     }
 
     // Apply type filter

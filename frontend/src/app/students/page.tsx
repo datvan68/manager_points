@@ -136,7 +136,8 @@ function StudentsPageContent() {
 
   const fetchStudents = async () => {
     try {
-      const fetchedStudents = await studentApi.getStudents();
+      const fetchedStudentsRes = await studentApi.getStudents();
+      const fetchedStudents = Array.isArray(fetchedStudentsRes) ? fetchedStudentsRes : (fetchedStudentsRes?.data || []);
       setStudentsList(fetchedStudents);
     } catch (error: any) {
       console.error("Error fetching students:", error);
@@ -302,7 +303,7 @@ function StudentsPageContent() {
   );
 
   return (
-    <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
+    <div className="flex bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header customMappings={{ students: "Danh sách sinh viên" }} />
@@ -328,7 +329,7 @@ function StudentsPageContent() {
             }
           }}
         />
-        <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-gray-50 relative">
+        <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-transparent relative">
           <div className="flex-1 flex flex-col xl:flex-row gap-4 min-h-0 w-full overflow-y-auto xl:overflow-hidden">
             {/* Left Column: Departments */}
             <div className="w-full xl:w-80 flex flex-col gap-4 shrink-0 overflow-hidden xl:max-h-full">
@@ -369,10 +370,10 @@ function StudentsPageContent() {
                       role="button"
                       tabIndex={0}
                       onClick={() => setSelectedDept(dept._id)}
-                      className={`w-full p-3 rounded-xl border text-left transition-all shrink-0 group flex flex-col cursor-pointer ${
+                      className={`w-full p-3 rounded-xl border text-left transition-all duration-150 ease-out shrink-0 group flex flex-col cursor-pointer ${
                         selectedDept === dept._id
-                          ? "bg-white border-primary shadow-md ring-1 ring-primary/10"
-                          : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm"
+                          ? "bg-white/60 backdrop-blur-md border-white/80 shadow-sm"
+                          : "bg-white/40 backdrop-blur-sm border-white/60 hover:bg-white/60 hover:scale-[1.01]"
                       }`}
                     >
                       <div className="flex items-start gap-3 w-full">
@@ -431,7 +432,7 @@ function StudentsPageContent() {
                       setEditingDept(null);
                       setIsDeptPopupOpen(true);
                     }}
-                    className="w-full py-3 border border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center justify-center gap-2 shrink-0"
+                    className="w-full py-3 border border-dashed border-white/80 bg-white/30 backdrop-blur-sm rounded-xl text-sm font-medium text-slate-500 hover:bg-white/50 hover:border-white transition-all duration-150 ease-out flex items-center justify-center gap-2 shrink-0 hover:scale-[1.01]"
                   >
                     <Plus size={18} />
                     Thêm khoa
@@ -441,9 +442,9 @@ function StudentsPageContent() {
             </div>
 
             {/* Right Column: Class List */}
-            <div className="flex-1 bg-white rounded-3xl border border-slate-200/80 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] flex flex-col min-w-0 overflow-hidden relative">
+            <div className="flex-1 bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 flex flex-col min-w-0 overflow-hidden relative">
               {/* Header */}
-              <div className="px-8 py-6 border-b border-[#f3f4f6] shrink-0">
+              <div className="px-8 py-6 border-b border-white/50 shrink-0">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-3">
@@ -489,7 +490,7 @@ function StudentsPageContent() {
               </div>
 
               {/* Class cards container */}
-              <div className="flex-1 overflow-y-auto px-8 py-4 bg-slate-50/20 scrollbar-hover">
+              <div className="flex-1 overflow-y-auto px-8 py-4 bg-transparent scrollbar-hover">
                 <div className="flex flex-col gap-4 w-full">
                   {isLoading || isDataLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -541,7 +542,7 @@ function StudentsPageContent() {
                               <div
                                 key={cls.id}
                                 onClick={() => handleClassClick(cls.id)}
-                                className="group bg-white border border-[#f3f4f6] rounded-[16px] p-[21px] flex flex-col gap-[8px] h-full shadow-[0px_1px_2px_rgba(0,0,0,0.05)] hover:shadow-md transition-all duration-300 relative cursor-pointer"
+                                className="group bg-white/50 backdrop-blur-md border border-white/70 rounded-2xl p-[21px] flex flex-col gap-[8px] h-full shadow-sm shadow-slate-300/40 hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] relative cursor-pointer"
                               >
                                 {/* Action Hover overlay */}
                                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 bg-white/95 backdrop-blur-sm p-1.5 rounded-xl">
@@ -651,7 +652,7 @@ function StudentsPageContent() {
                                 });
                                 setIsClassPopupOpen(true);
                               }}
-                              className="border-2 border-dashed border-[#e5e7eb] hover:border-[#5519f0]/40 rounded-[16px] flex flex-col items-center justify-center p-[22px] py-[50px] cursor-pointer hover:bg-[#5519f0]/5 transition-all group min-h-[190px]"
+                              className="border-2 border-dashed border-white/80 bg-white/30 backdrop-blur-md hover:border-white hover:bg-white/50 rounded-2xl flex flex-col items-center justify-center p-[22px] py-[50px] cursor-pointer hover:scale-[1.01] transition-all duration-150 ease-out group min-h-[190px]"
                             >
                               <div className="w-12 h-12 rounded-full bg-white border border-[#f3f4f6] group-hover:border-[#5519f0]/20 flex items-center justify-center text-gray-400 group-hover:text-[#5519f0] shadow-[0px_1px_1px_rgba(0,0,0,0.05)] transition-all group-hover:scale-110">
                                 <Plus size={20} strokeWidth={2.5} />
@@ -692,7 +693,7 @@ function StudentsPageContent() {
                               <div
                                 key={cls.id}
                                 onClick={() => handleClassClick(cls.id)}
-                                className="group bg-white border border-[#f3f4f6] rounded-[16px] p-[21px] flex flex-col gap-[8px] h-full shadow-[0px_1px_2px_rgba(0,0,0,0.05)] hover:shadow-md transition-all duration-300 relative cursor-pointer"
+                                className="group bg-white/50 backdrop-blur-md border border-white/70 rounded-2xl p-[21px] flex flex-col gap-[8px] h-full shadow-sm shadow-slate-300/40 hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] relative cursor-pointer"
                               >
                                 {/* Action Hover overlay */}
                                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 bg-white/95 backdrop-blur-sm p-1.5 rounded-xl">

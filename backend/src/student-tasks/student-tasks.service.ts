@@ -13,11 +13,14 @@ import {
   StudentTaskPriority,
 } from './schemas/student-task.schema';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
+import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { CreateStudentTaskDto } from './dto/create-student-task.dto';
 import { UpdateStudentTaskDto } from './dto/update-student-task.dto';
 import { QueryStudentTaskDto } from './dto/query-student-task.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StudentTaskProgressService } from '../student-task-progress/student-task-progress.service';
+import { User, UserDocument } from '../auth/schemas/user.schema';
+import { Role, RoleDocument } from '../auth/schemas/role.schema';
 
 function normalizeLinkedPage(value?: string | null): string {
   const trimmed = (value || '').trim();
@@ -32,6 +35,12 @@ export class StudentTasksService {
     private studentTaskModel: Model<StudentTaskDocument>,
     @InjectModel(Student.name)
     private studentModel: Model<StudentDocument>,
+    @InjectModel(User.name)
+    private userModel: Model<UserDocument>,
+    @InjectModel(Role.name)
+    private roleModel: Model<RoleDocument>,
+    @InjectModel(Class.name)
+    private classModel: Model<ClassDocument>,
     private notificationsService: NotificationsService,
     private studentTaskProgressService: StudentTaskProgressService,
   ) {}
@@ -104,8 +113,13 @@ export class StudentTasksService {
         filter.targetScope = 'all';
       }
     } else if (this.isTeacherRole(roleName)) {
-      // Giáo viên chỉ thấy các task dành cho teacher hoặc do chính mình tạo
+      // Giáo viên chỉ thấy các task dành cho teacher hoặc do chính mình tạo, và task giao cho lớp chủ nhiệm
       const teacherId = new Types.ObjectId(user.userId);
+      const advisorClasses = await this.classModel.find({ advisor_id: teacherId as any }).select('_id').lean().exec();
+      const advisorClassIds = advisorClasses.map(c => c._id);
+      const advisorStudents = await this.studentModel.find({ class_id: { $in: advisorClassIds } }).select('_id').lean().exec();
+      const advisorStudentIds = advisorStudents.map(s => s._id);
+
       filter.$or = [
         { createdBy: teacherId }, // Do giáo viên tạo
         {
@@ -113,6 +127,14 @@ export class StudentTasksService {
           $or: [
             { targetScope: 'all' },
             { targetScope: 'specific', targetTeacherIds: teacherId },
+          ],
+        },
+        {
+          targetType: 'student',
+          $or: [
+            { targetScope: 'all' },
+            { targetScope: 'specific', targetClassIds: { $in: advisorClassIds } },
+            { targetScope: 'specific', targetStudentIds: { $in: advisorStudentIds } },
           ],
         },
       ];
@@ -161,6 +183,43 @@ export class StudentTasksService {
         throw new BadRequestException(
           'Không hỗ trợ phạm vi áp dụng Cụ thể cho Quản sinh.',
         );
+      }
+    }
+
+    // Nếu người tạo là Teacher, giới hạn target theo lớp chủ nhiệm
+    const creatorUser = await this.userModel.findById(creatorId).populate('role').exec();
+    const roleName = (creatorUser?.role as any)?.role_name || '';
+    const roleCode = (creatorUser?.role as any)?.role_code || '';
+    
+    const isTeacher = roleCode === 'TEACHER' || this.isTeacherRole(roleName);
+    
+    if (isTeacher) {
+      if (createDto.targetType !== 'student') {
+        throw new ForbiddenException('Giáo viên chỉ được tạo nhiệm vụ cho HSSV.');
+      }
+      if (createDto.targetScope === 'all') {
+        throw new ForbiddenException('Giáo viên không được phép tạo nhiệm vụ cho toàn trường.');
+      }
+      
+      const teacherId = new Types.ObjectId(creatorId);
+      const advisorClasses = await this.classModel.find({ advisor_id: teacherId as any }).select('_id').lean().exec();
+      const advisorClassIdsStr = advisorClasses.map(c => c._id.toString());
+      
+      if (createDto.targetClassIds && createDto.targetClassIds.length > 0) {
+        for (const cid of createDto.targetClassIds) {
+          if (!advisorClassIdsStr.includes(cid)) {
+            throw new ForbiddenException('Bạn chỉ được phép phân công nhiệm vụ cho các lớp do bạn chủ nhiệm.');
+          }
+        }
+      }
+      
+      if (createDto.targetStudentIds && createDto.targetStudentIds.length > 0) {
+        const targetStudents = await this.studentModel.find({ _id: { $in: createDto.targetStudentIds } }).exec();
+        for (const student of targetStudents) {
+          if (!advisorClassIdsStr.includes(student.class_id?.toString() || '')) {
+            throw new ForbiddenException('Bạn chỉ được phép phân công nhiệm vụ cho sinh viên thuộc các lớp do bạn chủ nhiệm.');
+          }
+        }
       }
     }
 
@@ -732,6 +791,18 @@ export class StudentTasksService {
     task.deletedAt = new Date();
     task.updatedBy = new Types.ObjectId(userId);
     return task.save();
+  }
+
+  async getTeachers() {
+    const teacherRole = await this.roleModel.findOne({ role_code: 'TEACHER' }).exec();
+    if (!teacherRole) return [];
+    const users = await this.userModel.find({ role: teacherRole._id }).populate('role', 'role_code').exec();
+    return users.map(u => ({
+      id: u._id.toString(),
+      user_name: u.user_name,
+      email: u.email,
+      role_code: (u.role as any)?.role_code || 'TEACHER'
+    }));
   }
 
   async checkAccess(id: string, user: any) {

@@ -12,7 +12,14 @@ export interface Student {
   sex: 'Male' | 'Female' | 'Other';
   status: 'Studying' | 'Reserved' | 'Dropped' | 'Graduated' | 'Suspended';
   class_id?: Class | string;
-  training_point_id?: any;
+  training_point_id?: {
+    _id: string;
+    total_score?: number | null;
+    grading?: string | null;
+    status?: 'draft' | 'sv_submitted' | 'gv_reviewed' | 'locked';
+    rank_tier?: string | null;
+    rank_label?: string | null;
+  } | string | null;
   user_id?: { _id: string; user_name?: string; email?: string; status?: string } | string;
   account_status?: 'active' | 'inactive' | 'locked';
   createdAt?: string;
@@ -20,9 +27,20 @@ export interface Student {
 }
 
 export const studentApi = {
-  async getStudents(): Promise<Student[]> {
-    const res = await httpClient(`${API_BASE}/students`);
-    return handleResponse<Student[]>(res);
+  async getStudents(params?: {
+    page?: number;
+    limit?: number;
+    classId?: string;
+  }): Promise<{ data: Student[]; meta?: any } | Student[]> {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', params.page.toString());
+    if (params?.limit) query.set('limit', params.limit.toString());
+    if (params?.classId) query.set('classId', params.classId);
+    
+    const qs = query.toString();
+    const url = `${API_BASE}/students${qs ? `?${qs}` : ''}`;
+    const res = await httpClient(url);
+    return handleResponse(res);
   },
 
   async getMyStudent(): Promise<Student> {

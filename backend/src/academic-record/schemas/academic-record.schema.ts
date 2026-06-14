@@ -72,10 +72,21 @@ export class AcademicRecord {
 
   @Prop({ type: Boolean, default: false, index: true })
   is_deleted: boolean;
+
+  @Prop({ type: String, required: false })
+  idempotency_key?: string;
+
+  @Prop({ type: String, required: false, default: 'manual' })
+  source?: string;
 }
 
 export const AcademicRecordSchema =
   SchemaFactory.createForClass(AcademicRecord);
+
+AcademicRecordSchema.index(
+  { idempotency_key: 1 },
+  { unique: true, sparse: true, name: 'idx_idempotency_key' }
+);
 
 AcademicRecordSchema.index(
   { student_id: 1, semester_id: 1, criterion_id: 1, status: 1 },

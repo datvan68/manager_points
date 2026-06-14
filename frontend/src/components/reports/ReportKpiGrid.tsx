@@ -42,21 +42,21 @@ export default function ReportKpiGrid({ kpis, isLoading }: ReportKpiGridProps) {
         return (
           <div
             key={index}
-            className="bg-white/50 backdrop-blur-sm border border-white/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between group"
+            className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-150 flex flex-col justify-between group"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">{kpi.title}</span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shrink-0">
+              <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider truncate">{kpi.title}</span>
+              <div className="w-8 h-8 rounded-xl bg-white/40 border border-white/70 flex items-center justify-center text-[#1A73E8] group-hover:bg-[#1A73E8] group-hover:text-white transition-all duration-150 shrink-0">
                 <IconComponent size={16} />
               </div>
             </div>
 
             <div className="mt-2.5">
-              <span className="text-2xl font-black text-slate-800 tracking-tight">{kpi.value}</span>
+              <span className="text-2xl font-black text-[#1E293B] tracking-tight">{kpi.value}</span>
             </div>
 
-            <div className="mt-2.5 pt-2 border-t border-slate-100/60 flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 font-semibold truncate">{kpi.description}</span>
+            <div className="mt-2.5 pt-2 border-t border-white/50 flex items-center justify-between text-[11px]">
+              <span className="text-[#64748B] font-semibold truncate">{kpi.description}</span>
               {kpi.trend && (
                 <span className={`font-bold ${kpi.trend.isPositive ? 'text-emerald-600' : 'text-rose-600'} shrink-0 ml-1`}>
                   {kpi.trend.value}

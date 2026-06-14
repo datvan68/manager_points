@@ -19,8 +19,8 @@ export default function ReportPageHeader({
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 bg-white/45 backdrop-blur-md border-b border-white/75 shadow-sm">
       <div>
-        <h1 className="text-2xl font-black text-slate-800 tracking-tight">Thống kê & Báo cáo</h1>
-        <p className="text-xs text-slate-400 font-semibold mt-1">
+        <h1 className="text-2xl font-black text-[#1E293B] tracking-tight">Thống kê & Báo cáo</h1>
+        <p className="text-xs text-[#64748B] font-semibold mt-1">
           Tổng hợp tình hình sinh viên, học tập, chuyên cần, rèn luyện và tiến độ nhiệm vụ
         </p>
       </div>
@@ -29,17 +29,17 @@ export default function ReportPageHeader({
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="flex items-center justify-center gap-2 px-4 h-9 rounded-xl text-[13px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 active:scale-95 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+          className="flex items-center justify-center gap-2 px-4 h-9 rounded-xl text-[13px] font-bold text-[#1E293B] bg-white/40 hover:bg-white/70 border border-white/70 active:scale-95 transition-all shadow-sm cursor-pointer disabled:opacity-50"
           title="Tải lại dữ liệu"
         >
-          <RefreshCw size={15} className={`text-slate-500 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw size={15} className={`text-[#64748B] ${isRefreshing ? 'animate-spin' : ''}`} />
           <span>Làm mới</span>
         </button>
 
         <button
           onClick={onExportAll}
           disabled={!canExport || isRefreshing}
-          className="flex items-center justify-center gap-2 px-5 h-9 rounded-xl text-[13px] font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-500/10 cursor-pointer disabled:opacity-50 disabled:scale-100 disabled:shadow-none"
+          className="flex items-center justify-center gap-2 px-5 h-9 rounded-xl text-[13px] font-bold text-white bg-[#1A73E8] hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-500/10 cursor-pointer disabled:opacity-50 disabled:scale-100 disabled:shadow-none"
         >
           <Download size={15} />
           <span>Xuất workbook tổng hợp</span>

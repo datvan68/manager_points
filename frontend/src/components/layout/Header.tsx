@@ -10,6 +10,7 @@ import Breadcrumb from '@/components/ui/Breadcrumb';
 import { notificationApi, NotificationItem } from '@/api/notification-api';
 import { studentApi } from '@/api/student-api';
 import { toast } from 'sonner';
+import StudentCongratsModalGate from './StudentCongratsModalGate';
 
 interface HeaderProps {
     customMappings?: Record<string, string>;
@@ -31,19 +32,26 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
     const pathname = usePathname();
 
     const fetchNotifications = async () => {
+        if (!user) return;
         try {
             const [countRes, listRes] = await Promise.all([
                 notificationApi.getUnreadCount(),
                 notificationApi.getNotifications({ page: 1, limit: 5 })
             ]);
-            setUnreadCount(countRes.count);
-            setNotifications(listRes.items);
+            setUnreadCount(countRes?.count || 0);
+            setNotifications(listRes?.items || []);
         } catch (error) {
             console.error('Failed to fetch notifications:', error);
         }
     };
 
     useEffect(() => {
+        if (!user) {
+            setNotifications([]);
+            setUnreadCount(0);
+            return;
+        }
+
         // Load notifications initially
         fetchNotifications();
 
@@ -56,7 +64,7 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
         return () => {
             window.removeEventListener('notifications-updated', handleNotificationsUpdate);
         };
-    }, []);
+    }, [user]);
 
     const handleMarkAllRead = async () => {
         try {
@@ -255,6 +263,7 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
         </div>
       </header>
       <SubsystemPopup isOpen={isSubsystemOpen} onClose={() => setIsSubsystemOpen(false)} />
+      <StudentCongratsModalGate />
     </>
   );
 };

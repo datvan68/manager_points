@@ -4,6 +4,9 @@ import { NotFoundException, BadRequestException, ForbiddenException } from '@nes
 import { StudentTasksService } from './student-tasks.service';
 import { StudentTask } from './schemas/student-task.schema';
 import { Student } from '../students/schemas/student.schema';
+import { User } from '../auth/schemas/user.schema';
+import { Role } from '../auth/schemas/role.schema';
+import { Class } from '../classes/schemas/class.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StudentTaskProgressService } from '../student-task-progress/student-task-progress.service';
 import { Types } from 'mongoose';
@@ -71,6 +74,7 @@ describe('StudentTasksService', () => {
             findProgressByUserAndTasks: jest.fn().mockResolvedValue([mockProgress]),
             findProgressByUserAndTask: jest.fn().mockResolvedValue(mockProgress),
             updateStatus: jest.fn().mockResolvedValue({ ...mockProgress, status: 'completed' }),
+            cascadeStatusToActiveProgresses: jest.fn().mockResolvedValue({ matched: 1 }),
           },
         },
         {
@@ -88,6 +92,32 @@ describe('StudentTasksService', () => {
                 class_id: mockClassId,
                 user_id: new Types.ObjectId(mockUserId),
               }),
+            }),
+          },
+        },
+        {
+          provide: getModelToken(User.name),
+          useValue: {
+            find: jest.fn().mockReturnThis(),
+            findById: jest.fn().mockReturnThis(),
+            populate: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: getModelToken(Role.name),
+          useValue: {
+            findOne: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: getModelToken(Class.name),
+          useValue: {
+            find: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnThis(),
+              lean: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue([]),
             }),
           },
         },
@@ -498,8 +528,9 @@ describe('StudentTasksService', () => {
       });
       const user = { userId: mockUserId, roleName: 'Teacher' };
       const result = await service.updateStatus(mockTaskId, 'completed', user);
+      console.log('FIRST TEST RESULT', result);
       expect(result).toBeDefined();
-      expect(studentTaskProgressService.updateStatus).toHaveBeenCalled();
+      expect(studentTaskProgressService.cascadeStatusToActiveProgresses).toHaveBeenCalled();
     });
 
     it('should deny teacher if they are not creator and not assigned', async () => {
@@ -525,12 +556,15 @@ describe('StudentTasksService', () => {
           targetTeacherIds: [new Types.ObjectId()],
           createdBy: new Types.ObjectId(),
         }),
+      }).mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(mockTask),
       });
       const user = { userId: mockUserId, roleName: 'Teacher', permissions: ['UPDATE_STUDENT_TASK'] };
       mockTask.save.mockResolvedValueOnce({ ...mockTask, status: 'completed' });
       const result = await service.updateStatus(mockTaskId, 'completed', user);
+      console.log('SECOND TEST RESULT', result);
       expect(result).toBeDefined();
-      expect(mockTask.save).toHaveBeenCalled();
+      expect(studentTaskProgressService.cascadeStatusToActiveProgresses).toHaveBeenCalled();
     });
 
     it('should deny other roles (e.g. Guest) without UPDATE_STUDENT_TASK permission', async () => {

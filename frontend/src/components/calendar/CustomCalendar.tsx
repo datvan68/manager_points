@@ -148,17 +148,16 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
           <div className="flex items-center gap-1">
             <button
               onClick={() => setView('months')}
-              className="text-[14px] font-bold text-slate-900 hover:bg-slate-100 px-2 py-0.5 rounded-lg transition"
+              className="text-[14px] font-bold text-slate-900 hover:bg-slate-100 px-2 py-0.5 rounded-lg transition focus:outline-none"
             >
               Tháng {currentMonth + 1}
             </button>
-            <span className="text-slate-400 font-medium">,</span>
             <button
               onClick={() => {
                 setYearGridStart(currentYear - 4);
                 setView('years');
               }}
-              className="text-[14px] font-bold text-slate-900 hover:bg-slate-100 px-2 py-0.5 rounded-lg transition"
+              className="text-[14px] font-bold text-slate-900 hover:bg-slate-100 px-2 py-0.5 rounded-lg transition focus:outline-none"
             >
               {currentYear}
             </button>
@@ -174,31 +173,31 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
         <div className="flex gap-1 text-slate-600">
           {view === 'days' ? (
             <>
-              <button onClick={handlePrevMonth} className="p-1.5 hover:bg-slate-100 rounded-lg transition">
+              <button onClick={handlePrevMonth} className="p-1.5 hover:bg-slate-100 rounded-lg transition focus:outline-none">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button onClick={handleNextMonth} className="p-1.5 hover:bg-slate-100 rounded-lg transition">
+              <button onClick={handleNextMonth} className="p-1.5 hover:bg-slate-100 rounded-lg transition focus:outline-none">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </>
           ) : view === 'months' ? (
             <button
               onClick={() => setView('days')}
-              className="text-xs text-blue-600 hover:text-blue-800 font-bold transition px-2.5 py-1 hover:bg-blue-50 rounded-lg"
+              className="text-xs text-blue-600 hover:text-blue-800 font-bold transition px-2.5 py-1 hover:bg-blue-50 rounded-lg focus:outline-none"
             >
               Quay lại
             </button>
           ) : (
             <>
-              <button onClick={() => setYearGridStart(prev => prev - 12)} className="p-1.5 hover:bg-slate-100 rounded-lg transition">
+              <button onClick={() => setYearGridStart(prev => prev - 12)} className="p-1.5 hover:bg-slate-100 rounded-lg transition focus:outline-none">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button onClick={() => setYearGridStart(prev => prev + 12)} className="p-1.5 hover:bg-slate-100 rounded-lg transition">
+              <button onClick={() => setYearGridStart(prev => prev + 12)} className="p-1.5 hover:bg-slate-100 rounded-lg transition focus:outline-none">
                 <ChevronRight className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setView('days')}
-                className="text-xs text-blue-600 hover:text-blue-800 font-bold transition px-2.5 py-1 hover:bg-blue-50 rounded-lg ml-1"
+                className="text-xs text-blue-600 hover:text-blue-800 font-bold transition px-2.5 py-1 hover:bg-blue-50 rounded-lg ml-1 focus:outline-none"
               >
                 Quay lại
               </button>
@@ -208,7 +207,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
       </div>
 
       {/* Grid */}
-      <div className="p-4 pt-2.5 relative min-h-[290px]">
+      <div className="p-4 pt-2.5 relative min-h-[240px]">
         {view === 'days' ? (
           <>
             <div className="grid grid-cols-7 text-center mb-2">
@@ -217,7 +216,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
               ))}
             </div>
 
-            <div className="relative w-full h-[200px]">
+            <div className="relative w-full min-h-[190px]">
               <AnimatePresence initial={false} custom={direction}>
                 <motion.div
                   key={`${currentYear}-${currentMonth}`}
@@ -262,7 +261,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
                       <button
                         key={day}
                         onClick={() => handleDayClick(day)}
-                        className={`w-full max-w-[40px] h-[36px] flex items-center justify-center text-[13px] hover:font-bold transition-all mx-auto ${textClass}`}
+                        className={`w-full max-w-[40px] h-[36px] flex items-center justify-center text-[13px] hover:font-bold transition-all mx-auto focus:outline-none ${textClass}`}
                       >
                         <div className={`w-full h-full flex items-center justify-center ${bgClass} ${roundedClass} ${(!start && !end && !range) ? 'hover:bg-slate-200 hover:rounded-lg border border-transparent' : ''} ${today && !start && !end && !range ? 'border-blue-200' : ''}`}>
                           {day}
@@ -285,7 +284,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
                     setCurrentDate(new Date(currentYear, idx, 1));
                     setView('days');
                   }}
-                  className={`py-3.5 text-xs font-semibold rounded-xl text-center transition-all ${isActive
+                  className={`py-3.5 text-xs font-semibold rounded-xl text-center transition-all focus:outline-none ${isActive
                     ? "bg-[#1a56db] text-white shadow-md shadow-blue-100"
                     : "text-slate-700 hover:bg-slate-100 bg-white border border-slate-100"
                     }`}
@@ -307,7 +306,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
                     setCurrentDate(new Date(y, currentMonth, 1));
                     setView('months'); // Let them choose month next!
                   }}
-                  className={`py-3.5 text-xs font-semibold rounded-xl text-center transition-all ${isActive
+                  className={`py-3.5 text-xs font-semibold rounded-xl text-center transition-all focus:outline-none ${isActive
                     ? "bg-[#1a56db] text-white shadow-md shadow-blue-100"
                     : "text-slate-700 hover:bg-slate-100 bg-white border border-slate-100"
                     }`}
@@ -326,7 +325,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
           {tempStart ? formatDate(tempStart) : ''} {tempEnd && tempEnd.getTime() !== tempStart?.getTime() ? `- ${formatDate(tempEnd)}` : ''}
         </span>
         <div className="flex gap-3 text-[13px] font-bold">
-          <button onClick={onCancel} className="text-rose-500 hover:text-rose-600 transition">Huỷ</button>
+          <button onClick={onCancel} className="text-rose-500 hover:text-rose-600 transition focus:outline-none">Huỷ</button>
           <button
             onClick={() => {
               if (tempStart) {
@@ -335,7 +334,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
               }
             }}
             disabled={!tempStart}
-            className="text-[#1a56db] hover:text-blue-800 disabled:opacity-50 transition"
+            className="text-[#1a56db] hover:text-blue-800 disabled:opacity-50 transition focus:outline-none"
           >
             Xác nhận
           </button>

@@ -13,6 +13,8 @@ import { classApi } from '@/api/class-api';
 import { toast } from 'sonner';
 import { useAuth } from '@/providers/auth-provider';
 import { usePermission } from '@/components/guards/RouteGuard';
+import { CustomPagination } from '@/components/ui/pagination';
+import { isStudentRole, isTeacherRole, isAdminOrSupervisor } from "@/utils/role.util";
 
 export default function StudentTaskProgressTab() {
   const [items, setItems] = useState<StudentTaskProgress[]>([]);
@@ -138,10 +140,21 @@ export default function StudentTaskProgressTab() {
   };
 
   const { user } = useAuth();
-  const userRole = String(user?.role || '').toLowerCase();
-  const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
+  const isStudent = isStudentRole(user);
   const taskAccess = usePermission({ updateTask: "UPDATE_STUDENT_TASK" });
-  const hasManagePermission = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.updateTask;
+  const hasManagePermission = isAdminOrSupervisor(user) || taskAccess.updateTask;
+
+  const filterInitializedRef = useRef(false);
+  useEffect(() => {
+    if (user && !filterInitializedRef.current) {
+      const isTeacher = isTeacherRole(user);
+      const hasAdminAccess = isAdminOrSupervisor(user);
+      if (isTeacher && !hasAdminAccess) {
+        setAssigneeTypeFilter('student');
+      }
+      filterInitializedRef.current = true;
+    }
+  }, [user]);
 
   const startItem = totalCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
   const endItem = Math.min(currentPage * itemsPerPage, totalCount);
@@ -150,23 +163,23 @@ export default function StudentTaskProgressTab() {
     <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-0 bg-transparent">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
-        <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-xl p-2.5 flex flex-col justify-center shadow-sm shadow-slate-300/10">
+        <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 flex flex-col justify-center shadow-sm shadow-slate-300/40 hover:scale-[1.01] hover:bg-white/60 transition-all duration-150 ease-out">
           <span className="text-[10px] font-bold text-[#64748B] uppercase">Tổng người được giao</span>
           <span className="text-xl font-bold text-[#1E293B] mt-0.5">{summary.totalAssignees}</span>
         </div>
-        <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-xl p-2.5 flex flex-col justify-center shadow-sm shadow-slate-300/10">
+        <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 flex flex-col justify-center shadow-sm shadow-slate-300/40 hover:scale-[1.01] hover:bg-white/60 transition-all duration-150 ease-out">
           <span className="text-[10px] font-bold text-[#64748B] uppercase">Chưa hoàn thành</span>
           <span className="text-xl font-bold text-gray-500 mt-0.5">{summary.notStarted}</span>
         </div>
-        <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-xl p-2.5 flex flex-col justify-center shadow-sm shadow-slate-300/10">
+        <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 flex flex-col justify-center shadow-sm shadow-slate-300/40 hover:scale-[1.01] hover:bg-white/60 transition-all duration-150 ease-out">
           <span className="text-[10px] font-bold text-[#64748B] uppercase">Đang thực hiện</span>
           <span className="text-xl font-bold text-blue-600 mt-0.5">{summary.inProgress}</span>
         </div>
-        <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-xl p-2.5 flex flex-col justify-center relative overflow-hidden shadow-sm shadow-slate-300/10">
+        <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 flex flex-col justify-center relative overflow-hidden shadow-sm shadow-slate-300/40 hover:scale-[1.01] hover:bg-white/60 transition-all duration-150 ease-out">
           <span className="text-[10px] font-bold text-[#64748B] uppercase z-10">Đã hoàn thành</span>
           <div className="flex items-baseline gap-1.5 z-10 mt-0.5">
             <span className="text-xl font-bold text-emerald-600">{summary.completed}</span>
-            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-xl border border-emerald-100">
               {summary.completionRate}%
             </span>
           </div>
@@ -177,9 +190,9 @@ export default function StudentTaskProgressTab() {
         </div>
       </div>
 
-      <div className="flex-1 bg-white/40 backdrop-blur-md border border-white/80 rounded-2xl flex flex-col min-h-0 overflow-hidden">
+      <div className="flex-1 bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/40">
         {/* Filters */}
-        <div className="p-4 border-b border-white/80 flex flex-wrap gap-3 items-center">
+        <div className="p-4 border-b border-white/70 bg-white/20 flex flex-wrap gap-3 items-center">
           {/* Trạng thái */}
           <div className="relative shrink-0 w-36">
             <Select
@@ -189,7 +202,7 @@ export default function StudentTaskProgressTab() {
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
+              <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 rounded-xl shadow-none focus:ring-2 focus:ring-[#1A73E8]/30">
                 <SelectValue placeholder="-- Trạng thái --" />
               </SelectTrigger>
               <SelectContent>
@@ -210,7 +223,7 @@ export default function StudentTaskProgressTab() {
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
+              <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 rounded-xl shadow-none focus:ring-2 focus:ring-[#1A73E8]/30">
                 <SelectValue placeholder="-- Đối tượng --" />
               </SelectTrigger>
               <SelectContent>
@@ -231,7 +244,7 @@ export default function StudentTaskProgressTab() {
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
+              <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 rounded-xl shadow-none focus:ring-2 focus:ring-[#1A73E8]/30">
                 <SelectValue placeholder="-- Lớp --" />
               </SelectTrigger>
               <SelectContent>
@@ -252,7 +265,7 @@ export default function StudentTaskProgressTab() {
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
+              <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 rounded-xl shadow-none focus:ring-2 focus:ring-[#1A73E8]/30">
                 <SelectValue placeholder="-- Nhiệm vụ --" />
               </SelectTrigger>
               <SelectContent>
@@ -264,10 +277,6 @@ export default function StudentTaskProgressTab() {
             </Select>
           </div>
 
-
-
-
-
           {/* Ô Tìm kiếm & Chuyển đổi View Mode */}
           <div className="flex items-center gap-2 flex-1 min-w-[280px]">
             <div className="relative flex-1">
@@ -277,16 +286,16 @@ export default function StudentTaskProgressTab() {
                 placeholder="Tìm theo tên người thực hiện hoặc tên nhiệm vụ..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 h-8 text-xs rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+                className="w-full pl-9 pr-4 h-8 text-xs rounded-xl border border-white/70 bg-white/50 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all duration-150"
               />
             </div>
             
             {/* View Mode Switcher */}
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200/50 shrink-0">
+            <div className="flex items-center gap-1 bg-white/30 p-0.5 rounded-xl border border-white/70 backdrop-blur-sm shadow-sm shrink-0">
               <button
                 type="button"
                 onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`p-1.5 rounded-lg transition-all duration-150 hover:scale-[1.02] cursor-pointer ${
                   viewMode === 'table' 
                     ? 'bg-white text-[#1A73E8] shadow-sm' 
                     : 'text-slate-400 hover:text-slate-600'
@@ -298,7 +307,7 @@ export default function StudentTaskProgressTab() {
               <button
                 type="button"
                 onClick={() => setViewMode('card')}
-                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`p-1.5 rounded-lg transition-all duration-150 hover:scale-[1.02] cursor-pointer ${
                   viewMode === 'card' 
                     ? 'bg-white text-[#1A73E8] shadow-sm' 
                     : 'text-slate-400 hover:text-slate-600'
@@ -322,24 +331,24 @@ export default function StudentTaskProgressTab() {
           ) : viewMode === 'table' ? (
             <div className="overflow-x-auto">
               <table className={`w-full min-w-[1200px] text-left text-sm text-gray-600 transition-opacity duration-200 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
-                <thead className="text-xs uppercase bg-slate-50 text-slate-500 sticky top-0">
-                  <tr className="whitespace-nowrap">
-                    <th className="px-4 py-3 rounded-tl-xl">Người thực hiện</th>
-                    <th className="px-4 py-3">Vai trò</th>
-                    <th className="px-4 py-3">Lớp</th>
-                    <th className="px-4 py-3">Nhiệm vụ</th>
-                    <th className="px-4 py-3">Loại</th>
-                    <th className="px-4 py-3">Hạn chót</th>
-                    <th className="px-4 py-3">Nguồn</th>
-                    <th className="px-4 py-3">Người cập nhật</th>
-                    <th className="px-4 py-3">Cập nhật lúc</th>
-                    <th className="px-4 py-3 text-center">Trạng thái</th>
-                    <th className="px-4 py-3 rounded-tr-xl text-center">Hành động</th>
+                <thead className="text-xs uppercase bg-white/30 backdrop-blur-sm text-slate-500 sticky top-0">
+                  <tr className="whitespace-nowrap border-b border-white/50">
+                    <th className="px-4 py-3 rounded-tl-xl font-bold">Người thực hiện</th>
+                    <th className="px-4 py-3 font-bold">Vai trò</th>
+                    <th className="px-4 py-3 font-bold">Lớp</th>
+                    <th className="px-4 py-3 font-bold">Nhiệm vụ</th>
+                    <th className="px-4 py-3 font-bold">Loại</th>
+                    <th className="px-4 py-3 font-bold">Hạn chót</th>
+                    <th className="px-4 py-3 font-bold">Nguồn</th>
+                    <th className="px-4 py-3 font-bold">Người cập nhật</th>
+                    <th className="px-4 py-3 font-bold">Cập nhật lúc</th>
+                    <th className="px-4 py-3 text-center font-bold">Trạng thái</th>
+                    <th className="px-4 py-3 rounded-tr-xl text-center font-bold">Hành động</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-white/30">
                   {items.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 bg-white">
+                    <tr key={item.id} className="hover:bg-white/50 bg-white/20 transition-colors duration-150">
                       <td className="px-4 py-3 font-semibold text-slate-800 max-w-[130px] truncate" title={item.assigneeName || '-'}>{item.assigneeName || '-'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {item.assigneeType === 'student' ? 'HSSV' : item.assigneeType === 'teacher' ? 'Giáo viên' : 'Quản sinh'}
@@ -372,15 +381,15 @@ export default function StudentTaskProgressTab() {
                       </td>
                       <td className="px-4 py-3 text-xs whitespace-nowrap">
                         {item.statusSource === 'linked_event' ? (
-                          <span className="inline-flex items-center text-blue-600 bg-blue-50/70 border border-blue-100/60 px-1.5 py-0.5 rounded-lg font-semibold">
+                          <span className="inline-flex items-center text-blue-600 bg-blue-50/70 border border-blue-100/60 px-1.5 py-0.5 rounded-xl font-semibold">
                             Tự động
                           </span>
                         ) : item.statusSource === 'system' ? (
-                          <span className="inline-flex items-center text-purple-600 bg-purple-50/70 border border-purple-100/60 px-1.5 py-0.5 rounded-lg font-semibold">
+                          <span className="inline-flex items-center text-purple-600 bg-purple-50/70 border border-purple-100/60 px-1.5 py-0.5 rounded-xl font-semibold">
                             Hệ thống
                           </span>
                         ) : (
-                          <span className="inline-flex items-center text-slate-600 bg-slate-50/70 border border-slate-100/60 px-1.5 py-0.5 rounded-lg font-semibold">
+                          <span className="inline-flex items-center text-slate-600 bg-slate-50/70 border border-slate-100/60 px-1.5 py-0.5 rounded-xl font-semibold">
                             Thủ công
                           </span>
                         )}
@@ -392,7 +401,7 @@ export default function StudentTaskProgressTab() {
                         {item.updatedAt ? new Date(item.updatedAt).toLocaleString('vi-VN') : '-'}
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-[10px] font-bold rounded-lg border ${
+                        <span className={`inline-flex px-2 py-1 text-[10px] font-bold rounded-xl border ${
                           item.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
                           item.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border-blue-200' :
                           'bg-gray-50 text-gray-600 border-gray-200'
@@ -405,7 +414,7 @@ export default function StudentTaskProgressTab() {
                           <button
                             onClick={() => handleUpdateStatus(item.id, item.status)}
                             title="Chuyển trạng thái"
-                            className="p-1.5 rounded-lg border bg-white hover:bg-slate-50 transition-colors"
+                            className="p-1.5 rounded-xl border border-white/70 bg-white/50 hover:bg-white/80 text-slate-500 hover:text-[#1A73E8] hover:border-[#1A73E8]/50 active:scale-[0.98] transition-all duration-150 hover:scale-[1.01]"
                           >
                             {item.status === 'completed' ? <Check size={14} className="text-emerald-500" /> : <Play size={14} className="text-blue-500" />}
                           </button>
@@ -424,18 +433,18 @@ export default function StudentTaskProgressTab() {
               {items.map((item) => (
                 <div 
                   key={item.id}
-                  className="bg-white/70 backdrop-blur-sm border border-slate-200/50 rounded-2xl p-4.5 shadow-sm hover:shadow-md hover:border-blue-400/50 transition-all flex flex-col justify-between min-h-[240px] group"
+                  className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4.5 shadow-sm hover:shadow-md hover:border-[#1A73E8]/50 hover:scale-[1.01] transition-all duration-150 ease-out flex flex-col justify-between min-h-[240px] group"
                 >
                   {/* Card Header: Category & Status */}
                   <div className="flex items-center justify-between gap-2">
-                    <span className={`inline-flex px-2 py-0.5 text-[9px] font-bold rounded-lg border uppercase ${
+                    <span className={`inline-flex px-2 py-0.5 text-[9px] font-bold rounded-xl border uppercase ${
                       item.taskType === 'project' ? 'text-blue-600 bg-blue-50 border-blue-100/60' :
                       item.taskType === 'assignment' ? 'text-amber-600 bg-amber-50 border-amber-100/60' :
                       'text-purple-600 bg-purple-50 border-purple-100/60'
                     }`}>
                       {item.taskType === 'project' ? 'Dự án' : item.taskType === 'assignment' ? 'Bài tập' : 'Hoạt động'}
                     </span>
-                    <span className={`inline-flex px-2 py-0.5 text-[9px] font-bold rounded-lg border ${
+                    <span className={`inline-flex px-2 py-0.5 text-[9px] font-bold rounded-xl border ${
                       item.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
                       item.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border-blue-200' :
                       'bg-gray-50 text-gray-600 border-gray-200'
@@ -447,32 +456,32 @@ export default function StudentTaskProgressTab() {
                   {/* Card Body: Task details & Assignee */}
                   <div className="mt-3 flex-1 flex flex-col justify-between">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800 line-clamp-2 leading-5 group-hover:text-[#1A73E8] transition-colors" title={item.taskTitle}>
+                      <h4 className="text-sm font-bold text-[#1E293B] line-clamp-2 leading-5 group-hover:text-[#1A73E8] transition-colors" title={item.taskTitle}>
                         {item.taskTitle}
                       </h4>
                       {item.subject && (
-                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-1 font-medium" title={item.subject}>
+                        <p className="text-[11px] text-[#64748B] mt-1 line-clamp-1 font-medium" title={item.subject}>
                           {item.subject}
                         </p>
                       )}
                     </div>
 
-                    <div className="mt-3 pt-3 border-t border-slate-100/60 flex flex-col gap-1.5">
+                    <div className="mt-3 pt-3 border-t border-white/40 flex flex-col gap-1.5">
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400 font-medium">Người thực hiện:</span>
+                        <span className="text-[#64748B] font-medium">Người thực hiện:</span>
                         <span className="font-bold text-slate-700 max-w-[140px] truncate" title={item.assigneeName || '-'}>
                           {item.assigneeName || '-'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400 font-medium">Vai trò / Lớp:</span>
+                        <span className="text-[#64748B] font-medium">Vai trò / Lớp:</span>
                         <span className="text-slate-600 font-semibold truncate max-w-[140px]" title={`${item.assigneeType === 'student' ? 'HSSV' : item.assigneeType === 'teacher' ? 'Giáo viên' : 'Quản sinh'} ${item.className ? `• ${item.className}` : ''}`}>
                           {item.assigneeType === 'student' ? 'HSSV' : item.assigneeType === 'teacher' ? 'Giáo viên' : 'Quản sinh'} 
                           {item.className && ` • ${item.className}`}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400 font-medium">Hạn chót:</span>
+                        <span className="text-[#64748B] font-medium">Hạn chót:</span>
                         <div className="flex items-center gap-1 text-slate-600 font-semibold">
                           <CalendarIcon size={11} className="text-slate-400" />
                           <span>{item.deadline ? new Date(item.deadline).toLocaleDateString('vi-VN') : '-'}</span>
@@ -482,8 +491,8 @@ export default function StudentTaskProgressTab() {
                   </div>
 
                   {/* Card Footer: Metadata & Actions */}
-                  <div className="mt-4 pt-3 border-t border-slate-100/60 flex items-center justify-between gap-2">
-                    <div className="text-[9px] text-slate-400 font-medium space-y-0.5">
+                  <div className="mt-4 pt-3 border-t border-white/40 flex items-center justify-between gap-2">
+                    <div className="text-[9px] text-[#64748B] font-medium space-y-0.5">
                       <div className="flex items-center gap-1">
                         <span>Nguồn:</span>
                         <span className={`font-semibold ${
@@ -507,7 +516,7 @@ export default function StudentTaskProgressTab() {
                           href={item.linkedPage}
                           target="_blank"
                           rel="noreferrer"
-                          className="w-7 h-7 rounded-xl border border-slate-200 text-slate-500 bg-white hover:border-[#1A73E8] hover:text-[#1A73E8] flex items-center justify-center transition-all"
+                          className="w-7 h-7 rounded-xl border border-white/70 text-[#64748B] bg-white/50 hover:border-[#1A73E8] hover:text-[#1A73E8] flex items-center justify-center transition-all duration-150 hover:scale-[1.01]"
                           title="Mở liên kết nhiệm vụ"
                         >
                           <ExternalLink size={12} />
@@ -516,12 +525,12 @@ export default function StudentTaskProgressTab() {
                       {(hasManagePermission || user?.id === item.assigneeUserId) && (
                         <button
                           onClick={() => handleUpdateStatus(item.id, item.status)}
-                          className={`w-7 h-7 rounded-xl flex items-center justify-center border transition-all duration-150 cursor-pointer ${
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center border transition-all duration-150 hover:scale-[1.01] cursor-pointer ${
                             item.status === 'completed'
-                              ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
+                              ? 'bg-emerald-50/70 border-emerald-200 text-emerald-600 hover:bg-emerald-100/90'
                               : item.status === 'in_progress'
-                              ? 'bg-blue-50 border-blue-200 text-[#1A73E8] hover:bg-blue-100'
-                              : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                              ? 'bg-blue-50/70 border-blue-200 text-[#1A73E8] hover:bg-blue-100/90'
+                              : 'bg-white/50 border-white/70 text-[#64748B] hover:border-slate-300 hover:text-[#1E293B]'
                           }`}
                           title="Chuyển trạng thái"
                         >
@@ -537,45 +546,13 @@ export default function StudentTaskProgressTab() {
         </div>
 
         {/* Pagination */}
-        {totalCount > 0 && (
-          <div className="px-5 py-3 border-t border-white/80 bg-white/20 flex items-center justify-between shrink-0">
-            <span className="text-xs font-semibold text-[#64748B]">
-              Hiển thị {startItem}-{endItem} trên tổng số {totalCount} bản ghi
-            </span>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="w-7 h-7 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              
-              {Array.from({ length: totalPages }).map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentPage(idx + 1)}
-                  className={`w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    currentPage === idx + 1
-                      ? 'bg-[#1A73E8] text-white shadow-sm shadow-blue-500/15'
-                      : 'border border-gray-200 bg-white text-[#64748B] hover:bg-slate-50'
-                  }`}
-                >
-                  {idx + 1}
-                </button>
-              ))}
-
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="w-7 h-7 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        )}
+        <CustomPagination
+          currentPage={currentPage}
+          pageSize={itemsPerPage}
+          totalItems={totalCount}
+          onPageChange={setCurrentPage}
+          label="bản ghi"
+        />
       </div>
     </div>
   );

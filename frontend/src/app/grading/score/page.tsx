@@ -754,6 +754,10 @@ function GradingScoreContent() {
         ? activePeriod?.gv_deadline
         : activePeriod?.admin_deadline;
 
+  const shouldShowEvaluationProgress =
+    !!activePeriod &&
+    (currentUserRole !== "student" || activePeriod.status === "sv_phase");
+
   const handleCloseSemesterModal = async () => {
     setIsSemesterModalOpen(false);
 
@@ -834,7 +838,10 @@ function GradingScoreContent() {
         setApiSemesters(backendSemesters || []);
         setApiClasses(backendClasses || []);
         setApiEvaluationPeriods(backendPeriods || []);
-        setApiSummariesPoints(backendSummaries || []);
+        const summariesData = Array.isArray(backendSummaries)
+          ? backendSummaries
+          : (backendSummaries as any)?.data || [];
+        setApiSummariesPoints(summariesData);
 
         const currentUserId = currentUser?.id || currentUser?._id || "";
         const roleScopedClasses =
@@ -904,7 +911,7 @@ function GradingScoreContent() {
         setCategories(categoriesMapped);
 
         // 3. Map Students từ summariesPoint
-        let filteredSummaries = (backendSummaries || []).filter((summary) => {
+        let filteredSummaries = (summariesData || []).filter((summary) => {
           const semId =
             typeof summary.semester_id === "object"
               ? summary.semester_id?._id
@@ -947,7 +954,10 @@ function GradingScoreContent() {
         ];
 
         // Lấy danh sách Student đầy đủ để tra cứu thông tin cá nhân
-        const backendStudents = await studentApi.getStudents();
+        const backendStudentsResult = await studentApi.getStudents();
+        const backendStudents = Array.isArray(backendStudentsResult)
+          ? backendStudentsResult
+          : (backendStudentsResult as any)?.data || [];
 
         if (currentUserRole === "student") {
           filteredSummaries = filteredSummaries.filter((summary) => {
@@ -1991,7 +2001,7 @@ function GradingScoreContent() {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-amber-500/10 backdrop-blur-md border border-amber-500/20 rounded-2xl p-4 flex items-center gap-4 shrink-0 shadow-sm"
               >
-                <div className="bg-amber-500/20 text-amber-700 p-2.5 rounded-full shrink-0">
+                <div className="bg-amber-500/20 text-amber-700 p-2.5 rounded-xl shrink-0">
                   <Eye size={18} strokeWidth={2.5} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -2010,10 +2020,11 @@ function GradingScoreContent() {
             {/* ================= EVALUATION PERIOD STEPPER ================= */}
             {!isInitialLoading &&
               (activePeriod ? (
-                <motion.div
+                shouldShowEvaluationProgress ? (
+                  <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white/45 backdrop-blur-md border border-white/75 rounded-3xl p-6 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4"
+                  className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-6 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4"
                 >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200/50 pb-4">
                     <div>
@@ -2033,7 +2044,7 @@ function GradingScoreContent() {
                         Giai đoạn hiện tại:
                       </span>
                       <span
-                        className={`px-3.5 py-1 rounded-full text-[11px] font-bold border uppercase tracking-wider ${
+                        className={`px-3.5 py-1 rounded-xl text-[11px] font-bold border uppercase tracking-wider ${
                           activePeriod.status === "sv_phase"
                             ? "bg-blue-500/10 text-[#1A73E8] border-blue-500/20"
                             : activePeriod.status === "gv_phase"
@@ -2059,7 +2070,7 @@ function GradingScoreContent() {
                         <button
                           type="button"
                           onClick={() => setIsSemesterModalOpen(true)}
-                          className="w-9 h-9 rounded-full bg-white/80 hover:bg-[#1A73E8] text-[#64748B] hover:text-white border border-slate-200/70 shadow-sm flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                          className="w-9 h-9 rounded-xl bg-white/50 hover:bg-[#1A73E8] text-[#64748B] hover:text-white border border-slate-200/70 shadow-sm flex items-center justify-center transition-all cursor-pointer active:scale-95"
                           title="Cấu hình nhanh học kỳ"
                           aria-label="Cấu hình nhanh học kỳ"
                         >
@@ -2076,7 +2087,7 @@ function GradingScoreContent() {
                       <div className="flex flex-col gap-2 relative">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
                               activePeriod.status === "sv_phase"
                                 ? "bg-[#1A73E8] text-white border-[#1A73E8] ring-4 ring-blue-100 animate-pulse"
                                 : [
@@ -2123,7 +2134,7 @@ function GradingScoreContent() {
                       <div className="flex flex-col gap-2 relative">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
                               activePeriod.status === "gv_phase"
                                 ? "bg-amber-500 text-white border-amber-500 ring-4 ring-amber-100 animate-pulse"
                                 : ["admin_phase", "closed"].includes(
@@ -2166,7 +2177,7 @@ function GradingScoreContent() {
                       <div className="flex flex-col gap-2 relative">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
                               activePeriod.status === "admin_phase"
                                 ? "bg-purple-600 text-white border-purple-600 ring-4 ring-purple-100 animate-pulse"
                                 : ["closed"].includes(activePeriod.status)
@@ -2203,7 +2214,7 @@ function GradingScoreContent() {
                       <div className="flex flex-col gap-2 relative">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
                               activePeriod.status === "closed"
                                 ? "bg-rose-600 text-white border-rose-600 ring-4 ring-rose-100 shadow-sm"
                                 : "bg-white text-slate-400 border-slate-200"
@@ -2269,13 +2280,14 @@ function GradingScoreContent() {
                     </div>
                   )}
                 </motion.div>
+                ) : null
               ) : (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white/45 backdrop-blur-md border border-white/75 rounded-3xl p-5 shadow-sm shadow-slate-300/40 shrink-0 flex items-center gap-3"
+                  className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-300/40 shrink-0 flex items-center gap-3"
                 >
-                  <div className="p-2 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-full shrink-0">
+                  <div className="p-2 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-xl shrink-0">
                     <AlertTriangle size={18} />
                   </div>
                   <div>
@@ -2291,7 +2303,7 @@ function GradingScoreContent() {
                     <button
                       type="button"
                       onClick={() => setIsSemesterModalOpen(true)}
-                      className="ml-auto w-9 h-9 rounded-full bg-white/80 hover:bg-[#1A73E8] text-[#64748B] hover:text-white border border-slate-200/70 shadow-sm flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0"
+                      className="ml-auto w-9 h-9 rounded-xl bg-white/50 hover:bg-[#1A73E8] text-[#64748B] hover:text-white border border-slate-200/70 shadow-sm flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0"
                       title="Cấu hình nhanh học kỳ"
                       aria-label="Cấu hình nhanh học kỳ"
                     >
@@ -2303,7 +2315,7 @@ function GradingScoreContent() {
 
             {/* ================= STUDENT HERO SLIDER ================= */}
             {shouldShowStudentSlider && (
-              <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-3xl p-5 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4 relative overflow-hidden">
+              <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4 relative overflow-hidden">
                 <div className="flex items-center justify-between w-full">
                   <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase">
                     Sinh viên đang chấm điểm
@@ -2311,14 +2323,14 @@ function GradingScoreContent() {
                   <div className="flex gap-2 items-center">
                     <button
                       onClick={() => scrollSlider("left")}
-                      className="w-8 h-8 rounded-full bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
+                      className="w-8 h-8 rounded-xl bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
                       title="Trượt sang trái"
                     >
                       <ChevronLeft size={16} strokeWidth={2.5} />
                     </button>
                     <button
                       onClick={() => scrollSlider("right")}
-                      className="w-8 h-8 rounded-full bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
+                      className="w-8 h-8 rounded-xl bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
                       title="Trượt sang phải"
                     >
                       <ChevronRight size={16} strokeWidth={2.5} />
@@ -2383,7 +2395,7 @@ function GradingScoreContent() {
 
                               {/* Active Badge Checkmark */}
                               {isActive && (
-                                <div className="absolute -bottom-1 -right-1 bg-[#1A73E8] text-white border-2 border-white rounded-full w-5 h-5 flex items-center justify-center shadow-md">
+                                <div className="absolute -bottom-1 -right-1 bg-[#1A73E8] text-white border-2 border-white rounded-lg w-5 h-5 flex items-center justify-center shadow-md">
                                   <Check size={11} strokeWidth={3} />
                                 </div>
                               )}
@@ -2403,7 +2415,7 @@ function GradingScoreContent() {
 
                               {/* Realtime progress bar */}
                               <div className="flex gap-2.5 items-center mt-1.5">
-                                <div className="bg-[#EBF2FA] flex-1 h-[5px] rounded-full overflow-hidden border border-white/20">
+                                <div className="bg-[#EBF2FA] flex-1 h-[5px] rounded-lg overflow-hidden border border-white/20">
                                   <motion.div
                                     initial={{ width: 0 }}
                                     animate={{ width: `${student.score}%` }}
@@ -2412,7 +2424,7 @@ function GradingScoreContent() {
                                       stiffness: 80,
                                       damping: 15,
                                     }}
-                                    className="bg-[#1A73E8] h-full rounded-full"
+                                    className="bg-[#1A73E8] h-full rounded-lg"
                                   />
                                 </div>
                                 <span className="font-bold text-[#1A73E8] text-[9.5px] tracking-wide shrink-0">
@@ -2428,10 +2440,10 @@ function GradingScoreContent() {
             )}
 
             {/* ================= NAVIGATION TABS (Danh mục / Lịch sử) ================= */}
-            <div className="flex w-full sm:w-auto bg-white/40 backdrop-blur-md border border-white/70 rounded-full p-1.5 gap-2 self-stretch sm:self-start shrink-0 shadow-sm">
+            <div className="flex w-full sm:w-auto bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-1.5 gap-2 self-stretch sm:self-start shrink-0 shadow-sm">
               <button
                 onClick={() => setSubTab("category")}
-                className={`flex-1 sm:flex-none text-center px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-full cursor-pointer relative whitespace-nowrap ${
+                className={`flex-1 sm:flex-none text-center px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-lg cursor-pointer relative whitespace-nowrap ${
                   subTab === "category"
                     ? "bg-white text-[#1A73E8] shadow-sm shadow-blue-900/5"
                     : "text-[#64748B] hover:text-[#1E293B]"
@@ -2442,7 +2454,7 @@ function GradingScoreContent() {
               </button>
               <button
                 onClick={() => setSubTab("history")}
-                className={`flex-1 sm:flex-none text-center px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-full cursor-pointer relative whitespace-nowrap ${
+                className={`flex-1 sm:flex-none text-center px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-lg cursor-pointer relative whitespace-nowrap ${
                   subTab === "history"
                     ? "bg-white text-[#1A73E8] shadow-sm shadow-blue-900/5"
                     : "text-[#64748B] hover:text-[#1E293B]"
@@ -2502,13 +2514,13 @@ function GradingScoreContent() {
                         key={category.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-white/45 backdrop-blur-md border border-white/75 rounded-[24px] overflow-hidden shadow-sm shadow-slate-300/40 flex flex-col w-full hover:scale-[1.002] transition-all duration-300"
+                        className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl overflow-hidden shadow-sm shadow-slate-300/40 flex flex-col w-full hover:scale-[1.002] transition-all duration-300"
                       >
                         {/* Category Header */}
                         <div className="bg-white/40 flex items-center justify-between p-5 w-full select-none border-b border-white/40 gap-3">
                           <h4 className="font-bold text-[#1E293B] text-[15px] tracking-wide flex items-center gap-2 min-w-0 flex-1">
                             {category.code && (
-                              <span className="text-[#1A73E8] font-mono text-[12px] bg-[#1A73E8]/10 border border-[#1A73E8]/15 px-2.5 py-1 rounded-full font-bold shrink-0">
+                              <span className="text-[#1A73E8] font-mono text-[12px] bg-[#1A73E8]/10 border border-[#1A73E8]/15 px-2.5 py-1 rounded-xl font-bold shrink-0">
                                 {category.code}
                               </span>
                             )}
@@ -2516,7 +2528,7 @@ function GradingScoreContent() {
                             {category.title.length > 35 && <CriteriaTooltip content={category.title} />}
                           </h4>
                           <div
-                            className={`px-4.5 py-1.5 border rounded-full font-bold text-[12.5px] tracking-wide shrink-0 transition-colors duration-300 ${badgeStyle}`}
+                            className={`px-4.5 py-1.5 border rounded-xl font-bold text-[12.5px] tracking-wide shrink-0 transition-colors duration-300 ${badgeStyle}`}
                           >
                             {clampedCatScore} / {category.maxPoints}đ
                           </div>
@@ -2626,7 +2638,7 @@ function GradingScoreContent() {
                                   {/* Cupertino Horizontal Wheel Picker & Points Per Unit underneath */}
                                   <div className="flex flex-col items-end w-full md:w-auto mt-1 md:mt-0 gap-1 shrink-0">
                                     <div
-                                      className={`bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-full py-1 px-2 flex gap-2 items-center shadow-sm ${item.is_locked || !canModifyScore ? "opacity-60 bg-slate-100/50" : ""}`}
+                                      className={`bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-xl py-1 px-2 flex gap-2 items-center shadow-sm ${item.is_locked || !canModifyScore ? "opacity-60 bg-slate-100/50" : ""}`}
                                     >
                                       {/* Nút giảm */}
                                       <button
@@ -2640,7 +2652,7 @@ function GradingScoreContent() {
                                           item.is_locked ||
                                           !canModifyScore
                                         }
-                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all shrink-0 ${
+                                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${
                                           count <= minCount ||
                                           item.is_locked ||
                                           !canModifyScore
@@ -2683,7 +2695,7 @@ function GradingScoreContent() {
                                           item.is_locked ||
                                           !canModifyScore
                                         }
-                                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all shrink-0 ${
+                                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${
                                           count >= sliderMax ||
                                           item.is_locked ||
                                           !canModifyScore
@@ -2728,7 +2740,7 @@ function GradingScoreContent() {
                                         : "Điểm mục này"}
                                     </span>
                                     {item.maxScore !== undefined && (
-                                      <span className="text-[9.5px] text-[#64748B] bg-white/70 border border-white/80 px-2 py-0.5 rounded-full font-bold mt-1 text-right shrink-0">
+                                      <span className="text-[9.5px] text-[#64748B] bg-white/70 border border-white/80 px-2 py-0.5 rounded-xl font-bold mt-1 text-right shrink-0">
                                         Tối đa {item.maxScore}đ
                                       </span>
                                     )}
@@ -2748,7 +2760,7 @@ function GradingScoreContent() {
                       <Button
                         onClick={handleReset}
                         variant="outline"
-                        className="bg-white/60 backdrop-blur-sm border border-white/80 hover:bg-white/90 text-[#1E293B] font-bold text-[14px] px-7 py-2.5 rounded-full flex items-center gap-2 transition-all active:scale-95 cursor-pointer h-[42px] hover:scale-[1.02] shadow-sm"
+                        className="bg-white/60 backdrop-blur-sm border border-white/80 hover:bg-white/90 text-[#1E293B] font-bold text-[14px] px-7 py-2.5 rounded-xl flex items-center gap-2 transition-all active:scale-95 cursor-pointer h-[42px] hover:scale-[1.02] shadow-sm"
                         title="Đặt lại các tiêu chí"
                       >
                         <RotateCcw size={15} strokeWidth={2.5} />
@@ -2757,7 +2769,7 @@ function GradingScoreContent() {
                       <Button
                         onClick={handleSave}
                         disabled={isFetching}
-                        className="bg-[#1A73E8] hover:bg-[#155cc4] text-white font-bold text-[14px] px-8 py-2.5 rounded-full flex items-center gap-2 transition-all shadow-[0_4px_12px_rgba(26,115,232,0.15)] active:scale-95 cursor-pointer h-[42px] disabled:opacity-80 disabled:cursor-not-allowed hover:scale-[1.02]"
+                        className="bg-[#1A73E8] hover:bg-[#155cc4] text-white font-bold text-[14px] px-8 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-[0_4px_12px_rgba(26,115,232,0.15)] active:scale-95 cursor-pointer h-[42px] disabled:opacity-80 disabled:cursor-not-allowed hover:scale-[1.02]"
                         title="Lưu điểm rèn luyện"
                       >
                         {isFetching ? (
@@ -2812,7 +2824,7 @@ function GradingScoreContent() {
                   return (
                     <div className="flex flex-col gap-4">
                       {records.length === 0 ? (
-                        <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-[24px] py-20 flex flex-col items-center justify-center text-center p-8 gap-3 shadow-sm shadow-slate-300/40">
+                        <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl py-20 flex flex-col items-center justify-center text-center p-8 gap-3 shadow-sm shadow-slate-300/40">
                           <div className="p-4 bg-white/70 border border-white/80 rounded-2xl text-slate-300 shadow-sm">
                             <History size={36} strokeWidth={1.5} />
                           </div>
@@ -2853,7 +2865,7 @@ function GradingScoreContent() {
 
                           {/* Render Pagination ở dưới cùng danh sách lịch sử */}
                           {records.length > 0 && (
-                            <div className="bg-white/45 backdrop-blur-sm border border-white/70 rounded-3xl p-3 shadow-sm shadow-slate-300/10">
+                            <div className="bg-white/45 backdrop-blur-sm border border-white/70 rounded-2xl p-3 shadow-sm shadow-slate-300/10">
                               <CustomPagination
                                 currentPage={historyPage}
                                 totalItems={records.length}
@@ -2886,10 +2898,10 @@ function GradingScoreContent() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-white/90 backdrop-blur-md rounded-[24px] border border-white/80 shadow-2xl p-6 max-w-md w-full flex flex-col gap-4 font-sans"
+                  className="bg-white/90 backdrop-blur-md rounded-2xl border border-white/70 shadow-2xl p-6 max-w-md w-full flex flex-col gap-4 font-sans"
                 >
                   <div className="flex gap-4 items-start">
-                    <div className="p-3 bg-rose-500/10 text-rose-600 rounded-full shrink-0">
+                    <div className="p-3 bg-rose-500/10 text-rose-600 rounded-xl shrink-0">
                       <AlertTriangle size={24} />
                     </div>
                     <div className="flex flex-col gap-1">
@@ -2913,13 +2925,13 @@ function GradingScoreContent() {
                         setIsConfirmDeleteOpen(false);
                         setRecordToDelete(null);
                       }}
-                      className="px-5 py-2 border border-slate-200 text-[#64748B] hover:bg-slate-50 rounded-full font-bold text-[13px] transition-colors cursor-pointer"
+                      className="px-5 py-2 border border-slate-200 text-[#64748B] hover:bg-slate-50 rounded-xl font-bold text-[13px] transition-colors cursor-pointer"
                     >
                       Hủy bỏ
                     </button>
                     <button
                       onClick={handleDeleteHistoryRecord}
-                      className="px-6 py-2 bg-rose-600 text-white rounded-full font-bold text-[13px] hover:bg-rose-700 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5 hover:scale-[1.02]"
+                      className="px-6 py-2 bg-rose-600 text-white rounded-xl font-bold text-[13px] hover:bg-rose-700 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5 hover:scale-[1.02]"
                     >
                       <Trash2 size={13} />
                       <span>Xác nhận xóa</span>
@@ -2953,7 +2965,7 @@ function GradingScoreContent() {
             whileHover={{ scale: 1.1, translateY: -2 }}
             whileTap={{ scale: 0.9 }}
             onClick={scrollToTop}
-            className="fixed bottom-20 md:bottom-8 right-8 z-50 bg-[#1A73E8] text-white p-3.5 rounded-full shadow-[0px_4px_20px_rgba(26,115,232,0.35)] hover:bg-[#155cc4] transition-all cursor-pointer border border-white/20 flex items-center justify-center"
+            className="fixed bottom-20 md:bottom-8 right-8 z-50 bg-[#1A73E8] text-white p-3.5 rounded-xl shadow-[0px_4px_20px_rgba(26,115,232,0.35)] hover:bg-[#155cc4] transition-all cursor-pointer border border-white/20 flex items-center justify-center"
             title="Cuộn lên đầu trang"
           >
             <ArrowUp size={22} strokeWidth={2.5} />
@@ -3015,9 +3027,9 @@ function GradingScoreWithGuard() {
   if (taskId) {
     if (isValidating) {
       return (
-        <div className="flex h-screen bg-[#f6f7f8] font-sans items-center justify-center">
+        <div className="flex h-screen bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] font-sans items-center justify-center">
           <div className="text-center flex flex-col items-center gap-4">
-            <Skeleton className="w-12 h-12 rounded-full animate-bounce bg-slate-100" />
+            <Skeleton className="w-12 h-12 rounded-xl animate-bounce bg-slate-100/50" />
             <div className="font-bold text-slate-500 text-[14px]">
               Đang xác thực thông tin nhiệm vụ...
             </div>
@@ -3028,9 +3040,9 @@ function GradingScoreWithGuard() {
 
     if (validationError) {
       return (
-        <div className="flex h-screen bg-[#f6f7f8] font-sans items-center justify-center p-4">
-          <div className="bg-white/80 backdrop-blur-md p-8 rounded-[24px] border border-white max-w-md w-full text-center shadow-lg flex flex-col items-center gap-4">
-            <div className="p-4 bg-rose-500/10 text-rose-600 rounded-full">
+        <div className="flex h-screen bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] font-sans items-center justify-center p-4">
+          <div className="bg-white/90 backdrop-blur-md p-8 rounded-2xl border border-white/70 max-w-md w-full text-center shadow-lg flex flex-col items-center gap-4">
+            <div className="p-4 bg-rose-500/10 text-rose-600 rounded-xl">
               <AlertTriangle size={32} />
             </div>
             <h3 className="font-bold text-slate-800 text-[17px]">
@@ -3041,7 +3053,7 @@ function GradingScoreWithGuard() {
             </p>
             <Button
               onClick={() => window.location.href = "/students/tasks"}
-              className="mt-2 w-full rounded-full bg-[#1A73E8] hover:bg-[#155cc4] text-white font-bold"
+              className="mt-2 w-full rounded-xl bg-[#1A73E8] hover:bg-[#155cc4] text-white font-bold"
             >
               Quay lại danh sách nhiệm vụ
             </Button>
@@ -3065,9 +3077,9 @@ export default function ProtectedGradingScorePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-screen bg-[#f6f7f8] font-sans items-center justify-center">
+        <div className="flex h-screen bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] font-sans items-center justify-center">
           <div className="text-center flex flex-col items-center gap-4">
-            <Skeleton className="w-12 h-12 rounded-full animate-bounce bg-slate-100" />
+            <Skeleton className="w-12 h-12 rounded-xl animate-bounce bg-slate-100/50" />
             <div className="font-bold text-slate-500 text-[14px]">
               Đang tải giao diện chấm điểm...
             </div>

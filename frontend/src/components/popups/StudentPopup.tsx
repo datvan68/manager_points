@@ -173,21 +173,21 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
     };
 
     return (
-        <Popup isOpen={isOpen} onClose={onClose} className="max-w-fit" contentClassName="p-6">
-            <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col w-[600px] max-w-[95vw]">
+        <Popup isOpen={isOpen} onClose={onClose} className="max-w-fit bg-white/80 backdrop-blur-xl border border-white/80 rounded-2xl shadow-lg shadow-slate-300/40" contentClassName="p-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col w-[600px] max-w-[95vw] bg-transparent">
                 {/* Header Custom as per Figma */}
-                <div className="flex items-center justify-between pb-6 border-b border-[#f1f5f9]">
+                <div className="flex items-center justify-between pb-6 border-b border-white/60">
                     <div className="flex flex-col gap-1">
-                        <h2 className="text-[20px] font-bold text-[#0f172a] tracking-wide">
+                        <h2 className="text-[20px] font-bold text-[#1E293B] tracking-wide">
                             {initialData ? "Sửa Sinh viên" : "Thêm Sinh viên"}
                         </h2>
-                        <p className="text-[14px] text-[#64748b]">
+                        <p className="text-[14px] text-[#64748B]">
                             Điền thông tin hồ sơ sinh viên {initialData ? "hiện tại" : "mới"}
                         </p>
                     </div>
                 </div>
 
-                <div className="py-6 gap-x-6 gap-y-6 grid grid-cols-2">
+                <div className="py-6 gap-x-6 gap-y-5 grid grid-cols-2">
                     {/* Mã sinh viên */}
                     <Input
                         label="Mã sinh viên"
@@ -209,7 +209,7 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
 
                     {/* Ngày sinh */}
                     <div className="col-span-1 space-y-1.5 flex flex-col justify-start">
-                        <label className="text-sm font-medium text-slate-700 px-1">
+                        <label className="text-[13px] font-bold text-[#1E293B] px-1">
                             Ngày sinh <span className="text-red-500">*</span>
                         </label>
                         <Controller
@@ -222,18 +222,18 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                                         <PopoverTrigger asChild>
                                             <button
                                                 type="button"
-                                                className={`w-full h-10 px-3 bg-[#f8fafc] border border-slate-200/60 rounded-lg text-[14px] transition-all flex items-center justify-between hover:bg-slate-100/50 focus:ring-2 focus:ring-[#135bec]/20 focus:outline-none focus:bg-white ${errors.dob ? 'border-red-500' : ''}`}
+                                                className={`w-full h-10 px-3 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[14px] transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-between hover:bg-white/70 focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none ${errors.dob ? 'border-red-500' : ''}`}
                                             >
-                                                <span className={selectedDate && !isNaN(selectedDate.getTime()) ? 'text-slate-900' : 'text-slate-400'}>
+                                                <span className={selectedDate && !isNaN(selectedDate.getTime()) ? 'text-[#1E293B] font-medium' : 'text-[#64748B]/60'}>
                                                     {selectedDate && !isNaN(selectedDate.getTime())
                                                         ? format(selectedDate, 'dd/MM/yyyy')
                                                         : 'Chọn ngày sinh'}
                                                 </span>
-                                                <Calendar className="w-4 h-4 text-slate-400" />
+                                                <Calendar className="w-4 h-4 text-[#64748B]" />
                                             </button>
                                         </PopoverTrigger>
                                         <PopoverContent
-                                            className="w-auto p-0 z-[110] bg-transparent border-none shadow-none"
+                                            className="w-auto p-0.5 z-[110] bg-white/80 backdrop-blur-xl border border-white/80 rounded-2xl shadow-lg shadow-slate-300/40 overflow-hidden"
                                             align="start"
                                             side="bottom"
                                             sideOffset={6}
@@ -261,37 +261,31 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                     </div>
 
                     {/* Giới tính */}
-                    <div className="col-span-1 space-y-2">
-                        <label className="text-sm font-medium text-slate-700">Giới tính</label>
-                        <div className="flex gap-[24px] h-10 items-center">
-                            <label className="flex items-center gap-[7px] cursor-pointer group">
-                                <div className="relative flex items-center justify-center w-[18px] h-[18px]">
-                                    <input
-                                        type="radio"
-                                        name="gender"
-                                        value="Nam"
-                                        checked={genderValue === 'Nam'}
-                                        onChange={() => setValue('gender', 'Nam')}
-                                        className="peer appearance-none w-[16px] h-[16px] border border-[#cbd5e1] rounded-full focus:outline-none checked:bg-[#135bec] checked:border-transparent transition-all cursor-pointer m-0"
-                                    />
-                                    <div className="absolute w-[6px] h-[6px] bg-white rounded-full opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
-                                </div>
-                                <span className="text-[14px] text-[#475569]">Nam</span>
+                    <div className="col-span-1 space-y-1.5 flex flex-col justify-start">
+                        <label className="text-[13px] font-bold text-[#1E293B] px-1">Giới tính</label>
+                        <div className="flex gap-4 h-10 items-center">
+                            <label className={`flex-1 flex items-center justify-center gap-2 h-10 border rounded-xl cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] ${genderValue === 'Nam' ? 'bg-[#1A73E8]/10 border-[#1A73E8]/30 text-[#1A73E8]' : 'bg-white/50 backdrop-blur-sm border-white/80 text-[#64748B] hover:bg-white/70'}`}>
+                                <input
+                                    type="radio"
+                                    name="gender"
+                                    value="Nam"
+                                    checked={genderValue === 'Nam'}
+                                    onChange={() => setValue('gender', 'Nam')}
+                                    className="hidden"
+                                />
+                                <span className="text-[13px] font-bold">Nam</span>
                             </label>
 
-                            <label className="flex items-center gap-[8px] cursor-pointer group">
-                                <div className="relative flex items-center justify-center w-[18px] h-[18px]">
-                                    <input
-                                        type="radio"
-                                        name="gender"
-                                        value="Nữ"
-                                        checked={genderValue === 'Nữ'}
-                                        onChange={() => setValue('gender', 'Nữ')}
-                                        className="peer appearance-none w-[16px] h-[16px] border border-[#cbd5e1] rounded-full focus:outline-none checked:bg-[#135bec] checked:border-transparent transition-all cursor-pointer m-0"
-                                    />
-                                    <div className="absolute w-[6px] h-[6px] bg-white rounded-full opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
-                                </div>
-                                <span className="text-[14px] text-[#475569]">Nữ</span>
+                            <label className={`flex-1 flex items-center justify-center gap-2 h-10 border rounded-xl cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] ${genderValue === 'Nữ' ? 'bg-[#1A73E8]/10 border-[#1A73E8]/30 text-[#1A73E8]' : 'bg-white/50 backdrop-blur-sm border-white/80 text-[#64748B] hover:bg-white/70'}`}>
+                                <input
+                                    type="radio"
+                                    name="gender"
+                                    value="Nữ"
+                                    checked={genderValue === 'Nữ'}
+                                    onChange={() => setValue('gender', 'Nữ')}
+                                    className="hidden"
+                                />
+                                <span className="text-[13px] font-bold">Nữ</span>
                             </label>
                         </div>
                     </div>
@@ -306,10 +300,10 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
 
                     {/* Lớp */}
                     <div className="col-span-1 space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700 px-1">Lớp</label>
+                        <label className="text-[13px] font-bold text-[#1E293B] px-1">Lớp</label>
                         {isLoadingData ? (
-                            <div className="flex items-center gap-2 h-10 px-3 bg-gray-50 border border-slate-200/60 rounded-lg text-sm text-gray-500">
-                                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                            <div className="flex items-center gap-2 h-10 px-3 bg-white/40 border border-white/80 rounded-xl text-sm text-[#64748B] backdrop-blur-sm">
+                                <Loader2 className="w-4 h-4 animate-spin text-[#1A73E8]" />
                                 Đang tải danh sách lớp...
                             </div>
                         ) : (
@@ -318,12 +312,12 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                                 control={control}
                                 render={({ field }) => (
                                     <Select onValueChange={field.onChange} value={field.value}>
-                                        <SelectTrigger className={`w-full h-10 px-3 bg-[#f8fafc] border-slate-200/60 rounded-lg text-[14px] text-slate-900 transition-all focus:ring-2 focus:ring-[#135bec]/20 focus:outline-none focus:bg-white shadow-none`}>
+                                        <SelectTrigger className="w-full h-10 px-3 bg-white/50 border border-white/80 rounded-xl text-[14px] text-[#1E293B] font-medium transition-all duration-150 ease-out hover:scale-[1.01] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none shadow-none">
                                             <SelectValue placeholder="Chọn lớp" />
                                         </SelectTrigger>
-                                        <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1">
+                                        <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white/85 backdrop-blur-md rounded-xl shadow-lg shadow-slate-300/40 border border-white/70 p-1">
                                             {classesList.map(cls => (
-                                                <SelectItem key={cls._id} value={cls._id} className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">
+                                                <SelectItem key={cls._id} value={cls._id} className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
                                                     {cls.class_name}
                                                 </SelectItem>
                                             ))}
@@ -337,10 +331,10 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
 
                     {/* Khoa */}
                     <div className="col-span-1 space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700 px-1">Khoa</label>
+                        <label className="text-[13px] font-bold text-[#1E293B] px-1">Khoa</label>
                         {isLoadingData ? (
-                            <div className="flex items-center gap-2 h-10 px-3 bg-gray-50 border border-slate-200/60 rounded-lg text-sm text-gray-500">
-                                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                            <div className="flex items-center gap-2 h-10 px-3 bg-white/40 border border-white/80 rounded-xl text-sm text-[#64748B] backdrop-blur-sm">
+                                <Loader2 className="w-4 h-4 animate-spin text-[#1A73E8]" />
                                 Đang tải danh sách khoa...
                             </div>
                         ) : (
@@ -349,12 +343,12 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                                 control={control}
                                 render={({ field }) => (
                                     <Select onValueChange={field.onChange} value={field.value} disabled>
-                                        <SelectTrigger className={`w-full h-10 px-3 bg-[#f8fafc] border-slate-200/60 rounded-lg text-[14px] text-slate-900 transition-all focus:ring-2 focus:ring-[#135bec]/20 focus:outline-none focus:bg-white shadow-none opacity-80 cursor-not-allowed`}>
+                                        <SelectTrigger className="w-full h-10 px-3 bg-white/40 border border-white/80 rounded-xl text-[14px] text-[#1E293B] font-medium transition-all shadow-none opacity-60 cursor-not-allowed">
                                             <SelectValue placeholder="Khoa tự chọn theo Lớp" />
                                         </SelectTrigger>
-                                        <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1">
+                                        <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white/85 backdrop-blur-md rounded-xl shadow-lg shadow-slate-300/40 border border-white/70 p-1">
                                             {departmentsList.map(dept => (
-                                                <SelectItem key={dept._id} value={dept._id} className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">
+                                                <SelectItem key={dept._id} value={dept._id} className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
                                                     {dept.name}
                                                 </SelectItem>
                                             ))}
@@ -368,26 +362,26 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
 
                     {/* Trạng thái */}
                     <div className="col-span-1 space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700 px-1">Trạng thái</label>
+                        <label className="text-[13px] font-bold text-[#1E293B] px-1">Trạng thái</label>
                         <Controller
                             name="status"
                             control={control}
                             render={({ field }) => (
                                 <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger className="w-full h-10 px-3 bg-[#f8fafc] border-slate-200/60 rounded-lg text-[14px] text-slate-900 transition-all focus:ring-2 focus:ring-[#135bec]/20 focus:outline-none focus:bg-white shadow-none">
+                                    <SelectTrigger className="w-full h-10 px-3 bg-white/50 border border-white/80 rounded-xl text-[14px] text-[#1E293B] font-medium transition-all duration-150 ease-out hover:scale-[1.01] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none shadow-none">
                                         <SelectValue placeholder="Chọn trạng thái" />
                                     </SelectTrigger>
-                                    <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1">
-                                        <SelectItem value="Studying" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">
+                                    <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white/85 backdrop-blur-md rounded-xl shadow-lg shadow-slate-300/40 border border-white/70 p-1">
+                                        <SelectItem value="Studying" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
                                             Đang học
                                         </SelectItem>
-                                        <SelectItem value="Reserved" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">
+                                        <SelectItem value="Reserved" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
                                             Bảo lưu
                                         </SelectItem>
-                                        <SelectItem value="Dropped" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">
+                                        <SelectItem value="Dropped" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
                                             Thôi học
                                         </SelectItem>
-                                        <SelectItem value="Graduated" className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700">
+                                        <SelectItem value="Graduated" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
                                             Tốt nghiệp
                                         </SelectItem>
                                     </SelectContent>
@@ -399,7 +393,7 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                 </div>
 
                 {/* BOTTOM Section: Actions */}
-                <div className="pt-4 flex items-center justify-end gap-3">
+                <div className="pt-5 border-t border-white/60 flex items-center justify-end gap-3 mt-2">
                     <Button
                         variant="secondary"
                         onClick={onClose}

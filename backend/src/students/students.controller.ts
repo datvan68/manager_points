@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
 import { StudentsService } from './students.service';
 import { CreateStudentDto } from './dto/create-student.dto';
@@ -39,8 +40,8 @@ export class StudentsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll(@Request() req: any) {
-    return this.studentsService.findAll(req.user);
+  findAll(@Request() req: any, @Query('classId') classId?: string) {
+    return this.studentsService.findAll({ classId }, req.user);
   }
 
   @Get('me')

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -14,10 +14,12 @@ import {
   CriterionDocument,
 } from '../criteria/schemas/criterion.schema';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
+import { BulkCreateAcademicRecordDto } from './dto/bulk-create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
 import { Student } from '../students/schemas/student.schema';
 import { Class } from '../classes/schemas/class.schema';
 import { getRequesterRoleName, isStudent, isTeacher } from '../auth/utils/role.util';
+import { SummariesPointService } from '../summaries-point/summaries-point.service';
 
 @Injectable()
 export class AcademicRecordService {
@@ -32,6 +34,8 @@ export class AcademicRecordService {
     private readonly studentModel: Model<any>,
     @InjectModel(Class.name)
     private readonly classModel: Model<any>,
+    @Inject(forwardRef(() => SummariesPointService))
+    private readonly summariesPointService: SummariesPointService,
   ) { }
 
   private async safeSync(record: any): Promise<void> {
@@ -87,6 +91,9 @@ export class AcademicRecordService {
     // If no summaries exist, we don't automatically create one since it should be generated via period/import flow
     // but just to be safe, if we need to initialize one, we can check.
     for (const summary of summaries) {
+      if (summary.status === 'locked') {
+        continue;
+      }
       let details = summary.details || [];
       const detailIndex = details.findIndex(
         (d) => d.criterion_id && d.criterion_id.toString() === criterionId,
@@ -120,7 +127,6 @@ export class AcademicRecordService {
         if (detail.status === 'draft') {
           detail.sv_score = systemScore;
           detail.gv_score = systemScore;
-          detail.final_score = systemScore;
         }
         details[detailIndex] = detail;
       }
@@ -128,12 +134,27 @@ export class AcademicRecordService {
       summary.details = details;
       summary.markModified('details');
       await summary.save();
+      await this.summariesPointService.recomputeTotalScore(summary._id.toString());
     }
   }
 
+
   async create(
     createAcademicRecordDto: CreateAcademicRecordDto,
+    requester?: any,
   ): Promise<AcademicRecord> {
+    if (requester) {
+      const roleName = (requester.roleName || '').toLowerCase();
+      if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
+        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+        const classIds = classes.map(c => c._id.toString());
+        const student = await this.studentModel.findById(createAcademicRecordDto.student_id).select('class_id').exec();
+        if (!student || !student.class_id || !classIds.includes(student.class_id.toString())) {
+          throw new ForbiddenException('Bạn không có quyền đánh giá sinh viên ngoài lớp phụ trách.');
+        }
+      }
+    }
+
     const createdRecord = new this.academicRecordModel(createAcademicRecordDto);
     const saved = await createdRecord.save();
 
@@ -147,6 +168,114 @@ export class AcademicRecordService {
       { path: 'daily_report_id' },
       { path: 'recorded_by', populate: { path: 'role' } },
     ]);
+  }
+
+  async bulkCreate(
+    bulkCreateDto: BulkCreateAcademicRecordDto,
+    requester?: any,
+  ): Promise<any> {
+    const { records } = bulkCreateDto;
+    if (!records || records.length === 0) {
+      return { batchId: Date.now().toString(), acceptedCount: 0, insertedCount: 0, duplicatedCount: 0, failedItems: [], createdRecordIds: [], groupsSynced: 0 };
+    }
+
+    let validStudentIds: Set<string> | null = null;
+    if (requester) {
+      const roleName = (requester.roleName || '').toLowerCase();
+      // Nếu là Teacher, chỉ được ghi nhận cho sinh viên lớp mình
+      if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
+        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+        const classIds = classes.map(c => c._id);
+        const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
+        validStudentIds = new Set(students.map(s => s._id.toString()));
+      }
+    }
+
+    const validRecords = [];
+    const failedItems = [];
+    const idempotencyMap = new Map<string, boolean>();
+    
+    for (const record of records) {
+      // Validate RBAC
+      if (validStudentIds && !validStudentIds.has(record.student_id.toString())) {
+        failedItems.push({ record, reason: 'Không có quyền đánh giá sinh viên này' });
+        continue;
+      }
+      
+      // Lọc bỏ trùng lặp trong cùng batch
+      if (record.idempotency_key) {
+        if (idempotencyMap.has(record.idempotency_key)) {
+          failedItems.push({ record, reason: 'Trùng idempotency_key trong cùng batch' });
+          continue; 
+        }
+        idempotencyMap.set(record.idempotency_key, true);
+      }
+      validRecords.push(record);
+    }
+
+    if (validRecords.length === 0) {
+      return {
+        batchId: Date.now().toString(),
+        acceptedCount: records.length,
+        insertedCount: 0,
+        duplicatedCount: 0,
+        failedItems,
+        createdRecordIds: [],
+        groupsSynced: 0
+      };
+    }
+
+    // Insert batch records với ordered: false để bỏ qua duplicate keys
+    const insertOps = validRecords.map(record => ({
+      insertOne: {
+        document: record
+      }
+    }));
+
+    let result;
+    let duplicatedCount = 0;
+    try {
+      result = await this.academicRecordModel.bulkWrite(insertOps as any, { ordered: false });
+    } catch (err) {
+      if (err.code !== 11000 && !err.message.includes('11000')) {
+        throw err;
+      }
+      // Dù có lỗi 11000 thì các document không bị trùng vẫn được insert vì ordered: false
+      result = err.result || err;
+      duplicatedCount = err.writeErrors ? err.writeErrors.length : (validRecords.length - (result.insertedCount || result.nInserted || 0));
+    }
+
+    const insertedCount = result?.insertedCount || result?.nInserted || 0;
+    const createdRecordIds = result?.insertedIds ? Object.values(result.insertedIds) : [];
+
+    // Gom nhóm theo student_id + semester_id + criterion_id để sync
+    const groups = new Set<string>();
+    for (const record of validRecords) {
+      const key = `${record.student_id}_${record.semester_id}_${record.criterion_id}`;
+      groups.add(key);
+    }
+
+    // Chạy sync point cho từng nhóm, giới hạn concurrency
+    const syncFuncs = Array.from(groups).map(groupKey => {
+      const [studentId, semesterId, criterionId] = groupKey.split('_');
+      return () => this.syncStudentCriterionScore(studentId, semesterId, criterionId);
+    });
+    
+    const chunkSize = 10;
+    for (let i = 0; i < syncFuncs.length; i += chunkSize) {
+      const chunk = syncFuncs.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(f => f()));
+    }
+
+    return {
+      batchId: Date.now().toString(),
+      acceptedCount: records.length,
+      insertedCount,
+      duplicatedCount,
+      failedItems,
+      createdRecordIds,
+      groupsSynced: groups.size,
+    };
   }
 
   async findAll(requester?: any): Promise<AcademicRecord[]> {
@@ -186,9 +315,26 @@ export class AcademicRecordService {
       .exec();
   }
 
-  async findDeleted(): Promise<AcademicRecord[]> {
+  async findDeleted(requester?: any): Promise<AcademicRecord[]> {
+    const filter: any = { $or: [{ status: 'inactive' }, { is_deleted: true }] };
+
+    if (requester) {
+      const roleName = (requester.roleName || '').toLowerCase();
+      if (roleName.includes('student')) {
+        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+        if (!student) return [];
+        filter.student_id = student._id;
+      } else if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
+        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+        const classIds = classes.map(c => c._id);
+        const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
+        const studentIds = students.map(s => s._id);
+        filter.student_id = { $in: studentIds };
+      }
+    }
+
     return this.academicRecordModel
-      .find({ $or: [{ status: 'inactive' }, { is_deleted: true }] })
+      .find(filter)
       .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
@@ -197,7 +343,7 @@ export class AcademicRecordService {
       .exec();
   }
 
-  async findOne(id: string): Promise<AcademicRecord> {
+  async findOne(id: string, requester?: any): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
@@ -212,6 +358,24 @@ export class AcademicRecordService {
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
+
+    if (requester) {
+      const roleName = (requester.roleName || '').toLowerCase();
+      if (roleName.includes('student')) {
+        const studentEmail = record.student_id && typeof record.student_id === 'object' ? (record.student_id as any).email : '';
+        if (!requester.email || !studentEmail || requester.email.toLowerCase() !== studentEmail.toLowerCase()) {
+            throw new ForbiddenException('Bạn không có quyền truy cập ghi nhận rèn luyện của sinh viên khác.');
+        }
+      } else if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
+        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+        const classIds = classes.map(c => c._id.toString());
+        const studentClassId = record.student_id && typeof record.student_id === 'object' ? (record.student_id as any).class_id?.toString() : null;
+        if (!studentClassId || !classIds.includes(studentClassId)) {
+            throw new ForbiddenException('Bạn không có quyền truy cập sinh viên ngoài lớp phụ trách.');
+        }
+      }
+    }
+
     return record;
   }
 
@@ -251,13 +415,28 @@ export class AcademicRecordService {
       .exec();
   }
 
-  async findByDailyReportId(dailyReportId: string, includeDeleted: boolean = false): Promise<AcademicRecord[]> {
+  async findByDailyReportId(dailyReportId: string, includeDeleted: boolean = false, requester?: any): Promise<AcademicRecord[]> {
     if (!Types.ObjectId.isValid(dailyReportId)) {
       return [];
     }
     const query: any = includeDeleted
       ? { daily_report_id: new Types.ObjectId(dailyReportId) }
       : { daily_report_id: new Types.ObjectId(dailyReportId), status: 'active', is_deleted: { $ne: true } };
+
+    if (requester) {
+      const roleName = (requester.roleName || '').toLowerCase();
+      if (roleName.includes('student')) {
+        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+        if (!student) return [];
+        query.student_id = student._id;
+      } else if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
+        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+        const classIds = classes.map(c => c._id);
+        const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
+        const studentIds = students.map(s => s._id);
+        query.student_id = { $in: studentIds };
+      }
+    }
 
     return this.academicRecordModel
       .find(query)
@@ -272,13 +451,17 @@ export class AcademicRecordService {
   async update(
     id: string,
     updateAcademicRecordDto: UpdateAcademicRecordDto,
+    requester?: any,
     bypassDailyReportCheck: boolean = false,
   ): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const oldRecord = await this.academicRecordModel.findOne({ _id: id, status: 'active', is_deleted: { $ne: true } }).exec();
+    const oldRecord = await this.academicRecordModel.findOne({ _id: id, status: 'active', is_deleted: { $ne: true } })
+      .populate('student_id')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .exec();
     if (!oldRecord) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
@@ -287,6 +470,10 @@ export class AcademicRecordService {
       throw new BadRequestException(
         'Ghi nhận này thuộc báo cáo điểm danh ngày, không thể chỉnh sửa trực tiếp. Vui lòng chỉnh sửa qua báo cáo ngày tương ứng.',
       );
+    }
+
+    if (!bypassDailyReportCheck && requester) {
+      this.checkHierarchyPermission(oldRecord, requester);
     }
 
     const updated = await this.academicRecordModel
@@ -345,9 +532,14 @@ export class AcademicRecordService {
       this.checkHierarchyPermission(record, requester);
     }
 
+    const updatePayload: any = { status: 'inactive', is_deleted: true };
+    if (record.idempotency_key) {
+      updatePayload.idempotency_key = `${record.idempotency_key}_deleted_${Date.now()}`;
+    }
+
     const deleted = await this.academicRecordModel.findByIdAndUpdate(
       id,
-      { status: 'inactive', is_deleted: true },
+      updatePayload,
       { returnDocument: 'after' },
     ).exec();
 
@@ -361,14 +553,21 @@ export class AcademicRecordService {
     return deleted;
   }
 
-  async restore(id: string): Promise<AcademicRecord> {
+  async restore(id: string, requester?: any): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel.findOne({ _id: id, $or: [{ status: 'inactive' }, { is_deleted: true }] }).exec();
+    const record = await this.academicRecordModel.findOne({ _id: id, $or: [{ status: 'inactive' }, { is_deleted: true }] })
+      .populate('student_id')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .exec();
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found trong thùng rác`);
+    }
+
+    if (requester) {
+      this.checkHierarchyPermission(record, requester);
     }
 
     record.status = 'active';

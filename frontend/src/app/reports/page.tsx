@@ -137,11 +137,11 @@ export default function ReportsPage() {
         categoriesRes,
         criteriaRes
       ] = await Promise.all([
-        studentApi.getStudents().catch(() => []),
+        studentApi.getStudents().then(res => Array.isArray(res) ? res : (res?.data || [])).catch(() => []),
         classApi.getClasses().catch(() => []),
         departmentApi.getDepartments().catch(() => []),
         semesterApi.getSemesters().catch(() => []),
-        summariesPointApi.getSummariesPoints().catch(() => []),
+        summariesPointApi.getSummariesPoints().then(res => res?.data || []).catch(() => []),
         academicRecordApi.getAcademicRecords().catch(() => []),
         dailyClassReportApi.getDailyClassReports().catch(() => []),
         studentTaskApi.getTasks({ limit: 100 }).catch(() => ({ items: [], total: 0 })),
@@ -693,7 +693,7 @@ export default function ReportsPage() {
 
   return (
     <RouteGuard useDynamicMapping>
-      <div className="flex h-screen bg-slate-50/50 font-sans text-slate-800 overflow-hidden">
+      <div className="flex h-screen bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] font-sans text-[#1E293B] overflow-hidden">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <Header />
@@ -718,7 +718,7 @@ export default function ReportsPage() {
 
           {/* Limit warning banner */}
           {hasLimitWarning && (
-            <div className="mx-6 mt-4 p-4 rounded-xl border border-amber-200 bg-amber-50/70 backdrop-blur-md flex items-start gap-3 text-amber-800 animate-fade-in">
+            <div className="mx-6 mt-4 p-4 rounded-xl border border-amber-500/20 bg-amber-500/10 backdrop-blur-md flex items-start gap-3 text-amber-700 animate-fade-in">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0 mt-0.5 text-amber-600 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>

@@ -12,6 +12,7 @@ interface NotificationModalProps {
     description: string;
     type: NotificationItem['type'];
     routeUrl?: string;
+    targetRole: 'all' | 'student' | 'teacher' | 'supervisor';
   }) => Promise<void>;
   editingNotification?: NotificationItem | null;
 }
@@ -26,6 +27,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   const [description, setDescription] = useState('');
   const [type, setType] = useState<NotificationItem['type']>('system');
   const [routeUrl, setRouteUrl] = useState('');
+  const [targetRole, setTargetRole] = useState<'all' | 'student' | 'teacher' | 'supervisor'>('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -37,11 +39,13 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       setDescription(editingNotification.description);
       setType(editingNotification.type);
       setRouteUrl(editingNotification.routeUrl || '');
+      setTargetRole((editingNotification.targetRole as any) || 'all');
     } else {
       setTitle('');
       setDescription('');
       setType('system');
       setRouteUrl('');
+      setTargetRole('all');
     }
   }, [editingNotification, isOpen]);
 
@@ -58,6 +62,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         description: description.trim(),
         type,
         routeUrl: routeUrl.trim() || undefined,
+        targetRole,
       });
       onClose();
     } catch (err) {
@@ -116,6 +121,22 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
               <option value="info">Nhiệm vụ & Công việc (Info)</option>
               <option value="success">Khen thưởng & Điểm số (Success)</option>
               <option value="warning">Cảnh báo chuyên cần (Warning)</option>
+            </select>
+          </div>
+
+          {/* Đối tượng nhận */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#64748B] block">Đối tượng nhận</label>
+            <select
+              value={targetRole}
+              disabled={isSubmitting}
+              onChange={(e) => setTargetRole(e.target.value as any)}
+              className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <option value="all">Tất cả đối tượng (All)</option>
+              <option value="student">Học sinh - Sinh viên (Student)</option>
+              <option value="teacher">Cố vấn - Giảng viên (Teacher)</option>
+              <option value="supervisor">Quản sinh (Supervisor)</option>
             </select>
           </div>
 

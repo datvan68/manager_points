@@ -10,6 +10,7 @@ import React, {
 import { useRouter, usePathname } from "next/navigation";
 import { tokenStorage, authApi } from "@/api/auth-api";
 import { toast } from "sonner";
+import { isStudentRole } from "@/utils/role.util";
 
 interface UserInfo {
   id: string;
@@ -198,7 +199,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         router.push("/login");
       } else if (user && isPublicRoute) {
-        router.push("/");
+        if (isStudentRole(user)) {
+          router.push("/students/tasks");
+        } else {
+          router.push("/");
+        }
       }
     }
   }, [user, isLoading, pathname, isPublicRoute, router]);

@@ -14,18 +14,18 @@ interface SystemReportTabProps {
 }
 
 const notificationColumns: TableColumn[] = [
-  { key: 'createdAt', header: 'Thời điểm', className: 'font-mono text-slate-400' },
-  { key: 'title', header: 'Tiêu đề', className: 'font-bold text-slate-800 max-w-[250px] truncate' },
+  { key: 'createdAt', header: 'Thời điểm', className: 'font-mono text-[#64748B]' },
+  { key: 'title', header: 'Tiêu đề', className: 'font-bold text-[#1E293B] max-w-[250px] truncate' },
   { key: 'type', header: 'Loại' },
-  { key: 'description', header: 'Nội dung thông báo', className: 'text-slate-500 max-w-[350px] truncate' },
+  { key: 'description', header: 'Nội dung thông báo', className: 'text-[#64748B] max-w-[350px] truncate' },
   { 
     key: 'isRead', 
     header: 'Trạng thái',
     render: (val: string) => {
       const isRead = val === 'Đã đọc';
       return (
-        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-          isRead ? 'bg-slate-50 border border-slate-200 text-slate-400' : 'bg-blue-50 border border-blue-100 text-blue-600'
+        <span className={`inline-block px-2.5 py-0.5 rounded-xl text-[11px] font-bold ${
+          isRead ? 'bg-white/40 border border-white/70 text-[#64748B]' : 'bg-blue-500/10 border border-blue-500/20 text-[#1A73E8]'
         }`}>
           {val}
         </span>
@@ -37,7 +37,7 @@ const notificationColumns: TableColumn[] = [
 
 const logColumns: TableColumn[] = [
   { key: 'login_time', header: 'Thời điểm' },
-  { key: 'user_name', header: 'Tài khoản', className: 'font-bold text-slate-800' },
+  { key: 'user_name', header: 'Tài khoản', className: 'font-bold text-[#1E293B]' },
   { key: 'email', header: 'Email' },
   { 
     key: 'role_name', 
@@ -45,28 +45,28 @@ const logColumns: TableColumn[] = [
     render: (val: string) => {
       const isAdm = val.toLowerCase().includes('admin');
       return (
-        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-          isAdm ? 'bg-rose-50 border border-rose-100 text-rose-600' : 'bg-slate-50 border border-slate-100 text-slate-500'
+        <span className={`inline-block px-2 py-0.5 rounded-xl text-[10px] font-bold ${
+          isAdm ? 'bg-rose-500/10 border border-rose-500/20 text-rose-700' : 'bg-white/50 border border-white/70 text-[#64748B]'
         }`}>
           {val}
         </span>
       );
     }
   },
-  { key: 'ip_address', header: 'Địa chỉ IP', className: 'font-mono text-slate-400' },
+  { key: 'ip_address', header: 'Địa chỉ IP', className: 'font-mono text-[#64748B]' },
   { 
     key: 'action', 
     header: 'Hành động',
     render: (val: string) => {
-      let style = 'text-slate-600';
+      let style = 'text-[#1E293B]';
       if (val.includes('thành công')) style = 'text-emerald-600';
       else if (val.includes('thất bại')) style = 'text-rose-600';
-      else if (val.includes('đăng xuất')) style = 'text-slate-400';
+      else if (val.includes('đăng xuất')) style = 'text-[#64748B]';
       
       return <span className={`font-black ${style}`}>{val}</span>;
     }
   },
-  { key: 'details', header: 'Chi tiết hành động', className: 'max-w-[200px] truncate text-slate-400 font-medium' }
+  { key: 'details', header: 'Chi tiết hành động', className: 'max-w-[200px] truncate text-[#64748B] font-medium' }
 ];
 
 export default function SystemReportTab({

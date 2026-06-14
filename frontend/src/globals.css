@@ -3,33 +3,39 @@
 @theme {
   --font-display: "Inter", sans-serif;
   --font-sans: "Inter", sans-serif;
-  
+
   /* Brand/Primary Colors */
-  --color-primary: #155dfc; 
+  --color-primary: #155dfc;
   --color-primary-dark: #1447e6;
-  --color-primary-light: #eff6ff; /* color-9 */
+  --color-primary-light: #eff6ff;
+  /* color-9 */
 
   /* Neutral Colors */
   --color-background: #f9fafb;
   --color-surface: #ffffff;
-  --color-text-main: #101828; 
+  --color-text-main: #101828;
   --color-text-secondary: #6a7282;
   --color-border: #e5e7eb;
 
   /* Semantic Status Colors */
   --color-success: #00c950;
-  --color-success-bg: #f0fdf4; /* color-32 */
-  
-  --color-warning: #a65f00; /* color-24 */
-  --color-warning-bg: #fff7ed; /* color-25 */
+  --color-success-bg: #f0fdf4;
+  /* color-32 */
 
-  --color-danger: #fb2c36; /* color-14 */
-  --color-danger-bg: #fef2f2; /* color-19 */
+  --color-warning: #a65f00;
+  /* color-24 */
+  --color-warning-bg: #fff7ed;
+  /* color-25 */
+
+  --color-danger: #fb2c36;
+  /* color-14 */
+  --color-danger-bg: #fef2f2;
+  /* color-19 */
 }
 
 body {
-    @apply bg-background text-text-main; 
-} 
+  @apply bg-background text-text-main;
+}
 
 /* Custom scrollbar: visible only on hover */
 .scrollbar-hover::-webkit-scrollbar {
@@ -45,16 +51,293 @@ body {
 }
 
 .scrollbar-hover:hover::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1; /* gray-300 */
+  background-color: #cbd5e1;
+  /* gray-300 */
 }
 
 .scrollbar-hover:hover::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8; /* gray-400 */
+  background-color: #94a3b8;
+  /* gray-400 */
+}
+
+/* Custom scrollbar: modern, thin and rounded */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+  transition: background-color 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
 }
 
 /* Mobile adjustments for Bottom Nav Bar */
 @media (max-width: 767px) {
   main {
     padding-bottom: 4.5rem !important;
+  }
+}
+
+/* ==========================================================================
+   Premium Rank Cards Styles (Glassmorphism, Thinner Gradient Borders & Rotating Light)
+   ========================================================================== */
+
+/* Define custom property for rotating gradient border angle */
+@property --border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes rotate-border {
+  to {
+    --border-angle: 360deg;
+  }
+}
+
+@keyframes premium-shimmer {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+
+  30% {
+    transform: translateX(150%) skewX(-20deg);
+  }
+
+  100% {
+    transform: translateX(150%) skewX(-20deg);
+  }
+}
+
+.premium-shimmer-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-shimmer-effect::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0) 10%,
+      rgba(255, 255, 255, 0.15) 25%,
+      rgba(255, 255, 255, 0.25) 35%,
+      rgba(255, 255, 255, 0.15) 45%,
+      rgba(255, 255, 255, 0) 60%,
+      transparent 100%);
+  transform: skewX(-20deg);
+  animation: premium-shimmer 8s infinite ease-in-out;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Diamond Rank Card: Icy Crystal Blue (Glacier Ice & Frost Neon glow) */
+.premium-card-diamond {
+  --border-angle: 0deg;
+  background: linear-gradient(135deg, rgba(8, 47, 73, 0.82) 0%, rgba(12, 74, 96, 0.92) 50%, rgba(4, 120, 190, 0.85) 100%) padding-box,
+    conic-gradient(from var(--border-angle), #ffffff, #7dd3fc, #38bdf8, #06b6d4, #e0f2fe, #cbd5e1, #ffffff) border-box;
+  border: 1.75px solid transparent;
+  animation: rotate-border 7s linear infinite;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 35px rgba(56, 189, 248, 0.45),
+    0 0 25px rgba(6, 182, 212, 0.25),
+    inset 0 0 15px rgba(255, 255, 255, 0.25),
+    inset 0 1px 3px rgba(255, 255, 255, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-card-diamond::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 25%, rgba(56, 189, 248, 0.35) 0%, transparent 45%),
+    radial-gradient(circle at 85% 75%, rgba(14, 165, 233, 0.25) 0%, transparent 55%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.15) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.congrats-modal-card::before {
+  display: none;
+}
+
+/*  */
+
+/* Gold Rank Card: Imperial Gold (Royal Gold & Sparkle Neon glow) */
+.premium-card-gold {
+  --border-angle: 0deg;
+  background: linear-gradient(135deg, rgba(67, 40, 15, 0.82) 0%, rgba(24, 20, 10, 0.92) 50%, rgba(88, 53, 4, 0.85) 100%) padding-box,
+    conic-gradient(from var(--border-angle), #ffffff, #fde047, #eab308, #ca8a04, #fef08a, #d97706, #ffffff) border-box;
+  border: 1.75px solid transparent;
+  animation: rotate-border 9s linear infinite;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 35px rgba(234, 179, 8, 0.4),
+    0 0 25px rgba(217, 119, 6, 0.2),
+    inset 0 0 15px rgba(255, 255, 255, 0.25),
+    inset 0 1px 3px rgba(255, 255, 255, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-card-gold::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 25%, rgba(253, 224, 71, 0.3) 0%, transparent 45%),
+    radial-gradient(circle at 85% 75%, rgba(217, 119, 6, 0.2) 0%, transparent 55%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Silver Rank Card: Frosted Platinum (Platinum Silver & White Gloss glow) */
+.premium-card-silver {
+  --border-angle: 0deg;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.82) 0%, rgba(15, 23, 42, 0.92) 50%, rgba(51, 65, 85, 0.85) 100%) padding-box,
+    conic-gradient(from var(--border-angle), #ffffff, #e2e8f0, #cbd5e1, #94a3b8, #f1f5f9, #64748b, #ffffff) border-box;
+  border: 1.75px solid transparent;
+  animation: rotate-border 11s linear infinite;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 35px rgba(203, 213, 225, 0.3),
+    0 0 25px rgba(148, 163, 184, 0.15),
+    inset 0 0 15px rgba(255, 255, 255, 0.18),
+    inset 0 1px 3px rgba(255, 255, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-card-silver::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 25%, rgba(255, 255, 255, 0.2) 0%, transparent 45%),
+    radial-gradient(circle at 85% 75%, rgba(148, 163, 184, 0.15) 0%, transparent 55%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.08) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Bronze Rank Card: Radiant Bronze (Deep Bronze & Copper Glow) */
+.premium-card-bronze {
+  --border-angle: 0deg;
+  background: linear-gradient(135deg, rgba(67, 20, 7, 0.82) 0%, rgba(24, 20, 15, 0.92) 50%, rgba(124, 45, 18, 0.85) 100%) padding-box,
+    conic-gradient(from var(--border-angle), #ffffff, #ffedd5, #f97316, #c2410c, #fed7aa, #b45309, #ffffff) border-box;
+  border: 1.75px solid transparent;
+  animation: rotate-border 13s linear infinite;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 35px rgba(249, 115, 22, 0.3),
+    0 0 25px rgba(180, 83, 9, 0.15),
+    inset 0 0 15px rgba(255, 255, 255, 0.18),
+    inset 0 1px 3px rgba(255, 255, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-card-bronze::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 25%, rgba(253, 186, 116, 0.22) 0%, transparent 45%),
+    radial-gradient(circle at 85% 75%, rgba(180, 83, 9, 0.15) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Unranked Rank Card: Dark Glassmorphic with Neon Red glow */
+.premium-card-unranked {
+  --border-angle: 0deg;
+  background: linear-gradient(135deg, rgba(69, 10, 10, 0.7) 0%, rgba(9, 9, 11, 0.85) 100%) padding-box,
+    conic-gradient(from var(--border-angle), #ef4444, #991b1b, #fca5a5, #dc2626, #ef4444) border-box;
+  border: 1.5px solid transparent;
+  animation: rotate-border 20s linear infinite;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 10px 30px rgba(239, 68, 68, 0.22),
+    0 0 20px rgba(239, 68, 68, 0.15),
+    inset 0 0 12px rgba(239, 68, 68, 0.18),
+    inset 0 1px 2px rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-card-unranked::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 30%, rgba(252, 165, 165, 0.15) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Pending Rank Card: Dark Glassmorphic with Neon Blue glow */
+.premium-card-pending {
+  --border-angle: 0deg;
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%) padding-box,
+    conic-gradient(from var(--border-angle), #3b82f6, #1d4ed8, #60a5fa, #2563eb, #3b82f6) border-box;
+  border: 1.5px solid transparent;
+  animation: rotate-border 14s linear infinite;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.25),
+    0 0 20px rgba(59, 130, 246, 0.15),
+    inset 0 0 12px rgba(59, 130, 246, 0.18),
+    inset 0 1px 2px rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-card-pending::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 30%, rgba(96, 165, 250, 0.15) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Neon Handwriting Effect for Diamond Modal */
+.neon-handwriting-diamond {
+  font-family: 'Dancing Script', cursive;
+  color: #f0f9ff;
+  text-transform: none; /* Keep natural cursive form */
+  animation: neon-pulse 2.2s ease-in-out infinite;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+@keyframes neon-pulse {
+  0%, 100% {
+    text-shadow: 
+      0 0 2px #fff,
+      0 0 6px #fff,
+      0 0 12px rgba(34, 211, 238, 0.9),
+      0 0 25px rgba(34, 211, 238, 0.8),
+      0 0 45px rgba(6, 182, 212, 0.6),
+      0 0 75px rgba(56, 189, 248, 0.45);
+    color: #f0f9ff;
+  }
+  50% {
+    text-shadow: 
+      0 0 1px #fff,
+      0 0 3px #fff,
+      0 0 8px rgba(34, 211, 238, 0.7),
+      0 0 16px rgba(34, 211, 238, 0.6),
+      0 0 30px rgba(6, 182, 212, 0.45),
+      0 0 50px rgba(56, 189, 248, 0.3);
+    color: #e0f2fe;
   }
 }

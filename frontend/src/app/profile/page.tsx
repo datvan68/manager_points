@@ -28,9 +28,13 @@ import {
   CheckCircle2,
   Calendar as CalendarIcon,
   User as UserIcon,
+  Award,
+  Diamond,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { authApi, tokenStorage } from "../../api/auth-api";
+import { summariesPointApi } from "@/api/summaries-point-api";
+import { getRankStyle } from "@/lib/grading-rank";
 import { useAuth } from "../../providers/auth-provider";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,6 +50,7 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [latestSummary, setLatestSummary] = useState<any>(null);
 
   const [editValues, setEditValues] = useState({
     username: "",
@@ -99,6 +104,20 @@ export default function ProfilePage() {
         dob: data.date_birth ? formatDateStr(new Date(data.date_birth)) : "",
         department: data.department || "Khoa Công nghệ thông tin",
       });
+
+      const isStudent = data?.roleCode === 'STUDENT' || 
+                        data?.roleName?.toLowerCase() === 'student' || 
+                        data?.role?.toLowerCase() === 'student' || 
+                        data?.roles?.some((r: any) => r.name?.toLowerCase() === 'student');
+      
+      if (isStudent) {
+        try {
+          const summary = await summariesPointApi.getMyLatestSummary();
+          setLatestSummary(summary);
+        } catch (err) {
+          // Ignore
+        }
+      }
     } catch (error: any) {
       toast.error("Lỗi khi tải thông tin hồ sơ: " + error.message);
     } finally {
@@ -249,39 +268,65 @@ export default function ProfilePage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex items-center justify-between"
+              className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex items-center justify-between w-full"
             >
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-6 w-full">
                 {/* Avatar */}
-                <div className="w-24 h-24 rounded-full bg-blue-100 border-4 border-white shadow-md flex items-center justify-center text-3xl font-bold text-blue-600 uppercase">
+                <div className="w-24 h-24 shrink-0 rounded-full bg-blue-100 border-4 border-white shadow-md flex items-center justify-center text-3xl font-bold text-blue-600 uppercase">
                   {(profile?.user_name || "US").substring(0, 2)}
                 </div>
 
                 {/* User Info */}
-                <div className="space-y-2">
-                  <h1 className="text-2xl font-bold text-slate-900">
-                    {profile?.user_name || "Người dùng"}
-                  </h1>
-                  <div className="flex items-center gap-6 flex-wrap">
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Mail className="w-4 h-4" />
-                      <span className="text-sm font-medium">{profile?.email}</span>
-                    </div>
-                    {profile?.phone_number && (
-                      <div className="flex items-center gap-2 text-slate-500">
-                        <Phone className="w-4 h-4" />
-                        <span className="text-sm font-medium">{profile.phone_number}</span>
+                <div className="space-y-2 flex-1">
+                  <div className="flex items-start justify-between w-full">
+                    <div>
+                      <h1 className="text-2xl font-bold text-slate-900">
+                        {profile?.user_name || "Người dùng"}
+                      </h1>
+                      <div className="flex items-center gap-6 flex-wrap mt-2">
+                        <div className="flex items-center gap-2 text-slate-500">
+                          <Mail className="w-4 h-4" />
+                          <span className="text-sm font-medium">{profile?.email}</span>
+                        </div>
+                        {profile?.phone_number && (
+                          <div className="flex items-center gap-2 text-slate-500">
+                            <Phone className="w-4 h-4" />
+                            <span className="text-sm font-medium">{profile.phone_number}</span>
+                          </div>
+                        )}
+                        <div className="bg-slate-100 px-3 py-1 rounded-md text-[11px] font-mono font-bold text-slate-500">
+                          UUID: {profile?.id?.substring(0, 8).toUpperCase()}
+                        </div>
+                        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-full">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span className="text-xs font-bold text-emerald-700">
+                            Đang hoạt động
+                          </span>
+                        </div>
                       </div>
+                    </div>
+
+                    {/* Điểm rèn luyện / Xếp hạng */}
+                    {(profile?.roleCode === 'STUDENT' || profile?.roleName?.toLowerCase() === 'student' || profile?.role?.toLowerCase() === 'student' || profile?.roles?.some((r: any) => r.name?.toLowerCase() === 'student')) && (
+                      latestSummary && latestSummary.status === 'locked' ? (() => {
+                        const style = getRankStyle(latestSummary.rank_tier);
+                        return (
+                          <div className={`flex items-center gap-2 px-5 py-2.5 rounded-full border shadow-sm ${style.glassBg || style.bg} ${style.glassBorder || style.border}`}>
+                            <Diamond className={`w-5 h-5 fill-currentColor shrink-0 ${style.text}`} />
+                            <span className={`text-[15px] font-bold ${style.text}`}>
+                              Hạng: {latestSummary.rank_label || style.label} ({latestSummary.total_score}đ) - {latestSummary.semester}
+                            </span>
+                          </div>
+                        );
+                      })() : (
+                        <div className="flex items-center gap-2 px-5 py-2.5 rounded-full border shadow-sm bg-white/30 backdrop-blur-sm border-white/40">
+                          <Diamond className="w-5 h-5 text-slate-400 shrink-0" />
+                          <span className="text-[15px] font-bold text-slate-500">
+                            Chưa có điểm rèn luyện đã chốt
+                          </span>
+                        </div>
+                      )
                     )}
-                    <div className="bg-slate-100 px-3 py-1 rounded-md text-[11px] font-mono font-bold text-slate-500">
-                      UUID: {profile?.id?.substring(0, 8).toUpperCase()}
-                    </div>
-                    <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-full">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      <span className="text-xs font-bold text-emerald-700">
-                        Đang hoạt động
-                      </span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -393,7 +438,7 @@ export default function ProfilePage() {
                               </button>
                             </PopoverTrigger>
                             <PopoverContent
-                              className="w-auto p-0 z-100 bg-transparent border-none shadow-none"
+                              className="w-auto p-0 z-100 bg-transparent border-none shadow-none overflow-hidden"
                               align="start"
                               side="bottom"
                               sideOffset={6}

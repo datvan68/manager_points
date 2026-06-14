@@ -7,6 +7,7 @@ import { StudentTask, StudentTaskSchema } from '../student-tasks/schemas/student
 import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Role, RoleSchema } from '../auth/schemas/role.schema';
+import { Class, ClassSchema } from '../classes/schemas/class.schema';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Role, RoleSchema } from '../auth/schemas/role.schema';
       { name: Student.name, schema: StudentSchema },
       { name: User.name, schema: UserSchema },
       { name: Role.name, schema: RoleSchema },
+      { name: Class.name, schema: ClassSchema },
     ]),
   ],
   controllers: [StudentTaskProgressController],

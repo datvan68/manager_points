@@ -24,6 +24,9 @@ import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
 import { studentApi, Student } from '@/api/student-api';
 import { authApi, tokenStorage } from '@/api/auth-api';
+import { semesterApi } from '@/api/semester-api';
+import { summariesPointApi } from '@/api/summaries-point-api';
+import { resolveDrlScore } from '@/lib/drl-score';
 import {
     Drawer,
     DrawerClose,
@@ -89,6 +92,7 @@ function ClassStudentsPageContent() {
 
     const [selectedClass, setSelectedClass] = useState<Class | null>(null);
     const [studentsList, setStudentsList] = useState<Student[]>([]);
+    const [summaryMap, setSummaryMap] = useState<Map<string, any>>(new Map());
 
     // Tải thông tin lớp học
     useEffect(() => {
@@ -101,16 +105,35 @@ function ClassStudentsPageContent() {
     const fetchStudents = async () => {
         setIsDataLoading(true);
         try {
-            const data = await studentApi.getStudents();
-            // Lọc các sinh viên thuộc lớp học hiện tại
-            const filtered = data.filter(student => {
-                const studentClassId = typeof student.class_id === 'object' ? (student.class_id as any)?._id : student.class_id;
-                return studentClassId === classId;
+            const semesters = await semesterApi.getSemesters();
+            const activeSemester = semesters.find(s => s.status === 'active');
+            const activeSemesterId = activeSemester?._id;
+
+            const [studentsRes, summariesRes] = await Promise.all([
+                studentApi.getStudents({ classId }),
+                summariesPointApi.getSummariesPoints({
+                    classId,
+                    semesterId: activeSemesterId,
+                    limit: 100
+                })
+            ]);
+
+            const studentsData = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.data || []);
+            const summariesData = summariesRes?.data || [];
+
+            const map = new Map<string, any>();
+            summariesData.forEach((item: any) => {
+                const studentId = typeof item.student_id === 'object' ? item.student_id?._id : item.student_id;
+                if (studentId) {
+                    map.set(studentId, item);
+                }
             });
-            setStudentsList(filtered);
+
+            setStudentsList(studentsData);
+            setSummaryMap(map);
         } catch (err: any) {
-            console.error('Lỗi khi tải danh sách sinh viên:', err);
-            toast.error('Không thể tải danh sách sinh viên từ server');
+            console.error('Lỗi khi tải danh sách sinh viên và điểm rèn luyện:', err);
+            toast.error('Không thể tải danh sách sinh viên hoặc điểm rèn luyện từ server');
         } finally {
             setIsDataLoading(false);
             setIsLoading(false);
@@ -242,6 +265,8 @@ function ClassStudentsPageContent() {
                 }
             }
 
+            const newlyRegisteredEmails: string[] = [];
+
             for (const studentId of selectedStudentIds) {
                 const student = studentsList.find(s => s._id === studentId);
                 if (!student) continue;
@@ -253,15 +278,14 @@ function ClassStudentsPageContent() {
                 const plainPassword = `${day}${month}${year}`;
                 const studentEmail = student.email || `${student.student_code}@school.edu.vn`;
 
-                let registeredNew = false;
                 try {
                     await authApi.register(student.full_name, studentEmail, plainPassword);
-                    registeredNew = true;
                     successCount++;
+                    newlyRegisteredEmails.push(studentEmail);
                 } catch (regErr: any) {
                     const isDuplicate = regErr.message?.toLowerCase().includes('đã được sử dụng') || 
-                                      regErr.message?.toLowerCase().includes('tồn tại') || 
-                                      regErr.status === 409;
+                                       regErr.message?.toLowerCase().includes('tồn tại') || 
+                                       regErr.status === 409;
                     if (isDuplicate && token) {
                         const matchedUser = allUsers.find(u => u.email?.toLowerCase() === studentEmail.toLowerCase());
                         if (matchedUser) {
@@ -283,19 +307,25 @@ function ClassStudentsPageContent() {
                     failCount++;
                     continue;
                 }
+            }
 
-                // Nếu vừa đăng ký mới tài khoản thành công, tiến hành lấy User ID mới tạo để gán quyền Student
-                if (registeredNew && token && studentRoleId) {
-                    try {
-                        const updatedUsers = await authApi.getUsers(token);
-                        const newUser = updatedUsers.find(u => u.email?.toLowerCase() === studentEmail.toLowerCase());
+            // Gán quyền Student cho tất cả tài khoản đăng ký mới ở cuối sau vòng lặp
+            if (newlyRegisteredEmails.length > 0 && token && studentRoleId) {
+                try {
+                    const updatedUsers = await authApi.getUsers(token);
+                    for (const email of newlyRegisteredEmails) {
+                        const newUser = updatedUsers.find(u => u.email?.toLowerCase() === email.toLowerCase());
                         if (newUser) {
                             const newUserId = newUser._id || newUser.id;
-                            await authApi.assignRole(newUserId, studentRoleId, token);
+                            try {
+                                await authApi.assignRole(newUserId, studentRoleId, token);
+                            } catch (roleErr) {
+                                console.error("Lỗi khi gán vai trò Student cho tài khoản mới:", roleErr);
+                            }
                         }
-                    } catch (roleErr) {
-                        console.error("Lỗi khi gán vai trò Student cho tài khoản mới:", roleErr);
                     }
+                } catch (roleErr) {
+                    console.error("Lỗi khi tải danh sách users hoặc gán vai trò Student:", roleErr);
                 }
             }
 
@@ -398,16 +428,16 @@ function ClassStudentsPageContent() {
     };
 
     return (
-        <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
+        <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
             <Sidebar />
             <div className="flex-1 flex flex-col min-w-0 h-full">
                 <Header customMappings={{ [classId]: selectedClass ? selectedClass.class_name : classId }} />
-                <main className="flex-1 p-4 overflow-hidden flex flex-col bg-gray-50 relative">
+                <main className="flex-1 p-4 overflow-hidden flex flex-col bg-transparent relative">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
-                        className="flex-1 flex flex-col h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden"
+                        className="flex-1 flex flex-col h-full bg-white/45 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 overflow-hidden"
                     >
-                        <div className="px-6 py-4 bg-white border-b border-dashed border-gray-200 flex items-center justify-between shrink-0 relative overflow-hidden">
+                        <div className="px-6 py-4 bg-transparent border-b border-white/60 flex items-center justify-between shrink-0 relative overflow-hidden">
                             <div className="absolute top-0 right-0 bottom-0 w-64 bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
                             <div className="flex flex-col lg:flex-row lg:items-center gap-4 z-10 w-full max-w-screen-2xl mx-auto">
                                 <div className="flex items-center gap-4 flex-1">
@@ -419,20 +449,20 @@ function ClassStudentsPageContent() {
                                     </button>
 
                                     <div className="hidden md:flex items-center gap-3">
-                                        <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-[#eef2ff] text-[#4f46e5] rounded-[8px] text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
-                                            <Users className="w-3.5 h-3.5 text-[#4f46e5]" />
-                                            <span>Sĩ số: {filteredStudents.length} sinh viên</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-[#f8fafc] text-[#475569] border border-[#e2e8f0] rounded-[8px] text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
-                                            <User className="w-3.5 h-3.5 text-[#475569]" />
-                                            <span>GVCN: {selectedClass?.user_id?.user_name || 'Chưa phân công'}</span>
-                                        </div>
-                                        {selectedClass?.headquarters && (
-                                            <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-[#fdf2f8] text-[#db2777] border border-[#fbcfe8] rounded-[8px] text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
-                                                <Compass className="w-3.5 h-3.5 text-[#db2777]" />
-                                                <span>Trụ sở: {selectedClass.headquarters}</span>
-                                            </div>
-                                        )}
+                                         <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 rounded-xl text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
+                                             <Users className="w-3.5 h-3.5 text-[#1A73E8]" />
+                                             <span>Sĩ số: {filteredStudents.length} sinh viên</span>
+                                         </div>
+                                         <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-white/60 text-[#64748B] border border-white/80 rounded-xl text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
+                                             <User className="w-3.5 h-3.5 text-[#64748B]" />
+                                             <span>GVCN: {selectedClass?.user_id?.user_name || 'Chưa phân công'}</span>
+                                         </div>
+                                         {selectedClass?.headquarters && (
+                                             <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-purple-500/10 text-purple-700 border border-purple-500/20 rounded-xl text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
+                                                 <Compass className="w-3.5 h-3.5 text-purple-700" />
+                                                 <span>Trụ sở: {selectedClass.headquarters}</span>
+                                             </div>
+                                         )}
                                     </div>
                                 </div>
 
@@ -440,7 +470,7 @@ function ClassStudentsPageContent() {
                                 {permissions.canImportStudent && (
                                 <button
                                     onClick={() => setIsImportPopupOpen(true)}
-                                    className="flex items-center gap-2 px-[10px] py-[7px] text-[14px] font-bold text-[#475569] border border-gray-200 hover:bg-gray-50 rounded-[10px] hover:text-slate-700 shadow-sm transition-colors z-10 whitespace-nowrap bg-white"
+                                    className="flex items-center gap-2 px-3 py-1.5 text-[12.5px] font-bold text-[#64748B] border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:text-[#1E293B] rounded-xl shadow-sm transition-all duration-150 ease-out hover:scale-[1.01] z-10 whitespace-nowrap cursor-pointer"
                                 >
                                     <Download className="w-4 h-4" /> Import
                                 </button>
@@ -448,7 +478,7 @@ function ClassStudentsPageContent() {
                                 {permissions.canCreateStudent && (
                                 <button
                                     onClick={() => { setEditingStudent(null); setIsStudentPopupOpen(true); }}
-                                    className="flex items-center gap-2 px-[10px] py-[7px] text-[14px] font-bold text-white bg-[#155dfc] rounded-[10px] hover:bg-blue-700 shadow-sm transition-colors z-10 whitespace-nowrap"
+                                    className="flex items-center gap-2 px-4 py-2 text-[12.5px] font-bold text-white bg-[#1A73E8] hover:bg-[#1557b0] rounded-xl shadow-sm transition-all duration-150 ease-out hover:scale-[1.01] z-10 whitespace-nowrap border-none cursor-pointer"
                                 >
                                     <Plus className="w-4 h-4" /> Thêm sinh viên
                                 </button>
@@ -457,16 +487,16 @@ function ClassStudentsPageContent() {
                         </div>
 
                         {/* Filter Bar */}
-                        <div className="px-6 py-3 bg-white/50 backdrop-blur-[2px] flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 rounded-xl my-1 w-full max-w-screen-2xl mx-auto">
+                        <div className="px-6 py-2.5 bg-white/30 backdrop-blur-sm border border-white/60 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 rounded-xl my-1.5 w-full max-w-screen-2xl mx-auto">
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
                                 <div className="relative w-full sm:w-80">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-[14px] h-[14px]" />
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B] w-[14px] h-[14px]" />
                                     <input
                                         type="text"
                                         placeholder="Tìm theo tên hoặc mã SV..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-9 pr-4 py-2 bg-[rgba(255,255,255,0.56)] border-none rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all h-[33px]"
+                                        className="w-full pl-9 pr-4 py-1.5 bg-white/50 border border-white/80 backdrop-blur-sm rounded-xl text-[12.5px] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:bg-white/80 transition-all h-[33px] font-semibold text-[#1E293B] placeholder-[#64748B]"
                                     />
                                 </div>
 
@@ -474,7 +504,7 @@ function ClassStudentsPageContent() {
                                     <button
                                         onClick={handleDelete}
                                         disabled={isDataLoading}
-                                        className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#ef4444] bg-[#fef2f2] border border-[#ef4444]/30 rounded-lg hover:bg-red-100/50 hover:border-[#ef4444] transition-all disabled:opacity-50 shrink-0 select-none h-[33px]"
+                                        className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#ef4444] bg-[#fef2f2] border border-[#ef4444]/30 rounded-lg hover:bg-red-100/50 hover:border-[#ef4444] transition-all disabled:opacity-50 shrink-0 select-none h-[33px] cursor-pointer"
                                     >
                                         {isDataLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                                         Xóa ({selectedStudentIds.length})
@@ -483,15 +513,15 @@ function ClassStudentsPageContent() {
                             </div>
 
                             <div className="flex flex-wrap gap-2 items-center min-h-[41px]">
-                                <span className="text-[12px] font-semibold text-[#64748b]">Trạng thái:</span>
+                                <span className="text-[12px] font-semibold text-[#64748B]">Trạng thái:</span>
                                 <div className="flex flex-wrap gap-1 items-center bg-transparent">
                                     {['Tất cả', 'Đang học', 'Bảo lưu', 'Thôi học'].map((status) => (
                                         <button
                                             key={status}
                                             onClick={() => setActiveTab(status)}
-                                            className={`px-3 py-1.5 text-[12px] transition-all rounded-[8px] ${activeTab === status
-                                                ? 'bg-white text-[#135bec] shadow-sm font-bold'
-                                                : 'text-[#64748b] font-medium hover:text-gray-700 hover:bg-gray-50'
+                                            className={`px-3 py-1.5 text-[12px] transition-all rounded-xl ${activeTab === status
+                                                ? 'bg-white/70 text-[#1A73E8] border border-white/80 shadow-sm font-bold cursor-pointer'
+                                                : 'text-[#64748B] border border-transparent font-medium hover:text-[#1E293B] hover:bg-white/40 cursor-pointer'
                                                 }`}
                                         >
                                             {status}
@@ -502,42 +532,42 @@ function ClassStudentsPageContent() {
                         </div>
 
                         {/* Student Table */}
-                        <div className="flex-1 overflow-hidden bg-white max-w-screen-2xl w-full mx-auto relative flex flex-col mb-4">
+                        <div className="flex-1 overflow-hidden bg-transparent max-w-screen-2xl w-full mx-auto relative flex flex-col mb-4">
                             <div className="overflow-x-auto flex-1 h-full">
-                                <table className="w-full text-left border-collapse min-w-max">
-                                    <thead className="bg-[#f8fafc] sticky top-0 z-20 border-b border-[#f1f5f9]">
+                                <table className="w-full text-left border-collapse min-w-[1000px]">
+                                    <thead className="bg-white/90 backdrop-blur-md sticky top-0 z-20 border-b border-white/80">
                                         <tr>
                                             <th className="px-4 py-4 w-16 text-center">
                                                 <input
                                                     type="checkbox"
-                                                    className="rounded border-gray-300 text-primary w-4 h-4"
+                                                    className="rounded border-gray-300 text-primary w-4 h-4 cursor-pointer"
                                                     checked={paginatedStudents.length > 0 && selectedStudentIds.length === paginatedStudents.length}
                                                     onChange={toggleSelectAll}
                                                 />
                                             </th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase">MÃ SV</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase">HỌ VÀ TÊN</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase">NGÀY SINH</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase">GIỚI TÍNH</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase">ĐRL</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase text-center">TRẠNG THÁI</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase text-center">TÀI KHOẢN</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#64748b] tracking-[0.6px] uppercase text-right">HÀNH ĐỘNG</th>
+                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase min-w-[100px]">MÃ SV</th>
+                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase min-w-[200px]">HỌ VÀ TÊN</th>
+                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase min-w-[110px]">NGÀY SINH</th>
+                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase min-w-[90px]">GIỚI TÍNH</th>
+                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase min-w-[80px]">ĐRL</th>
+                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase text-center min-w-[120px]">TRẠNG THÁI</th>
+                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase text-center min-w-[130px]">TÀI KHOẢN</th>
+                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase text-right min-w-[100px]">HÀNH ĐỘNG</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-100">
+                                    <tbody className="divide-y divide-white/10">
                                         {isLoading || isDataLoading ? (
                                             Array.from({ length: 6 }).map((_, i) => (
                                                 <tr key={i} className="h-[49px]">
                                                     <td className="px-4 text-center"><Skeleton className="w-4 h-4 rounded mx-auto" /></td>
                                                     <td className="px-6"><Skeleton className="w-20 h-4" /></td>
-                                                    <td className="px-6 py-2"><Skeleton className="w-48 h-9 rounded-full" /></td>
-                                                    <td className="px-6"><Skeleton className="w-24 h-4" /></td>
-                                                    <td className="px-6"><Skeleton className="w-16 h-4" /></td>
-                                                    <td className="px-6"><Skeleton className="w-16 h-4" /></td>
-                                                    <td className="px-6 text-center"><Skeleton className="w-20 h-5 rounded-full mx-auto" /></td>
-                                                    <td className="px-6 text-center"><Skeleton className="w-20 h-5 rounded-full mx-auto" /></td>
-                                                    <td className="px-6 text-right"><Skeleton className="w-6 h-6 rounded-md ml-auto" /></td>
+                                                    <td className="px-6 py-2 flex items-center gap-[12px] h-[49px]"><Skeleton className="w-[36px] h-[36px] rounded-full shrink-0" /><Skeleton className="w-32 h-4 rounded" /></td>
+                                                    <td className="px-6"><Skeleton className="w-20 h-4" /></td>
+                                                    <td className="px-6"><Skeleton className="w-12 h-4" /></td>
+                                                    <td className="px-6"><Skeleton className="w-12 h-4" /></td>
+                                                    <td className="px-6 text-center"><Skeleton className="w-20 h-6 rounded-xl mx-auto" /></td>
+                                                    <td className="px-6 text-center"><Skeleton className="w-24 h-6 rounded-xl mx-auto" /></td>
+                                                    <td className="px-6 text-right"><Skeleton className="w-8 h-8 rounded-xl ml-auto" /></td>
                                                 </tr>
                                             ))
                                         ) : paginatedStudents.length === 0 ? (
@@ -550,51 +580,52 @@ function ClassStudentsPageContent() {
                                             paginatedStudents.map((student, idx) => {
                                                 const vDob = formatDob(student.date_bir);
                                                 const vGender = student.sex === 'Male' ? 'Nam' : student.sex === 'Female' ? 'Nữ' : 'Khác';
-                                                const vScore = student.training_point_id?.score ?? 85;
+                                                const resolvedScore = resolveDrlScore(summaryMap.get(student._id)) ?? resolveDrlScore(student.training_point_id);
+                                                const vScore = resolvedScore !== null ? `${resolvedScore}` : 'N/A';
                                                 const vStatus = getVietnameseStatus(student.status);
 
                                                 return (
                                                     <motion.tr
                                                         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.1, delay: idx * 0.05 }}
-                                                        key={student._id} className="hover:bg-blue-50/20 transition-colors group h-[49px]"
+                                                        key={student._id} className="hover:bg-white/50 transition-all duration-150 ease-out group h-[49px]"
                                                     >
                                                         <td className="px-4 text-center">
                                                             <input
                                                                 type="checkbox"
-                                                                className="rounded border-[#cbd5e1] text-primary w-4 h-4"
+                                                                className="rounded border-[#cbd5e1] text-primary w-4 h-4 cursor-pointer"
                                                                 checked={selectedStudentIds.includes(student._id)}
                                                                 onChange={() => toggleStudentSelection(student._id)}
                                                             />
                                                         </td>
-                                                        <td className="px-6 font-mono text-[14px] text-[#64748b]">{student.student_code}</td>
+                                                        <td className="px-6 font-mono text-[14px] text-[#64748B]">{student.student_code}</td>
                                                         <td className="px-6 py-2">
                                                             <div className="flex items-center gap-[12px]">
                                                                 <StudentAvatar fullName={student.full_name} sizeClass="w-[36px] h-[36px]" />
                                                                 <div>
-                                                                    <div className="font-semibold text-[14px] text-[#0f172a]">{student.full_name}</div>
+                                                                    <div className="font-semibold text-[14px] text-[#1E293B]">{student.full_name}</div>
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="px-6 text-[14px] text-[#475569]">{vDob}</td>
-                                                        <td className="px-6 text-[14px] text-[#475569]">{vGender}</td>
+                                                        <td className="px-6 text-[14px] text-[#64748B]">{vDob}</td>
+                                                        <td className="px-6 text-[14px] text-[#64748B]">{vGender}</td>
                                                         <td className="px-6">
                                                             <div className="flex items-center gap-[4px] font-bold">
-                                                                <span className="text-[14px] text-[#334155]">{vScore}</span>
-                                                                <span className="text-[10px] text-[#94a3b8] font-normal">/100</span>
+                                                                <span className="text-[14px] text-[#1E293B]">{vScore}</span>
+                                                                {vScore !== 'N/A' && <span className="text-[10px] text-[#64748B] font-normal">/100</span>}
                                                             </div>
                                                         </td>
                                                         <td className="px-6 text-center">
-                                                            <span className={`inline-flex items-center justify-center px-[8px] py-[3.5px] rounded-full font-bold text-[12px] ${vStatus === 'Đang học' ? 'bg-[#f0fdf4] text-[#16a34a]' :
-                                                                vStatus === 'Bảo lưu' ? 'bg-[#fefce8] text-[#ca8a04]' :
-                                                                    'bg-[#fef2f2] text-[#ef4444]'
+                                                            <span className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-xl font-bold text-[12px] border ${vStatus === 'Đang học' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' :
+                                                                vStatus === 'Bảo lưu' ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' :
+                                                                    'bg-rose-500/10 text-rose-700 border-rose-500/20'
                                                                 }`}>
                                                                 {vStatus}
                                                             </span>
                                                         </td>
                                                         <td className="px-6 text-center">
-                                                            <span className={`inline-flex items-center justify-center px-[8px] py-[3.5px] rounded-full font-bold text-[12px] ${student.account_status === 'active' ? 'bg-[#f0fdf4] text-[#16a34a]' :
-                                                                student.account_status === 'locked' ? 'bg-[#fef2f2] text-[#ef4444]' :
-                                                                    'bg-gray-100 text-gray-500'
+                                                            <span className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-xl font-bold text-[12px] border ${student.account_status === 'active' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' :
+                                                                student.account_status === 'locked' ? 'bg-rose-500/10 text-rose-700 border-rose-500/20' :
+                                                                    'bg-slate-500/10 text-[#64748B] border border-slate-500/20'
                                                                 }`}>
                                                                 {student.account_status === 'active' ? 'Đã kích hoạt' :
                                                                     student.account_status === 'locked' ? 'Đang khóa' : 'Chưa active'}
@@ -621,7 +652,7 @@ function ClassStudentsPageContent() {
                             </div>
                         </div>
 
-                        <div className="sticky bottom-0 z-10 border-t border-[#f1f5f9] mt-auto">
+                        <div className="sticky bottom-0 z-10 border-t border-white/60 mt-auto bg-white/40 backdrop-blur-md">
                             <CustomPagination
                                 currentPage={currentPage}
                                 pageSize={itemsPerPage}
@@ -665,17 +696,17 @@ function ClassStudentsPageContent() {
                 open={openDrawerId !== null}
                 onOpenChange={(isOpen) => setOpenDrawerId(isOpen ? openDrawerId : null)}
             >
-                <DrawerContent className="w-[448px] h-full bg-white outline-none flex flex-col items-stretch overflow-hidden">
-                    <div className="flex justify-between items-center p-6 border-b border-[#f1f5f9] bg-white shrink-0">
+                <DrawerContent className="w-[448px] h-full bg-white/80 backdrop-blur-xl border-l border-white/80 outline-none flex flex-col items-stretch overflow-hidden">
+                    <div className="flex justify-between items-center p-6 border-b border-white/60 bg-transparent shrink-0">
                         <div className="flex items-center gap-3">
-                            <DrawerTitle className="text-lg font-semibold text-[#0f172a]">Thông tin sinh viên</DrawerTitle>
+                            <DrawerTitle className="text-lg font-semibold text-[#1E293B]">Thông tin sinh viên</DrawerTitle>
                             {!isDrawerLoading && drawerStudent && (
                                 <button
                                     onClick={() => {
                                         setOpenDrawerId(null);
                                         router.push(`/students/${classId}/${drawerStudent._id}`);
                                     }}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#135bec] bg-[#ebf2ff] hover:bg-[#d6e4ff] rounded-lg transition-colors border border-[#d6e4ff]"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-[#1A73E8] bg-blue-500/10 hover:bg-blue-500/20 rounded-xl transition-all duration-150 border border-blue-500/20 hover:scale-[1.01]"
                                 >
                                     <ExternalLink className="w-3.5 h-3.5" />
                                     <span>Chi tiết</span>
@@ -684,15 +715,15 @@ function ClassStudentsPageContent() {
                         </div>
                         <DrawerDescription className="sr-only">Thông tin chi tiết về sinh viên được chọn.</DrawerDescription>
                         <DrawerClose asChild>
-                            <button className="w-7 h-7 flex justify-center items-center text-gray-500 hover:text-gray-700 transition-colors">
+                            <button className="w-7 h-7 flex justify-center items-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01]">
                                 <X className="w-5 h-5" />
                             </button>
                         </DrawerClose>
                     </div>
 
                     {isDrawerLoading || !drawerStudent ? (
-                        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8 animate-pulse">
-                            <div className="flex items-center gap-4">
+                        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 animate-pulse">
+                            <div className="flex items-center gap-4 bg-white/40 border border-white/85 rounded-2xl p-4">
                                 <Skeleton className="w-16 h-16 rounded-full shrink-0" />
                                 <div className="flex-1 flex flex-col gap-2">
                                     <Skeleton className="w-48 h-6 rounded-md" />
@@ -700,89 +731,88 @@ function ClassStudentsPageContent() {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col gap-5">
+                            <div className="flex flex-col gap-4 bg-white/40 border border-white/80 rounded-xl p-4">
                                 <Skeleton className="w-24 h-4 rounded-md mb-2" />
                                 <div className="flex justify-between"><Skeleton className="w-20 h-4 rounded" /><Skeleton className="w-32 h-4 rounded" /></div>
                                 <div className="flex justify-between"><Skeleton className="w-20 h-4 rounded" /><Skeleton className="w-16 h-4 rounded" /></div>
-                                <div className="flex justify-between"><Skeleton className="w-20 h-4 rounded" /><Skeleton className="w-40 h-4 rounded" /></div>
-                                <div className="flex justify-between"><Skeleton className="w-20 h-4 rounded" /><Skeleton className="w-24 h-4 rounded" /></div>
-                            </div>
-
-                            <div className="flex flex-col gap-5">
-                                <Skeleton className="w-32 h-4 rounded-md mb-2" />
-                                <div className="flex justify-between"><Skeleton className="w-20 h-4 rounded" /><Skeleton className="w-44 h-4 rounded" /></div>
-                                <div className="flex justify-between"><Skeleton className="w-20 h-4 rounded" /><Skeleton className="w-36 h-4 rounded" /></div>
-                                <div className="flex justify-between"><Skeleton className="w-24 h-4 rounded" /><Skeleton className="w-12 h-4 rounded" /></div>
                             </div>
                         </div>
                     ) : (
-                        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8">
-                            <div className="flex items-center gap-4">
+                        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hover">
+                            {/* Profile Header Card */}
+                            <div className="flex items-center gap-4 bg-white/40 border border-white/85 rounded-2xl p-4 shadow-sm shadow-slate-200/50">
                                 <StudentAvatar fullName={drawerStudent.full_name} sizeClass="w-16 h-16" textClassName="text-xl font-bold" />
                                 <div>
-                                    <h2 className="text-xl font-bold text-[#0f172a]">{drawerStudent.full_name}</h2>
-                                    <p className="text-sm text-[#64748b]">Mã SV: {drawerStudent.student_code}</p>
+                                    <h2 className="text-xl font-bold text-[#1E293B]">{drawerStudent.full_name}</h2>
+                                    <p className="text-sm text-[#64748B] font-semibold mt-0.5">Mã SV: {drawerStudent.student_code}</p>
                                 </div>
                             </div>
 
-                            <div className="flex flex-col gap-4">
-                                <h4 className="text-sm font-bold text-[#135bec] uppercase tracking-wider">Thông tin cá nhân</h4>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-sm">Ngày sinh</span>
-                                    <span className="text-gray-900 font-medium text-sm">{formatDob(drawerStudent.date_bir)}</span>
+                            {/* Personal Info Box */}
+                            <div className="bg-white/40 border border-white/70 rounded-xl p-4 flex flex-col gap-3.5 shadow-sm shadow-slate-200/50">
+                                <h4 className="text-[12px] font-bold text-[#1A73E8] uppercase tracking-wider mb-0.5">Thông tin cá nhân</h4>
+                                <div className="flex justify-between items-center py-0.5 border-b border-white/40 last:border-0 last:pb-0">
+                                    <span className="text-[#64748B] text-xs font-semibold">Ngày sinh</span>
+                                    <span className="text-[#1E293B] font-bold text-sm">{formatDob(drawerStudent.date_bir)}</span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-sm">Giới tính</span>
-                                    <span className="text-gray-900 font-medium text-sm">
+                                <div className="flex justify-between items-center py-0.5 border-b border-white/40 last:border-0 last:pb-0">
+                                    <span className="text-[#64748B] text-xs font-semibold">Giới tính</span>
+                                    <span className="text-[#1E293B] font-bold text-sm">
                                         {drawerStudent.sex === 'Male' ? 'Nam' : drawerStudent.sex === 'Female' ? 'Nữ' : 'Khác'}
                                     </span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-sm">Email</span>
-                                    <span className="text-gray-900 font-medium text-sm truncate max-w-[240px]" title={drawerStudent.email}>{drawerStudent.email || 'N/A'}</span>
+                                <div className="flex justify-between items-center py-0.5 border-b border-white/40 last:border-0 last:pb-0">
+                                    <span className="text-[#64748B] text-xs font-semibold">Email</span>
+                                    <span className="text-[#1E293B] font-bold text-sm truncate max-w-[200px]" title={drawerStudent.email}>{drawerStudent.email || 'N/A'}</span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-sm">Trạng thái</span>
-                                    <span className="text-gray-900 font-medium text-sm">{getVietnameseStatus(drawerStudent.status)}</span>
+                                <div className="flex justify-between items-center py-0.5 border-b border-white/40 last:border-0 last:pb-0">
+                                    <span className="text-[#64748B] text-xs font-semibold">Trạng thái</span>
+                                    <span className="text-[#1E293B] font-bold text-sm">{getVietnameseStatus(drawerStudent.status)}</span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-sm">Tài khoản</span>
-                                    <span className={`font-bold text-sm ${drawerStudent.account_status === 'active' ? 'text-green-600' :
-                                        drawerStudent.account_status === 'locked' ? 'text-red-600' : 'text-gray-500'
-                                        }`}>
+                                <div className="flex justify-between items-center py-0.5 last:border-0 last:pb-0">
+                                    <span className="text-[#64748B] text-xs font-semibold">Tài khoản</span>
+                                    <span className={`font-bold text-sm ${
+                                        drawerStudent.account_status === 'active' ? 'text-emerald-600' :
+                                        drawerStudent.account_status === 'locked' ? 'text-rose-600' : 'text-slate-500'
+                                    }`}>
                                         {drawerStudent.account_status === 'active' ? 'Đã kích hoạt' :
                                             drawerStudent.account_status === 'locked' ? 'Đang khóa' : 'Chưa active'}
                                     </span>
                                 </div>
                             </div>
 
-                            <div className="flex flex-col gap-4">
-                                <h4 className="text-sm font-bold text-[#135bec] uppercase tracking-wider">Thông tin học tập</h4>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-sm">Khoa</span>
-                                    <span className="text-gray-900 font-medium text-sm text-right max-w-[240px] truncate" title={(drawerStudent.class_id as any)?.dept_id?.name || 'N/A'}>
+                            {/* Academic Info Box */}
+                            <div className="bg-white/40 border border-white/70 rounded-xl p-4 flex flex-col gap-3.5 shadow-sm shadow-slate-200/50">
+                                <h4 className="text-[12px] font-bold text-[#1A73E8] uppercase tracking-wider mb-0.5">Thông tin học tập</h4>
+                                <div className="flex justify-between items-center py-0.5 border-b border-white/40 last:border-0 last:pb-0">
+                                    <span className="text-[#64748B] text-xs font-semibold">Khoa</span>
+                                    <span className="text-[#1E293B] font-bold text-sm text-right max-w-[200px] truncate" title={(drawerStudent.class_id as any)?.dept_id?.name || 'N/A'}>
                                         {(drawerStudent.class_id as any)?.dept_id?.name || 'N/A'}
                                     </span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-sm">Lớp học</span>
-                                    <span className="text-gray-900 font-medium text-sm text-right max-w-[240px] truncate" title={(drawerStudent.class_id as any)?.class_name || 'N/A'}>
+                                <div className="flex justify-between items-center py-0.5 border-b border-white/40 last:border-0 last:pb-0">
+                                    <span className="text-[#64748B] text-xs font-semibold">Lớp học</span>
+                                    <span className="text-[#1E293B] font-bold text-sm text-right max-w-[200px] truncate" title={(drawerStudent.class_id as any)?.class_name || 'N/A'}>
                                         {(drawerStudent.class_id as any)?.class_name || 'N/A'}
                                     </span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-sm">Điểm rèn luyện</span>
-                                    <span className="text-gray-900 font-bold text-sm">
-                                        {drawerStudent.training_point_id?.score !== undefined ? `${drawerStudent.training_point_id.score} / 100` : 'N/A'}
+                                <div className="flex justify-between items-center py-0.5 last:border-0 last:pb-0">
+                                    <span className="text-[#64748B] text-xs font-semibold">Điểm rèn luyện</span>
+                                    <span className="text-[#1E293B] font-bold text-sm">
+                                        {(() => {
+                                            const resolvedScore = resolveDrlScore(summaryMap.get(drawerStudent._id)) ?? resolveDrlScore(drawerStudent.training_point_id);
+                                            return resolvedScore !== null ? `${resolvedScore} / 100` : 'N/A';
+                                        })()}
                                     </span>
                                 </div>
                             </div>
 
-                            <div className="flex flex-col gap-4">
-                                <h4 className="text-sm font-bold text-[#135bec] uppercase tracking-wider">Hành động</h4>
+                            {/* Actions Info Box */}
+                            <div className="bg-white/40 border border-white/70 rounded-xl p-4 flex flex-col gap-4 shadow-sm shadow-slate-200/50">
+                                <h4 className="text-[12px] font-bold text-[#1A73E8] uppercase tracking-wider mb-0.5">Hành động</h4>
                                 {permissions.canTransferStudent && (
-                                <button className="flex items-center justify-center gap-2 w-full py-3 bg-[#eff6ff] text-[#135bec] rounded-xl font-bold text-sm">
-                                    <ArrowRightLeft className="w-5 h-5" /> Chuyển lớp
+                                <button className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-blue-500/10 cursor-pointer">
+                                    <ArrowRightLeft className="w-4 h-4" /> Chuyển lớp
                                 </button>
                                 )}
                                 <div className="flex gap-3">
@@ -792,7 +822,7 @@ function ClassStudentsPageContent() {
                                             handleEditStudent(drawerStudent);
                                             setOpenDrawerId(null);
                                         }}
-                                        className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-600 font-medium text-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-1.5"
+                                        className="flex-1 py-2.5 bg-white/50 backdrop-blur-sm border border-white/80 text-[#64748B] hover:text-[#1E293B] rounded-xl hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out flex items-center justify-center gap-1.5 cursor-pointer font-bold text-sm"
                                     >
                                         <Edit className="w-4 h-4" /> Sửa
                                     </button>
@@ -803,7 +833,7 @@ function ClassStudentsPageContent() {
                                             handleDeleteSingle(drawerStudent._id, drawerStudent.full_name);
                                             setOpenDrawerId(null);
                                         }}
-                                        className="flex-1 py-3 bg-[#fef2f2] text-red-600 rounded-xl font-medium text-sm border border-red-100 hover:bg-red-100/50 transition-colors flex items-center justify-center gap-1.5"
+                                        className="flex-1 py-2.5 bg-rose-500/10 text-rose-700 border border-rose-500/20 hover:bg-rose-600 hover:text-white hover:border-transparent rounded-xl hover:scale-[1.01] transition-all duration-150 ease-out flex items-center justify-center gap-1.5 cursor-pointer font-bold text-sm"
                                     >
                                         <Trash2 className="w-4 h-4" /> Xóa
                                     </button>
@@ -850,7 +880,7 @@ function ClassStudentsPageContent() {
 
 export default function ClassStudentsPage() {
     return (
-        <Suspense fallback={<div className="flex h-screen items-center justify-center bg-gray-50 text-gray-400">Loading students...</div>}>
+        <Suspense fallback={<div className="flex h-screen items-center justify-center bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] text-gray-400">Loading students...</div>}>
             <RouteGuard requiredPermission="STUDENT_PAGE">
             <ClassStudentsPageContent />
             </RouteGuard>

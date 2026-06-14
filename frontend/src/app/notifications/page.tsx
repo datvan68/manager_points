@@ -103,6 +103,7 @@ function NotificationsPageContent() {
     description: string;
     type: NotificationItem['type'];
     routeUrl?: string;
+    targetRole: 'all' | 'student' | 'teacher' | 'supervisor';
   }) => {
     try {
       if (editingNotification) {
@@ -429,12 +430,25 @@ function NotificationsPageContent() {
 
                       {/* Content details */}
                       <div className="flex-1 min-w-0 pr-10">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <h4 className={`text-sm font-bold text-[#1E293B] group-hover:text-[#1A73E8] transition-colors ${
                             !item.isRead && activeFilter !== 'views' ? 'font-extrabold text-slate-900' : ''
                           }`}>
                             {item.title}
                           </h4>
+                          {isPrivileged && item.targetRole && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${
+                              item.targetRole === 'student'
+                                ? 'bg-green-50 text-green-700 border-green-200'
+                                : item.targetRole === 'teacher'
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : item.targetRole === 'supervisor'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-slate-50 text-slate-700 border-slate-200'
+                            }`}>
+                              {item.targetRole === 'student' ? 'HSSV' : item.targetRole === 'teacher' ? 'Giảng viên' : item.targetRole === 'supervisor' ? 'Quản sinh' : 'Tất cả'}
+                            </span>
+                          )}
                           {!item.isRead && activeFilter !== 'views' && (
                             <span className="bg-blue-50 text-[#1A73E8] border border-blue-100 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
                               Mới

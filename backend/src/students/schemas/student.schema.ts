@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Class } from '../../classes/schemas/class.schema';
 import { User } from '../../auth/schemas/user.schema';
+import { SummaryPoint } from '../../summaries-point/schemas/summary-point.schema';
 
 export type StudentDocument = Student & Document;
 
@@ -32,8 +33,8 @@ export class Student {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Class' })
   class_id: Types.ObjectId | Class;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'TrainingPoint' })
-  training_point_id: any;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'SummaryPoint' })
+  training_point_id: Types.ObjectId | SummaryPoint;
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,

@@ -501,7 +501,7 @@ export default function UserDetailPage() {
                             </button>
                           </PopoverTrigger>
                           <PopoverContent
-                            className="w-auto p-0 z-100 bg-transparent border-none shadow-none"
+                            className="w-auto p-0 z-100 bg-transparent border-none shadow-none overflow-hidden"
                             align="start"
                             side="bottom"
                             sideOffset={6}

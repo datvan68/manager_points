@@ -2,9 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname, useParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { ChevronRight, Home } from 'lucide-react';
-import { departments, classes, mockStudents } from '@/lib/mock-data/students';
 import { useAuth } from '@/providers/auth-provider';
 
 interface BreadcrumbProps {
@@ -16,7 +15,6 @@ export default function Breadcrumb({ customMappings = {} }: BreadcrumbProps) {
   const role = (user?.role || user?.roleName || '').toLowerCase();
   const isStudent = role.includes('student') || role.includes('sinh vien') || role.includes('hoc sinh') || role.includes('học sinh') || role.includes('sinh viên');
   const pathname = usePathname();
-  const params = useParams();
 
   const pathSegments = pathname.split('/').filter(segment => segment !== '');
 
@@ -24,18 +22,6 @@ export default function Breadcrumb({ customMappings = {} }: BreadcrumbProps) {
   const getLabel = (segment: string) => {
     // Check custom mappings first
     if (customMappings[segment]) return customMappings[segment];
-
-    // Check classId
-    if (params && params.classId === segment) {
-      const cls = classes.find(c => c.id === segment);
-      return cls ? cls.name : segment;
-    }
-
-    // Check student id
-    if (params && params.id === segment) {
-      const student = mockStudents.find(s => s.id === segment);
-      return student ? student.name : segment;
-    }
 
     // Static mappings
     const staticLabels: Record<string, string> = {

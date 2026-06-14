@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import Popup from './Popup';
 import {
-  Download, UploadCloud, Info, Loader2, FileSpreadsheet, X, CheckCircle2
+  Download, UploadCloud, Info, Loader2, FileSpreadsheet, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -336,41 +336,36 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
 
   return (
     <>
-    <Popup isOpen={isOpen} onClose={onClose} className="max-w-[500px]" contentClassName="p-0">
-      <div className="bg-white flex flex-col items-start overflow-hidden rounded-[12px] w-full font-sans">
+    <Popup isOpen={isOpen} onClose={onClose} className="max-w-[500px] bg-white/80 backdrop-blur-xl border border-white/80 rounded-2xl shadow-lg shadow-slate-300/40" contentClassName="p-0">
+      <div className="bg-transparent flex flex-col items-start overflow-hidden w-full font-sans">
 
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 w-full shrink-0">
-          <h2 className="text-[18px] font-bold text-[#0f172a] leading-7">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/60 w-full shrink-0 bg-transparent pr-12">
+          <h2 className="text-[18px] font-bold text-[#1E293B] leading-7">
             Import Sinh viên từ Excel
           </h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex justify-center items-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
-          >
-          </button>
         </div>
 
         {/* Modal Content */}
-        <div className="flex flex-col gap-3 px-6 py-5 w-full overflow-y-auto max-h-[75vh]">
+        <div className="flex flex-col gap-4 px-6 py-5 w-full overflow-y-auto max-h-[72vh] bg-transparent scrollbar-hover">
 
           {/* Step 1: Download Template */}
           <div className="flex flex-col gap-2.5 items-start w-full">
             <div className="flex gap-2 items-center w-full">
-              <div className="bg-[#d8e2ff] flex items-center justify-center rounded-full shrink-0 w-6 h-6">
-                <span className="font-bold text-[#004493] text-xs">1</span>
+              <div className="bg-blue-500/10 border border-blue-500/20 text-[#1A73E8] flex items-center justify-center rounded-xl shrink-0 w-6 h-6">
+                <span className="font-bold text-xs">1</span>
               </div>
-              <h3 className="font-bold text-[#0f172a] text-xs tracking-wider uppercase">
+              <h3 className="font-bold text-[#1E293B] text-xs tracking-wider uppercase">
                 BƯỚC 1: CHUẨN BỊ TỆP
               </h3>
             </div>
-            <p className="text-slate-500 text-sm pl-8">
+            <p className="text-[#64748B] text-sm pl-8 font-medium">
               Tải tệp mẫu để đảm bảo dữ liệu đúng định dạng.
             </p>
             <button
               type="button"
               onClick={handleDownloadTemplate}
-              className="ml-8 border border-blue-100 hover:bg-blue-50 text-[#1a73e8] hover:text-blue-800 flex gap-2 items-center px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm shadow-blue-50"
+              className="ml-8 bg-white/50 backdrop-blur-sm border border-white/80 hover:bg-[#1A73E8] hover:text-white hover:border-transparent text-[#1A73E8] flex gap-2 items-center px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-blue-900/5"
             >
               <Download size={14} />
               Tải tệp mẫu (.xlsx)
@@ -380,18 +375,21 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
           {/* Step 2: Upload Area */}
           <div className="flex flex-col gap-2.5 items-start w-full">
             <div className="flex gap-2 items-center w-full">
-              <div className="bg-[#d8e2ff] flex items-center justify-center rounded-full shrink-0 w-6 h-6">
-                <span className="font-bold text-[#004493] text-xs">2</span>
+              <div className="bg-blue-500/10 border border-blue-500/20 text-[#1A73E8] flex items-center justify-center rounded-xl shrink-0 w-6 h-6">
+                <span className="font-bold text-xs">2</span>
               </div>
-              <h3 className="font-bold text-[#0f172a] text-xs tracking-wider uppercase">
+              <h3 className="font-bold text-[#1E293B] text-xs tracking-wider uppercase">
                 BƯỚC 2: TẢI TỆP LÊN
               </h3>
             </div>
 
             <div className="w-full pl-8">
               <div
-                className={`bg-[#f8fafc] border-2 border-dashed rounded-xl flex flex-col items-center justify-center p-6 text-center transition-all cursor-pointer select-none ${dragActive ? 'border-blue-500 bg-blue-50/20' : 'border-[#cbd5e1] hover:border-blue-400 hover:bg-slate-50/50'
-                  }`}
+                className={`bg-white/40 backdrop-blur-sm border-2 border-dashed rounded-xl flex flex-col items-center justify-center p-6 text-center transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer select-none ${
+                  dragActive 
+                    ? 'border-[#1A73E8] bg-[#1A73E8]/10' 
+                    : 'border-[#1A73E8]/30 hover:border-[#1A73E8]/60 hover:bg-white/60 shadow-sm'
+                }`}
                 onDragEnter={handleDrag}
                 onDragOver={handleDrag}
                 onDragLeave={handleDrag}
@@ -409,32 +407,32 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
 
                 {file ? (
                   <div className="flex flex-col items-center gap-3 w-full" onClick={(e) => e.stopPropagation()}>
-                    <div className="bg-emerald-50 rounded-full w-12 h-12 flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-100">
+                    <div className="bg-emerald-500/10 rounded-xl w-12 h-12 flex items-center justify-center text-emerald-600 shadow-sm border border-white/80">
                       <FileSpreadsheet size={24} />
                     </div>
                     <div className="flex flex-col items-center max-w-[85%]">
-                      <p className="text-[14px] font-bold text-slate-800 truncate w-full">{file.name}</p>
-                      <p className="text-xs text-slate-400 font-medium mt-0.5">
+                      <p className="text-[14px] font-bold text-[#1E293B] truncate w-full">{file.name}</p>
+                      <p className="text-xs text-[#64748B] font-medium mt-0.5">
                         {(file.size / 1024).toFixed(1)} KB
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={handleRemoveFile}
-                      className="mt-1 text-xs text-rose-500 hover:text-rose-700 font-bold px-3 py-1 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
+                      className="mt-1 text-xs text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] font-bold"
                     >
                       Chọn tệp khác
                     </button>
                   </div>
                 ) : (
                   <>
-                    <div className="bg-blue-50/70 rounded-full w-12 h-12 flex items-center justify-center text-blue-600 mb-3 shadow-sm border border-blue-100/50">
+                    <div className="bg-blue-500/10 rounded-xl w-12 h-12 flex items-center justify-center text-[#1A73E8] mb-3 shadow-sm border border-white/80">
                       <UploadCloud size={24} />
                     </div>
-                    <p className="text-[14px] font-semibold text-slate-800 leading-6 px-2">
+                    <p className="text-[14px] font-bold text-[#1E293B] leading-6 px-2">
                       Kéo và thả tệp vào đây hoặc nhấn để chọn từ máy tính
                     </p>
-                    <p className="text-[11px] text-slate-400 font-medium mt-1">
+                    <p className="text-[11px] text-[#64748B] font-semibold mt-1">
                       Chấp nhận tệp .xlsx, .xls (Tối đa 10MB)
                     </p>
                   </>
@@ -446,24 +444,24 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
           {/* Step 3: Important notes */}
           <div className="flex flex-col gap-2.5 items-start w-full">
             <div className="flex gap-2 items-center w-full">
-              <div className="bg-[#d8e2ff] flex items-center justify-center rounded-full shrink-0 w-6 h-6">
-                <span className="font-bold text-[#004493] text-xs">3</span>
+              <div className="bg-blue-500/10 border border-blue-500/20 text-[#1A73E8] flex items-center justify-center rounded-xl shrink-0 w-6 h-6">
+                <span className="font-bold text-xs">3</span>
               </div>
-              <h3 className="font-bold text-[#0f172a] text-xs tracking-wider uppercase">
+              <h3 className="font-bold text-[#1E293B] text-xs tracking-wider uppercase">
                 LƯU Ý QUAN TRỌNG
               </h3>
             </div>
 
             <div className="w-full pl-8">
-              <div className="bg-[#f8fafc] border border-slate-100 rounded-xl p-4 flex gap-3 w-full">
-                <div className="text-blue-500 shrink-0 mt-0.5">
+              <div className="bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl p-4 flex gap-3 w-full shadow-sm">
+                <div className="text-[#1A73E8] shrink-0 mt-0.5">
                   <Info size={16} />
                 </div>
-                <div className="flex flex-col gap-2 text-slate-500 text-xs font-medium leading-relaxed">
+                <div className="flex flex-col gap-2 text-[#64748B] text-xs font-semibold leading-relaxed">
                   <p>• Mã sinh viên là duy nhất trong hệ thống.</p>
                   <p className="flex items-center gap-1.5 flex-wrap">
                     • Định dạng ngày sinh bắt buộc:
-                    <code className="bg-[#f1f5f9] border border-slate-200/50 text-slate-700 px-1.5 py-0.5 rounded font-mono text-[10px]">
+                    <code className="bg-white/70 border border-white/80 text-[#1E293B] px-1.5 py-0.5 rounded-xl font-mono text-[10px]">
                       DD/MM/YYYY
                     </code>.
                   </p>
@@ -476,12 +474,12 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
         </div>
 
         {/* Modal Footer */}
-        <div className="bg-slate-50 flex gap-3 items-center justify-end px-6 py-4 border-t border-slate-100 w-full shrink-0">
+        <div className="bg-white/50 backdrop-blur-md flex gap-3 items-center justify-end px-6 py-4 border-t border-white/60 w-full shrink-0">
           <button
             type="button"
             onClick={onClose}
             disabled={isImporting}
-            className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 rounded-lg transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-xs font-bold text-[#64748B] hover:text-[#1E293B] hover:bg-white/60 rounded-xl border border-white/80 bg-white/30 transition-all duration-150 ease-out hover:scale-[1.01] disabled:opacity-50"
           >
             Hủy bỏ
           </button>
@@ -490,7 +488,7 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
             type="button"
             onClick={handleStartImport}
             disabled={!file || isImporting}
-            className="bg-[#1a73e8] hover:bg-blue-700 disabled:bg-blue-300 text-white flex gap-1.5 items-center px-5 py-2.5 rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-200/60 disabled:shadow-none disabled:cursor-not-allowed"
+            className="bg-[#1a73e8] hover:bg-blue-600 disabled:bg-blue-300 text-white flex gap-1.5 items-center px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] shadow-md shadow-blue-200/60 disabled:shadow-none disabled:cursor-not-allowed"
           >
             {isImporting && <Loader2 size={14} className="animate-spin" />}
             {isImporting ? 'Đang Import...' : 'Bắt đầu Import'}

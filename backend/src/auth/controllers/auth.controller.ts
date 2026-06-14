@@ -348,6 +348,14 @@ export class AuthController {
 
   // ─── ROUTE PERMISSION MANAGEMENT (ADMIN ONLY) ─────────
 
+  @Get('page-permission-scopes')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all page-permission action scopes (requires login)' })
+  async getPagePermissionScopes() {
+    return this.authService.getPagePermissionScopes();
+  }
+
   @Get('route-permissions/all')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

@@ -11,8 +11,8 @@ interface StudentReportTabProps {
 }
 
 const columns: TableColumn[] = [
-  { key: 'student_code', header: 'Mã HSSV', className: 'font-bold text-slate-700' },
-  { key: 'full_name', header: 'Họ tên', className: 'font-bold text-slate-800' },
+  { key: 'student_code', header: 'Mã HSSV', className: 'font-bold text-[#1E293B]' },
+  { key: 'full_name', header: 'Họ tên', className: 'font-bold text-[#1E293B]' },
   { key: 'class_name', header: 'Lớp' },
   { key: 'department_name', header: 'Khoa' },
   { key: 'class_year', header: 'Khóa/Năm' },
@@ -23,14 +23,14 @@ const columns: TableColumn[] = [
     header: 'Trạng thái học tập',
     render: (val: string) => {
       const colors: Record<string, string> = {
-        'Đang học': 'bg-emerald-50 text-emerald-600 border border-emerald-100',
-        'Bảo lưu': 'bg-amber-50 text-amber-600 border border-amber-100',
-        'Thôi học': 'bg-rose-50 text-rose-600 border border-rose-100',
-        'Đình chỉ': 'bg-rose-100 text-rose-700 border border-rose-200',
-        'Tốt nghiệp': 'bg-blue-50 text-blue-600 border border-blue-100'
+        'Đang học': 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
+        'Bảo lưu': 'bg-amber-500/10 text-amber-600 border border-amber-500/20',
+        'Thôi học': 'bg-rose-500/10 text-rose-600 border border-rose-500/20',
+        'Đình chỉ': 'bg-rose-500/20 text-rose-700 border border-rose-500/30',
+        'Tốt nghiệp': 'bg-blue-500/10 text-[#1A73E8] border border-blue-500/20'
       };
       return (
-        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${colors[val] || 'bg-slate-50 border border-slate-100 text-slate-500'}`}>
+        <span className={`inline-block px-2.5 py-0.5 rounded-xl text-[11px] font-bold ${colors[val] || 'bg-white/50 border border-white/70 text-[#64748B]'}`}>
           {val}
         </span>
       );
@@ -42,10 +42,10 @@ const columns: TableColumn[] = [
     render: (val: string) => {
       const colors: Record<string, string> = {
         'Hoạt động': 'text-emerald-600',
-        'Không hoạt động': 'text-slate-400',
+        'Không hoạt động': 'text-[#64748B]',
         'Đã khóa': 'text-rose-600'
       };
-      return <span className={`font-black ${colors[val] || 'text-slate-500'}`}>{val}</span>;
+      return <span className={`font-black ${colors[val] || 'text-[#64748B]'}`}>{val}</span>;
     }
   }
 ];

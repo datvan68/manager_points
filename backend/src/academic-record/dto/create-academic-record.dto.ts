@@ -97,4 +97,22 @@ export class CreateAcademicRecordDto {
   @IsOptional()
   @IsEnum(['active', 'inactive'])
   status?: string;
+
+  @ApiProperty({
+    example: 'uuid-v4-string',
+    required: false,
+    description: 'Key dùng để tránh ghi nhận trùng lặp (idempotency)',
+  })
+  @IsOptional()
+  @IsString()
+  idempotency_key?: string;
+
+  @ApiProperty({
+    example: 'manual',
+    required: false,
+    description: 'Nguồn tạo bản ghi (manual, import, bulk_grading, etc.)',
+  })
+  @IsOptional()
+  @IsString()
+  source?: string;
 }

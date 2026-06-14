@@ -8,6 +8,7 @@ import { StudentTask, StudentTaskStatus } from '../student-tasks/schemas/student
 import { Student } from '../students/schemas/student.schema';
 import { User } from '../auth/schemas/user.schema';
 import { Role } from '../auth/schemas/role.schema';
+import { Class } from '../classes/schemas/class.schema';
 
 const mockUserId = new Types.ObjectId().toString();
 const mockTaskId = new Types.ObjectId().toString();
@@ -114,6 +115,16 @@ describe('StudentTaskProgressService (Unit)', () => {
         {
           provide: getModelToken(Role.name),
           useValue: {},
+        },
+        {
+          provide: getModelToken(Class.name),
+          useValue: {
+            find: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnThis(),
+              lean: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue([]),
+            }),
+          },
         },
       ],
     }).compile();

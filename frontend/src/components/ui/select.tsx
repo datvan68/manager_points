@@ -109,12 +109,12 @@ export const Select = ({
     >
       <div ref={containerRef} className={cn("flex flex-col gap-1.5 w-full", containerClassName)}>
         {label && (
-          <label className="flex items-center gap-1 px-1 text-sm font-medium text-slate-700">
+          <label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">
             {label}
             {required && <span className="text-red-500">*</span>}
           </label>
         )}
-        <div className="relative w-full">
+        <div className={cn("relative w-full", open && "z-50")}>
           {children}
         </div>
         {error && (
@@ -153,7 +153,7 @@ export const SelectTrigger = React.forwardRef<any, any>(
     return (
       <div
         className={cn(
-          "relative flex h-10 w-full items-center justify-between rounded-lg border border-slate-200 bg-[#f8fafc] px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all cursor-text",
+          "relative flex h-10 w-full items-center justify-between rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-[#1A73E8]/30 focus-within:border-[#1A73E8]/50 transition-all cursor-text",
           error && "border-red-500 focus-within:ring-red-500/20 focus-within:border-red-500",
           className
         )}
@@ -161,7 +161,7 @@ export const SelectTrigger = React.forwardRef<any, any>(
       >
         <input
           type="text"
-          className="w-full bg-transparent border-none outline-none text-sm text-slate-800 placeholder-slate-400"
+          className="w-full bg-transparent border-none outline-none text-sm text-[#1E293B] placeholder-slate-400 focus:ring-0"
           placeholder={placeholder}
           value={open ? searchQuery : (selectedLabel || "")}
           onChange={(e) => {
@@ -173,7 +173,7 @@ export const SelectTrigger = React.forwardRef<any, any>(
             setOpen(true);
           }}
         />
-        <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2 pointer-events-none" />
+        <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2 pointer-events-none text-[#64748B]" />
       </div>
     );
   }
@@ -227,7 +227,7 @@ export const SelectContent = React.forwardRef<any, any>(
     return (
       <div
         className={cn(
-          "absolute left-0 z-[100] min-w-full w-max max-w-[280px] bg-white rounded-xl shadow-xl border border-slate-100/60 p-1 overflow-hidden transition-all duration-200",
+          "absolute left-0 z-[100] min-w-full w-max max-w-[280px] bg-white/80 backdrop-blur-md rounded-xl shadow-md border border-white/70 p-1 overflow-hidden transition-all duration-200",
           openUp ? "bottom-full mb-1.5" : "top-full mt-1.5",
           open
             ? "opacity-100 visible scale-100 translate-y-0"
@@ -259,7 +259,7 @@ SelectContent.displayName = "SelectContent";
 export const SelectLabel = React.forwardRef<any, any>(
   ({ className, ...props }, ref) => (
     <div
-      className={cn("px-3 py-1.5 text-xs font-semibold text-slate-400", className)}
+      className={cn("px-3 py-1.5 text-xs font-semibold text-[#64748B]", className)}
       {...props}
     />
   )
@@ -273,7 +273,7 @@ export const SelectItem = React.forwardRef<any, any>(
 
     const { value, onValueChange, setOpen, setSearchQuery, setSelectedLabel } = context;
 
-    const isSelected = value === itemValue;
+    const isSelected = value !== undefined && value !== null && value !== "" && value === itemValue;
     const label = React.useMemo(() => getChildText(children), [children]);
 
     // Track active value and update the trigger input display label
@@ -297,8 +297,8 @@ export const SelectItem = React.forwardRef<any, any>(
       <div
         onClick={handleSelect}
         className={cn(
-          "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-sm outline-none text-slate-700 hover:bg-slate-50 transition-all whitespace-nowrap",
-          isSelected && "bg-blue-50 text-blue-700 font-bold",
+          "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-sm outline-none text-[#1E293B] hover:bg-white/60 transition-all whitespace-nowrap",
+          isSelected && "bg-blue-50/80 text-[#1A73E8] font-bold",
           className
         )}
         {...props}
@@ -306,7 +306,7 @@ export const SelectItem = React.forwardRef<any, any>(
         {children}
         {isSelected && (
           <span className="absolute right-3 flex h-3.5 w-3.5 items-center justify-center">
-            <Check className="h-4 w-4 text-blue-600" />
+            <Check className="h-4 w-4 text-[#1A73E8]" />
           </span>
         )}
       </div>

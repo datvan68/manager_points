@@ -7,12 +7,18 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { StudentTaskProgressModule } from '../student-task-progress/student-task-progress.module';
 
 import { Student, StudentSchema } from '../students/schemas/student.schema';
+import { User, UserSchema } from '../auth/schemas/user.schema';
+import { Role, RoleSchema } from '../auth/schemas/role.schema';
+import { Class, ClassSchema } from '../classes/schemas/class.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: StudentTask.name, schema: StudentTaskSchema },
       { name: Student.name, schema: StudentSchema },
+      { name: User.name, schema: UserSchema },
+      { name: Role.name, schema: RoleSchema },
+      { name: Class.name, schema: ClassSchema },
     ]),
     NotificationsModule,
     StudentTaskProgressModule,

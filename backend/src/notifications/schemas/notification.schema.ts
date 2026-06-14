@@ -29,6 +29,14 @@ export class Notification {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true, default: null })
   recipientUserId?: Types.ObjectId | null;
 
+  @Prop({
+    type: String,
+    enum: ['all', 'student', 'teacher', 'supervisor'],
+    default: 'all',
+    index: true,
+  })
+  targetRole?: string;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', default: null })
   createdBy?: Types.ObjectId | null;
 

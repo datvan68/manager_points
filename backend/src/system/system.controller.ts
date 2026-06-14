@@ -1,10 +1,11 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Req, Res } from '@nestjs/common';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { SystemService } from './system.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, MongoIdParamDto } from './dto/system.dto';
+import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, MongoIdParamDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto } from './dto/system.dto';
 
 export interface AuthenticatedRequest extends Request {
   user: {
@@ -102,5 +103,28 @@ export class SystemController {
   @Permissions('DATABASE_BACKUP_DELETE')
   deleteBackup(@Param() params: MongoIdParamDto, @Req() req: AuthenticatedRequest) {
     return this.systemService.deleteBackup(params.id, req.user.userId);
+  }
+
+  // ─── PERFORMANCE METRICS ───────────────────────────────────────────────────
+
+  @Post('performance/metrics')
+  @Permissions()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // More strict limit for this specific endpoint
+  // No explicit permission required to send telemetry if they are authenticated users
+  createPerformanceMetric(@Body() dto: CreateSystemPerformanceMetricDto, @Req() req: AuthenticatedRequest) {
+    return this.systemService.createPerformanceMetric(dto, req?.user);
+  }
+
+  @Get('performance/summary')
+  @Permissions('SYSTEM_PERFORMANCE_READ')
+  getPerformanceSummary(@Query() query: GetPerformanceSummaryQueryDto) {
+    return this.systemService.getPerformanceSummary(query);
+  }
+
+  @Get('performance/metrics')
+  @Permissions('SYSTEM_PERFORMANCE_READ')
+  getPerformanceMetrics(@Query() query: GetPerformanceMetricsQueryDto) {
+    return this.systemService.getPerformanceMetricsList(query);
   }
 }

@@ -39,7 +39,7 @@ const Popup: React.FC<PopupProps> = ({ isOpen, onClose, title, children, action,
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
             onClick={onClose}
           />
           <motion.div 
@@ -47,13 +47,13 @@ const Popup: React.FC<PopupProps> = ({ isOpen, onClose, title, children, action,
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", duration: 0.3 }}
-            className={`relative bg-white rounded-xl shadow-xl w-full flex flex-col max-h-[90vh] overflow-hidden ${className || 'max-w-lg'}`}
+            className={`relative w-full flex flex-col max-h-[90vh] overflow-hidden ${className?.includes('bg-') ? '' : 'bg-white/80 backdrop-blur-xl border border-white/80'} ${className?.includes('rounded-') ? '' : 'rounded-2xl'} ${className?.includes('shadow-') ? '' : 'shadow-xl shadow-slate-300/30'} ${className || 'max-w-lg'}`}
           >
             {title !== undefined && (
-              <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white z-10 sticky top-0">
+              <div className="flex items-center justify-between p-4 border-b border-white/40 bg-white/40 backdrop-blur-md z-10 sticky top-0">
                 <div className="flex items-center gap-3">
                   {typeof title === 'string' ? (
-                    <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+                    <h3 className="text-lg font-bold text-[#1E293B]">{title}</h3>
                   ) : (
                     title
                   )}
@@ -61,7 +61,7 @@ const Popup: React.FC<PopupProps> = ({ isOpen, onClose, title, children, action,
                 </div>
               <button 
                 onClick={onClose}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-white/60 transition-colors focus:outline-none"
               >
                 <X size={20} />
               </button>
@@ -70,7 +70,7 @@ const Popup: React.FC<PopupProps> = ({ isOpen, onClose, title, children, action,
             {!title && (
               <button 
                 onClick={onClose}
-                className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50 transition-colors z-20"
+                className="absolute top-4 right-4 p-1 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-white/60 transition-colors z-20 focus:outline-none"
               >
                 <X size={20} />
               </button>

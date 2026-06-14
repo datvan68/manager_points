@@ -9,6 +9,7 @@ import { Role, RoleDocument } from '../auth/schemas/role.schema';
 import { GetProgressOverviewDto } from './dto/get-progress-overview.dto';
 import { UpdateProgressStatusDto } from './dto/update-progress-status.dto';
 import { LinkedTaskProgressEventDto } from './dto/linked-task-progress-event.dto';
+import { Class, ClassDocument } from '../classes/schemas/class.schema';
 
 @Injectable()
 export class StudentTaskProgressService {
@@ -18,6 +19,7 @@ export class StudentTaskProgressService {
     @InjectModel(Student.name) private studentModel: Model<StudentDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
+    @InjectModel(Class.name) private classModel: Model<ClassDocument>,
   ) {}
 
   async syncProgressForTask(taskId: string): Promise<{
@@ -183,8 +185,10 @@ export class StudentTaskProgressService {
     if (isStudent) {
       filter.assigneeUserId = new Types.ObjectId(user.userId);
     } else if (isTeacher && !hasAdminAccess) {
-      // Tìm các task mà teacher được phép xem (do mình tạo hoặc phân công cho mình)
       const teacherId = new Types.ObjectId(user.userId);
+      const advisorClasses = await this.classModel.find({ advisor_id: teacherId as any }).select('_id').lean().exec();
+      const advisorClassIds = advisorClasses.map(c => c._id);
+
       const teacherTasks = await this.taskModel.find({
         deletedAt: null,
         $or: [
@@ -197,20 +201,21 @@ export class StudentTaskProgressService {
             ],
           },
         ]
-      }, { _id: 1 }).exec();
-      const validTaskIds = teacherTasks.map(t => t._id);
-      
-      // Nếu user cung cấp taskId, phải kiểm tra xem có nằm trong validTaskIds không
+      }, { _id: 1, createdBy: 1 }).exec();
+      const validTaskIdsFromTeacherRole = teacherTasks.map(t => t._id);
+
       if (query.taskId) {
-        const queryTaskId = new Types.ObjectId(query.taskId);
-        if (!validTaskIds.some(id => id.equals(queryTaskId))) {
-          // Trả về rỗng nếu không có quyền xem task này
-          return { items: [], total: 0, page: query.page || 1, limit: query.limit || 10, totalPages: 0, summary: { totalAssignees: 0, notStarted: 0, inProgress: 0, completed: 0, completionRate: 0 } };
-        }
-        filter.taskId = queryTaskId;
-      } else {
-        filter.taskId = { $in: validTaskIds };
+        filter.taskId = new Types.ObjectId(query.taskId);
       }
+
+      if (query.classId) {
+        filter.classId = new Types.ObjectId(query.classId);
+      }
+
+      filter.$or = [
+        { taskId: { $in: validTaskIdsFromTeacherRole } },
+        { classId: { $in: advisorClassIds } }
+      ];
     } else {
       // Admin/Supervisor
       if (query.taskId) {
@@ -225,7 +230,7 @@ export class StudentTaskProgressService {
     if (query.assigneeType && query.assigneeType !== 'all') {
       filter.assigneeType = query.assigneeType;
     }
-    if (query.classId) {
+    if (query.classId && !filter.classId) {
       filter.classId = new Types.ObjectId(query.classId);
     }
     if (query.includeInactive && hasUpdatePermission) {

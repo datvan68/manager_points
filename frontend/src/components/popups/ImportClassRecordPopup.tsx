@@ -135,9 +135,10 @@ export default function ImportClassRecordPopup({ isOpen, onClose, onSuccess }: I
         if (rawRows.length > 5000) throw new Error('Giới hạn 5.000 dòng');
 
         // load references
-        const [allClasses, allStudents, allCriteria, allSemesters] = await Promise.all([
+        const [allClasses, allStudentsRes, allCriteria, allSemesters] = await Promise.all([
           classApi.getClasses(), studentApi.getStudents(), criteriaApi.getCriteria(), semesterApi.getSemesters()
         ]);
+        const allStudents = Array.isArray(allStudentsRes) ? allStudentsRes : (allStudentsRes?.data || []);
 
         const errors: ImportValidationError[] = [];
         const activeSem = allSemesters.find((ss:any) => ss.status === 'active');
@@ -256,7 +257,8 @@ export default function ImportClassRecordPopup({ isOpen, onClose, onSuccess }: I
         let recordsCreated = 0;
         let summariesCache: any[] = [];
         try {
-          summariesCache = await summariesPointApi.getSummariesPoints();
+          const summariesRes = await summariesPointApi.getSummariesPoints();
+          summariesCache = Array.isArray(summariesRes) ? summariesRes : (summariesRes?.data || []);
         } catch (e) {
           console.warn('Khong the nap summaries point', e);
         }

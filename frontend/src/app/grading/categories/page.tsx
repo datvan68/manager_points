@@ -942,7 +942,7 @@ function CategoriesPage() {
                         ) : !activeCat ? (
                           /* Empty state: chưa chọn danh mục */
                           <div className={`${glassCardClass} flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[500px]`}>
-                            <div className="p-5 bg-slate-50 rounded-2xl mb-4">
+                            <div className="p-5 bg-white/40 border border-white/60 rounded-2xl mb-4">
                               <PanelLeftClose size={40} strokeWidth={1.5} className="text-slate-300" />
                             </div>
                             <h3 className="text-[16px] font-bold text-slate-700 mb-1">Chọn một danh mục</h3>
@@ -954,7 +954,7 @@ function CategoriesPage() {
                           /* Panel hiển thị tiêu chí của danh mục đang chọn */
                           <div className={`${glassCardClass} overflow-hidden flex flex-col min-h-[500px]`}>
                             {/* Header thông tin danh mục */}
-                            <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
+                            <div className="px-6 py-4 border-b border-white/60 bg-gradient-to-r from-white/30 to-white/60 backdrop-blur-sm">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                   <div
@@ -1017,7 +1017,7 @@ function CategoriesPage() {
                             <div className="flex-1 overflow-y-auto px-3 custom-scrollbar">
                               {activeCriteria.length === 0 ? (
                                 <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
-                                  <div className="p-4 bg-slate-50 rounded-xl mb-3">
+                                  <div className="p-4 bg-white/40 border border-white/60 rounded-xl mb-3">
                                     <Plus size={28} strokeWidth={1.5} className="text-slate-300" />
                                   </div>
                                   <p className="text-[13px] text-slate-400 font-medium">Chưa có tiêu chí nào</p>

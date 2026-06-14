@@ -153,7 +153,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
           setClassesList(classes);
 
           // Load students
-          const students = await studentApi.getStudents();
+          const studentsRes = await studentApi.getStudents();
+          const students = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.data || []);
           setStudentsList(students);
 
           // Load teachers sử dụng API đã chuẩn hóa dùng shared httpClient
@@ -232,10 +233,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[999] flex items-center justify-center p-4">
-      <div className="w-full md:max-w-3xl lg:max-w-4xl bg-white/90 backdrop-blur-md border border-white/80 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[95vh]">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+      <div className="w-full md:max-w-3xl lg:max-w-4xl bg-white/80 backdrop-blur-md border border-white/70 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[95vh]">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white/40">
+        <div className="px-5 py-4 border-b border-white/50 flex items-center justify-between bg-white/40">
           <div className="flex items-center gap-2">
             <PlusCircle className="text-[#1A73E8] w-5 h-5" />
             <h3 className="font-bold text-base text-[#1E293B]">
@@ -246,7 +247,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
             type="button"
             onClick={onClose}
             disabled={isSaving}
-            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-1 rounded-xl text-slate-400 hover:text-[#1E293B] hover:bg-white/50 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <X size={18} />
           </button>
@@ -268,7 +269,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                     placeholder="Nhập tên nhiệm vụ học tập..."
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
+                    className="w-full rounded-xl border border-white/70 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all duration-150"
                   />
                 </div>
 
@@ -277,7 +278,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-[#64748B] block">Loại nhiệm vụ</label>
                     <Select value={type} onValueChange={(val: any) => setType(val)}>
-                      <SelectTrigger className="rounded-xl bg-white/50 border-gray-200">
+                      <SelectTrigger className="rounded-xl bg-white/50 border-white/70 focus:ring-2 focus:ring-[#1A73E8]/30">
                         <SelectValue placeholder="Chọn loại nhiệm vụ" />
                       </SelectTrigger>
                       <SelectContent>
@@ -292,7 +293,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-[#64748B] block">Độ ưu tiên</label>
                     <Select value={priority} onValueChange={(val: any) => setPriority(val)}>
-                      <SelectTrigger className="rounded-xl bg-white/50 border-gray-200">
+                      <SelectTrigger className="rounded-xl bg-white/50 border-white/70 focus:ring-2 focus:ring-[#1A73E8]/30">
                         <SelectValue placeholder="Chọn độ ưu tiên" />
                       </SelectTrigger>
                       <SelectContent>
@@ -313,7 +314,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                     placeholder="Ví dụ: Thiết kế trải nghiệm người dùng, Toán cao cấp..."
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
+                    className="w-full rounded-xl border border-white/70 bg-white/50 px-3 py-2 text-sm text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all duration-150"
                   />
                 </div>
 
@@ -325,7 +326,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                       <PopoverTrigger asChild>
                         <button
                           type="button"
-                          className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-white/50 px-3 py-2.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all text-left"
+                          className="w-full flex items-center justify-between rounded-xl border border-white/70 bg-white/50 px-3 py-2.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all duration-150 text-left"
                         >
                           <span className={deadline ? 'text-[#1E293B]' : 'text-gray-400'}>
                             {deadline ? format(new Date(deadline), 'dd/MM/yyyy') : 'Chọn ngày...'}
@@ -333,7 +334,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                           <CalendarIcon className="h-4 w-4 text-gray-400" />
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[1000] bg-transparent border-none shadow-none" align="start">
+                      <PopoverContent className="w-auto p-0 z-[1000] bg-transparent border-none shadow-none overflow-hidden" align="start">
                         <CustomCalendar
                           startDate={deadline ? new Date(deadline) : null}
                           endDate={deadline ? new Date(deadline) : null}
@@ -362,7 +363,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                     <Select value={status} onValueChange={(val: any) => setStatus(val)}>
                       <SelectTrigger 
                         className={cn(
-                          "rounded-xl bg-white/50 border-gray-200",
+                          "rounded-xl bg-white/50 border-white/70 focus:ring-2 focus:ring-[#1A73E8]/30",
                           editingTask && "pointer-events-none bg-slate-100 text-slate-500"
                         )}
                       >
@@ -386,8 +387,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
               {/* Cột phải: Đối tượng & Liên kết */}
               <div className="space-y-4">
                 {/* Cấu hình Đối tượng áp dụng (Target Audience) */}
-                <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3.5 space-y-3.5">
-                  <div className="flex items-center gap-1.5 border-b border-slate-200/40 pb-2">
+                <div className="bg-white/30 border border-white/50 rounded-xl p-3.5 space-y-3.5 shadow-xs">
+                  <div className="flex items-center gap-1.5 border-b border-white/50 pb-2">
                     <UserCheck size={16} className="text-[#1A73E8]" />
                     <span className="text-xs font-bold text-[#1E293B]">Đối tượng áp dụng nhiệm vụ</span>
                   </div>
@@ -396,10 +397,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                     {(['HSSV', 'Giáo viên', 'Quản sinh'] as const).map((role) => (
                       <label 
                         key={role} 
-                        className={`flex items-center justify-center gap-2 p-2 rounded-xl border cursor-pointer text-xs font-semibold transition-all ${
+                        className={`flex items-center justify-center gap-2 p-2 rounded-xl border cursor-pointer text-xs font-semibold transition-all duration-150 hover:scale-[1.01] ${
                           targetType === role 
-                            ? 'bg-blue-50/60 border-blue-300 text-[#1A73E8] shadow-xs' 
-                            : 'bg-white border-gray-200 text-gray-600 hover:bg-slate-50'
+                            ? 'bg-blue-50/70 border-[#1A73E8]/50 text-[#1A73E8] shadow-sm' 
+                            : 'bg-white/50 border-white/70 text-[#64748B] hover:bg-white/80 hover:text-[#1E293B]'
                         }`}
                       >
                         <input 
@@ -426,7 +427,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                       <div className="space-y-1">
                         <label className="text-xs font-semibold text-[#64748B] block">Phạm vi</label>
                         <Select value={targetScope} onValueChange={(val: any) => setTargetScope(val)}>
-                          <SelectTrigger className="rounded-xl bg-white border-gray-200">
+                          <SelectTrigger className="rounded-xl bg-white/50 border-white/70 focus:ring-2 focus:ring-[#1A73E8]/30">
                             <SelectValue placeholder="Chọn phạm vi" />
                           </SelectTrigger>
                           <SelectContent>
@@ -438,7 +439,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
 
                       {/* Giao diện chọn các ID thật khi scope cụ thể */}
                       {targetScope === 'Cụ thể' && (
-                        <div className="space-y-3 pt-2 animate-in fade-in slide-in-from-top-1 duration-150 border-t border-slate-200/40">
+                        <div className="space-y-3 pt-2 animate-in fade-in slide-in-from-top-1 duration-150 border-t border-white/40">
                           {isLoadingSpecificData ? (
                             <div className="flex items-center justify-center py-4">
                               <div className="w-5 h-5 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
@@ -451,7 +452,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                                   {/* Chọn lớp học */}
                                   <div className="space-y-1">
                                     <label className="text-xs font-semibold text-[#64748B] block">Chọn Lớp học áp dụng (Có thể chọn nhiều)</label>
-                                    <div className="border border-gray-200 rounded-xl p-2 bg-white max-h-32 overflow-y-auto space-y-1.5">
+                                    <div className="border border-white/70 rounded-xl p-2 bg-white/50 max-h-32 overflow-y-auto space-y-1.5">
                                       {classesList.map((cls) => {
                                         const isChecked = selectedClassIds.includes(cls._id);
                                         return (
@@ -479,7 +480,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                                   {/* Chọn học sinh */}
                                   <div className="space-y-1">
                                     <label className="text-xs font-semibold text-[#64748B] block">Chọn Học sinh cụ thể (Không bắt buộc nếu đã chọn lớp)</label>
-                                    <div className="border border-gray-200 rounded-xl p-2 bg-white max-h-40 overflow-y-auto space-y-1.5">
+                                    <div className="border border-white/70 rounded-xl p-2 bg-white/50 max-h-40 overflow-y-auto space-y-1.5">
                                       {studentsList.map((stud) => {
                                         const isChecked = selectedStudentIds.includes(stud._id);
                                         return (
@@ -509,7 +510,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                               {targetType === 'Giáo viên' && (
                                 <div className="space-y-1">
                                   <label className="text-xs font-semibold text-[#64748B] block">Chọn Giáo viên áp dụng (Có thể chọn nhiều)</label>
-                                  <div className="border border-gray-200 rounded-xl p-2 bg-white max-h-40 overflow-y-auto space-y-1.5">
+                                  <div className="border border-white/70 rounded-xl p-2 bg-white/50 max-h-40 overflow-y-auto space-y-1.5">
                                     {teachersList.map((teacher) => {
                                       const isChecked = selectedTeacherIds.includes(teacher._id);
                                       return (
@@ -544,7 +545,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                                   placeholder={targetType === 'HSSV' ? 'Ví dụ: Lớp K45A, Nguyễn Văn A...' : 'Ví dụ: GV Nguyễn Văn B...'}
                                   value={targetDetail}
                                   onChange={(e) => setTargetDetail(e.target.value)}
-                                  className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
+                                  className="w-full rounded-xl border border-white/70 bg-white/50 px-2.5 py-1.5 text-xs text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all duration-150"
                                 />
                               </div>
                             </>
@@ -556,8 +557,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                 </div>
 
                 {/* Cấu hình Trang liên kết (Linked Route) */}
-                <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3.5 space-y-3.5">
-                  <div className="flex items-center gap-1.5 border-b border-slate-200/40 pb-2">
+                <div className="bg-white/30 border border-white/50 rounded-xl p-3.5 space-y-3.5 shadow-xs">
+                  <div className="flex items-center gap-1.5 border-b border-white/50 pb-2">
                     <LinkIcon size={15} className="text-[#1A73E8]" />
                     <span className="text-xs font-bold text-[#1E293B]">Trang liên kết nhiệm vụ</span>
                   </div>
@@ -566,7 +567,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-[#64748B] block">Chọn trang đích</label>
                       <Select value={pageSelection} onValueChange={setPageSelection}>
-                        <SelectTrigger className="rounded-xl bg-white border-gray-200">
+                        <SelectTrigger className="rounded-xl bg-white/50 border-white/70 focus:ring-2 focus:ring-[#1A73E8]/30">
                           <SelectValue placeholder="Chọn trang đích" />
                         </SelectTrigger>
                         <SelectContent>
@@ -589,7 +590,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                           placeholder="Ví dụ: /students/123, /classes"
                           value={customPageUrl}
                           onChange={(e) => setCustomPageUrl(e.target.value)}
-                          className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all"
+                          className="w-full rounded-xl border border-white/70 bg-white/50 px-2.5 py-1.5 text-xs text-[#1E293B] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all duration-150"
                         />
                       </div>
                     )}
@@ -636,12 +637,12 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-gray-100 bg-white/40 p-5 shrink-0">
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-white/50 bg-white/40 p-5 shrink-0">
             <button
               type="button"
               onClick={onClose}
               disabled={isSaving}
-              className="px-4 py-2 rounded-xl text-sm font-semibold text-[#64748B] hover:bg-gray-100 active:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-xl text-sm font-semibold text-[#64748B] hover:bg-white/50 active:scale-[0.98] transition-all duration-150 hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Hủy bỏ
             </button>

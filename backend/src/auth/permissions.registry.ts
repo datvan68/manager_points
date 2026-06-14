@@ -47,6 +47,20 @@ export const SYSTEM_OPERATIONS_GROUP = {
   status: 'Active',
 };
 
+export const REPORT_MANAGER_GROUP = {
+  code: 'G_REPORT',
+  name: 'Báo cáo Thống kê',
+  description: 'Nhóm quyền truy cập và thao tác với các báo cáo, thống kê.',
+  status: 'Active',
+};
+
+export const PROPOSED_PERMISSION_GROUP = {
+  code: 'G_PROPOSED',
+  name: 'Đề xuất bổ sung',
+  description: 'Nhóm các quyền được đề xuất để bổ sung cho chức năng tương lai (chưa có guard thực tế).',
+  status: 'Active',
+};
+
 export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
   // 1. Nhóm Trang Phân Quyền
   {
@@ -285,4 +299,41 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     module: SYSTEM_OPERATIONS_GROUP.name,
     description: '⚠️ QUYỀN HẠN NHẠY CẢM: Cho phép xóa vĩnh viễn tệp sao lưu dữ liệu trên server, không thể khôi phục.',
   },
+  {
+    code: 'SYSTEM_PERFORMANCE_READ',
+    name: 'Xem hiệu năng hệ thống',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: 'Cho phép xem thống kê hiệu năng trang và API.',
+  },
+
+  // Nhóm Báo cáo
+  {
+    code: 'REPORTS_PAGE',
+    name: 'Truy cập trang báo cáo',
+    module: REPORT_MANAGER_GROUP.name,
+    description: 'Cho phép truy cập vào giao diện trang thống kê báo cáo.',
+  },
+  {
+    code: 'REPORTS_READ',
+    name: 'Xem báo cáo',
+    module: REPORT_MANAGER_GROUP.name,
+    description: 'Cho phép xem dữ liệu các báo cáo và biểu đồ thống kê.',
+  },
+
+  // Nhóm Đề xuất bổ sung (Các quyền CRUD cho trang /permissions chưa có guard)
+  { code: 'USER_CREATE', name: 'Thêm người dùng', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Thêm mới người dùng' },
+  { code: 'USER_UPDATE', name: 'Cập nhật người dùng', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Chỉnh sửa thông tin người dùng' },
+  { code: 'USER_DELETE', name: 'Xóa người dùng', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Xóa người dùng' },
+  { code: 'ROLE_CREATE', name: 'Thêm vai trò', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Tạo mới vai trò' },
+  { code: 'ROLE_UPDATE', name: 'Cập nhật vai trò', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Chỉnh sửa vai trò' },
+  { code: 'ROLE_DELETE', name: 'Xóa vai trò', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Xóa vai trò' },
+  { code: 'PERMISSION_CREATE', name: 'Thêm quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Thêm mới mã quyền' },
+  { code: 'PERMISSION_UPDATE', name: 'Cập nhật quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Cập nhật thông tin quyền' },
+  { code: 'PERMISSION_DELETE', name: 'Xóa quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Xóa mã quyền' },
+  { code: 'PERMISSION_GROUP_CREATE', name: 'Thêm nhóm quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Thêm nhóm quyền' },
+  { code: 'PERMISSION_GROUP_UPDATE', name: 'Cập nhật nhóm quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Cập nhật nhóm quyền' },
+  { code: 'PERMISSION_GROUP_DELETE', name: 'Xóa nhóm quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Xóa nhóm quyền' },
+  { code: 'ROUTE_PERMISSION_CREATE', name: 'Thêm Route Permission', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Thêm mapping route permission' },
+  { code: 'ROUTE_PERMISSION_UPDATE', name: 'Cập nhật Route Permission', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Cập nhật mapping route permission' },
+  { code: 'ROUTE_PERMISSION_DELETE', name: 'Xóa Route Permission', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Xóa mapping route permission' },
 ];

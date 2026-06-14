@@ -116,20 +116,7 @@ export class CreateEvaluationDetailDto {
   @IsMongoId()
   gv_reviewed_by?: string;
 
-  @ApiProperty({ example: 10, required: false })
-  @IsOptional()
-  @IsNumber()
-  final_score?: number;
 
-  @ApiProperty({ example: '2026-06-04T00:00:00.000Z', required: false })
-  @IsOptional()
-  @IsDateString()
-  locked_at?: string;
-
-  @ApiProperty({ example: '60c72b2f9b1d8b2bad123456', required: false })
-  @IsOptional()
-  @IsMongoId()
-  locked_by?: string;
 
   @ApiProperty({
     example: 'draft',

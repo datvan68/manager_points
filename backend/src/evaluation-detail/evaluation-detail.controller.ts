@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
 import { EvaluationDetailService } from './evaluation-detail.service';
 import { CreateEvaluationDetailDto } from './dto/create-evaluation-detail.dto';
@@ -60,6 +61,19 @@ export class EvaluationDetailController {
     return this.evaluationDetailService.getPreExistingCountsForSummary(summaryId, req.user);
   }
 
+  @Post('pre-counts/bulk')
+  @ApiOperation({
+    summary: 'Đếm hàng loạt số academic_record đã có sẵn cho nhiều bảng tổng kết',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Trả về map { summaryId: { criterionId: counts } } các ghi nhận đã có sẵn.',
+  })
+  getPreExistingCountsBulk(@Body() body: any, @Request() req: any) {
+    const { summaryIds } = body;
+    return this.evaluationDetailService.getPreExistingCountsBulk(summaryIds, req.user);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Lấy chi tiết chấm điểm bằng ID' })
   @ApiResponse({
@@ -82,8 +96,13 @@ export class EvaluationDetailController {
     status: 200,
     description: 'Trả về danh sách chi tiết chấm điểm của bảng tổng kết.',
   })
-  findBySummaryId(@Param('summaryId') summaryId: string, @Request() req: any) {
-    return this.evaluationDetailService.findBySummaryId(summaryId, req.user);
+  findBySummaryId(
+    @Param('summaryId') summaryId: string,
+    @Request() req: any,
+    @Query('includeLogs') includeLogs?: string,
+  ) {
+    const fetchLogs = includeLogs === 'true';
+    return this.evaluationDetailService.findBySummaryId(summaryId, req.user, fetchLogs);
   }
 
   @Patch(':id')

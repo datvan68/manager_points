@@ -61,6 +61,7 @@ describe('NotificationsService', () => {
                 }),
               }),
               findOne: jest.fn().mockReturnValue({
+                populate: jest.fn().mockReturnThis(),
                 exec: jest.fn().mockResolvedValue({
                   ...mockNotification,
                   toObject: () => ({ ...mockNotification }),

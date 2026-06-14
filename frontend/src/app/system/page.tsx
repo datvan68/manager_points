@@ -5,8 +5,9 @@ import { RouteGuard } from "@/components/guards/RouteGuard";
 import { useAuth } from "@/providers/auth-provider";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
-import { systemApi, LoginLog, LoginLogsSummary, SystemRequest, BackupJob } from "@/api/system-api";
+import { systemApi, LoginLog, LoginLogsSummary, SystemRequest, BackupJob, SystemPerformanceSummary } from "@/api/system-api";
 import { authApi } from "@/api/auth-api";
+import { systemPerformance } from "@/lib/performance/system-performance";
 import { tokenStorage } from "@/api/auth-api";
 import { toast } from "sonner";
 import ConfirmModal from "@/components/modals/ConfirmModal";
@@ -32,14 +33,24 @@ import {
   ExternalLink,
   Lock,
   Unlock,
-  AlertCircle
+  AlertCircle,
+  Activity
 } from "lucide-react";
 
 export default function SystemAdminPage() {
+  // Start performance monitor when page is loaded
+  useEffect(() => {
+    systemPerformance.start();
+    return () => {
+      systemPerformance.stop();
+    };
+  }, []);
+
   return (
     <RouteGuard
       anyPermission={[
         "SYSTEM_ADMIN",
+        "SYSTEM_PERFORMANCE_READ",
         "LOGIN_LOG_READ",
         "SYSTEM_REQUEST_READ",
         "SYSTEM_REQUEST_MANAGE",
@@ -67,19 +78,22 @@ function SystemAdminDashboard() {
   const canCreateBackup = hasPermission("DATABASE_BACKUP_CREATE");
   const canDownloadBackup = hasPermission("DATABASE_BACKUP_DOWNLOAD");
   const canDeleteBackup = hasPermission("DATABASE_BACKUP_DELETE");
+  const canReadPerformance = hasPermission("SYSTEM_PERFORMANCE_READ");
 
-  const [activeTab, setActiveTab] = useState<"logs" | "requests" | "backup">("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "requests" | "backup" | "performance">("logs");
   
   // Tự động chuyển sang tab có quyền nếu không có quyền xem log
   useEffect(() => {
     if (!canReadLogs) {
-      if (canReadRequests) {
+      if (canReadPerformance) {
+        setActiveTab("performance");
+      } else if (canReadRequests) {
         setActiveTab("requests");
       } else if (canReadBackups) {
         setActiveTab("backup");
       }
     }
-  }, [canReadLogs, canReadRequests, canReadBackups]);
+  }, [canReadLogs, canReadPerformance, canReadRequests, canReadBackups]);
   
   // --- Tab 1: Login Logs States ---
   const [logs, setLogs] = useState<LoginLog[]>([]);
@@ -129,6 +143,10 @@ function SystemAdminDashboard() {
   const [isConfirmDeleteBackupOpen, setIsConfirmDeleteBackupOpen] = useState(false);
   const [backupToDelete, setBackupToDelete] = useState<string | null>(null);
 
+  // --- Tab 4: Performance States ---
+  const [performanceSummary, setPerformanceSummary] = useState<SystemPerformanceSummary | null>(null);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
+
   // ---------------------------------------------------------------------------
   // EFFECT: Fetch Login Logs & Summary
   // ---------------------------------------------------------------------------
@@ -136,12 +154,12 @@ function SystemAdminDashboard() {
     if (!canReadLogs) return;
     try {
       if (showLoading) setLogsLoading(true);
-      const res = await systemApi.getLoginLogs({
+      const res = await systemPerformance.trackApi('login-logs', () => systemApi.getLoginLogs({
         page,
         limit: 20,
         action: logsFilterAction || undefined,
         search: logsSearch || undefined,
-      });
+      }));
       setLogs(res.items);
       setLogsTotalPages(res.totalPages);
       setLogsPage(res.page);
@@ -155,7 +173,7 @@ function SystemAdminDashboard() {
   const fetchLogsSummary = async () => {
     if (!canReadLogs) return;
     try {
-      const summary = await systemApi.getLoginLogsSummary();
+      const summary = await systemPerformance.trackApi('login-logs/summary', () => systemApi.getLoginLogsSummary());
       setLogsSummary(summary);
     } catch (err: any) {
       console.error("Failed to load logs summary", err);
@@ -241,13 +259,13 @@ function SystemAdminDashboard() {
     if (!canReadRequests) return;
     try {
       setRequestsLoading(true);
-      const res = await systemApi.getRequests({
+      const res = await systemPerformance.trackApi('requests', () => systemApi.getRequests({
         page,
         limit: 20,
         status: requestsFilterStatus || undefined,
         type: requestsFilterType || undefined,
         search: requestsSearch || undefined,
-      });
+      }));
       setRequests(res.items);
       setRequestsTotalPages(res.totalPages);
       setRequestsPage(res.page);
@@ -387,7 +405,7 @@ function SystemAdminDashboard() {
     if (!canReadBackups) return;
     try {
       setBackupsLoading(true);
-      const res = await systemApi.getBackups({ page, limit: 20 });
+      const res = await systemPerformance.trackApi('backups', () => systemApi.getBackups({ page, limit: 20 }));
       setBackups(res.items);
       setBackupsTotalPages(res.totalPages);
       setBackupsPage(res.page);
@@ -424,7 +442,7 @@ function SystemAdminDashboard() {
     if (!canCreateBackup) return;
     try {
       setIsConfirmBackupOpen(false);
-      await systemApi.createBackup();
+      await systemPerformance.trackApi('create-backup', () => systemApi.createBackup());
       toast.success("Tiến trình sao lưu đã được lập lịch khởi chạy.");
       fetchBackups(1);
     } catch (err: any) {
@@ -462,6 +480,25 @@ function SystemAdminDashboard() {
   };
 
   // Helpers
+  const fetchPerformance = async () => {
+    if (!canReadPerformance) return;
+    try {
+      setPerformanceLoading(true);
+      const summary = await systemPerformance.trackApi('performance-summary', () => systemApi.getPerformanceSummary({ route: "/system" }));
+      setPerformanceSummary(summary);
+    } catch (err: any) {
+      toast.error("Lỗi tải thông tin hiệu năng: " + err.message);
+    } finally {
+      setPerformanceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "performance" && canReadPerformance) {
+      fetchPerformance();
+    }
+  }, [activeTab, canReadPerformance]);
+
   const formatBytes = (bytes?: number) => {
     if (!bytes) return "0 Bytes";
     const k = 1024;
@@ -542,6 +579,17 @@ function SystemAdminDashboard() {
             >
               <Server size={14} />
               Sao lưu database
+            </button>
+          )}
+          {canReadPerformance && (
+            <button
+              onClick={() => setActiveTab("performance")}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === "performance" ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Activity size={14} />
+              Hiệu năng
             </button>
           )}
         </div>
@@ -758,6 +806,148 @@ function SystemAdminDashboard() {
                     </div>
                   </div>
                 )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* --------------------------------------------------------------------- */}
+      {/* TAB 4: PERFORMANCE */}
+      {/* --------------------------------------------------------------------- */}
+      {activeTab === "performance" && (
+        <div className="space-y-6">
+          {!canReadPerformance ? (
+            <div className="bg-white/70 backdrop-blur-md border border-red-100 p-8 rounded-2xl shadow-sm text-center">
+              <Lock className="mx-auto text-red-400 mb-2" size={32} />
+              <p className="text-sm font-bold text-slate-700">Bạn không có quyền xem thông tin hiệu năng</p>
+            </div>
+          ) : (
+            <>
+              {/* KPI Dashboard */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                  <span className="text-xs font-semibold text-slate-500">Load p75</span>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-2xl font-bold text-slate-800">
+                      {performanceSummary?.p75?.load_event_ms ? Math.round(performanceSummary.p75.load_event_ms) : 0}
+                    </span>
+                    <span className="text-[10px] text-slate-400">ms</span>
+                  </div>
+                </div>
+                
+                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                  <span className="text-xs font-semibold text-slate-500">LCP p75</span>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-2xl font-bold text-emerald-600">
+                      {performanceSummary?.p75?.lcp_ms ? Math.round(performanceSummary.p75.lcp_ms) : 0}
+                    </span>
+                    <span className="text-[10px] text-slate-400">ms</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                  <span className="text-xs font-semibold text-slate-500">API p95</span>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-2xl font-bold text-indigo-600">
+                      {performanceSummary?.p95?.api_total_ms ? Math.round(performanceSummary.p95.api_total_ms) : 0}
+                    </span>
+                    <span className="text-[10px] text-slate-400">ms</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                  <span className="text-xs font-semibold text-slate-500">Tổng mẫu thu thập</span>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-2xl font-bold text-blue-600">
+                      {performanceSummary?.total_samples ?? 0}
+                    </span>
+                    <span className="text-[10px] text-slate-400">mẫu</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Slow APIs */}
+                <div className="lg:col-span-2 bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4">
+                  <h2 className="text-sm font-bold text-slate-800">Các API chậm</h2>
+                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                          <th className="px-4 py-3">Endpoint</th>
+                          <th className="px-4 py-3">Trung bình</th>
+                          <th className="px-4 py-3">p75</th>
+                          <th className="px-4 py-3">p95</th>
+                          <th className="px-4 py-3">Mẫu</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                        {performanceLoading ? (
+                          <tr>
+                            <td colSpan={5} className="text-center py-8 text-slate-400">Đang tải dữ liệu...</td>
+                          </tr>
+                        ) : !performanceSummary?.slow_apis?.length ? (
+                          <tr>
+                            <td colSpan={5} className="text-center py-8 text-slate-400">
+                              Chưa có dữ liệu API chậm.
+                            </td>
+                          </tr>
+                        ) : (
+                          performanceSummary.slow_apis.map((api, i) => (
+                            <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-4 py-3 font-semibold text-slate-800">{api.name}</td>
+                              <td className="px-4 py-3 text-slate-500">{Math.round(api.avg)}ms</td>
+                              <td className="px-4 py-3 text-amber-600">{Math.round(api.p75)}ms</td>
+                              <td className="px-4 py-3 text-red-600">{Math.round(api.p95)}ms</td>
+                              <td className="px-4 py-3 text-slate-500">{api.samples}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Recommendations */}
+                <div className="lg:col-span-1 bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4 h-fit">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-sm font-bold text-slate-800">Đề xuất tối ưu</h2>
+                    <button 
+                      onClick={fetchPerformance} 
+                      disabled={performanceLoading}
+                      className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors"
+                      title="Làm mới dữ liệu"
+                    >
+                      <RefreshCw size={12} className={performanceLoading ? "animate-spin" : ""} />
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {performanceLoading ? (
+                      <p className="text-xs text-slate-400 text-center py-8">Đang tải đề xuất...</p>
+                    ) : !performanceSummary?.recommendations?.length ? (
+                      <p className="text-xs text-slate-400 text-center py-8 border border-dashed rounded-xl border-slate-200">
+                        Hệ thống hoạt động tốt, chưa có đề xuất nào.
+                      </p>
+                    ) : (
+                      performanceSummary.recommendations.map((rec, i) => (
+                        <div key={i} className={`p-3 text-xs rounded-xl border ${
+                          rec.severity === 'critical' ? 'bg-red-50 border-red-100 text-red-800' :
+                          rec.severity === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-800' :
+                          'bg-blue-50 border-blue-100 text-blue-800'
+                        }`}>
+                          <p className="font-bold mb-1 flex items-center gap-1.5">
+                            {rec.severity === 'critical' && <AlertCircle size={14} />}
+                            {rec.severity === 'warning' && <AlertTriangle size={14} />}
+                            {rec.severity === 'info' && <CheckCircle size={14} />}
+                            {rec.code}
+                          </p>
+                          <p className="opacity-90">{rec.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </>
           )}
@@ -1106,6 +1296,155 @@ function SystemAdminDashboard() {
                   </div>
                 )}
               </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* --------------------------------------------------------------------- */}
+      {/* TAB 4: PERFORMANCE */}
+      {/* --------------------------------------------------------------------- */}
+      {activeTab === "performance" && (
+        <div className="space-y-6">
+          {!canReadPerformance ? (
+            <div className="bg-white/70 backdrop-blur-md border border-red-100 p-8 rounded-2xl shadow-sm text-center">
+              <Lock className="mx-auto text-red-400 mb-2" size={32} />
+              <p className="text-sm font-bold text-slate-700">Bạn không có quyền xem thông tin hiệu năng</p>
+            </div>
+          ) : (
+            <>
+              {/* Header and Refresh */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-slate-800">Hiệu năng truy cập hệ thống (/system)</h2>
+                <button
+                  onClick={fetchPerformance}
+                  disabled={performanceLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw size={14} className={performanceLoading ? "animate-spin" : ""} />
+                  Làm mới
+                </button>
+              </div>
+
+              {performanceLoading && !performanceSummary ? (
+                <div className="text-center py-12 text-slate-500 text-sm">Đang tải dữ liệu hiệu năng...</div>
+              ) : !performanceSummary || performanceSummary.total_samples === 0 ? (
+                <div className="bg-white/70 backdrop-blur-md border border-slate-100 p-12 rounded-2xl shadow-sm text-center">
+                  <Activity className="mx-auto text-slate-300 mb-3" size={40} />
+                  <p className="text-sm font-bold text-slate-600">Chưa có dữ liệu hiệu năng</p>
+                  <p className="text-xs text-slate-500 mt-1">Hệ thống sẽ ghi nhận khi có lượt truy cập và tải trang thành công.</p>
+                </div>
+              ) : (
+                <>
+                  {/* KPI Dashboard */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                      <span className="text-xs font-semibold text-slate-500">Tải trang (Load p75)</span>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className={`text-2xl font-bold ${performanceSummary.p75?.load_event_ms > 3000 ? "text-amber-600" : "text-emerald-600"}`}>
+                          {performanceSummary.p75?.load_event_ms ? Math.round(performanceSummary.p75.load_event_ms) : 0}
+                        </span>
+                        <span className="text-[10px] text-slate-400">ms</span>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                      <span className="text-xs font-semibold text-slate-500">Render (LCP p75)</span>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className={`text-2xl font-bold ${performanceSummary.p75?.lcp_ms > 2500 ? "text-amber-600" : "text-emerald-600"}`}>
+                          {performanceSummary.p75?.lcp_ms ? Math.round(performanceSummary.p75.lcp_ms) : 0}
+                        </span>
+                        <span className="text-[10px] text-slate-400">ms</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                      <span className="text-xs font-semibold text-slate-500">API Total (p95)</span>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className={`text-2xl font-bold ${performanceSummary.p95?.api_total_ms > 2000 ? "text-rose-600" : "text-indigo-600"}`}>
+                          {performanceSummary.p95?.api_total_ms ? Math.round(performanceSummary.p95.api_total_ms) : 0}
+                        </span>
+                        <span className="text-[10px] text-slate-400">ms</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                      <span className="text-xs font-semibold text-slate-500">Tổng mẫu thu thập</span>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className="text-2xl font-bold text-slate-800">
+                          {performanceSummary.total_samples}
+                        </span>
+                        <span className="text-[10px] text-slate-400">mẫu</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Layout cho Recommendations và Slow APIs */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Slow APIs Table */}
+                    <div className="lg:col-span-2 bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4">
+                      <h2 className="text-sm font-bold text-slate-800">Các API chậm nhất (Theo p95)</h2>
+                      <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                              <th className="px-4 py-3">API Endpoint</th>
+                              <th className="px-4 py-3 text-right">Avg (ms)</th>
+                              <th className="px-4 py-3 text-right">p75 (ms)</th>
+                              <th className="px-4 py-3 text-right">p95 (ms)</th>
+                              <th className="px-4 py-3 text-right">Mẫu</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                            {performanceSummary.slow_apis.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} className="text-center py-6 text-slate-400">Không có dữ liệu API</td>
+                              </tr>
+                            ) : (
+                              performanceSummary.slow_apis.map((api, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                  <td className="px-4 py-3 font-mono text-slate-600">{api.name}</td>
+                                  <td className="px-4 py-3 text-right font-medium">{Math.round(api.avg)}</td>
+                                  <td className="px-4 py-3 text-right font-medium text-amber-600">{Math.round(api.p75)}</td>
+                                  <td className="px-4 py-3 text-right font-bold text-rose-600">{Math.round(api.p95)}</td>
+                                  <td className="px-4 py-3 text-right text-slate-500">{api.samples}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Recommendations Panel */}
+                    <div className="lg:col-span-1 bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4">
+                      <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <AlertTriangle size={16} className="text-amber-500" />
+                        Đề xuất tối ưu
+                      </h2>
+                      {performanceSummary.recommendations.length === 0 ? (
+                        <div className="text-center py-8 text-slate-500 text-xs">
+                          <CheckCircle className="mx-auto text-emerald-400 mb-2" size={24} />
+                          Hệ thống đang hoạt động ổn định.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {performanceSummary.recommendations.map((rec, idx) => (
+                            <div key={idx} className={`p-3 rounded-xl border text-xs leading-relaxed ${
+                              rec.severity === 'critical' ? 'bg-red-50 border-red-200 text-red-800' :
+                              rec.severity === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                              'bg-blue-50 border-blue-200 text-blue-800'
+                            }`}>
+                              <span className="font-bold block mb-1">{rec.code}</span>
+                              {rec.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

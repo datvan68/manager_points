@@ -13,6 +13,10 @@ import Action from '@/components/ui/Action';
 import { usePermission } from '@/components/guards/RouteGuard';
 import { toast } from 'sonner';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Button } from "@/components/ui/button";
+import { CustomPagination } from '@/components/ui/pagination';
+
+import { isStudentRole, isTeacherRole, isAdminOrSupervisor } from "@/utils/role.util";
 import { getLinkedTaskMode } from '@/lib/task-linked-page';
 
 import { studentTaskApi, StudentTask as BackendTask, CreateTaskDto, UpdateTaskDto } from '@/api/task-api';
@@ -179,10 +183,17 @@ const StudentTasksTab = () => {
     deleteTask: "DELETE_STUDENT_TASK"
   });
 
-  const userRole = String(user?.role || '').toLowerCase();
-  const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
-  const isTeacher = userRole.includes('teacher') || userRole.includes('giáo viên') || userRole.includes('giảng viên');
-  const isStudentOrTeacher = isStudent || isTeacher;
+  const isStudent = isStudentRole(user);
+  const isTeacher = isTeacherRole(user);
+  
+  const canManageTasks = !isStudent && (
+    isAdminOrSupervisor(user) || 
+    taskAccess.createTask || 
+    taskAccess.editTask || 
+    taskAccess.deleteTask
+  );
+  
+  const canCreateTask = !isStudent && taskAccess.createTask;
 
   // States từ API
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -299,7 +310,7 @@ const StudentTasksTab = () => {
   const handleQuickAction = async (task: Task, e: React.MouseEvent) => {
     e.stopPropagation();
     
-    const isManager = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask;
+    const isManager = isAdminOrSupervisor(user) || taskAccess.editTask;
     
     // Nếu có progress cá nhân và không phải manager
     if (!isManager && task.userProgress) {
@@ -348,7 +359,7 @@ const StudentTasksTab = () => {
       return;
     }
     toast.info(`Đang chuyển hướng sang trang: ${getLinkedPageName(task.linkedPage)}`);
-    const isManager = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask;
+    const isManager = isAdminOrSupervisor(user) || taskAccess.editTask;
     if (isManager) {
       router.push(task.linkedPage);
     } else {
@@ -410,54 +421,54 @@ const StudentTasksTab = () => {
 
 
       {/* KPI Cards Grid */}
-      {!isStudentOrTeacher && (
+      {canManageTasks && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
           {/* KPI Card 1: Total */}
-          <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-xl p-2.5 shadow-sm shadow-slate-300/10 hover:bg-white/60 transition-all flex items-center justify-between">
+          <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 shadow-sm shadow-slate-300/40 hover:bg-white/60 hover:scale-[1.01] transition-all duration-150 ease-out flex items-center justify-between">
             <div className="space-y-0.5">
               <span className="text-[10px] font-bold text-[#64748B] tracking-wider uppercase">TỔNG NHIỆM VỤ</span>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xl font-bold text-[#1E293B]">{totalTasks}</span>
-                <span className="inline-flex items-center text-[9px] font-semibold text-[#1A73E8] bg-blue-50/70 border border-blue-100/60 px-1.5 py-0.5 rounded-lg">
+                <span className="inline-flex items-center text-[9px] font-semibold text-[#1A73E8] bg-blue-50/70 border border-blue-100/60 px-1.5 py-0.5 rounded-xl">
                   +3 tuần này
                 </span>
               </div>
             </div>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[#1A73E8] shrink-0 border border-blue-100/30">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-[#1A73E8] shrink-0 border border-blue-100/30">
               <Clock size={16} />
             </div>
           </div>
 
           {/* KPI Card 2: Urgent */}
-          <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-xl p-2.5 shadow-sm shadow-slate-300/10 hover:bg-white/60 transition-all flex items-center justify-between">
+          <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 shadow-sm shadow-slate-300/40 hover:bg-white/60 hover:scale-[1.01] transition-all duration-150 ease-out flex items-center justify-between">
             <div className="space-y-0.5">
               <span className="text-[10px] font-bold text-[#64748B] tracking-wider uppercase">SẮP HẾT HẠN</span>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xl font-bold text-red-600">
                   {String(urgentTasks).padStart(2, '0')}
                 </span>
-                <span className="inline-flex items-center text-[9px] font-semibold text-red-600 bg-red-50/70 border border-red-100/60 px-1.5 py-0.5 rounded-lg">
+                <span className="inline-flex items-center text-[9px] font-semibold text-red-600 bg-red-50/70 border border-red-100/60 px-1.5 py-0.5 rounded-xl">
                   Cần xử lý ngay
                 </span>
               </div>
             </div>
-            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-600 shrink-0 border border-red-100/30">
+            <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center text-red-600 shrink-0 border border-red-100/30">
               <AlertCircle size={16} />
             </div>
           </div>
 
           {/* KPI Card 3: Completed */}
-          <div className="bg-white/45 backdrop-blur-md border border-white/80 rounded-xl p-2.5 shadow-sm shadow-slate-300/10 hover:bg-white/60 transition-all flex items-center justify-between">
+          <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 shadow-sm shadow-slate-300/40 hover:bg-white/60 hover:scale-[1.01] transition-all duration-150 ease-out flex items-center justify-between">
             <div className="space-y-0.5">
               <span className="text-[10px] font-bold text-[#64748B] tracking-wider uppercase">HOÀN THÀNH</span>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xl font-bold text-emerald-600">{completedTasks}</span>
-                <span className="inline-flex items-center text-[9px] font-semibold text-emerald-600 bg-emerald-50/70 border border-emerald-100/60 px-1.5 py-0.5 rounded-lg">
+                <span className="inline-flex items-center text-[9px] font-semibold text-emerald-600 bg-emerald-50/70 border border-emerald-100/60 px-1.5 py-0.5 rounded-xl">
                   {progressPercentage}% tiến độ
                 </span>
               </div>
             </div>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0 border border-emerald-100/30">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0 border border-emerald-100/30">
               <CheckCircle2 size={16} />
             </div>
           </div>
@@ -465,12 +476,12 @@ const StudentTasksTab = () => {
       )}
 
       {/* Filter and Grid Container */}
-      <div className="flex-1 bg-white/40 backdrop-blur-md border border-white/80 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/10">
+      <div className="flex-1 bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/40">
         
         {/* Filter Bar */}
-        <div className="p-4 border-b border-white/80 bg-white/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+        <div className="p-4 border-b border-white/70 bg-white/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
           {/* Lọc Trạng thái (Tab phẳng) */}
-          <div className="flex items-center gap-1.5 bg-slate-100/60 p-1 rounded-xl w-fit border border-slate-200/20 shrink-0">
+          <div className="flex items-center gap-1.5 bg-white/30 p-1 rounded-xl w-fit border border-white/70 backdrop-blur-sm shadow-sm shrink-0">
             {(['Mới nhất', 'Đang làm', 'Hoàn thành', 'Chưa bắt đầu'] as const).map((tab) => (
               <button
                 key={tab}
@@ -478,7 +489,7 @@ const StudentTasksTab = () => {
                   setActiveTabFilter(tab);
                   setCurrentPage(1);
                 }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer ${
+                className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer ${
                   activeTabFilter === tab 
                     ? 'bg-white text-[#1A73E8] shadow-sm' 
                     : 'text-[#64748B] hover:text-[#1E293B]'
@@ -491,7 +502,7 @@ const StudentTasksTab = () => {
 
           <div className="flex items-center gap-2">
             {/* Lọc đối tượng áp dụng */}
-            {!isStudentOrTeacher && (
+            {canManageTasks && (
               <div className="relative shrink-0 w-36">
                 <Select
                   value={targetFilter}
@@ -500,7 +511,7 @@ const StudentTasksTab = () => {
                     setCurrentPage(1);
                   }}
                 >
-                  <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
+                  <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 rounded-xl shadow-none focus:ring-2 focus:ring-[#1A73E8]/30">
                     <SelectValue placeholder="-- Đối tượng --" />
                   </SelectTrigger>
                   <SelectContent>
@@ -522,7 +533,7 @@ const StudentTasksTab = () => {
                   setCurrentPage(1);
                 }}
               >
-                <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white border border-gray-200 rounded-xl shadow-none">
+                <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 rounded-xl shadow-none focus:ring-2 focus:ring-[#1A73E8]/30">
                   <SelectValue placeholder="-- Độ ưu tiên --" />
                 </SelectTrigger>
                 <SelectContent>
@@ -544,12 +555,12 @@ const StudentTasksTab = () => {
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
                 }}
-                className="pl-9 pr-4 py-2 text-xs rounded-xl border border-gray-200 bg-white/70 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all w-48 sm:w-56"
+                className="pl-9 pr-4 py-2 text-xs rounded-xl border border-white/70 bg-white/50 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all duration-150 w-48 sm:w-56"
               />
             </div>
 
             {/* Button Thêm nhiệm vụ mới */}
-            {!isStudentOrTeacher && taskAccess.createTask && (
+            {canCreateTask && (
               <button
                 onClick={() => {
                   setEditingTask(null);
@@ -586,7 +597,7 @@ const StudentTasksTab = () => {
           ) : tasks.length > 0 ? (
             <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity duration-200 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
               {tasks.map((task) => {
-                const isCardManager = !isStudent && (userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask);
+                const isCardManager = !isStudent && (isAdminOrSupervisor(user) || taskAccess.editTask);
                 const displayStatus = (!isCardManager && task.userProgress) ? task.userProgress.status : task.status;
                 const linkMode = getLinkedTaskMode(task.linkedPage);
                 const isChecklist = linkMode === 'none';
@@ -594,10 +605,10 @@ const StudentTasksTab = () => {
                   <div
                     key={task.id}
                     onClick={() => handleCardClick(task)}
-                    className={`bg-white/60 backdrop-blur-sm border rounded-2xl p-5 shadow-sm transition-all duration-150 ease-out flex flex-col justify-between min-h-[230px] relative group border-slate-200/50 ${
+                    className={`bg-white/45 backdrop-blur-md border rounded-2xl p-5 shadow-sm transition-all duration-150 ease-out flex flex-col justify-between min-h-[230px] relative group border-white/70 ${
                       isChecklist
                         ? 'cursor-default'
-                        : 'hover:shadow-md hover:scale-[1.01] hover:border-blue-400/60 cursor-pointer'
+                        : 'hover:shadow-md hover:scale-[1.01] hover:border-[#1A73E8]/50 cursor-pointer'
                     }`}
                   >
                     {/* Actions */}
@@ -644,7 +655,7 @@ const StudentTasksTab = () => {
                       {/* Target Audience Badge */}
                       <div className="mt-3 flex items-center gap-1.5 w-fit">
                         <span className="text-[10px] font-bold text-[#64748B]">Áp dụng:</span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-xl text-[10px] font-bold border ${
                           task.targetType === 'HSSV' 
                             ? 'bg-blue-50 text-blue-600 border-blue-100/50' 
                             : task.targetType === 'Giáo viên' 
@@ -660,7 +671,7 @@ const StudentTasksTab = () => {
                     </div>
 
                     {/* Bottom: Date, Priority & Actions */}
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-end justify-between">
+                    <div className="mt-4 pt-3 border-t border-white/40 flex items-end justify-between">
                       <div className="space-y-1.5">
                         {/* Deadline */}
                         <div className="flex items-center gap-1.5 text-[11px] text-[#64748B] font-medium">
@@ -671,7 +682,7 @@ const StudentTasksTab = () => {
                         {/* Priority Tag */}
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-bold text-[#64748B]">Độ ưu tiên:</span>
-                          <span className={`inline-flex px-1.5 py-0.5 text-[9px] font-bold rounded-md ${
+                          <span className={`inline-flex px-1.5 py-0.5 text-[9px] font-bold rounded-xl ${
                             task.priority === 'High' ? 'text-red-600 bg-red-50 border border-red-100/50' :
                             task.priority === 'Medium' ? 'text-amber-600 bg-amber-50 border border-amber-100/50' :
                             'text-emerald-600 bg-emerald-50 border border-emerald-100/50'
@@ -699,7 +710,7 @@ const StudentTasksTab = () => {
                         {linkMode !== 'none' && (
                           <button
                             onClick={() => {
-                              const isManager = userRole.includes('admin') || userRole.includes('supervisor') || userRole.includes('quản sinh') || taskAccess.editTask;
+                              const isManager = isAdminOrSupervisor(user) || taskAccess.editTask;
                               toast.info(`Đang chuyển hướng sang trang: ${getLinkedPageName(task.linkedPage)}`);
                               if (isManager) {
                                 router.push(task.linkedPage);
@@ -708,7 +719,7 @@ const StudentTasksTab = () => {
                                 router.push(`${task.linkedPage}${separator}taskId=${task.id}`);
                               }
                             }}
-                            className="w-7 h-7 rounded-xl flex items-center justify-center border border-slate-200 text-slate-500 bg-white hover:border-[#1A73E8] hover:text-[#1A73E8] transition-all"
+                            className="w-7 h-7 rounded-xl flex items-center justify-center border border-white/70 text-[#64748B] bg-white/50 hover:border-[#1A73E8] hover:text-[#1A73E8] transition-all duration-150 hover:scale-[1.01]"
                             title="Chuyển hướng đến trang liên kết"
                           >
                             <ExternalLink size={12} />
@@ -733,12 +744,12 @@ const StudentTasksTab = () => {
                           return (
                             <button
                               onClick={(e) => handleQuickAction(task, e)}
-                              className={`w-7 h-7 rounded-xl flex items-center justify-center border transition-all duration-150 ${
+                              className={`w-7 h-7 rounded-xl flex items-center justify-center border transition-all duration-150 hover:scale-[1.01] ${
                                 displayStatus === 'Đã xong'
-                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
+                                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-600 hover:bg-emerald-100/90'
                                   : displayStatus === 'Đang làm'
-                                  ? 'bg-blue-50 border-blue-200 text-[#1A73E8] hover:bg-blue-100'
-                                  : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                                  ? 'bg-blue-50/70 border-blue-200 text-[#1A73E8] hover:bg-blue-100/90'
+                                  : 'bg-white/50 border-white/70 text-[#64748B] hover:border-slate-300 hover:text-[#1E293B]'
                               }`}
                               title={quickActionTitle}
                             >
@@ -762,43 +773,13 @@ const StudentTasksTab = () => {
         </div>
 
         {/* Footer (Pagination) */}
-        <div className="px-5 py-3 border-t border-white/80 bg-white/20 flex items-center justify-between shrink-0">
-          <span className="text-xs font-semibold text-[#64748B]">
-            Hiển thị {startItem}-{endItem} trên tổng số {totalCount} nhiệm vụ
-          </span>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="w-7 h-7 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            
-            {Array.from({ length: totalPages }).map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setCurrentPage(idx + 1)}
-                className={`w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold transition-all ${
-                  currentPage === idx + 1
-                    ? 'bg-[#1A73E8] text-white shadow-sm shadow-blue-500/15'
-                    : 'border border-gray-200 bg-white text-[#64748B] hover:bg-slate-50'
-                }`}
-              >
-                {idx + 1}
-              </button>
-            ))}
-
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="w-7 h-7 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
+        <CustomPagination
+          currentPage={currentPage}
+          pageSize={itemsPerPage}
+          totalItems={totalCount}
+          onPageChange={setCurrentPage}
+          label="nhiệm vụ"
+        />
 
       </div>
 

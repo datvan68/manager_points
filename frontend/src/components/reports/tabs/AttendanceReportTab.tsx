@@ -12,19 +12,19 @@ interface AttendanceReportTabProps {
 
 const columns: TableColumn[] = [
   { key: 'report_date', header: 'Ngày báo cáo' },
-  { key: 'class_name', header: 'Lớp học', className: 'font-bold text-slate-800' },
+  { key: 'class_name', header: 'Lớp học', className: 'font-bold text-[#1E293B]' },
   { key: 'department_name', header: 'Khoa' },
   { key: 'teacher_name', header: 'Giảng viên' },
   { key: 'total_present', header: 'Có mặt', className: 'text-center font-bold text-emerald-600' },
   { key: 'total_absent', header: 'Vắng', className: 'text-center font-bold text-rose-600' },
-  { key: 'total', header: 'Tổng số', className: 'text-center text-slate-400' },
+  { key: 'total', header: 'Tổng số', className: 'text-center text-[#64748B]' },
   { 
     key: 'attendance_rate', 
     header: 'Tỉ lệ hiện diện',
-    className: 'text-center font-black text-slate-800 text-[13.5px]',
+    className: 'text-center font-black text-[#1E293B] text-[13.5px]',
     render: (val: number) => {
       const pct = val * 100;
-      let color = 'text-slate-700';
+      let color = 'text-[#1E293B]';
       if (pct >= 95) color = 'text-emerald-600';
       else if (pct >= 85) color = 'text-blue-600';
       else if (pct >= 75) color = 'text-amber-600';
@@ -33,7 +33,7 @@ const columns: TableColumn[] = [
       return <span className={color}>{pct.toFixed(1)}%</span>;
     }
   },
-  { key: 'class_note', header: 'Ghi chú', className: 'max-w-[200px] truncate text-slate-400 font-medium' }
+  { key: 'class_note', header: 'Ghi chú', className: 'max-w-[200px] truncate text-[#64748B] font-medium' }
 ];
 
 export default function AttendanceReportTab({ data, isLoading, onExport }: AttendanceReportTabProps) {

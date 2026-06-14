@@ -29,32 +29,45 @@ export class DailyClassReportController {
     summary:
       'Create a new daily class report (requires Admin, Teacher, or Supervisor role)',
   })
-  create(@Body() createDailyClassReportDto: CreateDailyClassReportDto) {
-    return this.dailyClassReportService.create(createDailyClassReportDto);
+  create(@Body() createDailyClassReportDto: CreateDailyClassReportDto, @Request() req: any) {
+    const requester = req.user;
+    return this.dailyClassReportService.create(createDailyClassReportDto, requester);
   }
 
   @Get()
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all daily class reports' })
-  findAll() {
-    return this.dailyClassReportService.findAll();
+  findAll(@Request() req: any) {
+    const requester = req.user;
+    return this.dailyClassReportService.findAll(requester);
   }
 
   @Get('deleted/all')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all soft-deleted daily class reports' })
-  findDeleted() {
-    return this.dailyClassReportService.findDeleted();
+  findDeleted(@Request() req: any) {
+    const requester = req.user;
+    return this.dailyClassReportService.findDeleted(requester);
   }
 
   @Get(':id')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get daily class report by ID' })
-  findOne(@Param('id') id: string) {
-    return this.dailyClassReportService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req: any) {
+    const requester = req.user;
+    return this.dailyClassReportService.findOne(id, requester);
   }
 
   @Get('class/:classId')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get daily class reports by Class ID' })
-  findByClassId(@Param('classId') classId: string) {
-    return this.dailyClassReportService.findByClassId(classId);
+  findByClassId(@Param('classId') classId: string, @Request() req: any) {
+    const requester = req.user;
+    return this.dailyClassReportService.findByClassId(classId, requester);
   }
 
   @Patch(':id')
@@ -66,8 +79,10 @@ export class DailyClassReportController {
   update(
     @Param('id') id: string,
     @Body() updateDailyClassReportDto: UpdateDailyClassReportDto,
+    @Request() req: any,
   ) {
-    return this.dailyClassReportService.update(id, updateDailyClassReportDto);
+    const requester = req.user;
+    return this.dailyClassReportService.update(id, updateDailyClassReportDto, requester);
   }
 
   @Delete(':id')
@@ -86,8 +101,9 @@ export class DailyClassReportController {
   @ApiOperation({
     summary: 'Restore a soft-deleted daily class report (requires Admin, Teacher, or Supervisor role)',
   })
-  restore(@Param('id') id: string) {
-    return this.dailyClassReportService.restore(id);
+  restore(@Param('id') id: string, @Request() req: any) {
+    const requester = req.user;
+    return this.dailyClassReportService.restore(id, requester);
   }
 
   @Delete(':id/force')

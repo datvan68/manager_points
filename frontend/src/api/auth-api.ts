@@ -343,6 +343,13 @@ export const authApi = {
     });
     return handleResponse<any>(res);
   },
+
+  async getPagePermissionScopes(accessToken: string): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/api/auth/page-permission-scopes`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    return handleResponse<any[]>(res);
+  },
 };
 
 // Token helpers (localStorage)
@@ -356,6 +363,18 @@ export const tokenStorage = {
   clearTokens() {
     sessionStorage.removeItem('access_token');
     localStorage.removeItem('user');
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith('congrats_shown_')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    } catch (e) {
+      console.error('Failed to clear congrats storage keys:', e);
+    }
   },
   setUser(user: any) {
     localStorage.setItem('user', JSON.stringify(user));

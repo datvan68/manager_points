@@ -31,4 +31,8 @@ export class QueryNotificationDto {
   @IsOptional()
   @IsString()
   recipientUserId?: string;
+
+  @IsOptional()
+  @IsEnum(['all', 'student', 'teacher', 'supervisor'])
+  targetRole?: 'all' | 'student' | 'teacher' | 'supervisor';
 }

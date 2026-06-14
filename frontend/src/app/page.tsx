@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
 import { useAuth } from '@/providers/auth-provider';
+import { isStudentRole } from '@/utils/role.util';
 import { studentApi } from '@/api/student-api';
 import { classApi } from '@/api/class-api';
 import { departmentApi } from '@/api/department-api';
@@ -31,9 +33,20 @@ import QuickActionsPanel from '../components/dashboard/QuickActionsPanel';
 import ScoreDistributionChart from '../components/dashboard/ScoreDistributionChart';
 import StudentSpotlightPanel from '../components/dashboard/StudentSpotlightPanel';
 
+
+
 export default function DashboardPage() {
   const { user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user && isStudentRole(user)) {
+      router.push('/students/tasks');
+    }
+  }, [user, router]);
   
+
+
   // Filtering & State
   const [semestersList, setSemestersList] = useState<Semester[]>([]);
   const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(null);
@@ -78,7 +91,7 @@ export default function DashboardPage() {
 
       // Construct promises arrays to call concurrent APIs safely using .catch() wrappers
       const pStudents = (isSysAdmin || isTeacher) 
-        ? studentApi.getStudents().catch(() => []) 
+        ? studentApi.getStudents().then(res => Array.isArray(res) ? res : (res?.data || [])).catch(() => []) 
         : isStudent 
           ? studentApi.getMyStudent().then(s => s ? [s] : []).catch(() => [])
           : Promise.resolve([]);
@@ -93,7 +106,7 @@ export default function DashboardPage() {
 
       const pSemesters = semesterApi.getSemesters().catch(() => []);
       const pPeriods = evaluationPeriodApi.getEvaluationPeriods().catch(() => []);
-      const pSummaries = summariesPointApi.getSummariesPoints().catch(() => []);
+      const pSummaries = summariesPointApi.getSummariesPoints().then(res => res?.data || []).catch(() => []);
 
       const pAcademicRecords = (isSysAdmin || isTeacher)
         ? academicRecordApi.getAcademicRecords().catch(() => [])
@@ -215,6 +228,8 @@ export default function DashboardPage() {
     }
   }, [user, loadData]);
 
+
+
   // Re-aggregate when selected semester filters change or raw state loads
   useEffect(() => {
     if (user && rawState) {
@@ -267,7 +282,7 @@ export default function DashboardPage() {
           break;
         case 'admin_phase':
           deadlineStr = metrics.activePeriod.admin_deadline;
-          phaseName = 'Admin chốt điểm';
+          phaseName = 'Admin phê duyệt';
           break;
       }
       if (deadlineStr) {
@@ -437,6 +452,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+
     </div>
   );
 }

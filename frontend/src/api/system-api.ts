@@ -1,4 +1,5 @@
 import { httpClient, handleResponse } from './http-client';
+import { tokenStorage } from './auth-api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -108,6 +109,47 @@ export interface PaginatedResponse<T> {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface SystemPerformanceSummary {
+  p50: Record<string, number>;
+  p75: Record<string, number>;
+  p95: Record<string, number>;
+  average: Record<string, number>;
+  total_samples: number;
+  slow_apis: Array<{
+    name: string;
+    avg: number;
+    p75: number;
+    p95: number;
+    samples: number;
+  }>;
+  recommendations: Array<{
+    severity: 'critical' | 'warning' | 'info';
+    code: string;
+    message: string;
+  }>;
+}
+
+export interface SystemPerformanceMetricPayload {
+  route: string;
+  device_type: 'desktop' | 'tablet' | 'mobile' | 'unknown';
+  network_effective_type?: string;
+  navigation_type?: 'navigate' | 'reload' | 'back_forward' | 'prerender' | 'unknown';
+  ttfb_ms?: number;
+  dom_content_loaded_ms?: number;
+  load_event_ms?: number;
+  fcp_ms?: number;
+  lcp_ms?: number;
+  cls?: number;
+  inp_ms?: number;
+  api_total_ms?: number;
+  api_breakdown?: Array<{
+    name: string;
+    duration_ms: number;
+    status?: number;
+    ok?: boolean;
+  }>;
 }
 
 export const systemApi = {
@@ -268,5 +310,39 @@ export const systemApi = {
     a.click();
     a.remove();
     window.URL.revokeObjectURL(url);
+  },
+
+  // ─── PERFORMANCE METRICS ───────────────────────────────────────────────────
+  async sendPerformanceMetrics(payload: SystemPerformanceMetricPayload): Promise<void> {
+    const url = `${API_BASE}/api/system/performance/metrics`;
+    const tokenStr = tokenStorage.getAccessToken();
+    let headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (tokenStr) {
+      headers['Authorization'] = `Bearer ${tokenStr}`;
+    }
+    
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+    } catch (err) {
+      console.warn('Failed to send performance metrics', err);
+    }
+  },
+
+  async getPerformanceSummary(query?: { from?: string; to?: string; route?: string }): Promise<SystemPerformanceSummary> {
+    const params = new URLSearchParams();
+    if (query) {
+      Object.entries(query).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, String(value));
+        }
+      });
+    }
+    const res = await httpClient(`${API_BASE}/api/system/performance/summary?${params.toString()}`);
+    return handleResponse<SystemPerformanceSummary>(res);
   },
 };

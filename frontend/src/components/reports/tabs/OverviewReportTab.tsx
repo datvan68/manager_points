@@ -53,26 +53,26 @@ export default function OverviewReportTab({ charts, attentionStudents }: Overvie
       </div>
 
       {/* Attention Required List */}
-      <div className="bg-white/60 backdrop-blur-md border border-white/80 rounded-2xl p-5 shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3.5 mb-4">
-          <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 shrink-0">
+      <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center gap-2 border-b border-white/50 pb-3.5 mb-4">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
             <AlertCircle size={16} />
           </div>
           <div>
-            <h4 className="font-bold text-slate-800 text-[14px]">HSSV cần chú ý đặc biệt</h4>
-            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">Danh sách học sinh có kết quả rèn luyện yếu, chuyên cần kém hoặc vi phạm kỷ luật</p>
+            <h4 className="font-bold text-[#1E293B] text-[14px]">HSSV cần chú ý đặc biệt</h4>
+            <p className="text-[11px] text-[#64748B] font-semibold mt-0.5">Danh sách học sinh có kết quả rèn luyện yếu, chuyên cần kém hoặc vi phạm kỷ luật</p>
           </div>
         </div>
 
         {attentionStudents.length === 0 ? (
-          <div className="text-center py-6 text-slate-400 text-xs font-semibold">
+          <div className="text-center py-6 text-[#64748B] text-xs font-semibold">
             Không có HSSV nào cần chú ý trong bộ lọc hiện tại.
           </div>
         ) : (
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left text-[12px] font-sans">
               <thead>
-                <tr className="text-slate-400 font-bold uppercase border-b border-slate-100 text-[10px]">
+                <tr className="text-[#64748B] font-bold uppercase border-b border-white/50 text-[10px]">
                   <th className="px-4 py-2">Mã HSSV</th>
                   <th className="px-4 py-2">Họ & Tên</th>
                   <th className="px-4 py-2">Lớp</th>
@@ -80,18 +80,18 @@ export default function OverviewReportTab({ charts, attentionStudents }: Overvie
                   <th className="px-4 py-2 text-right">Mức độ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 text-slate-600 font-semibold">
+              <tbody className="divide-y divide-white/40 text-[#1E293B] font-semibold">
                 {attentionStudents.map((stu) => (
-                  <tr key={stu._id} className="hover:bg-slate-50/50">
+                  <tr key={stu._id} className="hover:bg-white/60">
                     <td className="px-4 py-3">{stu.student_code}</td>
-                    <td className="px-4 py-3 font-bold text-slate-700">{stu.full_name}</td>
+                    <td className="px-4 py-3 font-bold text-[#1E293B]">{stu.full_name}</td>
                     <td className="px-4 py-3">{stu.class_name}</td>
-                    <td className="px-4 py-3 text-slate-500 font-medium">{stu.reason}</td>
+                    <td className="px-4 py-3 text-[#64748B] font-medium">{stu.reason}</td>
                     <td className="px-4 py-3 text-right">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
+                      <span className={`inline-block px-2 py-0.5 rounded-xl text-[9px] font-extrabold ${
                         stu.severity === 'high' 
-                          ? 'bg-rose-50 border border-rose-100 text-rose-600' 
-                          : 'bg-amber-50 border border-amber-100 text-amber-600'
+                          ? 'bg-rose-500/10 border border-rose-500/20 text-rose-700' 
+                          : 'bg-amber-500/10 border border-amber-500/20 text-amber-700'
                       }`}>
                         {stu.severity === 'high' ? 'Cao' : 'Trung bình'}
                       </span>

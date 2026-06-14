@@ -9,6 +9,7 @@ import {
   Res,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
 import { SummariesPointService } from './summaries-point.service';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
@@ -16,6 +17,7 @@ import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import * as express from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { checkRole } from '../auth/guards/check-role.guard';
 
 @ApiTags('summaries-points')
 @Controller('summaries-points')
@@ -83,8 +85,36 @@ export class SummariesPointController {
     status: 200,
     description: 'Trả về mảng danh sách điểm tổng kết.',
   })
-  findAll(@Request() req: any) {
-    return this.summariesPointService.findAll(req.user);
+  findAll(
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('semesterId') semesterId?: string,
+    @Query('classId') classId?: string,
+    @Query('studentId') studentId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.summariesPointService.findAll(req.user, {
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      semesterId,
+      classId,
+      studentId,
+      status,
+    });
+  }
+
+  // New endpoint: get latest locked summary for the logged‑in student
+  @Get('me/latest')
+  @ApiOperation({ summary: 'Lấy điểm rèn luyện mới nhất của sinh viên hiện tại' })
+  @ApiResponse({ status: 200, description: 'Trả về điểm mới nhất.' })
+  async getLatest(
+    @Request() req: any,
+    @Query('semesterId') semesterId?: string,
+    @Query('periodId') periodId?: string,
+  ) {
+    const userId = req.user?.userId;
+    return this.summariesPointService.findLatestForStudent(userId, semesterId, periodId);
   }
 
   @Get(':id')
@@ -96,6 +126,16 @@ export class SummariesPointController {
   @ApiResponse({ status: 404, description: 'Không tìm thấy điểm tổng kết.' })
   findOne(@Param('id') id: string, @Request() req: any) {
     return this.summariesPointService.findOne(id, req.user);
+  }
+
+  @Patch('cancel-approval/bulk')
+  @UseGuards(checkRole('Admin', 'Supervisor'))
+  @ApiOperation({ summary: 'Hủy duyệt điểm rèn luyện hàng loạt' })
+  @ApiResponse({ status: 200, description: 'Hủy duyệt hàng loạt thành công.' })
+  @ApiResponse({ status: 403, description: 'Không có quyền.' })
+  async cancelApprovalBulk(@Body() body: any, @Request() req: any) {
+    const { summaryIds } = body;
+    return this.summariesPointService.cancelApprovalBulk(summaryIds, req.user);
   }
 
   @Patch(':id')
@@ -117,4 +157,34 @@ export class SummariesPointController {
   remove(@Param('id') id: string, @Request() req: any) {
     return this.summariesPointService.remove(id, req.user);
   }
+
+  @Patch(':id/approve')
+  @UseGuards(checkRole('Admin', 'Supervisor'))
+  @ApiOperation({ summary: 'Phê duyệt điểm rèn luyện' })
+  @ApiResponse({ status: 200, description: 'Phê duyệt điểm thành công.' })
+  @ApiResponse({ status: 403, description: 'Không có quyền.' })
+  async approve(@Param('id') id: string, @Request() req: any) {
+    return this.summariesPointService.approveGrading(id, req.user);
+  }
+
+  // Keep finalize endpoint as a temporary alias (deprecated)
+  @Patch(':id/finalize')
+  @UseGuards(checkRole('Admin', 'Supervisor'))
+  @ApiOperation({ summary: 'Chốt điểm rèn luyện (Đã lỗi thời, dùng /approve)' })
+  @ApiResponse({ status: 200, description: 'Chốt điểm thành công.' })
+  @ApiResponse({ status: 403, description: 'Không có quyền.' })
+  async finalize(@Param('id') id: string, @Request() req: any) {
+    return this.summariesPointService.approveGrading(id, req.user);
+  }
+
+  @Patch(':id/cancel-approval')
+  @UseGuards(checkRole('Admin', 'Supervisor'))
+  @ApiOperation({ summary: 'Hủy duyệt điểm rèn luyện' })
+  @ApiResponse({ status: 200, description: 'Hủy duyệt thành công.' })
+  @ApiResponse({ status: 403, description: 'Không có quyền.' })
+  async cancelApproval(@Param('id') id: string, @Request() req: any) {
+    return this.summariesPointService.cancelApproval(id, req.user);
+  }
+
+
 }

@@ -87,7 +87,8 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
         const classList = await classApi.getClasses();
         setClasses(classList);
 
-        const studentList = await studentApi.getStudents();
+        const studentListRes = await studentApi.getStudents();
+        const studentList = Array.isArray(studentListRes) ? studentListRes : (studentListRes?.data || []);
         setAllStudents(studentList);
 
         const criteriaList = await criteriaApi.getCriteria();
@@ -346,64 +347,44 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
     }
 
     setIsSaving(true);
+    const actionBatchId = Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+    
     try {
-      const summaryList = await summariesPointApi.getSummariesPoints();
-
-      const createdRecords = await Promise.all(addedViolations.map(async (violation) => {
-        // 1. Tìm hoặc tạo SummaryPoint cho học sinh & kì học
-        let studentSummary = summaryList.find(s => {
-          const sId = typeof s.student_id === 'object' ? s.student_id?._id : s.student_id;
-          const semId = typeof s.semester_id === 'object' ? s.semester_id?._id : s.semester_id;
-          return sId === violation.student_id && semId === activeSemesterId;
-        });
-
-        if (!studentSummary) {
-          studentSummary = await summariesPointApi.createSummariesPoint({
-            student_id: violation.student_id,
-            semester_id: activeSemesterId,
-            total_score: 100,
-            grading: 'Xuất sắc',
-            status: 'draft'
-          });
-        }
- 
-        // 2. Tìm hoặc tạo EvaluationDetail liên kết SummaryPoint và Criterion
-        const detailsList = await evaluationDetailApi.getEvaluationDetailsBySummary(studentSummary._id);
-        let evalDetail = detailsList.find(d => {
-          const cId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
-          return cId === violation.evaluation_detail_id;
-        });
- 
-        if (!evalDetail) {
-          evalDetail = await evaluationDetailApi.createEvaluationDetail({
-            summary_id: studentSummary._id,
-            criterion_id: violation.evaluation_detail_id,
-            current_count: 0,
-            status: 'draft',
-            description: `Khởi tạo ghi nhận thủ công`,
-            log: []
-          });
-        }
-        // Lưu ý: Không gọi updateEvaluationDetail ở đây nếu đã có evalDetail,
-        // vì hàm createAcademicRecord ở dưới sẽ tự động kích hoạt backend cộng thêm 1 vào current_count.
-
-        // 3. Tạo AcademicRecord
-        return academicRecordApi.createAcademicRecord({
+      const recordsToCreate = addedViolations.map((violation) => {
+        return {
           student_id: violation.student_id,
-          criterion_id: violation.evaluation_detail_id,
+          criterion_id: violation.evaluation_detail_id, // here it holds criterion_id
           semester_id: activeSemesterId,
           record_title: violation.criterion_name,
           description: violation.class_note,
-          status: 'active',
+          status: 'active' as const,
           recorded_at: reportDate.toISOString(),
-          recorded_by: user?.id
-        });
-      }));
-      toast.success(`Đã ghi nhận ${addedViolations.length} rèn luyện thành công!`);
+          recorded_by: user?.id,
+          idempotency_key: `manual_record:${actionBatchId}:${violation.student_id}:${violation.evaluation_detail_id}`,
+          source: 'manual_record'
+        };
+      });
+
+      const response = await academicRecordApi.bulkCreateAcademicRecords(recordsToCreate);
+      
+      if (response.insertedCount > 0) {
+        toast.success(`Đã ghi nhận ${response.insertedCount} rèn luyện thành công!`);
+      }
+      if (response.duplicatedCount > 0) {
+        toast.warning(`Có ${response.duplicatedCount} ghi nhận bị trùng lặp hoặc đã tồn tại.`);
+      }
+      if (response.insertedCount === 0 && response.duplicatedCount === 0) {
+        toast.error('Không có ghi nhận nào được tạo thành công.');
+      }
+
       if (taskId) {
         try {
-          const firstRecordId = createdRecords[0]?._id;
-          await markCompleted(firstRecordId);
+          const firstRecordId = response.createdRecordIds && response.createdRecordIds.length > 0 ? response.createdRecordIds[0] : null;
+          if (firstRecordId) {
+             await markCompleted(firstRecordId);
+          } else {
+             await markCompleted();
+          }
         } catch (syncErr) {
           toast.warning('Nghiệp vụ đã lưu nhưng trạng thái nhiệm vụ chưa được đồng bộ!');
         }
@@ -437,14 +418,14 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
               type="button"
               variant="ghost"
               onClick={onBack}
-              className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[12px] w-[40px] h-[40px] p-0 flex items-center justify-center cursor-pointer hover:bg-white/80 transition-all shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] shrink-0"
+              className="backdrop-blur-md bg-white/45 border border-white/70 rounded-xl w-10 h-10 p-0 flex items-center justify-center cursor-pointer hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.05] shadow-sm shrink-0"
               title="Quay lại"
             >
               <ArrowLeft className="w-4 h-4 text-slate-700" />
             </Button>
 
             {/* Figma Icon Block */}
-            <div className="hidden xs:flex backdrop-blur-[6px] bg-white/45 border border-white/40 items-center justify-center rounded-[12px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] shrink-0 w-[40px] h-[40px]">
+            <div className="hidden xs:flex backdrop-blur-md bg-white/45 border border-white/70 items-center justify-center rounded-xl shadow-sm shrink-0 w-10 h-10">
               <FileText className="w-4 h-4 text-[#005bbf]" />
             </div>
 
@@ -458,14 +439,14 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
             </div>
           </div>
           <div className="flex items-center sm:justify-end shrink-0">
-            <div className="bg-[#005bbf]/5 text-[#005bbf] font-bold text-[11px] px-3.5 py-1.5 rounded-full uppercase tracking-wider border border-[#005bbf]/10 flex items-center gap-1.5 shadow-sm bg-white/40 backdrop-blur-sm">
+            <div className="bg-[#005bbf]/5 text-[#005bbf] font-bold text-[11px] px-3.5 py-1.5 rounded-xl uppercase tracking-wider border border-[#005bbf]/10 flex items-center gap-1.5 shadow-sm bg-white/40 backdrop-blur-md">
               <Sparkles className="w-3.5 h-3.5 text-[#005bbf] animate-pulse" />
               <span>Hệ thống ghi nhận</span>
             </div>
           </div>
         </div>
         {isLoadingData ? (
-          <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[40px] shadow-sm flex flex-col items-center justify-center min-h-[250px] gap-3">
+          <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-10 shadow-sm shadow-slate-300/40 flex flex-col items-center justify-center min-h-[250px] gap-3">
             <Loader2 className="w-7 h-7 text-blue-600 animate-spin" />
             <span className="text-[#005bbf] font-semibold text-xs">Đang nạp dữ liệu rèn luyện...</span>
           </div>
@@ -477,7 +458,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
               {/* Left Column: Core Info (col-span-4) */}
               <div className="col-span-12 lg:col-span-4 flex flex-col gap-[20px]">
                 {/* Section 1: Thông tin cơ bản */}
-                <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[22px] lg:p-[26px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] flex flex-col gap-[16px] w-full">
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[22px] lg:p-[26px] flex flex-col gap-[16px] w-full">
                   <div className="flex gap-[8px] items-center text-[#005bbf]">
                     <FileText className="w-4.5 h-4.5 shrink-0" />
                     <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Thông tin cơ bản</h3>
@@ -493,7 +474,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         required
                         error={""}
                       >
-                        <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
+                        <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all hover:bg-white/70 cursor-pointer w-full shadow-sm">
                           <SelectValue placeholder="Chọn Khoa..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
@@ -514,7 +495,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         required
                         error={""}
                       >
-                        <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
+                        <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all hover:bg-white/70 cursor-pointer w-full shadow-sm">
                           <SelectValue placeholder="Chọn lớp học..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
@@ -535,7 +516,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         required
                         error={""}
                       >
-                        <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
+                        <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all hover:bg-white/70 cursor-pointer w-full shadow-sm">
                           <SelectValue placeholder="Chọn tiêu chí..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 font-sans">
@@ -557,14 +538,14 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           <Button
                             type="button"
                             variant="ghost"
-                            className="bg-white/80 border border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none flex items-center justify-between hover:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all w-full shadow-sm text-left font-sans"
+                            className="bg-white/50 border border-white/80 h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/70 focus:ring-2 focus:ring-blue-500/20 transition-all w-full shadow-sm text-left font-sans"
                           >
                             <span>{format(reportDate, 'dd/MM/yyyy')}</span>
                             <CalendarIcon className="w-[16px] h-[16px] text-slate-400 shrink-0" />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent
-                          className="w-auto p-0 z-[100] bg-transparent border-none shadow-none"
+                          className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
                           align="start"
                           side="bottom"
                           sideOffset={6}
@@ -585,14 +566,14 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
               {/* Right Column: Violations Section (col-span-8) */}
               <div className="col-span-12 lg:col-span-8 flex flex-col gap-[20px]">
-                <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[22px] lg:p-[26px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] flex flex-col gap-[16px] w-full">
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[22px] lg:p-[26px] flex flex-col gap-[16px] w-full">
                   <div className="flex gap-[8px] items-center text-[#005bbf]">
                     <AlertTriangle className="w-4.5 h-4.5 shrink-0" />
                     <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Ghi nhận sinh viên</h3>
                   </div>
 
                   {/* Entry Form: Kính mờ gọn gàng */}
-                  <div className="backdrop-blur-[6px] bg-white/40 border border-white/30 rounded-[12px] p-[14px] w-full">
+                  <div className="bg-white/30 backdrop-blur-sm border border-white/60 rounded-xl p-[14px] w-full relative z-20">
                     <div className="grid grid-cols-12 gap-[12px] w-full">
                       {/* Họ tên sinh viên sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
@@ -603,7 +584,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           error={""}
                         >
                           <SelectTrigger
-                            className="bg-white/80 border-white/15 h-[38px] rounded-full px-[14px] text-[12.5px] text-slate-800 font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all cursor-pointer font-sans"
+                            className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all hover:bg-white/70 cursor-pointer font-sans"
                             disabled={!classId}
                           >
                             <SelectValue placeholder={classId ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
@@ -623,7 +604,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         value={violationNote}
                         onChange={(e) => setViolationNote(e.target.value)}
                         placeholder="VD: Vi phạm lần đầu..."
-                        className="bg-white/80 border-white/15 h-[38px] rounded-full px-[14px] text-[12.5px] text-slate-800 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/90 focus-visible:border-blue-400 shadow-sm"
+                        className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] placeholder:text-[#64748B] focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/80 focus-visible:border-blue-400 shadow-sm"
                         containerClassName="col-span-12 md:col-span-6 w-full"
                       />
 
@@ -632,7 +613,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           <Button
                             type="button"
                             onClick={handleAddViolationToList}
-                            className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold h-[36px] px-6 rounded-full shadow-[0px_4px_6px_-1px_rgba(0,91,191,0.1),0px_2px_4px_-2px_rgba(0,91,191,0.1)] flex items-center justify-center gap-2 cursor-pointer transition-all border-none outline-none text-[12px] min-w-[120px]"
+                            className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold h-10 px-6 rounded-xl shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] border-none outline-none text-[12px] min-w-[120px]"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             <span>Thêm vào danh sách</span>
@@ -643,13 +624,13 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                   </div>
 
                   {isEditMode ? (
-                    <div className="rounded-[12px] border border-blue-100 bg-blue-50/90 p-3 text-[12px] text-blue-700 shadow-sm">
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/90 p-3 text-[12px] text-blue-700 shadow-sm">
                       Bạn đang chỉnh sửa một bản ghi duy nhất. Các thay đổi sẽ được lưu bằng API cập nhật và không tạo thêm bản ghi mới.
                     </div>
                   ) : (
-                    <div className="w-full overflow-hidden border border-white/30 rounded-[12px] shadow-sm bg-white/20">
+                    <div className="w-full overflow-hidden border border-white/60 rounded-xl shadow-sm bg-white/15">
                     <table className="w-full text-left border-collapse">
-                      <thead className="bg-[#005bbf]/5 border-b border-white/20">
+                      <thead className="bg-white/50 backdrop-blur-sm border-b border-white/60">
                         <tr>
                           <th className="px-[20px] py-[10px] text-[11px] font-bold text-slate-600 uppercase tracking-wider">Họ tên & MSSV</th>
                           <th className="px-[20px] py-[10px] text-[11px] font-bold text-slate-600 uppercase tracking-wider">Tiêu chí ghi nhận</th>
@@ -670,7 +651,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           }
 
                           return (
-                            <tr key={idx} className="hover:bg-white/15 transition-colors">
+                            <tr key={idx} className="hover:bg-white/65 hover:scale-[1.002] transition-all duration-150 ease-out">
                               <td className="px-[20px] py-[12px] font-semibold text-slate-800 text-[13px]">
                                 <div className="flex flex-col">
                                   <span>{violation.student_name}</span>
@@ -678,7 +659,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                 </div>
                               </td>
                               <td className="px-[20px] py-[12px]">
-                                <span className={`font-bold rounded-full px-[10px] py-[3px] text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
+                                <span className={`font-bold rounded-xl px-[10px] py-[3px] text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
                                   {violation.criterion_name}
                                 </span>
                               </td>
@@ -690,7 +671,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                   type="button"
                                   variant="ghost"
                                   onClick={() => handleRemoveViolationFromList(idx)}
-                                  className="w-[28px] h-[28px] rounded-full hover:bg-red-50 hover:text-red-600 p-0 flex items-center justify-center text-rose-500 transition-colors bg-white/50 border border-white/80 shadow-sm outline-none cursor-pointer mx-auto"
+                                  className="w-[28px] h-[28px] rounded-xl hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.05] bg-white/50 border border-white/80 shadow-sm outline-none cursor-pointer mx-auto"
                                   title="Xóa ghi nhận"
                                 >
                                   <Trash2 className="w-[14px] h-[16px]" />
@@ -732,7 +713,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
             </div>
 
             {/* Footer Actions Panel */}
-            <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[18px] flex items-center justify-between gap-4 w-full shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] relative z-0">
+            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[18px] flex items-center justify-between gap-4 w-full relative z-0">
               <div className="hidden sm:flex items-center text-[12.5px] text-[#414754] font-medium italic">
                 Hãy kiểm tra kỹ thông tin rèn luyện trước khi lưu.
               </div>
@@ -743,7 +724,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                   type="button"
                   variant="outline"
                   onClick={onBack}
-                  className="border border-[rgba(0,91,191,0.3)] bg-white/30 hover:bg-white/80 rounded-full px-[32px] py-[10px] text-[#005bbf] font-bold text-[13px] tracking-[0.28px] h-auto"
+                  className="border border-[rgba(0,91,191,0.3)] bg-white/30 hover:bg-white/80 rounded-xl px-[32px] py-[10px] text-[#005bbf] font-bold text-[13px] tracking-[0.28px] h-10 hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
                   Hủy bỏ
                 </Button>
@@ -751,7 +732,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                 <Button
                   type="submit"
                   disabled={isSaving}
-                  className="relative bg-[#005bbf] text-white font-bold px-[38px] py-[10px] rounded-full shadow-[0px_10px_15px_-3px_rgba(0,91,191,0.3),0px_4px_6px_-4px_rgba(0,91,191,0.3)] hover:bg-[#004ca0] focus:ring-2 focus:ring-blue-500/20 transition-all flex items-center justify-center gap-2 border-none outline-none cursor-pointer text-[13px] tracking-[0.28px] h-auto disabled:opacity-75 disabled:cursor-not-allowed"
+                  className="relative bg-[#005bbf] text-white font-bold px-[38px] py-[10px] rounded-xl shadow-sm hover:bg-[#004ca0] focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center gap-2 border-none outline-none cursor-pointer text-[13px] tracking-[0.28px] h-10 disabled:opacity-75 disabled:cursor-not-allowed"
                 >
                   {isSaving ? (
                     <>

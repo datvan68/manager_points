@@ -13,7 +13,7 @@ interface TaskReportTabProps {
 }
 
 const columns: TableColumn[] = [
-  { key: 'title', header: 'Tên nhiệm vụ', className: 'font-bold text-slate-800 max-w-[200px] truncate' },
+  { key: 'title', header: 'Tên nhiệm vụ', className: 'font-bold text-[#1E293B] max-w-[200px] truncate' },
   { key: 'type', header: 'Loại' },
   { key: 'subject', header: 'Chủ đề/Môn học', className: 'max-w-[150px] truncate' },
   { key: 'deadline', header: 'Hạn hoàn thành' },
@@ -22,12 +22,12 @@ const columns: TableColumn[] = [
     header: 'Độ ưu tiên',
     render: (val: string) => {
       const colors: Record<string, string> = {
-        'Cao': 'bg-rose-50 border border-rose-100 text-rose-600',
-        'Trung bình': 'bg-blue-50 border border-blue-100 text-blue-600',
-        'Thấp': 'bg-slate-50 border border-slate-100 text-slate-500'
+        'Cao': 'bg-rose-500/10 border border-rose-500/20 text-rose-700',
+        'Trung bình': 'bg-blue-500/10 border border-blue-500/20 text-[#1A73E8]',
+        'Thấp': 'bg-white/50 border border-white/70 text-[#64748B]'
       };
       return (
-        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${colors[val] || 'bg-slate-50 border border-slate-100 text-slate-500'}`}>
+        <span className={`inline-block px-2 py-0.5 rounded-xl text-[10px] font-bold ${colors[val] || 'bg-white/50 border border-white/70 text-[#64748B]'}`}>
           {val}
         </span>
       );
@@ -39,7 +39,7 @@ const columns: TableColumn[] = [
     render: (val: string) => {
       const isComp = val === 'Hoàn thành';
       return (
-        <span className={`font-black ${isComp ? 'text-emerald-600' : 'text-slate-400'}`}>
+        <span className={`font-black ${isComp ? 'text-emerald-600' : 'text-[#64748B]'}`}>
           {val}
         </span>
       );
@@ -56,13 +56,13 @@ const columns: TableColumn[] = [
       return (
         <div className="flex items-center gap-2">
           {/* Progress bar */}
-          <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-            <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+          <div className="flex-1 bg-white/50 rounded-xl h-1.5 overflow-hidden">
+            <div className="bg-[#1A73E8] h-1.5 rounded-xl" style={{ width: `${pct}%` }} />
           </div>
-          <span className="text-[12px] font-black text-slate-700 shrink-0 w-9 text-right">
+          <span className="text-[12px] font-black text-[#1E293B] shrink-0 w-9 text-right">
             {pct.toFixed(0)}%
           </span>
-          <span className="text-[10px] text-slate-400 font-semibold shrink-0">
+          <span className="text-[10px] text-[#64748B] font-semibold shrink-0">
             ({row.completed_count}/{row.total_count})
           </span>
         </div>
@@ -72,8 +72,8 @@ const columns: TableColumn[] = [
 ];
 
 const progressColumns: TableColumn[] = [
-  { key: 'taskTitle', header: 'Nhiệm vụ', className: 'font-bold text-slate-800 max-w-[200px] truncate' },
-  { key: 'assigneeName', header: 'Người nhận', className: 'font-bold text-slate-700' },
+  { key: 'taskTitle', header: 'Nhiệm vụ', className: 'font-bold text-[#1E293B] max-w-[200px] truncate' },
+  { key: 'assigneeName', header: 'Người nhận', className: 'font-bold text-[#1E293B]' },
   { key: 'assigneeType', header: 'Vai trò' },
   { key: 'className', header: 'Lớp học' },
   { 
@@ -81,12 +81,12 @@ const progressColumns: TableColumn[] = [
     header: 'Trạng thái tiến độ',
     render: (val: string) => {
       const colors: Record<string, string> = {
-        'Chưa bắt đầu': 'bg-slate-50 border border-slate-200 text-slate-400',
-        'Đang thực hiện': 'bg-blue-50 border border-blue-100 text-blue-600',
-        'Hoàn thành': 'bg-emerald-50 border border-emerald-100 text-emerald-600'
+        'Chưa bắt đầu': 'bg-white/40 border border-white/70 text-[#64748B]',
+        'Đang thực hiện': 'bg-blue-500/10 border border-blue-500/20 text-[#1A73E8]',
+        'Hoàn thành': 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-700'
       };
       return (
-        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${colors[val] || 'bg-slate-50 border border-slate-100 text-slate-500'}`}>
+        <span className={`inline-block px-2.5 py-0.5 rounded-xl text-[11px] font-bold ${colors[val] || 'bg-white/50 border border-white/70 text-[#64748B]'}`}>
           {val}
         </span>
       );

@@ -262,6 +262,112 @@ export class EvaluationDetailService {
     return countsMap;
   }
 
+  async getPreExistingCountsBulk(
+    summaryIds: string[],
+    requester?: any,
+  ): Promise<Record<string, Record<string, { original_count: number; current_count: number }>>> {
+    if (!summaryIds || summaryIds.length === 0) return {};
+
+    // 1. Tìm tất cả summaries được yêu cầu
+    const summaries = await this.summaryPointModel.find({
+      _id: { $in: summaryIds.map(id => new Types.ObjectId(id)) }
+    } as any).lean().exec();
+
+    if (!summaries || summaries.length === 0) return {};
+
+    const summaryMap: Record<string, string> = {};
+    const studentIds: Types.ObjectId[] = [];
+    const semesterIds: Types.ObjectId[] = [];
+
+    for (const s of summaries) {
+      const studentId = s.student_id.toString();
+      const semesterId = s.semester_id.toString();
+      summaryMap[`${studentId}_${semesterId}`] = s._id.toString();
+      studentIds.push(new Types.ObjectId(studentId));
+      semesterIds.push(new Types.ObjectId(semesterId));
+    }
+
+    // 3. Sử dụng MongoDB Aggregation để gom nhóm records
+    const groupedRecords = await this.academicRecordModel.aggregate([
+      {
+        $match: {
+          student_id: { $in: studentIds },
+          semester_id: { $in: semesterIds },
+          status: 'active',
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'recorded_by',
+          foreignField: '_id',
+          as: 'recorded_by_user'
+        }
+      },
+      { $unwind: { path: '$recorded_by_user', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'roles',
+          localField: 'recorded_by_user.role',
+          foreignField: '_id',
+          as: 'recorded_by_role'
+        }
+      },
+      { $unwind: { path: '$recorded_by_role', preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: {
+            student_id: '$student_id',
+            semester_id: '$semester_id',
+            criterion_id: '$criterion_id'
+          },
+          current_count: { $sum: 1 },
+          records: {
+            $push: {
+              daily_report_id: '$daily_report_id',
+              recorded_by: {
+                _id: '$recorded_by_user._id',
+                role: { name: '$recorded_by_role.name' }
+              }
+            }
+          }
+        }
+      }
+    ]).exec();
+
+    const result: Record<string, Record<string, { original_count: number; current_count: number }>> = {};
+
+    // Khởi tạo map kết quả
+    for (const s of summaries) {
+      result[s._id.toString()] = {};
+    }
+
+    for (const group of groupedRecords) {
+      const studentIdStr = group._id.student_id.toString();
+      const semesterIdStr = group._id.semester_id.toString();
+      const criterionIdStr = group._id.criterion_id?.toString();
+
+      if (!criterionIdStr) continue;
+
+      const summaryId = summaryMap[`${studentIdStr}_${semesterIdStr}`];
+      if (!summaryId) continue;
+
+      let original_count = 0;
+      for (const rec of group.records) {
+        if (!this.canRequesterDeleteRecord(rec, requester)) {
+          original_count++;
+        }
+      }
+
+      result[summaryId][criterionIdStr] = {
+        current_count: group.current_count,
+        original_count,
+      };
+    }
+
+    return result;
+  }
+
   async create(
     createEvaluationDetailDto: CreateEvaluationDetailDto,
     requester?: any,
@@ -272,6 +378,10 @@ export class EvaluationDetailService {
     const summary = await this.summaryPointModel.findById(summary_id).exec();
     if (!summary) {
       throw new NotFoundException(`SummaryPoint with ID ${summary_id} not found`);
+    }
+
+    if (summary.status === 'locked') {
+      throw new BadRequestException('Không thể thêm chi tiết chấm điểm cho bảng điểm đã chốt');
     }
 
     const criterion = await this.criterionModel.findById(criterion_id).exec();
@@ -291,7 +401,7 @@ export class EvaluationDetailService {
 
     // Sync academic records first
     const firstLog = rest.log && rest.log.length > 0 ? rest.log[0] : null;
-    const createdByUserId = requester?.userId || firstLog?.updated_by || rest.gv_reviewed_by || rest.locked_by;
+    const createdByUserId = requester?.userId || firstLog?.updated_by || rest.gv_reviewed_by;
     await this.syncAcademicRecords(
       summary,
       criterion,
@@ -317,17 +427,19 @@ export class EvaluationDetailService {
       gv_score: rest.gv_score !== undefined ? rest.gv_score : null,
       gv_reviewed_at: rest.gv_reviewed_at || null,
       gv_reviewed_by: rest.gv_reviewed_by ? new Types.ObjectId(rest.gv_reviewed_by) : null,
-      final_score: rest.final_score !== undefined ? rest.final_score : null,
-      locked_at: rest.locked_at || null,
-      locked_by: rest.locked_by ? new Types.ObjectId(rest.locked_by) : null,
-      status: rest.status || 'draft',
+      final_score: null,
+      locked_at: null,
+      locked_by: null,
+      status: rest.status === 'locked' ? 'draft' : (rest.status || 'draft'),
       description: rest.description || '',
       log: rest.log || [],
     };
 
-    summary.details.push(newDetail);
-    summary.markModified('details');
-    await summary.save();
+    await this.summaryPointModel.findByIdAndUpdate(
+      summary_id,
+      { $push: { details: newDetail } },
+      { new: true }
+    ).exec();
 
     return newDetail;
   }
@@ -357,13 +469,19 @@ export class EvaluationDetailService {
     return detail;
   }
 
-  async findBySummaryId(summaryId: string, requester?: any): Promise<EvaluationDetail[]> {
+  async findBySummaryId(summaryId: string, requester?: any, fetchLogs: boolean = true): Promise<EvaluationDetail[]> {
     if (!Types.ObjectId.isValid(summaryId)) {
       throw new NotFoundException(`SummaryPoint with ID ${summaryId} not found`);
     }
 
     await this.assertCanAccessSummary(summaryId, requester);
-    const summary = await this.summaryPointModel.findById(summaryId).exec();
+    let query = this.summaryPointModel.findById(summaryId);
+    if (!fetchLogs) {
+      query = query.select({
+        'details.log': 0,
+      });
+    }
+    const summary = await query.exec();
     return summary ? summary.details || [] : [];
   }
 
@@ -372,6 +490,18 @@ export class EvaluationDetailService {
     updateEvaluationDetailDto: UpdateEvaluationDetailDto,
     requester?: any,
   ): Promise<EvaluationDetail> {
+    if (updateEvaluationDetailDto.status === 'locked') {
+      throw new BadRequestException('Không thể chốt trạng thái chi tiết chấm điểm trực tiếp');
+    }
+    const rawDto = updateEvaluationDetailDto as any;
+    if (
+      rawDto.final_score !== undefined ||
+      rawDto.locked_at !== undefined ||
+      rawDto.locked_by !== undefined
+    ) {
+      throw new BadRequestException('Không thể chỉnh sửa các trường khóa trực tiếp');
+    }
+
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
     }
@@ -384,6 +514,10 @@ export class EvaluationDetailService {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
     }
     await this.assertCanAccessSummary(summary._id.toString(), requester);
+
+    if (summary.status === 'locked') {
+      throw new BadRequestException('Không thể chỉnh sửa chi tiết chấm điểm của bảng điểm đã chốt');
+    }
 
     const detailIndex = summary.details.findIndex((d: any) => d._id.toString() === id);
     const detail = summary.details[detailIndex];
@@ -399,7 +533,7 @@ export class EvaluationDetailService {
       const lastLog = updateEvaluationDetailDto.log && updateEvaluationDetailDto.log.length > 0
         ? updateEvaluationDetailDto.log[updateEvaluationDetailDto.log.length - 1]
         : null;
-      const fallbackUserId = lastLog?.updated_by || updateEvaluationDetailDto.gv_reviewed_by || updateEvaluationDetailDto.locked_by;
+      const fallbackUserId = lastLog?.updated_by || updateEvaluationDetailDto.gv_reviewed_by;
       const effectiveRequester = requester || { userId: fallbackUserId };
 
       const records = await this.academicRecordModel.find({
@@ -429,9 +563,17 @@ export class EvaluationDetailService {
       detail.system_score = systemScore;
     }
 
-    // Map other update properties
-    if (updateEvaluationDetailDto.sv_score !== undefined) detail.sv_score = updateEvaluationDetailDto.sv_score;
-    if (updateEvaluationDetailDto.sv_submitted_at !== undefined) detail.sv_submitted_at = updateEvaluationDetailDto.sv_submitted_at ? new Date(updateEvaluationDetailDto.sv_submitted_at) : null;
+    const setObj: any = {};
+    
+    if (updateEvaluationDetailDto.current_count !== undefined) {
+      setObj['details.$.current_count'] = detail.current_count;
+      setObj['details.$.system_score'] = detail.system_score;
+    }
+    if (updateEvaluationDetailDto.sv_score !== undefined) setObj['details.$.sv_score'] = updateEvaluationDetailDto.sv_score;
+    if (updateEvaluationDetailDto.sv_submitted_at !== undefined) setObj['details.$.sv_submitted_at'] = updateEvaluationDetailDto.sv_submitted_at ? new Date(updateEvaluationDetailDto.sv_submitted_at) : null;
+    if (updateEvaluationDetailDto.gv_score !== undefined) setObj['details.$.gv_score'] = updateEvaluationDetailDto.gv_score;
+    
+    // Clear gv_score if student updates sv_score and gv hasn't reviewed
     if (
       this.isStudent(requester) &&
       updateEvaluationDetailDto.sv_score !== undefined &&
@@ -439,37 +581,26 @@ export class EvaluationDetailService {
       !detail.gv_reviewed_at &&
       !detail.gv_reviewed_by
     ) {
-      detail.gv_score = null;
+      setObj['details.$.gv_score'] = null;
     }
-    if (updateEvaluationDetailDto.gv_score !== undefined) detail.gv_score = updateEvaluationDetailDto.gv_score;
-    if (updateEvaluationDetailDto.gv_reviewed_at !== undefined) detail.gv_reviewed_at = updateEvaluationDetailDto.gv_reviewed_at ? new Date(updateEvaluationDetailDto.gv_reviewed_at) : null;
-    if (updateEvaluationDetailDto.gv_reviewed_by !== undefined) detail.gv_reviewed_by = (updateEvaluationDetailDto.gv_reviewed_by ? new Types.ObjectId(updateEvaluationDetailDto.gv_reviewed_by) : null) as any;
-    if (updateEvaluationDetailDto.final_score !== undefined) detail.final_score = updateEvaluationDetailDto.final_score;
-    if (updateEvaluationDetailDto.locked_at !== undefined) detail.locked_at = updateEvaluationDetailDto.locked_at ? new Date(updateEvaluationDetailDto.locked_at) : null;
-    if (updateEvaluationDetailDto.locked_by !== undefined) detail.locked_by = (updateEvaluationDetailDto.locked_by ? new Types.ObjectId(updateEvaluationDetailDto.locked_by) : null) as any;
-    if (updateEvaluationDetailDto.status !== undefined) detail.status = updateEvaluationDetailDto.status;
-    if (updateEvaluationDetailDto.description !== undefined) detail.description = updateEvaluationDetailDto.description;
-    if (updateEvaluationDetailDto.log !== undefined) detail.log = updateEvaluationDetailDto.log as any;
+
+    if (updateEvaluationDetailDto.gv_reviewed_at !== undefined) setObj['details.$.gv_reviewed_at'] = updateEvaluationDetailDto.gv_reviewed_at ? new Date(updateEvaluationDetailDto.gv_reviewed_at) : null;
+    if (updateEvaluationDetailDto.gv_reviewed_by !== undefined) setObj['details.$.gv_reviewed_by'] = updateEvaluationDetailDto.gv_reviewed_by ? new Types.ObjectId(updateEvaluationDetailDto.gv_reviewed_by) : null;
+
+    if (updateEvaluationDetailDto.status !== undefined) setObj['details.$.status'] = updateEvaluationDetailDto.status;
+    if (updateEvaluationDetailDto.description !== undefined) setObj['details.$.description'] = updateEvaluationDetailDto.description;
+    if (updateEvaluationDetailDto.log && updateEvaluationDetailDto.log.length > 0) {
+      setObj['details.$.log'] = updateEvaluationDetailDto.log;
+    }
+
+    const updateQuery: any = {};
+    if (Object.keys(setObj).length > 0) {
+      updateQuery.$set = setObj;
+    }
 
     const updatedSummary = await this.summaryPointModel.findOneAndUpdate(
       { 'details._id': new Types.ObjectId(id) },
-      {
-        $set: {
-          'details.$.current_count': detail.current_count,
-          'details.$.system_score': detail.system_score,
-          'details.$.sv_score': detail.sv_score,
-          'details.$.sv_submitted_at': detail.sv_submitted_at,
-          'details.$.gv_score': detail.gv_score,
-          'details.$.gv_reviewed_at': detail.gv_reviewed_at,
-          'details.$.gv_reviewed_by': detail.gv_reviewed_by,
-          'details.$.final_score': detail.final_score,
-          'details.$.locked_at': detail.locked_at,
-          'details.$.locked_by': detail.locked_by,
-          'details.$.status': detail.status,
-          'details.$.description': detail.description,
-          'details.$.log': detail.log,
-        },
-      },
+      updateQuery,
       { returnDocument: 'after' },
     ).exec();
 
@@ -477,13 +608,113 @@ export class EvaluationDetailService {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
     }
 
-    const updatedDetail = (updatedSummary.details as any).id(id);
+    // --- Recompute total score ---
+    const aggResult = await this.summaryPointModel.aggregate([
+      { $match: { _id: updatedSummary._id } },
+      { $unwind: '$details' },
+      {
+        $lookup: {
+          from: 'criteria',
+          localField: 'details.criterion_id',
+          foreignField: '_id',
+          as: 'criterion'
+        }
+      },
+      { $unwind: { path: '$criterion', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'categories',
+          localField: 'criterion.category_id',
+          foreignField: '_id',
+          as: 'category'
+        }
+      },
+      { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          categoryId: '$category._id',
+          maxScore: { $ifNull: ['$category.max_score', 100] },
+          score: {
+            $ifNull: [
+              '$details.final_score',
+              {
+                $ifNull: [
+                  '$details.gv_score',
+                  {
+                    $ifNull: [
+                      '$details.sv_score',
+                      { $ifNull: ['$details.system_score', 0] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: '$categoryId',
+          maxScore: { $first: '$maxScore' },
+          currentScore: { $sum: '$score' }
+        }
+      },
+      {
+        $project: {
+          clampedScore: {
+            $cond: [
+              { $gt: ['$currentScore', '$maxScore'] },
+              '$maxScore',
+              { $cond: [{ $lt: ['$currentScore', 0] }, 0, '$currentScore'] }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalScore: { $sum: '$clampedScore' }
+        }
+      }
+    ]).exec();
+
+    let totalScore = aggResult.length > 0 ? aggResult[0].totalScore : 0;
+    if (totalScore > 100) totalScore = 100;
+    if (totalScore < 0) totalScore = 0;
+
+    let grading = 'Chưa xếp loại';
+    if (updatedSummary.status === 'locked') {
+      if (totalScore >= 90) grading = 'Xuất sắc';
+      else if (totalScore >= 80) grading = 'Tốt';
+      else if (totalScore >= 70) grading = 'Khá';
+      else if (totalScore >= 50) grading = 'Trung bình';
+      else grading = 'Yếu';
+    }
+
+    await this.summaryPointModel.updateOne(
+      { _id: updatedSummary._id },
+      { $set: { total_score: totalScore, grading: grading } }
+    ).exec();
+
+    const finalSummary = await this.summaryPointModel.findById(updatedSummary._id).exec();
+    if (!finalSummary) {
+      throw new NotFoundException(`SummaryPoint with ID ${updatedSummary._id} not found after update`);
+    }
+    const updatedDetail = (finalSummary.details as any).id(id);
     return updatedDetail;
   }
 
   async remove(id: string, requester?: any): Promise<EvaluationDetail> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
+    }
+
+    if (this.isStudent(requester)) {
+      throw new ForbiddenException('Sinh viên không có quyền xóa lịch sử ghi nhận.');
+    }
+
+    if (this.isTeacher(requester)) {
+      throw new ForbiddenException('Cố vấn không có quyền xóa lịch sử ghi nhận.');
     }
 
     const summary = await this.summaryPointModel.findOne({
@@ -494,6 +725,10 @@ export class EvaluationDetailService {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
     }
     await this.assertCanAccessSummary(summary._id.toString(), requester);
+
+    if (summary.status === 'locked') {
+      throw new BadRequestException('Không thể xóa chi tiết chấm điểm của bảng điểm đã chốt');
+    }
 
     const detailIndex = summary.details.findIndex((d: any) => d._id.toString() === id);
     const deletedDetail = summary.details[detailIndex];
@@ -529,7 +764,7 @@ export class EvaluationDetailService {
       detail.system_score = systemScore;
       detail.sv_score = systemScore;
       detail.gv_score = systemScore;
-      detail.final_score = systemScore;
+      detail.final_score = null;
       detail.status = 'draft';
       detail.log = [];
       summary.markModified('details');

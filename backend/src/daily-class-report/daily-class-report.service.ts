@@ -19,8 +19,12 @@ export class DailyClassReportService {
 
   async create(
     createDailyClassReportDto: CreateDailyClassReportDto,
+    requester?: any,
   ): Promise<DailyClassReport> {
     try {
+      if (requester) {
+        createDailyClassReportDto.reported_by = requester.userId;
+      }
       const createdReport = new this.dailyClassReportModel(
         createDailyClassReportDto,
       );
@@ -36,25 +40,55 @@ export class DailyClassReportService {
     }
   }
 
-  async findAll(): Promise<DailyClassReport[]> {
+  private async getScopeFilter(requester?: any): Promise<any> {
+    if (!requester) return {};
+    const roleName = (requester.roleName || '').toLowerCase();
+    
+    // Admin, Supervisor xem tất cả
+    if (roleName.includes('admin') || roleName.includes('supervisor') || roleName.includes('quản sinh')) {
+      return {};
+    }
+    
+    // Teacher chỉ xem các lớp phụ trách
+    if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
+      const classes = await this.academicRecordService['classModel'].find({ advisor_id: requester.userId }).select('_id').exec();
+      return { class_id: { $in: classes.map(c => c._id) } };
+    }
+    
+    // Student chỉ xem báo cáo của lớp mình
+    if (roleName.includes('student')) {
+      const student = await this.academicRecordService['studentModel'].findOne({ user_id: new Types.ObjectId(requester.userId) }).select('class_id').exec();
+      if (student && student.class_id) {
+        return { class_id: student.class_id };
+      }
+      return { class_id: null }; // Không có lớp -> không xem được gì
+    }
+    
+    return {};
+  }
+
+  async findAll(requester?: any): Promise<DailyClassReport[]> {
+    const scopeFilter = await this.getScopeFilter(requester);
     return this.dailyClassReportModel
-      .find({ is_delete: { $ne: true } })
+      .find({ is_delete: { $ne: true }, ...scopeFilter })
       .populate('class_id')
       .populate('reported_by', 'user_name email')
       .exec();
   }
 
-  async findDeleted(): Promise<DailyClassReport[]> {
+  async findDeleted(requester?: any): Promise<DailyClassReport[]> {
+    const scopeFilter = await this.getScopeFilter(requester);
     return this.dailyClassReportModel
-      .find({ is_delete: true })
+      .find({ is_delete: true, ...scopeFilter })
       .populate('class_id')
       .populate('reported_by', 'user_name email')
       .exec();
   }
 
-  async findOne(id: string): Promise<DailyClassReport> {
+  async findOne(id: string, requester?: any): Promise<DailyClassReport> {
+    const scopeFilter = await this.getScopeFilter(requester);
     const report = await this.dailyClassReportModel
-      .findOne({ _id: id, is_delete: { $ne: true } })
+      .findOne({ _id: id, is_delete: { $ne: true }, ...scopeFilter })
       .populate('class_id')
       .populate('reported_by', 'user_name email')
       .exec();
@@ -64,9 +98,10 @@ export class DailyClassReportService {
     return report;
   }
 
-  async findByClassId(classId: string): Promise<DailyClassReport[]> {
+  async findByClassId(classId: string, requester?: any): Promise<DailyClassReport[]> {
+    const scopeFilter = await this.getScopeFilter(requester);
     return this.dailyClassReportModel
-      .find({ class_id: classId as any, is_delete: { $ne: true } })
+      .find({ class_id: classId as any, is_delete: { $ne: true }, ...scopeFilter })
       .populate('class_id')
       .populate('reported_by', 'user_name email')
       .exec();
@@ -75,10 +110,16 @@ export class DailyClassReportService {
   async update(
     id: string,
     updateDailyClassReportDto: UpdateDailyClassReportDto,
+    requester?: any,
   ): Promise<DailyClassReport> {
-    const oldReport = await this.dailyClassReportModel.findOne({ _id: id, is_delete: { $ne: true } }).exec();
+    const scopeFilter = await this.getScopeFilter(requester);
+    const oldReport = await this.dailyClassReportModel.findOne({ _id: id, is_delete: { $ne: true }, ...scopeFilter }).exec();
     if (!oldReport) {
-      throw new NotFoundException(`DailyClassReport with ID ${id} not found`);
+      throw new NotFoundException(`DailyClassReport with ID ${id} not found or you don't have permission`);
+    }
+
+    if (requester) {
+      this.checkReportPermission(oldReport, requester);
     }
 
     const updated = await this.dailyClassReportModel
@@ -143,17 +184,22 @@ export class DailyClassReportService {
     return deleted;
   }
 
-  async restore(id: string): Promise<DailyClassReport> {
-    const report = await this.dailyClassReportModel.findOne({ _id: id, is_delete: true }).exec();
+  async restore(id: string, requester?: any): Promise<DailyClassReport> {
+    const scopeFilter = await this.getScopeFilter(requester);
+    const report = await this.dailyClassReportModel.findOne({ _id: id, is_delete: true, ...scopeFilter }).exec();
     if (!report) {
       throw new NotFoundException(`DailyClassReport with ID ${id} not found trong thùng rác`);
+    }
+
+    if (requester) {
+      this.checkReportPermission(report, requester);
     }
 
     // Khôi phục tất cả AcademicRecord liên kết (kể cả đã bị soft-deleted)
     const associatedRecords = await this.academicRecordService.findByDailyReportId(id, true);
     for (const record of associatedRecords) {
       const recordId = (record as any)._id ? (record as any)._id.toString() : record.toString();
-      await this.academicRecordService.restore(recordId);
+      await this.academicRecordService.restore(recordId, requester);
     }
 
     report.is_delete = false;

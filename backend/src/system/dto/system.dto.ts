@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional, IsEnum, IsInt, Min, Max, IsMongoId, IsObject, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsEnum, IsInt, Min, Max, IsMongoId, IsObject, IsDateString, IsNumber, IsArray, ValidateNested, IsBoolean, MaxLength, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class MongoIdParamDto {
@@ -173,4 +173,129 @@ export class GetBackupsQueryDto {
   @Min(1)
   @Max(100, { message: 'Limit tối đa là 100' })
   limit?: number = 20; // Default limit is 20
+}
+
+export class ApiBreakdownDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name: string;
+
+  @IsNumber()
+  duration_ms: number;
+
+  @IsOptional()
+  @IsNumber()
+  status?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  ok?: boolean;
+}
+
+export class CreateSystemPerformanceMetricDto {
+  @IsString()
+  @IsNotEmpty()
+  route: string;
+
+  @IsString()
+  @IsEnum(['desktop', 'tablet', 'mobile', 'unknown'])
+  device_type: string;
+
+  @IsOptional()
+  @IsString()
+  network_effective_type?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsEnum(['navigate', 'reload', 'back_forward', 'prerender', 'unknown'])
+  navigation_type?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  ttfb_ms?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  dom_content_loaded_ms?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  load_event_ms?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  fcp_ms?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  lcp_ms?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  cls?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  inp_ms?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  api_total_ms?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50, { message: 'api_breakdown tối đa 50 item' })
+  @ValidateNested({ each: true })
+  @Type(() => ApiBreakdownDto)
+  api_breakdown?: ApiBreakdownDto[];
+}
+
+export class GetPerformanceSummaryQueryDto {
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+
+  @IsOptional()
+  @IsString()
+  route?: string;
+}
+
+export class GetPerformanceMetricsQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 20;
+
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+
+  @IsOptional()
+  @IsString()
+  route?: string;
 }

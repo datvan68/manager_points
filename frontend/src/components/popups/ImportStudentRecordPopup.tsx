@@ -100,11 +100,12 @@ export default function ImportStudentRecordPopup({ isOpen, onClose, onSuccess }:
         if (rawRows.length > 5000) throw new Error('Số lượng bản ghi vượt quá giới hạn 5.000!');
 
         // load reference data
-        const [allStudents, allCriteria, allSemesters] = await Promise.all([
+        const [allStudentsRes, allCriteria, allSemesters] = await Promise.all([
           studentApi.getStudents(),
           criteriaApi.getCriteria(),
           semesterApi.getSemesters()
         ]);
+        const allStudents = Array.isArray(allStudentsRes) ? allStudentsRes : (allStudentsRes?.data || []);
 
         const errors: ImportValidationError[] = [];
         const validItems: Array<{ row: number; dto: any; studentCode?: string; fullName?: string; criterionName?: string }> = [];

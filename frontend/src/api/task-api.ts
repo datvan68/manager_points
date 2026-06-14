@@ -158,9 +158,8 @@ export const studentTaskApi = {
   },
 
   async getTeachers(): Promise<any[]> {
-    const res = await httpClient(`${API_BASE}/api/auth/users`);
-    const users = await handleResponse<any[]>(res);
-    return users.filter((u: any) => u.role?.role_code === 'TEACHER');
+    const res = await httpClient(`${API_BASE}/student-tasks/assignees/teachers`);
+    return handleResponse<any[]>(res);
   },
 
   async getTaskProgressOverview(query: any): Promise<TaskProgressOverviewResponse> {

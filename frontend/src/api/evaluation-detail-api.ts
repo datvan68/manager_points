@@ -44,8 +44,10 @@ export interface CreateEvaluationDetailDto {
   status?: string;
   system_score?: number | null;
   sv_score?: number | null;
+  sv_submitted_at?: string | Date | null;
   gv_score?: number | null;
-  final_score?: number | null;
+  gv_reviewed_at?: string | Date | null;
+  gv_reviewed_by?: string | null;
   description?: string;
 }
 
@@ -57,8 +59,10 @@ export interface UpdateEvaluationDetailDto {
   status?: string;
   system_score?: number | null;
   sv_score?: number | null;
+  sv_submitted_at?: string | Date | null;
   gv_score?: number | null;
-  final_score?: number | null;
+  gv_reviewed_at?: string | Date | null;
+  gv_reviewed_by?: string | null;
   description?: string;
 }
 
@@ -73,8 +77,9 @@ export const evaluationDetailApi = {
     return handleResponse<EvaluationDetail>(res);
   },
 
-  async getEvaluationDetailsBySummary(summaryId: string): Promise<EvaluationDetail[]> {
-    const res = await httpClient(`${API_BASE}/evaluation-detail/summary/${summaryId}`);
+  async getEvaluationDetailsBySummary(summaryId: string, includeLogs?: boolean): Promise<EvaluationDetail[]> {
+    const qs = includeLogs !== undefined ? `?includeLogs=${includeLogs}` : '';
+    const res = await httpClient(`${API_BASE}/evaluation-detail/summary/${summaryId}${qs}`);
     return handleResponse<EvaluationDetail[]>(res);
   },
 
@@ -110,5 +115,17 @@ export const evaluationDetailApi = {
   async getPreExistingCounts(summaryId: string): Promise<Record<string, { original_count: number; current_count: number }>> {
     const res = await httpClient(`${API_BASE}/evaluation-detail/pre-counts/${summaryId}`);
     return handleResponse<Record<string, { original_count: number; current_count: number }>>(res);
+  },
+
+  /**
+   * Đếm hàng loạt số academic_record đã có sẵn cho nhiều summaries.
+   */
+  async getPreExistingCountsBulk(summaryIds: string[]): Promise<Record<string, Record<string, { original_count: number; current_count: number }>>> {
+    const res = await httpClient(`${API_BASE}/evaluation-detail/pre-counts/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ summaryIds }),
+    });
+    return handleResponse<Record<string, Record<string, { original_count: number; current_count: number }>>>(res);
   }
 };

@@ -11,6 +11,7 @@ export interface NotificationItem {
   isRead: boolean;
   routeUrl?: string;
   recipientUserId?: string | null;
+  targetRole?: 'all' | 'student' | 'teacher' | 'supervisor' | null;
   createdBy?: string | null;
   readByUserIds?: string[];
   source?: string;
@@ -25,6 +26,7 @@ export interface CreateNotificationDto {
   type?: 'warning' | 'success' | 'info' | 'system';
   routeUrl?: string;
   recipientUserId?: string;
+  targetRole?: 'all' | 'student' | 'teacher' | 'supervisor';
   source?: string;
   metadata?: Record<string, any>;
 }
@@ -34,6 +36,7 @@ export interface UpdateNotificationDto {
   description?: string;
   type?: 'warning' | 'success' | 'info' | 'system';
   routeUrl?: string;
+  targetRole?: 'all' | 'student' | 'teacher' | 'supervisor';
   isRead?: boolean;
   metadata?: Record<string, any>;
 }
@@ -45,6 +48,7 @@ export interface QueryNotificationDto {
   isRead?: string;
   search?: string;
   recipientUserId?: string;
+  targetRole?: 'all' | 'student' | 'teacher' | 'supervisor';
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -90,6 +94,7 @@ export const notificationApi = {
     }
     if (query.search) params.append('search', query.search);
     if (query.recipientUserId) params.append('recipientUserId', query.recipientUserId);
+    if (query.targetRole) params.append('targetRole', query.targetRole);
 
     const queryString = params.toString();
     const url = `${API_BASE}/notifications${queryString ? `?${queryString}` : ''}`;

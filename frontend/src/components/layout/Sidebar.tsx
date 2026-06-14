@@ -15,6 +15,7 @@ import {
   BarChart3
 } from "lucide-react";
 import { useAuth, isAdminUser } from "@/providers/auth-provider";
+import { isTeacherRole, isStudentRole } from "@/utils/role.util";
 import { authApi } from "@/api/auth-api";
 import { studentApi } from "@/api/student-api";
 import { toast } from "sonner";
@@ -83,7 +84,7 @@ const Sidebar = () => {
     hoverTimeoutRef.current = setTimeout(() => {
       setIsHovered(false);
       globalIsHovered = false;
-    }, 400); // 400ms delay tránh giật mắt khi vô tình di chuột ra ngoài
+    }, 1000); // 400ms delay tránh giật mắt khi vô tình di chuột ra ngoài
   };
 
   const handleCompactClick = () => {
@@ -119,8 +120,7 @@ const Sidebar = () => {
     hasAnyPermission,
     hasAllPermissions,
   } = useAuth();
-  const role = (user?.role || user?.roleName || '').toLowerCase();
-  const isStudent = role.includes('student') || role.includes('sinh vien') || role.includes('hoc sinh') || role.includes('học sinh') || role.includes('sinh viên');
+  const isStudent = isStudentRole(user);
   const [visibleItems, setVisibleItems] = useState<typeof allMenuItems>([]);
   const [isSidebarLoading, setIsSidebarLoading] = useState(true);
   const [isResolvingProfile, setIsResolvingProfile] = useState(false);
@@ -148,8 +148,7 @@ const Sidebar = () => {
     }
 
     setIsResolvingProfile(true);
-    const role = (user?.role || user?.roleName || '').toLowerCase();
-    const isStudent = role.includes('student') || role.includes('sinh vien') || role.includes('hoc sinh');
+    const isStudent = isStudentRole(user);
 
     if (isStudent) {
       try {
@@ -191,12 +190,12 @@ const Sidebar = () => {
     }
 
     (async () => {
+      const isStudentUser = isStudentRole(user);
+      const isTeacherUser = isTeacherRole(user);
+      
       try {
         const token = typeof window !== 'undefined' ? (sessionStorage.getItem('access_token') || '') : '';
         const mappings = await fetchSidebarMappings(token);
-
-        const role = (user?.role || user?.roleName || '').toLowerCase();
-        const isStudentUser = role.includes('student') || role.includes('sinh vien') || role.includes('hoc sinh');
 
         if (isAdminUser(user)) {
           setVisibleItems(allMenuItems);
@@ -206,8 +205,12 @@ const Sidebar = () => {
 
         // Filter menu items based on route-permission mappings
         const filtered = allMenuItems.filter((item) => {
-          // Luôn hiển thị mục "Học sinh sinh viên" cho vai trò học sinh/sinh viên
-          if (item.href === "/students" && isStudentUser) {
+          if (item.href === "/" && isStudentUser) {
+            return false;
+          }
+
+          // Luôn hiển thị mục "Học sinh sinh viên" cho vai trò học sinh/sinh viên hoặc giáo viên
+          if (item.href === "/students" && (isStudentUser || isTeacherUser || hasPermission("STUDENT_READ") || hasPermission("READ_STUDENT_TASK"))) {
             return true;
           }
 
@@ -239,21 +242,18 @@ const Sidebar = () => {
       } catch (error) {
         console.error("Lỗi tải cấu hình sidebar:", error);
         // Fallback to static permissions filtering instead of showing everything
-        const isStudentUser = role.includes('student') || role.includes('sinh vien') || role.includes('hoc sinh');
-        const isTeacherUser = role.includes('teacher') || role.includes('advisor') || role.includes('giảng viên') || role.includes('cố vấn');
-
         const fallbackFiltered = allMenuItems.filter((item) => {
-          if (item.href === "/") return true;
+          if (item.href === "/") return !isStudentUser;
           if (isAdminUser(user)) return true;
 
           if (item.href === "/students") {
-            return isStudentUser || isTeacherUser || hasPermission("STUDENT_PAGE") || hasPermission("STUDENT_READ");
+            return isStudentUser || isTeacherUser || hasPermission("STUDENT_PAGE") || hasPermission("STUDENT_READ") || hasPermission("READ_STUDENT_TASK");
           }
           if (item.href === "/grading") {
             return isTeacherUser || hasPermission("GRADING_PAGE") || hasPermission("GRADING_READ");
           }
           if (item.href === "/reports") {
-            return isTeacherUser || isAdminUser(user) || hasPermission("REPORTS_PAGE") || hasPermission("REPORTS_READ");
+            return isAdminUser(user) || hasPermission("REPORTS_PAGE") || hasPermission("REPORTS_READ");
           }
           if (item.href === "/system") {
             return hasAnyPermission(

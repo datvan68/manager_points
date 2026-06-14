@@ -12,8 +12,9 @@ import {
 } from '@nestjs/common';
 import { AcademicRecordService } from './academic-record.service';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
+import { BulkCreateAcademicRecordDto } from './dto/bulk-create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { checkRole } from '../auth/guards/check-role.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -28,8 +29,24 @@ export class AcademicRecordController {
   @ApiOperation({
     summary: 'Create a new academic record (requires Admin, Teacher, or Supervisor role)',
   })
-  create(@Body() createAcademicRecordDto: CreateAcademicRecordDto) {
-    return this.academicRecordService.create(createAcademicRecordDto);
+  create(@Body() createAcademicRecordDto: CreateAcademicRecordDto, @Request() req: any) {
+    const requester = req.user;
+    return this.academicRecordService.create(createAcademicRecordDto, requester);
+  }
+
+  @Post('bulk')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Bulk create academic records (requires Admin, Teacher, or Supervisor role)',
+  })
+  @ApiBody({ type: BulkCreateAcademicRecordDto })
+  bulkCreate(
+    @Body() bulkCreateDto: BulkCreateAcademicRecordDto,
+    @Request() req: any,
+  ) {
+    const requester = req.user;
+    return this.academicRecordService.bulkCreate(bulkCreateDto, requester);
   }
 
   @Get()
@@ -42,15 +59,21 @@ export class AcademicRecordController {
   }
 
   @Get('deleted/all')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all soft-deleted academic records' })
-  findDeleted() {
-    return this.academicRecordService.findDeleted();
+  findDeleted(@Request() req: any) {
+    const requester = req.user;
+    return this.academicRecordService.findDeleted(requester);
   }
 
   @Get(':id')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get academic record by ID' })
-  findOne(@Param('id') id: string) {
-    return this.academicRecordService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req: any) {
+    const requester = req.user;
+    return this.academicRecordService.findOne(id, requester);
   }
 
   @Get('student/:studentId')
@@ -76,10 +99,12 @@ export class AcademicRecordController {
   update(
     @Param('id') id: string,
     @Body() updateAcademicRecordDto: UpdateAcademicRecordDto,
+    @Request() req: any,
     @Query('bypassDailyReportCheck') bypassDailyReportCheck?: string,
   ) {
     const bypass = bypassDailyReportCheck === 'true';
-    return this.academicRecordService.update(id, updateAcademicRecordDto, bypass);
+    const requester = req.user;
+    return this.academicRecordService.update(id, updateAcademicRecordDto, requester, bypass);
   }
 
   @Delete(':id')
@@ -104,8 +129,9 @@ export class AcademicRecordController {
   @ApiOperation({
     summary: 'Restore a soft-deleted academic record (requires Admin, Teacher, or Supervisor role)',
   })
-  restore(@Param('id') id: string) {
-    return this.academicRecordService.restore(id);
+  restore(@Param('id') id: string, @Request() req: any) {
+    const requester = req.user;
+    return this.academicRecordService.restore(id, requester);
   }
 
   @Delete(':id/force')

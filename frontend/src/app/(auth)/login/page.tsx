@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { authApi, tokenStorage } from '@/api/auth-api';
 import { useAuth } from '@/providers/auth-provider';
+import { isStudentRole, isTeacherRole } from '@/utils/role.util';
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email hoặc Mã sinh viên không được để trống'),
@@ -50,7 +51,11 @@ export default function LoginPage() {
       toast.success('Đăng nhập thành công', {
         description: `Chào mừng ${result.user.username} quay trở lại!`,
       });
-      router.push('/');
+      if (isStudentRole(result.user) || isTeacherRole(result.user)) {
+        router.push('/students/tasks');
+      } else {
+        router.push('/');
+      }
     } catch (err: any) {
       toast.error('Đăng nhập thất bại', {
         description: err.message || 'Vui lòng kiểm tra lại thông tin đăng nhập.',

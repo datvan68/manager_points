@@ -22,6 +22,10 @@ export class CreateNotificationDto {
   recipientUserId?: string;
 
   @IsOptional()
+  @IsEnum(['all', 'student', 'teacher', 'supervisor'])
+  targetRole?: 'all' | 'student' | 'teacher' | 'supervisor';
+
+  @IsOptional()
   @IsString()
   source?: string;
 

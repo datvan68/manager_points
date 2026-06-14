@@ -15,9 +15,11 @@ import {
   Eye,
   Settings
 } from 'lucide-react';
-import SemesterModal from '../../components/grading/SemesterModal';
-import BulkGradingModal from '../../components/grading/BulkGradingModal';
-import GradingPdfTemplate from '../../components/grading/GradingPdfTemplate';
+import dynamic from 'next/dynamic';
+const SemesterModal = dynamic(() => import('../../components/grading/SemesterModal'), { ssr: false });
+const BulkGradingModal = dynamic(() => import('../../components/grading/BulkGradingModal'), { ssr: false });
+const GradingPdfTemplate = dynamic(() => import('../../components/grading/GradingPdfTemplate'), { ssr: false });
+const ConfirmModal = dynamic(() => import('../../components/modals/ConfirmModal'), { ssr: false });
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
@@ -36,6 +38,7 @@ import { evaluationDetailApi } from '@/api/evaluation-detail-api';
 import { categoryApi } from '../../api/category-api';
 import { criteriaApi } from '../../api/criteria-api';
 import { studentApi } from '../../api/student-api';
+import { academicRecordApi } from '../../api/academic-record-api';
 import { RouteGuard, usePermission } from '@/components/guards/RouteGuard';
 import { useAuth } from '@/providers/auth-provider';
 
@@ -118,6 +121,7 @@ function GradingPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
@@ -130,6 +134,7 @@ function GradingPage() {
   const [apiClasses, setApiClasses] = useState<any[]>([]);
   const [apiSemesters, setApiSemesters] = useState<any[]>([]);
   const [apiSummariesPoints, setApiSummariesPoints] = useState<any[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
   const [apiEvaluationDetails, setApiEvaluationDetails] = useState<any[]>([]);
   const [preExistingCountsCache, setPreExistingCountsCache] = useState<Record<string, Record<string, { original_count: number; current_count: number }>>>({});
   const [categories, setCategories] = useState<any[]>([]);
@@ -150,6 +155,17 @@ function GradingPage() {
   const [isBulkGradingOpen, setIsBulkGradingOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
+  // State confirm hủy duyệt hàng loạt
+  const [cancelBulkConfirm, setCancelBulkConfirm] = useState<{
+    isOpen: boolean;
+    message: string;
+    summaryIds: string[];
+  }>({
+    isOpen: false,
+    message: '',
+    summaryIds: [],
+  });
+
   const visibleClasses = isTeacher
     ? apiClasses.filter((cls) => getClassAdvisorId(cls) === currentUserId)
     : apiClasses;
@@ -163,9 +179,29 @@ function GradingPage() {
     ? visibleClasses.filter((cls) => getClassDepartmentId(cls) === selectedDepartment)
     : visibleClasses;
 
+  const classMap = React.useMemo(() => {
+    const map = new Map<string, any>();
+    (apiClasses || []).forEach(c => {
+      if (c && c._id) map.set(c._id, c);
+    });
+    return map;
+  }, [apiClasses]);
+
+  const semesterMap = React.useMemo(() => {
+    const map = new Map<string, any>();
+    (apiSemesters || []).forEach(s => {
+      if (s && s._id) map.set(s._id, s);
+    });
+    return map;
+  }, [apiSemesters]);
+
   const handleConfirmBulkGrading = async (criteriaId: string, count: number) => {
     if (selectedStudentIds.length === 0) {
       toast.error('Vui lòng chọn ít nhất một sinh viên để chấm điểm!');
+      return;
+    }
+    if (count <= 0) {
+      toast.error('Số lượng chấm điểm phải lớn hơn 0!');
       return;
     }
 
@@ -173,24 +209,9 @@ function GradingPage() {
     toast.loading(`Đang chấm điểm rèn luyện hàng loạt cho ${selectedStudentIds.length} sinh viên...`, { id: 'bulk-loading' });
 
     try {
-      // 1. Xác định thông tin vai trò người chấm đăng nhập
       const currentUser = tokenStorage.getUser();
-      let userRole: 'student' | 'teacher' | 'supervisor' | 'admin' = 'student';
-      if (currentUser?.role) {
-        const r = currentUser.role.toLowerCase();
-        if (r.includes('admin')) {
-          userRole = 'admin';
-        } else if (r.includes('teacher') || r.includes('advisor')) {
-          userRole = 'teacher';
-        } else if (r.includes('supervisor') || r.includes('quản sinh')) {
-          userRole = 'supervisor';
-        }
-      }
 
-      // Trạng thái mặc định là bản nháp
-      const detailStatus = 'draft';
-
-      // 2. Tra cứu tiêu chí từ state categories
+      // Tra cứu tiêu chí từ state categories
       let targetCriterion: any = null;
       categories.forEach(cat => {
         const found = cat.items.find((cri: any) => cri.id === criteriaId);
@@ -201,142 +222,28 @@ function GradingPage() {
         throw new Error('Không tìm thấy thông tin tiêu chí chấm điểm!');
       }
 
-      // 3. Tiến hành duyệt qua từng sinh viên được tick chọn
-      const promises = selectedStudentIds.map(async (studentId) => {
-        // Tìm summary tương ứng của sinh viên này trong class hiện tại
-        const summary = (apiSummariesPoints || []).find(s => {
-          const sId = getSummaryStudentKey(s);
-          return sId === studentId;
-        });
-
-        if (!summary) {
-          console.warn(`Không tìm thấy bảng điểm rèn luyện (SummaryPoint) của sinh viên: ${studentId}`);
-          return;
-        }
-
-        const summaryId = summary._id;
-
-        // Tải các chi tiết chấm điểm cũ
-        const oldDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
-        const existingDetail = (oldDetails || []).find(d => {
-          const dCriId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
-          return dCriId === criteriaId;
-        });
-
-        if (existingDetail) {
-          const newCount = (existingDetail.current_count || 0) + count;
-          let calculatedScore = newCount * targetCriterion.pointsPerUnit;
-          if (targetCriterion.pointsPerUnit >= 0) {
-            calculatedScore = Math.max(targetCriterion.minScore || 0, Math.min(targetCriterion.maxScore || 10, calculatedScore));
-          } else {
-            calculatedScore = Math.max(-(targetCriterion.maxScore || 10), Math.min(targetCriterion.minScore || 0, calculatedScore));
-          }
-
-          const updatedHistory = [...(existingDetail.log || [])];
-          updatedHistory.push({
-            from_status: existingDetail.status || 'draft',
-            to_status: detailStatus,
-            score_before: existingDetail.system_score || 0,
-            score_after: calculatedScore,
-            updated_by: currentUser?.id,
-            reason: 'Chấm điểm hàng loạt'
-          });
-
-          const cleanLog = updatedHistory.map((log: any) => ({
-            from_status: log.from_status || 'draft',
-            to_status: log.to_status || 'draft',
-            score_before: log.score_before !== undefined ? log.score_before : 0,
-            score_after: log.score_after !== undefined ? log.score_after : 0,
-            updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
-            reason: log.reason || 'Chấm điểm hàng loạt'
-          }));
-
-          const scorePayload: any = {};
-          if (userRole === 'student') {
-            scorePayload.sv_score = calculatedScore;
-          } else if (userRole === 'teacher' || userRole === 'supervisor') {
-            scorePayload.gv_score = calculatedScore;
-          } else if (userRole === 'admin') {
-            scorePayload.final_score = calculatedScore;
-          }
-
-          await evaluationDetailApi.updateEvaluationDetail(existingDetail._id, {
-            current_count: newCount,
-            log: cleanLog,
-            status: detailStatus,
-            ...scorePayload
-          });
-        } else {
-          const preCount = (preExistingCountsCache[summaryId] && preExistingCountsCache[summaryId][criteriaId]?.current_count) || 0;
-          const newCount = count + preCount;
-          
-          let calculatedScore = newCount * targetCriterion.pointsPerUnit;
-          if (targetCriterion.pointsPerUnit >= 0) {
-            calculatedScore = Math.max(targetCriterion.minScore || 0, Math.min(targetCriterion.maxScore || 10, calculatedScore));
-          } else {
-            calculatedScore = Math.max(-(targetCriterion.maxScore || 10), Math.min(targetCriterion.minScore || 0, calculatedScore));
-          }
-
-          const scorePayload: any = {};
-          if (userRole === 'student') {
-            scorePayload.sv_score = calculatedScore;
-          } else if (userRole === 'teacher' || userRole === 'supervisor') {
-            scorePayload.gv_score = calculatedScore;
-          } else if (userRole === 'admin') {
-            scorePayload.final_score = calculatedScore;
-          }
-
-          await evaluationDetailApi.createEvaluationDetail({
-            summary_id: summaryId,
+      // Tạo payload cho batch endpoint
+      const actionBatchId = Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+      
+      const recordsToCreate: any[] = [];
+      selectedStudentIds.forEach((studentId) => {
+        for (let i = 0; i < count; i++) {
+          recordsToCreate.push({
+            student_id: studentId,
             criterion_id: criteriaId,
-            current_count: newCount,
-            log: [
-              {
-                from_status: 'draft',
-                to_status: detailStatus,
-                score_before: 0,
-                score_after: calculatedScore,
-                updated_by: currentUser?.id,
-                reason: 'Chấm điểm hàng loạt'
-              }
-            ],
-            status: detailStatus,
-            ...scorePayload
+            semester_id: appliedSemester,
+            record_title: targetCriterion.name,
+            description: 'Chấm điểm hàng loạt',
+            status: 'active' as const,
+            recorded_at: new Date().toISOString(),
+            recorded_by: currentUser?.id,
+            idempotency_key: `bulk_grading:${appliedSemester}:${criteriaId}:${studentId}:${actionBatchId}:${i}`,
+            source: 'bulk_grading'
           });
         }
-
-        // Tải toàn bộ details mới để tính tổng điểm realtime
-        const latestDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
-
-        let finalScore = 0;
-        categories.forEach(cat => {
-          let catScore = 0;
-          cat.items.forEach((cri: any) => {
-            const detail = latestDetails.find(d => {
-              const dCriId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
-              return dCriId === cri.id;
-            });
-            const currentCount = detail ? detail.current_count : 0;
-            const maxScore = cri.maxScore || 10;
-            const minScore = cri.minScore || 0;
-            const criterionScore = cri.pointsPerUnit >= 0
-              ? Math.max(minScore, Math.min(maxScore, currentCount * cri.pointsPerUnit))
-              : Math.max(-maxScore, Math.min(0, currentCount * cri.pointsPerUnit));
-            catScore += criterionScore;
-          });
-          const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));
-          finalScore += clampedCatScore;
-        });
-
-        const clampedFinalScore = Math.max(0, Math.min(100, finalScore));
-
-        // Cập nhật summariesPoint
-        await summariesPointApi.updateSummariesPoint(summaryId, {
-          total_score: clampedFinalScore
-        });
       });
 
-      await Promise.all(promises);
+      await academicRecordApi.bulkCreateAcademicRecords(recordsToCreate);
 
       toast.dismiss('bulk-loading');
       toast.success(`Đã áp dụng chấm điểm hàng loạt thành công cho ${selectedStudentIds.length} sinh viên!`);
@@ -357,129 +264,30 @@ function GradingPage() {
   // Hàm duyệt điểm rèn luyện cho tài khoản Quản sinh (Supervisor) và Admin
   const handleApproveEvaluation = async (summaryId: string, studentName: string) => {
     const currentUser = tokenStorage.getUser();
-    let userRole: 'student' | 'teacher' | 'supervisor' | 'admin' = 'student';
-    if (currentUser?.role) {
-      const r = currentUser.role.toLowerCase();
-      if (r.includes('admin')) {
-        userRole = 'admin';
-      } else if (r.includes('teacher') || r.includes('advisor')) {
-        userRole = 'teacher';
-      } else if (r.includes('supervisor') || r.includes('quản sinh')) {
-        userRole = 'supervisor';
-      }
-    }
+    const roleLower = (currentUser?.role || '').toLowerCase();
+    const canApprove = roleLower.includes('admin') || roleLower.includes('supervisor') || roleLower.includes('quản sinh');
 
-    if (userRole !== 'supervisor' && userRole !== 'admin') {
+    if (!canApprove) {
       toast.error('Bạn không có quyền duyệt điểm rèn luyện!');
       return;
     }
-
-    const detailStatus = 'locked';
 
     setIsTableLoading(true);
     toast.loading(`Đang duyệt điểm rèn luyện cho sinh viên ${studentName}...`, { id: 'approve-loading' });
 
     try {
-      const details = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
-      if (!details || details.length === 0) {
-        toast.dismiss('approve-loading');
-        toast.warning(`Sinh viên ${studentName} chưa được chấm tiêu chí nào để duyệt!`);
-        setIsTableLoading(false);
-        return;
-      }
+      // Gọi duy nhất API approve trên backend
+      const updatedSummary = await summariesPointApi.approveGrading(summaryId);
 
-      const promises = details.map(detail => {
-        const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
-        const criterionId = cri?._id || detail.criterion_id;
-        const criterion = categories.flatMap(cat => cat.items).find((item: any) => item.id === criterionId);
-        const currentScore = calculateCriterionScore(criterion || cri, detail.current_count || 0);
-
-        const updatedHistory = [...(detail.log || [])];
-        updatedHistory.push({
-          from_status: detail.status || 'draft',
-          to_status: detailStatus,
-          score_before: detail.system_score || 0,
-          score_after: currentScore,
-          updated_by: currentUser?.id,
-          reason: 'Duyệt rèn luyện bởi ' + (userRole === 'supervisor' ? 'Quản sinh' : 'Admin')
-        });
-
-        // Lọc sạch mảng lịch sử trước khi gửi lên API
-        const cleanLog = updatedHistory.map((log: any) => ({
-          from_status: log.from_status || 'draft',
-          to_status: log.to_status || 'draft',
-          score_before: log.score_before !== undefined ? log.score_before : 0,
-          score_after: log.score_after !== undefined ? log.score_after : 0,
-          updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
-          reason: log.reason || 'Duyệt rèn luyện'
-        }));
-
-        const scorePayload: any = {};
-        if (userRole === 'supervisor') {
-          scorePayload.gv_score = currentScore;
-          scorePayload.gv_reviewed_at = new Date();
-          scorePayload.gv_reviewed_by = currentUser?.id;
-          scorePayload.final_score = currentScore;
-          scorePayload.locked_at = new Date();
-          scorePayload.locked_by = currentUser?.id;
-        } else if (userRole === 'admin') {
-          scorePayload.final_score = currentScore;
-          scorePayload.locked_at = new Date();
-          scorePayload.locked_by = currentUser?.id;
-        }
-
-        return evaluationDetailApi.updateEvaluationDetail(detail._id, {
-          log: cleanLog,
-          status: detailStatus,
-          ...scorePayload
-        });
-      });
-
-      await Promise.all(promises);
-
-      // Tính toán lại tổng điểm rèn luyện dựa trên các chi tiết chấm điểm thực tế
-      let finalScore = 0;
-      categories.forEach(cat => {
-        let catScore = 0;
-        cat.items.forEach((cri: any) => {
-          const detail = details.find(d => {
-            const dCriId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
-            return dCriId === cri.id;
-          });
-          const currentCount = detail ? detail.current_count : 0;
-          const maxScore = cri.maxScore || 10;
-          const minScore = cri.minScore || 0;
-          const criterionScore = cri.pointsPerUnit >= 0
-            ? Math.max(minScore, Math.min(maxScore, currentCount * cri.pointsPerUnit))
-            : Math.max(-maxScore, Math.min(0, currentCount * cri.pointsPerUnit));
-          catScore += criterionScore;
-        });
-        const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));
-        finalScore += clampedCatScore;
-      });
-
-      const clampedFinalScore = Math.max(0, Math.min(100, finalScore));
-
-      // Xác định xếp loại tương ứng dựa trên tổng điểm mới tính
-      let newGrading = 'Chưa xếp loại';
-      if (clampedFinalScore >= 90) newGrading = 'Xuất sắc';
-      else if (clampedFinalScore >= 80) newGrading = 'Tốt';
-      else if (clampedFinalScore >= 70) newGrading = 'Khá';
-      else if (clampedFinalScore >= 50) newGrading = 'Trung bình';
-      else if (clampedFinalScore > 0) newGrading = 'Yếu';
-
-      // Cập nhật cả total_score, xếp loại mới và trạng thái vào Database thông qua summariesPointApi
-      await summariesPointApi.updateSummariesPoint(summaryId, {
-        total_score: clampedFinalScore,
-        grading: newGrading,
-        status: detailStatus
-      });
+      // Cập nhật local state: thay thế bảng điểm cũ bằng bảng điểm mới từ backend
+      setApiSummariesPoints((prevSummaries) =>
+        prevSummaries.map((summary) =>
+          summary._id === summaryId ? updatedSummary : summary
+        )
+      );
 
       toast.dismiss('approve-loading');
-      toast.success(`Đã duyệt rèn luyện và xếp loại "${newGrading}" thành công cho sinh viên ${studentName}!`);
-
-      // Tải lại bảng
-      await fetchData();
+      toast.success(`Đã duyệt rèn luyện thành công cho sinh viên ${studentName}!`);
     } catch (error: any) {
       toast.dismiss('approve-loading');
       toast.error('Lỗi khi duyệt rèn luyện: ' + error.message);
@@ -504,72 +312,80 @@ function GradingPage() {
       return;
     }
 
-    setIsTableLoading(true);
-    toast.loading(`Đang hủy duyệt điểm rèn luyện cho ${selectedStudentIds.length} sinh viên...`, { id: 'cancel-bulk-loading' });
+    // Lọc ra các summaryId của các học sinh được chọn
+    const summaryIdsToCancel: string[] = [];
+    const nonLockedStudents: string[] = [];
 
-    try {
-      const promises = selectedStudentIds.map(async (studentId) => {
-        // Tìm summary tương ứng của sinh viên này
-        const summary = (apiSummariesPoints || []).find(s => {
-          const sId = getSummaryStudentKey(s);
-          return sId === studentId;
-        });
-
-        if (!summary) return;
-
-        const summaryId = summary._id;
-
-        // 1. Tải tất cả chi tiết chấm điểm (EvaluationDetails) thuộc summaryId này
-        const studentDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
-
-        // 2. Cập nhật status của tất cả chi tiết chấm điểm về 'draft'
-        const detailPromises = (studentDetails || []).map(detail => {
-          const cri = typeof detail.criterion_id === 'object' ? detail.criterion_id : null;
-          const pointsPerUnit = cri?.score_per_unit || 1;
-          const currentScore = detail.current_count * pointsPerUnit;
-
-          const updatedHistory = [...(detail.log || [])];
-          updatedHistory.push({
-            from_status: detail.status || 'gv_reviewed',
-            to_status: 'draft',
-            score_before: currentScore,
-            score_after: currentScore,
-            updated_by: currentUser?.id,
-            reason: 'Hủy duyệt rèn luyện về Bản nháp'
-          });
-
-          const cleanLog = updatedHistory.map((log: any) => ({
-            from_status: log.from_status || 'gv_reviewed',
-            to_status: log.to_status || 'draft',
-            score_before: log.score_before !== undefined ? log.score_before : 0,
-            score_after: log.score_after !== undefined ? log.score_after : 0,
-            updated_by: typeof log.updated_by === 'object' ? log.updated_by?._id : log.updated_by,
-            reason: log.reason || 'Hủy duyệt rèn luyện'
-          }));
-
-          return evaluationDetailApi.updateEvaluationDetail(detail._id, {
-            log: cleanLog,
-            status: 'draft'
-          });
-        });
-
-        await Promise.all(detailPromises);
-
-        // 3. Cập nhật status bảng điểm về 'draft' và grading về 'Chưa xếp loại'
-        await summariesPointApi.updateSummariesPoint(summaryId, {
-          status: 'draft',
-          grading: 'Chưa xếp loại'
-        });
+    selectedStudentIds.forEach((studentId) => {
+      const summary = (apiSummariesPoints || []).find(s => {
+        const sId = getSummaryStudentKey(s);
+        return sId === studentId;
       });
 
-      await Promise.all(promises);
+      if (summary) {
+        if (summary.status === 'locked') {
+          summaryIdsToCancel.push(summary._id);
+        } else {
+          const studentObj = typeof summary.student_id === 'object' ? summary.student_id : null;
+          nonLockedStudents.push(studentObj?.full_name || studentObj?.name || studentId);
+        }
+      }
+    });
+
+    if (summaryIdsToCancel.length === 0) {
+      toast.error('Không có sinh viên nào đang ở trạng thái đã phê duyệt (Locked) để hủy duyệt!');
+      return;
+    }
+
+    let messageText = '';
+    if (nonLockedStudents.length > 0) {
+      messageText = `Có ${nonLockedStudents.length} sinh viên chưa được phê duyệt điểm (sẽ bị bỏ qua): ${nonLockedStudents.join(', ')}. Bạn có muốn tiếp tục hủy duyệt cho ${summaryIdsToCancel.length} sinh viên còn lại không?`;
+    } else {
+      messageText = `Bạn có chắc chắn muốn hủy duyệt điểm rèn luyện cho ${summaryIdsToCancel.length} sinh viên đã chọn không?`;
+    }
+
+    setCancelBulkConfirm({
+      isOpen: true,
+      message: messageText,
+      summaryIds: summaryIdsToCancel
+    });
+  };
+
+  const executeCancelApproveBulk = async (summaryIds: string[]) => {
+    setIsTableLoading(true);
+    toast.loading(`Đang hủy duyệt điểm rèn luyện cho ${summaryIds.length} sinh viên...`, { id: 'cancel-bulk-loading' });
+
+    try {
+      // Gọi API bulk cancel approval ở Backend
+      const results = await summariesPointApi.cancelApprovalBulk(summaryIds);
+
+      // Đếm số thành công và lỗi
+      const successes = results.filter((r: any) => r.success);
+      const failures = results.filter((r: any) => !r.success);
+
+      if (successes.length > 0) {
+        // Cập nhật local state: thay thế các summary được cập nhật thành công trong apiSummariesPoints
+        setApiSummariesPoints((prevSummaries) => {
+          return prevSummaries.map((summary) => {
+            const match = successes.find((s: any) => s.summaryId === summary._id);
+            if (match && match.data) {
+              return match.data;
+            }
+            return summary;
+          });
+        });
+      }
 
       toast.dismiss('cancel-bulk-loading');
-      toast.success(`Đã hủy duyệt điểm rèn luyện thành công cho ${selectedStudentIds.length} sinh viên!`);
-      setSelectedStudentIds([]); // Xóa danh sách đã chọn
+      
+      if (failures.length > 0) {
+        toast.warning(`Đã hủy duyệt thành công ${successes.length} sinh viên, thất bại ${failures.length} sinh viên.`);
+        console.error('Chi tiết lỗi hủy duyệt hàng loạt:', failures);
+      } else {
+        toast.success(`Đã hủy duyệt điểm rèn luyện thành công cho ${successes.length} sinh viên!`);
+      }
 
-      // Tải lại bảng
-      await fetchData();
+      setSelectedStudentIds([]); // Xóa danh sách đã chọn
     } catch (error: any) {
       toast.dismiss('cancel-bulk-loading');
       toast.error('Lỗi khi hủy duyệt rèn luyện hàng loạt: ' + error.message);
@@ -582,12 +398,10 @@ function GradingPage() {
   const fetchData = async () => {
     try {
       setIsFetching(true);
-      const [backendDepts, backendClasses, backendSemesters, backendSummaries, backendDetails, backendCats, backendCriteria] = await Promise.all([
+      const [backendDepts, backendClasses, backendSemesters, backendCats, backendCriteria] = await Promise.all([
         departmentApi.getDepartments(),
         classApi.getClasses(),
         semesterApi.getSemesters(),
-        summariesPointApi.getSummariesPoints(),
-        evaluationDetailApi.getEvaluationDetails(),
         categoryApi.getCategories(),
         criteriaApi.getCriteria()
       ]);
@@ -595,8 +409,6 @@ function GradingPage() {
       setApiDepartments(backendDepts || []);
       setApiClasses(backendClasses || []);
       setApiSemesters(backendSemesters || []);
-      setApiSummariesPoints(backendSummaries || []);
-      setApiEvaluationDetails(backendDetails || []);
 
       // Map categories và criteria sang cấu trúc chuẩn
       const categoriesMapped = (backendCats || []).map((cat: any) => {
@@ -622,24 +434,38 @@ function GradingPage() {
       });
 
       setCategories(categoriesMapped);
-
-      // Fetch pre-existing counts cho tất cả summaries (để hiển thị trên bảng và PDF)
-      const preCountsMap: Record<string, Record<string, { original_count: number; current_count: number }>> = {};
-      const preCountPromises = (backendSummaries || []).map(async (summary: any) => {
-        try {
-          const counts = await evaluationDetailApi.getPreExistingCounts(summary._id);
-          if (counts && Object.keys(counts).length > 0) {
-            preCountsMap[summary._id] = counts;
-          }
-        } catch { /* ignore errors for individual summaries */ }
-      });
-      await Promise.all(preCountPromises);
-      setPreExistingCountsCache(preCountsMap);
-
     } catch (error: any) {
       toast.error('Lỗi khi tải dữ liệu từ database: ' + error.message);
     } finally {
       setIsInitialLoading(false);
+      setIsFetching(false);
+    }
+  };
+
+  const fetchSummaries = async (pageToFetch: number = currentPage) => {
+    if (!appliedClass || !appliedSemester) return;
+    try {
+      setIsFetching(true);
+      const res = await summariesPointApi.getSummariesPoints({
+        page: pageToFetch,
+        limit: pageSize,
+        semesterId: appliedSemester,
+        classId: appliedClass,
+      });
+      const data = res.data || [];
+      setApiSummariesPoints(data);
+      setTotalItems(res.meta?.total || 0);
+
+      const summaryIds = data.map((s: any) => s._id);
+      if (summaryIds.length > 0) {
+        const bulkCounts = await evaluationDetailApi.getPreExistingCountsBulk(summaryIds);
+        if (bulkCounts) {
+          setPreExistingCountsCache(prev => ({ ...prev, ...bulkCounts }));
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching summaries:', e);
+    } finally {
       setIsFetching(false);
     }
   };
@@ -651,6 +477,13 @@ function GradingPage() {
       fetchData();
     }
   }, [user, authLoading]);
+
+  useEffect(() => {
+    if (isStateRestored && appliedClass && appliedSemester) {
+      fetchSummaries(currentPage);
+    }
+  }, [currentPage, pageSize, appliedClass, appliedSemester, isStateRestored]);
+
 
   // Effect 1: Khôi phục trạng thái từ sessionStorage khi mount
   useEffect(() => {
@@ -804,20 +637,20 @@ function GradingPage() {
 
       // 1. Tải tất cả sinh viên và tất cả summaries
       const [backendStudents, backendSummaries] = await Promise.all([
-        studentApi.getStudents(),
-        summariesPointApi.getSummariesPoints()
+        studentApi.getStudents({ limit: 1000, classId: selectedClass }),
+        summariesPointApi.getSummariesPoints({ limit: 1000, classId: selectedClass, semesterId: selectedSemester })
       ]);
+        
+      const studentsData = (backendStudents as any)?.data || backendStudents || [];
+      const summariesData = (backendSummaries as any)?.data || backendSummaries || [];
 
-      // 2. Lọc các sinh viên thuộc lớp đang chọn
-      const classStudents = (backendStudents || []).filter(student => {
-        const classId = typeof student.class_id === 'object' ? student.class_id?._id : student.class_id;
-        return classId === selectedClass;
-      });
+      // 2. Lọc các sinh viên thuộc lớp đang chọn (đã lọc qua tham số backend)
+      const classStudents = studentsData;
 
       // 3. Kiểm tra xem sinh viên nào chưa có trong bảng summaries cho học kỳ đang chọn
       const createPromises: Promise<any>[] = [];
-      classStudents.forEach(student => {
-        const hasSummary = (backendSummaries || []).some(summary => {
+      classStudents.forEach((student: any) => {
+        const hasSummary = summariesData.some((summary: any) => {
           const semId = typeof summary.semester_id === 'object' ? summary.semester_id?._id : summary.semester_id;
           const studId = typeof summary.student_id === 'object' ? summary.student_id?._id : summary.student_id;
           return semId === selectedSemester && studId === student._id;
@@ -857,8 +690,6 @@ function GradingPage() {
     }
   };
 
-  const pageSize = 10;
-
   // Lọc và map dữ liệu từ summaries-point-api sang dạng tương thích với bảng hiển thị
   const filteredStudents = !appliedClass
     ? []
@@ -871,7 +702,7 @@ function GradingPage() {
 
         const semId = typeof summary.semester_id === 'object' ? summary.semester_id?._id : summary.semester_id;
 
-        const classObj = apiClasses.find(c => c._id === studentClassId);
+        const classObj = classMap.get(studentClassId);
         const deptId = classObj ? (typeof classObj.dept_id === 'object' ? classObj.dept_id?._id : classObj.dept_id) : '';
 
         const studentDob = studentObj?.date_bir || '';
@@ -894,37 +725,34 @@ function GradingPage() {
         const matchesSearch =
           student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           student.id.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesSemester = appliedSemester ? student.semesterId === appliedSemester : true;
-        const matchesDept = appliedDepartment ? student.departmentId === appliedDepartment : true;
-        const matchesClass = appliedClass ? student.classId === appliedClass : true;
-
-        return matchesSearch && matchesSemester && matchesDept && matchesClass;
+        
+        return matchesSearch;
       });
 
-  const currentSemesterObj = apiSemesters.find(sem => sem._id === appliedSemester);
+  const currentSemesterObj = semesterMap.get(appliedSemester);
   const isSemesterActive = currentSemesterObj ? currentSemesterObj.status === 'active' : false;
 
   const getRank = (score: number) => {
-    if (score === 0) return { label: 'Chưa xếp loại', color: 'bg-slate-100 text-slate-500 border-slate-200/50' };
-    if (score >= 90) return { label: 'Xuất sắc', color: 'bg-amber-50 text-amber-700 border-amber-200/60' };
-    if (score >= 80) return { label: 'Tốt', color: 'bg-emerald-50 text-emerald-700 border-emerald-200/60' };
-    if (score >= 70) return { label: 'Khá', color: 'bg-blue-50 text-blue-700 border-blue-200/60' };
-    if (score >= 50) return { label: 'Trung bình', color: 'bg-purple-50 text-purple-700 border-purple-200/60' };
-    return { label: 'Yếu', color: 'bg-rose-50 text-rose-700 border-rose-200/60' };
+    if (score === 0) return { label: 'Chưa xếp loại', color: 'bg-slate-500/10 text-[#64748B] border-slate-500/20' };
+    if (score >= 90) return { label: 'Xuất sắc', color: 'bg-amber-500/10 text-amber-700 border-amber-500/20' };
+    if (score >= 80) return { label: 'Tốt', color: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' };
+    if (score >= 70) return { label: 'Khá', color: 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20' };
+    if (score >= 50) return { label: 'Trung bình', color: 'bg-purple-500/10 text-purple-700 border-purple-500/20' };
+    return { label: 'Yếu', color: 'bg-rose-500/10 text-rose-700 border-rose-500/20' };
   };
 
   const getRankColor = (label: string) => {
-    if (label === 'Xuất sắc') return 'bg-amber-50 text-amber-700 border-amber-200/60';
-    if (label === 'Tốt') return 'bg-emerald-50 text-emerald-700 border-emerald-200/60';
-    if (label === 'Khá') return 'bg-blue-50 text-blue-700 border-blue-200/60';
-    if (label === 'Trung bình') return 'bg-purple-50 text-purple-700 border-purple-200/60';
-    if (label === 'Yếu') return 'bg-rose-50 text-rose-700 border-rose-200/60';
-    return 'bg-slate-100 text-slate-500 border-slate-200/50';
+    if (label === 'Xuất sắc') return 'bg-amber-500/10 text-amber-700 border-amber-500/20';
+    if (label === 'Tốt') return 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20';
+    if (label === 'Khá') return 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20';
+    if (label === 'Trung bình') return 'bg-purple-500/10 text-purple-700 border-purple-500/20';
+    if (label === 'Yếu') return 'bg-rose-500/10 text-rose-700 border-rose-500/20';
+    return 'bg-slate-500/10 text-[#64748B] border-slate-500/20';
   };
 
   // Chuẩn bị dữ liệu cho PDF template in ấn
   const selectedStudentsData = filteredStudents.filter(std => selectedStudentIds.includes(std.id));
-  const currentClassObj = apiClasses.find(c => c._id === appliedClass);
+  const currentClassObj = classMap.get(appliedClass);
   const currentClassName = currentClassObj ? currentClassObj.class_name : '';
   const currentSemesterName = currentSemesterObj ? currentSemesterObj.semester_name : '';
 
@@ -972,7 +800,7 @@ function GradingPage() {
           background: rgba(156, 163, 175, 0.4);
         }
       `}</style>
-      <div className="flex h-screen bg-[#f6f7f8] font-sans">
+      <div className="flex h-screen bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] font-sans">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <Header />
@@ -994,7 +822,7 @@ function GradingPage() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white border border-[#E5E7EB] rounded-2xl px-4 flex gap-3 items-center shrink-0 h-[68px] shadow-sm"
+              className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl px-4 flex gap-3 items-center shrink-0 h-[68px] shadow-sm shadow-slate-300/40"
             >
               <div className="flex-1 relative">
 
@@ -1004,7 +832,7 @@ function GradingPage() {
                 <input
                   type="text"
                   placeholder="Tìm kiếm tên sinh viên hoặc MSSV..."
-                  className="w-full bg-[#F3F4F6] border-none rounded-xl pl-10 pr-4 py-2.5 text-[14px] font-medium placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                  className="w-full bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl pl-10 pr-4 py-2 text-[13px] font-medium placeholder:text-slate-400 focus:bg-white/70 focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 ease-out outline-none"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -1023,7 +851,7 @@ function GradingPage() {
                     disabled={!canSelectSemester}
                   >
                     <SelectTrigger
-                      className="h-[42px] bg-[#F3F4F6] border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none disabled:cursor-not-allowed disabled:opacity-75"
+                      className="h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none disabled:cursor-not-allowed disabled:opacity-75"
                       title={canSelectSemester ? 'Chọn học kỳ' : 'Chỉ Admin/Supervisor được chọn học kỳ'}
                     >
                       <SelectValue placeholder="-- Chọn học kỳ --" />
@@ -1040,7 +868,7 @@ function GradingPage() {
                   <button
                     type="button"
                     onClick={() => setIsSemesterModalOpen(true)}
-                    className="w-[42px] h-[42px] shrink-0 rounded-xl bg-[#F3F4F6] hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95 group"
+                    className="w-9 h-9 shrink-0 rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] text-slate-600 flex items-center justify-center transition-all duration-150 ease-out cursor-pointer shadow-sm active:scale-95 group"
                     title="Cấu hình Học kì"
                   >
                     <Settings size={16} className="group-hover:rotate-45 transition-transform duration-200" />
@@ -1054,7 +882,7 @@ function GradingPage() {
                   value={selectedDepartment}
                   onValueChange={(val: string) => { setSelectedDepartment(val); setSelectedClass(''); }}
                 >
-                  <SelectTrigger className="h-[42px] bg-[#F3F4F6] border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none">
+                  <SelectTrigger className="h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none">
                     <SelectValue placeholder="-- Chọn khoa --" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1073,7 +901,7 @@ function GradingPage() {
                   onValueChange={(val: string) => setSelectedClass(val)}
                 >
                   <SelectTrigger
-                    className={`h-[42px] bg-[#F3F4F6] border-none rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all shadow-none ${!selectedDepartment ? "pointer-events-none opacity-50 bg-slate-100/80 text-slate-400" : ""
+                    className={`h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none ${!selectedDepartment ? "pointer-events-none opacity-50 bg-slate-100/80 text-slate-400" : ""
                       }`}
                   >
                     <SelectValue placeholder={selectedDepartment ? "Chọn lớp" : "Chọn khoa trước"} />
@@ -1090,7 +918,7 @@ function GradingPage() {
               <Button
                 onClick={handleConfirmFilter}
                 disabled={!selectedClass || isTableLoading}
-                className={!selectedClass ? "opacity-50 cursor-not-allowed bg-slate-300 hover:bg-slate-300 text-slate-500 relative" : isTableLoading ? "opacity-80 cursor-not-allowed relative" : "relative"}
+                className={`rounded-xl h-9 transition-all duration-150 ease-out hover:scale-[1.01] ${!selectedClass ? "opacity-50 cursor-not-allowed bg-slate-300 hover:bg-slate-300 text-slate-500 relative" : isTableLoading ? "opacity-80 cursor-not-allowed relative" : "relative bg-[#1A73E8] hover:bg-[#155dfc] text-white"}`}
               >
                 {isTableLoading && (
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -1109,7 +937,7 @@ function GradingPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
-              className="bg-white border border-[#f1f5f9] rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col min-h-0"
+              className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 overflow-hidden flex-1 flex flex-col min-h-0"
             >
               {!appliedClass ? (
                 <div className="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[350px]">
@@ -1125,7 +953,7 @@ function GradingPage() {
                 <>
                   <div className="flex-1 overflow-auto">
                     <table className="w-full border-collapse">
-                      <thead className="sticky top-0 z-10 bg-[#f8fafc] shadow-[0_1px_0_0_#f1f5f9]">
+                      <thead className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-white/80 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]">
                         <tr>
                           <th className="px-6 py-4 text-left w-16">
                             <div className="flex items-center">
@@ -1133,15 +961,14 @@ function GradingPage() {
                                 type="checkbox"
                                 className="rounded border-[#cbd5e1] text-[#137fec] focus:ring-[#137fec] cursor-pointer"
                                 checked={
-                                  filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize).length > 0 &&
-                                  filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize).every(std => selectedStudentIds.includes(std.id))
+                                  filteredStudents.length > 0 &&
+                                  filteredStudents.every(std => selectedStudentIds.includes(std.id))
                                 }
                                 onChange={(e) => {
-                                  const currentPagedStudents = filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
                                   if (e.target.checked) {
                                     setSelectedStudentIds(prev => {
                                       const newSelection = [...prev];
-                                      currentPagedStudents.forEach(std => {
+                                      filteredStudents.forEach(std => {
                                         if (!newSelection.includes(std.id)) {
                                           newSelection.push(std.id);
                                         }
@@ -1150,19 +977,19 @@ function GradingPage() {
                                     });
                                   } else {
                                     setSelectedStudentIds(prev =>
-                                      prev.filter(id => !currentPagedStudents.some(std => std.id === id))
+                                      prev.filter(id => !filteredStudents.some(std => std.id === id))
                                     );
                                   }
                                 }}
                               />
                             </div>
                           </th>
-                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Mã sinh viên</th>
-                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Tên</th>
-                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Lớp</th>
-                          <th className="px-6 py-4 text-center text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Tổng điểm</th>
-                          <th className="px-6 py-4 text-center text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Xếp loại</th>
-                          <th className="px-6 py-4 text-right text-[12px] font-bold text-[#64748b] uppercase tracking-wider">Hành động</th>
+                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#334155] uppercase tracking-wider">Mã sinh viên</th>
+                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#334155] uppercase tracking-wider">Tên</th>
+                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#334155] uppercase tracking-wider">Lớp</th>
+                          <th className="px-6 py-4 text-center text-[12px] font-bold text-[#334155] uppercase tracking-wider">Tổng điểm</th>
+                          <th className="px-6 py-4 text-center text-[12px] font-bold text-[#334155] uppercase tracking-wider">Xếp loại</th>
+                          <th className="px-6 py-4 text-right text-[12px] font-bold text-[#334155] uppercase tracking-wider">Hành động</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#f1f5f9] relative">
@@ -1180,11 +1007,9 @@ function GradingPage() {
                           ))
                         ) : (
                           <>
-                            {filteredStudents
-                              .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                              .map((student, idx) => {
+                            {filteredStudents.map((student, idx) => {
                                 const rank = getRank(student.score);
-                                const className = apiClasses.find(c => c._id === student.classId)?.class_name || student.classId;
+                                const className = classMap.get(student.classId)?.class_name || student.classId;
 
                                 return (
                                   <motion.tr
@@ -1192,7 +1017,7 @@ function GradingPage() {
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     key={student.id || `student-row-${idx}`}
-                                    className="hover:bg-slate-50 transition-colors group cursor-pointer"
+                                    className="hover:bg-white/60 transition-all duration-150 ease-out group cursor-pointer"
                                   >
                                     <td className="px-6 py-4">
                                       <input
@@ -1219,12 +1044,12 @@ function GradingPage() {
                                     </td>
                                     <td className="px-6 py-4 text-sm text-[#475569]">{className}</td>
                                     <td className="px-6 py-4 text-center">
-                                      <span className={`inline-flex items-center justify-center px-3 py-1 border rounded-full text-[13px] font-semibold ${rank.color}`}>
+                                      <span className={`inline-flex items-center justify-center px-3 py-1 border rounded-xl text-[13px] font-semibold backdrop-blur-sm shadow-sm ${rank.color}`}>
                                         {student.score}/100
                                       </span>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                      <span className={`px-3 py-1 border rounded-full text-[11px] font-bold uppercase tracking-tight ${getRankColor(student.grading)}`}>
+                                      <span className={`px-3 py-1 border rounded-xl text-[11px] font-bold uppercase tracking-tight backdrop-blur-sm shadow-sm ${getRankColor(student.grading)}`}>
                                         {student.grading}
                                       </span>
                                     </td>
@@ -1236,7 +1061,7 @@ function GradingPage() {
                                               e.stopPropagation();
                                               router.push(`/grading/score?studentId=${student.id}`);
                                             }}
-                                            className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-95 cursor-pointer shadow-sm"
+                                            className="w-8 h-8 rounded-xl flex items-center justify-center bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 hover:scale-[1.05] transition-all duration-150 ease-out active:scale-95 cursor-pointer shadow-sm"
                                             title="Chấm điểm sinh viên"
                                           >
                                             <SquarePen size={15} />
@@ -1247,7 +1072,7 @@ function GradingPage() {
                                               e.stopPropagation();
                                               router.push(`/grading/score?studentId=${student.id}&view=true`);
                                             }}
-                                            className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-700 transition-all active:scale-95 cursor-pointer shadow-sm"
+                                            className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/60 border border-white/80 text-slate-600 hover:bg-white/90 hover:scale-[1.05] transition-all duration-150 ease-out active:scale-95 cursor-pointer shadow-sm"
                                             title="Xem chi tiết điểm"
                                           >
                                             <Eye size={15} />
@@ -1258,38 +1083,43 @@ function GradingPage() {
                                           const userRoleLower = currentUser?.role?.toLowerCase() || '';
                                           const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
 
-                                          if (canApprove && isSemesterActive) {
+                                          if (canApprove) {
                                             const isApproved = student.status === 'locked';
-                                            const hasEvaluations = (student.details || []).some((detail: any) => (detail.current_count || 0) > 0);
+                                            if (isApproved || isSemesterActive) {
+                                              const studentPreCounts = preExistingCountsCache[student.summaryId];
+                                              const hasPreCounts = studentPreCounts ? Object.values(studentPreCounts).some((pc: any) => (pc.current_count || 0) > 0) : false;
+                                              const hasDetails = (student.details || []).some((detail: any) => (detail.current_count || 0) > 0);
+                                              const hasEvaluations = hasDetails || hasPreCounts;
 
-                                            return (
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  if (isApproved) return;
-                                                  if (!hasEvaluations) {
-                                                    toast.warning(`Sinh viên ${student.name} chưa được chấm tiêu chí nào để duyệt!`);
-                                                    return;
-                                                  }
-                                                  handleApproveEvaluation(student.summaryId, student.name);
-                                                }}
-                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-sm ${isApproved
-                                                  ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-default'
-                                                  : !hasEvaluations
-                                                    ? 'bg-slate-50 text-slate-300 opacity-60 cursor-not-allowed'
-                                                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-500 cursor-pointer'
-                                                  }`}
-                                                title={
-                                                  isApproved
-                                                    ? "Đã chốt điểm rèn luyện"
+                                              return (
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (isApproved) return;
+                                                    if (!hasEvaluations) {
+                                                      toast.warning(`Sinh viên ${student.name} chưa được chấm tiêu chí nào để duyệt!`);
+                                                      return;
+                                                    }
+                                                    handleApproveEvaluation(student.summaryId, student.name);
+                                                  }}
+                                                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150 ease-out active:scale-95 shadow-sm ${isApproved
+                                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-default'
                                                     : !hasEvaluations
-                                                      ? "Chưa có tiêu chí nào được chấm để duyệt"
-                                                      : "Duyệt và chốt điểm rèn luyện"
-                                                }
-                                              >
-                                                <CheckCircle size={15} />
-                                              </button>
-                                            );
+                                                      ? 'bg-slate-50 border border-slate-100 text-slate-300 opacity-60 cursor-not-allowed'
+                                                      : 'bg-white/60 border border-white/80 text-slate-400 hover:bg-white/90 hover:scale-[1.05] cursor-pointer'
+                                                    }`}
+                                                  title={
+                                                    isApproved
+                                                      ? "Đã phê duyệt điểm rèn luyện"
+                                                      : !hasEvaluations
+                                                        ? "Chưa có tiêu chí nào được chấm để duyệt"
+                                                        : "Phê duyệt điểm rèn luyện"
+                                                  }
+                                                >
+                                                  <CheckCircle size={15} />
+                                                </button>
+                                              );
+                                            }
                                           }
                                           return null;
                                         })()}
@@ -1315,7 +1145,7 @@ function GradingPage() {
                   <CustomPagination
                     currentPage={currentPage}
                     pageSize={pageSize}
-                    totalItems={filteredStudents.length}
+                    totalItems={totalItems}
                     onPageChange={(page) => {
                       setIsFetching(true);
                       setTimeout(() => {
@@ -1325,6 +1155,11 @@ function GradingPage() {
                     }}
                     label="sinh viên"
                     isLoading={isFetching}
+                    pageSizeOptions={[5, 10, 20, 50, 100]}
+                    onPageSizeChange={(size) => {
+                      setPageSize(size);
+                      setCurrentPage(1);
+                    }}
                   />
                 </>
               )}
@@ -1405,6 +1240,17 @@ function GradingPage() {
         evaluationCounts={evaluationCountsMap}
         semesterName={currentSemesterName}
         className={currentClassName}
+      />
+
+      <ConfirmModal
+        isOpen={cancelBulkConfirm.isOpen}
+        onClose={() => setCancelBulkConfirm(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => executeCancelApproveBulk(cancelBulkConfirm.summaryIds)}
+        title="Xác nhận hủy duyệt hàng loạt"
+        message={cancelBulkConfirm.message}
+        confirmLabel="Tiếp tục"
+        cancelLabel="Hủy"
+        variant="warning"
       />
     </>
   );

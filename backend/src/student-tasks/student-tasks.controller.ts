@@ -31,6 +31,13 @@ export class StudentTasksController {
     return this.studentTasksService.create(createDto, req.user?.userId);
   }
 
+  @Get('assignees/teachers')
+  @UseGuards(checkPermission('READ_STUDENT_TASK'))
+  @ApiOperation({ summary: 'Lấy danh sách giáo viên để phân công' })
+  getTeachers() {
+    return this.studentTasksService.getTeachers();
+  }
+
   @Get()
   @UseGuards(checkPermission('READ_STUDENT_TASK'))
   @ApiOperation({ summary: 'Lấy danh sách nhiệm vụ học tập có phân trang và bộ lọc' })

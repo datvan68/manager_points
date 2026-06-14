@@ -162,12 +162,12 @@ export default function ClassPopup({
     <Popup isOpen={isOpen} onClose={onClose} className="max-w-120" contentClassName="overflow-visible">
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col w-full">
         {/* Header */}
-        <div className="bg-[rgba(248,250,252,0.5)] border-b border-[#f1f5f9] border-dashed flex items-center justify-between pb-6 pt-6 px-6 relative w-full">
+        <div className="bg-white/40 backdrop-blur-md border-b border-white/40 flex items-center justify-between pb-4 pt-4 px-6 relative w-full">
           <div className="flex flex-col gap-1 w-full">
-            <h3 className="font-['Lexend:Bold',sans-serif] font-bold text-[#0f172a] text-[18px] leading-[28px]">
+            <h3 className="font-bold text-[#1E293B] text-[18px] leading-[28px]">
               {isEditMode ? "Sửa Lớp" : "Thêm Lớp"}
             </h3>
-            <p className="font-['Lexend:Regular',sans-serif] font-normal text-[#64748b] text-[12px] leading-[16px]">
+            <p className="font-normal text-[#64748B] text-[12px] leading-[16px]">
               Điền thông tin lớp học vào biểu mẫu bên dưới.
             </p>
           </div>
@@ -198,7 +198,7 @@ export default function ClassPopup({
 
             {/* Trụ sở */}
             <div className="flex-1 flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 px-1">
+              <label className="text-[13px] font-bold text-[#1E293B] px-1">
                 Trụ sở
               </label>
               <Controller
@@ -214,23 +214,23 @@ export default function ClassPopup({
                     </SelectTrigger>
                     <SelectContent
                       position="popper"
-                      className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1"
+                      className="z-[100] min-w-[var(--radix-select-trigger-width)]"
                     >
                       <SelectItem
                         value="none"
-                        className="rounded-md cursor-pointer text-slate-400 focus:bg-slate-50 focus:text-slate-600"
+                        className="cursor-pointer text-slate-400"
                       >
                         -- Không chọn --
                       </SelectItem>
                       <SelectItem
                         value="Phân hiệu CSSĐ-NDT"
-                        className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700"
+                        className="cursor-pointer"
                       >
                         Phân hiệu CSSĐ-NDT
                       </SelectItem>
                       <SelectItem
                         value="Phân hiệu CK"
-                        className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700"
+                        className="cursor-pointer"
                       >
                         Phân hiệu CK
                       </SelectItem>
@@ -245,7 +245,7 @@ export default function ClassPopup({
           <div className="flex gap-5 w-full">
             {/* Thuộc khoa */}
             <div className="flex-1 flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 px-1">
+              <label className="text-[13px] font-bold text-[#1E293B] px-1">
                 Thuộc Khoa <span className="text-red-500 ml-0.5">*</span>
               </label>
               <Controller
@@ -262,13 +262,13 @@ export default function ClassPopup({
                     </SelectTrigger>
                     <SelectContent
                       position="popper"
-                      className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1"
+                      className="z-[100] min-w-[var(--radix-select-trigger-width)]"
                     >
                       {departments.map((dept) => (
                         <SelectItem
                           key={dept._id}
                           value={dept._id}
-                          className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700"
+                          className="cursor-pointer"
                         >
                           {dept.code}
                         </SelectItem>
@@ -286,7 +286,7 @@ export default function ClassPopup({
 
             {/* Khoá */}
             <div className="flex-1 flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 px-1">
+              <label className="text-[13px] font-bold text-[#1E293B] px-1">
                 Khoá <span className="text-red-500 ml-0.5">*</span>
               </label>
               <Controller
@@ -302,17 +302,17 @@ export default function ClassPopup({
                     </SelectTrigger>
                     <SelectContent
                       position="popper"
-                      className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1"
+                      className="z-[100] min-w-[var(--radix-select-trigger-width)]"
                     >
                       <SelectItem
                         value="Trung cấp"
-                        className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700"
+                        className="cursor-pointer"
                       >
                         Trung cấp
                       </SelectItem>
                       <SelectItem
                         value="Cao đẳng"
-                        className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700"
+                        className="cursor-pointer"
                       >
                         Cao đẳng
                       </SelectItem>
@@ -330,7 +330,7 @@ export default function ClassPopup({
 
           {/* GVCN */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 px-1">
+            <label className="text-[13px] font-bold text-[#1E293B] px-1">
               GVCN
             </label>
             <Controller
@@ -347,11 +347,11 @@ export default function ClassPopup({
                   </SelectTrigger>
                   <SelectContent
                     position="popper"
-                    className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white rounded-xl shadow-xl border border-gray-100 p-1"
+                    className="z-[100] min-w-[var(--radix-select-trigger-width)]"
                   >
                     <SelectItem
                       value="none"
-                      className="rounded-md cursor-pointer text-slate-400 focus:bg-slate-50 focus:text-slate-600"
+                      className="cursor-pointer text-slate-400"
                     >
                       -- Không chọn --
                     </SelectItem>
@@ -361,7 +361,7 @@ export default function ClassPopup({
                         <SelectItem
                           key={u._id || u.id}
                           value={u._id || u.id}
-                          className="rounded-md cursor-pointer focus:bg-blue-50 focus:text-blue-700"
+                          className="cursor-pointer"
                         >
                           {displayName}
                         </SelectItem>
@@ -375,7 +375,7 @@ export default function ClassPopup({
         </div>
 
         {/* BOTTOM Section: Actions */}
-        <div className="flex items-center justify-end gap-3 pb-6 pt-2 px-6">
+        <div className="flex items-center justify-end gap-3 pb-6 pt-4 px-6 border-t border-white/40 mt-2">
           <Button variant="secondary" onClick={onClose} type="button">
             Huỷ
           </Button>

@@ -55,7 +55,7 @@ export default function DashboardHeader({
       case 'pending': return 'Chuẩn bị';
       case 'sv_phase': return 'SV tự đánh giá';
       case 'gv_phase': return 'GV phê duyệt';
-      case 'admin_phase': return 'Admin chốt điểm';
+      case 'admin_phase': return 'Admin phê duyệt';
       case 'closed': return 'Đã đóng';
       default: return 'Không hoạt động';
     }

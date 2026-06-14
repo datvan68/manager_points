@@ -288,6 +288,106 @@ export class AuthService implements OnModuleInit {
   async getRoutePermissionByRoute(routePath: string) {
     return this.rbacService.getRoutePermissionByRoute(routePath);
   }
+  async getPagePermissionScopes() {
+    return [
+      {
+        route_path: '/system',
+        access_permissions: [
+          'SYSTEM_ADMIN',
+          'SYSTEM_PERFORMANCE_READ',
+          'LOGIN_LOG_READ',
+          'SYSTEM_REQUEST_READ',
+          'SYSTEM_REQUEST_MANAGE',
+          'DATABASE_BACKUP_READ',
+          'DATABASE_BACKUP_CREATE',
+          'DATABASE_BACKUP_DOWNLOAD',
+          'DATABASE_BACKUP_DELETE'
+        ],
+        action_permissions: [
+          'SYSTEM_PERFORMANCE_READ',
+          'LOGIN_LOG_READ',
+          'SYSTEM_REQUEST_READ',
+          'SYSTEM_REQUEST_MANAGE',
+          'DATABASE_BACKUP_READ',
+          'DATABASE_BACKUP_CREATE',
+          'DATABASE_BACKUP_DOWNLOAD',
+          'DATABASE_BACKUP_DELETE'
+        ]
+      },
+      {
+        route_path: '/permissions',
+        access_permissions: ['admin'],
+        action_permissions: [
+          'view_users',
+          'reset_pwd',
+          'ADMIN_FULL',
+          'USER_CREATE',
+          'USER_UPDATE',
+          'USER_DELETE',
+          'ROLE_CREATE',
+          'ROLE_UPDATE',
+          'ROLE_DELETE',
+          'PERMISSION_CREATE',
+          'PERMISSION_UPDATE',
+          'PERMISSION_DELETE',
+          'PERMISSION_GROUP_CREATE',
+          'PERMISSION_GROUP_UPDATE',
+          'PERMISSION_GROUP_DELETE',
+          'ROUTE_PERMISSION_CREATE',
+          'ROUTE_PERMISSION_UPDATE',
+          'ROUTE_PERMISSION_DELETE'
+        ],
+        notes: ['Chưa tách CRUD permission riêng']
+      },
+      {
+        route_path: '/students',
+        access_permissions: ['STUDENT_PAGE'],
+        action_permissions: [
+          'STUDENT_READ',
+          'STUDENT_CREATE',
+          'STUDENT_UPDATE',
+          'STUDENT_DELETE',
+          'STUDENT_IMPORT',
+          'STUDENT_EXPORT',
+          'STUDENT_ACCOUNT_ACTIVATE',
+          'STUDENT_TRANSFER',
+          'DEPT_CREATE',
+          'DEPT_UPDATE',
+          'DEPT_DELETE',
+          'CLASS_CREATE',
+          'CLASS_UPDATE',
+          'CLASS_DELETE'
+        ]
+      },
+      {
+        route_path: '/grading',
+        access_permissions: ['GRADING_PAGE'],
+        action_permissions: [
+          'GRADING_SEMESTER_MANAGE',
+          'READ_STUDENT_RECORD',
+          'CREATE_STUDENT_RECORD',
+          'UPDATE_STUDENT_RECORD',
+          'DELETE_STUDENT_RECORD',
+          'READ_CLASS_RECORD',
+          'CREATE_CLASS_RECORD',
+          'UPDATE_CLASS_RECORD',
+          'DELETE_CLASS_RECORD',
+          'CONFIG_RECORD',
+          'READ_STUDENT_TASK',
+          'CREATE_STUDENT_TASK',
+          'UPDATE_STUDENT_TASK',
+          'DELETE_STUDENT_TASK'
+        ]
+      },
+      {
+        route_path: '/reports',
+        access_permissions: ['REPORTS_PAGE'],
+        action_permissions: [
+          'REPORTS_READ'
+        ]
+      }
+    ];
+  }
   async createRoutePermission(dto: any) {
     return this.rbacService.createRoutePermission(dto);
   }
@@ -625,9 +725,6 @@ export class AuthService implements OnModuleInit {
           createdPerms['view_users'],
           createdPerms['GRADING_PAGE'],
           createdPerms['READ_STUDENT_TASK'],
-          createdPerms['CREATE_STUDENT_TASK'],
-          createdPerms['UPDATE_STUDENT_TASK'],
-          createdPerms['DELETE_STUDENT_TASK'],
         ],
       },
       {
@@ -668,6 +765,7 @@ export class AuthService implements OnModuleInit {
         description: 'Vận hành hệ thống (không có quyền xóa/tải backup)',
         permissions: [
           createdPerms['SYSTEM_ADMIN'],
+          createdPerms['SYSTEM_PERFORMANCE_READ'],
           createdPerms['LOGIN_LOG_READ'],
           createdPerms['SYSTEM_REQUEST_READ'],
           createdPerms['SYSTEM_REQUEST_MANAGE'],
@@ -729,6 +827,28 @@ export class AuthService implements OnModuleInit {
           createdPerms['DATABASE_BACKUP_DELETE'],
         ],
       },
+      {
+        code: 'G_PROPOSED',
+        name: 'Đề xuất bổ sung',
+        description: 'Nhóm các quyền được đề xuất để bổ sung cho chức năng tương lai (chưa có guard thực tế).',
+        permissions: [
+          createdPerms['USER_CREATE'],
+          createdPerms['USER_UPDATE'],
+          createdPerms['USER_DELETE'],
+          createdPerms['ROLE_CREATE'],
+          createdPerms['ROLE_UPDATE'],
+          createdPerms['ROLE_DELETE'],
+          createdPerms['PERMISSION_CREATE'],
+          createdPerms['PERMISSION_UPDATE'],
+          createdPerms['PERMISSION_DELETE'],
+          createdPerms['PERMISSION_GROUP_CREATE'],
+          createdPerms['PERMISSION_GROUP_UPDATE'],
+          createdPerms['PERMISSION_GROUP_DELETE'],
+          createdPerms['ROUTE_PERMISSION_CREATE'],
+          createdPerms['ROUTE_PERMISSION_UPDATE'],
+          createdPerms['ROUTE_PERMISSION_DELETE'],
+        ].filter(Boolean),
+      },
     ];
 
     for (const g of groups) {
@@ -785,6 +905,15 @@ export class AuthService implements OnModuleInit {
         route_name: 'Đánh giá điểm rèn luyện',
         description: 'Chấm điểm, duyệt điểm rèn luyện của sinh viên',
         permissions: [permMap['GRADING_PAGE']],
+        check_type: 'any',
+        is_active: true,
+        type: 'page',
+      },
+      {
+        route_path: '/reports',
+        route_name: 'Báo cáo thống kê',
+        description: 'Xem các biểu đồ báo cáo và thống kê dữ liệu',
+        permissions: [permMap['REPORTS_PAGE']],
         check_type: 'any',
         is_active: true,
         type: 'page',

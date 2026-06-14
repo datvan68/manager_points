@@ -35,6 +35,8 @@ export interface CreateAcademicRecordDto {
   recorded_by?: string;
   recorded_at?: string;
   status?: 'active' | 'inactive';
+  idempotency_key?: string;
+  source?: string;
 }
 
 export interface UpdateAcademicRecordDto {
@@ -70,17 +72,26 @@ export const academicRecordApi = {
   },
 
   async getAcademicRecord(id: string): Promise<AcademicRecord> {
-    const res = await fetch(`${API_BASE}/academic-records/${id}`);
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/${id}`, {
+      headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+    });
     return handleResponse<AcademicRecord>(res);
   },
 
   async getAcademicRecordsByStudent(studentId: string): Promise<AcademicRecord[]> {
-    const res = await fetch(`${API_BASE}/academic-records/student/${studentId}`);
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/student/${studentId}`, {
+      headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+    });
     return handleResponse<AcademicRecord[]>(res);
   },
 
   async getAcademicRecordsByDailyReport(dailyReportId: string): Promise<AcademicRecord[]> {
-    const res = await fetch(`${API_BASE}/academic-records/daily-report/${dailyReportId}`);
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/daily-report/${dailyReportId}`, {
+      headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+    });
     return handleResponse<AcademicRecord[]>(res);
   },
 
@@ -95,6 +106,19 @@ export const academicRecordApi = {
       body: JSON.stringify(dto),
     });
     return handleResponse<AcademicRecord>(res);
+  },
+
+  async bulkCreateAcademicRecords(records: CreateAcademicRecordDto[]): Promise<any> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/bulk`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ records }),
+    });
+    return handleResponse<any>(res);
   },
 
   async updateAcademicRecord(id: string, dto: UpdateAcademicRecordDto, bypassDailyReportCheck?: boolean): Promise<AcademicRecord> {

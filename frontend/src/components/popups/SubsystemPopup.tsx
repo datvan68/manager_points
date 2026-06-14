@@ -254,11 +254,11 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'RESTRICTED':
-        return 'bg-amber-50 text-amber-700 border border-amber-100/50';
+        return 'bg-amber-500/10 text-amber-700 border border-amber-500/20';
       case 'MAINTENANCE':
-        return 'bg-red-50 text-red-700 border border-red-100/50';
+        return 'bg-rose-500/10 text-rose-700 border border-rose-500/20';
       default:
-        return 'bg-emerald-50 text-emerald-700 border border-emerald-100/50';
+        return 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20';
     }
   };
 
@@ -368,7 +368,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
             className="bg-white/90 backdrop-blur-lg border border-white/80 rounded-2xl w-full max-w-[1152px] h-[90vh] max-h-[850px] shadow-[0_20px_50px_rgba(0,0,0,0.12)] relative z-10 overflow-hidden flex flex-col font-sans animate-in fade-in duration-200"
           >
             {/* Header */}
-            <div className="px-10 py-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-gradient-to-r from-blue-50/20 via-white to-slate-50/20">
+            <div className="px-10 py-5 border-b border-white/70 flex items-center justify-between shrink-0 bg-gradient-to-r from-blue-50/20 via-white to-slate-50/20">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
                   <LayoutGrid size={20} />
@@ -390,7 +390,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                     placeholder="Tìm kiếm phân hệ..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="bg-white/50 backdrop-blur-sm border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-9 pr-4 py-2 text-[13px] font-medium transition-all outline-none text-slate-800 w-[200px] sm:w-[240px]"
+                    className="bg-white/50 backdrop-blur-sm border border-white/70 focus:border-blue-500 focus:ring-2 focus:ring-[#1A73E8]/30 rounded-xl pl-9 pr-4 py-2 text-[13px] font-medium transition-all outline-none text-slate-800 w-[200px] sm:w-[240px]"
                   />
                 </div>
                 <button
@@ -427,7 +427,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                           <div>
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-8 h-8 rounded-lg bg-blue-50/80 border border-blue-100/30 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all shrink-0">
+                                <div className="w-8 h-8 rounded-xl bg-blue-50/80 border border-blue-100/30 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all shrink-0">
                                   <IconComp size={15} />
                                 </div>
                                 <h4 className="font-bold text-slate-800 text-[14px] truncate">{mod.name}</h4>
@@ -441,11 +441,11 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                       onChange={(e) => toggleMaintenance(mod.id, e)} 
                                       className="sr-only peer" 
                                     />
-                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-red-500"></div>
-                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-red-500">Bảo trì</span>
+                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-xl peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-xl after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-500"></div>
+                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-rose-500">Bảo trì</span>
                                   </label>
                                 )}
-                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider`}>
+                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-xl text-[8px] font-bold uppercase tracking-wider`}>
                                   {mod.status}
                                 </span>
                               </div>
@@ -456,7 +456,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                           <div className="border-t border-slate-100/60 pt-2 flex items-center justify-between">
                             <div>
                               {mod.stat.type === 'avatar' && (
-                                <div className="flex -space-x-1.5">
+                                <div className="flex -space-x-2">
                                   <div className="w-5 h-5 rounded-full bg-blue-100 ring-2 ring-white flex items-center justify-center text-[8px] font-bold text-blue-600">A</div>
                                   <div className="w-5 h-5 rounded-full bg-indigo-100 ring-2 ring-white flex items-center justify-center text-[8px] font-bold text-indigo-600">B</div>
                                   <div className="w-5 h-5 rounded-full bg-purple-100 ring-2 ring-white flex items-center justify-center text-[8px] font-bold text-purple-600">C</div>
@@ -464,7 +464,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                 </div>
                               )}
                               {mod.stat.type === 'growth' && (
-                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">{mod.stat.label}</span>
+                                <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded-xl">{mod.stat.label}</span>
                               )}
                               {mod.stat.type === 'time' && (
                                 <span className="text-[10px] font-medium text-slate-400">{mod.stat.label}</span>
@@ -505,7 +505,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                           <div>
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-8 h-8 rounded-lg bg-blue-50/80 border border-blue-100/30 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all shrink-0">
+                                <div className="w-8 h-8 rounded-xl bg-blue-50/80 border border-blue-100/30 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all shrink-0">
                                   <IconComp size={15} />
                                 </div>
                                 <h4 className="font-bold text-slate-800 text-[14px] truncate">{mod.name}</h4>
@@ -519,11 +519,11 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                       onChange={(e) => toggleMaintenance(mod.id, e)} 
                                       className="sr-only peer" 
                                     />
-                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-red-500"></div>
-                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-red-500">Bảo trì</span>
+                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-xl peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-xl after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-500"></div>
+                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-rose-500">Bảo trì</span>
                                   </label>
                                 )}
-                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider`}>
+                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-xl text-[8px] font-bold uppercase tracking-wider`}>
                                   {mod.status}
                                 </span>
                               </div>
@@ -569,7 +569,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                           <div>
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-8 h-8 rounded-lg bg-blue-50/80 border border-blue-100/30 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all shrink-0">
+                                <div className="w-8 h-8 rounded-xl bg-blue-50/80 border border-blue-100/30 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all shrink-0">
                                   <IconComp size={15} />
                                 </div>
                                 <h4 className="font-bold text-slate-800 text-[14px] truncate">{mod.name}</h4>
@@ -583,11 +583,11 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                       onChange={(e) => toggleMaintenance(mod.id, e)} 
                                       className="sr-only peer" 
                                     />
-                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-red-500"></div>
-                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-red-500">Bảo trì</span>
+                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-xl peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-xl after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-500"></div>
+                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-rose-500">Bảo trì</span>
                                   </label>
                                 )}
-                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider`}>
+                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-xl text-[8px] font-bold uppercase tracking-wider`}>
                                   {mod.status}
                                 </span>
                               </div>
@@ -633,7 +633,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                           <div>
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-8 h-8 rounded-lg bg-blue-50/80 border border-blue-100/30 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all shrink-0">
+                                <div className="w-8 h-8 rounded-xl bg-blue-50/80 border border-blue-100/30 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all shrink-0">
                                   <IconComp size={15} />
                                 </div>
                                 <h4 className="font-bold text-slate-800 text-[14px] truncate">{mod.name}</h4>
@@ -647,11 +647,11 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                       onChange={(e) => toggleMaintenance(mod.id, e)} 
                                       className="sr-only peer" 
                                     />
-                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-red-500"></div>
-                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-red-500">Bảo trì</span>
+                                    <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-xl peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-xl after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-500"></div>
+                                    <span className="ml-1 text-[9px] font-bold text-slate-400 peer-checked:text-rose-500">Bảo trì</span>
                                   </label>
                                 )}
-                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase tracking-wider`}>
+                                <span className={`${getStatusBadgeClass(mod.status)} px-2 py-0.5 rounded-xl text-[8px] font-bold uppercase tracking-wider`}>
                                   {mod.status}
                                 </span>
                               </div>
@@ -682,7 +682,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                 </div>
                               )}
                               {mod.stat.type === 'growth' && (
-                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">{mod.stat.label}</span>
+                                <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded-xl">{mod.stat.label}</span>
                               )}
                             </div>
                             <div className="text-slate-300 group-hover:text-blue-500 transition-colors shrink-0">
@@ -698,7 +698,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
             </div>
 
             {/* Footer */}
-            <div className="px-10 py-5 border-t border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
+            <div className="px-10 py-5 border-t border-white/70 flex items-center justify-between shrink-0 bg-slate-50/50">
               {/* User badge */}
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 font-bold text-sm">

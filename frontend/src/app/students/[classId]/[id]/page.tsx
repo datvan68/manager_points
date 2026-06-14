@@ -27,6 +27,9 @@ import { categoryApi, Category } from '@/api/category-api';
 import { criteriaApi, Criterion } from '@/api/criteria-api';
 import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
 import { useAuth } from '@/providers/auth-provider';
+import { semesterApi } from '@/api/semester-api';
+import { summariesPointApi } from '@/api/summaries-point-api';
+import { resolveDrlScore } from '@/lib/drl-score';
 
 // ─── Kiểu dữ liệu nội bộ cho danh mục kèm tiêu chí ───
 interface CategoryWithCriteria extends Category {
@@ -89,6 +92,7 @@ export default function StudentProfilePage() {
   const [categories, setCategories] = useState<CategoryWithCriteria[]>([]);
   const [records, setRecords] = useState<AcademicRecord[]>([]);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [resolvedDrl, setResolvedDrl] = useState<number | null>(null);
 
   const getLinkedUserId = (studentObj: any) => {
     if (!studentObj?.user_id) return '';
@@ -103,7 +107,7 @@ export default function StudentProfilePage() {
     studentId === user?.studentId
   );
 
-  // ─── Tải dữ liệu ban đầu: student, class, categories, criteria ───
+  // ─── Tải dữ liệu ban đầu: student, class, categories, criteria, semesters, summaries ───
   useEffect(() => {
     setIsLoading(true);
     setDataError(null);
@@ -113,10 +117,35 @@ export default function StudentProfilePage() {
       studentApi.getStudent(studentId),
       categoryApi.getCategories(),
       criteriaApi.getCriteria(),
+      semesterApi.getSemesters(),
+      summariesPointApi.getSummariesPoints({ studentId })
     ])
-      .then(([classData, studentData, cats, allCriteria]) => {
+      .then(([classData, studentData, cats, allCriteria, semestersData, summariesDataRes]) => {
         setTargetClass(classData);
         setStudent(studentData);
+
+        // Tìm học kỳ active và điểm rèn luyện tương ứng
+        const activeSemester = semestersData.find(s => s.status === 'active');
+        const summariesList = summariesDataRes?.data || [];
+        let activeSummary = null;
+        if (activeSemester) {
+          activeSummary = summariesList.find((item: any) => {
+            const semId = typeof item.semester_id === 'object' ? item.semester_id?._id : item.semester_id;
+            return semId === activeSemester._id;
+          });
+        }
+
+        if (!activeSummary && summariesList.length > 0) {
+          const sorted = [...summariesList].sort((a: any, b: any) => {
+            const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+            const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+            return dateB - dateA;
+          });
+          activeSummary = sorted[0];
+        }
+
+        const scoreVal = resolveDrlScore(activeSummary) ?? resolveDrlScore(studentData.training_point_id);
+        setResolvedDrl(scoreVal);
 
         // Gắn criteria vào từng category
         const catsWithCriteria: CategoryWithCriteria[] = cats
@@ -483,11 +512,7 @@ export default function StudentProfilePage() {
                   <div className="flex flex-col min-w-0">
                     <p className="font-sans font-bold text-[#64748B] text-[9px] tracking-wider uppercase leading-none">Rèn luyện</p>
                     <p className="font-sans font-bold text-[#1E293B] text-[20px] leading-tight mt-1 truncate">
-                      {student?.training_point_id?.score != null
-                        ? (student.training_point_id.score > 100
-                          ? Math.round(student.training_point_id.score / 100)
-                          : student.training_point_id.score)
-                        : 0}/100
+                      {resolvedDrl !== null ? `${resolvedDrl}/100` : 'N/A'}
                     </p>
                   </div>
                 </div>

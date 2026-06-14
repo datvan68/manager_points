@@ -40,8 +40,8 @@ export default function ReportTabs({
   }
 
   return (
-    <div className="mx-6 mt-6 border-b border-slate-200">
-      <div className="flex flex-wrap -mb-px gap-1 overflow-x-auto custom-scrollbar">
+    <div className="mx-6 mt-6 pb-2 border-b border-white/50">
+      <div className="flex flex-wrap gap-2 overflow-x-auto custom-scrollbar pb-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -51,17 +51,17 @@ export default function ReportTabs({
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 text-[13px] font-bold border-b-2 transition-all duration-200 cursor-pointer whitespace-nowrap outline-none ${
+              className={`flex items-center gap-2 px-4 py-2 text-[13px] font-bold rounded-xl transition-all duration-150 cursor-pointer whitespace-nowrap outline-none ${
                 isActive
-                  ? 'border-blue-600 text-blue-600 scale-[1.01]'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                  ? 'bg-white/60 border border-white/75 shadow-sm text-[#1A73E8] scale-[1.01]'
+                  : 'border border-transparent text-[#64748B] hover:text-[#1E293B] hover:bg-white/30 hover:border-white/40'
               }`}
             >
               <Icon size={16} />
               <span>{tab.label}</span>
               {count !== undefined && count > 0 && (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold transition-all duration-200 ${
-                  isActive ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'
+                <span className={`px-2 py-0.5 rounded-xl text-[10px] font-extrabold transition-all duration-150 ${
+                  isActive ? 'bg-[#1A73E8]/10 text-[#1A73E8]' : 'bg-white/50 text-[#64748B]'
                 }`}>
                   {count}
                 </span>

@@ -13,17 +13,17 @@ interface ScoreReportTabProps {
 }
 
 const columns: TableColumn[] = [
-  { key: 'student_code', header: 'Mã HSSV', className: 'font-bold text-slate-700' },
-  { key: 'full_name', header: 'Họ tên', className: 'font-bold text-slate-800' },
+  { key: 'student_code', header: 'Mã HSSV', className: 'font-bold text-[#1E293B]' },
+  { key: 'full_name', header: 'Họ tên', className: 'font-bold text-[#1E293B]' },
   { key: 'class_name', header: 'Lớp' },
   { key: 'department_name', header: 'Khoa' },
   { key: 'semester_name', header: 'Học kỳ' },
   { 
     key: 'total_score', 
     header: 'Tổng điểm',
-    className: 'text-center font-black text-slate-800 text-[14px]',
+    className: 'text-center font-black text-[#1E293B] text-[14px]',
     render: (val: number) => {
-      let colorClass = 'text-slate-700';
+      let colorClass = 'text-[#1E293B]';
       if (val >= 90) colorClass = 'text-emerald-600';
       else if (val >= 80) colorClass = 'text-blue-600';
       else if (val >= 65) colorClass = 'text-amber-600';
@@ -38,15 +38,15 @@ const columns: TableColumn[] = [
     header: 'Xếp loại',
     render: (val: string) => {
       const colors: Record<string, string> = {
-        'Xuất sắc': 'bg-emerald-50 border border-emerald-100 text-emerald-600',
-        'Tốt': 'bg-emerald-50/50 border border-emerald-100/50 text-emerald-500',
-        'Khá': 'bg-blue-50 border border-blue-100 text-blue-600',
-        'Trung bình': 'bg-amber-50 border border-amber-100 text-amber-600',
-        'Yếu': 'bg-orange-50 border border-orange-100 text-orange-600',
-        'Kém': 'bg-rose-50 border border-rose-100 text-rose-600'
+        'Xuất sắc': 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600',
+        'Tốt': 'bg-emerald-500/5 border border-emerald-500/10 text-emerald-500',
+        'Khá': 'bg-blue-500/10 border border-blue-500/20 text-[#1A73E8]',
+        'Trung bình': 'bg-amber-500/10 border border-amber-500/20 text-amber-600',
+        'Yếu': 'bg-orange-500/10 border border-orange-500/20 text-orange-600',
+        'Kém': 'bg-rose-500/10 border border-rose-500/20 text-rose-600'
       };
       return (
-        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${colors[val] || 'bg-slate-50 border border-slate-100 text-slate-500'}`}>
+        <span className={`inline-block px-2.5 py-0.5 rounded-xl text-[11px] font-bold ${colors[val] || 'bg-white/50 border border-white/70 text-[#64748B]'}`}>
           {val}
         </span>
       );
@@ -57,13 +57,13 @@ const columns: TableColumn[] = [
     header: 'Trạng thái',
     render: (val: string) => {
       const colors: Record<string, string> = {
-        'Nháp': 'bg-slate-50 border border-slate-200 text-slate-400',
-        'SV đã nộp': 'bg-amber-50 border border-amber-100 text-amber-500',
-        'GV đã duyệt': 'bg-blue-50 border border-blue-100 text-blue-600',
-        'Đã khóa': 'bg-emerald-50 border border-emerald-100 text-emerald-600'
+        'Nháp': 'bg-white/40 border border-white/70 text-[#64748B]',
+        'SV đã nộp': 'bg-amber-500/10 border border-amber-500/20 text-amber-600',
+        'GV đã duyệt': 'bg-blue-500/10 border border-blue-500/20 text-[#1A73E8]',
+        'Đã khóa': 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600'
       };
       return (
-        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${colors[val] || 'bg-slate-50 border border-slate-100 text-slate-500'}`}>
+        <span className={`inline-block px-2.5 py-0.5 rounded-xl text-[11px] font-bold ${colors[val] || 'bg-white/50 border border-white/70 text-[#64748B]'}`}>
           {val}
         </span>
       );
@@ -73,31 +73,31 @@ const columns: TableColumn[] = [
 ];
 
 const detailColumns: TableColumn[] = [
-  { key: 'student_code', header: 'Mã HSSV', className: 'font-bold text-slate-700' },
-  { key: 'full_name', header: 'Họ tên', className: 'font-bold text-slate-800' },
+  { key: 'student_code', header: 'Mã HSSV', className: 'font-bold text-[#1E293B]' },
+  { key: 'full_name', header: 'Họ tên', className: 'font-bold text-[#1E293B]' },
   { key: 'class_name', header: 'Lớp' },
-  { key: 'category_name', header: 'Nhóm tiêu chí', className: 'font-bold text-blue-600' },
+  { key: 'category_name', header: 'Nhóm tiêu chí', className: 'font-bold text-[#1A73E8]' },
   { key: 'criterion_name', header: 'Tiêu chí', className: 'max-w-[200px] truncate' },
-  { key: 'current_count', header: 'Số lần', className: 'text-center text-slate-600 font-bold' },
-  { key: 'system_score', header: 'Điểm HT', className: 'text-center text-slate-400 font-medium' },
-  { key: 'sv_score', header: 'Điểm SV', className: 'text-center text-slate-500 font-bold' },
-  { key: 'gv_score', header: 'Điểm GV', className: 'text-center text-slate-700 font-extrabold' },
+  { key: 'current_count', header: 'Số lần', className: 'text-center text-[#1E293B] font-bold' },
+  { key: 'system_score', header: 'Điểm HT', className: 'text-center text-[#64748B] font-medium' },
+  { key: 'sv_score', header: 'Điểm SV', className: 'text-center text-[#64748B] font-bold' },
+  { key: 'gv_score', header: 'Điểm GV', className: 'text-center text-[#1E293B] font-extrabold' },
   { 
     key: 'final_score', 
     header: 'Điểm cuối', 
-    className: 'text-center font-black text-blue-600 text-[13.5px]'
+    className: 'text-center font-black text-[#1A73E8] text-[13.5px]'
   },
   { 
     key: 'status', 
     header: 'Trạng thái',
     render: (val: string) => {
       const colors: Record<string, string> = {
-        'Nháp': 'text-slate-400',
+        'Nháp': 'text-[#64748B]',
         'SV đã nộp': 'text-amber-500',
-        'GV đã duyệt': 'text-blue-600',
+        'GV đã duyệt': 'text-[#1A73E8]',
         'Đã khóa': 'text-emerald-600'
       };
-      return <span className={`font-black ${colors[val] || 'text-slate-500'}`}>{val}</span>;
+      return <span className={`font-black ${colors[val] || 'text-[#64748B]'}`}>{val}</span>;
     }
   }
 ];

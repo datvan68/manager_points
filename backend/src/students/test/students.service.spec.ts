@@ -22,11 +22,18 @@ const mockStudent = {
   training_point_id: 'mock-tp-id',
   user_id: { _id: '507f1f77bcf86cd799439013' },
 };
+const getCloneMockStudent = () => ({
+  ...mockStudent,
+  date_bir: new Date(mockStudent.date_bir),
+  class_id: { ...mockStudent.class_id },
+  user_id: mockStudent.user_id ? { ...mockStudent.user_id } : null,
+});
 
 describe('StudentsService', () => {
   let service: StudentsService;
   let model: any;
   let classModel: any;
+  let summaryPointModel: any;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -42,26 +49,27 @@ describe('StudentsService', () => {
                 .mockResolvedValue({ _id: '507f1f77bcf86cd799439011', ...dto }),
             })),
             {
-              find: jest.fn().mockReturnValue({
+              find: jest.fn().mockImplementation(() => ({
                 populate: jest.fn().mockReturnThis(),
-                exec: jest.fn().mockResolvedValue([mockStudent]),
-              }),
-              findById: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue([getCloneMockStudent()]),
+              })),
+              findById: jest.fn().mockImplementation(() => ({
                 populate: jest.fn().mockReturnThis(),
-                exec: jest.fn().mockResolvedValue(mockStudent),
-              }),
-              findOne: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue(getCloneMockStudent()),
+              })),
+              findOne: jest.fn().mockImplementation(() => ({
                 populate: jest.fn().mockReturnThis(),
-                exec: jest.fn().mockResolvedValue(mockStudent),
-              }),
-              findByIdAndUpdate: jest.fn().mockReturnValue({
-                exec: jest.fn().mockResolvedValue(mockStudent),
-              }),
-              findByIdAndDelete: jest.fn().mockReturnValue({
-                exec: jest.fn().mockResolvedValue(mockStudent),
-              }),
-              insertMany: jest.fn().mockResolvedValue([mockStudent]),
+                exec: jest.fn().mockResolvedValue(getCloneMockStudent()),
+              })),
+              findByIdAndUpdate: jest.fn().mockImplementation(() => ({
+                exec: jest.fn().mockResolvedValue(getCloneMockStudent()),
+              })),
+              findByIdAndDelete: jest.fn().mockImplementation(() => ({
+                exec: jest.fn().mockResolvedValue(getCloneMockStudent()),
+              })),
+              insertMany: jest.fn().mockImplementation(() => Promise.resolve([getCloneMockStudent()])),
               bulkWrite: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+              updateOne: jest.fn().mockResolvedValue({}),
             },
           ),
         },
@@ -77,6 +85,7 @@ describe('StudentsService', () => {
           provide: getModelToken(SummaryPoint.name),
           useValue: {
             insertMany: jest.fn().mockResolvedValue([]),
+            bulkWrite: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
           },
         },
         {
@@ -117,6 +126,7 @@ describe('StudentsService', () => {
     service = module.get<StudentsService>(StudentsService);
     model = module.get(getModelToken(Student.name));
     classModel = module.get(getModelToken(Class.name));
+    summaryPointModel = module.get(getModelToken(SummaryPoint.name));
   });
 
   it('should be defined', () => {
@@ -138,6 +148,40 @@ describe('StudentsService', () => {
       const result = await service.create(dto);
       expect(result).toBeDefined();
       expect(result.student_code).toEqual(dto.student_code);
+      expect(summaryPointModel.bulkWrite).toHaveBeenCalled();
+
+      // Verify identity contract in bulkWrite call
+      const bulkWriteCall = summaryPointModel.bulkWrite.mock.calls[0];
+      const bulkOps = bulkWriteCall[0];
+      expect(bulkOps[0].updateOne.filter.period_id).toBeNull();
+      expect(bulkOps[0].updateOne.update.$setOnInsert.period_id).toBeNull();
+    });
+
+    it('should handle duplicate key error (11000) during auto-create summary points gracefully', async () => {
+      const dto = {
+        student_code: 'SV-2023-002',
+        full_name: 'Nguyễn Văn B',
+        email: 'b.nv@student.edu.vn',
+        date_bir: '2003-01-01',
+        sex: 'Male',
+        status: 'Studying',
+        class_id: '507f1f77bcf86cd799439012',
+        training_point_id: 'mock-tp-id',
+      };
+
+      const mongoError = new Error('Duplicate key');
+      (mongoError as any).code = 11000;
+      summaryPointModel.bulkWrite.mockRejectedValueOnce(mongoError);
+
+      const mockResult = { ...mockStudent, student_code: dto.student_code };
+      model.findOne.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce(mockResult),
+      });
+
+      const result = await service.create(dto);
+      expect(result).toBeDefined();
+      expect(result.student_code).toEqual(dto.student_code);
     });
   });
 
@@ -155,6 +199,38 @@ describe('StudentsService', () => {
           training_point_id: 'mock-tp-id',
         },
       ];
+      const result = await service.createBulk(dtos);
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+      expect(result[0].student_code).toEqual(dtos[0].student_code);
+      expect(summaryPointModel.bulkWrite).toHaveBeenCalled();
+    });
+
+    it('should handle duplicate key error (11000) during bulk auto-create summary points gracefully', async () => {
+      const dtos = [
+        {
+          student_code: 'SV-2023-003',
+          full_name: 'Nguyễn Văn C',
+          email: 'c.nv@student.edu.vn',
+          date_bir: '2003-01-01',
+          sex: 'Male',
+          status: 'Studying',
+          class_id: '507f1f77bcf86cd799439012',
+          training_point_id: 'mock-tp-id',
+        },
+      ];
+
+      const mongoError = new Error('Duplicate key');
+      (mongoError as any).code = 11000;
+      summaryPointModel.bulkWrite.mockRejectedValueOnce(mongoError);
+
+      const mockResult = [{ ...mockStudent, student_code: dtos[0].student_code }];
+      model.insertMany.mockResolvedValueOnce(mockResult);
+      model.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce(mockResult),
+      });
+
       const result = await service.createBulk(dtos);
       expect(result).toBeDefined();
       expect(Array.isArray(result)).toBe(true);
@@ -186,6 +262,72 @@ describe('StudentsService', () => {
       const result = await service.findAll(requester);
       expect(result).toBeDefined();
       expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('should return only students for the requested classId', async () => {
+      const requester = { userId: '507f1f77bcf86cd799439015', roleName: 'Admin' };
+      const classId = '507f1f77bcf86cd799439012';
+      
+      model.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([getCloneMockStudent()]),
+      });
+
+      const result = await service.findAll({ classId }, requester);
+      expect(result).toBeDefined();
+      expect(result.length).toBe(1);
+      expect(model.find).toHaveBeenCalledWith({ class_id: new Types.ObjectId(classId) });
+    });
+
+    it('should return empty for invalid classId', async () => {
+      const requester = { userId: '507f1f77bcf86cd799439015', roleName: 'Admin' };
+      const classId = 'invalid-class-id';
+      
+      const result = await service.findAll({ classId }, requester);
+      expect(result).toEqual([]);
+    });
+
+    it('should allow teacher requester to see students if classId matches an assigned class', async () => {
+      const requester = { userId: 'teacher-user-id', roleName: 'Teacher' };
+      const classId = '507f1f77bcf86cd799439012';
+      
+      jest.spyOn(classModel, 'find').mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(classId) }]),
+      } as any);
+
+      model.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([getCloneMockStudent()]),
+      });
+
+      const result = await service.findAll({ classId }, requester);
+      expect(result).toBeDefined();
+      expect(result.length).toBe(1);
+      expect(model.find).toHaveBeenCalledWith({ class_id: new Types.ObjectId(classId) });
+    });
+
+    it('should return empty list if teacher requests classId that is not assigned to them', async () => {
+      const requester = { userId: 'teacher-user-id', roleName: 'Teacher' };
+      const classId = '507f1f77bcf86cd799439099'; // not assigned
+      
+      jest.spyOn(classModel, 'find').mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId('507f1f77bcf86cd799439012') }]),
+      } as any);
+
+      const result = await service.findAll({ classId }, requester);
+      expect(result).toEqual([]);
+    });
+
+    it('should return empty list if student requests a classId that is not their own class', async () => {
+      const requester = { userId: '507f1f77bcf86cd799439013', roleName: 'Student' };
+      const classId = '507f1f77bcf86cd799439099'; // not student's class
+      
+      const result = await service.findAll({ classId }, requester);
+      expect(result).toEqual([]);
     });
   });
 

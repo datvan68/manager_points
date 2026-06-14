@@ -152,7 +152,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         const classList = await classApi.getClasses();
         setClasses(classList);
 
-        const studentList = await studentApi.getStudents();
+        const studentListRes = await studentApi.getStudents();
+        const studentList = Array.isArray(studentListRes) ? studentListRes : (studentListRes?.data || []);
         setAllStudents(studentList);
 
         const criteriaList = await criteriaApi.getCriteria();
@@ -428,21 +429,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         toast.success('Tạo báo cáo lớp học hàng ngày thành công!');
       }
 
-      // 2. Lưu từng bản ghi vi phạm rèn luyện từ bảng tạm
+      // 2. Lưu các bản ghi vi phạm bằng batch API
       if (addedViolations.length > 0) {
-        const summaryList = await summariesPointApi.getSummariesPoints();
-        const localSummaryCache = new Map<string, string>();
-        const localDetailCache = new Map<string, string>();
-        for (const violation of addedViolations) {
+        const recordsToCreate = addedViolations.map(violation => {
           const resolvedCriterion = criteria.find(c => c._id === violation.criterion_id) || resolveCriterionByName(criteria, [violation.criterion_name]);
           if (!resolvedCriterion) {
             throw new Error(`Khong tim thay tieu chi cho ghi nhan: ${violation.criterion_name}. Vui long tai lai danh sach tieu chi hoac chon lai tieu chi`);
           }
 
-          violation.criterion_id = resolvedCriterion._id;
-          if (!violation.criterion_name || normalizeText(violation.criterion_name) !== normalizeText(resolvedCriterion.criterion_name)) {
-            violation.criterion_name = resolvedCriterion.criterion_name;
-          }
           if (!isValidObjectId(violation.student_id)) {
             throw new Error(`Khong tim thay hoc sinh hop le cho ghi nhan: ${violation.student_name}`);
           }
@@ -453,73 +447,28 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             throw new Error('Du lieu bao cao ngay khong hop le, khong the luu ghi nhan');
           }
 
-          const summaryCacheKey = `${violation.student_id}:${activeSemesterId}`;
-          let studentSummaryId = localSummaryCache.get(summaryCacheKey) || summaryPointCache[summaryCacheKey];
-          let studentSummary = studentSummaryId
-            ? summaryList.find(s => s._id === studentSummaryId)
-            : summaryList.find(s => {
-                const sId = typeof s.student_id === 'object' ? s.student_id?._id : s.student_id;
-                const semId = typeof s.semester_id === 'object' ? s.semester_id?._id : s.semester_id;
-                return sId === violation.student_id && semId === activeSemesterId;
-              });
-
-          if (!studentSummary) {
-            studentSummary = await summariesPointApi.createSummariesPoint({
-              student_id: violation.student_id,
-              semester_id: activeSemesterId,
-              total_score: 100,
-              grading: 'Xuất sắc',
-              status: 'draft'
-            });
-          }
-
-          localSummaryCache.set(summaryCacheKey, studentSummary._id);
-          setSummaryPointCache(prev => ({ ...prev, [summaryCacheKey]: studentSummary._id }));
-
-          const criterionId = violation.criterion_id;
-          if (!isValidObjectId(criterionId)) {
-            throw new Error(`Du lieu tieu chi khong hop le, vui long chon lai tieu chi: ${violation.criterion_name}`);
-          }
-
-          const detailCacheKey = `${studentSummary._id}:${criterionId}`;
-          const cachedDetailId = localDetailCache.get(detailCacheKey) || evaluationDetailCache[detailCacheKey];
-          let evalDetail: { _id: string } | EvaluationDetail | null = cachedDetailId ? { _id: cachedDetailId } as any : null;
-
-          if (!evalDetail) {
-            const detailsList = await evaluationDetailApi.getEvaluationDetailsBySummary(studentSummary._id);
-            evalDetail = detailsList.find(d => {
-              const cId = typeof d.criterion_id === 'object' ? d.criterion_id?._id : d.criterion_id;
-              return cId === criterionId;
-            }) || null;
-          }
-
-          if (!evalDetail) {
-            evalDetail = await evaluationDetailApi.createEvaluationDetail({
-              summary_id: studentSummary._id,
-              criterion_id: criterionId,
-              current_count: 0,
-              status: 'draft',
-              description: 'Khoi tao ghi nhan thu cong',
-              log: []
-            });
-          }
-
-          localDetailCache.set(detailCacheKey, evalDetail._id);
-          setEvaluationDetailCache(prev => ({ ...prev, [detailCacheKey]: evalDetail._id }));
-
-          await academicRecordApi.createAcademicRecord({
+          return {
             student_id: violation.student_id,
-            criterion_id: violation.criterion_id,
+            criterion_id: resolvedCriterion._id,
             semester_id: activeSemesterId,
-            record_title: `${violation.criterion_name}`,
+            record_title: resolvedCriterion.criterion_name,
             description: violation.class_note,
             daily_report_id: dailyReportId,
-            status: 'active',
+            status: 'active' as const,
             recorded_at: reportDate.toISOString(),
-            recorded_by: isValidObjectId(user?.id || '') ? user?.id : undefined
-          });
+            recorded_by: isValidObjectId(user?.id || '') ? user?.id : undefined,
+            idempotency_key: `daily_report:${dailyReportId}:${violation.student_id}:${resolvedCriterion._id}`,
+            source: 'daily_class_report'
+          };
+        });
+
+        const response = await academicRecordApi.bulkCreateAcademicRecords(recordsToCreate);
+        if (response.insertedCount > 0) {
+          toast.success(`Đã ghi nhận ${response.insertedCount} vi phạm rèn luyện thành công!`);
         }
-        toast.success(`Đã ghi nhận ${addedViolations.length} vi phạm rèn luyện thành công!`);
+        if (response.duplicatedCount > 0) {
+          toast.warning(`Có ${response.duplicatedCount} ghi nhận bị trùng lặp hoặc đã tồn tại.`);
+        }
       }
 
       onSuccess();
@@ -547,14 +496,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
               type="button"
               variant="ghost"
               onClick={onBack}
-              className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[12px] w-[40px] h-[40px] p-0 flex items-center justify-center cursor-pointer hover:bg-white/80 transition-all shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] shrink-0"
+              className="backdrop-blur-md bg-white/45 border border-white/70 rounded-xl w-10 h-10 p-0 flex items-center justify-center cursor-pointer hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.05] shadow-sm shrink-0"
               title="Quay lại"
             >
               <ArrowLeft className="w-4 h-4 text-slate-700" />
             </Button>
 
             {/* Figma Icon Block */}
-            <div className="hidden xs:flex backdrop-blur-[6px] bg-white/45 border border-white/40 items-center justify-center rounded-[12px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] shrink-0 w-[40px] h-[40px]">
+            <div className="hidden xs:flex backdrop-blur-md bg-white/45 border border-white/70 items-center justify-center rounded-xl shadow-sm shrink-0 w-10 h-10">
               <FileText className="w-4 h-4 text-[#005bbf]" />
             </div>
 
@@ -568,7 +517,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             </div>
           </div>
           <div className="flex items-center sm:justify-end shrink-0">
-            <div className="bg-[#005bbf]/5 text-[#005bbf] font-bold text-[11px] px-3.5 py-1.5 rounded-full uppercase tracking-wider border border-[#005bbf]/10 flex items-center gap-1.5 shadow-sm bg-white/40 backdrop-blur-sm">
+            <div className="bg-[#005bbf]/5 text-[#005bbf] font-bold text-[11px] px-3.5 py-1.5 rounded-xl uppercase tracking-wider border border-[#005bbf]/10 flex items-center gap-1.5 shadow-sm bg-white/40 backdrop-blur-md">
               <Sparkles className="w-3.5 h-3.5 text-[#005bbf] animate-pulse" />
               <span>Hệ thống ghi nhận</span>
             </div>
@@ -577,7 +526,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
         {/* Loading Spinner */}
         {isLoadingData ? (
-          <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[40px] shadow-sm flex flex-col items-center justify-center min-h-[250px] gap-3">
+          <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-10 shadow-sm shadow-slate-300/40 flex flex-col items-center justify-center min-h-[250px] gap-3">
             <Loader2 className="w-7 h-7 text-blue-600 animate-spin" />
             <span className="text-[#005bbf] font-semibold text-xs">Đang nạp dữ liệu rèn luyện...</span>
           </div>
@@ -589,7 +538,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
               {/* Left Column: Core Info (col-span-4) */}
               <div className="col-span-12 lg:col-span-4 flex flex-col gap-[20px]">
                 {/* Section 1: Thông tin cơ bản */}
-                <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[22px] lg:p-[26px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] flex flex-col gap-[16px] w-full">
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[22px] lg:p-[26px] flex flex-col gap-[16px] w-full">
                   <div className="flex gap-[8px] items-center text-[#005bbf]">
                     <FileText className="w-4.5 h-4.5 shrink-0" />
                     <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Thông tin cơ bản</h3>
@@ -605,7 +554,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         required
                         error={""}
                       >
-                        <SelectTrigger className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all cursor-pointer w-full shadow-sm">
+                        <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all hover:bg-white/70 cursor-pointer w-full shadow-sm">
                           <SelectValue placeholder="Chọn mã lớp học..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
@@ -624,7 +573,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       onChange={(e) => setTeacherName(e.target.value)}
                       placeholder="Nhập tên giảng viên đứng lớp"
                       required
-                      className="bg-white/80 border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/90 focus-visible:border-blue-400 shadow-sm"
+                      className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold placeholder:text-[#64748B] focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/80 focus-visible:border-blue-400 shadow-sm"
                       containerClassName="w-full"
                     />
 
@@ -636,14 +585,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           <Button
                             type="button"
                             variant="ghost"
-                            className="bg-white/80 border border-white/15 h-[40px] rounded-full px-[16px] text-[13.5px] text-slate-800 font-semibold outline-none flex items-center justify-between hover:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all w-full shadow-sm text-left font-sans"
+                            className="bg-white/50 border border-white/80 h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/70 focus:ring-2 focus:ring-blue-500/20 transition-all w-full shadow-sm text-left font-sans"
                           >
                             <span>{format(reportDate, 'dd/MM/yyyy')}</span>
                             <CalendarIcon className="w-[16px] h-[16px] text-slate-400 shrink-0" />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent
-                          className="w-auto p-0 z-[100] bg-transparent border-none shadow-none"
+                          className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
                           align="start"
                           side="bottom"
                           sideOffset={6}
@@ -662,7 +611,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                 </div>
 
                 {/* Section 2: Ghi chú lớp học sử dụng Input Component với multiline */}
-                <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[22px] lg:p-[26px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] flex flex-col gap-[16px] w-full">
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[22px] lg:p-[26px] flex flex-col gap-[16px] w-full">
                   <div className="flex gap-[8px] items-center text-[#005bbf]">
                     <FileText className="w-4.5 h-4.5 shrink-0" />
                     <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Ghi chú lớp học</h3>
@@ -673,7 +622,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     value={classNote}
                     onChange={(e) => setClassNote(e.target.value)}
                     placeholder="Nhập nhận xét chung về tình hình lớp học, mức độ tiếp thu..."
-                    className="bg-white/80 border-white/15 rounded-[12px] p-[16px] min-h-[110px] text-[13.5px] text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/90 focus-visible:border-blue-400 transition-all w-full resize-none shadow-sm font-semibold leading-relaxed placeholder:text-slate-400"
+                    className="bg-white/50 border-white/80 backdrop-blur-sm rounded-xl p-[16px] min-h-[110px] text-[13.5px] text-[#1E293B] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/80 focus-visible:border-blue-400 transition-all w-full resize-none shadow-sm font-semibold leading-relaxed placeholder:text-[#64748B]"
                     containerClassName="w-full"
                   />
                 </div>
@@ -681,14 +630,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
               {/* Right Column: Violations Section (col-span-8) */}
               <div className="col-span-12 lg:col-span-8 flex flex-col gap-[20px]">
-                <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[22px] lg:p-[26px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] flex flex-col gap-[16px] w-full">
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[22px] lg:p-[26px] flex flex-col gap-[16px] w-full">
                   <div className="flex gap-[8px] items-center text-[#005bbf]">
                     <AlertTriangle className="w-4.5 h-4.5 shrink-0" />
                     <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Ghi nhận sinh viên vi phạm (nếu có)</h3>
                   </div>
 
                   {/* Entry Form: Kính mờ gọn gàng */}
-                  <div className="backdrop-blur-[6px] bg-white/40 border border-white/30 rounded-[12px] p-[14px] w-full">
+                  <div className="bg-white/30 backdrop-blur-sm border border-white/60 rounded-xl p-[14px] w-full relative z-20">
                     <div className="grid grid-cols-12 gap-[12px] w-full">
                       {/* Họ tên sinh viên sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
@@ -699,7 +648,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           error={""}
                         >
                           <SelectTrigger
-                            className="bg-white/80 border-white/15 h-[38px] rounded-full px-[14px] text-[12.5px] text-slate-800 font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all cursor-pointer font-sans"
+                            className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all hover:bg-white/70 cursor-pointer font-sans"
                             disabled={!classId}
                           >
                             <SelectValue placeholder={classId ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
@@ -720,7 +669,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           label="Tiêu chí ghi nhận"
                           error={""}
                         >
-                          <SelectTrigger className="bg-white/80 border-white/15 h-[38px] rounded-full px-[14px] text-[12.5px] text-slate-800 font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all cursor-pointer font-sans">
+                          <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all hover:bg-white/70 cursor-pointer font-sans">
                             <SelectValue placeholder="Chọn tiêu chí..." />
                           </SelectTrigger>
                           <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 font-sans">
@@ -738,7 +687,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         value={violationNote}
                         onChange={(e) => setViolationNote(e.target.value)}
                         placeholder="VD: Nhắc nhở lần 1..."
-                        className="bg-white/80 border-white/15 h-[38px] rounded-full px-[14px] text-[12.5px] text-slate-800 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/90 focus-visible:border-blue-400 shadow-sm"
+                        className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] placeholder:text-[#64748B] focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/80 focus-visible:border-blue-400 shadow-sm"
                         containerClassName="col-span-12 md:col-span-9 w-full"
                       />
 
@@ -747,7 +696,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         <Button
                           type="button"
                           onClick={handleAddViolationToList}
-                          className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold h-[38px] rounded-full shadow-[0px_4px_6px_-1px_rgba(0,91,191,0.1),0px_2px_4px_-2px_rgba(0,91,191,0.1)] flex items-center justify-center gap-2 cursor-pointer transition-all border-none outline-none w-full text-[12.5px]"
+                          className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold h-10 rounded-xl shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] border-none outline-none w-full text-[12.5px]"
                         >
                           <Plus className="w-4 h-4 shrink-0" />
                           <span>Thêm</span>
@@ -757,17 +706,17 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   </div>
 
                   {/* Violation Table */}
-                  <div className="border border-white/20 rounded-[12px] overflow-hidden w-full shadow-sm">
+                  <div className="border border-white/60 rounded-xl overflow-hidden w-full shadow-sm bg-white/15">
                     <table className="w-full text-left border-collapse min-w-max">
                       <thead>
-                        <tr className="bg-white/50 border-b border-white/20">
+                        <tr className="bg-white/50 backdrop-blur-sm border-b border-white/60">
                           <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase">HỌ TÊN</th>
                           <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase">TIÊU CHÍ</th>
                           <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase">GHI CHÚ</th>
                           <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase text-center w-32">THAO TÁC</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/20 bg-white/25">
+                      <tbody className="divide-y divide-white/20">
                         {addedViolations.map((violation, idx) => {
                           const criterion = criteria.find(c => c._id === violation.criterion_id);
                           const type = criterion?.criterion_type || (violation.points_effect > 0 ? 'cong_diem' : 'ky_luat');
@@ -780,7 +729,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           }
 
                           return (
-                            <tr key={idx} className="hover:bg-white/30 transition-colors">
+                            <tr key={idx} className="hover:bg-white/65 hover:scale-[1.002] transition-all duration-150 ease-out">
                               <td className="px-[20px] py-[12px] font-semibold text-[#111c2d] text-[13.5px]">
                                 <div className="flex flex-col">
                                   <span>{violation.student_name}</span>
@@ -788,7 +737,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                                 </div>
                               </td>
                               <td className="px-[20px] py-[12px]">
-                                <span className={`font-bold rounded-full px-[10px] py-[3px] text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
+                                <span className={`font-bold rounded-xl px-[10px] py-[3px] text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
                                   {violation.criterion_name}
                                 </span>
                               </td>
@@ -800,7 +749,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                                   type="button"
                                   variant="ghost"
                                   onClick={() => handleRemoveViolationFromList(idx)}
-                                  className="w-[28px] h-[28px] rounded-full hover:bg-red-50 hover:text-red-600 p-0 flex items-center justify-center text-rose-500 transition-colors bg-white/50 border border-white/80 shadow-sm outline-none cursor-pointer mx-auto"
+                                  className="w-[28px] h-[28px] rounded-xl hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.05] bg-white/50 border border-white/80 shadow-sm outline-none cursor-pointer mx-auto"
                                   title="Xóa vi phạm"
                                 >
                                   <Trash2 className="w-[14px] h-[16px]" />
@@ -853,7 +802,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         )}
                       </strong></span>
                     </div>
-                    <div className="ml-auto text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full text-[11px] min-w-[90px] text-center">
+                    <div className="ml-auto text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-xl text-[11px] min-w-[90px] text-center">
                       {isStudentsLoading ? (
                         <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-emerald-500 align-middle" />
                       ) : (
@@ -922,7 +871,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             </div>
 
             {/* Footer Actions Panel */}
-            <div className="backdrop-blur-[6px] bg-white/45 border border-white/40 rounded-[16px] p-[18px] flex items-center justify-between gap-4 w-full shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[18px] flex items-center justify-between gap-4 w-full">
               {/* Reset/Placeholder info */}
               <div className="hidden sm:flex items-center text-[12.5px] text-[#414754] font-medium italic">
                 Hãy kiểm tra kỹ thông tin chuyên cần & kỷ luật trước khi lưu.
@@ -935,7 +884,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   type="button"
                   variant="outline"
                   onClick={onBack}
-                  className="border border-[rgba(0,91,191,0.3)] bg-white/30 hover:bg-white/80 rounded-full px-[32px] py-[10px] text-[#005bbf] font-bold text-[13px] tracking-[0.28px] h-auto"
+                  className="border border-[rgba(0,91,191,0.3)] bg-white/30 hover:bg-white/80 rounded-xl px-[32px] py-[10px] text-[#005bbf] font-bold text-[13px] tracking-[0.28px] h-10 hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
                   Hủy bỏ
                 </Button>
@@ -944,7 +893,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                 <Button
                   type="submit"
                   disabled={isSaving}
-                  className="relative bg-[#005bbf] text-white font-bold px-[38px] py-[10px] rounded-full shadow-[0px_10px_15px_-3px_rgba(0,91,191,0.3),0px_4px_6px_-4px_rgba(0,91,191,0.3)] hover:bg-[#004ca0] focus:ring-2 focus:ring-blue-500/20 transition-all flex items-center justify-center gap-2 border-none outline-none cursor-pointer text-[13px] tracking-[0.28px] h-auto disabled:opacity-75 disabled:cursor-not-allowed"
+                  className="relative bg-[#005bbf] text-white font-bold px-[38px] py-[10px] rounded-xl shadow-sm hover:bg-[#004ca0] focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center gap-2 border-none outline-none cursor-pointer text-[13px] tracking-[0.28px] h-10 disabled:opacity-75 disabled:cursor-not-allowed"
                 >
                   {isSaving ? (
                     <>

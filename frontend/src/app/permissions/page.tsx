@@ -17,10 +17,20 @@ import TabNavigation from '@/components/ui/TabNavigation';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import Action from '@/components/ui/Action';
 import { authApi, tokenStorage } from '../../api/auth-api';
+import { systemApi } from '../../api/system-api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import ConfirmModal from '../../components/modals/ConfirmModal';
 import { RouteGuard, invalidateRoutePermissionCache } from '@/components/guards/RouteGuard';
+import PermissionFlowDiagram from '../../components/permissions/PermissionFlowDiagram';
+import { 
+  resolvePreviewSubject, 
+  getPreviewPermissions, 
+  buildSystemPreviewAccess,
+  getPagePreviewScope,
+  type PreviewSubject,
+  type PreviewPermissionItem
+} from './preview-permissions';
 
 function PermissionsPageContent() {
   const [activeTab, setActiveTab] = useState('Người dùng');
@@ -47,6 +57,9 @@ function PermissionsPageContent() {
   const [isRoutePermModalOpen, setIsRoutePermModalOpen] = useState(false);
   const [editingRoutePerm, setEditingRoutePerm] = useState<any>(null);
 
+  // Page Permission Scopes state
+  const [pagePermissionScopes, setPagePermissionScopes] = useState<any[]>([]);
+
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteConfig, setDeleteConfig] = useState<{
     title: string;
@@ -65,6 +78,216 @@ function PermissionsPageContent() {
   const [selectedPreviewRole, setSelectedPreviewRole] = useState('');
   const [selectedPreviewUser, setSelectedPreviewUser] = useState('');
   const [previewActiveTab, setPreviewActiveTab] = useState<'logs' | 'requests' | 'backup'>('logs');
+  const [selectedPreviewPage, setSelectedPreviewPage] = useState<string>('/system');
+  const previewRequestIdRef = React.useRef(0);
+
+  const [sidebarOrder, setSidebarOrder] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('perm_preview_layout');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return ['/dashboard', '/students', '/grading', '/system', '/permissions', '/reports'];
+  });
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    const sourceIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    if (isNaN(sourceIndex) || sourceIndex === targetIndex) return;
+
+    const newOrder = [...sidebarOrder];
+    const [removed] = newOrder.splice(sourceIndex, 1);
+    newOrder.splice(targetIndex, 0, removed);
+
+    setSidebarOrder(newOrder);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('perm_preview_layout', JSON.stringify(newOrder));
+    }
+  };
+
+  const handleResetSidebarOrder = () => {
+    const defaultOrder = ['/dashboard', '/students', '/grading', '/system', '/permissions', '/reports'];
+    setSidebarOrder(defaultOrder);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('perm_preview_layout');
+    }
+  };
+
+  // Preview real data state
+  const [previewLogs, setPreviewLogs] = useState<any[]>([]);
+  const [previewRequests, setPreviewRequests] = useState<any[]>([]);
+  const [previewBackups, setPreviewBackups] = useState<any[]>([]);
+  const [isPreviewLogsLoading, setIsPreviewLogsLoading] = useState(false);
+  const [isPreviewRequestsLoading, setIsPreviewRequestsLoading] = useState(false);
+  const [isPreviewBackupsLoading, setIsPreviewBackupsLoading] = useState(false);
+  const [previewLogsError, setPreviewLogsError] = useState<string | null>(null);
+  const [previewRequestsError, setPreviewRequestsError] = useState<string | null>(null);
+  const [previewBackupsError, setPreviewBackupsError] = useState<string | null>(null);
+
+  const renderDynamicPagePreview = (
+    routePath: string,
+    pagePermissionScopes: any[],
+    routePermissions: any[],
+    allPermissions: any[],
+    previewPermissions: string[],
+    isPreviewAdmin: boolean
+  ) => {
+    const previewScopeItems = getPagePreviewScope({
+      routePath,
+      pagePermissionScopes,
+      routePermissions,
+      allPermissions,
+      previewPermissions,
+      isPreviewAdmin
+    });
+
+    let title = 'Báo cáo thống kê';
+    let icon = <Globe className="w-5 h-5 text-indigo-650" />;
+    if (routePath === '/permissions') {
+      title = 'Phân quyền hệ thống (RBAC)';
+      icon = <Shield className="w-5 h-5 text-indigo-650" />;
+    } else if (routePath === '/students') {
+      title = 'Quản lý Học sinh sinh viên';
+      icon = <Users className="w-5 h-5 text-emerald-600" />;
+    } else if (routePath === '/grading') {
+      title = 'Đánh giá rèn luyện';
+      icon = <GraduationCap className="w-5 h-5 text-indigo-650" />;
+    }
+
+    return (
+      <div className="p-6 space-y-6 overflow-y-auto">
+        <div className="flex items-center gap-2">
+          {icon}
+          <h4 className="text-xs font-bold text-slate-800">{title}</h4>
+        </div>
+
+        {routePath === '/permissions' && (
+          <div className="p-3 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-[10px] font-semibold">
+            ⚠️ <strong>Cảnh báo đề xuất:</strong> Chưa có guard/registry thực tế ở backend cho các quyền CRUD (USER_CREATE, ROLE_DELETE, PERMISSION_UPDATE). Cấu hình này chỉ đang được xử lý ở giao diện phân bổ.
+          </div>
+        )}
+
+        <div className="border border-slate-150 rounded-xl overflow-hidden text-[11px] bg-white shadow-xs">
+          <div className="bg-slate-50 px-4 py-2 font-bold text-slate-500 grid grid-cols-5 border-b border-slate-150">
+            <span className="col-span-2">Tên Quyền / Hành động</span>
+            <span>Mã Quyền</span>
+            <span>Loại Quyền</span>
+            <div className="flex justify-between items-center pr-2">
+              <span>Trạng thái áp dụng</span>
+              <span>Truy cập</span>
+            </div>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {previewScopeItems.length === 0 ? (
+              <div className="px-4 py-6 text-center text-slate-450 italic font-medium">
+                Không có quyền con nào được định nghĩa
+              </div>
+            ) : (
+              previewScopeItems.map((perm) => {
+                let enforcementBadge = null;
+                switch (perm.status) {
+                  case 'route_enforced':
+                    enforcementBadge = (
+                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-150 rounded text-[9px] font-extrabold shadow-sm">
+                        Route Enforced
+                      </span>
+                    );
+                    break;
+                  case 'scope_defined':
+                    enforcementBadge = (
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-150 rounded text-[9px] font-extrabold shadow-sm">
+                        Scope Defined
+                      </span>
+                    );
+                    break;
+                  case 'proposed':
+                    enforcementBadge = (
+                      <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-150 rounded text-[9px] font-extrabold shadow-sm">
+                        Đề xuất / Chưa enforce
+                      </span>
+                    );
+                    break;
+                  case 'missing':
+                    enforcementBadge = (
+                      <span className="px-2 py-0.5 bg-rose-50 text-rose-800 border border-rose-150 rounded text-[9px] font-extrabold shadow-sm animate-pulse" title="Quyền không tồn tại trong Registry/Database">
+                        Missing
+                      </span>
+                    );
+                    break;
+                  case 'unmapped':
+                    enforcementBadge = (
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-655 border border-slate-200 rounded text-[9px] font-extrabold shadow-sm" title="Quyền có trong database nhưng chưa map cho route nào">
+                        Unmapped
+                      </span>
+                    );
+                    break;
+                }
+
+                let accessBadge = null;
+                switch (perm.allowedStatus) {
+                  case 'allowed':
+                    accessBadge = (
+                      <span className="px-2 py-0.5 bg-emerald-500 text-white rounded text-[9px] font-black tracking-wide shadow-sm flex items-center justify-center gap-0.5 w-fit ml-auto">
+                        ✓ Cho phép
+                      </span>
+                    );
+                    break;
+                  case 'admin_override':
+                    accessBadge = (
+                      <span className="px-2 py-0.5 bg-indigo-600 text-white rounded text-[9px] font-black tracking-wide shadow-sm flex items-center justify-center gap-0.5 w-fit ml-auto" title="Cho phép do Admin override (không được gán trực tiếp)">
+                        🛡️ Admin override
+                      </span>
+                    );
+                    break;
+                  case 'denied':
+                    accessBadge = (
+                      <span className="px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-150 rounded text-[9px] font-bold shadow-xs flex items-center justify-center gap-0.5 w-fit ml-auto">
+                        🔒 Bị khóa
+                      </span>
+                    );
+                    break;
+                }
+
+                return (
+                  <div key={perm.code} className="px-4 py-3 grid grid-cols-5 text-slate-655 font-medium items-center hover:bg-slate-50/40 transition-colors">
+                    <div className="col-span-2 flex flex-col pr-4">
+                      <span className="font-bold text-slate-800">{perm.name}</span>
+                      <span className="text-[9px] text-slate-400 mt-1 font-semibold leading-relaxed">{perm.desc}</span>
+                    </div>
+                    <span className="font-mono text-slate-700 text-[10px] font-bold">{perm.code}</span>
+                    <span>
+                      {perm.isRoute ? (
+                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold">Menu/Route</span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-slate-50 text-slate-655 rounded text-[9px] font-bold">Hành động</span>
+                      )}
+                    </span>
+                    <div className="flex justify-between items-center pr-2">
+                      <div className="shrink-0">{enforcementBadge}</div>
+                      <div className="shrink-0 text-right select-none">{accessBadge}</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const toggleSelectUser = (userId: string) => {
     setSelectedUserIds(prev => 
@@ -149,18 +372,20 @@ function PermissionsPageContent() {
 
     setIsDataLoading(true);
     try {
-      const [u, r, p, g, rp] = await Promise.all([
+      const [u, r, p, g, rp, pps] = await Promise.all([
         authApi.getUsers(token),
         authApi.getRoles(token),
         authApi.getPermissions(token),
         authApi.getPermissionGroups(token),
-        authApi.getRoutePermissions(token).catch(() => [])
+        authApi.getRoutePermissions(token).catch(() => []),
+        authApi.getPagePermissionScopes(token).catch(() => [])
       ]);
 
       setUsers(u);
       setRoles(r);
       setAllPermissions(p);
       setRoutePermissions(rp);
+      setPagePermissionScopes(pps);
 
       // Groups from API
       const apiGroups = g.map((group: any, idx: number) => ({
@@ -245,41 +470,103 @@ function PermissionsPageContent() {
 
   // Auto-switch preview active tab based on selected user/role permissions
   React.useEffect(() => {
-    let previewRoleObj: any = null;
-    let previewUserObj: any = null;
-    
-    if (selectedPreviewUser && selectedPreviewUser !== 'none') {
-      previewUserObj = users.find(u => (u._id || u.id) === selectedPreviewUser);
-      previewRoleObj = previewUserObj?.role;
-    } else if (selectedPreviewRole && selectedPreviewRole !== 'none') {
-      previewRoleObj = roles.find(r => (r._id || r.id) === selectedPreviewRole);
-    } else if (roles.length > 0) {
-      previewRoleObj = roles[0];
-    }
+    const subject = resolvePreviewSubject({
+      users,
+      roles,
+      selectedPreviewUser,
+      selectedPreviewRole
+    });
+    const perms = getPreviewPermissions(subject);
+    const access = buildSystemPreviewAccess(perms, subject.role);
 
-    const previewRoleCode = previewRoleObj?.role_code || '';
-    const previewRoleName = previewRoleObj?.name || '';
-    const previewPermissions = (previewRoleObj?.permissions || []).map((p: any) => 
-      typeof p === 'string' ? p : p.code || p._id || p.id
-    );
-    
-    const isPreviewAdmin = previewRoleCode === 'ADMIN' || previewPermissions.includes('ADMIN_FULL') || previewRoleName.toLowerCase() === 'admin';
-    const hasPreviewPermission = (code: string) => isPreviewAdmin || previewPermissions.includes(code);
+    let isCurrentTabAccessible = false;
+    if (previewActiveTab === 'logs' && access.previewCanReadLogs) isCurrentTabAccessible = true;
+    if (previewActiveTab === 'requests' && access.previewCanReadRequests) isCurrentTabAccessible = true;
+    if (previewActiveTab === 'backup' && access.previewCanReadBackups) isCurrentTabAccessible = true;
 
-    const previewCanReadLogs = hasPreviewPermission("LOGIN_LOG_READ");
-    const previewCanReadRequests = hasPreviewPermission("SYSTEM_REQUEST_READ") || hasPreviewPermission("SYSTEM_REQUEST_MANAGE");
-    const previewCanReadBackups = hasPreviewPermission("DATABASE_BACKUP_READ");
-
-    if (!previewCanReadLogs) {
-      if (previewCanReadRequests) {
-        setPreviewActiveTab("requests");
-      } else if (previewCanReadBackups) {
-        setPreviewActiveTab("backup");
+    if (!isCurrentTabAccessible) {
+      if (access.previewCanReadLogs) {
+        setPreviewActiveTab('logs');
+      } else if (access.previewCanReadRequests) {
+        setPreviewActiveTab('requests');
+      } else if (access.previewCanReadBackups) {
+        setPreviewActiveTab('backup');
       }
-    } else {
-      setPreviewActiveTab("logs");
     }
-  }, [selectedPreviewRole, selectedPreviewUser, roles, users]);
+  }, [selectedPreviewRole, selectedPreviewUser, roles, users, previewActiveTab]);
+
+  // Fetch preview data function
+  const fetchPreviewData = async (tab: 'logs' | 'requests' | 'backup', hasPerm: boolean) => {
+    const token = tokenStorage.getAccessToken();
+    if (!token) return;
+
+    if (!hasPerm) {
+      if (tab === 'logs') { setPreviewLogs([]); setPreviewLogsError(null); }
+      if (tab === 'requests') { setPreviewRequests([]); setPreviewRequestsError(null); }
+      if (tab === 'backup') { setPreviewBackups([]); setPreviewBackupsError(null); }
+      return;
+    }
+
+    const currentRequestId = ++previewRequestIdRef.current;
+
+    try {
+      if (tab === 'logs') {
+        setIsPreviewLogsLoading(true);
+        setPreviewLogsError(null);
+        const res = await systemApi.getLoginLogs({ page: 1, limit: 2 });
+        if (currentRequestId !== previewRequestIdRef.current) return;
+        setPreviewLogs(res.items || []);
+      } else if (tab === 'requests') {
+        setIsPreviewRequestsLoading(true);
+        setPreviewRequestsError(null);
+        const res = await systemApi.getRequests({ page: 1, limit: 2 });
+        if (currentRequestId !== previewRequestIdRef.current) return;
+        setPreviewRequests(res.items || []);
+      } else if (tab === 'backup') {
+        setIsPreviewBackupsLoading(true);
+        setPreviewBackupsError(null);
+        const res = await systemApi.getBackups({ page: 1, limit: 2 });
+        if (currentRequestId !== previewRequestIdRef.current) return;
+        setPreviewBackups(res.items || []);
+      }
+    } catch (error: any) {
+      if (currentRequestId !== previewRequestIdRef.current) return;
+      console.error(`Preview fetch error for ${tab}:`, error);
+      const errMsg = error.status === 403 ? 'Backend từ chối quyền (lệch cấu hình)' : (error.message || 'Lỗi tải dữ liệu');
+      if (tab === 'logs') { setPreviewLogsError(errMsg); setPreviewLogs([]); }
+      if (tab === 'requests') { setPreviewRequestsError(errMsg); setPreviewRequests([]); }
+      if (tab === 'backup') { setPreviewBackupsError(errMsg); setPreviewBackups([]); }
+    } finally {
+      if (currentRequestId === previewRequestIdRef.current) {
+        if (tab === 'logs') setIsPreviewLogsLoading(false);
+        if (tab === 'requests') setIsPreviewRequestsLoading(false);
+        if (tab === 'backup') setIsPreviewBackupsLoading(false);
+      }
+    }
+  };
+
+  // Fetch preview data on tab or subject change
+  React.useEffect(() => {
+    if (activeTab !== 'Xem trước') return;
+    if (selectedPreviewPage !== '/system') return;
+
+    const subject = resolvePreviewSubject({
+      users,
+      roles,
+      selectedPreviewUser,
+      selectedPreviewRole
+    });
+    const perms = getPreviewPermissions(subject);
+    const access = buildSystemPreviewAccess(perms, subject.role);
+
+    if (previewActiveTab === 'logs') {
+      fetchPreviewData('logs', access.previewCanReadLogs);
+    } else if (previewActiveTab === 'requests') {
+      fetchPreviewData('requests', access.previewCanReadRequests);
+    } else if (previewActiveTab === 'backup') {
+      fetchPreviewData('backup', access.previewCanReadBackups);
+    }
+  }, [activeTab, previewActiveTab, selectedPreviewRole, selectedPreviewUser, roles, users]);
 
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<any>(null);
@@ -591,6 +878,7 @@ function PermissionsPageContent() {
             { id: 'Người dùng', label: 'Người dùng' },
             { id: 'Vai trò', label: 'Vai trò' },
             { id: 'Quyền hạn', label: 'Quyền hạn' },
+            { id: 'Sơ đồ luồng', label: 'Sơ đồ luồng' },
             { id: 'Xem trước', label: 'Xem trước' },
             { id: 'Cấu hình', label: 'Cấu hình' }
           ]}
@@ -1284,6 +1572,18 @@ function PermissionsPageContent() {
               </div>
             )}
 
+            {/* Tab Sơ đồ luồng */}
+            {activeTab === 'Sơ đồ luồng' && (
+              <div className="flex-1 w-full h-[600px] min-h-[600px] overflow-hidden relative bg-slate-50/50 rounded-b-2xl">
+                <PermissionFlowDiagram 
+                  routePermissions={routePermissions} 
+                  pagePermissionScopes={pagePermissionScopes}
+                  groups={groups} 
+                  permissionsByGroup={permissionsByGroup} 
+                />
+              </div>
+            )}
+
             {/* Tab Gán quyền trang */}
             {activeTab === 'Cấu hình' && (
               <motion.div
@@ -1505,409 +1805,564 @@ function PermissionsPageContent() {
 
                 {/* Simulation Area */}
                 {(() => {
-                  let previewRoleObj: any = null;
-                  let previewUserObj: any = null;
-                  
-                  if (selectedPreviewUser) {
-                    previewUserObj = users.find(u => (u._id || u.id) === selectedPreviewUser);
-                    previewRoleObj = previewUserObj?.role;
-                  } else if (selectedPreviewRole) {
-                    previewRoleObj = roles.find(r => (r._id || r.id) === selectedPreviewRole);
-                  } else if (roles.length > 0) {
-                    // Mặc định lấy vai trò Admin (hoặc vai trò đầu tiên có code ADMIN)
-                    previewRoleObj = roles.find(r => r.role_code === 'ADMIN') || roles[0];
-                  }
+                  const subject = resolvePreviewSubject({
+                    users,
+                    roles,
+                    selectedPreviewUser,
+                    selectedPreviewRole
+                  });
+                  const previewPermissions = getPreviewPermissions(subject);
+                  const access = buildSystemPreviewAccess(previewPermissions, subject.role);
 
-                  const previewRoleCode = previewRoleObj?.role_code || '';
-                  const previewRoleName = previewRoleObj?.name || '';
-                  const previewPermissions = (previewRoleObj?.permissions || []).map((p: any) => 
-                    typeof p === 'string' ? p : p.code || p._id || p.id
-                  );
-                  
-                  const isPreviewAdmin = previewRoleCode === 'ADMIN' || previewPermissions.includes('ADMIN_FULL') || previewRoleName.toLowerCase() === 'admin';
+                  const {
+                    isPreviewAdmin,
+                    showStudents,
+                    showGrading,
+                    showSystem,
+                    showPermissions,
+                    showReports,
+                    previewCanReadLogs,
+                    previewCanReadRequests,
+                    previewCanManageRequests,
+                    previewCanReadBackups,
+                    previewCanCreateBackup,
+                    previewCanDownloadBackup,
+                    previewCanDeleteBackup
+                  } = access;
+
+                  const previewRoleCode = subject.role?.role_code || '';
+                  const previewRoleObj = subject.role;
+                  const previewUserObj = subject.user;
+
+                  // Mask helpers
+                  const maskIp = (ip: string) => {
+                    if (!ip) return 'N/A';
+                    const parts = ip.split('.');
+                    if (parts.length === 4) {
+                      return `${parts[0]}.${parts[1]}.*.*`;
+                    }
+                    return ip.replace(/:[0-9a-fA-F]{1,4}$/, ':****');
+                  };
+
+                  const maskEmailOrUsername = (username: string) => {
+                    if (!username) return 'N/A';
+                    if (username.includes('@')) {
+                      const [name, domain] = username.split('@');
+                      if (name.length <= 2) return `**@${domain}`;
+                      return `${name.substring(0, 2)}***@${domain}`;
+                    }
+                    if (username.length <= 2) return '**';
+                    return `${username.substring(0, 2)}***`;
+                  };
+
+                  const previewPagesList = ['/permissions', '/students', '/grading', '/reports'];
+
+                  // Check if current active page is locked
+                  let isPageLocked = false;
+                  if (selectedPreviewPage === '/students' && !showStudents) isPageLocked = true;
+                  if (selectedPreviewPage === '/grading' && !showGrading) isPageLocked = true;
+                  if (selectedPreviewPage === '/system' && !showSystem) isPageLocked = true;
+                  if (selectedPreviewPage === '/permissions' && !showPermissions) isPageLocked = true;
+                  if (selectedPreviewPage === '/reports' && !showReports) isPageLocked = true;
+
                   const hasPreviewPermission = (code: string) => isPreviewAdmin || previewPermissions.includes(code);
 
-                  // Check Sidebar Menu display
-                  const showStudents = isPreviewAdmin || previewRoleCode === 'TEACHER' || previewRoleCode === 'STUDENT' || hasPreviewPermission('STUDENT_PAGE') || hasPreviewPermission('STUDENT_READ');
-                  const showGrading = isPreviewAdmin || previewRoleCode === 'TEACHER' || previewRoleCode === 'SUPERVISOR' || hasPreviewPermission('GRADING_PAGE');
-                  const showSystem = isPreviewAdmin || [
-                    'SYSTEM_ADMIN', 'LOGIN_LOG_READ', 'SYSTEM_REQUEST_READ', 'SYSTEM_REQUEST_MANAGE',
-                    'DATABASE_BACKUP_READ', 'DATABASE_BACKUP_CREATE', 'DATABASE_BACKUP_DOWNLOAD', 'DATABASE_BACKUP_DELETE'
-                  ].some(code => hasPreviewPermission(code));
-                  const showPermissions = isPreviewAdmin || hasPreviewPermission('admin');
-
-                  // Check System sub-permissions
-                  const previewCanReadLogs = hasPreviewPermission("LOGIN_LOG_READ");
-                  const previewCanReadRequests = hasPreviewPermission("SYSTEM_REQUEST_READ") || hasPreviewPermission("SYSTEM_REQUEST_MANAGE");
-                  const previewCanManageRequests = hasPreviewPermission("SYSTEM_REQUEST_MANAGE");
-                  const previewCanReadBackups = hasPreviewPermission("DATABASE_BACKUP_READ");
-                  const previewCanCreateBackup = hasPreviewPermission("DATABASE_BACKUP_CREATE");
-                  const previewCanDownloadBackup = hasPreviewPermission("DATABASE_BACKUP_DOWNLOAD");
-                  const previewCanDeleteBackup = hasPreviewPermission("DATABASE_BACKUP_DELETE");
-
                   return (
-                    <div className="flex-1 flex overflow-hidden p-6 gap-6 min-h-0">
-                      {/* Left Column: Mockup Sidebar */}
-                      <div className="w-[240px] bg-white border border-slate-200 rounded-2xl flex flex-col p-4 shrink-0 shadow-sm relative overflow-hidden select-none">
-                        <div className="absolute top-0 right-0 bg-indigo-500 text-[8px] font-black text-white px-2 py-0.5 rounded-bl-lg tracking-widest uppercase">Mockup</div>
-                        
-                        <div className="flex items-center gap-2 px-2 pb-4 border-b border-slate-100 mb-4">
-                          <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0">E</div>
-                          <span className="text-sm font-bold text-slate-800">EduManager</span>
-                        </div>
-
-                        <div className="flex flex-col gap-1.5 flex-grow">
-                          <span className="text-[9px] font-bold text-slate-400 uppercase px-2 mb-1.5 tracking-wider">Menu Hệ thống</span>
-                          
-                          {/* Trang chủ */}
-                          <div className="flex items-center justify-between px-3 py-2 bg-blue-50/40 text-blue-600 border border-blue-100/30 rounded-xl text-xs font-semibold">
-                            <div className="flex items-center gap-2.5">
-                              <LayoutDashboard size={15} />
-                              <span>Trang chủ</span>
-                            </div>
-                            <span className="text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded">Mở</span>
-                          </div>
-
-                          {/* Học sinh sinh viên */}
-                          <div className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                            showStudents 
-                              ? 'bg-white text-slate-700 border-slate-100' 
-                              : 'bg-slate-50/50 text-slate-400 border-slate-150/40 opacity-50'
-                          }`}>
-                            <div className="flex items-center gap-2.5">
-                              <Users size={15} />
-                              <span>Học sinh sinh viên</span>
-                            </div>
-                            {showStudents ? (
-                              <span className="text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded">Mở</span>
-                            ) : (
-                              <span className="text-[9px] font-bold bg-slate-400 text-white px-1.5 py-0.5 rounded">🔒 Ẩn</span>
-                            )}
-                          </div>
-
-                          {/* Rèn luyện */}
-                          <div className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                            showGrading 
-                              ? 'bg-white text-slate-700 border-slate-100' 
-                              : 'bg-slate-50/50 text-slate-400 border-slate-150/40 opacity-50'
-                          }`}>
-                            <div className="flex items-center gap-2.5">
-                              <GraduationCap size={15} />
-                              <span>Rèn luyện</span>
-                            </div>
-                            {showGrading ? (
-                              <span className="text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded">Mở</span>
-                            ) : (
-                              <span className="text-[9px] font-bold bg-slate-400 text-white px-1.5 py-0.5 rounded">🔒 Ẩn</span>
-                            )}
-                          </div>
-
-                          {/* Quản trị hệ thống */}
-                          <div className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                            showSystem 
-                              ? 'bg-white text-slate-700 border-slate-150 shadow-xs ring-1 ring-blue-500/5' 
-                              : 'bg-slate-50/50 text-slate-400 border-slate-150/40 opacity-50'
-                          }`}>
-                            <div className="flex items-center gap-2.5">
-                              <Settings size={15} />
-                              <span>Quản trị hệ thống</span>
-                            </div>
-                            {showSystem ? (
-                              <span className="text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded">Mở</span>
-                            ) : (
-                              <span className="text-[9px] font-bold bg-slate-400 text-white px-1.5 py-0.5 rounded">🔒 Ẩn</span>
-                            )}
-                          </div>
-
-                          {/* Phân quyền */}
-                          <div className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                            showPermissions 
-                              ? 'bg-white text-slate-700 border-slate-100' 
-                              : 'bg-slate-50/50 text-slate-400 border-slate-150/40 opacity-50'
-                          }`}>
-                            <div className="flex items-center gap-2.5">
-                              <Shield size={15} />
-                              <span>Phân quyền (RBAC)</span>
-                            </div>
-                            {showPermissions ? (
-                              <span className="text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded">Mở</span>
-                            ) : (
-                              <span className="text-[9px] font-bold bg-slate-400 text-white px-1.5 py-0.5 rounded">🔒 Ẩn</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Profile Info mockup */}
-                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center gap-2.5 mt-auto">
-                          <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-xs font-black text-blue-600 shrink-0">
-                            {(previewUserObj?.user_name || previewRoleObj?.name || 'A').substring(0, 2).toUpperCase()}
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[11px] font-black text-slate-800 truncate leading-none">
-                              {previewUserObj ? previewUserObj.user_name : (previewRoleObj?.name || 'Chưa chọn')}
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1.5 leading-none">
-                              {previewRoleCode || 'GUEST'}
-                            </span>
-                          </div>
+                    <div className="flex-grow flex flex-col min-h-0">
+                      {/* Vùng 1: Hiển thị Effective Permissions */}
+                      <div className="px-6 py-3 bg-slate-50 border-b border-slate-150 flex flex-wrap items-center gap-2 shrink-0 select-none">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quyền hiệu lực ({previewPermissions.length}):</span>
+                        <div className="flex flex-wrap gap-1.5 max-h-[50px] overflow-y-auto pr-2 flex-grow">
+                          {previewPermissions.length === 0 ? (
+                            <span className="text-xs text-slate-400 italic">Không có quyền nào</span>
+                          ) : (
+                            previewPermissions.map(code => (
+                              <span key={code} className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded text-[10px] font-bold font-mono">
+                                {code}
+                              </span>
+                            ))
+                          )}
                         </div>
                       </div>
 
-                      {/* Right Column: Mockup Page Content */}
-                      <div className="flex-1 bg-white border border-slate-200 rounded-2xl flex flex-col overflow-hidden shadow-sm relative min-w-0">
-                        <div className="absolute top-0 right-0 bg-indigo-500 text-[8px] font-black text-white px-2 py-0.5 rounded-bl-lg tracking-widest uppercase">Mockup</div>
+                      {/* Ghi chú Token hiện tại */}
+                      <div className="px-6 py-2 bg-indigo-50/50 border-b border-slate-150 text-[11px] text-indigo-800 font-semibold flex items-center gap-2 select-none shrink-0">
+                        <span>ℹ️</span>
+                        <span>Đang mô phỏng quyền theo đối tượng được chọn. Dữ liệu API thật được kiểm chứng bằng phiên đăng nhập hiện tại.</span>
+                      </div>
 
-                        {/* Top bar of Page */}
-                        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between shrink-0 gap-4">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center border border-blue-100">
-                              <Settings size={15} />
-                            </div>
-                            <div>
-                              <h4 className="text-xs font-bold text-slate-800 leading-none">Quản trị Hệ thống</h4>
-                              <p className="text-[9px] text-slate-400 font-semibold mt-1">Mô phỏng giao diện /system theo vai trò</p>
-                            </div>
+                      <div className="flex-1 flex overflow-hidden p-6 gap-6 min-h-0">
+                        {/* Vùng 2: Sidebar Mockup */}
+                        <div className="w-[240px] bg-white border border-slate-200 rounded-2xl flex flex-col p-4 shrink-0 shadow-sm relative overflow-hidden select-none">
+                          <div className="absolute top-0 right-0 bg-indigo-550 text-[8px] font-black text-white px-2 py-0.5 rounded-bl-lg tracking-widest uppercase">Khung mô phỏng</div>
+                          
+                          <div className="flex items-center gap-2 px-2 pb-4 border-b border-slate-100 mb-4">
+                            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0">E</div>
+                            <span className="text-sm font-bold text-slate-800">EduManager</span>
                           </div>
 
-                          {/* Sub-tab Selectors */}
-                          {showSystem && (
-                            <div className="flex bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold text-slate-600 select-none">
-                              <button
-                                onClick={() => setPreviewActiveTab('logs')}
-                                className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                                  previewActiveTab === 'logs' ? 'bg-white text-slate-800 shadow-xs' : 'hover:text-slate-800'
-                                }`}
+                          <div className="flex flex-col gap-1.5 flex-grow overflow-y-auto">
+                            <div className="flex items-center justify-between px-2 mb-1.5">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Menu Hệ thống</span>
+                              <button 
+                                onClick={handleResetSidebarOrder}
+                                className="text-[9px] font-bold text-blue-500 hover:text-blue-700 transition-colors"
+                                title="Khôi phục thứ tự mặc định"
                               >
-                                Nhật ký
-                                {!previewCanReadLogs && <span>🔒</span>}
-                              </button>
-                              <button
-                                onClick={() => setPreviewActiveTab('requests')}
-                                className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                                  previewActiveTab === 'requests' ? 'bg-white text-slate-800 shadow-xs' : 'hover:text-slate-800'
-                                }`}
-                              >
-                                Yêu cầu
-                                {!previewCanReadRequests && <span>🔒</span>}
-                              </button>
-                              <button
-                                onClick={() => setPreviewActiveTab('backup')}
-                                className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                                  previewActiveTab === 'backup' ? 'bg-white text-slate-800 shadow-xs' : 'hover:text-slate-800'
-                                }`}
-                              >
-                                Sao lưu
-                                {!previewCanReadBackups && <span>🔒</span>}
+                                Reset
                               </button>
                             </div>
-                          )}
+                            
+                            {sidebarOrder.map((route, index) => {
+                              const isSelected = selectedPreviewPage === route;
+                              let icon = <LayoutDashboard size={15} />;
+                              let label = 'Trang chủ';
+                              let isOpen = true;
+
+                              switch (route) {
+                                case '/dashboard':
+                                  icon = <LayoutDashboard size={15} />;
+                                  label = 'Trang chủ';
+                                  isOpen = true;
+                                  break;
+                                case '/students':
+                                  icon = <Users size={15} />;
+                                  label = 'Học sinh sinh viên';
+                                  isOpen = showStudents;
+                                  break;
+                                case '/grading':
+                                  icon = <GraduationCap size={15} />;
+                                  label = 'Rèn luyện';
+                                  isOpen = showGrading;
+                                  break;
+                                case '/system':
+                                  icon = <Settings size={15} />;
+                                  label = 'Quản trị hệ thống';
+                                  isOpen = showSystem;
+                                  break;
+                                case '/permissions':
+                                  icon = <Shield size={15} />;
+                                  label = 'Phân quyền (RBAC)';
+                                  isOpen = showPermissions;
+                                  break;
+                                case '/reports':
+                                  icon = <Globe size={15} />;
+                                  label = 'Báo cáo thống kê';
+                                  isOpen = showReports;
+                                  break;
+                              }
+
+                              const activeClasses = isSelected
+                                ? 'bg-blue-50 text-blue-600 border-blue-200'
+                                : isOpen
+                                  ? 'bg-white text-slate-700 border-slate-100 hover:bg-slate-50'
+                                  : 'bg-slate-50/50 text-slate-400 border-slate-150/40 opacity-50';
+
+                              return (
+                                <div 
+                                  key={route}
+                                  draggable={true}
+                                  onDragStart={(e) => handleDragStart(e, index)}
+                                  onDragOver={handleDragOver}
+                                  onDrop={(e) => handleDrop(e, index)}
+                                  onClick={() => setSelectedPreviewPage(route)}
+                                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-grab active:cursor-grabbing ${activeClasses}`}
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    {icon}
+                                    <span>{label}</span>
+                                  </div>
+                                  {isOpen ? (
+                                    <span className="text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded">Mở</span>
+                                  ) : (
+                                    <span className="text-[9px] font-bold bg-slate-400 text-white px-1.5 py-0.5 rounded">🔒 Ẩn</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Profile Info mockup */}
+                          <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center gap-2.5 mt-auto">
+                            <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-xs font-black text-blue-600 shrink-0">
+                              {(previewUserObj?.user_name || previewRoleObj?.name || 'A').substring(0, 2).toUpperCase()}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[11px] font-black text-slate-800 truncate leading-none">
+                                {previewUserObj ? previewUserObj.user_name : (previewRoleObj?.name || 'Chưa chọn')}
+                              </span>
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1.5 leading-none">
+                                {previewRoleCode || 'GUEST'}
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Page body */}
-                        <div className="flex-1 overflow-y-auto p-6 min-h-0 bg-slate-50/10">
-                          {!showSystem ? (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 py-10">
-                              <Lock className="w-12 h-12 text-rose-300" />
-                              <h4 className="text-sm font-black text-rose-500">TRANG BỊ KHÓA TRUY CẬP (FAIL-CLOSED)</h4>
+                        {/* Vùng 3: Kết quả preview bên phải */}
+                        <div className="flex-1 bg-white border border-slate-200 rounded-2xl flex flex-col overflow-hidden shadow-sm relative min-w-0">
+                          {/* Live data badge dynamic wording */}
+                          <div className="absolute top-0 right-0 bg-emerald-500 text-[8px] font-black text-white px-2 py-0.5 rounded-bl-lg tracking-widest uppercase">
+                            {selectedPreviewPage === '/system' && ['logs', 'requests', 'backup'].includes(previewActiveTab) && 
+                              ((previewActiveTab === 'logs' && previewCanReadLogs && !previewLogsError) ||
+                               (previewActiveTab === 'requests' && previewCanReadRequests && !previewRequestsError) ||
+                               (previewActiveTab === 'backup' && previewCanReadBackups && !previewBackupsError))
+                                ? 'Dữ liệu thật' : 'Khung mô phỏng'}
+                          </div>
+
+                          {isPageLocked ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 p-10 bg-slate-50/10">
+                              <Lock className="w-12 h-12 text-rose-400 animate-pulse" />
+                              <h4 className="text-sm font-black text-rose-500 uppercase tracking-wider">Trang bị khóa truy cập (Fail-Closed)</h4>
                               <p className="text-xs text-slate-500 max-w-sm text-center font-semibold leading-relaxed">
-                                Người dùng này không có bất kỳ quyền hệ thống con nào. Việc truy cập trực tiếp vào đường dẫn <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-700 text-[10px]">/system</code> sẽ bị RouteGuard chặn và báo lỗi 403.
+                                Đối tượng được preview không có quyền vào trang <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-700 text-[10px]">{selectedPreviewPage}</code>.
+                                Hệ thống sẽ tự động chặn và báo lỗi 403.
                               </p>
                             </div>
                           ) : (
                             <div className="h-full flex flex-col min-h-0">
-                              {/* TAB PREVIEW: LOGS */}
-                              {previewActiveTab === 'logs' && (
-                                <div className="flex-grow flex flex-col space-y-4">
-                                  {!previewCanReadLogs ? (
-                                    <div className="flex-grow flex flex-col items-center justify-center text-slate-400 gap-3 py-12 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                                      <Lock className="w-10 h-10 text-slate-300" />
-                                      <h5 className="text-xs font-bold text-slate-600">TAB KHÔNG THỂ TRUY CẬP</h5>
-                                      <p className="text-[11px] text-slate-400 max-w-xs text-center font-medium leading-relaxed">
-                                        Tab Nhật ký đăng nhập bị chặn do thiếu quyền <code className="bg-slate-100 text-slate-600 px-1 rounded font-mono">LOGIN_LOG_READ</code>.
-                                      </p>
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-4">
-                                      <div className="flex items-center justify-between bg-emerald-50 text-emerald-800 border border-emerald-100/60 p-3 rounded-xl">
-                                        <div className="flex items-center gap-2">
-                                          <Check className="w-4 h-4 text-emerald-600" />
-                                          <span className="text-xs font-bold">Quyền hạn hợp lệ: LOGIN_LOG_READ</span>
-                                        </div>
-                                        <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded font-black tracking-wider">CHO PHÉP XEM</span>
-                                      </div>
+                              {/* --- PREVIEW PAGE: DASHBOARD --- */}
+                              {selectedPreviewPage === '/dashboard' && (
+                                <div className="p-6 space-y-6 overflow-y-auto">
+                                  <div className="flex items-center gap-2">
+                                    <LayoutDashboard className="w-5 h-5 text-blue-600" />
+                                    <h4 className="text-xs font-bold text-slate-800">Trang chủ EduManager</h4>
+                                  </div>
 
-                                      {/* Mockup Data table */}
-                                      <div className="border border-slate-150 rounded-xl overflow-hidden text-[11px] bg-white">
-                                        <div className="bg-slate-50 px-3 py-2 font-bold text-slate-500 grid grid-cols-3 border-b border-slate-150">
-                                          <span>Thời gian</span>
-                                          <span>Tài khoản</span>
-                                          <span>Địa chỉ IP</span>
-                                        </div>
-                                        <div className="divide-y divide-slate-100">
-                                          <div className="px-3 py-2 grid grid-cols-3 text-slate-600 font-medium">
-                                            <span>15:11:15</span>
-                                            <span className="font-bold text-slate-800">hoang_admin</span>
-                                            <span className="font-mono">192.168.1.55</span>
-                                          </div>
-                                          <div className="px-3 py-2 grid grid-cols-3 text-slate-600 font-medium">
-                                            <span>14:30:22</span>
-                                            <span className="font-bold text-slate-800">nguyen_teacher</span>
-                                            <span className="font-mono">113.22.45.18</span>
-                                          </div>
-                                        </div>
-                                      </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/40">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase">Tổng số học sinh</span>
+                                      <p className="text-xl font-bold text-slate-800 mt-1">1,250 <span className="text-[9px] font-medium text-slate-450 italic">(Mô phỏng)</span></p>
                                     </div>
-                                  )}
+                                    <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/40">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase">Vai trò hoạt động</span>
+                                      <p className="text-xl font-bold text-slate-800 mt-1">{roles.length} <span className="text-[9px] font-medium text-slate-450 italic">(Thực tế)</span></p>
+                                    </div>
+                                    <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/40">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase">Yêu cầu hệ thống</span>
+                                      <p className="text-xl font-bold text-slate-800 mt-1">2 <span className="text-[9px] font-medium text-slate-450 italic">(Mô phỏng)</span></p>
+                                    </div>
+                                  </div>
+
+                                  <div className="border border-slate-150 rounded-xl p-4 space-y-3">
+                                    <h5 className="text-[11px] font-bold text-slate-700">Thông báo mới nhất</h5>
+                                    <div className="text-[11px] text-slate-500 font-medium space-y-2">
+                                      <p className="p-2 bg-slate-50 rounded">📢 Hệ thống EduManager nâng cấp tính năng Xem trước phân quyền thành công.</p>
+                                      <p className="p-2 bg-slate-50 rounded">📢 Lịch sao lưu cơ sở dữ liệu định kỳ tự động chạy vào 0h hàng ngày.</p>
+                                    </div>
+                                  </div>
                                 </div>
                               )}
 
-                              {/* TAB PREVIEW: REQUESTS */}
-                              {previewActiveTab === 'requests' && (
-                                <div className="flex-grow flex flex-col space-y-4">
-                                  {!previewCanReadRequests ? (
-                                    <div className="flex-grow flex flex-col items-center justify-center text-slate-400 gap-3 py-12 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                                      <Lock className="w-10 h-10 text-slate-300" />
-                                      <h5 className="text-xs font-bold text-slate-600">TAB KHÔNG THỂ TRUY CẬP</h5>
-                                      <p className="text-[11px] text-slate-400 max-w-xs text-center font-medium leading-relaxed">
-                                        Không thể xem các yêu cầu do thiếu cả quyền đọc và ghi yêu cầu hệ thống.
-                                      </p>
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-4">
-                                      <div className="flex items-center justify-between bg-emerald-50 text-emerald-800 border border-emerald-100/60 p-3 rounded-xl">
-                                        <div className="flex items-center gap-2">
-                                          <Check className="w-4 h-4 text-emerald-600" />
-                                          <span className="text-xs font-bold">Quyền hạn hợp lệ: SYSTEM_REQUEST_READ</span>
-                                        </div>
-                                        <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded font-black tracking-wider">CHO PHÉP XEM</span>
+                              {/* --- PREVIEW PAGE: SYSTEM --- */}
+                              {selectedPreviewPage === '/system' && (
+                                <div className="flex flex-col h-full min-h-0">
+                                  {/* Top bar of Page */}
+                                  <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between shrink-0 gap-4">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center border border-blue-100">
+                                        <Settings size={15} />
                                       </div>
+                                      <div>
+                                        <h4 className="text-xs font-bold text-slate-800 leading-none">Quản trị Hệ thống</h4>
+                                        <p className="text-[9px] text-slate-400 font-semibold mt-1 font-sans">Mô phỏng giao diện /system theo vai trò</p>
+                                      </div>
+                                    </div>
 
-                                      {/* Mockup Data table with actions simulation */}
-                                      <div className="border border-slate-150 rounded-xl overflow-hidden text-[11px] bg-white">
-                                        <div className="bg-slate-50 px-3 py-2.5 font-bold text-slate-500 grid grid-cols-4 border-b border-slate-150">
-                                          <span className="col-span-2">Yêu cầu</span>
-                                          <span>Độ ưu tiên</span>
-                                          <span className="text-right">Hành động</span>
-                                        </div>
-                                        <div className="divide-y divide-slate-100">
-                                          <div className="px-3 py-3 grid grid-cols-4 text-slate-600 font-medium items-center">
-                                            <div className="col-span-2 flex flex-col pr-4">
-                                              <span className="font-bold text-slate-800">Cập nhật điểm rèn luyện lớp K45A</span>
-                                              <span className="text-[9px] text-slate-400 mt-1">Ghi chú bắt buộc khi phê duyệt/từ chối</span>
-                                            </div>
-                                            <div>
-                                              <span className="px-2 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-100 font-bold text-[9px] uppercase">High</span>
-                                            </div>
-                                            <div className="flex items-center justify-end gap-2 shrink-0">
-                                              {previewCanManageRequests ? (
-                                                <>
-                                                  <button className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold shadow-xs">Duyệt</button>
-                                                  <button className="px-2 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded text-[10px] font-bold border border-rose-200">Xóa</button>
-                                                </>
-                                              ) : (
-                                                <div className="flex items-center gap-1 text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-150/40" title="Yêu cầu SYSTEM_REQUEST_MANAGE">
-                                                  <Lock size={10} />
-                                                  <span>Không thể xử lý</span>
-                                                </div>
-                                              )}
-                                            </div>
+                                    {/* Sub-tab Selectors */}
+                                    <div className="flex bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold text-slate-600 select-none">
+                                      <button
+                                        onClick={() => setPreviewActiveTab('logs')}
+                                        className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
+                                          previewActiveTab === 'logs' ? 'bg-white text-slate-800 shadow-xs' : 'hover:text-slate-800'
+                                        }`}
+                                      >
+                                        Nhật ký
+                                        {!previewCanReadLogs && <span>🔒</span>}
+                                      </button>
+                                      <button
+                                        onClick={() => setPreviewActiveTab('requests')}
+                                        className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
+                                          previewActiveTab === 'requests' ? 'bg-white text-slate-800 shadow-xs' : 'hover:text-slate-800'
+                                        }`}
+                                      >
+                                        Yêu cầu
+                                        {!previewCanReadRequests && <span>🔒</span>}
+                                      </button>
+                                      <button
+                                        onClick={() => setPreviewActiveTab('backup')}
+                                        className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
+                                          previewActiveTab === 'backup' ? 'bg-white text-slate-800 shadow-xs' : 'hover:text-slate-800'
+                                        }`}
+                                      >
+                                        Sao lưu
+                                        {!previewCanReadBackups && <span>🔒</span>}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Page body */}
+                                  <div className="flex-1 overflow-y-auto p-6 min-h-0 bg-slate-50/10">
+                                    {/* TAB PREVIEW: LOGS */}
+                                    {previewActiveTab === 'logs' && (
+                                      <div className="flex-grow flex flex-col space-y-4">
+                                        {!previewCanReadLogs ? (
+                                          <div className="flex-grow flex flex-col items-center justify-center text-slate-400 gap-3 py-12 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                            <Lock className="w-10 h-10 text-slate-300" />
+                                            <h5 className="text-xs font-bold text-slate-600">TAB KHÔNG THỂ TRUY CẬP</h5>
+                                            <p className="text-[11px] text-slate-400 max-w-xs text-center font-medium leading-relaxed">
+                                              Tab Nhật ký đăng nhập bị chặn do thiếu quyền <code className="bg-slate-100 text-slate-600 px-1 rounded font-mono">LOGIN_LOG_READ</code>.
+                                            </p>
                                           </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* TAB PREVIEW: BACKUP */}
-                              {previewActiveTab === 'backup' && (
-                                <div className="flex-grow flex flex-col space-y-4">
-                                  {!previewCanReadBackups ? (
-                                    <div className="flex-grow flex flex-col items-center justify-center text-slate-400 gap-3 py-12 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                                      <Lock className="w-10 h-10 text-slate-300" />
-                                      <h5 className="text-xs font-bold text-slate-600">TAB KHÔNG THỂ TRUY CẬP</h5>
-                                      <p className="text-[11px] text-slate-400 max-w-xs text-center font-medium leading-relaxed">
-                                        Không thể truy cập phân hệ sao lưu do thiếu quyền <code className="bg-slate-100 text-slate-600 px-1 rounded font-mono">DATABASE_BACKUP_READ</code>.
-                                      </p>
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-4">
-                                      <div className="flex items-center justify-between bg-emerald-50 text-emerald-800 border border-emerald-100/60 p-3 rounded-xl">
-                                        <div className="flex items-center gap-2">
-                                          <Check className="w-4 h-4 text-emerald-600" />
-                                          <span className="text-xs font-bold">Quyền hạn hợp lệ: DATABASE_BACKUP_READ</span>
-                                        </div>
-                                        <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded font-black tracking-wider">CHO PHÉP XEM</span>
-                                      </div>
-
-                                      {/* Backup action panel mockup */}
-                                      <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-150 rounded-xl">
-                                        <div className="flex flex-col">
-                                          <span className="text-xs font-bold text-slate-800">Sao lưu dữ liệu tức thời</span>
-                                          <span className="text-[9px] text-slate-400 mt-1 font-semibold">Khởi chạy sao lưu cơ sở dữ liệu</span>
-                                        </div>
-                                        {previewCanCreateBackup ? (
-                                          <button className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold shadow-xs">
-                                            Khởi chạy sao lưu
-                                          </button>
                                         ) : (
-                                          <div className="flex items-center gap-1 text-slate-400 bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-[10px] font-bold">
-                                            <Lock size={10} />
-                                            <span>Khóa (Cần CREATE)</span>
+                                          <div className="space-y-4">
+                                            <div className="flex items-center justify-between bg-emerald-50 text-emerald-800 border border-emerald-100/60 p-3 rounded-xl">
+                                              <div className="flex items-center gap-2">
+                                                <Check className="w-4 h-4 text-emerald-600" />
+                                                <span className="text-xs font-bold">Quyền hạn hợp lệ: LOGIN_LOG_READ</span>
+                                              </div>
+                                              <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded font-black tracking-wider">CHO PHÉP XEM</span>
+                                            </div>
+
+                                            {previewLogsError ? (
+                                              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-semibold flex items-center gap-2">
+                                                <span className="text-base">⚠️</span>
+                                                <div>
+                                                  <p className="font-bold">Lệch cấu hình guard: Preview cho phép nhưng backend từ chối (403)</p>
+                                                  <p className="text-[10px] text-red-500 font-medium">Phiên đăng nhập thực tế của bạn không có quyền truy cập API Nhật ký hoặc cấu hình backend khác với frontend.</p>
+                                                </div>
+                                              </div>
+                                            ) : isPreviewLogsLoading ? (
+                                              <div className="space-y-2 p-2 bg-white rounded-xl border border-slate-150">
+                                                <Skeleton className="h-6 w-full" />
+                                                <Skeleton className="h-6 w-full" />
+                                              </div>
+                                            ) : previewLogs.length === 0 ? (
+                                              <div className="p-4 text-center text-slate-400 bg-white border border-slate-150 rounded-xl font-medium">
+                                                Chưa có dữ liệu đăng nhập
+                                              </div>
+                                            ) : (
+                                              <div className="border border-slate-150 rounded-xl overflow-hidden text-[11px] bg-white shadow-xs">
+                                                <div className="bg-slate-50 px-3 py-2 font-bold text-slate-500 grid grid-cols-3 border-b border-slate-150">
+                                                  <span>Thời gian</span>
+                                                  <span>Tài khoản</span>
+                                                  <span>Địa chỉ IP</span>
+                                                </div>
+                                                <div className="divide-y divide-slate-100">
+                                                  {previewLogs.map((log) => (
+                                                    <div key={log._id} className="px-3 py-2 grid grid-cols-3 text-slate-600 font-medium items-center">
+                                                      <span>{new Date(log.login_time || log.createdAt).toLocaleTimeString()}</span>
+                                                      <span className="font-bold text-slate-800">{maskEmailOrUsername(log.user_id?.user_name || 'Hệ thống')}</span>
+                                                      <span className="font-mono">{maskIp(log.ip_address)}</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            )}
                                           </div>
                                         )}
                                       </div>
+                                    )}
 
-                                      {/* Mockup Data table with actions simulation */}
-                                      <div className="border border-slate-150 rounded-xl overflow-hidden text-[11px] bg-white">
-                                        <div className="bg-slate-50 px-3 py-2.5 font-bold text-slate-500 grid grid-cols-4 border-b border-slate-150">
-                                          <span className="col-span-2">Tên file</span>
-                                          <span>Dung lượng</span>
-                                          <span className="text-right">Hành động</span>
-                                        </div>
-                                        <div className="divide-y divide-slate-100">
-                                          <div className="px-3 py-3 grid grid-cols-4 text-slate-600 font-medium items-center">
-                                            <div className="col-span-2 flex flex-col pr-4">
-                                              <span className="font-bold text-slate-800">backup-2026-06-11.tar.gz</span>
-                                              <span className="text-[9px] text-slate-400 mt-1">Trạng thái: Success</span>
-                                            </div>
-                                            <div>
-                                              <span>4.5 MB</span>
-                                            </div>
-                                            <div className="flex items-center justify-end gap-3 shrink-0">
-                                              {/* Download Action */}
-                                              {previewCanDownloadBackup ? (
-                                                <span className="text-blue-600 font-black cursor-pointer flex items-center gap-0.5 hover:underline" title="Quyền nhạy cảm: Download">
-                                                  Tải
-                                                  <span className="text-[9px] bg-rose-500/10 text-rose-600 px-1 rounded shrink-0">⚠️</span>
-                                                </span>
-                                              ) : (
-                                                <div className="flex items-center gap-0.5 text-slate-400" title="Cần DATABASE_BACKUP_DOWNLOAD">
-                                                  <Lock size={10} />
-                                                  <span>Tải</span>
-                                                </div>
-                                              )}
-                                              
-                                              {/* Delete Action */}
-                                              {previewCanDeleteBackup ? (
-                                                <span className="text-rose-600 font-black cursor-pointer flex items-center gap-0.5 hover:underline" title="Quyền nhạy cảm: Delete">
-                                                  Xóa
-                                                  <span className="text-[9px] bg-rose-500/10 text-rose-600 px-1 rounded shrink-0">⚠️</span>
-                                                </span>
-                                              ) : (
-                                                <div className="flex items-center gap-0.5 text-slate-400" title="Cần DATABASE_BACKUP_DELETE">
-                                                  <Lock size={10} />
-                                                  <span>Xóa</span>
-                                                </div>
-                                              )}
-                                            </div>
+                                    {/* TAB PREVIEW: REQUESTS */}
+                                    {previewActiveTab === 'requests' && (
+                                      <div className="flex-grow flex flex-col space-y-4">
+                                        {!previewCanReadRequests ? (
+                                          <div className="flex-grow flex flex-col items-center justify-center text-slate-400 gap-3 py-12 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                            <Lock className="w-10 h-10 text-slate-300" />
+                                            <h5 className="text-xs font-bold text-slate-600">TAB KHÔNG THỂ TRUY CẬP</h5>
+                                            <p className="text-[11px] text-slate-400 max-w-xs text-center font-medium leading-relaxed">
+                                              Không thể xem các yêu cầu do thiếu quyền <code className="bg-slate-100 text-slate-600 px-1 rounded font-mono">SYSTEM_REQUEST_READ</code>.
+                                            </p>
                                           </div>
-                                        </div>
+                                        ) : (
+                                          <div className="space-y-4">
+                                            <div className="flex items-center justify-between bg-emerald-50 text-emerald-800 border border-emerald-100/60 p-3 rounded-xl">
+                                              <div className="flex items-center gap-2">
+                                                <Check className="w-4 h-4 text-emerald-600" />
+                                                <span className="text-xs font-bold">Quyền hạn hợp lệ: SYSTEM_REQUEST_READ</span>
+                                              </div>
+                                              <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded font-black tracking-wider">CHO PHÉP XEM</span>
+                                            </div>
+
+                                            {previewRequestsError ? (
+                                              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-semibold flex items-center gap-2">
+                                                <span className="text-base">⚠️</span>
+                                                <div>
+                                                  <p className="font-bold">Lệch cấu hình guard: Preview cho phép nhưng backend từ chối (403)</p>
+                                                  <p className="text-[10px] text-red-500 font-medium">Phiên đăng nhập thực tế của bạn không có quyền truy cập API Yêu cầu hoặc cấu hình backend khác với frontend.</p>
+                                                </div>
+                                              </div>
+                                            ) : isPreviewRequestsLoading ? (
+                                              <div className="space-y-2 p-2 bg-white rounded-xl border border-slate-150">
+                                                <Skeleton className="h-10 w-full" />
+                                                <Skeleton className="h-10 w-full" />
+                                              </div>
+                                            ) : previewRequests.length === 0 ? (
+                                              <div className="p-4 text-center text-slate-400 bg-white border border-slate-150 rounded-xl font-medium">
+                                                Chưa có yêu cầu hệ thống nào
+                                              </div>
+                                            ) : (
+                                              <div className="border border-slate-150 rounded-xl overflow-hidden text-[11px] bg-white shadow-xs">
+                                                <div className="bg-slate-50 px-3 py-2.5 font-bold text-slate-500 grid grid-cols-4 border-b border-slate-150">
+                                                  <span className="col-span-2">Yêu cầu</span>
+                                                  <span>Độ ưu tiên</span>
+                                                  <span className="text-right">Hành động</span>
+                                                </div>
+                                                <div className="divide-y divide-slate-100">
+                                                  {previewRequests.map((req) => (
+                                                    <div key={req._id} className="px-3 py-3 grid grid-cols-4 text-slate-600 font-medium items-center">
+                                                      <div className="col-span-2 flex flex-col pr-4">
+                                                        <span className="font-bold text-slate-800">{req.title}</span>
+                                                        {req.description && <span className="text-[9px] text-slate-400 mt-1">{req.description}</span>}
+                                                      </div>
+                                                      <div>
+                                                        <span className={`px-2 py-0.5 rounded border font-bold text-[9px] uppercase ${
+                                                          req.priority === 'critical' ? 'bg-red-50 text-red-600 border-red-100' :
+                                                          req.priority === 'high' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                                          req.priority === 'medium' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                          'bg-slate-50 text-slate-600 border-slate-100'
+                                                        }`}>
+                                                          {req.priority}
+                                                        </span>
+                                                      </div>
+                                                      <div className="flex items-center justify-end gap-2 shrink-0">
+                                                        {previewCanManageRequests ? (
+                                                          <>
+                                                            <button disabled className="px-2 py-1 bg-blue-600/50 text-white rounded text-[10px] font-bold cursor-not-allowed" title="Nút chỉ mang tính chất minh họa">Duyệt (Mô phỏng)</button>
+                                                            <button disabled className="px-2 py-1 bg-rose-50 text-rose-400 border border-rose-100 rounded text-[10px] font-bold cursor-not-allowed" title="Nút chỉ mang tính chất minh họa">Xóa (Mô phỏng)</button>
+                                                          </>
+                                                        ) : (
+                                                          <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black rounded bg-slate-100 text-slate-450 border border-slate-200" title="Yêu cầu SYSTEM_REQUEST_MANAGE">
+                                                            <Lock size={10} />
+                                                            <span>Khóa (Cần SYSTEM_REQUEST_MANAGE)</span>
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
+                                    )}
+
+                                    {/* TAB PREVIEW: BACKUP */}
+                                    {previewActiveTab === 'backup' && (
+                                      <div className="flex-grow flex flex-col space-y-4">
+                                        {!previewCanReadBackups ? (
+                                          <div className="flex-grow flex flex-col items-center justify-center text-slate-400 gap-3 py-12 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                            <Lock className="w-10 h-10 text-slate-300" />
+                                            <h5 className="text-xs font-bold text-slate-600">TAB KHÔNG THỂ TRUY CẬP</h5>
+                                            <p className="text-[11px] text-slate-400 max-w-xs text-center font-medium leading-relaxed">
+                                              Bạn không có quyền DATABASE_BACKUP_READ để xem các bản sao lưu.
+                                            </p>
+                                          </div>
+                                        ) : (
+                                          <div className="space-y-4">
+                                            <div className="flex items-center justify-between bg-emerald-50 text-emerald-800 border border-emerald-100/60 p-3 rounded-xl">
+                                              <div className="flex items-center gap-2">
+                                                <Check className="w-4 h-4 text-emerald-600" />
+                                                <span className="text-xs font-bold">Quyền hạn hợp lệ: DATABASE_BACKUP_READ</span>
+                                              </div>
+                                              <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded font-black tracking-wider">CHO PHÉP XEM</span>
+                                            </div>
+
+                                            {/* Backup action panel mockup */}
+                                            <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-150 rounded-xl">
+                                              <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-slate-800">Sao lưu dữ liệu tức thời</span>
+                                                <span className="text-[9px] text-slate-400 mt-1 font-semibold">Khởi chạy sao lưu cơ sở dữ liệu</span>
+                                              </div>
+                                              {previewCanCreateBackup ? (
+                                                <button disabled className="px-3 py-1.5 bg-blue-600/50 text-white rounded-lg text-[10px] font-bold cursor-not-allowed shadow-xs">
+                                                  Khởi chạy sao lưu (Mô phỏng)
+                                                </button>
+                                              ) : (
+                                                <div className="flex items-center gap-1 text-slate-400 bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-[10px] font-bold">
+                                                  <Lock size={10} />
+                                                  <span>Khóa (Cần CREATE)</span>
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            {previewBackupsError ? (
+                                              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-semibold flex items-center gap-2">
+                                                <span className="text-base">⚠️</span>
+                                                <div>
+                                                  <p className="font-bold">Lệch cấu hình guard: Preview cho phép nhưng backend từ chối (403)</p>
+                                                  <p className="text-[10px] text-red-500 font-medium">Phiên đăng nhập thực tế của bạn không có quyền truy cập API Sao lưu hoặc cấu hình backend khác với frontend.</p>
+                                                </div>
+                                              </div>
+                                            ) : isPreviewBackupsLoading ? (
+                                              <div className="space-y-2 p-2 bg-white rounded-xl border border-slate-150">
+                                                <Skeleton className="h-10 w-full" />
+                                                <Skeleton className="h-10 w-full" />
+                                              </div>
+                                            ) : previewBackups.length === 0 ? (
+                                              <div className="p-4 text-center text-slate-400 bg-white border border-slate-150 rounded-xl font-medium">
+                                                Chưa có bản sao lưu nào
+                                              </div>
+                                            ) : (
+                                              <div className="border border-slate-150 rounded-xl overflow-hidden text-[11px] bg-white shadow-xs">
+                                                <div className="bg-slate-50 px-3 py-2.5 font-bold text-slate-500 grid grid-cols-4 border-b border-slate-150">
+                                                  <span className="col-span-2">Tên file</span>
+                                                  <span>Dung lượng</span>
+                                                  <span className="text-right">Hành động</span>
+                                                </div>
+                                                <div className="divide-y divide-slate-100">
+                                                  {previewBackups.map((backup) => (
+                                                    <div key={backup._id} className="px-3 py-3 grid grid-cols-4 text-slate-600 font-medium items-center">
+                                                      <div className="col-span-2 flex flex-col pr-4">
+                                                        <span className="font-bold text-slate-800">{backup.file_name || 'Đang tiến hành...'}</span>
+                                                        <span className="text-[9px] text-slate-400 mt-1 font-semibold">Trạng thái: {backup.status}</span>
+                                                      </div>
+                                                      <div>
+                                                        <span>{backup.file_size ? `${(backup.file_size / (1024 * 1024)).toFixed(2)} MB` : 'N/A'}</span>
+                                                      </div>
+                                                      <div className="flex items-center justify-end gap-3 shrink-0 select-none">
+                                                        {/* Download Action */}
+                                                        {previewCanDownloadBackup ? (
+                                                          <span className="text-blue-400 font-black cursor-not-allowed flex items-center gap-0.5" title="Mô phỏng hành động (Quyền nhạy cảm: Download)">
+                                                            Tải (Mô phỏng)
+                                                            <span className="text-[9px] bg-rose-500/10 text-rose-600 px-1 rounded shrink-0">⚠️</span>
+                                                          </span>
+                                                        ) : (
+                                                          <div className="flex items-center gap-0.5 text-slate-400" title="Cần DATABASE_BACKUP_DOWNLOAD">
+                                                            <Lock size={10} />
+                                                            <span>Tải</span>
+                                                          </div>
+                                                        )}
+                                                        
+                                                        {/* Delete Action */}
+                                                        {previewCanDeleteBackup ? (
+                                                          <span className="text-rose-455 font-black cursor-not-allowed flex items-center gap-0.5" title="Mô phỏng hành động (Quyền nhạy cảm: Delete)">
+                                                            Xóa (Mô phỏng)
+                                                            <span className="text-[9px] bg-rose-500/10 text-rose-600 px-1 rounded shrink-0">⚠️</span>
+                                                          </span>
+                                                        ) : (
+                                                          <div className="flex items-center gap-0.5 text-slate-400" title="Cần DATABASE_BACKUP_DELETE">
+                                                            <Lock size={10} />
+                                                            <span>Xóa</span>
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            )}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
-                              )}
+                              </div>
+                            )}
+
+                                    {/* --- PREVIEW PAGES: PERMISSIONS, STUDENTS, GRADING, REPORTS (Rendered dynamically) --- */}
+                                  {previewPagesList.includes(selectedPreviewPage) && renderDynamicPagePreview(selectedPreviewPage, pagePermissionScopes, routePermissions, allPermissions, previewPermissions, isPreviewAdmin)}
                             </div>
                           )}
                         </div>
@@ -1919,7 +2374,7 @@ function PermissionsPageContent() {
             )}
 
             {/* Other tabs dummy content */}
-            {activeTab !== 'Người dùng' && activeTab !== 'Quyền hạn' && activeTab !== 'Vai trò' && activeTab !== 'Xem trước' && activeTab !== 'Cấu hình' && (
+            {activeTab !== 'Người dùng' && activeTab !== 'Quyền hạn' && activeTab !== 'Vai trò' && activeTab !== 'Xem trước' && activeTab !== 'Cấu hình' && activeTab !== 'Sơ đồ luồng' && (
               <div className="flex-1 flex items-center justify-center text-slate-400 font-medium">
                 Nội dung tab {activeTab} đang được phát triển...
               </div>

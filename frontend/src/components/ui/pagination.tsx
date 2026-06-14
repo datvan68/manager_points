@@ -27,7 +27,7 @@ export function CustomPagination({
   pageSize,
   currentPage,
   onPageChange,
-  label = 'sự kiện',
+  label = 'bản ghi',
   className,
   isLoading,
   pageSizeOptions = [5, 10, 20, 50, 100],
@@ -64,32 +64,32 @@ export function CustomPagination({
   return (
     <div 
       className={cn(
-        "flex h-[51px] items-center justify-between pl-4 pr-2 bg-white rounded-b-[10px] shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.1)] w-full",
+        "flex h-[51px] items-center justify-between pl-4 pr-2 bg-white/45 backdrop-blur-md border-t border-white/70 rounded-b-2xl shadow-sm w-full",
         className
       )}
     >
       {/* Summary Text & Page Size Selector */}
-      <div className="flex items-center gap-4 text-[#4a5565] text-[14px] leading-[20px] font-sans">
+      <div className="flex items-center gap-4 text-[#1E293B] text-[13.5px] leading-[20px] font-sans font-medium">
         <span>
-          Hiển thị {startItem} - {endItem} trong tổng số {totalItems} {label}
+          Hiển thị {startItem}-{endItem} trên tổng số {totalItems} {label}
         </span>
         {onPageSizeChange && (
-          <div className="flex items-center gap-1.5 ml-2 border-l border-slate-200 pl-4 h-6">
+          <div className="flex items-center gap-1.5 ml-2 border-l border-white/60 pl-4 h-6">
             <span className="text-slate-500 text-[13px]">Số dòng:</span>
             <div className="w-[72px]">
               <Select
                 value={String(pageSize)}
                 onValueChange={(val: string) => onPageSizeChange(Number(val))}
               >
-                <SelectTrigger className="h-7 text-[13px] font-medium text-slate-700 border-slate-200 rounded-[6px] bg-white px-2 py-0.5">
+                <SelectTrigger className="h-8 text-[13px] font-semibold text-[#1E293B] border-white/80 rounded-xl bg-white/50 backdrop-blur-sm px-2.5 py-1 hover:bg-white/70 transition-all cursor-pointer">
                   <SelectValue placeholder={String(pageSize)} />
                 </SelectTrigger>
-                <SelectContent className="bg-white border border-slate-100 shadow-xl rounded-lg min-w-[72px] z-[50]">
+                <SelectContent className="bg-white/95 backdrop-blur-md border border-slate-100/60 shadow-xl rounded-xl min-w-[72px] z-[50]">
                   {pageSizeOptions.map((option) => (
                     <SelectItem
                       key={option}
                       value={String(option)}
-                      className="text-[13px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer py-1 px-2.5"
+                      className="text-[13px] font-semibold text-[#1E293B] hover:bg-slate-50 cursor-pointer py-1 px-2.5 rounded-lg"
                     >
                       {option}
                     </SelectItem>
@@ -107,14 +107,14 @@ export function CustomPagination({
         <button
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
           disabled={currentPage === 1}
-          className="p-2 rounded-[8px] hover:bg-slate-100 disabled:opacity-30 transition-colors"
+          className="w-8 h-8 flex items-center justify-center rounded-full bg-white/30 border border-white/60 hover:bg-white/80 hover:scale-[1.01] disabled:opacity-30 disabled:hover:scale-100 transition-all duration-150 ease-out cursor-pointer"
           aria-label="Trang trước"
         >
-          <ChevronLeft className="w-[14px] h-[14px] text-[#475569]" />
+          <ChevronLeft className="w-[14px] h-[14px] text-[#1E293B]" />
         </button>
 
         {/* Page Numbers */}
-        <div className="flex items-center gap-[2px]">
+        <div className="flex items-center gap-[4px]">
           {getPages().map((page, index) => {
             if (page === '...') {
               return (
@@ -130,10 +130,10 @@ export function CustomPagination({
                 key={index}
                 onClick={() => onPageChange(page as number)}
                 className={cn(
-                  "flex items-center justify-center w-[36px] h-[36px] rounded-[8px] text-[14px] font-medium transition-all",
+                  "flex items-center justify-center w-8 h-8 rounded-full text-[13.5px] font-bold transition-all duration-150 ease-out cursor-pointer",
                   isActive 
-                    ? "bg-[#135bec] text-white shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]" 
-                    : "text-[#475569] hover:bg-slate-100"
+                    ? "bg-[#1A73E8] text-white shadow-sm hover:scale-[1.01]" 
+                    : "text-[#1E293B] bg-white/30 border border-white/40 hover:bg-white/80 hover:scale-[1.01]"
                 )}
               >
                 {page}
@@ -146,10 +146,10 @@ export function CustomPagination({
         <button
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage === totalPages}
-          className="p-2 rounded-[8px] hover:bg-slate-100 disabled:opacity-30 transition-colors"
+          className="w-8 h-8 flex items-center justify-center rounded-full bg-white/30 border border-white/60 hover:bg-white/80 hover:scale-[1.01] disabled:opacity-30 disabled:hover:scale-100 transition-all duration-150 ease-out cursor-pointer"
           aria-label="Trang sau"
         >
-          <ChevronRight className="w-[14px] h-[14px] text-[#475569]" />
+          <ChevronRight className="w-[14px] h-[14px] text-[#1E293B]" />
         </button>
       </div>
     </div>

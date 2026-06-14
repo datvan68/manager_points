@@ -1,6 +1,6 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   SummaryPoint,
   SummaryPointDocument,
@@ -9,6 +9,24 @@ import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
+
+/**
+ * Tính rank tier dựa trên tổng điểm và trạng thái.
+ * Chỉ xếp hạng khi status = 'locked' và có điểm hợp lệ.
+ */
+export function resolveRankTier(
+  totalScore: number | null,
+  status: string,
+): { rank_tier: string; rank_label: string } {
+  if (status !== 'locked' || totalScore === null || totalScore === undefined) {
+    return { rank_tier: 'unranked', rank_label: 'Chưa chốt' };
+  }
+  if (totalScore >= 90) return { rank_tier: 'diamond', rank_label: 'Xuất sắc' };
+  if (totalScore >= 80) return { rank_tier: 'gold', rank_label: 'Tốt' };
+  if (totalScore >= 70) return { rank_tier: 'silver', rank_label: 'Khá' };
+  if (totalScore >= 50) return { rank_tier: 'bronze', rank_label: 'Trung Bình' };
+  return { rank_tier: 'unranked', rank_label: 'Yếu' };
+}
 
 @Injectable()
 export class SummariesPointService {
@@ -81,28 +99,185 @@ export class SummariesPointService {
     }
   }
 
+  private buildSummaryIdentity(
+    studentId: string | Types.ObjectId,
+    semesterId: string | Types.ObjectId,
+    periodId?: string | Types.ObjectId | null,
+  ) {
+    if (!studentId || !Types.ObjectId.isValid(studentId)) {
+      throw new BadRequestException('Mã sinh viên không hợp lệ');
+    }
+    if (!semesterId || !Types.ObjectId.isValid(semesterId)) {
+      throw new BadRequestException('Mã học kỳ không hợp lệ');
+    }
+    if (periodId === '') {
+      throw new BadRequestException('Mã kỳ đánh giá không hợp lệ');
+    }
+    if (periodId && !Types.ObjectId.isValid(periodId)) {
+      throw new BadRequestException('Mã kỳ đánh giá không hợp lệ');
+    }
+
+    return {
+      student_id: new Types.ObjectId(studentId),
+      semester_id: new Types.ObjectId(semesterId),
+      period_id: (periodId && Types.ObjectId.isValid(periodId)) ? new Types.ObjectId(periodId) : null,
+    };
+  }
+
   async create(
     createSummaryPointDto: CreateSummaryPointDto,
     requester?: any,
   ): Promise<SummaryPoint> {
     await this.assertCanAccessStudent(createSummaryPointDto.student_id, requester);
-    const created = new this.summaryPointModel(createSummaryPointDto);
-    return created.save();
-  }
 
-  async findAll(requester?: any): Promise<SummaryPoint[]> {
-    const teacherStudentIds = await this.getTeacherStudentIds(requester);
-    const filter: any = teacherStudentIds
-      ? { student_id: { $in: teacherStudentIds } }
-      : {};
+    const identity = this.buildSummaryIdentity(
+      createSummaryPointDto.student_id,
+      createSummaryPointDto.semester_id,
+      createSummaryPointDto.period_id,
+    );
 
-    return this.summaryPointModel
-      .find(filter)
+    const existing = await this.summaryPointModel
+      .findOne(identity as any)
       .populate('student_id')
       .populate('semester_id')
       .populate('period_id')
       .populate('details.criterion_id')
       .exec();
+
+    if (existing) {
+      return existing;
+    }
+
+    try {
+      const payload = {
+        ...createSummaryPointDto,
+        student_id: identity.student_id,
+        semester_id: identity.semester_id,
+        period_id: identity.period_id,
+      };
+      const created = new this.summaryPointModel(payload);
+      const saved = await created.save();
+      const result = await this.summaryPointModel
+        .findById(saved._id)
+        .populate('student_id')
+        .populate('semester_id')
+        .populate('period_id')
+        .populate('details.criterion_id')
+        .exec();
+      if (!result) throw new NotFoundException('SummaryPoint not found after save');
+      return result;
+    } catch (error: any) {
+      if (error.code === 11000) {
+        const raceExisting = await this.summaryPointModel
+          .findOne(identity as any)
+          .populate('student_id')
+          .populate('semester_id')
+          .populate('period_id')
+          .populate('details.criterion_id')
+          .exec();
+        if (raceExisting) {
+          return raceExisting;
+        }
+        throw new ConflictException('Bảng điểm cho học kỳ/kỳ đánh giá này đã tồn tại.');
+      }
+      throw error;
+    }
+  }
+
+  async findAll(
+    requester?: any,
+    query?: {
+      page?: number;
+      limit?: number;
+      semesterId?: string;
+      classId?: string;
+      studentId?: string;
+      status?: string;
+    },
+  ): Promise<any> {
+    const teacherStudentIds = await this.getTeacherStudentIds(requester);
+    const filter: any = teacherStudentIds
+      ? { student_id: { $in: teacherStudentIds } }
+      : {};
+
+    if (query?.semesterId) {
+      if (Types.ObjectId.isValid(query.semesterId)) {
+        filter.semester_id = query.semesterId;
+      } else {
+        filter.semester_id = new Types.ObjectId();
+      }
+    }
+    if (query?.studentId) {
+      if (Types.ObjectId.isValid(query.studentId)) {
+        filter.student_id = query.studentId;
+      } else {
+        const student = await this.studentModel
+          .findOne({ student_code: query.studentId })
+          .select('_id')
+          .lean()
+          .exec();
+        if (student) {
+          filter.student_id = student._id;
+        } else {
+          filter.student_id = new Types.ObjectId();
+        }
+      }
+    }
+    if (query?.status) {
+      filter.status = query.status;
+    }
+    if (query?.classId) {
+      if (Types.ObjectId.isValid(query.classId)) {
+        const studentsInClass = await this.studentModel
+          .find({ class_id: query.classId })
+          .select('_id')
+          .lean()
+          .exec();
+        const studentIds = studentsInClass.map((s) => s._id);
+
+        if (filter.student_id && filter.student_id.$in) {
+          filter.student_id.$in = filter.student_id.$in.filter((id: any) =>
+            studentIds.some((sId: any) => sId.toString() === id.toString()),
+          );
+        } else {
+          filter.student_id = { $in: studentIds };
+        }
+      } else {
+        filter.student_id = { $in: [] };
+      }
+    }
+
+    const rawPage = query?.page ? Number(query.page) : 1;
+    const rawLimit = query?.limit ? Number(query.limit) : 10;
+    const page = Math.max(1, isNaN(rawPage) ? 1 : rawPage);
+    const limit = Math.max(1, Math.min(100, isNaN(rawLimit) ? 10 : rawLimit));
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.summaryPointModel
+        .find(filter)
+        .select('-details')
+        .populate('student_id')
+        .populate('semester_id')
+        .populate('period_id')
+        .sort({ createdAt: 1, _id: 1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.summaryPointModel.countDocuments(filter).exec(),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    };
   }
 
   async findOne(id: string, requester?: any): Promise<SummaryPoint> {
@@ -126,6 +301,27 @@ export class SummariesPointService {
     requester?: any,
   ): Promise<SummaryPoint> {
     await this.assertCanAccessSummary(id, requester);
+
+    const existingSummary = await this.summaryPointModel.findById(id).exec();
+    if (!existingSummary) {
+      throw new NotFoundException(`SummaryPoint with ID ${id} not found`);
+    }
+
+    if (updateSummaryPointDto.status === 'locked') {
+      throw new BadRequestException('Để phê duyệt điểm rèn luyện, vui lòng sử dụng chức năng phê duyệt.');
+    }
+
+    if (existingSummary.status === 'locked') {
+      throw new BadRequestException('Không thể sửa bảng điểm đã chốt. Vui lòng sử dụng chức năng hủy phê duyệt.');
+    }
+
+    if (updateSummaryPointDto.status === 'draft') {
+      (updateSummaryPointDto as any).rank_tier = null;
+      (updateSummaryPointDto as any).rank_label = null;
+      (updateSummaryPointDto as any).rank_locked_at = null;
+      (updateSummaryPointDto as any).rank_updated_by = null;
+    }
+
     if (updateSummaryPointDto.student_id) {
       await this.assertCanAccessStudent(updateSummaryPointDto.student_id, requester);
     }
@@ -143,8 +339,375 @@ export class SummariesPointService {
     return updated;
   }
 
+  async recomputeTotalScore(summaryId: string): Promise<void> {
+    const summary = await this.summaryPointModel.findById(summaryId);
+    if (!summary) return;
+
+    const details = summary.details || [];
+    if (details.length === 0) return;
+
+    // We need criterionModel to fetch category info.
+    // However, criterionModel is not injected in SummariesPointService yet.
+    // Instead of doing it here, we will do the calculation using aggregate.
+    const aggResult = await this.summaryPointModel.aggregate([
+      { $match: { _id: summary._id } },
+      { $unwind: '$details' },
+      {
+        $lookup: {
+          from: 'criteria',
+          localField: 'details.criterion_id',
+          foreignField: '_id',
+          as: 'criterion'
+        }
+      },
+      { $unwind: { path: '$criterion', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'categories',
+          localField: 'criterion.category_id',
+          foreignField: '_id',
+          as: 'category'
+        }
+      },
+      { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          categoryId: '$category._id',
+          maxScore: { $ifNull: ['$category.max_score', 100] },
+          score: {
+            $ifNull: [
+              '$details.final_score',
+              {
+                $ifNull: [
+                  '$details.gv_score',
+                  {
+                    $ifNull: [
+                      '$details.sv_score',
+                      { $ifNull: ['$details.system_score', 0] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: '$categoryId',
+          maxScore: { $first: '$maxScore' },
+          currentScore: { $sum: '$score' }
+        }
+      },
+      {
+        $project: {
+          clampedScore: {
+            $cond: [
+              { $gt: ['$currentScore', '$maxScore'] },
+              '$maxScore',
+              { $cond: [{ $lt: ['$currentScore', 0] }, 0, '$currentScore'] }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalScore: { $sum: '$clampedScore' }
+        }
+      }
+    ]).exec();
+
+    let totalScore = aggResult.length > 0 ? aggResult[0].totalScore : 0;
+    if (totalScore > 100) totalScore = 100;
+    if (totalScore < 0) totalScore = 0;
+
+    summary.total_score = totalScore;
+    if (summary.status === 'locked') {
+      if (totalScore >= 90) summary.grading = 'Xuất sắc';
+      else if (totalScore >= 80) summary.grading = 'Tốt';
+      else if (totalScore >= 70) summary.grading = 'Khá';
+      else if (totalScore >= 50) summary.grading = 'Trung bình';
+      else summary.grading = 'Yếu';
+    } else {
+      summary.grading = 'Chưa xếp loại';
+    }
+
+    await summary.save();
+  }
+
+  /**
+   * Phê duyệt điểm rèn luyện: khóa các chi tiết điểm, tính lại total_score, grading, rank_tier.
+   * Yêu cầu: User phải là Admin hoặc Supervisor.
+   */
+  async approveGrading(summaryId: string, requester: any): Promise<SummaryPointDocument> {
+    const roleName = ((requester?.roleName || requester?.role || '') + '').toLowerCase();
+    const isAdminOrSupervisor =
+      roleName.includes('admin') ||
+      roleName.includes('supervisor') ||
+      roleName.includes('quản sinh') ||
+      roleName.includes('quan sinh');
+
+    if (!isAdminOrSupervisor) {
+      throw new ForbiddenException('Bạn không có quyền phê duyệt bảng điểm rèn luyện.');
+    }
+
+    // 1. Kiểm tra quyền truy cập
+    await this.assertCanAccessSummary(summaryId, requester);
+
+    // Find the summary from DB. If not found, throw NotFoundException.
+    const summary = await this.summaryPointModel.findById(summaryId);
+    if (!summary) {
+      throw new NotFoundException(`Summary ${summaryId} không tồn tại`);
+    }
+
+    // Set the status of all details to 'locked' and calculate final_score
+    if (summary.details && summary.details.length > 0) {
+      const lockedBy = new Types.ObjectId(requester.userId);
+      const lockedAt = new Date();
+      for (const detail of summary.details) {
+        const oldStatus = detail.status || 'draft';
+        detail.status = 'locked';
+
+        const finalScore = detail.gv_score !== null && detail.gv_score !== undefined
+          ? detail.gv_score
+          : (detail.sv_score !== null && detail.sv_score !== undefined
+              ? detail.sv_score
+              : (detail.system_score !== null && detail.system_score !== undefined
+                  ? detail.system_score
+                  : 0));
+
+        detail.final_score = finalScore;
+        detail.locked_at = lockedAt;
+        detail.locked_by = lockedBy as any;
+
+        detail.log = detail.log || [];
+        detail.log.push({
+          from_status: oldStatus,
+          to_status: 'locked',
+          score_before: detail.system_score !== undefined && detail.system_score !== null ? detail.system_score : 0,
+          score_after: finalScore,
+          count: detail.current_count,
+          updated_by: lockedBy as any,
+          updated_at: lockedAt,
+          reason: 'Phê duyệt rèn luyện bởi ' + (requester.roleName?.toLowerCase().includes('supervisor') ? 'Quản sinh' : 'Admin'),
+        });
+      }
+      summary.markModified('details');
+    }
+
+    // Call summary.save() to persist the detail-level final_score values.
+    summary.status = 'locked';
+    summary.markModified('details');
+    await summary.save();
+
+    // Call recomputeTotalScore(summaryId)
+    await this.recomputeTotalScore(summaryId);
+
+    // Load the updated summary again. If not found, throw NotFoundException.
+    const recomputedSummary = await this.summaryPointModel.findById(summaryId);
+    if (!recomputedSummary) {
+      throw new NotFoundException(`Summary ${summaryId} không tồn tại`);
+    }
+
+    // Compute rank_tier and rank_label from resolveRankTier(recomputedSummary.total_score, 'locked')
+    const { rank_tier, rank_label } = resolveRankTier(recomputedSummary.total_score, 'locked');
+
+    // Update recomputedSummary fields
+    recomputedSummary.rank_tier = rank_tier;
+    recomputedSummary.rank_label = rank_label;
+    recomputedSummary.rank_locked_at = new Date();
+    recomputedSummary.rank_updated_by = requester.userId;
+
+    // Call recomputedSummary.save()
+    await recomputedSummary.save();
+
+    // Return populated document
+    const result = await this.summaryPointModel
+      .findById(summaryId)
+      .populate('student_id')
+      .populate('semester_id')
+      .populate('period_id')
+      .populate('details.criterion_id')
+      .exec();
+    if (!result) throw new NotFoundException('Summary not found after update');
+    return result;
+  }
+
+  /**
+   * Hủy duyệt điểm rèn luyện: chuyển summary và các detail về draft,
+   * reset rank fields, tính toán lại total_score và grading.
+   * Yêu cầu: User phải là Admin hoặc Supervisor.
+   */
+  async cancelApproval(summaryId: string, requester: any): Promise<SummaryPointDocument> {
+    // 1. Kiểm tra quyền Admin/Supervisor
+    const roleName = ((requester?.roleName || requester?.role || '') + '').toLowerCase();
+    const isAdminOrSupervisor =
+      roleName.includes('admin') ||
+      roleName.includes('supervisor') ||
+      roleName.includes('quản sinh') ||
+      roleName.includes('quan sinh');
+
+    if (!isAdminOrSupervisor) {
+      throw new ForbiddenException('Bạn không có quyền hủy duyệt bảng điểm rèn luyện.');
+    }
+
+    // 2. Kiểm tra quyền truy cập summary
+    await this.assertCanAccessSummary(summaryId, requester);
+
+    // 3. Tìm summary
+    const summary = await this.summaryPointModel.findById(summaryId);
+    if (!summary) {
+      throw new NotFoundException(`Bảng điểm ${summaryId} không tồn tại`);
+    }
+
+    // 4. Kiểm tra trạng thái hiện tại
+    if (summary.status !== 'locked') {
+      throw new BadRequestException('Chỉ có thể hủy duyệt bảng điểm rèn luyện đã chốt.');
+    }
+
+    // 5. Cập nhật trạng thái locked + rank
+    summary.status = 'draft';
+    summary.rank_tier = null;
+    summary.rank_label = null;
+    summary.rank_locked_at = null;
+    summary.rank_updated_by = null;
+
+    // 6. Cập nhật các embedded details
+    if (summary.details && summary.details.length > 0) {
+      const updatedBy = new Types.ObjectId(requester.userId);
+      for (const detail of summary.details) {
+        const oldStatus = detail.status || 'locked';
+        const oldFinalScore = detail.final_score;
+        
+        detail.status = 'draft';
+        detail.final_score = null;
+        detail.locked_at = null;
+        detail.locked_by = null;
+
+        // Thêm log vào detail
+        detail.log = detail.log || [];
+        detail.log.push({
+          from_status: oldStatus,
+          to_status: 'draft',
+          score_before: oldFinalScore !== undefined ? oldFinalScore : null,
+          score_after: null,
+          count: detail.current_count,
+          updated_by: updatedBy as any,
+          updated_at: new Date(),
+          reason: 'Hủy duyệt rèn luyện về Bản nháp',
+        });
+      }
+      summary.markModified('details');
+    }
+
+    await summary.save();
+
+    // 7. Tính lại total_score và grading
+    await this.recomputeTotalScore(summaryId);
+
+    // 8. Trả về summary đã populated
+    const result = await this.summaryPointModel
+      .findById(summaryId)
+      .populate('student_id')
+      .populate('semester_id')
+      .populate('period_id')
+      .populate('details.criterion_id')
+      .exec();
+
+    if (!result) throw new NotFoundException('Summary not found after update');
+    return result;
+  }
+
+  /**
+   * Hủy duyệt điểm rèn luyện hàng loạt.
+   */
+  async cancelApprovalBulk(summaryIds: string[], requester: any): Promise<any[]> {
+    if (!summaryIds || summaryIds.length === 0) {
+      throw new BadRequestException('Danh sách ID bảng điểm không được trống.');
+    }
+
+    const results = [];
+    for (const id of summaryIds) {
+      try {
+        const updated = await this.cancelApproval(id, requester);
+        results.push({
+          summaryId: id,
+          success: true,
+          data: updated,
+        });
+      } catch (err: any) {
+        results.push({
+          summaryId: id,
+          success: false,
+          error: err.message || 'Lỗi không xác định',
+        });
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Lấy summary đã chốt gần nhất của sinh viên (cho trang profile).
+   * Chỉ trả dữ liệu của chính sinh viên đang đăng nhập.
+   */
+  async findLatestForStudent(
+    userId: string,
+    semesterId?: string,
+    periodId?: string,
+  ): Promise<any> {
+    // 1. Tìm student theo user_id
+    const student = await this.studentModel.findOne({ user_id: userId });
+    if (!student) {
+      return null;
+    }
+
+    // 2. Build query
+    const query: any = {
+      student_id: student._id,
+      status: 'locked',
+    };
+    if (semesterId) query.semester_id = semesterId;
+    if (periodId) query.period_id = periodId;
+
+    // 3. Tìm summary locked mới nhất
+    const summary = await this.summaryPointModel
+      .findOne(query)
+      .sort({ updatedAt: -1 })
+      .populate('semester_id')
+      .populate('period_id')
+      .exec();
+
+    if (!summary) {
+      return null;
+    }
+
+    // 4. Format response cho profile
+    const semester = summary.semester_id as any;
+    return {
+      _id: summary._id,
+      status: summary.status,
+      total_score: summary.total_score,
+      grading: summary.grading,
+      rank_tier: summary.rank_tier,
+      rank_label: summary.rank_label,
+      semester: semester?.semester_name || semester?.name || semester?.title || 'N/A',
+      period: summary.period_id,
+      locked_at: summary.rank_locked_at || (summary as any).updatedAt,
+    };
+  }
+
   async remove(id: string, requester?: any): Promise<SummaryPoint> {
     await this.assertCanAccessSummary(id, requester);
+
+    const existingSummary = await this.summaryPointModel.findById(id).exec();
+    if (!existingSummary) {
+      throw new NotFoundException(`SummaryPoint with ID ${id} not found`);
+    }
+    if (existingSummary.status === 'locked') {
+      throw new BadRequestException('Không thể xóa điểm rèn luyện đã phê duyệt');
+    }
+
     const deleted = await this.summaryPointModel.findByIdAndDelete(id).exec();
     if (!deleted) {
       throw new NotFoundException(`SummaryPoint with ID ${id} not found`);

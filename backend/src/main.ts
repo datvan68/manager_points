@@ -5,9 +5,13 @@ import { ValidationPipe } from '@nestjs/common';
 import compression from 'compression';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ limit: '50mb', extended: true }));
+  app.getHttpAdapter().getInstance().set('trust proxy', true);
 
   // Security Headers - Relax for local development to avoid CORS/Fetch issues
   app.use(

@@ -93,13 +93,13 @@ export default function DepartmentPopup({ isOpen, onClose, initialData, onSucces
                             error={errors.code?.message}
                         />
                         {!errors.code && (
-                            <p className="text-[12px] text-[#94a3b8] px-1">Mã khoa nên viết tắt, không dấu và viết hoa.</p>
+                            <p className="text-[12px] text-[#64748B] px-1">Mã khoa nên viết tắt, không dấu và viết hoa.</p>
                         )}
                     </div>
                 </div>
 
                 {/* BOTTOM Section: Actions */}
-                <div className="pt-4 border-t border-[#f1f5f9] flex items-center justify-end gap-3 mt-2">
+                <div className="pt-4 border-t border-white/40 flex items-center justify-end gap-3 mt-2">
                     <Button 
                         type="button" 
                         variant="secondary"

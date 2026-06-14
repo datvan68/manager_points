@@ -6,7 +6,8 @@ import { SystemRequest, SystemRequestDocument } from './schemas/system-request.s
 import { DatabaseBackupJob, DatabaseBackupJobDocument } from './schemas/database-backup-job.schema';
 import { LoginLog, LoginLogDocument } from '../auth/schemas/login-log.schema';
 import { User, UserDocument } from '../auth/schemas/user.schema';
-import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto } from './dto/system.dto';
+import { SystemPerformanceMetric, SystemPerformanceMetricDocument } from './schemas/system-performance-metric.schema';
+import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto } from './dto/system.dto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
@@ -75,6 +76,7 @@ export class SystemService {
     @InjectModel(DatabaseBackupJob.name) private backupJobModel: Model<DatabaseBackupJobDocument>,
     @InjectModel(LoginLog.name) private loginLogModel: Model<LoginLogDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(SystemPerformanceMetric.name) private performanceMetricModel: Model<SystemPerformanceMetricDocument>,
     private configService: ConfigService,
     @InjectConnection() private connection: Connection,
   ) {
@@ -565,5 +567,224 @@ export class SystemService {
     await this.backupJobModel.deleteOne({ _id: id }).exec();
     this.logger.log(`AUDIT: User ${userId} deleted backup ${id}. File path: ${job.file_path}. File exists: ${fileExists}. File deleted: ${fileDeleted}`);
     return { message: 'Xóa bản sao lưu thành công' };
+  }
+
+  // ─── PERFORMANCE METRICS ───────────────────────────────────────────────────
+
+  private calculateRecommendations(dto: CreateSystemPerformanceMetricDto) {
+    const recommendations: Array<{ severity: 'critical' | 'warning' | 'info'; code: string; message: string }> = [];
+
+    if (dto.load_event_ms && dto.load_event_ms > 3000) {
+      recommendations.push({ severity: 'warning', code: 'SYSTEM_LOAD_HIGH', message: 'Thời gian tải trang vượt 3s. Cần lazy load các tab nặng trong /system.' });
+    }
+    if (dto.lcp_ms && dto.lcp_ms > 2500) {
+      recommendations.push({ severity: 'warning', code: 'SYSTEM_LCP_HIGH', message: 'LCP vượt 2.5s. Kiểm tra skeleton/loading state, bundle size và render blocking.' });
+    }
+    if (dto.ttfb_ms && dto.ttfb_ms > 800) {
+      recommendations.push({ severity: 'warning', code: 'SYSTEM_TTFB_HIGH', message: 'TTFB vượt 800ms. Kiểm tra backend query, index MongoDB, cache response summary.' });
+    }
+    if (dto.api_total_ms && dto.api_total_ms > 2000) {
+      recommendations.push({ severity: 'warning', code: 'SYSTEM_API_TOTAL_HIGH', message: 'Tổng thời gian gọi API vượt 2s. Xác định API chậm nhất từ api_breakdown.' });
+    }
+    if (dto.cls && dto.cls > 0.1) {
+      recommendations.push({ severity: 'info', code: 'SYSTEM_CLS_HIGH', message: 'CLS vượt 0.1. Cố định chiều cao table/skeleton, tránh layout shift khi data về.' });
+    }
+    if (dto.inp_ms && dto.inp_ms > 200) {
+      recommendations.push({ severity: 'info', code: 'SYSTEM_INP_HIGH', message: 'INP vượt 200ms. Giảm rerender, debounce search/filter, memoize bảng dữ liệu lớn.' });
+    }
+
+    if (dto.api_breakdown) {
+      for (const api of dto.api_breakdown) {
+        if (api.name.includes('login-logs') && api.duration_ms > 1200) {
+          recommendations.push({ severity: 'warning', code: 'API_LOGIN_LOGS_SLOW', message: 'API login-logs vượt 1200ms. Xem lại filter, index login_time, action, user_id.' });
+        }
+        if (api.name.includes('requests') && api.duration_ms > 1200) {
+          recommendations.push({ severity: 'warning', code: 'API_REQUESTS_SLOW', message: 'API requests vượt 1200ms. Xem lại index status, type, createdAt, populate user.' });
+        }
+        if (api.name.includes('backups') && api.duration_ms > 1200) {
+          recommendations.push({ severity: 'warning', code: 'API_BACKUPS_SLOW', message: 'API backups vượt 1200ms. Đảm bảo list backup không expose/scan file path nặng.' });
+        }
+      }
+    }
+
+    return recommendations;
+  }
+
+  async createPerformanceMetric(dto: CreateSystemPerformanceMetricDto, user: { userId: string; roleName: string }) {
+    const recommendations = this.calculateRecommendations(dto);
+
+    // Sanitize and validate data
+    const metric = new this.performanceMetricModel({
+      route: dto.route,
+      user_id: user?.userId ? this.toObjectId(user.userId) : undefined,
+      role_name: user?.roleName,
+      device_type: dto.device_type,
+      network_effective_type: dto.network_effective_type,
+      navigation_type: dto.navigation_type,
+      ttfb_ms: dto.ttfb_ms ? Math.max(0, dto.ttfb_ms) : undefined,
+      dom_content_loaded_ms: dto.dom_content_loaded_ms ? Math.max(0, dto.dom_content_loaded_ms) : undefined,
+      load_event_ms: dto.load_event_ms ? Math.max(0, dto.load_event_ms) : undefined,
+      fcp_ms: dto.fcp_ms ? Math.max(0, dto.fcp_ms) : undefined,
+      lcp_ms: dto.lcp_ms ? Math.max(0, dto.lcp_ms) : undefined,
+      cls: dto.cls ? Math.max(0, dto.cls) : undefined,
+      inp_ms: dto.inp_ms ? Math.max(0, dto.inp_ms) : undefined,
+      api_total_ms: dto.api_total_ms ? Math.max(0, dto.api_total_ms) : undefined,
+      api_breakdown: dto.api_breakdown?.map(api => ({
+        name: api.name,
+        duration_ms: Math.max(0, api.duration_ms),
+        status: api.status,
+        ok: api.ok,
+      })),
+      recommendations_snapshot: recommendations.length > 0 ? recommendations : undefined,
+    });
+
+    await metric.save();
+    return { success: true, message: 'Metric saved' };
+  }
+
+  async getPerformanceSummary(query: GetPerformanceSummaryQueryDto) {
+    const filter: any = {};
+    if (query.route) filter.route = query.route;
+    if (query.from || query.to) {
+      filter.createdAt = {};
+      if (query.from) filter.createdAt.$gte = new Date(query.from);
+      if (query.to) filter.createdAt.$lte = new Date(query.to);
+    }
+
+    const metrics = await this.performanceMetricModel.find(filter).lean().exec();
+
+    const keys = ['ttfb_ms', 'dom_content_loaded_ms', 'load_event_ms', 'fcp_ms', 'lcp_ms', 'cls', 'inp_ms', 'api_total_ms'];
+
+    if (!metrics.length) {
+      const emptyKeys: Record<string, null> = keys.reduce((acc, k) => ({...acc, [k]: null}), {});
+      return { 
+        p50: { ...emptyKeys }, 
+        p75: { ...emptyKeys }, 
+        p95: { ...emptyKeys }, 
+        average: { ...emptyKeys }, 
+        total_samples: 0, 
+        slow_apis: [], 
+        recommendations: [] 
+      };
+    }
+
+    const sortMetrics = (arr: any[], key: string) => {
+      return arr.map(m => m[key]).filter(v => v != null).sort((a, b) => a - b);
+    };
+
+    const getPercentile = (sortedArray: number[], percentile: number) => {
+      if (sortedArray.length === 0) return null;
+      const index = Math.ceil((percentile / 100) * sortedArray.length) - 1;
+      return sortedArray[index];
+    };
+
+    const getAvg = (arr: number[]) => {
+      if (arr.length === 0) return null;
+      const sum = arr.reduce((a, b) => a + b, 0);
+      return sum / arr.length;
+    };
+
+    const p50: Record<string, number | null> = {};
+    const p75: Record<string, number | null> = {};
+    const p95: Record<string, number | null> = {};
+    const average: Record<string, number | null> = {};
+
+    keys.forEach(key => {
+      const sorted = sortMetrics(metrics, key);
+      p50[key] = getPercentile(sorted, 50);
+      p75[key] = getPercentile(sorted, 75);
+      p95[key] = getPercentile(sorted, 95);
+      average[key] = getAvg(sorted);
+    });
+
+    // Aggregate slow APIs
+    const apiMap = new Map<string, number[]>();
+    metrics.forEach(m => {
+      if (m.api_breakdown) {
+        m.api_breakdown.forEach(api => {
+          if (!apiMap.has(api.name)) {
+            apiMap.set(api.name, []);
+          }
+          apiMap.get(api.name)!.push(api.duration_ms);
+        });
+      }
+    });
+
+    const slowApis: any[] = [];
+    apiMap.forEach((durations, name) => {
+      durations.sort((a, b) => a - b);
+      const avg = getAvg(durations);
+      const apiP75 = getPercentile(durations, 75);
+      const apiP95 = getPercentile(durations, 95);
+      slowApis.push({ name, avg, p75: apiP75, p95: apiP95, samples: durations.length });
+    });
+
+    // Generate summary recommendations based on percentiles
+    const recommendations: any[] = [];
+    if (p75.load_event_ms && p75.load_event_ms > 3000) {
+      recommendations.push({ severity: 'warning', code: 'SYSTEM_LOAD_P75_HIGH', message: 'Thời gian tải trang (p75) vượt 3s. Đề xuất lazy load các tab nặng trong /system.' });
+    }
+    if (p75.lcp_ms && p75.lcp_ms > 2500) {
+      recommendations.push({ severity: 'warning', code: 'SYSTEM_LCP_P75_HIGH', message: 'LCP (p75) vượt 2.5s. Đề xuất giảm bundle/render-blocking, thêm skeleton ổn định.' });
+    }
+    if (p75.ttfb_ms && p75.ttfb_ms > 800) {
+      recommendations.push({ severity: 'warning', code: 'SYSTEM_TTFB_P75_HIGH', message: 'TTFB (p75) vượt 800ms. Đề xuất kiểm tra query backend, index MongoDB, cache summary.' });
+    }
+    if (p95.api_total_ms && p95.api_total_ms > 2000) {
+      recommendations.push({ severity: 'warning', code: 'SYSTEM_API_TOTAL_P95_HIGH', message: 'Tổng thời gian gọi API (p95) vượt 2s. Đề xuất tìm API chậm nhất từ bảng Slow APIs.' });
+    }
+    if (p75.cls && p75.cls > 0.1) {
+      recommendations.push({ severity: 'info', code: 'SYSTEM_CLS_P75_HIGH', message: 'CLS (p75) vượt 0.1. Đề xuất cố định chiều cao table/skeleton.' });
+    }
+    if (p75.inp_ms && p75.inp_ms > 200) {
+      recommendations.push({ severity: 'info', code: 'SYSTEM_INP_P75_HIGH', message: 'INP (p75) vượt 200ms. Đề xuất giảm rerender, debounce filter/search, memoize table lớn.' });
+    }
+
+    // Check slow apis
+    for (const api of slowApis) {
+      if (api.name.includes('login-logs') && api.p95 > 1200) {
+        recommendations.push({ severity: 'warning', code: 'API_LOGIN_LOGS_SLOW', message: 'API login-logs (p95) vượt 1200ms. Kiểm tra index login_time, action, user_id.' });
+      }
+      if (api.name.includes('requests') && api.p95 > 1200) {
+        recommendations.push({ severity: 'warning', code: 'API_REQUESTS_SLOW', message: 'API requests (p95) vượt 1200ms. Kiểm tra index status, type, createdAt, populate user.' });
+      }
+      if (api.name.includes('backups') && api.p95 > 1200) {
+        recommendations.push({ severity: 'warning', code: 'API_BACKUPS_SLOW', message: 'API backups (p95) vượt 1200ms. Bảo đảm list backup không scan file system hoặc expose path nặng.' });
+      }
+    }
+
+    return {
+      p50,
+      p75,
+      p95,
+      average,
+      total_samples: metrics.length,
+      slow_apis: slowApis.sort((a, b) => (b.p95 || 0) - (a.p95 || 0)),
+      recommendations
+    };
+  }
+
+  async getPerformanceMetricsList(query: GetPerformanceMetricsQueryDto) {
+    const { page = 1, limit = 20, from, to, route } = query;
+    const filter: any = {};
+    if (route) filter.route = route;
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to) filter.createdAt.$lte = new Date(to);
+    }
+
+    const skip = (page - 1) * limit;
+    const [items, total] = await Promise.all([
+      this.performanceMetricModel.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.performanceMetricModel.countDocuments(filter).exec()
+    ]);
+
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 }

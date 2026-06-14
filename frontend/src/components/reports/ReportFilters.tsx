@@ -76,12 +76,12 @@ export default function ReportFilters({
   };
 
   return (
-    <div className="mx-6 mt-6 p-5 bg-white/60 backdrop-blur-md border border-white/80 rounded-2xl shadow-sm space-y-4">
+    <div className="mx-6 mt-6 p-5 bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl shadow-sm space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-[13px] font-bold text-slate-800 uppercase tracking-wider">Bộ lọc dữ liệu</h3>
+        <h3 className="text-[13px] font-bold text-[#1E293B] uppercase tracking-wider">Bộ lọc dữ liệu</h3>
         <button
           onClick={handleResetFilters}
-          className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+          className="flex items-center gap-1.5 text-[11px] font-bold text-[#1A73E8] hover:text-[#1A73E8]/80 cursor-pointer"
         >
           <RefreshCcw size={12} />
           <span>Đặt lại</span>
@@ -91,15 +91,15 @@ export default function ReportFilters({
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {/* Semester */}
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-bold text-slate-400">Học kỳ</label>
+          <label className="text-[11px] font-bold text-[#64748B]">Học kỳ</label>
           <Select 
             value={filters.semesterId} 
             onValueChange={(val: string) => handleSelectChange('semesterId', val === 'all' ? '' : val)}
           >
-            <SelectTrigger className="h-9 text-[13px] font-semibold text-slate-700 bg-white/70 border-slate-200 rounded-xl">
+            <SelectTrigger className="h-9 text-[13px] font-semibold text-[#1E293B] bg-white/50 border-white/70 rounded-xl">
               <SelectValue placeholder="Tất cả học kỳ" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-slate-100 shadow-xl rounded-xl z-[100] min-w-full">
+            <SelectContent className="bg-white/90 backdrop-blur-md border border-white/70 shadow-xl rounded-xl z-[100] min-w-full">
               <SelectItem value="all">Tất cả học kỳ</SelectItem>
               {semesters.map((sem) => (
                 <SelectItem key={sem._id} value={sem._id}>
@@ -112,15 +112,15 @@ export default function ReportFilters({
 
         {/* Department */}
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-bold text-slate-400">Khoa / Ban</label>
+          <label className="text-[11px] font-bold text-[#64748B]">Khoa / Ban</label>
           <Select 
             value={filters.departmentId} 
             onValueChange={(val: string) => handleSelectChange('departmentId', val === 'all' ? '' : val)}
           >
-            <SelectTrigger className="h-9 text-[13px] font-semibold text-slate-700 bg-white/70 border-slate-200 rounded-xl">
+            <SelectTrigger className="h-9 text-[13px] font-semibold text-[#1E293B] bg-white/50 border-white/70 rounded-xl">
               <SelectValue placeholder="Tất cả khoa" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-slate-100 shadow-xl rounded-xl z-[100] min-w-full">
+            <SelectContent className="bg-white/90 backdrop-blur-md border border-white/70 shadow-xl rounded-xl z-[100] min-w-full">
               <SelectItem value="all">Tất cả khoa</SelectItem>
               {departments.map((dept) => (
                 <SelectItem key={dept._id} value={dept._id}>
@@ -133,15 +133,15 @@ export default function ReportFilters({
 
         {/* Class */}
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-bold text-slate-400">Lớp học</label>
+          <label className="text-[11px] font-bold text-[#64748B]">Lớp học</label>
           <Select 
             value={filters.classId} 
             onValueChange={(val: string) => handleSelectChange('classId', val === 'all' ? '' : val)}
           >
-            <SelectTrigger className="h-9 text-[13px] font-semibold text-slate-700 bg-white/70 border-slate-200 rounded-xl">
+            <SelectTrigger className="h-9 text-[13px] font-semibold text-[#1E293B] bg-white/50 border-white/70 rounded-xl">
               <SelectValue placeholder="Tất cả lớp" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-slate-100 shadow-xl rounded-xl z-[100] min-w-full">
+            <SelectContent className="bg-white/90 backdrop-blur-md border border-white/70 shadow-xl rounded-xl z-[100] min-w-full">
               <SelectItem value="all">Tất cả lớp</SelectItem>
               {filteredClasses.map((c) => (
                 <SelectItem key={c._id} value={c._id}>
@@ -154,15 +154,15 @@ export default function ReportFilters({
 
         {/* Status */}
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-bold text-slate-400">Trạng thái sinh viên</label>
+          <label className="text-[11px] font-bold text-[#64748B]">Trạng thái sinh viên</label>
           <Select 
             value={filters.status} 
             onValueChange={(val: string) => handleSelectChange('status', val === 'all' ? '' : val)}
           >
-            <SelectTrigger className="h-9 text-[13px] font-semibold text-slate-700 bg-white/70 border-slate-200 rounded-xl">
+            <SelectTrigger className="h-9 text-[13px] font-semibold text-[#1E293B] bg-white/50 border-white/70 rounded-xl">
               <SelectValue placeholder="Tất cả trạng thái" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-slate-100 shadow-xl rounded-xl z-[100] min-w-full">
+            <SelectContent className="bg-white/90 backdrop-blur-md border border-white/70 shadow-xl rounded-xl z-[100] min-w-full">
               <SelectItem value="all">Tất cả trạng thái</SelectItem>
               <SelectItem value="Studying">Đang học</SelectItem>
               <SelectItem value="Reserved">Bảo lưu</SelectItem>
@@ -175,18 +175,18 @@ export default function ReportFilters({
 
         {/* Date Range Picker (CustomCalendar + Popover) */}
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-bold text-slate-400">Khoảng ngày</label>
+          <label className="text-[11px] font-bold text-[#64748B]">Khoảng ngày</label>
           <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
             <PopoverTrigger asChild>
               <button 
                 type="button" 
-                className="flex items-center justify-between w-full h-9 bg-white/70 border border-slate-200 rounded-xl px-3 text-[13px] font-semibold text-slate-700 cursor-pointer outline-none hover:bg-slate-50 transition-all"
+                className="flex items-center justify-between w-full h-9 bg-white/50 border border-white/70 rounded-xl px-3 text-[13px] font-semibold text-[#1E293B] cursor-pointer outline-none hover:bg-white/70 transition-all"
               >
                 <span className="truncate mr-1">{getDateLabel()}</span>
-                <Calendar size={14} className="text-slate-400 shrink-0" />
+                <Calendar size={14} className="text-[#64748B] shrink-0" />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="p-0 border-none bg-transparent shadow-none z-[100]" align="start">
+            <PopoverContent className="p-0 border-none bg-transparent shadow-none z-[100] overflow-hidden" align="start">
               <CustomCalendar
                 startDate={filters.startDate ? new Date(filters.startDate) : null}
                 endDate={filters.endDate ? new Date(filters.endDate) : null}
@@ -206,7 +206,7 @@ export default function ReportFilters({
       </div>
 
       <div className="relative mt-2">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]">
           <Search size={15} />
         </div>
         <input
@@ -214,7 +214,7 @@ export default function ReportFilters({
           placeholder="Tìm kiếm theo tên sinh viên, mã số, email, tiêu đề ghi nhận..."
           value={filters.searchQuery}
           onChange={(e) => handleSelectChange('searchQuery', e.target.value)}
-          className="w-full bg-white/70 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-9 pr-4 py-2 text-[13px] font-semibold text-slate-700 outline-none transition-all placeholder-slate-400"
+          className="w-full bg-white/50 backdrop-blur-sm border border-white/70 focus:border-[#1A73E8]/50 focus:ring-4 focus:ring-[#1A73E8]/10 rounded-xl pl-9 pr-4 py-2 text-[13px] font-semibold text-[#1E293B] outline-none transition-all placeholder-[#64748B]"
         />
       </div>
     </div>
