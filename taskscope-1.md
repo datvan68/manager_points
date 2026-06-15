@@ -1,183 +1,177 @@
-# Task Scope Review: `/grading/score` Latest Data Contract Review
+# Task Scope Review: Next.js Client Chunk Cache Fix
 
 ## Objective
 
-Review the latest `/grading/score` implementation and record what is now correct, what is still missing, and what should be verified next. This scope focuses on:
+Review the previous analysis and correction for the runtime error where Next.js could not instantiate the `lucide-react` `Loader2` client module required by `SemesterModal.tsx`.
 
-- Complete class roster rendering in the "Sinh viên đang chấm điểm" slider.
-- Correct summary matching for students who already have `summariesPoint`.
-- Clear approved/locked summary identification.
-- Copy-score behavior staying consistent with the same roster and summary rules.
+Observed error:
 
-## Current Review Result
-
-The implementation has improved compared with the previous scope. Several previously identified gaps are now addressed:
-
-- `frontend/src/app/grading/score/_types.ts` now owns the route-local `GradingStatus` and `StudentData` types.
-- `GradingStatus` includes `no_summary`.
-- `renderGradingStatusBadge(...)` now renders `Chưa có bảng điểm` for missing summaries and `Đã duyệt` for locked summaries.
-- `fetchAllSummaries(...)` now fetches summary pages with `limit: 100` and loops through all summary pages.
-- Student users now resolve their own student record through `studentApi.getMyStudent()` before summary lookup.
-- Non-student class grading now fetches the roster with `studentApi.getStudents({ classId: effectiveClassId })` instead of relying only on a client-side class filter.
-- Summary matching now uses an inline `Map` index instead of doing `students * summaries` repeated `.find(...)` scans.
-- `CopyScoreModal` now builds a `Map<summaryId, summary>` inside `useMemo`.
-- Copy-score helper tests exist under `frontend/src/app/grading/score/_utils/copy-score.test.ts`.
-- Copy-score modal tests cover source/locked/no-summary disabled states and success/error result banners.
-
-These updates should be preserved.
-
-## Remaining Gaps
-
-### 1. Summary index still contains an unsafe key
-
-The current summary index also stores:
-
-```ts
-summaryIndex.set(String(summary._id).trim().toLowerCase(), summary);
+```text
+Module [project]/node_modules/lucide-react/dist/esm/icons/loader-circle.js [app-client] (ecmascript) <export default as Loader2> was instantiated because it was required from module [project]/src/components/grading/SemesterModal.tsx [app-client] (ecmascript), but the module factory is not available.
 ```
 
-`summary._id` is the summary document id, not a student id. It should not be used as a fallback student key. A student should only match a summary through:
+## Review Result
 
-- `summary.student_id._id`
-- `summary.student_id.id`
-- `summary.student_id.student_code`
-- raw `summary.student_id` when it is a string/ObjectId
+The root-cause direction is correct: this is most likely a stale Next.js client chunk/runtime mismatch, not an invalid `Loader2` import. The `lucide-react` dependency is installed and `Loader2` is imported through the normal package entrypoint.
 
-Recommended fix:
+No app-level service worker, `next-pwa`, or Workbox configuration was found in the repository. That means the stale response is more likely coming from one of these layers:
 
-- Remove `summary._id` from `summaryIndex` keys.
-- Include `student.id` as an optional roster candidate if the API response ever provides it.
-- Keep `summary._id` only as the value stored in `studentSummaryMap[studentId]`.
+- Browser cache.
+- CDN or reverse proxy cache.
+- Stale HTML/RSC response after deployment.
+- Incomplete cache invalidation between Next.js builds.
 
-### 2. Old matching helpers appear to be dead code
+## What Was Wrong Or Incomplete
 
-These helpers still exist in `page.tsx`, but the new inline `summaryIndex` flow no longer uses them:
+### 1. The previous document was accidentally emptied
+
+`taskscope-1.md` currently has no content in the working tree. That loses the root-cause notes, the intended fix, and the verification checklist.
+
+Required correction:
+
+- Restore this file with the reviewed scope.
+- Keep the scope focused on the `Loader2`/Next.js client chunk cache issue.
+- Record what was wrong, what was corrected, and what still needs verification.
+
+### 2. `middleware.ts` is deprecated in this project context
+
+The first implementation used `frontend/src/middleware.ts`. The project is on Next.js `^16.1.6`, where the middleware file convention has been renamed to `proxy`; `middleware` is deprecated.
+
+Required correction:
+
+- Remove `frontend/src/middleware.ts`.
+- Add `frontend/src/proxy.ts`.
+- Export a function named `proxy`.
+
+Current status:
+
+- `frontend/src/middleware.ts` is no longer present.
+- `frontend/src/proxy.ts` exists and exports `proxy`.
+
+### 3. The previous middleware shape had an unused request parameter
+
+The earlier middleware imported `NextRequest` and accepted a `request` argument that was not used. This is not a runtime bug, but it is unnecessary and may become a lint/type hygiene issue if stricter rules are enabled.
+
+Required correction:
+
+- Do not import `NextRequest`.
+- Do not accept an unused `request` argument.
+
+Current status:
+
+- `frontend/src/proxy.ts` imports only `NextResponse`.
+- `proxy()` has no unused parameter.
+
+### 4. `/_next/static` must not be overridden
+
+An earlier attempted fix changed cache headers for `/_next/static`. That is not correct for this issue. Next.js static chunks are content-hashed and should keep the framework default caching behavior.
+
+Required correction:
+
+- Do not add custom `Cache-Control` headers for `/_next/static`.
+- Apply no-cache behavior only to app shell and route responses that may reference stale chunks.
+- Exclude `/_next/static`, `/_next/image`, `favicon.ico`, and file-like asset paths from the matcher.
+
+Current status:
 
 ```ts
-getSummaryStudentCode(...)
-getSummaryStudentKey(...)
-matchStudentToSummary(...)
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)'],
+};
 ```
 
-Recommended fix:
+### 5. The fix reduces recurrence but does not repair already-stale clients by itself
 
-- Remove unused helpers if they are truly obsolete.
-- Or extract the summary-index behavior into route-local utilities and test those helpers directly.
+Adding app-shell no-cache headers prevents future stale HTML/RSC responses from lingering, but users who already have a stale browser/CDN response may still need cache invalidation.
 
-This reduces build risk if the project enables stricter `noUnusedLocals` rules later.
+Required correction:
 
-### 3. Summary matching helpers should be extracted for testability
+- Purge CDN/reverse proxy cache for HTML and app responses during deployment.
+- Ask affected users to hard refresh once if they already loaded the stale runtime.
+- Confirm no external service worker or platform-level cache rule is serving old responses.
 
-The current index-building and roster-to-summary mapping logic is inline inside `page.tsx`. That makes the most important bug fix hard to unit test.
+### 6. Build verification is still blocked
 
-Recommended extraction:
+`npm run build` was attempted but failed before proving the application build:
+
+```text
+EPERM: operation not permitted, open 'D:\PROJECT\manager point\frontend\.next\trace'
+```
+
+This points to a local Windows permission or file-lock issue around `.next\trace`. It does not prove the code change is invalid, but it means build verification is incomplete.
+
+Required correction:
+
+- Stop any running Next.js process that may hold `.next\trace`.
+- Clean the local `.next` directory only after confirming it is safe.
+- Re-run `npm run build`.
+
+## Implemented Correction
+
+The deprecated middleware approach was replaced with a Next.js 16-compatible proxy file.
+
+Implemented file:
 
 ```txt
-frontend/src/app/grading/score/_utils/summary-matching.ts
+frontend/src/proxy.ts
 ```
 
-Suggested exported helpers:
+Current implementation:
 
 ```ts
-buildSummaryIndex(summaries)
-findSummaryForStudent(student, summaryIndex)
-mapRosterWithSummaries(students, summaries)
+import { NextResponse } from 'next/server';
+
+const APP_SHELL_CACHE_CONTROL = 'private, no-cache, no-store, max-age=0, must-revalidate';
+
+export function proxy() {
+  const response = NextResponse.next();
+
+  response.headers.set('Cache-Control', APP_SHELL_CACHE_CONTROL);
+
+  return response;
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)'],
+};
 ```
 
-Test cases should cover populated `student_id`, raw string/ObjectId `student_id`, `student_code`, score `0`, locked summaries, and missing summaries.
+## Files To Keep Or Review
 
-### 4. `periodId` is still not part of the list API contract
+- `frontend/src/proxy.ts`: keep this as the active cache-control fix.
+- `frontend/src/middleware.ts`: should remain removed.
+- `frontend/next.config.js`: should not contain custom `/_next/static` cache headers.
+- `taskscope-1.md`: keep this reviewed scope as the action record for the `Loader2` issue.
 
-The frontend currently fetches all summaries for `semesterId` plus `classId`/`studentId`, then filters semester-level summaries with:
+## Verification Completed
 
-```ts
-const summariesData = summariesRaw.filter((sum) => !sum.period_id || sum.period_id === null);
+- `npm test` for the frontend passed previously with 95 tests.
+- The known `CopyScoreModal` stderr during tests is expected from the test case that simulates an API connection error.
+
+## Verification Still Required
+
+1. Resolve the local `.next\trace` file lock or permission issue.
+2. Re-run `npm run build`.
+3. Run the production server with `npm run start`.
+4. Open the grading semester modal that uses `SemesterModal.tsx`.
+5. Confirm the `Loader2` module factory error no longer appears.
+6. Confirm app shell responses include:
+
+```text
+Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate
 ```
 
-This is acceptable only if `/grading/score` is intentionally a semester-level page. It is still not a complete API contract because `GET /summaries-points` does not accept `periodId`, while the schema supports `period_id`.
+7. Confirm `/_next/static/*` chunk responses are still handled by Next.js defaults.
+8. Confirm deployment/CDN/proxy rules do not override the intended headers.
+9. Purge stale HTML/app response cache during the next deployment.
 
-Required decision:
+## Acceptance Criteria
 
-- If `/grading/score` is semester-level only, document and enforce `period_id: null` on the backend list query.
-- If `/grading/score` is period-level, add `periodId` to `summariesPointApi.getSummariesPoints(...)`, `SummariesPointController.findAll(...)`, and `SummariesPointService.findAll(...)`.
-
-### 5. Type-only imports should use `import type`
-
-The route-local types are now in `_types.ts`, which is good. However, the imports are still normal imports:
-
-```ts
-import { GradingStatus, StudentData } from "./_types";
-import { GradingStatus, StudentData } from "../_types";
-```
-
-These are type-only values and should be imported as:
-
-```ts
-import type { StudentData } from "./_types";
-import type { StudentData } from "../_types";
-```
-
-Also remove unused imported types, such as `GradingStatus` where it is not directly referenced. This avoids unnecessary runtime coupling and cleaner bundle output.
-
-### 6. Duplicate and stale comments should be cleaned up
-
-The summary-fetch comment is duplicated in `page.tsx`. Some comments still include older wording around the same flow.
-
-Recommended fix:
-
-- Keep one concise comment above `fetchAllSummaries(...)`.
-- Remove comments that describe behavior that is no longer true.
-
-### 7. Full slider behavior still lacks direct regression coverage
-
-Current tests cover copy-score helper/modal behavior, but not the slider data contract itself.
-
-Add tests around extracted utilities first, then optionally add a page-level test if the project already supports it.
-
-Minimum regression coverage:
-
-- Class roster with more than 10 students maps every student exactly once.
-- Existing summary with `total_score: 0` maps to `draft`, not `no_summary`.
-- Missing summary maps to `no_summary`.
-- Locked summary maps to `locked` and should show `Đã duyệt`.
-- Raw `summary.student_id` string matches a roster `_id`.
-- Populated `summary.student_id.student_code` matches a roster `student_code`.
-- A summary with non-null `period_id` is excluded only when the page is explicitly semester-level.
-
-## Updated Acceptance Criteria
-
-- The slider uses backend roster data scoped by `classId` for non-student users.
-- Student users resolve their own student record through a reliable student endpoint before summary lookup.
-- Every selected-class student appears exactly once in the slider.
-- Students with an existing summary and `total_score: 0` are not treated as missing a summary.
-- Only truly missing summary rows show `Chưa có bảng điểm`.
-- Locked summaries show `Đã duyệt`.
-- Locked summaries disable grading controls and copy-score target selection.
-- Summary matching does not use `summary._id` as a student key.
-- Summary matching behavior is covered by unit tests.
-- Type-only imports from `_types.ts` use `import type`.
-- The period-level versus semester-level summary rule is explicit and enforced consistently.
-
-## Manual Verification Checklist
-
-1. Select a class with more than 10 students.
-2. Confirm the slider count matches the class roster count.
-3. Confirm students after the first 10 are displayed and not marked missing summary because of pagination.
-4. Confirm a student with `total_score = 0` and a valid summary can still be graded when role/period/status allow it.
-5. Confirm a student with no matching summary shows `Chưa có bảng điểm`.
-6. Confirm an approved/locked student shows `Đã duyệt`.
-7. Confirm the approved/locked student cannot be edited.
-8. Open the copy-score modal and confirm locked/no-summary/source students are disabled.
-9. Confirm selectable copy-score targets are from the same selected class roster.
-10. Switch class or semester and confirm stale students/summaries from the previous selection do not remain visible.
-
-## Recommended Next Task
-
-Finish the remaining correctness cleanup before broader UI work:
-
-1. Remove `summary._id` from the student summary index.
-2. Extract summary matching into `_utils/summary-matching.ts`.
-3. Add focused tests for summary matching and slider data mapping.
-4. Decide and implement the `periodId` contract.
-5. Convert `_types.ts` imports to `import type` and remove unused type imports.
-6. Run focused grading tests, then run the broader frontend test/build verification before merge.
+- `frontend/src/proxy.ts` is used instead of deprecated `middleware.ts`.
+- No unused proxy request parameter remains.
+- App shell responses force revalidation.
+- `/_next/static` chunk cache behavior is left to Next.js defaults.
+- CDN/proxy cache rules do not serve stale HTML/RSC responses after deployment.
+- `npm test` passes for the frontend.
+- `npm run build` passes after the `.next\trace` lock is cleared.
+- `SemesterModal.tsx` no longer triggers the missing `Loader2` module factory error after deployment and cache purge.
