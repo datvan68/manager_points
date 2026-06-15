@@ -1,8 +1,8 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 const APP_SHELL_CACHE_CONTROL = 'private, no-cache, no-store, max-age=0, must-revalidate';
 
-export function middleware(request: NextRequest) {
+export function proxy() {
   const response = NextResponse.next();
 
   response.headers.set('Cache-Control', APP_SHELL_CACHE_CONTROL);
