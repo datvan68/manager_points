@@ -24,7 +24,10 @@ import {
   Eye,
   Settings,
   Info,
+  Copy,
 } from "lucide-react";
+import CopyScoreModal from "./_components/CopyScoreModal";
+import { buildTargetSafeCounts } from "./_utils/copy-score";
 import { motion, AnimatePresence } from "framer-motion";
 import { CustomPagination } from "@/components/ui/pagination";
 import { toast } from "sonner";
@@ -36,7 +39,7 @@ import { categoryApi } from "@/api/category-api";
 import { evaluationDetailApi } from "@/api/evaluation-detail-api";
 import { semesterApi } from "@/api/semester-api";
 import { classApi } from "@/api/class-api";
-import { studentApi } from "@/api/student-api";
+import { studentApi, Student } from "@/api/student-api";
 import { tokenStorage } from "@/api/auth-api";
 import { evaluationPeriodApi } from "@/api/evaluation-period-api";
 import SemesterModal from "@/components/grading/SemesterModal";
@@ -57,20 +60,12 @@ const ActiveStudentRankCard = dynamic(
 
 
 
-// Interfaces
-interface StudentData {
-  id: string;
-  name: string;
-  email: string;
-  dob: string;
-  gender: string;
-  score: number;
-  status: string;
-  gradingStatus: "draft" | "sv_submitted" | "gv_reviewed" | "locked";
-  classId: string;
-  avatarUrl?: string;
-  colorTheme?: { bg: string; text: string };
-}
+import type { GradingStatus, StudentData } from "./_types";
+import {
+  buildSummaryIndex,
+  findSummaryForStudent,
+  mapRosterWithSummaries,
+} from "./_utils/summary-matching";
 
 interface Criteria {
   id: string;
@@ -376,26 +371,6 @@ const getEntityId = (value: any) => {
   return value;
 };
 
-const getSummaryStudentCode = (summary: any) => {
-  const studentObj =
-    typeof summary?.student_id === "object" ? summary.student_id : null;
-  return (
-    studentObj?.student_code ||
-    studentObj?.id ||
-    studentObj?._id ||
-    (typeof summary?.student_id === "string" ? summary.student_id : "") ||
-    ""
-  );
-};
-
-const getSummaryStudentKey = (summary: any, index?: number) => {
-  return (
-    getSummaryStudentCode(summary) ||
-    getEntityId(summary?.student_id) ||
-    getEntityId(summary?._id) ||
-    `student-${index ?? "unknown"}`
-  );
-};
 
 const getRoleKey = (role?: string) => {
   const normalizedRole = role?.toLowerCase() || "";
@@ -581,6 +556,56 @@ const HistoryCard: React.FC<HistoryCardProps> = ({ rec, index, onDelete }) => {
   );
 };
 
+const renderGradingStatusBadge = (status: string) => {
+  switch (status) {
+    case "locked":
+      return (
+        <span 
+          className="bg-emerald-50 text-emerald-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border border-emerald-200 shrink-0 uppercase tracking-wider select-none"
+          title="Đã duyệt điểm"
+        >
+          Đã duyệt
+        </span>
+      );
+    case "gv_reviewed":
+      return (
+        <span 
+          className="bg-amber-50 text-amber-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border border-amber-200 shrink-0 uppercase tracking-wider select-none"
+          title="Cố vấn học tập đã chấm"
+        >
+          CVHT chấm
+        </span>
+      );
+    case "sv_submitted":
+      return (
+        <span 
+          className="bg-blue-50 text-blue-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border border-blue-200 shrink-0 uppercase tracking-wider select-none"
+          title="Sinh viên đã nộp"
+        >
+          SV nộp
+        </span>
+      );
+    case "draft":
+      return (
+        <span 
+          className="bg-slate-50 text-slate-600 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border border-slate-200 shrink-0 uppercase tracking-wider select-none"
+          title="Bản nháp"
+        >
+          Bản nháp
+        </span>
+      );
+    default:
+      return (
+        <span 
+          className="bg-rose-50 text-rose-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border border-rose-200 shrink-0 uppercase tracking-wider select-none"
+          title="Chưa có bảng điểm rèn luyện trong học kỳ này"
+        >
+          Chưa có bảng điểm
+        </span>
+      );
+  }
+};
+
 function GradingScoreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -657,6 +682,7 @@ function GradingScoreContent() {
   const [subTab, setSubTab] = useState<"category" | "history">("category");
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
 
   // States lưu danh mục & tiêu chí thật từ API
   const [categories, setCategories] =
@@ -788,6 +814,8 @@ function GradingScoreContent() {
     if (!isSemesterActive) return false;
 
     const summaryId = studentSummaryMap[activeStudentId];
+    if (!summaryId) return false;
+
     const summary = apiSummariesPoints.find((s) => s._id === summaryId);
     const summaryStatus = summary?.status || "draft";
     if (summaryStatus === "locked") return false;
@@ -820,9 +848,11 @@ function GradingScoreContent() {
     ? currentUserRole === "student"
       ? "Bạn đang được phép tự chấm điểm trong giai đoạn hiện tại."
       : "Bạn đang được phép chấm điểm trong giai đoạn hiện tại."
-    : currentUserRole === "student"
-      ? "Hiện tại bạn chưa được phép tự chấm điểm."
-      : "Hiện tại bạn chưa được phép chấm điểm.";
+    : !studentSummaryMap[activeStudentId]
+      ? "Không thể chấm điểm vì sinh viên này chưa có bảng điểm trong học kỳ."
+      : currentUserRole === "student"
+        ? "Hiện tại bạn chưa được phép tự chấm điểm."
+        : "Hiện tại bạn chưa được phép chấm điểm.";
 
   // Khởi tạo dữ liệu thực tế từ các API
   useEffect(() => {
@@ -830,30 +860,24 @@ function GradingScoreContent() {
       try {
         setIsInitialLoading(true);
 
-        // 1. Tải danh mục, tiêu chí, học kỳ, lớp, bảng điểm và kỳ đánh giá từ backend
+        // 1. Tải danh mục, tiêu chí, học kỳ, lớp và kỳ đánh giá từ backend (chưa tải bảng điểm)
         const [
           backendCats,
           backendCriteria,
           backendSemesters,
           backendClasses,
-          backendSummaries,
           backendPeriods,
         ] = await Promise.all([
           categoryApi.getCategories(),
           criteriaApi.getCriteria(),
           semesterApi.getSemesters(),
           classApi.getClasses(),
-          summariesPointApi.getSummariesPoints(),
           evaluationPeriodApi.getEvaluationPeriods().catch(() => []),
         ]);
 
         setApiSemesters(backendSemesters || []);
         setApiClasses(backendClasses || []);
         setApiEvaluationPeriods(backendPeriods || []);
-        const summariesData = Array.isArray(backendSummaries)
-          ? backendSummaries
-          : (backendSummaries as any)?.data || [];
-        setApiSummariesPoints(summariesData);
 
         const currentUserId = currentUser?.id || currentUser?._id || "";
         const roleScopedClasses =
@@ -885,6 +909,109 @@ function GradingScoreContent() {
 
         setSelectedSemesterId(savedSem);
         setSelectedClassId(effectiveClassId);
+
+        // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên savedSem và effectiveClassId
+        // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên savedSem và effectiveClassId
+        const fetchAllSummaries = async (sem: string, clsId?: string, resolvedStudentId?: string) => {
+          let allData: any[] = [];
+          let currentPage = 1;
+          let total = 0;
+          
+          const params: any = {
+            semesterId: sem,
+            page: currentPage,
+            limit: 100,
+          };
+          if (clsId) {
+            params.classId = clsId;
+          } else if (currentUserRole === "student") {
+            if (resolvedStudentId) {
+              params.studentId = resolvedStudentId;
+            } else {
+              const studentCode = currentUser?.student_code || currentUser?.username || "";
+              if (studentCode) {
+                params.studentId = studentCode;
+              }
+            }
+          } else if (currentUserRole === "teacher") {
+            // Nếu GVCN chưa có lớp nào để load
+            return [];
+          }
+          
+          try {
+            do {
+              const res = await summariesPointApi.getSummariesPoints({
+                ...params,
+                page: currentPage,
+              });
+              
+              const pageData = Array.isArray(res) ? res : res?.data || [];
+              const meta = (res as any)?.meta;
+              
+              allData = [...allData, ...pageData];
+              total = meta?.total || allData.length;
+              
+              if (meta && meta.totalPages && currentPage < meta.totalPages) {
+                currentPage++;
+              } else {
+                break;
+              }
+            } while (allData.length < total);
+          } catch (err) {
+            console.error("Failed to fetch summaries points:", err);
+          }
+          
+          return allData;
+        };
+
+        // Lấy danh sách Student đầy đủ từ roster làm Source of Truth (dùng Class Boundary hoặc Student Profile)
+        let filteredStudents: Student[] = [];
+        let resolvedStudentIdForSummaryLookup = "";
+
+        if (currentUserRole === "student") {
+          try {
+            const myStudent = await studentApi.getMyStudent();
+            if (myStudent) {
+              filteredStudents = [myStudent];
+              resolvedStudentIdForSummaryLookup = myStudent.student_code || myStudent._id || "";
+            }
+          } catch (err) {
+            console.error("Failed to load current student profile:", err);
+            // Fallback to client-side filtering if API fails
+            const backendStudentsResult = await studentApi.getStudents();
+            const backendStudents = Array.isArray(backendStudentsResult)
+              ? backendStudentsResult
+              : (backendStudentsResult as any)?.data || [];
+            filteredStudents = backendStudents.filter((s) =>
+              matchesCurrentStudent({
+                currentUser,
+                studentIdParam,
+                studentId: s.student_code || s._id || s.id || "",
+                dbStudent: s,
+              })
+            );
+          }
+        } else {
+          if (effectiveClassId) {
+            try {
+              const rosterResult = await studentApi.getStudents({ classId: effectiveClassId });
+              filteredStudents = Array.isArray(rosterResult)
+                ? rosterResult
+                : rosterResult?.data || [];
+            } catch (err) {
+              console.error("Failed to fetch class roster:", err);
+            }
+          } else {
+            // Nếu không có effectiveClassId (nghĩa là non-student chưa chọn class)
+            filteredStudents = [];
+          }
+        }
+
+        // Tải summaries
+        const summariesRaw = await fetchAllSummaries(savedSem, effectiveClassId, resolvedStudentIdForSummaryLookup);
+        // Lọc chỉ giữ summaries của học kỳ (period_id: null hoặc undefined)
+        const summariesData = summariesRaw.filter((sum) => !sum.period_id || sum.period_id === null);
+        setApiSummariesPoints(summariesData);
 
         // 2. Map dữ liệu Categories và Criteria
         const categoriesMapped: Category[] = (backendCats || [])
@@ -922,41 +1049,6 @@ function GradingScoreContent() {
 
         setCategories(categoriesMapped);
 
-        // 3. Map Students từ summariesPoint
-        let filteredSummaries = (summariesData || []).filter((summary) => {
-          const semId =
-            typeof summary.semester_id === "object"
-              ? summary.semester_id?._id
-              : summary.semester_id;
-          return semId === savedSem;
-        });
-
-        if (currentUserRole === "teacher") {
-          const teacherClassIds = new Set(
-            roleScopedClasses.map((cls) => cls._id),
-          );
-          filteredSummaries = filteredSummaries.filter((summary) => {
-            const studentObj =
-              typeof summary.student_id === "object"
-                ? (summary.student_id as any)
-                : null;
-            const studentClassId = getEntityId(studentObj?.class_id);
-            return teacherClassIds.has(studentClassId);
-          });
-        }
-
-        if (effectiveClassId) {
-          filteredSummaries = filteredSummaries.filter((summary) => {
-            const studentObj =
-              typeof summary.student_id === "object"
-                ? (summary.student_id as any)
-                : null;
-            const studentClassId =
-              studentObj?.class_id?._id || studentObj?.class_id || "";
-            return studentClassId === effectiveClassId;
-          });
-        }
-
         const colors = [
           { bg: "bg-[#dbe3f1]", text: "text-[#141c26]" },
           { bg: "bg-[#96f8a1]", text: "text-[#002108]" },
@@ -965,103 +1057,20 @@ function GradingScoreContent() {
           { bg: "bg-[#fff4e5]", text: "text-[#b78103]" },
         ];
 
-        // Lấy danh sách Student đầy đủ để tra cứu thông tin cá nhân
-        const backendStudentsResult = await studentApi.getStudents();
-        const backendStudents = Array.isArray(backendStudentsResult)
-          ? backendStudentsResult
-          : (backendStudentsResult as any)?.data || [];
-
-        if (currentUserRole === "student") {
-          filteredSummaries = filteredSummaries.filter((summary) => {
-            const studentObj =
-              typeof summary.student_id === "object"
-                ? (summary.student_id as any)
-                : null;
-            const studentId = getSummaryStudentKey(summary);
-            const dbStudent = backendStudents.find(
-              (s) => s.student_code === studentId || s._id === studentId,
-            );
-
-            return matchesCurrentStudent({
-              currentUser,
-              studentIdParam,
-              studentId,
-              studentObj,
-              dbStudent,
-            });
-          });
-        }
-
-        const mappedStudents: StudentData[] = filteredSummaries.map(
-          (summary, idx) => {
-            const studentObj =
-              typeof summary.student_id === "object"
-                ? (summary.student_id as any)
-                : null;
-            const studentId = getSummaryStudentKey(summary, idx);
-
-            // Tra cứu thông tin chi tiết sinh viên từ API
-            const dbStudent = backendStudents.find(
-              (s) => s.student_code === studentId || s._id === studentId,
-            );
-            const studentName =
-              dbStudent?.full_name ||
-              studentObj?.full_name ||
-              studentObj?.name ||
-              "Chưa rõ";
-            const studentClassId =
-              (dbStudent?.class_id as any)?._id ||
-              dbStudent?.class_id ||
-              studentObj?.class_id?._id ||
-              studentObj?.class_id ||
-              "";
-
-            let avatarUrl = undefined;
-            if (studentId === "20216001") {
-              avatarUrl =
-                "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=120&q=80";
-            } else if (studentId === "20216002") {
-              avatarUrl =
-                "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80";
-            }
-
-            return {
-              id: studentId,
-              name: studentName,
-              email: dbStudent?.email || studentObj?.email || "",
-              dob: dbStudent?.date_bir
-                ? new Date(dbStudent.date_bir).toLocaleDateString("vi-VN")
-                : "",
-              gender:
-                dbStudent?.sex === "Male"
-                  ? "Nam"
-                  : dbStudent?.sex === "Female"
-                    ? "Nữ"
-                    : "Khác",
-              score: summary.total_score || 0,
-              status: dbStudent?.status || studentObj?.status || "Studying",
-              gradingStatus: summary.status || "draft",
-              classId:
-                typeof studentClassId === "object"
-                  ? studentClassId?._id
-                  : studentClassId,
-              avatarUrl,
-              colorTheme: colors[idx % colors.length],
-            };
-          },
-        );
-
+        // 3. Sử dụng helper để map roster với summaries và gán studentSummaryMap
+        const mappedStudents = mapRosterWithSummaries(filteredStudents, summariesData, colors);
         setStudents(mappedStudents);
 
-        // Tạo map studentId -> summaryPointId
+        const summaryIndex = buildSummaryIndex(summariesData);
         const summaryMap: Record<string, string> = {};
-        filteredSummaries.forEach((summary) => {
-          const studentObj =
-            typeof summary.student_id === "object"
-              ? (summary.student_id as any)
-              : null;
-          const studentId = getSummaryStudentKey(summary);
-          summaryMap[studentId] = summary._id;
+        filteredStudents.forEach((student) => {
+          const studentId = student.student_code || student._id || "";
+          if (studentId) {
+            const summary = findSummaryForStudent(student, summaryIndex);
+            if (summary && summary._id) {
+              summaryMap[studentId] = summary._id;
+            }
+          }
         });
         setStudentSummaryMap(summaryMap);
 
@@ -1192,7 +1201,15 @@ function GradingScoreContent() {
       if (!activeStudentId || isInitialLoading) return;
 
       const summaryId = studentSummaryMap[activeStudentId];
-      if (!summaryId) return;
+      if (!summaryId) {
+        setEvaluationDetailsMap({});
+        setEvaluationCounts((prev) => ({
+          ...prev,
+          [activeStudentId]: {},
+        }));
+        setHistoryRecords([]);
+        return;
+      }
 
       try {
         setIsFetching(true);
@@ -1487,6 +1504,215 @@ function GradingScoreContent() {
     );
   };
 
+  // Helper lưu điểm rèn luyện cho một sinh viên cụ thể
+  const persistStudentScore = async (
+    studentId: string,
+    summaryId: string,
+    counts: Record<string, number>,
+    reason: string,
+    options?: { skipCriterionIds?: Set<string>; source?: string }
+  ) => {
+    // Sử dụng trực tiếp currentUserRole đã được chuẩn hóa qua getRoleKey
+    const userRole = currentUserRole;
+    const detailStatus = "draft";
+
+    // 1. Tải các chi tiết cũ của summaryId này
+    const oldDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
+
+    // 2. Tạo hoặc cập nhật các chi tiết chấm điểm
+    const promises: Promise<any>[] = [];
+
+    categories.forEach((cat) => {
+      cat.items.forEach((cri) => {
+        // Nếu tiêu chí này nằm trong tập hợp bỏ qua (skip), không thay đổi gì cả
+        if (options?.skipCriterionIds?.has(cri.id)) {
+          return;
+        }
+
+        const count = counts[cri.id] || 0;
+        // Tìm xem tiêu chí này đã có EvaluationDetail cũ chưa
+        const existingDetail = (oldDetails || []).find((d) => {
+          const detailCriId =
+            typeof d.criterion_id === "object"
+              ? d.criterion_id?._id
+              : d.criterion_id;
+          return detailCriId === cri.id;
+        });
+
+        if (existingDetail) {
+          // Nếu số lần khác nhau (có thay đổi)
+          if (existingDetail.current_count !== count) {
+            // Tính điểm tương ứng dựa trên count và pointsPerUnit
+            const calculatedScore = calculateCriterionScore(cri, count);
+
+            const updatedHistory = [...(existingDetail.log || [])];
+            updatedHistory.push({
+              from_status: existingDetail.status || "draft",
+              to_status: detailStatus,
+              score_before: existingDetail.system_score || 0,
+              score_after: calculatedScore,
+              count,
+              updated_by: currentUser?.id,
+              reason: reason,
+            });
+
+            // Lọc sạch lịch sử để khớp chính xác DTO ở Backend
+            const cleanLog = updatedHistory.map((log: any) => ({
+              from_status: log.from_status || "draft",
+              to_status: log.to_status || "draft",
+              score_before: log.score_before !== undefined ? log.score_before : 0,
+              score_after: log.score_after !== undefined ? log.score_after : 0,
+              count: log.count !== undefined
+                ? log.count
+                : Math.round((log.score_after || 0) / cri.pointsPerUnit),
+              updated_by: typeof log.updated_by === "object"
+                ? log.updated_by?._id
+                : log.updated_by,
+              reason: log.reason || reason,
+            }));
+
+            const scorePayload: any = {};
+            if (userRole === "student") {
+              scorePayload.sv_score = calculatedScore;
+              scorePayload.sv_submitted_at = new Date();
+            } else {
+              scorePayload.gv_score = calculatedScore;
+              scorePayload.gv_reviewed_at = new Date();
+              scorePayload.gv_reviewed_by = currentUser?.id;
+            }
+
+            promises.push(
+              evaluationDetailApi.updateEvaluationDetail(existingDetail._id, {
+                current_count: count,
+                log: cleanLog,
+                status: detailStatus,
+                ...scorePayload,
+              })
+            );
+          }
+        } else {
+          // Nếu chưa có và count > 0, ta tiến hành tạo mới
+          if (count > 0) {
+            const calculatedScore = calculateCriterionScore(cri, count);
+
+            const scorePayload: any = {};
+            if (userRole === "student") {
+              scorePayload.sv_score = calculatedScore;
+              scorePayload.sv_submitted_at = new Date();
+            } else {
+              scorePayload.gv_score = calculatedScore;
+              scorePayload.gv_reviewed_at = new Date();
+              scorePayload.gv_reviewed_by = currentUser?.id;
+            }
+
+            promises.push(
+              evaluationDetailApi.createEvaluationDetail({
+                summary_id: summaryId,
+                criterion_id: cri.id,
+                current_count: count,
+                log: [
+                  {
+                    from_status: "draft",
+                    to_status: detailStatus,
+                    score_before: 0,
+                    score_after: calculatedScore,
+                    count,
+                    updated_by: currentUser?.id,
+                    reason: reason,
+                  },
+                ],
+                status: detailStatus,
+                ...scorePayload,
+              })
+            );
+          }
+        }
+      });
+    });
+
+    await Promise.all(promises);
+
+    // 3. Lấy lại chi tiết chấm điểm mới
+    const [freshDetails, freshPreExistingCounts] = await Promise.all([
+      evaluationDetailApi.getEvaluationDetailsBySummary(summaryId),
+      evaluationDetailApi.getPreExistingCounts(summaryId),
+    ]);
+
+    const freshCounts: Record<string, number> = {};
+    const freshDetailsMap: Record<string, any> = {};
+    const freshHistory: HistoryRecord[] = [];
+
+    (freshDetails || []).forEach((detail) => {
+      const cri = typeof detail.criterion_id === "object" ? detail.criterion_id : null;
+      const criId = cri?._id || detail.criterion_id;
+      const criterion = categories
+        .flatMap((cat) => cat.items)
+        .find((item) => item.id === criId);
+      const pointsPerUnit = cri?.score_per_unit || criterion?.pointsPerUnit || 1;
+      const criName = cri?.criterion_name || criterion?.name || "Tiêu chí";
+      const criType = cri?.criterion_type === "ky_luat" || criterion?.type === "violation"
+        ? "violation"
+        : "reward";
+
+      freshCounts[criId] = detail.current_count || 0;
+      freshDetailsMap[criId] = detail;
+
+      (detail.log || []).forEach((log: any, index: number) => {
+        const countVal = log.count !== undefined
+          ? log.count
+          : Math.round((log.score_after || 0) / pointsPerUnit);
+        freshHistory.push({
+          id: `${detail._id}-log-${index}`,
+          studentId: studentId,
+          type: criType,
+          title: criName,
+          date: log.updated_at
+            ? new Date(log.updated_at).toLocaleDateString("vi-VN")
+            : new Date().toLocaleDateString("vi-VN"),
+          count: countVal,
+          points: log.score_after !== undefined ? log.score_after : pointsPerUnit * countVal,
+          session: log.updated_at
+            ? new Date(log.updated_at).getHours() < 12 ? "Sáng" : "Chiều"
+            : "Sáng",
+          role: log.role || userRole,
+          updated_by: log.updated_by,
+          status: detail.status || "draft",
+        });
+      });
+    });
+
+    // Tính toán điểm số tổng
+    let finalScore = 0;
+    categories.forEach((cat) => {
+      let catScore = 0;
+      cat.items.forEach((cri) => {
+        catScore += calculateCriterionScore(cri, freshCounts[cri.id] || 0);
+      });
+      finalScore += Math.max(0, Math.min(cat.maxPoints, catScore));
+    });
+    const clampedFinalScore = Math.max(0, Math.min(100, finalScore));
+
+    // Cập nhật summariesPoint
+    const summaryPayload: any = {
+      total_score: clampedFinalScore,
+    };
+    let finalGrading: string | undefined = undefined;
+    if (clampedFinalScore === 0) {
+      summaryPayload.grading = "CHƯA XẾP LOẠI";
+      finalGrading = "CHƯA XẾP LOẠI";
+    }
+    await summariesPointApi.updateSummariesPoint(summaryId, summaryPayload);
+
+    return {
+      score: clampedFinalScore,
+      grading: finalGrading,
+      freshCounts,
+      freshPreExistingCounts,
+      freshHistory,
+      freshDetailsMap,
+    };
+  };
+
   // Hàm Lưu thay đổi thực tế đồng bộ database qua API
   const handleSave = async () => {
     if (!activeStudent || isFetching) return;
@@ -1507,271 +1733,40 @@ function GradingScoreContent() {
       setIsFetching(true);
       toast.loading("Đang lưu kết quả chấm điểm...", { id: "save-loading" });
 
-      // Lấy thông tin user hiện tại và ánh xạ sang role
-      const currentUser = tokenStorage.getUser();
-      let userRole: "student" | "teacher" | "supervisor" | "admin" = "student";
-      if (currentUser?.role) {
-        const r = currentUser.role.toLowerCase();
-        if (r.includes("admin")) {
-          userRole = "admin";
-        } else if (r.includes("teacher") || r.includes("advisor")) {
-          userRole = "teacher";
-        } else if (r.includes("supervisor") || r.includes("quản sinh")) {
-          userRole = "supervisor";
-        }
-      }
-
-      // Mặc định khi thực hiện Lưu thay đổi status trong EvaluationDetail là bản nháp ('draft') kể cả Admin
-      const detailStatus = "draft";
-
-      // 1. Tải các chi tiết cũ của summaryId này
-      const oldDetails =
-        await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
-
-      // 2. Tạo hoặc cập nhật các chi tiết chấm điểm
       const counts = evaluationCounts[activeStudentId] || {};
-      const promises: Promise<any>[] = [];
+      const result = await persistStudentScore(
+        activeStudentId,
+        summaryId,
+        counts,
+        "Cập nhật điểm rèn luyện"
+      );
 
-      categories.forEach((cat) => {
-        cat.items.forEach((cri) => {
-          const count = counts[cri.id] || 0;
-          // Tìm xem tiêu chí này đã có EvaluationDetail cũ chưa
-          const existingDetail = (oldDetails || []).find((d) => {
-            const detailCriId =
-              typeof d.criterion_id === "object"
-                ? d.criterion_id?._id
-                : d.criterion_id;
-            return detailCriId === cri.id;
-          });
-
-          if (existingDetail) {
-            // Nếu số lần khác nhau (có thay đổi)
-            if (existingDetail.current_count !== count) {
-              // Tính điểm tương ứng dựa trên count và pointsPerUnit
-              let calculatedScore = count * cri.pointsPerUnit;
-              if (cri.pointsPerUnit >= 0) {
-                calculatedScore = Math.max(
-                  cri.minScore || 0,
-                  Math.min(cri.maxScore || 10, calculatedScore),
-                );
-              } else {
-                calculatedScore = Math.max(
-                  -(cri.maxScore || 10),
-                  Math.min(cri.minScore || 0, calculatedScore),
-                );
-              }
-
-              const updatedHistory = [...(existingDetail.log || [])];
-              updatedHistory.push({
-                from_status: existingDetail.status || "draft",
-                to_status: detailStatus,
-                score_before: existingDetail.system_score || 0,
-                score_after: calculatedScore,
-                count,
-                updated_by: currentUser?.id,
-                reason: "Cập nhật điểm rèn luyện",
-              });
-
-              // Lọc sạch lịch sử để khớp chính xác DTO ở Backend
-              const cleanLog = updatedHistory.map((log: any) => ({
-                from_status: log.from_status || "draft",
-                to_status: log.to_status || "draft",
-                score_before:
-                  log.score_before !== undefined ? log.score_before : 0,
-                score_after:
-                  log.score_after !== undefined ? log.score_after : 0,
-                count:
-                  log.count !== undefined
-                    ? log.count
-                    : Math.round((log.score_after || 0) / cri.pointsPerUnit),
-                updated_by:
-                  typeof log.updated_by === "object"
-                    ? log.updated_by?._id
-                    : log.updated_by,
-                reason: log.reason || "Cập nhật điểm rèn luyện",
-              }));
-
-              const scorePayload: any = {};
-              if (userRole === "student") {
-                scorePayload.sv_score = calculatedScore;
-                scorePayload.sv_submitted_at = new Date();
-              } else if (userRole === "teacher" || userRole === "supervisor") {
-                scorePayload.gv_score = calculatedScore;
-                scorePayload.gv_reviewed_at = new Date();
-                scorePayload.gv_reviewed_by = currentUser?.id;
-              } else if (userRole === "admin") {
-                scorePayload.gv_score = calculatedScore;
-                scorePayload.gv_reviewed_at = new Date();
-                scorePayload.gv_reviewed_by = currentUser?.id;
-              }
-
-              promises.push(
-                evaluationDetailApi.updateEvaluationDetail(existingDetail._id, {
-                  current_count: count,
-                  log: cleanLog,
-                  status: detailStatus,
-                  ...scorePayload,
-                }),
-              );
-            }
-          } else {
-            // Nếu chưa có và count > 0, ta tiến hành tạo mới
-            if (count > 0) {
-              let calculatedScore = count * cri.pointsPerUnit;
-              if (cri.pointsPerUnit >= 0) {
-                calculatedScore = Math.max(
-                  cri.minScore || 0,
-                  Math.min(cri.maxScore || 10, calculatedScore),
-                );
-              } else {
-                calculatedScore = Math.max(
-                  -(cri.maxScore || 10),
-                  Math.min(cri.minScore || 0, calculatedScore),
-                );
-              }
-
-              const scorePayload: any = {};
-              if (userRole === "student") {
-                scorePayload.sv_score = calculatedScore;
-                scorePayload.sv_submitted_at = new Date();
-              } else if (userRole === "teacher" || userRole === "supervisor") {
-                scorePayload.gv_score = calculatedScore;
-                scorePayload.gv_reviewed_at = new Date();
-                scorePayload.gv_reviewed_by = currentUser?.id;
-              } else if (userRole === "admin") {
-                scorePayload.gv_score = calculatedScore;
-                scorePayload.gv_reviewed_at = new Date();
-                scorePayload.gv_reviewed_by = currentUser?.id;
-              }
-
-              promises.push(
-                evaluationDetailApi.createEvaluationDetail({
-                  summary_id: summaryId,
-                  criterion_id: cri.id,
-                  current_count: count,
-                  log: [
-                    {
-                      from_status: "draft",
-                      to_status: detailStatus,
-                      score_before: 0,
-                      score_after: calculatedScore,
-                      count,
-                      updated_by: currentUser?.id,
-                      reason: "Khởi tạo điểm rèn luyện",
-                    },
-                  ],
-                  status: detailStatus,
-                  ...scorePayload,
-                }),
-              );
-            }
-          }
-        });
-      });
-
-      await Promise.all(promises);
-
-      const [freshDetails, freshPreExistingCounts] = await Promise.all([
-        evaluationDetailApi.getEvaluationDetailsBySummary(summaryId),
-        evaluationDetailApi.getPreExistingCounts(summaryId),
-      ]);
-
-      const freshCounts: Record<string, number> = {};
-      const freshDetailsMap: Record<string, any> = {};
-      const freshHistory: HistoryRecord[] = [];
-
-      (freshDetails || []).forEach((detail) => {
-        const cri =
-          typeof detail.criterion_id === "object" ? detail.criterion_id : null;
-        const criId = cri?._id || detail.criterion_id;
-        const criterion = categories
-          .flatMap((cat) => cat.items)
-          .find((item) => item.id === criId);
-        const pointsPerUnit =
-          cri?.score_per_unit || criterion?.pointsPerUnit || 1;
-        const criName = cri?.criterion_name || criterion?.name || "Tiêu chí";
-        const criType =
-          cri?.criterion_type === "ky_luat" || criterion?.type === "violation"
-            ? "violation"
-            : "reward";
-
-        freshCounts[criId] = detail.current_count || 0;
-        freshDetailsMap[criId] = detail;
-
-        (detail.log || []).forEach((log: any, index: number) => {
-          const countVal =
-            log.count !== undefined
-              ? log.count
-              : Math.round((log.score_after || 0) / pointsPerUnit);
-          freshHistory.push({
-            id: `${detail._id}-log-${index}`,
-            studentId: activeStudentId,
-            type: criType,
-            title: criName,
-            date: log.updated_at
-              ? new Date(log.updated_at).toLocaleDateString("vi-VN")
-              : new Date().toLocaleDateString("vi-VN"),
-            count: countVal,
-            points:
-              log.score_after !== undefined
-                ? log.score_after
-                : pointsPerUnit * countVal,
-            session: log.updated_at
-              ? new Date(log.updated_at).getHours() < 12
-                ? "Sáng"
-                : "Chiều"
-              : "Sáng",
-            role: log.role || userRole,
-            updated_by: log.updated_by,
-            status: detail.status || "draft",
-          });
-        });
-      });
-
+      // Cập nhật các local states
       setEvaluationCounts((prev) => ({
         ...prev,
-        [activeStudentId]: freshCounts,
+        [activeStudentId]: result.freshCounts,
       }));
-      setEvaluationDetailsMap(freshDetailsMap);
+      setEvaluationDetailsMap(result.freshDetailsMap);
       setPreExistingCountsState((prev) => ({
         ...prev,
-        [activeStudentId]: freshPreExistingCounts || {},
+        [activeStudentId]: result.freshPreExistingCounts || {},
       }));
       setHistoryRecords((prev) => [
-        ...freshHistory,
+        ...result.freshHistory,
         ...prev.filter((record) => record.studentId !== activeStudentId),
       ]);
-
-      let finalScore = 0;
-      categories.forEach((cat) => {
-        let catScore = 0;
-        cat.items.forEach((cri) => {
-          catScore += calculateCriterionScore(cri, freshCounts[cri.id] || 0);
-        });
-        finalScore += Math.max(0, Math.min(cat.maxPoints, catScore));
-      });
-      const clampedFinalScore = Math.max(0, Math.min(100, finalScore));
 
       setStudents((prev) =>
         prev.map((std) =>
           std.id === activeStudentId
-            ? { ...std, score: clampedFinalScore }
+            ? { ...std, score: result.score }
             : std,
         ),
       );
 
-      // 3. Cập nhật lại tổng điểm rèn luyện trong summariesPoint theo dữ liệu backend đã chấp nhận
-      const summaryPayload: any = {
-        total_score: clampedFinalScore,
-      };
-      if (clampedFinalScore === 0) {
-        summaryPayload.grading = "CHƯA XẾP LOẠI";
-      }
-      await summariesPointApi.updateSummariesPoint(summaryId, summaryPayload);
-
       toast.dismiss("save-loading");
       toast.success(
-        `Đã lưu thành công điểm rèn luyện ${clampedFinalScore}/100đ cho sinh viên ${activeStudent.name}!`,
+        `Đã lưu thành công điểm rèn luyện ${result.score}/100đ cho sinh viên ${activeStudent.name}!`,
       );
 
       if (taskId) {
@@ -1783,6 +1778,162 @@ function GradingScoreContent() {
     } finally {
       setIsFetching(false);
     }
+  };
+
+  // Hàm xử lý xác nhận sao chép điểm rèn luyện hàng loạt cho các target students
+  const handleCopyConfirm = async (
+    targetStudentIds: string[],
+    onProgress: (current: number, total: number) => void
+  ) => {
+    const results: Array<{
+      studentId: string;
+      studentName: string;
+      status: "success" | "error";
+      message?: string;
+    }> = [];
+
+    // 1. Lấy danh sách summary ID của các target
+    const targetSummaryIds = targetStudentIds
+      .map((id) => studentSummaryMap[id])
+      .filter(Boolean);
+
+    if (targetSummaryIds.length === 0) return [];
+
+    try {
+      // 2. Load pre-existing counts bulk
+      const bulkPreExisting = await evaluationDetailApi.getPreExistingCountsBulk(targetSummaryIds);
+
+      // Lấy source counts đang có trên màn hình
+      const sourceCounts = evaluationCounts[activeStudentId] || {};
+
+      // Chạy tuần tự qua từng target student để lưu điểm
+      let processedCount = 0;
+      for (const targetId of targetStudentIds) {
+        const targetSummaryId = studentSummaryMap[targetId];
+        const targetStudent = students.find((s) => s.id === targetId);
+        const targetName = targetStudent?.name || "Sinh viên";
+
+        if (!targetSummaryId) {
+          results.push({
+            studentId: targetId,
+            studentName: targetName,
+            status: "error",
+            message: "Chưa có bảng điểm rèn luyện trong học kỳ này",
+          });
+          processedCount++;
+          onProgress(processedCount, targetStudentIds.length);
+          continue;
+        }
+
+        try {
+          const targetPreCounts = bulkPreExisting[targetSummaryId] || {};
+
+          // Xác định các tiêu chí cần skip cho sinh viên đích này
+          const skipCriterionIds = new Set<string>();
+          categories.forEach((cat) => {
+            cat.items.forEach((cri) => {
+              // 1. Nếu tiêu chí bị khóa ở cấu hình chung (is_locked: true)
+              if (cri.is_locked) {
+                skipCriterionIds.add(cri.id);
+                return;
+              }
+
+              // 2. Nếu điểm nguồn thấp hơn mức tối thiểu học bạ (original_count) của sinh viên đích
+              const targetMin = targetPreCounts[cri.id]?.original_count || 0;
+              const srcCount = sourceCounts[cri.id] || 0;
+              if (srcCount < targetMin) {
+                skipCriterionIds.add(cri.id);
+              }
+            });
+          });
+
+          // Gọi helper lưu điểm với danh sách tiêu chí cần skip
+          const persistResult = await persistStudentScore(
+            targetId,
+            targetSummaryId,
+            sourceCounts,
+            `Sao chép điểm từ ${activeStudent?.name || "sinh viên khác"}`,
+            { skipCriterionIds, source: "copy-score" }
+          );
+
+          // Cập nhật local states cho target student thành công
+          setEvaluationCounts((prev) => ({
+            ...prev,
+            [targetId]: persistResult.freshCounts,
+          }));
+          setPreExistingCountsState((prev) => ({
+            ...prev,
+            [targetId]: persistResult.freshPreExistingCounts || {},
+          }));
+          setHistoryRecords((prev) => [
+            ...persistResult.freshHistory,
+            ...prev.filter((record) => record.studentId !== targetId),
+          ]);
+          setStudents((prev) =>
+            prev.map((std) =>
+              std.id === targetId
+                ? { ...std, score: persistResult.score }
+                : std
+            )
+          );
+          setApiSummariesPoints((prev) =>
+            prev.map((s) =>
+              s._id === targetSummaryId
+                ? {
+                    ...s,
+                    total_score: persistResult.score,
+                    ...(persistResult.grading ? { grading: persistResult.grading } : {})
+                  }
+                : s
+            )
+          );
+
+          results.push({
+            studentId: targetId,
+            studentName: targetName,
+            status: "success",
+          });
+        } catch (err: any) {
+          results.push({
+            studentId: targetId,
+            studentName: targetName,
+            status: "error",
+            message: err.message || "Lỗi lưu điểm",
+          });
+        }
+
+        processedCount++;
+        onProgress(processedCount, targetStudentIds.length);
+      }
+
+      // Show toast
+      const successCount = results.filter((r) => r.status === "success").length;
+      const failedCount = results.filter((r) => r.status === "error").length;
+
+      if (successCount === targetStudentIds.length) {
+        toast.success(`Đã sao chép điểm rèn luyện thành công cho ${successCount} sinh viên!`);
+      } else if (failedCount === targetStudentIds.length) {
+        toast.error("Sao chép điểm rèn luyện thất bại cho toàn bộ sinh viên đã chọn!");
+      } else {
+        toast.warning(
+          `Sao chép hoàn tất: ${successCount} thành công, ${failedCount} thất bại.`
+        );
+      }
+    } catch (error: any) {
+      toast.error("Lỗi khi tải thông tin pre-existing học tập: " + error.message);
+      // Trả về kết quả lỗi cho toàn bộ target
+      return targetStudentIds.map((id) => {
+        const std = students.find((s) => s.id === id);
+        return {
+          studentId: id,
+          studentName: std?.name || "Sinh viên",
+          status: "error" as const,
+          message: error.message || "Lỗi tải thông tin học bạ",
+        };
+      });
+    }
+
+    return results;
   };
 
   // Hàm xóa một bản ghi lịch sử rèn luyện và cập nhật database/realtime score
@@ -2375,7 +2526,13 @@ function GradingScoreContent() {
                           </div>
                         </div>
                       ))
-                    : students.map((student, idx) => {
+                    : students.length === 0 ? (
+                        <div className="flex-1 py-6 flex flex-col items-center justify-center text-center text-[#64748B] font-medium text-[13.5px] border border-dashed border-slate-300/60 rounded-2xl bg-white/40 select-none">
+                          {selectedClassId 
+                            ? "Lớp học hiện tại chưa có sinh viên nào."
+                            : "Vui lòng chọn lớp học để xem danh sách sinh viên."}
+                        </div>
+                      ) : students.map((student, idx) => {
                         const isActive = student.id === activeStudentId;
                         const initials = getInitials(student.name);
 
@@ -2425,9 +2582,12 @@ function GradingScoreContent() {
                               >
                                 {student.name}
                               </h4>
-                              <span className="text-[#64748B] text-[11px] font-medium mt-0.5">
-                                MSSV: {student.id}
-                              </span>
+                              <div className="flex items-center justify-between mt-0.5 w-full min-w-0">
+                                <span className="text-[#64748B] text-[11px] font-medium truncate">
+                                  MSSV: {student.id}
+                                </span>
+                                {renderGradingStatusBadge(student.gradingStatus)}
+                              </div>
 
                               {/* Realtime progress bar */}
                               <div className="flex gap-2.5 items-center mt-1.5">
@@ -2787,6 +2947,18 @@ function GradingScoreContent() {
                         <RotateCcw size={15} strokeWidth={2.5} />
                         <span>Đặt lại</span>
                       </Button>
+                      {currentUserRole !== "student" && (
+                        <Button
+                          onClick={() => setIsCopyModalOpen(true)}
+                          disabled={!activeStudent || !studentSummaryMap[activeStudentId] || isFetching}
+                          variant="outline"
+                          className="bg-white/60 backdrop-blur-sm border border-white/80 hover:bg-white/90 text-[#1A73E8] hover:text-[#155cc4] font-bold text-[14px] px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all active:scale-95 cursor-pointer h-[42px] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] shadow-sm"
+                          title="Sao chép điểm rèn luyện sang các sinh viên khác"
+                        >
+                          <Copy size={15} strokeWidth={2.5} />
+                          <span>Sao chép điểm</span>
+                        </Button>
+                      )}
                       <Button
                         onClick={handleSave}
                         disabled={isFetching}
@@ -2974,6 +3146,18 @@ function GradingScoreContent() {
         }
         selectedSemester={selectedSemesterId}
         setSelectedSemester={setSelectedSemesterId}
+      />
+
+      <CopyScoreModal
+        isOpen={isCopyModalOpen}
+        onClose={() => setIsCopyModalOpen(false)}
+        sourceStudent={activeStudent}
+        students={students}
+        studentSummaryMap={studentSummaryMap}
+        apiSummariesPoints={apiSummariesPoints}
+        semesterName={currentSemester?.name || "Học kỳ"}
+        className={apiClasses.find((c) => c._id === selectedClassId)?.class_name || "Lớp học"}
+        onCopyConfirm={handleCopyConfirm}
       />
 
       {/* Button Cuộn lên đầu trang (Scroll to Top) - Pill Styled */}

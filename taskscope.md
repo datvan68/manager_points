@@ -1,164 +1,208 @@
-# Task Scope: Page-Scoped Change Safety Review
+# Task Scope Review: `/grading/score` Student Slider, Approval Indicator, and Summary Availability
 
 ## Objective
 
-Prevent a change on one page from breaking the whole project by defining a page-scoped workflow for analysis, implementation, testing, and rollback. This review also records the current status of the `/profile` role runtime-safety work after the latest update.
+Review and correct the implementation scope for `/grading/score` so the page reliably:
+
+- Shows every student in the selected class in the "Sinh viên đang chấm điểm" slider.
+- Clearly identifies students whose grading summary has already been approved.
+- Does not show `Chưa có điểm` or block grading for students who already have a valid `summariesPoint`.
+- Keeps the copy-score action consistent with the same roster and summary availability rules.
 
 ## Current Review Result
 
-The current codebase already includes the main runtime-safety fixes for the profile role issue:
+`taskscope.md` was empty after the previous edit, while the current page implementation has already changed. This file now becomes the source of truth for the remaining `/grading/score` work.
 
-- `frontend/src/app/profile/page.tsx` normalizes the raw `GET /api/auth/me` response through `normalizeProfile(rawData)`.
-- `frontend/src/app/profile/page.tsx` uses `isStudentRole(...)` instead of directly calling `.toLowerCase()` on `profile.role`, `data.role`, or `rawData.role`.
-- `frontend/src/app/profile/_lib/normalize-profile.ts` now supports the backend role shape that uses `_id` and `role_code`.
-- `frontend/src/app/profile/_lib/normalize-profile.ts` filters permission rows that have neither `name` nor `code`.
-- `frontend/src/utils/role.util.ts` supports `role.code` and `roles[].code`, in addition to `roleName`, `roleCode`, `role.name`, and `role.role_code`.
-- `frontend/src/providers/auth-provider.tsx` uses the shared `isStudentRole(...)` helper instead of local role parsing.
-- `frontend/src/app/profile/error.tsx` and `frontend/src/app/profile/loading.tsx` already exist for route-level loading and error isolation.
-- Focused tests already exist for `normalizeProfile(...)` and role utility behavior.
+The current code already includes several correct updates:
 
-The highest-risk mismatch from the previous review has been addressed. The remaining scope should not re-add duplicate helpers or change the backend contract.
+- `frontend/src/app/grading/score/page.tsx` now includes `no_summary` in `GradingStatus`.
+- `renderGradingStatusBadge(...)` distinguishes missing summaries with `Chưa có bảng điểm` instead of the misleading `Chưa có điểm`.
+- `locked` summaries render an approval indicator on the student slider as `Đã duyệt`.
+- Summary fetching now uses `semesterId`, optional `classId`, `limit: 100`, and loops through paginated summary pages.
+- The copy-score button is placed before the `Lưu thay đổi` button and opens `CopyScoreModal`.
+- `CopyScoreModal` disables source students, locked summaries, and students with no summary.
 
-## Verified Backend Contract
-
-`GET /api/auth/me` is produced by `backend/src/auth/services/auth.service.ts` and currently returns a populated role object shaped like this:
-
-```ts
-{
-  id: user._id.toString(),
-  user_name: user.user_name,
-  email: user.email,
-  phone_number: user.phone_number || "",
-  department: user.department || "",
-  date_birth: user.date_birth || null,
-  status: user.status,
-  roleName: role?.name || "User",
-  roleCode: role?.role_code || "USER",
-  role: role ? {
-    _id: role._id.toString(),
-    name: role.name,
-    role_code: role.role_code,
-    permissions: role.permissions || [],
-  } : null,
-  permissions,
-}
-```
-
-Frontend normalization must continue to support this shape. Do not rename the backend response fields only to match frontend naming.
+These fixes should be preserved.
 
 ## Remaining Gaps
 
-### 1. `taskscope.md` was empty
+### 1. Roster fetch should use the selected class as the backend contract
 
-This file did not contain the current reviewed scope. That documentation gap made it easy to repeat outdated tasks that are already fixed in code. This update fills the missing scope and should be treated as the source of truth for the next implementation pass.
+The page currently loads students with:
 
-### 2. Focused tests were verified after the latest update
-
-The focused tests for the latest role runtime-safety update were run successfully:
-
-```bash
-cd frontend
-npm test -- normalize-profile
-npm test -- role.util
+```ts
+studentApi.getStudents()
 ```
 
-Result:
+and then filters the roster on the client. The backend already supports:
 
-- `normalize-profile`: 6 tests passed.
-- `role.util`: 40 tests passed.
-
-Run the broader frontend verification before merge:
-
-```bash
-cd frontend
-npm test
-npm run build
+```ts
+GET /students?classId=<classId>
 ```
 
-### 3. Profile fetch failure UX is still light
+For this page, the selected/effective class must be the source-of-truth boundary. The page should call `studentApi.getStudents({ classId: effectiveClassId })` for teacher/admin class grading flows.
 
-`fetchProfile()` catches `authApi.getMe(...)` errors and shows a toast, then clears loading. This prevents a full crash, but the page can still render with `profile === null` and mostly empty content.
+Why this matters:
 
-Recommended follow-up:
+- The slider requirement is "all students of the class", not "all visible students after a client-side filter".
+- Passing `classId` lets the backend enforce teacher/class access rules consistently.
+- It reduces unnecessary payload and avoids accidental cross-class slider state when no class is selected.
 
-- Add local `loadError` state in `frontend/src/app/profile/page.tsx`.
-- Render a small retry state inside the profile page when `GET /api/auth/me` fails.
-- Keep this fallback page-local; do not move it into global providers unless multiple routes need the same behavior.
+Expected behavior:
 
-### 4. Date formatting should guard invalid backend dates
+- Teacher: load only students from the assigned selected class.
+- Admin/supervisor: load only students from the selected class when a class is applied.
+- Student: load only the logged-in student's own record, preferably via `studentApi.getMyStudent()` or an equivalent verified identity path.
+- If no class is selected for a non-student role, show a clear empty/select-class state instead of silently showing students from all classes.
 
-The page currently formats `data.date_birth` with `formatDateStr(new Date(data.date_birth))`. If the backend ever returns a non-empty but invalid date string, the UI can display an invalid formatted value.
+### 2. Summary matching is still not truly indexed
 
-Recommended follow-up:
+The page builds `summaryByStudentMap`, but each student still calls:
 
-- Reuse `parseDate(...)` before formatting `date_birth`.
-- Fall back to an empty string when the parsed date is invalid.
+```ts
+summariesData.find((sum) => matchStudentToSummary(student, sum))
+```
 
-### 5. Route-level error boundaries do not replace local async error states
+This is still `students * summaries` matching. For correctness and performance, create a summary index once:
 
-`frontend/src/app/profile/error.tsx` is useful for render-time route failures. It will not automatically convert already-caught async fetch failures into a useful retry UI. Keep both:
+- Key by populated `summary.student_id._id`.
+- Key by populated `summary.student_id.id`.
+- Key by populated `summary.student_id.student_code`.
+- Key by raw `summary.student_id` when it is a string/ObjectId.
 
-- Route-level `error.tsx` for unexpected render errors.
-- Local `loadError` state for expected API failure states.
+Then map each roster student by `_id`, `id`, and `student_code` through that index.
 
-## Page-Scoped Change Rules
+This also makes the slider verification easier: every roster student can be counted once, and summary availability can be explained deterministically.
 
-Use these rules when adding or editing any specific page:
+### 3. Student self-grading summary lookup can still miss valid summaries
 
-1. Identify the route folder first, for example `frontend/src/app/profile`.
-2. List every imported shared module before editing the page.
-3. Prefer page-local helpers under the route folder when the logic is only used by that page.
-4. Promote logic to `frontend/src/utils`, `frontend/src/lib`, or providers only when two or more routes need the same behavior.
-5. Never change global providers, layouts, middleware, API clients, or shared utilities without adding regression tests for all affected pages.
-6. Normalize API responses at the page boundary or in a dedicated mapper before rendering.
-7. Keep backend response contracts stable unless the task explicitly includes backend migration.
-8. Add route-level `loading.tsx` and `error.tsx` for pages that fetch data or render complex client UI.
-9. Keep optional feature fetches isolated. A secondary fetch failure should not break the whole page.
-10. Run focused tests before broad tests to catch page-level regressions quickly.
+For `currentUserRole === "student"`, `fetchAllSummaries(...)` uses:
 
-## Profile Page Safety Checklist
+```ts
+params.studentId = currentUser?.student_code || currentUser?.username || "";
+```
 
-Before changing `/profile`, confirm:
+The backend summary list resolves non-ObjectId `studentId` by `student_code`. If `username` is not the same as `student_code`, the summary query can return empty even when the student has a summary.
 
-- `profile.role` is treated as an object, not a string.
-- Student checks use `isStudentRole(...)`.
-- `normalizeProfile(...)` remains the single profile response mapper.
-- `role._id`, `role.id`, `role.role_code`, and `role.code` are all handled safely.
-- Permission rendering reads from `profile.role.permissions`.
-- Empty or malformed permission objects do not render blank rows.
-- Student users can still load the latest locked summary.
-- Non-student users do not call `summariesPointApi.getMyLatestSummary()`.
-- Failed latest-summary fetches do not fail the whole profile page.
-- Failed profile fetches show a clear retry or fallback state.
+Fix scope:
 
-## Out Of Scope
+- Resolve the actual student first using `/students/me` or the roster response.
+- Fetch summary by the actual student `_id` or `student_code`.
+- Keep `matchesCurrentStudent(...)` only as a fallback guard, not as the primary identity source.
 
-Do not include these changes in the current task unless explicitly requested:
+### 4. Period-specific summaries are not selectable through the list API
 
-- Backend response renaming from `role_code` to `code`.
-- Global auth-provider rewrites beyond role-helper usage.
-- RBAC schema migrations.
-- Sidebar, header, or layout redesign.
-- Broad UI refactors unrelated to the profile runtime-safety issue.
-- Replacing the existing test framework.
+The backend `SummaryPoint` schema includes `period_id`, and the unique identity is effectively:
+
+```ts
+student_id + semester_id + period_id
+```
+
+However, `GET /summaries-points` currently supports `semesterId`, `classId`, `studentId`, and `status`, but not `periodId`.
+
+If the application can create multiple summaries for the same student and semester across different periods, `/grading/score` may match the wrong summary and then show the wrong status, score, details, and lock state.
+
+Decision required:
+
+- If `/grading/score` is semester-level only, explicitly fetch and match only `period_id: null` summaries.
+- If `/grading/score` is period-level, add `periodId` to `summariesPointApi.getSummariesPoints(...)`, `SummariesPointController.findAll(...)`, and `SummariesPointService.findAll(...)`.
+
+### 5. Approval indicator exists, but the acceptance rule should be stricter
+
+The slider now shows `Đã duyệt` for `gradingStatus === "locked"`. Keep that behavior, and make it a tested contract:
+
+- A locked summary must show the approved badge on the slider.
+- A locked student must not be editable.
+- A locked student must not be selectable as a copy-score target.
+- The copy modal reason should stay explicit: `Bảng điểm đã chốt`.
+
+### 6. CopyScoreModal should avoid a runtime import from the page file
+
+`CopyScoreModal.tsx` currently imports `GradingStatus` from `../page`.
+
+Use a type-only import:
+
+```ts
+import type { GradingStatus } from "../page";
+```
+
+or move `GradingStatus` and route-local student types into a small route-local type file, for example:
+
+```txt
+frontend/src/app/grading/score/_types.ts
+```
+
+This keeps the modal from depending on the page module at runtime and avoids unnecessary coupling.
+
+### 7. CopyScoreModal repeats summary lookups
+
+Inside `CopyScoreModal`, target status is resolved with:
+
+```ts
+apiSummariesPoints.find((s) => s._id === summaryId)
+```
+
+for every student. Build a `Map<summaryId, summary>` with `useMemo` first, then read by id. This matches the page's indexed summary direction and avoids repeated scans.
+
+## Updated Implementation Scope
+
+1. Keep the current `no_summary` status and `Chưa có bảng điểm` label.
+2. Keep the current `locked -> Đã duyệt` slider badge.
+3. Fetch roster data by `effectiveClassId` for non-student grading flows.
+4. Fetch student self data from a reliable student identity endpoint before summary lookup.
+5. Build an indexed summary map once and reuse it for roster-to-summary matching.
+6. Define whether summary matching is semester-level or period-level, then implement the matching/API contract consistently.
+7. Convert `CopyScoreModal` type import to `import type` or move shared route-local types into `_types.ts`.
+8. Add focused tests for roster completeness, summary matching, approved badge rendering, and copy modal disabled states.
 
 ## Acceptance Criteria
 
-- `/profile` does not throw a role-related runtime error.
-- No direct `.toLowerCase()` call is made on unknown role objects in the profile page.
-- `normalizeProfile(...)` supports the real backend payload from `GET /api/auth/me`.
-- `isStudentRole(...)` handles string roles, populated role objects, normalized `role.code`, `roleCode`, and role arrays.
-- The profile route has page-level loading and error files.
-- Expected API failures are handled locally with user-visible fallback behavior.
-- Focused tests for `normalize-profile` and `role.util` pass.
-- `npm run build` passes for the frontend before merge.
+- The slider count equals the backend roster count for the selected class.
+- Every student in the selected class appears exactly once in the slider.
+- Students with `summariesPoint.total_score = 0` and a valid summary are still gradable when role, period, and status allow grading.
+- Only truly missing summaries use `no_summary` and show `Chưa có bảng điểm`.
+- `locked` summaries show `Đã duyệt` on the slider.
+- `locked` summaries disable grading controls and copy-score target selection.
+- Copy-score targets come from the same selected-class roster as the slider.
+- Summary matching works when `summary.student_id` is either populated or a raw ObjectId string.
+- The page does not accidentally show students from every class when a non-student user has not selected a class.
+- No runtime import from `page.tsx` is required only to share TypeScript types.
+
+## Regression Tests To Add
+
+Add focused tests around extracted helpers where possible:
+
+- `buildSummaryIndex(...)` matches summaries by `_id`, `id`, raw `student_id`, and `student_code`.
+- `mapStudentsWithSummaries(...)` keeps all roster students even when a summary is missing.
+- A valid summary with `total_score: 0` maps to `draft`, not `no_summary`.
+- A missing summary maps to `no_summary`.
+- A `locked` summary maps to `locked` and renders the approved indicator.
+- Copy modal excludes source, locked, and no-summary students from selectable targets.
+- Copy modal still allows a target with a valid draft summary and score `0`.
+
+Manual verification:
+
+1. Select a class with more than 10 students.
+2. Confirm the slider count matches the class roster.
+3. Confirm students after the first 10 are not marked missing summary only because of pagination.
+4. Confirm a student with `total_score = 0` but existing summary can be graded.
+5. Confirm an approved student shows `Đã duyệt` and cannot be edited.
+6. Open copy-score modal and confirm the selectable target list matches the same class roster rules.
+
+## Out Of Scope
+
+- Redesigning the grading page layout.
+- Changing grading formulas or rank calculation rules.
+- Changing permission phases beyond enforcing the current role/period/status rules.
+- Backend data migration for already-created summary rows unless period-level summary matching is selected.
+- Replacing the existing test framework.
 
 ## Recommended Next Task
 
-Implement only the remaining UX hardening in `frontend/src/app/profile/page.tsx`:
+Implement the remaining data-contract fixes first:
 
-1. Add `loadError` state.
-2. Clear `loadError` before retrying `fetchProfile()`.
-3. Show a retry panel when the profile fetch fails.
-4. Guard invalid `date_birth` formatting.
-5. Run focused and full frontend verification.
+1. Fetch class roster with `classId`.
+2. Resolve student self identity reliably.
+3. Extract and test summary indexing/matching helpers.
+4. Decide and implement the `periodId` behavior.
+5. Run focused frontend tests for `/grading/score`, then run the broader frontend test/build verification before merge.

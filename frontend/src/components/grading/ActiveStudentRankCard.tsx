@@ -13,7 +13,7 @@ export interface StudentData {
   gender: string;
   score: number;
   status: string;
-  gradingStatus: "draft" | "sv_submitted" | "gv_reviewed" | "locked";
+  gradingStatus: "draft" | "sv_submitted" | "gv_reviewed" | "locked" | "no_summary";
   classId: string;
   avatarUrl?: string;
   colorTheme?: { bg: string; text: string };

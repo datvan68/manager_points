@@ -1,232 +1,183 @@
-# Task Scope Review: Profile Page Runtime Safety After Latest Update
+# Task Scope Review: `/grading/score` Latest Data Contract Review
 
-## Review Summary
+## Objective
 
-The latest working tree already fixes most of the original `/profile` role runtime issue. The task scope should now be updated so it does not ask for duplicate helpers or repeat work that has already been completed.
+Review the latest `/grading/score` implementation and record what is now correct, what is still missing, and what should be verified next. This scope focuses on:
 
-Current status:
+- Complete class roster rendering in the "Sinh viên đang chấm điểm" slider.
+- Correct summary matching for students who already have `summariesPoint`.
+- Clear approved/locked summary identification.
+- Copy-score behavior staying consistent with the same roster and summary rules.
 
-- `frontend/src/app/profile/page.tsx` calls `normalizeProfile(rawData)` before storing profile data.
-- `frontend/src/app/profile/page.tsx` uses `isStudentRole(...)` for student checks.
-- `frontend/src/app/profile/page.tsx` now has a local `loadError` state and a retry UI for failed `authApi.getMe(...)` calls.
-- `frontend/src/app/profile/page.tsx` guards `date_birth` parsing when the profile is first loaded.
-- `frontend/src/app/profile/_lib/normalize-profile.ts` supports `role._id`, `role.id`, `role.role_code`, and `role.code`.
-- `frontend/src/app/profile/_lib/normalize-profile.ts` filters malformed permission objects that have neither `name` nor `code`.
-- `frontend/src/utils/role.util.ts` supports role strings, `roleName`, `roleCode`, populated role objects, `role.code`, and role arrays.
-- `frontend/src/providers/auth-provider.tsx` uses the shared `isStudentRole(...)` helper.
-- `frontend/src/app/profile/error.tsx` and `frontend/src/app/profile/loading.tsx` exist.
-- Focused tests for profile normalization and role utilities pass.
+## Current Review Result
 
-## Current Backend Contract
+The implementation has improved compared with the previous scope. Several previously identified gaps are now addressed:
 
-`GET /api/auth/me` is produced by `backend/src/auth/services/auth.service.ts`.
+- `frontend/src/app/grading/score/_types.ts` now owns the route-local `GradingStatus` and `StudentData` types.
+- `GradingStatus` includes `no_summary`.
+- `renderGradingStatusBadge(...)` now renders `Chưa có bảng điểm` for missing summaries and `Đã duyệt` for locked summaries.
+- `fetchAllSummaries(...)` now fetches summary pages with `limit: 100` and loops through all summary pages.
+- Student users now resolve their own student record through `studentApi.getMyStudent()` before summary lookup.
+- Non-student class grading now fetches the roster with `studentApi.getStudents({ classId: effectiveClassId })` instead of relying only on a client-side class filter.
+- Summary matching now uses an inline `Map` index instead of doing `students * summaries` repeated `.find(...)` scans.
+- `CopyScoreModal` now builds a `Map<summaryId, summary>` inside `useMemo`.
+- Copy-score helper tests exist under `frontend/src/app/grading/score/_utils/copy-score.test.ts`.
+- Copy-score modal tests cover source/locked/no-summary disabled states and success/error result banners.
 
-The response shape currently includes:
-
-```ts
-{
-  id: user._id.toString(),
-  user_name: user.user_name,
-  email: user.email,
-  phone_number: user.phone_number || "",
-  department: user.department || "",
-  date_birth: user.date_birth || null,
-  status: user.status,
-  roleName: role?.name || "User",
-  roleCode: role?.role_code || "USER",
-  role: role ? {
-    _id: role._id.toString(),
-    name: role.name,
-    role_code: role.role_code,
-    permissions: role.permissions || [],
-  } : null,
-  permissions,
-}
-```
-
-The frontend should continue adapting to this contract. Do not rename backend fields from `role_code` to `code` only to match the frontend model.
-
-## What Is Already Correct
-
-### 1. The original role crash path is covered
-
-The profile page no longer performs direct calls like:
-
-```ts
-profile.role.toLowerCase()
-data.role.toLowerCase()
-rawData.role.toLowerCase()
-```
-
-The only `.toLowerCase()` calls in this flow are inside `frontend/src/utils/role.util.ts`, after `getRoleString(...)` has converted supported role shapes into a string.
-
-### 2. Profile response normalization is page-scoped
-
-`normalizeProfile(...)` lives under:
-
-```text
-frontend/src/app/profile/_lib/normalize-profile.ts
-```
-
-This is the right boundary because the shape is currently specific to the profile page. It avoids pushing page-specific data-mapping details into global providers.
-
-### 3. Backend role shape is now covered by tests
-
-`frontend/src/app/profile/_lib/normalize-profile.test.ts` includes a real backend-style payload with:
-
-- `role._id`
-- `role.role_code`
-- `role.permissions`
-- top-level `roleName`
-- top-level `roleCode`
-
-This closes the previous mismatch where tests only covered `role.id` and `role.code`.
-
-### 4. Permission rendering is safer
-
-Malformed permission entries are filtered out when they have neither `name` nor `code`. This prevents blank permission rows in the role and permissions tab.
-
-### 5. Async profile fetch failure is now handled locally
-
-The profile page now has:
-
-- `loadError`
-- retry button
-- a page-local failed-load view
-
-This is the right layer for expected `GET /api/auth/me` failures. `error.tsx` should remain reserved for unexpected route/render errors.
+These updates should be preserved.
 
 ## Remaining Gaps
 
-### 1. Cancel-edit date formatting still bypasses the safe date parser
+### 1. Summary index still contains an unsafe key
 
-The initial profile load now safely formats `date_birth`, but the cancel-edit branch still uses direct formatting:
+The current summary index also stores:
 
 ```ts
-dob: profile?.date_birth ? formatDateStr(new Date(profile.date_birth)) : "",
+summaryIndex.set(String(summary._id).trim().toLowerCase(), summary);
 ```
 
-Risk:
+`summary._id` is the summary document id, not a student id. It should not be used as a fallback student key. A student should only match a summary through:
 
-- If `profile.date_birth` contains a non-empty invalid date string, this branch can produce an invalid displayed value when the user cancels editing.
+- `summary.student_id._id`
+- `summary.student_id.id`
+- `summary.student_id.student_code`
+- raw `summary.student_id` when it is a string/ObjectId
 
 Recommended fix:
 
+- Remove `summary._id` from `summaryIndex` keys.
+- Include `student.id` as an optional roster candidate if the API response ever provides it.
+- Keep `summary._id` only as the value stored in `studentSummaryMap[studentId]`.
+
+### 2. Old matching helpers appear to be dead code
+
+These helpers still exist in `page.tsx`, but the new inline `summaryIndex` flow no longer uses them:
+
 ```ts
-const formatProfileDate = (dateStr: string): string => {
-  const parsed = parseDate(dateStr);
-  return parsed ? formatDateStr(parsed) : "";
-};
+getSummaryStudentCode(...)
+getSummaryStudentKey(...)
+matchStudentToSummary(...)
 ```
 
-Then use it in both places:
+Recommended fix:
+
+- Remove unused helpers if they are truly obsolete.
+- Or extract the summary-index behavior into route-local utilities and test those helpers directly.
+
+This reduces build risk if the project enables stricter `noUnusedLocals` rules later.
+
+### 3. Summary matching helpers should be extracted for testability
+
+The current index-building and roster-to-summary mapping logic is inline inside `page.tsx`. That makes the most important bug fix hard to unit test.
+
+Recommended extraction:
+
+```txt
+frontend/src/app/grading/score/_utils/summary-matching.ts
+```
+
+Suggested exported helpers:
 
 ```ts
-dob: data.date_birth ? formatProfileDate(data.date_birth) : "",
-dob: profile?.date_birth ? formatProfileDate(profile.date_birth) : "",
+buildSummaryIndex(summaries)
+findSummaryForStudent(student, summaryIndex)
+mapRosterWithSummaries(students, summaries)
 ```
 
-### 2. No component-level regression test covers the retry UI
+Test cases should cover populated `student_id`, raw string/ObjectId `student_id`, `student_code`, score `0`, locked summaries, and missing summaries.
 
-The helper tests are good, but they do not prove the profile page renders the failed-load state and retries `fetchProfile()`.
+### 4. `periodId` is still not part of the list API contract
 
-Recommended test follow-up:
+The frontend currently fetches all summaries for `semesterId` plus `classId`/`studentId`, then filters semester-level summaries with:
 
-- Mock `authApi.getMe(...)` failure.
-- Assert that the retry view is shown.
-- Click retry.
-- Assert that `authApi.getMe(...)` is called again.
-
-This can be deferred if the project does not currently have page-level React Testing Library patterns.
-
-### 3. No automated test confirms student summary fetch isolation
-
-Manual behavior appears correct:
-
-- `summariesPointApi.getMyLatestSummary()` is only called when `isStudentRole(data)` is true.
-- Its failure is caught and ignored so the main profile page still renders.
-
-Recommended test follow-up:
-
-- Student profile should call `summariesPointApi.getMyLatestSummary()`.
-- Non-student profile should not call it.
-- Summary fetch failure should not trigger `loadError`.
-
-### 4. Full frontend verification has not been completed in this review
-
-Focused tests passed, but the full frontend suite and production build still need to be run before merge:
-
-```bash
-cd frontend
-npm test
-npm run build
+```ts
+const summariesData = summariesRaw.filter((sum) => !sum.period_id || sum.period_id === null);
 ```
 
-## Verification Completed
+This is acceptable only if `/grading/score` is intentionally a semester-level page. It is still not a complete API contract because `GET /summaries-points` does not accept `periodId`, while the schema supports `period_id`.
 
-Focused frontend tests were run successfully:
+Required decision:
 
-```bash
-cd frontend
-npm test -- normalize-profile
-npm test -- role.util
+- If `/grading/score` is semester-level only, document and enforce `period_id: null` on the backend list query.
+- If `/grading/score` is period-level, add `periodId` to `summariesPointApi.getSummariesPoints(...)`, `SummariesPointController.findAll(...)`, and `SummariesPointService.findAll(...)`.
+
+### 5. Type-only imports should use `import type`
+
+The route-local types are now in `_types.ts`, which is good. However, the imports are still normal imports:
+
+```ts
+import { GradingStatus, StudentData } from "./_types";
+import { GradingStatus, StudentData } from "../_types";
 ```
 
-Result:
+These are type-only values and should be imported as:
 
-- `normalize-profile`: 6 tests passed.
-- `role.util`: 40 tests passed.
+```ts
+import type { StudentData } from "./_types";
+import type { StudentData } from "../_types";
+```
 
-## Updated Fix Scope
+Also remove unused imported types, such as `GradingStatus` where it is not directly referenced. This avoids unnecessary runtime coupling and cleaner bundle output.
 
-Required follow-up:
+### 6. Duplicate and stale comments should be cleaned up
 
-- `frontend/src/app/profile/page.tsx`
-  - Reuse one safe date-format helper for both initial profile load and cancel-edit reset.
+The summary-fetch comment is duplicated in `page.tsx`. Some comments still include older wording around the same flow.
 
-Recommended follow-up:
+Recommended fix:
 
-- Add a component-level test for profile failed-load retry behavior.
-- Add a component-level test for student-only latest summary fetching.
+- Keep one concise comment above `fetchAllSummaries(...)`.
+- Remove comments that describe behavior that is no longer true.
 
-Do not include:
+### 7. Full slider behavior still lacks direct regression coverage
 
-- Backend response renaming.
-- New duplicate role helpers.
-- Global provider rewrites.
-- RBAC schema changes.
-- Broad profile UI redesign.
+Current tests cover copy-score helper/modal behavior, but not the slider data contract itself.
+
+Add tests around extracted utilities first, then optionally add a page-level test if the project already supports it.
+
+Minimum regression coverage:
+
+- Class roster with more than 10 students maps every student exactly once.
+- Existing summary with `total_score: 0` maps to `draft`, not `no_summary`.
+- Missing summary maps to `no_summary`.
+- Locked summary maps to `locked` and should show `Đã duyệt`.
+- Raw `summary.student_id` string matches a roster `_id`.
+- Populated `summary.student_id.student_code` matches a roster `student_code`.
+- A summary with non-null `period_id` is excluded only when the page is explicitly semester-level.
 
 ## Updated Acceptance Criteria
 
-- Opening `/profile` does not throw a role-related runtime error.
-- `frontend/src/app/profile/page.tsx` contains no direct `.toLowerCase()` call on unknown role objects.
-- `normalizeProfile(...)` supports the real `GET /api/auth/me` backend payload.
-- `isStudentRole(...)` supports `roleCode`, `roleName`, string roles, populated role objects, `role.code`, and role arrays.
-- `profile.role.permissions` renders without blank rows from malformed permission entries.
-- Failed profile fetches show a local retry UI.
-- Failed latest-summary fetches do not fail the whole profile page.
-- Invalid `date_birth` values do not produce invalid displayed dates in either initial load or cancel-edit reset.
-- `npm test -- normalize-profile` passes.
-- `npm test -- role.util` passes.
-- Full `npm test` and `npm run build` pass before merge.
+- The slider uses backend roster data scoped by `classId` for non-student users.
+- Student users resolve their own student record through a reliable student endpoint before summary lookup.
+- Every selected-class student appears exactly once in the slider.
+- Students with an existing summary and `total_score: 0` are not treated as missing a summary.
+- Only truly missing summary rows show `Chưa có bảng điểm`.
+- Locked summaries show `Đã duyệt`.
+- Locked summaries disable grading controls and copy-score target selection.
+- Summary matching does not use `summary._id` as a student key.
+- Summary matching behavior is covered by unit tests.
+- Type-only imports from `_types.ts` use `import type`.
+- The period-level versus semester-level summary rule is explicit and enforced consistently.
 
-## Manual Verification Notes
+## Manual Verification Checklist
 
-1. Restart or rebuild the frontend so the browser is not using an old bundle.
-2. Log in as a Student user.
-3. Open `/profile`.
-4. Confirm the page renders without a role-related runtime error.
-5. Confirm the latest locked summary badge or fallback message renders.
-6. Open the role and permissions tab.
-7. Confirm permissions render from `profile.role.permissions`.
-8. Log in as a non-student user.
-9. Confirm no latest-summary request is made.
-10. Simulate a failed `GET /api/auth/me` response.
-11. Confirm the retry UI appears and retry attempts to load the profile again.
-12. Simulate an invalid non-empty `date_birth`, enter edit mode, then cancel edit.
-13. Confirm the displayed date falls back safely instead of showing an invalid date.
+1. Select a class with more than 10 students.
+2. Confirm the slider count matches the class roster count.
+3. Confirm students after the first 10 are displayed and not marked missing summary because of pagination.
+4. Confirm a student with `total_score = 0` and a valid summary can still be graded when role/period/status allow it.
+5. Confirm a student with no matching summary shows `Chưa có bảng điểm`.
+6. Confirm an approved/locked student shows `Đã duyệt`.
+7. Confirm the approved/locked student cannot be edited.
+8. Open the copy-score modal and confirm locked/no-summary/source students are disabled.
+9. Confirm selectable copy-score targets are from the same selected class roster.
+10. Switch class or semester and confirm stale students/summaries from the previous selection do not remain visible.
 
-## Final Recommendation
+## Recommended Next Task
 
-The role runtime-safety implementation is mostly complete. The only required code follow-up identified in this review is to reuse the safe date formatting path in the cancel-edit reset branch. After that, run the full frontend test suite and production build before merging.
+Finish the remaining correctness cleanup before broader UI work:
+
+1. Remove `summary._id` from the student summary index.
+2. Extract summary matching into `_utils/summary-matching.ts`.
+3. Add focused tests for summary matching and slider data mapping.
+4. Decide and implement the `periodId` contract.
+5. Convert `_types.ts` imports to `import type` and remove unused type imports.
+6. Run focused grading tests, then run the broader frontend test/build verification before merge.
