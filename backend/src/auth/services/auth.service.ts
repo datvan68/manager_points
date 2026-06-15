@@ -40,6 +40,7 @@ import {
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_DURATION_MINUTES = 15;
+const INVALID_LOGIN_MESSAGE = 'Tài khoản hoặc mật khẩu không chính xác.';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -111,7 +112,7 @@ export class AuthService implements OnModuleInit {
         'login_failure',
         `User not found: ${dto.email}`,
       );
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(INVALID_LOGIN_MESSAGE);
     }
 
     // Check account lock
@@ -150,7 +151,7 @@ export class AuthService implements OnModuleInit {
       }
       await user.save();
       await this.logAction(user._id, ip, 'login_failure', 'Wrong password');
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(INVALID_LOGIN_MESSAGE);
     }
 
     // Success

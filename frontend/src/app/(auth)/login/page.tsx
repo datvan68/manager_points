@@ -11,6 +11,8 @@ import { authApi, tokenStorage } from '@/api/auth-api';
 import { useAuth } from '@/providers/auth-provider';
 import { isStudentRole, isTeacherRole } from '@/utils/role.util';
 
+const INVALID_LOGIN_MESSAGE = 'Tài khoản hoặc mật khẩu không chính xác.';
+
 const loginSchema = z.object({
   email: z.string().min(1, 'Email hoặc Mã sinh viên không được để trống'),
   password: z.string().min(6, 'Mật khẩu phải chứa ít nhất 6 ký tự'),
@@ -57,8 +59,12 @@ export default function LoginPage() {
         router.push('/');
       }
     } catch (err: any) {
+      const description = err?.status === 401
+        ? INVALID_LOGIN_MESSAGE
+        : err.message || 'Vui lòng kiểm tra lại thông tin đăng nhập.';
+
       toast.error('Đăng nhập thất bại', {
-        description: err.message || 'Vui lòng kiểm tra lại thông tin đăng nhập.',
+        description,
       });
     } finally {
       setIsLoading(false);
