@@ -3,6 +3,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { NotFoundException } from '@nestjs/common';
 import { DepartmentsService } from '../departments.service';
 import { Department } from '../schemas/department.schema';
+import { Class } from '../../classes/schemas/class.schema';
 
 const mockDepartment = {
   _id: 'mock-id',
@@ -41,6 +42,16 @@ describe('DepartmentsService', () => {
               }),
             },
           ),
+        },
+        {
+          provide: getModelToken(Class.name),
+          useValue: {
+            find: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnThis(),
+              lean: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue([]),
+            }),
+          },
         },
       ],
     }).compile();

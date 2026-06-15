@@ -83,7 +83,7 @@ function StudentsPageContent() {
   const fetchDepartments = async () => {
     try {
       let fetchedDepts = await departmentApi.getDepartments();
-      if (fetchedDepts.length === 0) {
+      if (fetchedDepts.length === 0 && permissions.canCreateDept) {
         console.log("Database departments is empty. Seeding mock data...");
         const seedDepts = [
           {
@@ -169,7 +169,7 @@ function StudentsPageContent() {
   const fetchClasses = async (currentDepts: Department[]) => {
     try {
       let fetchedClasses = await classApi.getClasses();
-      if (fetchedClasses.length === 0 && currentDepts.length > 0) {
+      if (fetchedClasses.length === 0 && currentDepts.length > 0 && permissions.canCreateClass) {
         console.log("Database classes is empty. Seeding mock classes...");
         const cnttDept =
           currentDepts.find((d) => d.code === "CNTT") || currentDepts[0];
@@ -644,6 +644,7 @@ function StudentsPageContent() {
                             ))}
 
                             {/* Add new Class card inside Cao đẳng */}
+                            {permissions.canCreateClass && (
                             <div
                               onClick={() => {
                                 setEditingClass({
@@ -661,6 +662,7 @@ function StudentsPageContent() {
                                 Thêm lớp học mới
                               </span>
                             </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -872,8 +874,6 @@ export default function StudentsPage() {
   const { user } = useAuth();
   const userRole = String(user?.role || '').toLowerCase();
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
-  const isTeacher = userRole.includes('teacher') || userRole.includes('advisor') || userRole.includes('giảng viên') || userRole.includes('giáo viên');
-  const bypassGuard = isTeacher;
 
   return (
     <Suspense
@@ -884,8 +884,6 @@ export default function StudentsPage() {
       }
     >
       {isStudent ? (
-        <StudentsPageContent />
-      ) : bypassGuard ? (
         <StudentsPageContent />
       ) : (
         <RouteGuard requiredPermission="STUDENT_PAGE">

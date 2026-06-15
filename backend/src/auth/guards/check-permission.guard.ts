@@ -74,3 +74,53 @@ export function checkPermission(
 
   return mixin(CheckPermissionGuard);
 }
+
+/**
+ * Factory function: checkAnyPermission(...requiredPermissions)
+ *
+ * Creates a Guard that checks whether the current user has at least one of the
+ * supplied permission codes.
+ */
+export function checkAnyPermission(
+  ...requiredPermissions: string[]
+): Type<CanActivate> {
+  @Injectable()
+  class CheckAnyPermissionGuard extends JwtAuthGuard implements CanActivate {
+    async canActivate(context: ExecutionContext): Promise<boolean> {
+      const isAuthenticated = await super.canActivate(context);
+      if (!isAuthenticated) return false;
+
+      const request = context.switchToHttp().getRequest();
+      const user = request.user;
+
+      if (!user) {
+        throw new ForbiddenException({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: 'KhĂ´ng thá»ƒ xĂ¡c thá»±c ngÆ°á»i dĂ¹ng',
+          requiredPermissions,
+        });
+      }
+
+      if (isAdminUser(user)) return true;
+
+      const userPermissions: string[] = user.permissions || [];
+      const hasAny = requiredPermissions.some((perm) =>
+        userPermissions.includes(perm),
+      );
+
+      if (!hasAny) {
+        throw new ForbiddenException({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: `Báº¡n khĂ´ng cĂ³ quyá»n thá»±c hiá»‡n hĂ nh Ä‘á»™ng nĂ y. Cáº§n má»™t trong cĂ¡c quyá»n: ${requiredPermissions.join(', ')}`,
+          requiredPermissions,
+        });
+      }
+
+      return true;
+    }
+  }
+
+  return mixin(CheckAnyPermissionGuard);
+}

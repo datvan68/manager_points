@@ -4395,8 +4395,7 @@ export default function StudentRecordPage() {
   const { user } = useAuth();
   const userRole = String(user?.role || '').toLowerCase();
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
-  const isTeacher = userRole.includes('teacher') || userRole.includes('advisor') || userRole.includes('giảng viên') || userRole.includes('giáo viên');
-  const bypassGuard = isStudent || isTeacher;
+  const bypassGuard = isStudent;
 
   return (
     <Suspense

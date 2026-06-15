@@ -55,17 +55,17 @@ describe('DepartmentsController', () => {
 
   describe('findAll', () => {
     it('should return an array of departments', async () => {
-      const result = await controller.findAll();
+      const result = await controller.findAll({ user: undefined });
       expect(result).toEqual([mockDepartment]);
-      expect(service.findAll).toHaveBeenCalled();
+      expect(service.findAll).toHaveBeenCalledWith(undefined);
     });
   });
 
   describe('findOne', () => {
     it('should return a department by id', async () => {
-      const result = await controller.findOne('mock-id');
+      const result = await controller.findOne('mock-id', { user: undefined });
       expect(result).toEqual(mockDepartment);
-      expect(service.findOne).toHaveBeenCalledWith('mock-id');
+      expect(service.findOne).toHaveBeenCalledWith('mock-id', undefined);
     });
   });
 

@@ -14,9 +14,7 @@ import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { Permissions } from '../auth/decorators/permissions.decorator';
-import { checkRole } from '../auth/guards/check-role.guard';
+import { checkPermission } from '../auth/guards/check-permission.guard';
 
 @ApiTags('Classes')
 @Controller('classes')
@@ -24,10 +22,10 @@ export class ClassesController {
   constructor(private readonly classesService: ClassesService) {}
 
   @Post()
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('CLASS_CREATE'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Create a new class (requires Admin, Teacher, or Supervisor role)',
+    summary: 'Create a new class (requires CLASS_CREATE permission)',
   })
   create(@Body() createClassDto: CreateClassDto) {
     return this.classesService.create(createClassDto);
@@ -54,20 +52,20 @@ export class ClassesController {
   }
 
   @Patch(':id')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('CLASS_UPDATE'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Update a class (requires Admin, Teacher, or Supervisor role)',
+    summary: 'Update a class (requires CLASS_UPDATE permission)',
   })
   update(@Param('id') id: string, @Body() updateClassDto: UpdateClassDto) {
     return this.classesService.update(id, updateClassDto);
   }
 
   @Delete(':id')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('CLASS_DELETE'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Delete a class (requires Admin, Teacher, or Supervisor role)',
+    summary: 'Delete a class (requires CLASS_DELETE permission)',
   })
   remove(@Param('id') id: string) {
     return this.classesService.remove(id);

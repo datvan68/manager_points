@@ -28,22 +28,7 @@ function StudentTasksPageContent() {
 
   const userRole = String(user?.role || '').toLowerCase();
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
-  const isTeacher = userRole.includes('teacher') || userRole.includes('giáo viên') || userRole.includes('giảng viên');
   const canViewProgress = !isStudent && taskAccess.viewTask;
-
-  if (isTeacher && !taskAccess.viewTask) {
-    return (
-      <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0 h-full">
-          <Header customMappings={{ tasks: 'Quản lý nhiệm vụ HSSV' }} />
-          <main className="flex-1 p-6 overflow-hidden flex flex-col items-center justify-center bg-transparent text-[#64748B] font-medium">
-            <div>Không có quyền truy cập</div>
-          </main>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
@@ -119,8 +104,7 @@ export default function StudentTasksPage() {
   const { user } = useAuth();
   const userRole = String(user?.role || '').toLowerCase();
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
-  const isTeacher = userRole.includes('teacher') || userRole.includes('advisor') || userRole.includes('giảng viên') || userRole.includes('giáo viên');
-  const bypassGuard = isStudent || isTeacher;
+  const bypassGuard = isStudent;
 
   return (
     <Suspense
@@ -133,7 +117,7 @@ export default function StudentTasksPage() {
       {bypassGuard ? (
         <StudentTasksPageContent />
       ) : (
-        <RouteGuard requiredPermission="STUDENT_PAGE">
+        <RouteGuard anyPermission={["STUDENT_PAGE", "READ_STUDENT_TASK"]}>
           <StudentTasksPageContent />
         </RouteGuard>
       )}
