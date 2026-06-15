@@ -9,6 +9,7 @@ import NotificationPopup from '@/components/popups/NotificationPopup';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import { notificationApi, NotificationItem } from '@/api/notification-api';
 import { studentApi } from '@/api/student-api';
+import { isAuthError } from '@/api/http-client';
 import { toast } from 'sonner';
 import StudentCongratsModalGate from './StudentCongratsModalGate';
 
@@ -40,8 +41,13 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
             ]);
             setUnreadCount(countRes?.count || 0);
             setNotifications(listRes?.items || []);
-        } catch (error) {
-            console.error('Failed to fetch notifications:', error);
+        } catch (error: any) {
+            if (isAuthError(error)) {
+                setNotifications([]);
+                setUnreadCount(0);
+            } else {
+                console.error('Failed to fetch notifications:', error);
+            }
         }
     };
 
@@ -70,8 +76,13 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
         try {
             await notificationApi.markAllRead();
             window.dispatchEvent(new Event('notifications-updated'));
-        } catch (error) {
-            console.error('Failed to mark all read:', error);
+        } catch (error: any) {
+            if (isAuthError(error)) {
+                setNotifications([]);
+                setUnreadCount(0);
+            } else {
+                console.error('Failed to mark all read:', error);
+            }
         }
     };
 
@@ -79,8 +90,13 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
         try {
             await notificationApi.markRead(id);
             window.dispatchEvent(new Event('notifications-updated'));
-        } catch (error) {
-            console.error('Failed to mark read:', error);
+        } catch (error: any) {
+            if (isAuthError(error)) {
+                setNotifications([]);
+                setUnreadCount(0);
+            } else {
+                console.error('Failed to mark read:', error);
+            }
         }
     };
 

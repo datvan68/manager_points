@@ -510,49 +510,49 @@ function SystemAdminDashboard() {
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
-      case "critical": return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-200">Critical</span>;
-      case "high": return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-800 border border-orange-200">High</span>;
-      case "medium": return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">Medium</span>;
-      default: return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200">Low</span>;
+      case "critical": return <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-bold bg-rose-500/10 text-rose-700 border border-rose-500/20">Critical</span>;
+      case "high": return <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20">High</span>;
+      case "medium": return <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-bold bg-blue-500/10 text-[#1A73E8] border border-blue-500/20">Medium</span>;
+      default: return <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-bold bg-slate-500/10 text-[#64748B] border border-slate-500/20">Low</span>;
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "completed": return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-800 border border-green-200">Completed</span>;
-      case "approved": return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Approved</span>;
-      case "in_progress": return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">In Progress</span>;
-      case "rejected": return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">Rejected</span>;
-      case "cancelled": return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200">Cancelled</span>;
-      default: return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">Pending</span>;
+      case "completed": return <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-bold bg-purple-500/10 text-purple-700 border border-purple-500/20">Completed</span>;
+      case "approved": return <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-bold bg-purple-500/10 text-purple-700 border border-purple-500/20">Approved</span>;
+      case "in_progress": return <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-bold bg-blue-500/10 text-[#1A73E8] border border-blue-500/20">In Progress</span>;
+      case "rejected": return <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-bold bg-rose-500/10 text-rose-700 border border-rose-500/20">Rejected</span>;
+      case "cancelled": return <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-bold bg-slate-500/10 text-[#64748B] border border-slate-500/20">Cancelled</span>;
+      default: return <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20">Pending</span>;
     }
   };
 
   return (
-    <div className="flex bg-slate-50 h-screen overflow-hidden font-sans">
+    <div className="flex min-h-screen h-screen overflow-hidden font-sans" style={{ background: "linear-gradient(135deg, #EBF2FA 0%, #DCE6F1 100%)" }}>
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header />
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto space-y-6 bg-slate-50/50 animate-in fade-in duration-300">
+        <main className="flex-1 p-5 md:p-6 overflow-y-auto space-y-4 bg-transparent animate-in fade-in duration-300">
           {/* Header Panel */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-blue-500/10 text-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-            <Shield size={24} />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-800">Quản trị Hệ thống</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Theo dõi lịch sử đăng nhập, phê duyệt các yêu cầu vận hành và sao lưu dữ liệu hệ thống.</p>
-          </div>
-        </div>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-5 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl transition-all duration-150 ease-out hover:scale-[1.01]">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 rounded-xl flex items-center justify-center shadow-sm">
+                <Shield size={24} />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-[#1E293B]">Quản trị Hệ thống</h1>
+                <p className="text-xs text-[#64748B] mt-0.5">Theo dõi lịch sử đăng nhập, phê duyệt các yêu cầu vận hành và sao lưu dữ liệu hệ thống.</p>
+              </div>
+            </div>
         
         {/* Tab Selector */}
-        <div className="flex bg-slate-100/80 p-1 rounded-xl self-start md:self-center">
+        <div className="flex bg-slate-100/50 backdrop-blur-sm p-1 rounded-xl self-start md:self-center border border-white/40">
           {canReadLogs && (
             <button
               onClick={() => setActiveTab("logs")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === "logs" ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 ease-out hover:scale-[1.01] ${
+                activeTab === "logs" ? "bg-white/80 backdrop-blur-sm text-[#1E293B] shadow-sm border border-white/60" : "text-[#64748B] hover:text-[#1E293B]"
               }`}
             >
               <History size={14} />
@@ -562,8 +562,8 @@ function SystemAdminDashboard() {
           {canReadRequests && (
             <button
               onClick={() => setActiveTab("requests")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === "requests" ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 ease-out hover:scale-[1.01] ${
+                activeTab === "requests" ? "bg-white/80 backdrop-blur-sm text-[#1E293B] shadow-sm border border-white/60" : "text-[#64748B] hover:text-[#1E293B]"
               }`}
             >
               <FileText size={14} />
@@ -573,8 +573,8 @@ function SystemAdminDashboard() {
           {canReadBackups && (
             <button
               onClick={() => setActiveTab("backup")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === "backup" ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 ease-out hover:scale-[1.01] ${
+                activeTab === "backup" ? "bg-white/80 backdrop-blur-sm text-[#1E293B] shadow-sm border border-white/60" : "text-[#64748B] hover:text-[#1E293B]"
               }`}
             >
               <Server size={14} />
@@ -584,8 +584,8 @@ function SystemAdminDashboard() {
           {canReadPerformance && (
             <button
               onClick={() => setActiveTab("performance")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === "performance" ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 ease-out hover:scale-[1.01] ${
+                activeTab === "performance" ? "bg-white/80 backdrop-blur-sm text-[#1E293B] shadow-sm border border-white/60" : "text-[#64748B] hover:text-[#1E293B]"
               }`}
             >
               <Activity size={14} />
@@ -609,23 +609,23 @@ function SystemAdminDashboard() {
             <>
               {/* KPI Dashboard */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Đăng nhập hôm nay</span>
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                  <span className="text-xs font-semibold text-[#64748B]">Đăng nhập hôm nay</span>
                   <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-2xl font-bold text-slate-800">
+                    <span className="text-2xl font-bold text-[#1E293B]">
                       {logsSummary?.today.total ?? 0}
                     </span>
-                    <span className="text-[10px] text-slate-400">lượt</span>
+                    <span className="text-[10px] text-[#64748B]">lượt</span>
                   </div>
                 </div>
                 
-                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Đăng nhập thành công</span>
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                  <span className="text-xs font-semibold text-[#64748B]">Đăng nhập thành công</span>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-2xl font-bold text-emerald-600">
                       {logsSummary?.today.login_success ?? 0}
                     </span>
-                    <span className="text-[10px] text-emerald-500 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded-xl font-bold">
                       {logsSummary?.today.total 
                         ? Math.round((logsSummary.today.login_success / logsSummary.today.total) * 100)
                         : 0}%
@@ -633,13 +633,13 @@ function SystemAdminDashboard() {
                   </div>
                 </div>
 
-                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Đăng nhập thất bại</span>
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                  <span className="text-xs font-semibold text-[#64748B]">Đăng nhập thất bại</span>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-2xl font-bold text-rose-600">
                       {logsSummary?.today.login_failure ?? 0}
                     </span>
-                    <span className="text-[10px] text-rose-500 font-bold bg-rose-50 px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold">
                       {logsSummary?.today.total 
                         ? Math.round((logsSummary.today.login_failure / logsSummary.today.total) * 100)
                         : 0}%
@@ -647,28 +647,28 @@ function SystemAdminDashboard() {
                   </div>
                 </div>
 
-                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Đổi/Reset mật khẩu</span>
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                  <span className="text-xs font-semibold text-[#64748B]">Đổi/Reset mật khẩu</span>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-2xl font-bold text-indigo-600">
                       {(logsSummary?.today.password_change ?? 0) + (logsSummary?.today.password_reset ?? 0)}
                     </span>
-                    <span className="text-[10px] text-slate-400">yêu cầu</span>
+                    <span className="text-[10px] text-[#64748B]">yêu cầu</span>
                   </div>
                 </div>
               </div>
 
               {/* Table list */}
-              <div className="bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4">
+              <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold text-slate-800">Nhật ký hoạt động đăng nhập</h2>
+                    <h2 className="text-sm font-bold text-[#1E293B]">Nhật ký hoạt động đăng nhập</h2>
                     {/* Realtime Polling Indicator */}
-                    <div className="flex items-center gap-1.5 ml-2 bg-slate-100 px-2 py-0.5 rounded-full">
+                    <div className="flex items-center gap-1.5 ml-2 bg-slate-200/50 backdrop-blur-sm border border-white/40 px-2 py-0.5 rounded-xl">
                       <span className={`w-2 h-2 rounded-full ${
-                        sseStatus === "connected" ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+                        sseStatus === "connected" ? "bg-emerald-500 animate-pulse" : "bg-[#64748B]"
                       }`} />
-                      <span className="text-[10px] text-slate-500 font-bold capitalize">
+                      <span className="text-[10px] text-[#64748B] font-bold capitalize">
                         {sseStatus === "connected" ? "Realtime (Polling)" : "Tắt Realtime"}
                       </span>
                     </div>
@@ -682,9 +682,9 @@ function SystemAdminDashboard() {
                         placeholder="Tìm IP, User..."
                         value={logsSearchInput}
                         onChange={(e) => setLogsSearchInput(e.target.value)}
-                        className="pl-8 pr-3 py-1.5 w-48 text-xs bg-slate-100 hover:bg-slate-150 focus:bg-white border border-transparent focus:border-slate-200 rounded-xl focus:outline-none transition-all"
+                        className="pl-8 pr-3 py-1.5 w-48 text-xs bg-white/50 backdrop-blur-sm border border-white/80 focus:border-[#1A73E8] rounded-xl focus:outline-none transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 text-[#1E293B]"
                       />
-                      <Search size={14} className="absolute left-2.5 text-slate-400" />
+                      <Search size={14} className="absolute left-2.5 text-[#64748B]" />
                     </form>
 
                     <select
@@ -693,7 +693,7 @@ function SystemAdminDashboard() {
                         setLogsFilterAction(e.target.value);
                         setLogsPage(1);
                       }}
-                      className="px-3 py-1.5 text-xs bg-slate-100 border border-transparent rounded-xl focus:outline-none focus:border-slate-200"
+                      className="px-3 py-1.5 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
                     >
                       <option value="">Tất cả hoạt động</option>
                       <option value="login_success">Đăng nhập thành công</option>
@@ -705,10 +705,10 @@ function SystemAdminDashboard() {
 
                     <button
                       onClick={() => setRealtimeEnabled(!realtimeEnabled)}
-                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${
+                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-150 ease-out hover:scale-[1.01] ${
                         realtimeEnabled 
-                          ? "bg-blue-50 text-blue-600 border-blue-200" 
-                          : "bg-slate-50 text-slate-600 border-slate-200"
+                          ? "bg-blue-500/10 text-[#1A73E8] border-blue-500/20" 
+                          : "bg-white/50 text-[#64748B] border-white/80"
                       }`}
                     >
                       <RefreshCw size={12} className={sseStatus === "connected" ? "animate-spin" : ""} />
@@ -718,10 +718,10 @@ function SystemAdminDashboard() {
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                <div className="overflow-x-auto border border-white/50 rounded-xl bg-white/10 backdrop-blur-sm">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                      <tr className="bg-white/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-white/40">
                         <th className="px-4 py-3">Thời gian</th>
                         <th className="px-4 py-3">Tài khoản</th>
                         <th className="px-4 py-3">Địa chỉ IP</th>
@@ -729,49 +729,49 @@ function SystemAdminDashboard() {
                         <th className="px-4 py-3">Chi tiết</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                    <tbody className="divide-y divide-white/20 text-xs text-[#1E293B]">
                       {logsLoading && logs.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="text-center py-8 text-slate-400">
+                          <td colSpan={5} className="text-center py-8 text-[#64748B]">
                             Đang tải nhật ký...
                           </td>
                         </tr>
                       ) : logs.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="text-center py-8 text-slate-400">
+                          <td colSpan={5} className="text-center py-8 text-[#64748B]">
                             Không tìm thấy bản ghi hoạt động nào.
                           </td>
                         </tr>
                       ) : (
                         logs.map((log) => {
-                          let actionBadge = <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium text-[10px]">Unknown</span>;
-                          if (log.action === "login_success") actionBadge = <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded font-bold text-[10px]">Login Success</span>;
-                          else if (log.action === "login_failure") actionBadge = <span className="bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded font-bold text-[10px]">Login Failure</span>;
-                          else if (log.action === "logout") actionBadge = <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded font-bold text-[10px]">Logout</span>;
-                          else if (log.action === "password_reset" || log.action === "password_change" || log.action === "admin_reset_password") actionBadge = <span className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded font-bold text-[10px]">Security Change</span>;
+                          let actionBadge = <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Unknown</span>;
+                          if (log.action === "login_success") actionBadge = <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Login Success</span>;
+                          else if (log.action === "login_failure") actionBadge = <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Login Failure</span>;
+                          else if (log.action === "logout") actionBadge = <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Logout</span>;
+                          else if (log.action === "password_reset" || log.action === "password_change" || log.action === "admin_reset_password") actionBadge = <span className="bg-indigo-500/10 text-indigo-700 border border-indigo-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Security Change</span>;
 
                           return (
-                            <tr key={log._id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-4 py-3 whitespace-nowrap text-slate-500">
+                            <tr key={log._id} className="hover:bg-white/40 border-b border-white/20 transition-all duration-150 ease-out">
+                              <td className="px-4 py-3 whitespace-nowrap text-[#64748B]">
                                 {new Date(log.login_time || log.createdAt).toLocaleString()}
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex flex-col">
-                                  <span className="font-semibold text-slate-800">
+                                  <span className="font-semibold text-[#1E293B]">
                                     {log.user_id?.user_name ?? "Chưa xác thực"}
                                   </span>
-                                  <span className="text-[10px] text-slate-400">
+                                  <span className="text-[10px] text-[#64748B]">
                                     {log.user_id?.email ?? "N/A"}
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 font-mono text-slate-600">
+                              <td className="px-4 py-3 font-mono text-[#64748B]">
                                 {log.ip_address}
                               </td>
                               <td className="px-4 py-3">
                                 {actionBadge}
                               </td>
-                              <td className="px-4 py-3 text-slate-500 max-w-xs truncate" title={log.details}>
+                              <td className="px-4 py-3 text-[#64748B] max-w-xs truncate" title={log.details}>
                                 {log.details || "-"}
                               </td>
                             </tr>
@@ -784,22 +784,22 @@ function SystemAdminDashboard() {
 
                 {/* Pagination */}
                 {logsTotalPages > 1 && (
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                    <span className="text-xs text-slate-500">
+                  <div className="flex items-center justify-between pt-4 border-t border-white/20">
+                    <span className="text-xs text-[#64748B]">
                       Trang {logsPage} / {logsTotalPages}
                     </span>
                     <div className="flex gap-1">
                       <button
                         disabled={logsPage === 1}
                         onClick={() => setLogsPage(prev => prev - 1)}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-250 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-colors"
+                        className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-semibold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
                       >
                         Trước
                       </button>
                       <button
                         disabled={logsPage === logsTotalPages}
                         onClick={() => setLogsPage(prev => prev + 1)}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-250 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-colors"
+                        className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-semibold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
                       >
                         Sau
                       </button>
@@ -813,68 +813,68 @@ function SystemAdminDashboard() {
       )}
 
       {/* --------------------------------------------------------------------- */}
-      {/* TAB 4: PERFORMANCE */}
+      {/* TAB 4: PERFORMANCE (BLOCK 1) */}
       {/* --------------------------------------------------------------------- */}
       {activeTab === "performance" && (
         <div className="space-y-6">
           {!canReadPerformance ? (
-            <div className="bg-white/70 backdrop-blur-md border border-red-100 p-8 rounded-2xl shadow-sm text-center">
+            <div className="bg-white/40 backdrop-blur-md border border-red-500/20 p-8 rounded-2xl shadow-sm shadow-slate-300/40 text-center">
               <Lock className="mx-auto text-red-400 mb-2" size={32} />
-              <p className="text-sm font-bold text-slate-700">Bạn không có quyền xem thông tin hiệu năng</p>
+              <p className="text-sm font-bold text-[#1E293B]">Bạn không có quyền xem thông tin hiệu năng</p>
             </div>
           ) : (
             <>
               {/* KPI Dashboard */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Load p75</span>
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                  <span className="text-xs font-semibold text-[#64748B]">Load p75</span>
                   <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-2xl font-bold text-slate-800">
+                    <span className="text-2xl font-bold text-[#1E293B]">
                       {performanceSummary?.p75?.load_event_ms ? Math.round(performanceSummary.p75.load_event_ms) : 0}
                     </span>
-                    <span className="text-[10px] text-slate-400">ms</span>
+                    <span className="text-[10px] text-[#64748B]">ms</span>
                   </div>
                 </div>
                 
-                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                  <span className="text-xs font-semibold text-slate-500">LCP p75</span>
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                  <span className="text-xs font-semibold text-[#64748B]">LCP p75</span>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-2xl font-bold text-emerald-600">
                       {performanceSummary?.p75?.lcp_ms ? Math.round(performanceSummary.p75.lcp_ms) : 0}
                     </span>
-                    <span className="text-[10px] text-slate-400">ms</span>
+                    <span className="text-[10px] text-[#64748B]">ms</span>
                   </div>
                 </div>
 
-                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                  <span className="text-xs font-semibold text-slate-500">API p95</span>
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                  <span className="text-xs font-semibold text-[#64748B]">API p95</span>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-2xl font-bold text-indigo-600">
                       {performanceSummary?.p95?.api_total_ms ? Math.round(performanceSummary.p95.api_total_ms) : 0}
                     </span>
-                    <span className="text-[10px] text-slate-400">ms</span>
+                    <span className="text-[10px] text-[#64748B]">ms</span>
                   </div>
                 </div>
 
-                <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Tổng mẫu thu thập</span>
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                  <span className="text-xs font-semibold text-[#64748B]">Tổng mẫu thu thập</span>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-2xl font-bold text-blue-600">
                       {performanceSummary?.total_samples ?? 0}
                     </span>
-                    <span className="text-[10px] text-slate-400">mẫu</span>
+                    <span className="text-[10px] text-[#64748B]">mẫu</span>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Slow APIs */}
-                <div className="lg:col-span-2 bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4">
-                  <h2 className="text-sm font-bold text-slate-800">Các API chậm</h2>
-                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                <div className="lg:col-span-2 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+                  <h2 className="text-sm font-bold text-[#1E293B]">Các API chậm</h2>
+                  <div className="overflow-x-auto border border-white/50 rounded-xl bg-white/10 backdrop-blur-sm">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                        <tr className="bg-white/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-white/40">
                           <th className="px-4 py-3">Endpoint</th>
                           <th className="px-4 py-3">Trung bình</th>
                           <th className="px-4 py-3">p75</th>
@@ -882,25 +882,25 @@ function SystemAdminDashboard() {
                           <th className="px-4 py-3">Mẫu</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                      <tbody className="divide-y divide-white/20 text-xs text-[#1E293B]">
                         {performanceLoading ? (
                           <tr>
-                            <td colSpan={5} className="text-center py-8 text-slate-400">Đang tải dữ liệu...</td>
+                            <td colSpan={5} className="text-center py-8 text-[#64748B]">Đang tải dữ liệu...</td>
                           </tr>
                         ) : !performanceSummary?.slow_apis?.length ? (
                           <tr>
-                            <td colSpan={5} className="text-center py-8 text-slate-400">
+                            <td colSpan={5} className="text-center py-8 text-[#64748B]">
                               Chưa có dữ liệu API chậm.
                             </td>
                           </tr>
                         ) : (
                           performanceSummary.slow_apis.map((api, i) => (
-                            <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-4 py-3 font-semibold text-slate-800">{api.name}</td>
-                              <td className="px-4 py-3 text-slate-500">{Math.round(api.avg)}ms</td>
+                            <tr key={i} className="hover:bg-white/40 border-b border-white/20 transition-all duration-150 ease-out">
+                              <td className="px-4 py-3 font-semibold text-[#1E293B]">{api.name}</td>
+                              <td className="px-4 py-3 text-[#64748B]">{Math.round(api.avg)}ms</td>
                               <td className="px-4 py-3 text-amber-600">{Math.round(api.p75)}ms</td>
-                              <td className="px-4 py-3 text-red-600">{Math.round(api.p95)}ms</td>
-                              <td className="px-4 py-3 text-slate-500">{api.samples}</td>
+                              <td className="px-4 py-3 text-rose-600">{Math.round(api.p95)}ms</td>
+                              <td className="px-4 py-3 text-[#64748B]">{api.samples}</td>
                             </tr>
                           ))
                         )}
@@ -910,13 +910,13 @@ function SystemAdminDashboard() {
                 </div>
 
                 {/* Recommendations */}
-                <div className="lg:col-span-1 bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4 h-fit">
+                <div className="lg:col-span-1 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 h-fit transition-all duration-150 ease-out hover:scale-[1.01]">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-sm font-bold text-slate-800">Đề xuất tối ưu</h2>
+                    <h2 className="text-sm font-bold text-[#1E293B]">Đề xuất tối ưu</h2>
                     <button 
                       onClick={fetchPerformance} 
                       disabled={performanceLoading}
-                      className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors"
+                      className="p-1.5 bg-white/50 border border-white/80 text-[#64748B] rounded-xl hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.05]"
                       title="Làm mới dữ liệu"
                     >
                       <RefreshCw size={12} className={performanceLoading ? "animate-spin" : ""} />
@@ -924,17 +924,17 @@ function SystemAdminDashboard() {
                   </div>
                   <div className="space-y-3">
                     {performanceLoading ? (
-                      <p className="text-xs text-slate-400 text-center py-8">Đang tải đề xuất...</p>
+                      <p className="text-xs text-[#64748B] text-center py-8">Đang tải đề xuất...</p>
                     ) : !performanceSummary?.recommendations?.length ? (
-                      <p className="text-xs text-slate-400 text-center py-8 border border-dashed rounded-xl border-slate-200">
+                      <p className="text-xs text-[#64748B] text-center py-8 border border-dashed rounded-xl border-white/40 bg-white/10">
                         Hệ thống hoạt động tốt, chưa có đề xuất nào.
                       </p>
                     ) : (
                       performanceSummary.recommendations.map((rec, i) => (
                         <div key={i} className={`p-3 text-xs rounded-xl border ${
-                          rec.severity === 'critical' ? 'bg-red-50 border-red-100 text-red-800' :
-                          rec.severity === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-800' :
-                          'bg-blue-50 border-blue-100 text-blue-800'
+                          rec.severity === 'critical' ? 'bg-rose-500/10 border-rose-500/20 text-rose-700' :
+                          rec.severity === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-700' :
+                          'bg-blue-500/10 border-blue-500/20 text-blue-700'
                         }`}>
                           <p className="font-bold mb-1 flex items-center gap-1.5">
                             {rec.severity === 'critical' && <AlertCircle size={14} />}
@@ -960,14 +960,14 @@ function SystemAdminDashboard() {
       {activeTab === "requests" && (
         <div className="space-y-6">
           {!canReadRequests ? (
-            <div className="bg-white/70 backdrop-blur-md border border-red-100 p-8 rounded-2xl shadow-sm text-center">
+            <div className="bg-white/40 backdrop-blur-md border border-red-500/20 p-8 rounded-2xl shadow-sm shadow-slate-300/40 text-center">
               <Lock className="mx-auto text-red-400 mb-2" size={32} />
-              <p className="text-sm font-bold text-slate-700">Bạn không có quyền xem yêu cầu hệ thống</p>
+              <p className="text-sm font-bold text-[#1E293B]">Bạn không có quyền xem yêu cầu hệ thống</p>
             </div>
           ) : (
-            <div className="bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4">
+            <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <h2 className="text-sm font-bold text-slate-800">Danh sách yêu cầu vận hành hệ thống</h2>
+                <h2 className="text-sm font-bold text-[#1E293B]">Danh sách yêu cầu vận hành hệ thống</h2>
 
                 <div className="flex items-center gap-2 flex-wrap">
                   <form onSubmit={handleRequestsSearchSubmit} className="relative flex items-center">
@@ -976,9 +976,9 @@ function SystemAdminDashboard() {
                       placeholder="Tìm kiếm yêu cầu..."
                       value={requestsSearchInput}
                       onChange={(e) => setRequestsSearchInput(e.target.value)}
-                      className="pl-8 pr-3 py-1.5 w-48 text-xs bg-slate-100 hover:bg-slate-150 focus:bg-white border border-transparent focus:border-slate-200 rounded-xl focus:outline-none transition-all"
+                      className="pl-8 pr-3 py-1.5 w-48 text-xs bg-white/50 backdrop-blur-sm border border-white/80 focus:border-[#1A73E8] rounded-xl focus:outline-none transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 text-[#1E293B]"
                     />
-                    <Search size={14} className="absolute left-2.5 text-slate-400" />
+                    <Search size={14} className="absolute left-2.5 text-[#64748B]" />
                   </form>
 
                   <select
@@ -987,7 +987,7 @@ function SystemAdminDashboard() {
                       setRequestsFilterStatus(e.target.value);
                       setRequestsPage(1);
                     }}
-                    className="px-3 py-1.5 text-xs bg-slate-100 border border-transparent rounded-xl focus:outline-none focus:border-slate-200"
+                    className="px-3 py-1.5 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
                   >
                     <option value="">Mọi trạng thái</option>
                     <option value="pending">Pending</option>
@@ -1004,7 +1004,7 @@ function SystemAdminDashboard() {
                       setRequestsFilterType(e.target.value);
                       setRequestsPage(1);
                     }}
-                    className="px-3 py-1.5 text-xs bg-slate-100 border border-transparent rounded-xl focus:outline-none focus:border-slate-200"
+                    className="px-3 py-1.5 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
                   >
                     <option value="">Mọi thể loại</option>
                     <option value="access">Access</option>
@@ -1017,7 +1017,7 @@ function SystemAdminDashboard() {
                   {canManageRequests && (
                     <button
                       onClick={() => setIsCreateModalOpen(true)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all"
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white rounded-xl shadow-sm transition-all duration-150 ease-out hover:scale-[1.01]"
                     >
                       <Plus size={14} />
                       Tạo yêu cầu
@@ -1027,10 +1027,10 @@ function SystemAdminDashboard() {
               </div>
 
               {/* Requests Table */}
-              <div className="overflow-x-auto border border-slate-100 rounded-xl">
+              <div className="overflow-x-auto border border-white/50 rounded-xl bg-white/10 backdrop-blur-sm">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                    <tr className="bg-white/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-white/40">
                       <th className="px-4 py-3">Yêu cầu</th>
                       <th className="px-4 py-3">Loại</th>
                       <th className="px-4 py-3">Độ ưu tiên</th>
@@ -1040,16 +1040,16 @@ function SystemAdminDashboard() {
                       <th className="px-4 py-3">Ngày tạo</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                  <tbody className="divide-y divide-white/20 text-xs text-[#1E293B]">
                     {requestsLoading ? (
                       <tr>
-                        <td colSpan={7} className="text-center py-8 text-slate-400">
+                        <td colSpan={7} className="text-center py-8 text-[#64748B]">
                           Đang tải danh sách yêu cầu...
                         </td>
                       </tr>
                     ) : requests.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="text-center py-8 text-slate-400">
+                        <td colSpan={7} className="text-center py-8 text-[#64748B]">
                           Không có yêu cầu hệ thống nào được ghi nhận.
                         </td>
                       </tr>
@@ -1062,19 +1062,19 @@ function SystemAdminDashboard() {
                             setUpdateStatusVal(req.status);
                             setIsDetailDrawerOpen(true);
                           }}
-                          className="hover:bg-slate-50/50 cursor-pointer transition-colors"
+                          className="hover:bg-white/40 border-b border-white/20 cursor-pointer transition-all duration-150 ease-out"
                         >
                           <td className="px-4 py-3">
                             <div className="flex flex-col">
-                              <span className="font-semibold text-slate-800 hover:text-blue-600">
+                              <span className="font-semibold text-[#1E293B] hover:text-[#1A73E8] transition-colors">
                                 {req.title}
                               </span>
-                              <span className="text-[10px] text-slate-400 truncate max-w-xs">
+                              <span className="text-[10px] text-[#64748B] truncate max-w-xs">
                                 {req.description || "Không có mô tả"}
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-3 capitalize font-semibold text-slate-600">
+                          <td className="px-4 py-3 capitalize font-semibold text-[#64748B]">
                             {req.type}
                           </td>
                           <td className="px-4 py-3">
@@ -1083,13 +1083,13 @@ function SystemAdminDashboard() {
                           <td className="px-4 py-3">
                             {getStatusBadge(req.status)}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-[#64748B]">
                             {req.requester_id?.user_name ?? "System"}
                           </td>
-                          <td className="px-4 py-3 text-slate-500">
+                          <td className="px-4 py-3 text-[#64748B]">
                             {req.assignee_id?.user_name ?? "Chưa phân công"}
                           </td>
-                          <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                          <td className="px-4 py-3 text-[#64748B] whitespace-nowrap">
                             {new Date(req.createdAt).toLocaleDateString()}
                           </td>
                         </tr>
@@ -1101,22 +1101,22 @@ function SystemAdminDashboard() {
 
               {/* Pagination */}
               {requestsTotalPages > 1 && (
-                <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                  <span className="text-xs text-slate-500">
+                <div className="flex items-center justify-between pt-4 border-t border-white/20">
+                  <span className="text-xs text-[#64748B]">
                     Trang {requestsPage} / {requestsTotalPages}
                   </span>
                   <div className="flex gap-1">
                     <button
                       disabled={requestsPage === 1}
                       onClick={() => setRequestsPage(prev => prev - 1)}
-                      className="px-3 py-1 bg-slate-100 hover:bg-slate-250 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-colors"
+                      className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-semibold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
                     >
                       Trước
                     </button>
                     <button
                       disabled={requestsPage === requestsTotalPages}
                       onClick={() => setRequestsPage(prev => prev + 1)}
-                      className="px-3 py-1 bg-slate-100 hover:bg-slate-250 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-colors"
+                      className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-semibold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
                     >
                       Sau
                     </button>
@@ -1132,26 +1132,26 @@ function SystemAdminDashboard() {
       {/* TAB 3: SAO LƯU DATABASE */}
       {/* --------------------------------------------------------------------- */}
       {activeTab === "backup" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {!canReadBackups ? (
-            <div className="lg:col-span-3 bg-white/70 backdrop-blur-md border border-red-100 p-8 rounded-2xl shadow-sm text-center">
+            <div className="lg:col-span-3 bg-white/40 backdrop-blur-md border border-red-500/20 p-8 rounded-2xl shadow-sm shadow-slate-300/40 text-center">
               <Lock className="mx-auto text-red-400 mb-2" size={32} />
-              <p className="text-sm font-bold text-slate-700">Bạn không có quyền xem thông tin sao lưu database</p>
+              <p className="text-sm font-bold text-[#1E293B]">Bạn không có quyền xem thông tin sao lưu database</p>
             </div>
           ) : (
             <>
               {/* Action Trigger Card */}
               <div className="lg:col-span-1 space-y-6">
-                <div className="bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 flex flex-col justify-between h-fit space-y-4">
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 flex flex-col justify-between h-fit space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
                   <div className="space-y-2">
-                    <h3 className="text-sm font-bold text-slate-800">Thao tác Sao lưu</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">
+                    <h3 className="text-sm font-bold text-[#1E293B]">Thao tác Sao lưu</h3>
+                    <p className="text-xs text-[#64748B] leading-relaxed">
                       Quản trị viên có thể kích hoạt tiến trình sao lưu toàn bộ dữ liệu MongoDB tại thời điểm hiện tại. Bản sao lưu được lưu trữ an toàn trên server dưới dạng nén (.gz).
                     </p>
                   </div>
 
                   {/* Warning Alert */}
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 text-amber-800">
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex gap-3 text-amber-800">
                     <AlertTriangle size={18} className="shrink-0 text-amber-600 mt-0.5" />
                     <div className="text-[11px] leading-relaxed">
                       <p className="font-bold">CẢNH BÁO BẢO MẬT</p>
@@ -1162,10 +1162,10 @@ function SystemAdminDashboard() {
                   <button
                     disabled={isBackupRunning || !canCreateBackup}
                     onClick={() => setIsConfirmBackupOpen(true)}
-                    className={`w-full py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all ${
+                    className={`w-full py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all duration-150 ease-out hover:scale-[1.01] ${
                       isBackupRunning || !canCreateBackup
-                        ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
-                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                        ? "bg-white/20 text-[#64748B] cursor-not-allowed border border-white/40"
+                        : "bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white"
                     }`}
                   >
                     {isBackupRunning ? (
@@ -1184,14 +1184,14 @@ function SystemAdminDashboard() {
               </div>
 
               {/* Backup Jobs List */}
-              <div className="lg:col-span-2 bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4">
-                <h2 className="text-sm font-bold text-slate-800">Lịch sử và danh sách các bản sao lưu</h2>
+              <div className="lg:col-span-2 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+                <h2 className="text-sm font-bold text-[#1E293B]">Lịch sử và danh sách các bản sao lưu</h2>
 
                 {/* Backups Table */}
-                <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                <div className="overflow-x-auto border border-white/50 rounded-xl bg-white/10 backdrop-blur-sm">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                      <tr className="bg-white/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-white/40">
                         <th className="px-4 py-3">Bản sao lưu</th>
                         <th className="px-4 py-3">Dung lượng</th>
                         <th className="px-4 py-3">Yêu cầu bởi</th>
@@ -1199,42 +1199,42 @@ function SystemAdminDashboard() {
                         <th className="px-4 py-3 text-right">Tải về / Xóa</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                    <tbody className="divide-y divide-white/20 text-xs text-[#1E293B]">
                       {backupsLoading && backups.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="text-center py-8 text-slate-400">
+                          <td colSpan={5} className="text-center py-8 text-[#64748B]">
                             Đang tải danh sách bản sao lưu...
                           </td>
                         </tr>
                       ) : backups.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="text-center py-8 text-slate-400">
+                          <td colSpan={5} className="text-center py-8 text-[#64748B]">
                             Chưa có bản sao lưu nào được thực hiện.
                           </td>
                         </tr>
                       ) : (
                         backups.map((job) => {
-                          let statusBadge = <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold text-[10px]">Queued</span>;
-                          if (job.status === "running") statusBadge = <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-bold text-[10px] animate-pulse flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
-                          else if (job.status === "success") statusBadge = <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded font-bold text-[10px]">Success</span>;
-                          else if (job.status === "failed") statusBadge = <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded font-bold text-[10px]">Failed</span>;
+                          let statusBadge = <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Queued</span>;
+                          if (job.status === "running") statusBadge = <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px] animate-pulse flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
+                          else if (job.status === "success") statusBadge = <span className="bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Success</span>;
+                          else if (job.status === "failed") statusBadge = <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Failed</span>;
 
                           return (
-                            <tr key={job._id} className="hover:bg-slate-50/50 transition-colors">
+                            <tr key={job._id} className="hover:bg-white/40 border-b border-white/20 transition-all duration-150 ease-out">
                               <td className="px-4 py-3">
                                 <div className="flex flex-col">
-                                  <span className="font-semibold text-slate-800">
+                                  <span className="font-semibold text-[#1E293B]">
                                     {job.file_name ?? "Chờ khởi tạo..."}
                                   </span>
-                                  <span className="text-[10px] text-slate-400">
+                                  <span className="text-[10px] text-[#64748B]">
                                     {new Date(job.createdAt).toLocaleString()}
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 font-medium text-slate-600">
+                              <td className="px-4 py-3 font-medium text-[#64748B]">
                                 {job.file_size ? formatBytes(job.file_size) : "-"}
                               </td>
-                              <td className="px-4 py-3">
+                              <td className="px-4 py-3 text-[#64748B]">
                                 {job.requested_by?.user_name ?? "System"}
                               </td>
                               <td className="px-4 py-3">
@@ -1246,7 +1246,7 @@ function SystemAdminDashboard() {
                                     <button
                                       disabled={job.status !== "success"}
                                       onClick={() => handleDownloadBackup(job)}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 disabled:opacity-40 disabled:hover:bg-transparent rounded-lg transition-colors"
+                                      className="p-1.5 text-[#1A73E8] hover:bg-white/50 disabled:opacity-40 disabled:hover:bg-transparent rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
                                       title="Tải xuống"
                                     >
                                       <Download size={14} />
@@ -1255,7 +1255,7 @@ function SystemAdminDashboard() {
                                   {canDeleteBackup && (
                                     <button
                                       onClick={() => requestDeleteBackup(job._id)}
-                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                      className="p-1.5 text-rose-600 hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
                                       title="Xóa"
                                     >
                                       <Trash2 size={14} />
@@ -1273,15 +1273,15 @@ function SystemAdminDashboard() {
 
                 {/* Pagination */}
                 {backupsTotalPages > 1 && (
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                    <span className="text-xs text-slate-500">
+                  <div className="flex items-center justify-between pt-4 border-t border-white/20">
+                    <span className="text-xs text-[#64748B]">
                       Trang {backupsPage} / {backupsTotalPages}
                     </span>
                     <div className="flex gap-1">
                       <button
                         disabled={backupsPage === 1}
                         onClick={() => setBackupsPage(prev => prev - 1)}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-250 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-colors"
+                        className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-semibold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
                       >
                         Trước
                       </button>
@@ -1302,24 +1302,24 @@ function SystemAdminDashboard() {
       )}
 
       {/* --------------------------------------------------------------------- */}
-      {/* TAB 4: PERFORMANCE */}
+      {/* TAB 4: PERFORMANCE (BLOCK 2) */}
       {/* --------------------------------------------------------------------- */}
       {activeTab === "performance" && (
         <div className="space-y-6">
           {!canReadPerformance ? (
-            <div className="bg-white/70 backdrop-blur-md border border-red-100 p-8 rounded-2xl shadow-sm text-center">
+            <div className="bg-white/40 backdrop-blur-md border border-red-500/20 p-8 rounded-2xl shadow-sm shadow-slate-300/40 text-center">
               <Lock className="mx-auto text-red-400 mb-2" size={32} />
-              <p className="text-sm font-bold text-slate-700">Bạn không có quyền xem thông tin hiệu năng</p>
+              <p className="text-sm font-bold text-[#1E293B]">Bạn không có quyền xem thông tin hiệu năng</p>
             </div>
           ) : (
             <>
               {/* Header and Refresh */}
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-slate-800">Hiệu năng truy cập hệ thống (/system)</h2>
+                <h2 className="text-sm font-bold text-[#1E293B]">Hiệu năng truy cập hệ thống (/system)</h2>
                 <button
                   onClick={fetchPerformance}
                   disabled={performanceLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 border border-white/80 text-[#64748B] rounded-xl text-xs font-semibold hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.01] disabled:opacity-50"
                 >
                   <RefreshCw size={14} className={performanceLoading ? "animate-spin" : ""} />
                   Làm mới
@@ -1327,67 +1327,67 @@ function SystemAdminDashboard() {
               </div>
 
               {performanceLoading && !performanceSummary ? (
-                <div className="text-center py-12 text-slate-500 text-sm">Đang tải dữ liệu hiệu năng...</div>
+                <div className="text-center py-12 text-[#64748B] text-sm">Đang tải dữ liệu hiệu năng...</div>
               ) : !performanceSummary || performanceSummary.total_samples === 0 ? (
-                <div className="bg-white/70 backdrop-blur-md border border-slate-100 p-12 rounded-2xl shadow-sm text-center">
-                  <Activity className="mx-auto text-slate-300 mb-3" size={40} />
-                  <p className="text-sm font-bold text-slate-600">Chưa có dữ liệu hiệu năng</p>
-                  <p className="text-xs text-slate-500 mt-1">Hệ thống sẽ ghi nhận khi có lượt truy cập và tải trang thành công.</p>
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-12 rounded-2xl shadow-sm shadow-slate-300/40 text-center">
+                  <Activity className="mx-auto text-[#64748B] mb-3" size={40} />
+                  <p className="text-sm font-bold text-[#1E293B]">Chưa có dữ liệu hiệu năng</p>
+                  <p className="text-xs text-[#64748B] mt-1">Hệ thống sẽ ghi nhận khi có lượt truy cập và tải trang thành công.</p>
                 </div>
               ) : (
                 <>
                   {/* KPI Dashboard */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                      <span className="text-xs font-semibold text-slate-500">Tải trang (Load p75)</span>
+                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                      <span className="text-xs font-semibold text-[#64748B]">Tải trang (Load p75)</span>
                       <div className="flex items-baseline gap-2 mt-2">
                         <span className={`text-2xl font-bold ${performanceSummary.p75?.load_event_ms > 3000 ? "text-amber-600" : "text-emerald-600"}`}>
                           {performanceSummary.p75?.load_event_ms ? Math.round(performanceSummary.p75.load_event_ms) : 0}
                         </span>
-                        <span className="text-[10px] text-slate-400">ms</span>
+                        <span className="text-[10px] text-[#64748B]">ms</span>
                       </div>
                     </div>
                     
-                    <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                      <span className="text-xs font-semibold text-slate-500">Render (LCP p75)</span>
+                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                      <span className="text-xs font-semibold text-[#64748B]">Render (LCP p75)</span>
                       <div className="flex items-baseline gap-2 mt-2">
                         <span className={`text-2xl font-bold ${performanceSummary.p75?.lcp_ms > 2500 ? "text-amber-600" : "text-emerald-600"}`}>
                           {performanceSummary.p75?.lcp_ms ? Math.round(performanceSummary.p75.lcp_ms) : 0}
                         </span>
-                        <span className="text-[10px] text-slate-400">ms</span>
+                        <span className="text-[10px] text-[#64748B]">ms</span>
                       </div>
                     </div>
 
-                    <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                      <span className="text-xs font-semibold text-slate-500">API Total (p95)</span>
+                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                      <span className="text-xs font-semibold text-[#64748B]">API Total (p95)</span>
                       <div className="flex items-baseline gap-2 mt-2">
                         <span className={`text-2xl font-bold ${performanceSummary.p95?.api_total_ms > 2000 ? "text-rose-600" : "text-indigo-600"}`}>
                           {performanceSummary.p95?.api_total_ms ? Math.round(performanceSummary.p95.api_total_ms) : 0}
                         </span>
-                        <span className="text-[10px] text-slate-400">ms</span>
+                        <span className="text-[10px] text-[#64748B]">ms</span>
                       </div>
                     </div>
 
-                    <div className="bg-white/70 backdrop-blur-md border border-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                      <span className="text-xs font-semibold text-slate-500">Tổng mẫu thu thập</span>
+                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                      <span className="text-xs font-semibold text-[#64748B]">Tổng mẫu thu thập</span>
                       <div className="flex items-baseline gap-2 mt-2">
-                        <span className="text-2xl font-bold text-slate-800">
+                        <span className="text-2xl font-bold text-[#1E293B]">
                           {performanceSummary.total_samples}
                         </span>
-                        <span className="text-[10px] text-slate-400">mẫu</span>
+                        <span className="text-[10px] text-[#64748B]">mẫu</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Layout cho Recommendations và Slow APIs */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* Slow APIs Table */}
-                    <div className="lg:col-span-2 bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4">
-                      <h2 className="text-sm font-bold text-slate-800">Các API chậm nhất (Theo p95)</h2>
-                      <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                    <div className="lg:col-span-2 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+                      <h2 className="text-sm font-bold text-[#1E293B]">Các API chậm nhất (Theo p95)</h2>
+                      <div className="overflow-x-auto border border-white/50 rounded-xl bg-white/10 backdrop-blur-sm">
                         <table className="w-full text-left border-collapse">
                           <thead>
-                            <tr className="bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                            <tr className="bg-white/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-white/40">
                               <th className="px-4 py-3">API Endpoint</th>
                               <th className="px-4 py-3 text-right">Avg (ms)</th>
                               <th className="px-4 py-3 text-right">p75 (ms)</th>
@@ -1395,19 +1395,19 @@ function SystemAdminDashboard() {
                               <th className="px-4 py-3 text-right">Mẫu</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                          <tbody className="divide-y divide-white/20 text-xs text-[#1E293B]">
                             {performanceSummary.slow_apis.length === 0 ? (
                               <tr>
-                                <td colSpan={5} className="text-center py-6 text-slate-400">Không có dữ liệu API</td>
+                                <td colSpan={5} className="text-center py-6 text-[#64748B]">Không có dữ liệu API</td>
                               </tr>
                             ) : (
                               performanceSummary.slow_apis.map((api, idx) => (
-                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                  <td className="px-4 py-3 font-mono text-slate-600">{api.name}</td>
+                                <tr key={idx} className="hover:bg-white/40 border-b border-white/20 transition-all duration-150 ease-out">
+                                  <td className="px-4 py-3 font-mono text-[#64748B]">{api.name}</td>
                                   <td className="px-4 py-3 text-right font-medium">{Math.round(api.avg)}</td>
                                   <td className="px-4 py-3 text-right font-medium text-amber-600">{Math.round(api.p75)}</td>
                                   <td className="px-4 py-3 text-right font-bold text-rose-600">{Math.round(api.p95)}</td>
-                                  <td className="px-4 py-3 text-right text-slate-500">{api.samples}</td>
+                                  <td className="px-4 py-3 text-right text-[#64748B]">{api.samples}</td>
                                 </tr>
                               ))
                             )}
@@ -1417,13 +1417,13 @@ function SystemAdminDashboard() {
                     </div>
 
                     {/* Recommendations Panel */}
-                    <div className="lg:col-span-1 bg-white/70 backdrop-blur-md border border-white/80 shadow-sm rounded-2xl p-6 space-y-4">
-                      <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <div className="lg:col-span-1 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+                      <h2 className="text-sm font-bold text-[#1E293B] flex items-center gap-2">
                         <AlertTriangle size={16} className="text-amber-500" />
                         Đề xuất tối ưu
                       </h2>
                       {performanceSummary.recommendations.length === 0 ? (
-                        <div className="text-center py-8 text-slate-500 text-xs">
+                        <div className="text-center py-8 text-[#64748B] text-xs">
                           <CheckCircle className="mx-auto text-emerald-400 mb-2" size={24} />
                           Hệ thống đang hoạt động ổn định.
                         </div>
@@ -1431,9 +1431,9 @@ function SystemAdminDashboard() {
                         <div className="space-y-3">
                           {performanceSummary.recommendations.map((rec, idx) => (
                             <div key={idx} className={`p-3 rounded-xl border text-xs leading-relaxed ${
-                              rec.severity === 'critical' ? 'bg-red-50 border-red-200 text-red-800' :
-                              rec.severity === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
-                              'bg-blue-50 border-blue-200 text-blue-800'
+                              rec.severity === 'critical' ? 'bg-rose-500/10 border-rose-500/20 text-rose-700' :
+                              rec.severity === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-700' :
+                              'bg-blue-500/10 border-blue-500/20 text-blue-700'
                             }`}>
                               <span className="font-bold block mb-1">{rec.code}</span>
                               {rec.message}
@@ -1458,20 +1458,20 @@ function SystemAdminDashboard() {
           {/* Overlay */}
           <div 
             onClick={() => setIsDetailDrawerOpen(false)} 
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-all duration-300"
           />
           
           {/* Content */}
-          <div className="relative w-full max-w-lg bg-white h-screen shadow-2xl flex flex-col p-6 space-y-6 overflow-y-auto slide-in-from-right duration-300">
+          <div className="relative w-full max-w-lg bg-white/85 backdrop-blur-md h-screen border-l border-white/60 shadow-2xl flex flex-col p-5 space-y-4 overflow-y-auto slide-in-from-right duration-300 text-[#1E293B]">
             {/* Header */}
-            <div className="flex items-center justify-between border-b pb-4">
+            <div className="flex items-center justify-between border-b border-white/30 pb-4">
               <div>
-                <h3 className="text-base font-bold text-slate-800">{selectedRequest.title}</h3>
-                <span className="text-[10px] text-slate-400">ID: {selectedRequest._id}</span>
+                <h3 className="text-base font-bold text-[#1E293B]">{selectedRequest.title}</h3>
+                <span className="text-[10px] text-[#64748B]">ID: {selectedRequest._id}</span>
               </div>
               <button 
                 onClick={() => setIsDetailDrawerOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                className="p-1 text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
               >
                 <X size={18} />
               </button>
@@ -1480,40 +1480,40 @@ function SystemAdminDashboard() {
             {/* Fields list */}
             <div className="space-y-4 flex-1">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mô tả</label>
-                <p className="text-xs text-slate-700 mt-1 bg-slate-50 p-3 rounded-xl border border-slate-100 whitespace-pre-wrap">
+                <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Mô tả</label>
+                <p className="text-xs text-[#1E293B] mt-1 bg-white/50 backdrop-blur-sm p-3 rounded-xl border border-white/70 whitespace-pre-wrap">
                   {selectedRequest.description || "Không có mô tả"}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Trạng thái</label>
+                  <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Trạng thái</label>
                   <div className="mt-1">{getStatusBadge(selectedRequest.status)}</div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Độ ưu tiên</label>
+                  <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Độ ưu tiên</label>
                   <div className="mt-1">{getPriorityBadge(selectedRequest.priority)}</div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Người yêu cầu</label>
-                  <p className="text-xs font-semibold text-slate-700 mt-1">{selectedRequest.requester_id?.user_name ?? "N/A"}</p>
+                  <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Người yêu cầu</label>
+                  <p className="text-xs font-semibold text-[#1E293B] mt-1">{selectedRequest.requester_id?.user_name ?? "N/A"}</p>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ngày tạo</label>
-                  <p className="text-xs text-slate-500 mt-1">{new Date(selectedRequest.createdAt).toLocaleString()}</p>
+                  <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Ngày tạo</label>
+                  <p className="text-xs text-[#64748B] mt-1">{new Date(selectedRequest.createdAt).toLocaleString()}</p>
                 </div>
               </div>
 
               {canManageRequests && (
                 <>
                   {/* Assignee Assignment */}
-                  <div className="border-t pt-4">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Người xử lý</label>
+                  <div className="border-t border-white/30 pt-4">
+                    <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Người xử lý</label>
                     <select
                       value={selectedRequest.assignee_id?._id ?? ""}
                       onChange={(e) => handleAssignRequest(e.target.value)}
-                      className="mt-1 w-full px-3 py-2 text-xs bg-slate-50 border rounded-xl focus:outline-none focus:border-slate-300"
+                      className="mt-1 w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
                     >
                       <option value="">Chưa phân công</option>
                       {systemUsers.map(u => (
@@ -1523,14 +1523,14 @@ function SystemAdminDashboard() {
                   </div>
 
                   {/* Update Status Panel */}
-                  <form onSubmit={handleUpdateStatus} className="border-t pt-4 space-y-3">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cập nhật trạng thái</label>
+                  <form onSubmit={handleUpdateStatus} className="border-t border-white/30 pt-4 space-y-3">
+                    <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Cập nhật trạng thái</label>
                     
                     <div className="grid grid-cols-2 gap-2">
                       <select
                         value={updateStatusVal}
                         onChange={(e) => setUpdateStatusVal(e.target.value)}
-                        className="px-3 py-2 text-xs bg-slate-50 border rounded-xl focus:outline-none focus:border-slate-300"
+                        className="px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
                       >
                         <option value="pending">Pending</option>
                         <option value="in_progress">In Progress</option>
@@ -1542,7 +1542,7 @@ function SystemAdminDashboard() {
                       
                       <button
                         type="submit"
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-sm transition-colors"
+                        className="bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-sm transition-all duration-150 ease-out hover:scale-[1.01]"
                       >
                         Lưu trạng thái
                       </button>
@@ -1553,7 +1553,7 @@ function SystemAdminDashboard() {
                       value={updateDecisionNote}
                       onChange={(e) => setUpdateDecisionNote(e.target.value)}
                       rows={2}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border rounded-xl focus:outline-none focus:border-slate-300 resize-none"
+                      className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 resize-none text-[#1E293B]"
                     />
                   </form>
                 </>
@@ -1561,22 +1561,22 @@ function SystemAdminDashboard() {
 
               {/* Request Audit History using status_history */}
               {selectedRequest.status_history && selectedRequest.status_history.length > 0 && (
-                <div className="border-t pt-4 space-y-3">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lịch sử thay đổi</label>
-                  <div className="space-y-3 border-l-2 border-slate-100 pl-4 mt-2">
+                <div className="border-t border-white/30 pt-4 space-y-3">
+                  <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Lịch sử thay đổi</label>
+                  <div className="space-y-3 border-l-2 border-white/40 pl-4 mt-2">
                     {selectedRequest.status_history.map((hist, i) => (
                       <div key={i} className="relative text-xs">
                         {/* Dot marker */}
-                        <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-slate-200 border-2 border-white" />
+                        <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#1A73E8] border-2 border-white" />
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold uppercase text-[9px] px-1 bg-slate-100 text-slate-600 rounded">
+                          <span className="font-bold uppercase text-[9px] px-1 bg-white/50 border border-white/70 text-[#1E293B] rounded-xl">
                             {hist.from_status} → {hist.to_status}
                           </span>
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-[#64748B]">
                             {new Date(hist.changed_at).toLocaleString()}
                           </span>
                         </div>
-                        <p className="text-slate-600 mt-1 italic">"{hist.note}"</p>
+                        <p className="text-[#64748B] mt-1 italic">"{hist.note}"</p>
                       </div>
                     ))}
                   </div>
@@ -1586,10 +1586,10 @@ function SystemAdminDashboard() {
 
             {/* Footer buttons */}
             {canManageRequests && (
-              <div className="border-t pt-4 flex gap-2">
+              <div className="border-t border-white/30 pt-4 flex gap-2">
                 <button
                   onClick={() => handleDeleteRequest(selectedRequest._id)}
-                  className="flex items-center gap-1 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-semibold rounded-xl transition-colors"
+                  className="flex items-center gap-1 px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-700 text-xs font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01]"
                 >
                   <Trash2 size={14} />
                   Xóa Yêu cầu
@@ -1607,18 +1607,18 @@ function SystemAdminDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div 
             onClick={() => setIsCreateModalOpen(false)} 
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
           />
           <form 
             onSubmit={handleCreateRequest}
-            className="relative w-full max-w-md bg-white border border-slate-100 shadow-2xl rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto scale-in duration-200"
+            className="relative w-full max-w-md bg-white/90 backdrop-blur-md border border-white/60 shadow-2xl rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto scale-in duration-200 text-[#1E293B]"
           >
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-sm font-bold text-slate-800">Tạo Yêu Cầu Vận Hành</h3>
+            <div className="flex items-center justify-between border-b border-white/30 pb-3">
+              <h3 className="text-sm font-bold text-[#1E293B]">Tạo Yêu Cầu Vận Hành</h3>
               <button 
                 type="button" 
                 onClick={() => setIsCreateModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+                className="p-1 text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
               >
                 <X size={16} />
               </button>
@@ -1626,35 +1626,35 @@ function SystemAdminDashboard() {
 
             <div className="space-y-3">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Tiêu đề</label>
+                <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block mb-1">Tiêu đề</label>
                 <input
                   type="text"
                   placeholder="Nhập tiêu đề yêu cầu..."
                   value={newRequestTitle}
                   onChange={(e) => setNewRequestTitle(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border rounded-xl focus:outline-none focus:border-slate-300"
+                  className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Mô tả chi tiết</label>
+                <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block mb-1">Mô tả chi tiết</label>
                 <textarea
                   placeholder="Mô tả công việc chi tiết..."
                   value={newRequestDesc}
                   onChange={(e) => setNewRequestDesc(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border rounded-xl focus:outline-none focus:border-slate-300 resize-none"
+                  className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Loại yêu cầu</label>
+                  <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block mb-1">Loại yêu cầu</label>
                   <select
                     value={newRequestType}
                     onChange={(e) => setNewRequestType(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border rounded-xl focus:outline-none focus:border-slate-300"
+                    className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
                   >
                     <option value="support">Support</option>
                     <option value="access">Access</option>
@@ -1665,11 +1665,11 @@ function SystemAdminDashboard() {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Độ ưu tiên</label>
+                  <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block mb-1">Độ ưu tiên</label>
                   <select
                     value={newRequestPriority}
                     onChange={(e) => setNewRequestPriority(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border rounded-xl focus:outline-none focus:border-slate-300"
+                    className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -1680,28 +1680,28 @@ function SystemAdminDashboard() {
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Metadata (JSON - Không bắt buộc)</label>
+                <label className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block mb-1">Metadata (JSON - Không bắt buộc)</label>
                 <textarea
                   placeholder='{"key": "value"}'
                   value={newRequestMeta}
                   onChange={(e) => setNewRequestMeta(e.target.value)}
                   rows={2}
-                  className="w-full px-3 py-2 text-xs font-mono bg-slate-50 border rounded-xl focus:outline-none focus:border-slate-300 resize-none"
+                  className="w-full px-3 py-2 text-xs font-mono bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 resize-none"
                 />
               </div>
             </div>
 
-            <div className="border-t pt-3 flex justify-end gap-2 text-xs">
+            <div className="border-t border-white/30 pt-3 flex justify-end gap-2 text-xs">
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="px-4 py-2 hover:bg-slate-100 rounded-xl font-semibold text-slate-600 transition-colors"
+                className="px-4 py-2 hover:bg-white/50 rounded-xl font-semibold text-[#64748B] border border-transparent hover:border-white/80 transition-all duration-150 ease-out hover:scale-[1.01]"
               >
                 Hủy
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm transition-colors"
+                className="px-4 py-2 bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white rounded-xl font-semibold shadow-sm transition-all duration-150 ease-out hover:scale-[1.01]"
               >
                 Tạo mới
               </button>
@@ -1717,30 +1717,30 @@ function SystemAdminDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div 
             onClick={() => setIsConfirmBackupOpen(false)} 
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
           />
-          <div className="relative w-full max-w-sm bg-white border border-slate-100 shadow-2xl rounded-2xl p-6 space-y-4 scale-in duration-200">
+          <div className="relative w-full max-w-sm bg-white/90 backdrop-blur-md border border-white/60 shadow-2xl rounded-2xl p-5 space-y-4 scale-in duration-200 text-[#1E293B]">
             <div className="flex items-center gap-3 text-amber-600">
               <AlertCircle size={24} className="shrink-0" />
-              <h3 className="text-sm font-bold text-slate-800">Xác Nhận Tạo Sao Lưu</h3>
+              <h3 className="text-sm font-bold text-[#1E293B]">Xác Nhận Tạo Sao Lưu</h3>
             </div>
             
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-[#64748B] leading-relaxed">
               Bạn có chắc chắn muốn tiến hành sao lưu toàn bộ cơ sở dữ liệu ngay bây giờ? 
               <br />
-              <span className="font-semibold text-slate-800">Lưu ý:</span> Tiến trình này có thể làm tăng nhẹ độ trễ truy vấn database trong chốc lát tùy thuộc vào độ lớn của dữ liệu.
+              <span className="font-semibold text-[#1E293B]">Lưu ý:</span> Tiến trình này có thể làm tăng nhẹ độ trễ truy vấn database trong chốc lát tùy thuộc vào độ lớn của dữ liệu.
             </p>
 
             <div className="flex justify-end gap-2 text-xs pt-2">
               <button
                 onClick={() => setIsConfirmBackupOpen(false)}
-                className="px-4 py-2 hover:bg-slate-100 rounded-xl font-semibold text-slate-600 transition-colors"
+                className="px-4 py-2 hover:bg-white/50 rounded-xl font-semibold text-[#64748B] border border-transparent hover:border-white/80 transition-all duration-150 ease-out hover:scale-[1.01]"
               >
                 Hủy
               </button>
               <button
                 onClick={handleCreateBackup}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm transition-colors"
+                className="px-4 py-2 bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white rounded-xl font-semibold shadow-sm transition-all duration-150 ease-out hover:scale-[1.01]"
               >
                 Tiến hành sao lưu
               </button>

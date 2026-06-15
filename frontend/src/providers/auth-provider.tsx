@@ -79,7 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUserPermissions = async (token: string) => {
     try {
-      // Fetch user details with populated role & permissions
+      // Note: We use raw fetch() here instead of httpClient() because this is the primary
+      // session validation logic. Using httpClient() here could trigger recursive silent refresh
+      // attempts if the token validation itself has expired or failed.
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/me`,
         { headers: { Authorization: `Bearer ${token}` } },
@@ -110,6 +112,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const studentData = await studentRes.json();
               studentId = studentData._id;
               classId = typeof studentData.class_id === "object" ? studentData.class_id?._id : studentData.class_id;
+            } else if (studentRes.status === 401) {
+              tokenStorage.clearTokens();
+              setUser(null);
+              setPermissions([]);
+              return; // Early return to prevent subsequent blocks from rehydrating user state
             }
           } catch (studentErr) {
             console.error("Failed to load student link in auth provider:", studentErr);
@@ -129,6 +136,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           tokenStorage.setUser(updatedUser);
           setUser(updatedUser);
         }
+      } else if (res.status === 401) {
+        tokenStorage.clearTokens();
+        setUser(null);
+        setPermissions([]);
+        return; // Early return to prevent subsequent blocks from rehydrating user state
       }
     } catch (err) {
       console.error("Failed to load user permissions:", err);

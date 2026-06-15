@@ -869,7 +869,7 @@ function PermissionsPageContent() {
   );
 
   return (
-    <div className="flex bg-slate-50 h-screen overflow-hidden font-sans">
+    <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header />
@@ -885,32 +885,32 @@ function PermissionsPageContent() {
           activeTab={activeTab}
           onTabChange={(id) => setActiveTab(id)}
         />
-        <main className="flex-1 p-6 overflow-hidden flex flex-col bg-slate-50 relative">
+        <main className="flex-1 p-5 overflow-hidden flex flex-col bg-transparent relative">
 
           {/* Content Area */}
-          <div className="flex-1 flex flex-col min-h-0 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 bg-white/45 backdrop-blur-md rounded-2xl shadow-sm shadow-slate-300/40 border border-white/70 overflow-hidden">
             {activeTab === 'Người dùng' && (
               <>
                 {/* Toolbar */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white shrink-0">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-white/40 bg-white/10 shrink-0">
+                  <div className="flex items-center gap-2">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                       <input
                         type="text"
                         placeholder="Tìm kiếm..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9 pr-4 py-2 text-sm font-medium text-slate-700 bg-slate-50 border border-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-64 transition-all placeholder:text-slate-400"
+                        className="pl-8.5 pr-3 py-1.5 text-xs font-semibold text-[#1E293B] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 w-60 transition-all duration-150 ease-out placeholder:text-[#64748B]/70"
                       />
                     </div>
                     <div className="relative">
                       <button
                         onClick={() => setIsFilterOpen(!isFilterOpen)}
-                        className={`flex items-center gap-2 px-4 py-2 text-sm font-bold border rounded-lg transition-all shadow-sm select-none ${
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] shadow-sm select-none ${
                           isFilterOpen 
-                            ? 'bg-blue-50 text-blue-600 border-blue-200' 
-                            : 'text-slate-700 bg-white border-slate-200 hover:bg-slate-50'
+                            ? 'bg-white/70 text-[#1A73E8] border-[#1A73E8]/30 shadow-[#1A73E8]/5' 
+                            : 'text-[#1E293B] bg-white/50 border-white/70 hover:bg-white/70'
                         }`}
                       >
                         <Filter className="w-4 h-4" strokeWidth={2.5} />
@@ -923,24 +923,24 @@ function PermissionsPageContent() {
                       <AnimatePresence>
                         {isFilterOpen && (
                           <motion.div
-                            initial={{ opacity: 0, y: 10 }}
+                            initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            className="absolute left-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200/60 z-50 p-4"
+                            exit={{ opacity: 0, y: 8 }}
+                            className="absolute left-0 mt-2 w-64 bg-white/85 backdrop-blur-md rounded-xl shadow-md shadow-slate-300/30 border border-white/70 z-50 p-3.5"
                           >
-                            <div className="space-y-4">
+                            <div className="space-y-3.5">
                               <div>
-                                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Vai trò</h4>
+                                <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-widest mb-1.5">Vai trò</h4>
                                 <Select value={filterRole} onValueChange={setFilterRole}>
-                                  <SelectTrigger className="w-full h-9 text-xs font-bold text-slate-700 border-slate-200 rounded-lg focus:ring-blue-500/20 bg-white">
+                                  <SelectTrigger className="w-full h-8 text-xs font-bold text-[#1E293B] border-white/70 rounded-xl focus:ring-2 focus:ring-[#1A73E8]/30 bg-white/60 backdrop-blur-sm transition-all">
                                     <SelectValue placeholder="Chọn vai trò" />
                                   </SelectTrigger>
-                                  <SelectContent className="z-[60] bg-white border border-slate-200 shadow-lg rounded-lg">
+                                  <SelectContent className="z-[60] bg-white/95 backdrop-blur-md border border-slate-100/60 shadow-xl rounded-xl">
                                     {['Tất cả', ...(roles || []).map((r: any) => r.name).filter(Boolean)].map((role) => (
                                       <SelectItem
                                         key={role}
                                         value={role}
-                                        className="text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                                        className="text-xs font-bold text-[#1E293B] hover:bg-white/60 rounded-lg cursor-pointer"
                                       >
                                         {role}
                                       </SelectItem>
@@ -949,35 +949,35 @@ function PermissionsPageContent() {
                                 </Select>
                               </div>
 
-                              <div className="border-t border-slate-100 pt-3 relative">
-                                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Trạng thái</h4>
+                              <div className="border-t border-white/40 pt-2.5 relative">
+                                <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-widest mb-1.5">Trạng thái</h4>
                                 <div className="relative">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setIsStatusSelectOpen(!isStatusSelectOpen);
                                     }}
-                                    className="flex items-center justify-between w-full h-9 px-3 text-xs font-bold text-slate-700 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 bg-white shadow-sm"
+                                    className="flex items-center justify-between w-full h-8 px-3 text-xs font-bold text-[#1E293B] border border-white/70 rounded-xl focus:ring-2 focus:ring-[#1A73E8]/30 bg-white/60 backdrop-blur-sm shadow-sm transition-all"
                                   >
                                     <span className="truncate">{filterStatuses.join(', ')}</span>
-                                    <span className="text-[9px] text-slate-400">▼</span>
+                                    <span className="text-[9px] text-[#64748B]">▼</span>
                                   </button>
                                   
                                   {isStatusSelectOpen && (
-                                    <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 shadow-lg rounded-lg p-1.5 z-[70] space-y-0.5">
+                                    <div className="absolute left-0 right-0 mt-1 bg-white/90 backdrop-blur-md border border-white/70 shadow-md rounded-xl p-1.5 z-[70] space-y-0.5">
                                       {['Tất cả', 'Hoạt động', 'Chưa kích hoạt', 'Bị khóa'].map((status) => {
                                         const isChecked = filterStatuses.includes(status);
                                         return (
                                           <div
                                             key={status}
                                             onClick={() => handleToggleStatus(status)}
-                                            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer select-none"
+                                            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-[#1E293B] hover:bg-white/60 cursor-pointer select-none"
                                           >
                                             <input
                                               type="checkbox"
                                               checked={isChecked}
                                               onChange={() => {}}
-                                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer w-3.5 h-3.5"
+                                              className="rounded border-slate-300 text-[#1A73E8] focus:ring-[#1A73E8]/30 cursor-pointer w-3.5 h-3.5"
                                             />
                                             {status}
                                           </div>
@@ -989,8 +989,8 @@ function PermissionsPageContent() {
                               </div>
 
                               {(filterRole !== 'Tất cả' || !filterStatuses.includes('Tất cả')) && (
-                                <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
-                                  <span className="text-[10px] font-bold text-slate-400">Đang lọc nhanh</span>
+                                <div className="border-t border-white/40 pt-2.5 flex justify-between items-center">
+                                  <span className="text-[10px] font-bold text-[#64748B]">Đang lọc nhanh</span>
                                   <button
                                     onClick={() => {
                                       setFilterRole('Tất cả');
@@ -1013,16 +1013,16 @@ function PermissionsPageContent() {
                     {selectedUserIds.length > 0 && (
                       <button
                         onClick={handleDeleteUsersBulk}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-all shadow-sm animate-fade-in"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-500/10 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-sm animate-fade-in"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                         Xóa ({selectedUserIds.length})
                       </button>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <button className="w-9 h-9 flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <button className="w-8 h-8 flex items-center justify-center text-[#64748B] bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.05] active:scale-[0.95] rounded-xl border border-white/70 shadow-xs transition-all duration-150 ease-out">
                       <Settings className="w-4 h-4" />
                     </button>
 
@@ -1037,26 +1037,26 @@ function PermissionsPageContent() {
                 </div>
 
                 {/* Table người dùng */}
-                <div className="flex-1 overflow-auto bg-white relative">
+                <div className="flex-1 overflow-auto bg-transparent relative">
                   <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-100 shadow-sm">
+                    <thead className="bg-white/92 backdrop-blur-md sticky top-0 z-10 border-b border-white/80 shadow-xs">
                       <tr>
-                        <th className="px-6 py-3 w-12">
+                        <th className="px-5 py-2.5 w-12">
                           <input 
                             type="checkbox" 
                             checked={paginatedUsers.length > 0 && paginatedUsers.every(u => selectedUserIds.includes(u._id || u.id))}
                             onChange={() => toggleSelectAllUsers(paginatedUsers)}
-                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer" 
+                            className="rounded-md border-white/80 bg-white/50 text-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer w-3.5 h-3.5" 
                           />
                         </th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Tên</th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Liên hệ</th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Vai trò</th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Trạng thái</th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Hành động</th>
+                        <th className="px-5 py-2.5 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider">Tên</th>
+                        <th className="px-5 py-2.5 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider">Liên hệ</th>
+                        <th className="px-5 py-2.5 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider">Vai trò</th>
+                        <th className="px-5 py-2.5 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider">Trạng thái</th>
+                        <th className="px-5 py-2.5 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider text-right">Hành động</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
+                    <tbody className="divide-y divide-white/40">
                       {isDataLoading ? (
                         Array.from({ length: userPageSize }).map((_, i) => (
                           <tr key={i}>
@@ -1097,58 +1097,62 @@ function PermissionsPageContent() {
                         <AnimatePresence>
                           {paginatedUsers.map((user, idx) => (
                             <motion.tr
-                              initial={{ opacity: 0, y: 10 }}
+                              initial={{ opacity: 0, y: 8 }}
                               animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.15, delay: idx * 0.05 }}
+                              transition={{ duration: 0.15, delay: idx * 0.03 }}
                               key={user._id}
-                              className="hover:bg-slate-50/50 transition-colors group"
+                              className="hover:bg-white/40 transition-colors duration-150 ease-out group"
                             >
-                              <td className="px-6 py-3 align-middle">
+                              <td className="px-5 py-2 align-middle">
                                 <input 
                                   type="checkbox" 
                                   checked={selectedUserIds.includes(user._id || user.id)}
                                   onChange={() => toggleSelectUser(user._id || user.id)}
-                                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer" 
+                                  className="rounded-md border-white/80 bg-white/50 text-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer w-3.5 h-3.5" 
                                 />
                               </td>
-                              <td className="px-6 py-3 align-middle">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-700 shrink-0">
+                              <td className="px-5 py-2 align-middle">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8 h-8 rounded-full bg-white/60 border border-white/80 flex items-center justify-center text-xs font-bold text-[#1E293B] shadow-xs shrink-0">
                                     {(user.user_name || 'U').substring(0, 2).toUpperCase()}
                                   </div>
                                   <div className="flex flex-col">
-                                    <span className="text-sm font-bold text-slate-800">{user.user_name || user.username}</span>
-                                    <span className="text-xs font-medium text-slate-400 mt-0.5">ID: {user._id.substring(user._id.length - 8)}</span>
+                                    <span className="text-xs font-bold text-[#1E293B]">{user.user_name || user.username}</span>
+                                    <span className="text-[11px] font-medium text-[#64748B] mt-0.5">ID: {user._id.substring(user._id.length - 8)}</span>
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-6 py-3 align-middle">
+                              <td className="px-5 py-2 align-middle">
                                 <div className="flex flex-col gap-1">
-                                  <div className="flex items-center gap-2 text-sm">
-                                    <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                    <span className="text-slate-600 font-medium">{user.email}</span>
+                                  <div className="flex items-center gap-1.5 text-xs">
+                                    <Mail className="w-3.5 h-3.5 text-[#64748B] shrink-0" />
+                                    <span className="text-[#1E293B] font-medium">{user.email}</span>
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-6 py-3 align-middle">
+                              <td className="px-5 py-2 align-middle">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   {user.role && (
-                                    <span className={`px-2 py-0.5 text-xs font-bold rounded-md ${user.role.name === 'Admin' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'
+                                    <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-xl border ${user.role.name === 'Admin' 
+                                      ? 'bg-purple-500/10 text-purple-700 border-purple-500/20' 
+                                      : 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
                                       }`}>
                                       {user.role.name}
                                     </span>
                                   )}
                                 </div>
                               </td>
-                              <td className="px-6 py-3 align-middle">
-                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${user.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50' : 'bg-rose-50 text-rose-600 border-rose-100/50'
+                              <td className="px-5 py-2 align-middle">
+                                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-xl border ${user.status === 'active' 
+                                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' 
+                                  : 'bg-rose-500/10 text-rose-700 border-rose-500/20'
                                   }`}>
                                   <div className={`w-1.5 h-1.5 rounded-full ${user.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                                  <span className="text-xs font-bold">{user.status}</span>
+                                  <span className="text-[10px] font-bold">{user.status === 'active' ? 'Hoạt động' : user.status}</span>
                                 </div>
                               </td>
-                              <td className="px-6 py-3 align-middle text-right">
-                                <div className="flex items-center justify-end gap-2">
+                              <td className="px-5 py-2 align-middle text-right">
+                                <div className="flex items-center justify-end gap-1.5">
                                   <Action
                                     onView={() => router.push(`/permissions/${user._id || user.id}`)}
                                     onEdit={() => handleOpenEditModal(user)}
@@ -1181,24 +1185,27 @@ function PermissionsPageContent() {
             {activeTab === 'Quyền hạn' && (
               <div className="flex-1 flex overflow-hidden">
                 {/* Left Sidebar: Groups */}
-                <div className="w-[320px] bg-slate-50/50 border-r border-slate-200 flex flex-col shrink-0">
-                  <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-slate-800">Danh sách Nhóm quyền</h2>
-                    <button onClick={handleOpenAddGroupModal} className="text-blue-600 hover:text-blue-700 p-1 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors">
-                      <Plus className="w-5 h-5" />
+                <div className="w-[320px] bg-white/10 border-r border-white/50 flex flex-col shrink-0">
+                  <div className="px-4 py-3 border-b border-white/50 bg-white/10 flex items-center justify-between">
+                    <h2 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Danh sách Nhóm quyền</h2>
+                    <button
+                      onClick={handleOpenAddGroupModal}
+                      className="text-[#1A73E8] hover:text-[#155cb4] p-1.5 bg-[#1A73E8]/10 border border-[#1A73E8]/20 rounded-xl hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
+                    >
+                      <Plus className="w-4 h-4" strokeWidth={2.5} />
                     </button>
                   </div>
-                  <div className="px-4 py-3">
+                  <div className="px-4 py-3 flex flex-col gap-3 border-b border-white/50 bg-white/5">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                       <input
                         type="text"
                         placeholder="Tìm kiếm nhóm..."
-                        className="w-full pl-9 pr-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                        className="w-full pl-8.5 pr-3 py-1.5 text-xs font-semibold text-[#1E293B] bg-white/50 border border-white/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-sm"
                       />
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-4 pt-2 space-y-3">
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
                     {isDataLoading ? (
                       Array.from({ length: 4 }).map((_, i) => (
                         <Skeleton key={i} className="w-full h-24 rounded-xl" />
@@ -1208,32 +1215,45 @@ function PermissionsPageContent() {
                         <div
                           key={group.id}
                           onClick={() => setSelectedGroup(group.id)}
-                          className={`p-4 rounded-xl cursor-pointer transition-all border-l-[3px] ${selectedGroup === group.id
-                            ? 'bg-blue-50/50 border-blue-600 border-y-transparent border-r-transparent shadow-sm'
-                            : 'bg-white border-transparent hover:border-blue-200 hover:shadow-sm'
-                            }`}
+                          className={`group p-3 rounded-xl cursor-pointer transition-all border-l-2 shadow-sm hover:scale-[1.01] active:scale-[0.99] duration-150 ease-out ${
+                            selectedGroup === group.id
+                              ? 'bg-white/70 border-[#1A73E8] shadow-[#1A73E8]/5'
+                              : 'bg-white/30 border-transparent hover:bg-white/50'
+                          }`}
                         >
                           <div className="flex items-start justify-between mb-1">
-                            <h3 className={`text-sm font-bold ${selectedGroup === group.id ? 'text-blue-700' : 'text-slate-800'}`}>
+                            <h3 className={`text-xs font-bold ${selectedGroup === group.id ? 'text-[#1A73E8]' : 'text-[#1E293B]'}`}>
                               {group.name}
                             </h3>
-                            <span className="px-2 py-0.5 bg-slate-50 text-slate-600 text-[10px] font-bold rounded-md uppercase tracking-wider">{group.tag}</span>
+                            <span className="px-2 py-0.5 bg-white/60 text-[#64748B] border border-white/80 text-[9.5px] font-bold rounded-xl uppercase tracking-wider shadow-sm">
+                              {group.tag}
+                            </span>
                           </div>
-                          <p className="text-xs text-slate-500 mb-3 line-clamp-1">{group.desc}</p>
+                          <p className="text-[11px] text-[#64748B] mb-3 line-clamp-1">{group.desc}</p>
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <div className={`w-1.5 h-1.5 rounded-full ${group.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                                <span className={`text-[11px] font-semibold ${group.status === 'Active' ? 'text-slate-600' : 'text-slate-400'}`}>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <div className={`w-1.5 h-1.5 rounded-full ${group.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                                <span className={`text-[10.5px] font-bold ${group.status === 'Active' ? 'text-emerald-700' : 'text-[#64748B]/50'}`}>
                                   {group.status === 'Active' ? 'Hoạt động' : 'Ngừng kích hoạt'}
                                 </span>
                               </div>
                               <span className="text-slate-300 text-[10px]">•</span>
-                              <span className="text-[11px] font-semibold text-slate-500">{group.count} Quyền</span>
+                              <span className="text-[10.5px] font-bold text-[#64748B]">{group.count} Quyền</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button onClick={(e) => { e.stopPropagation(); handleOpenEditGroupModal(group); }} className="text-slate-400 hover:text-blue-600"><Pencil className="w-3.5 h-3.5" /></button>
-                              <button onClick={(e) => { e.stopPropagation(); handleGroupDelete(group); }} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                            <div className={`flex items-center gap-1.5 ${selectedGroup === group.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleOpenEditGroupModal(group); }}
+                                className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleGroupDelete(group); }}
+                                className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1243,34 +1263,38 @@ function PermissionsPageContent() {
                 </div>
 
                 {/* Right Panel: Permissions List */}
-                <div className="flex-1 bg-white flex flex-col min-w-0">
+                <div className="flex-1 bg-transparent flex flex-col min-w-0">
                   {/* Header / Tabs right panel */}
-                  <div className="px-6 flex flex-col sm:flex-row sm:items-end justify-between border-b border-slate-100 shrink-0 gap-4">
+                  <div className="px-5 py-2 flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/50 bg-white/10 shrink-0 gap-4">
                     {/* Inner Tabs */}
                     <div className="flex items-center gap-6">
                       {['Danh sách Quyền', 'Lịch sử Audit'].map(tab => (
                         <button
                           key={tab}
                           onClick={() => setInnerRightTab(tab)}
-                          className={`py-4 text-sm font-bold transition-colors relative ${innerRightTab === tab ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
-                            }`}
+                          className={`py-3.5 text-xs font-bold transition-colors relative ${
+                            innerRightTab === tab ? 'text-[#1A73E8]' : 'text-[#64748B] hover:text-[#1E293B]'
+                          }`}
                         >
                           {tab}
                           {innerRightTab === tab && (
                             <motion.div
                               layoutId="innerTabIndicator"
-                              className="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-600 rounded-t-full"
+                              className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#1A73E8] rounded-t-full"
                             />
                           )}
                         </button>
                       ))}
                     </div>
 
-                    <div className="flex items-center gap-3 pb-2">
-                      <button className="w-9 h-9 flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <button className="w-8 h-8 flex items-center justify-center text-[#64748B] bg-white/50 hover:bg-white/80 rounded-xl transition-all duration-150 ease-out border border-white/80 hover:scale-[1.02] active:scale-[0.98] shadow-sm">
                         <Settings className="w-4 h-4" />
                       </button>
-                      <button onClick={handleOpenAddPermissionModal} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors">
+                      <button
+                        onClick={handleOpenAddPermissionModal}
+                        className="flex items-center gap-1.5 px-4 h-8 text-xs font-bold text-white bg-[#1A73E8] rounded-xl hover:bg-[#155cb4] shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out"
+                      >
                         <Plus className="w-4 h-4" />
                         Thêm quyền
                       </button>
@@ -1278,15 +1302,15 @@ function PermissionsPageContent() {
                   </div>
 
                   {/* Table area */}
-                  <div className="flex-1 overflow-auto relative p-6 bg-slate-50/50">
-                    <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden flex flex-col h-full">
+                  <div className="flex-1 overflow-y-auto p-5 bg-transparent">
+                    <div className="bg-white/60 border border-white/80 shadow-sm shadow-slate-200/20 rounded-2xl overflow-hidden flex flex-col h-full">
                       <table className="w-full text-left border-collapse shrink-0">
-                        <thead className="bg-slate-50 border-b border-slate-100">
+                        <thead className="bg-white/20 border-b border-white/50">
                           <tr>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Mã Quyền</th>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tên Quyền</th>
-                            <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-[40%]">Mô tả</th>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Thao tác</th>
+                            <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Mã Quyền</th>
+                            <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Tên Quyền</th>
+                            <th className="px-4 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider w-[40%]">Mô tả</th>
+                            <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider text-right">Thao tác</th>
                           </tr>
                         </thead>
                       </table>
@@ -1295,11 +1319,11 @@ function PermissionsPageContent() {
                           <tbody className="divide-y divide-slate-50">
                             {isRightPanelLoading || isDataLoading ? (
                               Array.from({ length: 4 }).map((_, i) => (
-                                <tr key={`skel-${i}`}>
-                                  <td className="px-6 py-4 w-[20%]"><Skeleton className="w-24 h-4" /></td>
-                                  <td className="px-6 py-4 w-[25%]"><Skeleton className="w-32 h-4" /></td>
-                                  <td className="px-4 py-4 w-[40%]"><Skeleton className="w-full h-8" /></td>
-                                  <td className="px-6 py-4 text-right"><Skeleton className="w-16 h-4 inline-block" /></td>
+                                <tr key={`skel-${i}`} className="inline-table w-full">
+                                  <td className="px-6 py-3.5 w-[20%]"><Skeleton className="w-24 h-4" /></td>
+                                  <td className="px-6 py-3.5 w-[25%]"><Skeleton className="w-32 h-4" /></td>
+                                  <td className="px-4 py-3.5 w-[40%]"><Skeleton className="w-full h-8" /></td>
+                                  <td className="px-6 py-3.5 text-right w-[15%]"><Skeleton className="w-16 h-4 inline-block" /></td>
                                 </tr>
                               ))
                             ) : (
@@ -1312,21 +1336,31 @@ function PermissionsPageContent() {
                                       exit={{ opacity: 0, x: 10 }}
                                       transition={{ duration: 0.15, delay: idx * 0.05 }}
                                       key={`${selectedGroup}-${perm.code}`}
-                                      className="hover:bg-slate-50 inline-table w-full group transition-colors"
+                                      className="hover:bg-white/40 border-b border-white/20 inline-table w-full group transition-all duration-150 ease-out hover:scale-[1.005]"
                                     >
-                                      <td className="px-6 py-4 w-[20%] font-mono text-xs font-semibold text-slate-500 tracking-tight">
+                                      <td className="px-6 py-3.5 w-[20%] font-mono text-[11.5px] font-semibold text-[#64748B] tracking-tight">
                                         {perm.code}
                                       </td>
-                                      <td className="px-6 py-4 w-[25%] font-bold text-sm text-slate-800">
+                                      <td className="px-6 py-3.5 w-[25%] font-bold text-xs text-[#1E293B]">
                                         {perm.name}
                                       </td>
-                                      <td className="px-4 py-4 w-[40%] text-sm text-slate-500 font-medium">
+                                      <td className="px-4 py-3.5 w-[40%] text-xs text-[#64748B] font-medium leading-relaxed">
                                         {perm.desc}
                                       </td>
-                                      <td className="px-6 py-4 text-right align-middle">
-                                        <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button onClick={() => handleOpenEditPermissionModal(perm)} className="text-slate-400 hover:text-slate-700 transition-colors"><Pencil className="w-4 h-4" /></button>
-                                          <button onClick={() => handlePermissionDelete(perm)} className="text-slate-400 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                      <td className="px-6 py-3.5 text-right align-middle w-[15%]">
+                                        <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-150">
+                                          <button
+                                            onClick={() => handleOpenEditPermissionModal(perm)}
+                                            className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => handlePermissionDelete(perm)}
+                                            className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
                                         </div>
                                       </td>
                                     </motion.tr>
@@ -1362,64 +1396,81 @@ function PermissionsPageContent() {
             {activeTab === 'Vai trò' && (
               <div className="flex-1 flex overflow-hidden">
                 {/* Left Sidebar: Roles */}
-                <div className="w-[340px] bg-slate-50/50 border-r border-slate-200 flex flex-col shrink-0">
-                  <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-slate-800">Danh sách vai trò</h2>
-                    <button onClick={handleOpenAddRoleModal} className="text-blue-600 hover:text-blue-700 p-1 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors">
-                      <Plus className="w-5 h-5" />
+                <div className="w-[340px] bg-white/10 border-r border-white/50 flex flex-col shrink-0">
+                  <div className="px-4 py-3 border-b border-white/50 bg-white/10 flex items-center justify-between">
+                    <h2 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Danh sách vai trò</h2>
+                    <button
+                      onClick={handleOpenAddRoleModal}
+                      className="text-[#1A73E8] hover:text-[#155cb4] p-1.5 bg-[#1A73E8]/10 border border-[#1A73E8]/20 rounded-xl hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
+                    >
+                      <Plus className="w-4 h-4" strokeWidth={2.5} />
                     </button>
                   </div>
-                  <div className="px-4 py-3 flex flex-col gap-3 border-b border-slate-100">
+                  <div className="px-4 py-3 flex flex-col gap-3 border-b border-white/50 bg-white/5">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                       <input
                         type="text"
                         placeholder="Tìm kiếm vai trò..."
-                        className="w-full pl-9 pr-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                        className="w-full pl-8.5 pr-3 py-1.5 text-xs font-semibold text-[#1E293B] bg-white/50 border border-white/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-sm"
                       />
                     </div>
-                    {/* Filter chips */}
-
                   </div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
                     {isDataLoading ? (
                       Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="w-full h-28 rounded-xl" />
+                        <Skeleton key={i} className="w-full h-24 rounded-xl" />
                       ))
                     ) : (
                       roles.map((role) => (
                         <div
                           key={role._id}
                           onClick={() => setSelectedRole(role._id)}
-                          className={`p-4 rounded-xl cursor-pointer transition-all border-l-[3px] ${selectedRole === role._id
-                            ? 'bg-blue-50/50 border-blue-600 border-y-transparent border-r-transparent shadow-sm'
-                            : 'bg-white border-transparent hover:border-blue-200 hover:shadow-sm'
-                            }`}
+                          className={`p-3 rounded-xl cursor-pointer transition-all border-l-2 shadow-sm hover:scale-[1.01] active:scale-[0.99] duration-150 ease-out ${
+                            selectedRole === role._id
+                              ? 'bg-white/70 border-[#1A73E8] shadow-[#1A73E8]/5'
+                              : 'bg-white/30 border-transparent hover:bg-white/50'
+                          }`}
                         >
-                          <div className="flex items-start justify-between mb-1.5">
-                            <h3 className={`text-sm font-bold ${selectedRole === role._id ? 'text-blue-700' : 'text-slate-800'}`}>
+                          <div className="flex items-start justify-between mb-1">
+                            <h3 className={`text-xs font-bold ${selectedRole === role._id ? 'text-[#1A73E8]' : 'text-[#1E293B]'}`}>
                               {role.name}
                             </h3>
-                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${role.name === 'Admin' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
-                              }`}>
+                            <span
+                              className={`px-2 py-0.5 text-[9.5px] font-bold rounded-xl border ${
+                                role.name === 'Admin'
+                                  ? 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
+                                  : 'bg-purple-500/10 text-purple-700 border-purple-500/20'
+                              }`}
+                            >
                               System
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 mb-4 line-clamp-1">{role.description}</p>
+                          <p className="text-[11px] text-[#64748B] mb-3 line-clamp-1">{role.description}</p>
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <div className={`w-1.5 h-1.5 rounded-full bg-emerald-500`} />
-                                <span className={`text-[11px] font-semibold text-emerald-600`}>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[10.5px] font-bold text-emerald-700">
                                   Hoạt động
                                 </span>
                               </div>
                               <span className="text-slate-300 text-[10px]">•</span>
-                              <span className="text-[11px] font-semibold text-slate-500">{role.permissions?.length || 0} quyền</span>
+                              <span className="text-[10.5px] font-bold text-[#64748B]">{role.permissions?.length || 0} quyền</span>
                             </div>
-                            <div className={`flex items-center gap-2 ${selectedRole === role._id ? 'opacity-100' : 'opacity-0'}`}>
-                              <button onClick={(e) => { e.stopPropagation(); handleOpenEditRoleModal(role); }} className="text-slate-400 hover:text-blue-600"><Pencil className="w-3.5 h-3.5" /></button>
-                              <button onClick={(e) => { e.stopPropagation(); handleRoleDelete(role); }} className="text-slate-400 hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                            <div className={`flex items-center gap-1.5 ${selectedRole === role._id ? 'opacity-100' : 'opacity-0'}`}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleOpenEditRoleModal(role); }}
+                                className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRoleDelete(role); }}
+                                className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1429,40 +1480,41 @@ function PermissionsPageContent() {
                 </div>
 
                 {/* Right Panel: Permission Matrix */}
-                <div className="flex-1 bg-white flex flex-col min-w-0">
+                <div className="flex-1 bg-transparent flex flex-col min-w-0">
                   {/* Header / Tabs right panel */}
-                  <div className="px-6 flex flex-col sm:flex-row sm:items-end justify-between border-b border-slate-100 shrink-0 gap-4">
+                  <div className="px-5 py-2 flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/50 bg-white/10 shrink-0 gap-4">
                     <div className="flex items-center gap-6">
                       {['Ma trận quyền', 'Lịch sử Audit'].map(tab => (
                         <button
                           key={tab}
-                          className={`py-4 text-sm font-bold transition-colors relative ${tab === 'Ma trận quyền' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
-                            }`}
+                          className={`py-3.5 text-xs font-bold transition-colors relative ${
+                            tab === 'Ma trận quyền' ? 'text-[#1A73E8]' : 'text-[#64748B] hover:text-[#1E293B]'
+                          }`}
                         >
                           {tab}
                           {tab === 'Ma trận quyền' && (
                             <motion.div
                               layoutId="matrixTabIndicator"
-                              className="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-600 rounded-t-full"
+                              className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#1A73E8] rounded-t-full"
                             />
                           )}
                         </button>
                       ))}
                     </div>
 
-                    <div className="flex items-center gap-3 pb-2">
-                      <button className="w-9 h-9 flex items-center justify-center text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <button className="w-8 h-8 flex items-center justify-center text-[#64748B] bg-white/50 hover:bg-white/80 rounded-xl transition-all duration-150 ease-out border border-white/80 hover:scale-[1.02] active:scale-[0.98] shadow-sm">
                         <Settings className="w-4 h-4" />
                       </button>
                       <button
                         onClick={handleSaveRole}
                         disabled={isRoleSaving}
-                        className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-4 h-8 text-xs font-bold text-white bg-[#1A73E8] rounded-xl hover:bg-[#155cb4] shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out disabled:opacity-50"
                       >
                         {isRoleSaving ? (
-                          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
+                          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full" />
                         ) : (
-                          <Save className="w-4 h-4" />
+                          <Save className="w-3.5 h-3.5" />
                         )}
                         Lưu thay đổi
                       </button>
@@ -1470,39 +1522,39 @@ function PermissionsPageContent() {
                   </div>
 
                   {/* Matrix Content Area */}
-                  <div className="flex-1 overflow-y-auto p-6 lg:p-10 bg-slate-50/50">
-                    <div className="max-w-5xl mx-auto space-y-6">
+                  <div className="flex-1 overflow-y-auto p-5 bg-transparent">
+                    <div className="max-w-5xl mx-auto space-y-5">
                       {isDataLoading ? (
                         Array.from({ length: 3 }).map((_, i) => (
-                          <Skeleton key={i} className="w-full h-48 rounded-2xl" />
+                          <Skeleton key={i} className="w-full h-40 rounded-2xl" />
                         ))
                       ) : (
                         groups.map((groupData) => {
                           const permissions = permissionsByGroup[groupData.id] || [];
 
                           return (
-                            <div key={groupData.id} className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
+                            <div key={groupData.id} className="bg-white/60 border border-white/80 shadow-sm shadow-slate-200/20 rounded-2xl overflow-hidden">
                               {/* Group Header */}
-                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 p-6 border-b border-slate-50 relative pb-5">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border-b border-white/50 bg-white/20 relative">
                                 <div className="pr-40">
-                                  <div className="flex items-center gap-3 mb-1.5 flex-wrap">
-                                    <h3 className="text-base font-bold text-slate-800">{groupData.name}</h3>
+                                  <div className="flex items-center gap-3 mb-1 flex-wrap">
+                                    <h3 className="text-sm font-bold text-[#1E293B]">{groupData.name}</h3>
                                   </div>
-                                  <p className="text-[13px] text-slate-500 font-medium">{groupData.desc}</p>
+                                  <p className="text-[11.5px] text-[#64748B] font-medium">{groupData.desc}</p>
                                 </div>
-                                <div className="flex items-center gap-4 sm:absolute sm:top-6 sm:right-6">
-                                  <span className="px-2 py-0.5 bg-slate-50 text-slate-500 border border-slate-100 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                <div className="flex items-center gap-4 sm:absolute sm:top-1/2 sm:-translate-y-1/2 sm:right-4">
+                                  <span className="px-2 py-0.5 bg-white/60 text-[#64748B] border border-white/80 text-[9.5px] font-bold rounded-xl uppercase tracking-wider shadow-sm">
                                     MÃ: {groupData.tag}
                                   </span>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1.5">
                                     <input
                                       type="checkbox"
                                       id={`checkAll-${groupData.id}`}
                                       checked={isGroupFullyChecked(groupData.id)}
                                       onChange={(e) => toggleGroupPermissions(groupData.id, e.target.checked)}
-                                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
+                                      className="w-3.5 h-3.5 rounded border-slate-300 text-[#1A73E8] focus:ring-[#1A73E8]/30 cursor-pointer"
                                     />
-                                    <label htmlFor={`checkAll-${groupData.id}`} className="text-[13px] font-bold text-slate-600 cursor-pointer select-none">
+                                    <label htmlFor={`checkAll-${groupData.id}`} className="text-xs font-bold text-[#1E293B] cursor-pointer select-none">
                                       Chọn tất cả
                                     </label>
                                   </div>
@@ -1510,28 +1562,28 @@ function PermissionsPageContent() {
                               </div>
 
                               {/* Permissions Grid */}
-                              <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-y-7 gap-x-12">
+                              <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-y-4 gap-x-8">
                                 {permissions.map((perm) => (
-                                  <div key={perm.code} className="flex items-start gap-4 flex-1 group">
+                                  <div key={perm.code} className="flex items-start gap-3 flex-1 group">
                                     <div className="mt-0.5 shrink-0">
                                       <input
                                         type="checkbox"
                                         id={`perm-${perm.code}`}
                                         checked={checkedPerms.includes(perm.code)}
                                         onChange={() => togglePermission(perm.code)}
-                                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer transition-colors"
+                                        className="w-3.5 h-3.5 rounded border-slate-300 text-[#1A73E8] focus:ring-[#1A73E8]/30 cursor-pointer transition-colors"
                                       />
                                     </div>
                                     <div className="flex flex-col flex-1 min-w-0">
                                       <div className="flex items-start justify-between gap-3 mb-0.5">
-                                        <label htmlFor={`perm-${perm.code}`} className="text-[14px] font-bold text-slate-800 cursor-pointer hover:text-blue-600 transition-colors leading-tight">
+                                        <label htmlFor={`perm-${perm.code}`} className="text-xs font-bold text-[#1E293B] cursor-pointer hover:text-[#1A73E8] transition-colors leading-tight">
                                           {perm.name}
                                         </label>
-                                        <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-slate-400 mt-0.5 shrink-0">
+                                        <span className="font-mono text-[9.5px] font-semibold text-[#64748B] mt-0.5 shrink-0">
                                           {perm.code}
                                         </span>
                                       </div>
-                                      <p className="text-[12px] sm:text-[13px] text-slate-500 font-medium leading-relaxed pr-2">
+                                      <p className="text-[11px] text-[#64748B] font-medium leading-relaxed pr-2">
                                         {perm.desc}
                                       </p>
                                     </div>
@@ -1543,17 +1595,17 @@ function PermissionsPageContent() {
                                           e.stopPropagation();
                                           handleOpenEditPermissionModal(perm);
                                         }}
-                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                        className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
                                         title="Sửa quyền"
                                       >
-                                        <Pencil className="w-3.5 h-3.5" />
+                                        <Pencil className="w-3 h-3" />
                                       </button>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handlePermissionDelete(perm);
                                         }}
-                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                                        className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
                                         title="Xóa quyền"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
@@ -1589,145 +1641,146 @@ function PermissionsPageContent() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex-1 flex flex-col overflow-hidden bg-white"
+                className="flex-grow flex flex-col overflow-hidden bg-transparent"
               >
                 {/* Toolbar */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white shrink-0">
+                <div className="px-5 py-2 flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/50 bg-white/10 shrink-0 gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-indigo-100 shrink-0">
+                    <div className="w-8 h-8 rounded-xl bg-[#1A73E8]/10 border border-[#1A73E8]/20 flex items-center justify-center shrink-0">
                       <Route className="w-4.5 h-4.5 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800">Cấu hình quyền theo trang</h3>
-                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">{routePermissions.length} cấu hình đang hoạt động</p>
+                      <h3 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Cấu hình quyền theo trang</h3>
+                      <p className="text-[10.5px] text-[#64748B] font-bold mt-0.5">{routePermissions.length} cấu hình đang hoạt động</p>
                     </div>
                   </div>
                   <button
                     onClick={() => { setEditingRoutePerm(null); setIsRoutePermModalOpen(true); }}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors"
+                    className="flex items-center gap-1.5 px-4 h-8 text-xs font-bold text-white bg-[#1A73E8] rounded-xl hover:bg-[#155cb4] shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out"
                   >
-                    <Plus className="w-4 h-4" strokeWidth={3} />
+                    <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
                     Thêm cấu hình
                   </button>
                 </div>
 
                 {/* Table */}
-                <div className="flex-1 overflow-auto bg-white relative">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-100 shadow-sm">
-                      <tr>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Route</th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Tên</th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Loại</th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Quyền yêu cầu</th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Kiểm tra</th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Trạng thái</th>
-                        <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {isDataLoading ? (
-                        Array.from({ length: 5 }).map((_, idx) => (
-                          <tr key={`sk-${idx}`}>
-                            {Array.from({ length: 7 }).map((_, ci) => (
-                              <td key={ci} className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
-                            ))}
-                          </tr>
-                        ))
-                      ) : routePermissions.length === 0 ? (
+                <div className="flex-1 overflow-y-auto p-5 bg-transparent">
+                  <div className="bg-white/60 border border-white/80 shadow-sm shadow-slate-200/20 rounded-2xl overflow-hidden flex flex-col h-full">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-white/20 border-b border-white/50 sticky top-0 z-10">
                         <tr>
-                          <td colSpan={7} className="px-6 py-16 text-center">
-                            <div className="flex flex-col items-center gap-3">
-                              <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
-                                <Route className="w-7 h-7 text-slate-400" />
-                              </div>
-                              <p className="text-sm text-gray-500 font-medium">Chưa có cấu hình nào</p>
-                              <p className="text-xs text-gray-400">Nhấn "Thêm cấu hình" để gán quyền cho trang</p>
-                            </div>
-                          </td>
+                          <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Route</th>
+                          <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Tên</th>
+                          <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Loại</th>
+                          <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Quyền yêu cầu</th>
+                          <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider text-center">Kiểm tra</th>
+                          <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider text-center">Trạng thái</th>
+                          <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider text-right">Thao tác</th>
                         </tr>
-                      ) : (
-                        routePermissions.map((rp: any) => {
-                          const typeConfig = rp.type === 'api'
-                            ? { icon: Cpu, label: 'API', color: 'text-purple-600 bg-purple-50 border-purple-100' }
-                            : rp.type === 'feature'
-                              ? { icon: Zap, label: 'Chức năng', color: 'text-amber-600 bg-amber-50 border-amber-100' }
-                              : { icon: Globe, label: 'Trang', color: 'text-blue-600 bg-blue-50 border-blue-100' };
-                          const TypeIcon = typeConfig.icon;
-                          return (
-                            <tr key={rp._id} className="hover:bg-slate-50/50 transition-colors group">
-                              <td className="px-6 py-3.5 align-middle">
-                                <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">{rp.route_path}</span>
-                              </td>
-                              <td className="px-6 py-3.5 align-middle">
-                                <div>
-                                  <p className="text-sm font-bold text-slate-800">{rp.route_name}</p>
-                                  {rp.description && <p className="text-xs font-medium text-slate-400 mt-0.5 truncate max-w-[200px]">{rp.description}</p>}
-                                </div>
-                              </td>
-                              <td className="px-6 py-3.5 align-middle">
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${typeConfig.color}`}>
-                                  <TypeIcon size={12} />
-                                  {typeConfig.label}
-                                </span>
-                              </td>
-                              <td className="px-6 py-3.5 align-middle">
-                                <div className="flex flex-wrap gap-1 max-w-[240px]">
-                                  {(rp.permissions || []).slice(0, 3).map((p: any) => (
-                                    <span key={p._id || p} className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                                      {p.code || p}
-                                    </span>
-                                  ))}
-                                  {(rp.permissions || []).length > 3 && (
-                                    <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
-                                      +{rp.permissions.length - 3}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-3.5 align-middle text-center">
-                                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${rp.check_type === 'any' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
-                                  {rp.check_type === 'any' ? 'Ít nhất 1' : 'Tất cả'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-3.5 align-middle text-center">
-                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${rp.is_active !== false ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50' : 'bg-slate-50 text-slate-400 border-slate-100'
-                                  }`}>
-                                    <div className={`w-1.5 h-1.5 rounded-full ${rp.is_active !== false ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                                  <span className="text-xs font-bold">{rp.is_active !== false ? 'Active' : 'Inactive'}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-3.5 align-middle text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Action
-                                    onEdit={() => { setEditingRoutePerm(rp); setIsRoutePermModalOpen(true); }}
-                                    onDelete={() => {
-                                      setDeleteConfig({
-                                        title: 'Xóa cấu hình route',
-                                        message: `Bạn có chắc chắn muốn xóa cấu hình cho route "${rp.route_path}"?`,
-                                        onConfirm: async () => {
-                                          const token = tokenStorage.getAccessToken();
-                                          if (!token) { toast.error('Hết phiên làm việc'); return; }
-                                          await authApi.deleteRoutePermission(rp._id, token);
-                                          invalidateRoutePermissionCache();
-                                          if (typeof window !== 'undefined') {
-                                            window.dispatchEvent(new CustomEvent('route-permissions-updated'));
-                                          }
-                                          toast.success('Xóa cấu hình thành công');
-                                          fetchData();
-                                        }
-                                      });
-                                      setIsDeleteModalOpen(true);
-                                    }}
-                                  />
-                                </div>
-                              </td>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {isDataLoading ? (
+                          Array.from({ length: 5 }).map((_, idx) => (
+                            <tr key={`sk-${idx}`}>
+                              {Array.from({ length: 7 }).map((_, ci) => (
+                                <td key={ci} className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
+                              ))}
                             </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                          ))
+                        ) : routePermissions.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="px-6 py-16 text-center">
+                              <div className="flex flex-col items-center gap-3">
+                                <div className="w-12 h-12 rounded-xl bg-white/50 border border-white/80 shadow-sm flex items-center justify-center">
+                                  <Route className="w-7 h-7 text-slate-400" />
+                                </div>
+                                <p className="text-[#64748B] font-bold text-xs">Chưa có cấu hình nào</p>
+                                <p className="text-[11px] text-[#64748B]/70">Nhấn "Thêm cấu hình" để gán quyền cho trang</p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          routePermissions.map((rp: any) => {
+                            const typeConfig = rp.type === 'api'
+                              ? { icon: Cpu, label: 'API', color: 'text-purple-700 bg-purple-500/10 border-purple-500/20' }
+                              : rp.type === 'feature'
+                                ? { icon: Zap, label: 'Chức năng', color: 'text-amber-700 bg-amber-500/10 border-amber-500/20' }
+                                : { icon: Globe, label: 'Trang', color: 'text-[#1A73E8] bg-blue-500/10 border-blue-500/20' };
+                            const TypeIcon = typeConfig.icon;
+                            return (
+                              <tr key={rp._id} className="hover:bg-white/40 border-b border-white/20 transition-all duration-150 ease-out hover:scale-[1.005] group">
+                                <td className="px-6 py-3.5 align-middle">
+                                  <span className="text-[10.5px] font-mono font-bold text-indigo-655 bg-indigo-500/10 px-2 py-0.5 rounded-xl border border-indigo-500/20">{rp.route_path}</span>
+                                </td>
+                                <td className="px-6 py-3.5 align-middle">
+                                  <div>
+                                    <p className="text-xs font-bold text-[#1E293B]">{rp.route_name}</p>
+                                    {rp.description && <p className="text-[10.5px] font-bold text-[#64748B] mt-0.5 truncate max-w-[200px]">{rp.description}</p>}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-3.5 align-middle">
+                                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xl text-[10.5px] font-bold border ${typeConfig.color}`}>
+                                    <TypeIcon size={12} />
+                                    {typeConfig.label}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-3.5 align-middle">
+                                  <div className="flex flex-wrap gap-1 max-w-[240px]">
+                                    {(rp.permissions || []).slice(0, 3).map((p: any) => (
+                                      <span key={p._id || p} className="text-[9.5px] font-mono font-bold text-[#1A73E8] bg-blue-500/10 px-2 py-0.5 rounded-xl border border-blue-500/20">
+                                        {p.code || p}
+                                      </span>
+                                    ))}
+                                    {(rp.permissions || []).length > 3 && (
+                                      <span className="text-[9.5px] font-bold text-[#64748B] bg-white/60 px-2 py-0.5 rounded-xl border border-white/80 shadow-sm">
+                                        +{rp.permissions.length - 3}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-3.5 align-middle text-center">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-xl text-[10.5px] font-bold border ${rp.check_type === 'any' ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'}`}>
+                                    {rp.check_type === 'any' ? 'Ít nhất 1' : 'Tất cả'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-3.5 align-middle text-center">
+                                  <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xl border text-[10.5px] font-bold ${rp.is_active !== false ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' : 'bg-slate-500/10 text-[#64748B] border-slate-500/20'}`}>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${rp.is_active !== false ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                                    <span className="text-xs font-bold">{rp.is_active !== false ? 'Active' : 'Inactive'}</span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-3.5 align-middle text-right w-[15%]">
+                                  <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all duration-150">
+                                    <Action
+                                      onEdit={() => { setEditingRoutePerm(rp); setIsRoutePermModalOpen(true); }}
+                                      onDelete={() => {
+                                        setDeleteConfig({
+                                          title: 'Xóa cấu hình route',
+                                          message: `Bạn có chắc chắn muốn xóa cấu hình cho route "${rp.route_path}"?`,
+                                          onConfirm: async () => {
+                                            const token = tokenStorage.getAccessToken();
+                                            if (!token) { toast.error('Hết phiên làm việc'); return; }
+                                            await authApi.deleteRoutePermission(rp._id, token);
+                                            invalidateRoutePermissionCache();
+                                            if (typeof window !== 'undefined') {
+                                              window.dispatchEvent(new CustomEvent('route-permissions-updated'));
+                                            }
+                                            toast.success('Xóa cấu hình thành công');
+                                            fetchData();
+                                          }
+                                        });
+                                        setIsDeleteModalOpen(true);
+                                      }}
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </motion.div>
             )}

@@ -13,8 +13,8 @@ interface RoutePermissionModalProps {
 }
 
 const routeTypeOptions = [
-  { value: 'page', label: 'Trang (Frontend)', icon: Globe, color: 'text-blue-600 bg-blue-50' },
-  { value: 'api', label: 'API (Backend)', icon: Cpu, color: 'text-purple-600 bg-purple-50' },
+  { value: 'page', label: 'Trang (Frontend)', icon: Globe, color: 'text-[#1A73E8] bg-blue-500/10 border-blue-500/20' },
+  { value: 'api', label: 'API (Backend)', icon: Cpu, color: 'text-purple-700 bg-purple-500/10 border-purple-500/20' },
 ];
 
 const checkTypeOptions = [
@@ -95,7 +95,7 @@ export default function RoutePermissionModal({ isOpen, onClose, onSave, initialD
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 flex items-center justify-center p-4"
           onClick={onClose}
         >
           <motion.div
@@ -103,80 +103,76 @@ export default function RoutePermissionModal({ isOpen, onClose, onSave, initialD
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', duration: 0.4 }}
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-[640px] max-h-[90vh] flex flex-col overflow-hidden"
+            className="bg-white/80 backdrop-blur-lg border border-white/80 rounded-2xl shadow-xl shadow-slate-300/30 w-full max-w-[640px] max-h-[90vh] flex flex-col overflow-hidden font-sans"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/50 bg-white/30 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-                  <Route className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 bg-[#1A73E8]/10 border border-[#1A73E8]/20 rounded-xl flex items-center justify-center text-[#1A73E8]">
+                  <Route size={18} className="text-[#1A73E8]" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">
+                  <h2 className="text-base font-bold text-[#1E293B] tracking-tight">
                     {initialData ? 'Chỉnh sửa cấu hình' : 'Thêm cấu hình mới'}
                   </h2>
-                  <p className="text-xs text-gray-500">Gán quyền cho trang hoặc chức năng</p>
+                  <p className="text-[11px] font-medium text-[#64748B] mt-0.5">Gán quyền cho trang hoặc chức năng</p>
                 </div>
               </div>
-              <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
-                <X size={20} className="text-gray-400" />
+              <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-[#64748B] bg-white/50 hover:bg-white/80 rounded-xl border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out">
+                <X size={16} />
               </button>
             </div>
 
             {/* Body - Scrollable */}
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            <div className="flex-1 overflow-y-auto px-6 py-5 bg-transparent space-y-5">
               {/* Route Path & Name */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-semibold text-slate-700">Route Path <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-bold text-[#1E293B]">Route Path <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={routePath}
                     onChange={(e) => setRoutePath(e.target.value)}
                     placeholder="/students"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all font-mono"
+                    className="w-full px-3 py-2 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-sm font-mono"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-semibold text-slate-700">Tên hiển thị <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-bold text-[#1E293B]">Tên hiển thị <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={routeName}
                     onChange={(e) => setRouteName(e.target.value)}
                     placeholder="Quản lý sinh viên"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
+                    className="w-full px-3 py-2 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-sm"
                   />
                 </div>
               </div>
 
               {/* Description */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-slate-700">Mô tả</label>
+                <label className="text-xs font-bold text-[#1E293B]">Mô tả</label>
                 <input
                   type="text"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Mô tả chức năng của trang/route..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
+                  className="w-full px-3 py-2 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-sm"
                 />
               </div>
 
               {/* Type Selection */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-slate-700">Loại</label>
+                <label className="text-xs font-bold text-[#1E293B]">Loại</label>
                 <div className="grid grid-cols-3 gap-3">
                   {routeTypeOptions.map(opt => (
                     <button
                       key={opt.value}
                       onClick={() => setType(opt.value)}
-                      className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 transition-all text-sm font-medium ${
-                        type === opt.value
-                          ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
-                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                      }`}
+                      className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] text-xs font-bold shadow-sm ${type === opt.value ? 'border-[#1A73E8] bg-blue-500/10 text-[#1A73E8]' : 'border-white/80 bg-white/50 text-[#64748B] hover:bg-white/80'}`}
                     >
-                      <opt.icon size={18} />
+                      <opt.icon size={16} />
                       {opt.label}
                     </button>
                   ))}
@@ -185,22 +181,18 @@ export default function RoutePermissionModal({ isOpen, onClose, onSave, initialD
 
               {/* Check Type */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-slate-700">Kiểu kiểm tra</label>
+                <label className="text-xs font-bold text-[#1E293B]">Kiểu kiểm tra</label>
                 <div className="grid grid-cols-2 gap-3">
                   {checkTypeOptions.map(opt => (
                     <button
                       key={opt.value}
                       onClick={() => setCheckType(opt.value)}
-                      className={`flex flex-col gap-1 px-4 py-3 rounded-xl border-2 transition-all text-left ${
-                        checkType === opt.value
-                          ? 'border-blue-500 bg-blue-50 shadow-sm'
-                          : 'border-gray-200 bg-white hover:border-gray-300'
-                      }`}
+                      className={`flex flex-col gap-1 px-4 py-2.5 rounded-xl border transition-all duration-150 hover:scale-[1.01] active:scale-[0.99] text-left ${checkType === opt.value ? 'border-[#1A73E8] bg-blue-500/10 shadow-sm' : 'border-white/80 bg-white/50 hover:bg-white/80'}`}
                     >
-                      <span className={`text-sm font-bold ${checkType === opt.value ? 'text-blue-700' : 'text-gray-700'}`}>
+                      <span className={`text-xs font-bold ${checkType === opt.value ? 'text-[#1A73E8]' : 'text-[#1E293B]'}`}>
                         {opt.label}
                       </span>
-                      <span className="text-[11px] text-gray-500">{opt.desc}</span>
+                      <span className="text-[10.5px] font-bold text-[#64748B]/70">{opt.desc}</span>
                     </button>
                   ))}
                 </div>
@@ -209,7 +201,7 @@ export default function RoutePermissionModal({ isOpen, onClose, onSave, initialD
               {/* Permissions Selection */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <label className="text-xs font-bold text-[#1E293B] flex items-center gap-2">
                     <Shield size={16} className="text-blue-500" />
                     Quyền được gán ({selectedPermissions.length})
                   </label>
@@ -219,9 +211,9 @@ export default function RoutePermissionModal({ isOpen, onClose, onSave, initialD
                   value={permSearch}
                   onChange={(e) => setPermSearch(e.target.value)}
                   placeholder="Tìm kiếm quyền..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
+                  className="w-full px-3 py-1.5 bg-white/50 border border-white/80 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-sm"
                 />
-                <div className="border border-gray-200 rounded-xl max-h-[200px] overflow-y-auto divide-y divide-gray-100">
+                <div className="bg-white/60 border border-white/80 shadow-sm rounded-xl max-h-[200px] overflow-y-auto divide-y divide-white/40 p-1">
                   {filteredPerms.length === 0 ? (
                     <div className="px-4 py-6 text-center text-sm text-gray-400">
                       Không tìm thấy quyền nào
@@ -230,20 +222,18 @@ export default function RoutePermissionModal({ isOpen, onClose, onSave, initialD
                     filteredPerms.map(perm => (
                       <label
                         key={perm._id}
-                        className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 transition-colors ${
-                          selectedPermissions.includes(perm._id) ? 'bg-blue-50/50' : ''
-                        }`}
+                        className={`flex items-center gap-3 px-3.5 py-2 cursor-pointer hover:bg-white/45 transition-colors rounded-lg ${selectedPermissions.includes(perm._id) ? 'bg-blue-500/10' : ''}`}
                       >
                         <input
                           type="checkbox"
                           checked={selectedPermissions.includes(perm._id)}
                           onChange={() => togglePermission(perm._id)}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          className="w-3.5 h-3.5 rounded border-slate-300 text-[#1A73E8] focus:ring-[#1A73E8]/30 cursor-pointer"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{perm.code}</span>
-                            <span className="text-sm text-gray-700 truncate">{perm.name}</span>
+                            <span className="text-[9.5px] font-mono font-bold text-[#1A73E8] bg-blue-500/10 px-2 py-0.5 rounded-xl border border-blue-500/20">{perm.code}</span>
+                            <span className="text-xs font-semibold text-[#1E293B] truncate">{perm.name}</span>
                           </div>
                         </div>
                       </label>
@@ -253,32 +243,32 @@ export default function RoutePermissionModal({ isOpen, onClose, onSave, initialD
               </div>
 
               {/* Active Toggle */}
-              <div className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-xl">
+              <div className="flex items-center justify-between px-4 py-3 bg-white/40 border border-white/70 shadow-sm rounded-xl">
                 <div>
-                  <p className="text-sm font-semibold text-gray-700">Trạng thái</p>
-                  <p className="text-xs text-gray-500">{isActive ? 'Đang kích hoạt — quyền sẽ được kiểm tra' : 'Đã tắt — route không bị hạn chế'}</p>
+                  <p className="text-xs font-bold text-[#1E293B]">Trạng thái</p>
+                  <p className="text-[10.5px] font-bold text-[#64748B] mt-0.5">{isActive ? 'Đang kích hoạt — quyền sẽ được kiểm tra' : 'Đã tắt — route không bị hạn chế'}</p>
                 </div>
                 <button
                   onClick={() => setIsActive(!isActive)}
-                  className={`w-12 h-6 rounded-full relative transition-colors ${isActive ? 'bg-blue-600' : 'bg-slate-300'}`}
+                  className={`w-10 h-5 rounded-full relative transition-colors ${isActive ? 'bg-[#1A73E8]' : 'bg-slate-300'}`}
                 >
-                  <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${isActive ? 'right-0.5' : 'left-0.5'}`} />
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${isActive ? 'right-0.5' : 'left-0.5'}`} />
                 </button>
               </div>
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/50 bg-white/20 shrink-0">
               <button
                 onClick={onClose}
-                className="px-5 py-2.5 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                className="px-5 h-9 text-xs font-bold text-[#64748B] bg-white/50 border border-white/80 hover:bg-white/80 hover:text-[#1E293B] rounded-xl transition-all duration-150 ease-out hover:scale-[1.02] active:scale-[0.98] shadow-sm"
               >
                 Hủy
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={isSaving || !routePath.trim() || !routeName.trim()}
-                className="px-6 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 h-9 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#155cb4] rounded-xl shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-indigo-100"
               >
                 {isSaving ? 'Đang lưu...' : initialData ? 'Cập nhật' : 'Tạo mới'}
               </button>

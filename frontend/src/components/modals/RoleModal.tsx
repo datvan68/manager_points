@@ -135,7 +135,7 @@ export default function RoleModal({
             animate={{ opacity: 0.4 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-slate-900 z-[100]"
+            className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-[100]"
           />
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-8 pointer-events-none">
             <motion.div
@@ -143,45 +143,45 @@ export default function RoleModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white rounded-[24px] shadow-2xl w-full max-w-[1000px] flex flex-col pointer-events-auto overflow-hidden font-sans max-h-[90vh]"
+              className="bg-white/80 backdrop-blur-lg border border-white/80 rounded-2xl shadow-xl shadow-slate-300/30 w-full max-w-[1000px] flex flex-col pointer-events-auto overflow-hidden font-sans max-h-[90vh]"
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100 bg-white shrink-0">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/50 bg-white/30 shrink-0">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+                  <div className="w-10 h-10 bg-[#1A73E8]/10 border border-[#1A73E8]/20 rounded-xl flex items-center justify-center text-[#1A73E8]">
                     <Shield className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                    <h2 className="text-base font-bold text-[#1E293B] tracking-tight">
                       {isEditing ? 'Thiết lập Vai trò' : 'Tạo Vai trò mới'}
                     </h2>
-                    <p className="text-sm font-medium text-slate-500">
+                    <p className="text-[11px] font-medium text-[#64748B] mt-0.5">
                       {isEditing ? 'Cập nhật quyền hạn và mô tả cho vai trò hệ thống' : 'Định nghĩa vai trò và phân bổ quyền hạn truy cập'}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={onClose}
-                  className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                  className="w-8 h-8 flex items-center justify-center text-[#64748B] bg-white/50 hover:bg-white/80 rounded-xl border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Main Content: Split Layout */}
               <div className="flex-1 flex overflow-hidden min-h-0">
                 {/* Left Panel: Basic Info */}
-                <div className="w-full md:w-[380px] p-8 border-r border-slate-100 bg-slate-50/30 overflow-y-auto scrollbar-hover">
-                  <form id="role-form" onSubmit={handleSubmit} className="flex flex-col gap-8">
+                <div className="w-full md:w-[320px] p-6 border-r border-white/50 bg-white/20 overflow-y-auto scrollbar-hover flex flex-col gap-6">
+                  <form id="role-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
                     <div className="flex flex-col gap-6">
-                      <div className="flex items-center gap-2 text-blue-700 font-bold text-xs uppercase tracking-widest">
-                        <Info className="w-4 h-4" />
+                      <div className="flex items-center gap-1.5 text-[#1A73E8] font-bold text-[10.5px] uppercase tracking-wider">
+                        <Info className="w-3.5 h-3.5" />
                         Thông tin cơ bản
                       </div>
 
                       {/* Role Name */}
                       <div className="flex flex-col gap-2">
-                        <label className="text-sm font-bold text-slate-700">
+                        <label className="text-xs font-bold text-[#1E293B]">
                           Tên vai trò <span className="text-rose-500">*</span>
                         </label>
                         <input
@@ -190,33 +190,31 @@ export default function RoleModal({
                           value={formData.name}
                           onChange={handleChange}
                           placeholder="VD: Quản lý Đào tạo"
-                          className={`w-full px-4 py-3 bg-white border rounded-xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-400 ${
-                            errors.name ? 'border-rose-300 focus:border-rose-500' : 'border-slate-200 focus:border-blue-500'
-                          }`}
+                          className={`w-full px-3 py-2 bg-white/50 backdrop-blur-sm border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 ${errors.name ? 'border-rose-500/50 focus:border-rose-500' : 'border-white/80 focus:border-[#1A73E8]/50 shadow-sm'}`}
                         />
                         {errors.name && <span className="text-xs font-medium text-rose-500 mt-1">{errors.name}</span>}
                       </div>
 
                       {/* Description */}
                       <div className="flex flex-col gap-2">
-                        <label className="text-sm font-bold text-slate-700">Mô tả chi tiết</label>
+                        <label className="text-xs font-bold text-[#1E293B]">Mô tả chi tiết</label>
                         <textarea
                           name="description"
                           value={formData.description}
                           onChange={handleChange}
                           placeholder="Mô tả trách nhiệm của vai trò này trong hệ thống..."
                           rows={4}
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all placeholder:text-slate-400 resize-none shadow-sm"
+                          className="w-full px-3 py-2 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 resize-none shadow-sm"
                         />
                       </div>
                     </div>
 
                     {/* Quick Info / Tips */}
-                    <div className="mt-4 p-5 bg-amber-50 rounded-2xl border border-amber-100 flex gap-4">
-                      <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+                    <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex gap-3 shadow-sm">
+                      <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
                       <div className="flex flex-col gap-1">
-                        <span className="text-xs font-bold text-amber-800">Lưu ý bảo mật</span>
-                        <p className="text-[11px] font-medium text-amber-700 leading-relaxed">
+                        <span className="text-[10.5px] font-bold text-amber-700">Lưu ý bảo mật</span>
+                        <p className="text-[10.5px] font-bold text-amber-700/90 leading-relaxed">
                           Việc gán quá nhiều quyền cho một vai trò có thể gây rủi ro bảo mật. Hãy tuân thủ nguyên tắc "Quyền hạn tối thiểu".
                         </p>
                       </div>
@@ -225,31 +223,31 @@ export default function RoleModal({
                 </div>
 
                 {/* Right Panel: Permissions Selection */}
-                <div className="flex-1 flex flex-col bg-white overflow-hidden min-w-0">
+                <div className="flex-1 flex flex-col bg-transparent overflow-hidden min-w-0">
                   {/* Sub-header with Search */}
-                  <div className="px-8 py-4 border-b border-slate-50 bg-white flex items-center justify-between shrink-0">
+                  <div className="px-6 py-3 border-b border-white/50 bg-white/20 flex items-center justify-between shrink-0">
                     <div className="flex flex-col">
-                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                      <h3 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider flex items-center gap-1.5">
                         Cấp quyền truy cập
-                        <span className="bg-blue-600 text-[10px] text-white px-2 py-0.5 rounded-full font-black">
+                        <span className="bg-[#1A73E8] text-[9.5px] text-white px-1.5 py-0.5 rounded-xl font-bold shadow-sm shadow-[#1A73E8]/20">
                           {formData.permissions.length}
                         </span>
                       </h3>
                     </div>
-                    <div className="relative w-[240px]">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <div className="relative w-[200px]">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                       <input
                         type="text"
                         placeholder="Tìm quyền..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        className="w-full pl-8.5 pr-3 py-1.5 bg-white/50 border border-white/80 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-sm"
                       />
                     </div>
                   </div>
 
                   {/* Scrollable Permissions List */}
-                  <div className="flex-1 overflow-y-auto p-8 pt-4 scrollbar-hover space-y-8">
+                  <div className="flex-1 overflow-y-auto p-6 scrollbar-hover space-y-8">
                     {filteredGroups.length > 0 ? (
                       filteredGroups.map((group) => {
                         const groupIds = group.filteredPermissions.map((p: any) => p._id || p.id);
@@ -260,19 +258,17 @@ export default function RoleModal({
                         return (
                           <div key={group.id} className="flex flex-col gap-4">
                             {/* Group Header */}
-                            <div className="flex items-center justify-between bg-slate-50/50 p-3 rounded-xl border border-slate-100/50">
+                            <div className="flex items-center justify-between bg-white/40 p-2.5 rounded-xl border border-white/77 shadow-sm">
                               <div className="flex items-center gap-3">
-                                <div className="p-2 bg-white rounded-lg shadow-sm">
-                                  <ChevronRight className={`w-4 h-4 text-blue-600 transition-transform ${isAllSelected || isSomeSelected ? 'rotate-90' : ''}`} />
+                                <div className="p-1.5 bg-white/70 border border-white/80 rounded-xl shadow-xs">
+                                  <ChevronRight className={`w-3.5 h-3.5 text-blue-600 transition-transform ${isAllSelected || isSomeSelected ? 'rotate-90' : ''}`} />
                                 </div>
-                                <span className="text-sm font-black text-slate-800">{group.name}</span>
+                                <span className="text-xs font-bold text-[#1E293B]">{group.name}</span>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => toggleGroupPermissions(group.filteredPermissions, isAllSelected)}
-                                className={`text-[11px] font-black px-3 py-1.5 rounded-lg transition-all ${
-                                  isAllSelected ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-50'
-                                }`}
+                                className={`text-[10px] font-bold px-3 py-1.5 rounded-xl border transition-all duration-150 ease-out hover:scale-[1.02] active:scale-[0.98] shadow-sm ${isAllSelected ? 'bg-[#1A73E8] border-[#1A73E8] text-white' : 'bg-white/50 text-[#1A73E8] border-white/80 hover:bg-white/80'}`}
                               >
                                 {isAllSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả nhóm'}
                               </button>
@@ -289,41 +285,23 @@ export default function RoleModal({
                                     key={perm._id || perm.id}
                                     whileHover={{ x: 4 }}
                                     onClick={() => togglePermission(perm._id || perm.id)}
-                                    className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                                      isChecked
-                                        ? isSensitive
-                                          ? 'bg-rose-50/40 border-rose-300 ring-2 ring-rose-500/5'
-                                          : 'bg-blue-50/30 border-blue-200 ring-2 ring-blue-500/5'
-                                        : isSensitive
-                                          ? 'bg-rose-50/5 border-rose-100 hover:border-rose-300 hover:bg-rose-50/20'
-                                          : 'bg-white border-slate-100 hover:border-blue-100 hover:bg-slate-50/50'
-                                    }`}
+                                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-150 hover:scale-[1.01] ${isChecked ? isSensitive ? 'bg-rose-500/15 border-rose-500/35 ring-2 ring-rose-500/10 shadow-sm' : 'bg-blue-500/15 border-blue-500/35 ring-2 ring-blue-500/10 shadow-sm' : isSensitive ? 'bg-rose-500/5 border-rose-500/10 hover:border-rose-300 hover:bg-rose-500/10' : 'bg-white/30 border-white/50 hover:border-blue-300 hover:bg-white/60 shadow-sm shadow-slate-100/50'}`}
                                   >
-                                    <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded-md border flex items-center justify-center transition-all ${
-                                      isChecked
-                                        ? isSensitive
-                                          ? 'bg-rose-600 border-rose-600 text-white'
-                                          : 'bg-blue-600 border-blue-600 text-white'
-                                        : isSensitive
-                                          ? 'bg-white border-rose-300 group-hover:border-rose-400'
-                                          : 'bg-white border-slate-300 group-hover:border-blue-400'
-                                    }`}>
-                                      {isChecked && <Check className="w-3.5 h-3.5" strokeWidth={4} />}
+                                    <div className={`mt-0.5 w-4 h-4 flex-shrink-0 rounded-lg border flex items-center justify-center transition-all duration-150 ${isChecked ? isSensitive ? 'bg-rose-700 border-rose-700 text-white shadow-sm' : 'bg-[#1A73E8] border-[#1A73E8] text-white shadow-sm' : isSensitive ? 'bg-white/50 border-rose-300' : 'bg-white/50 border-white/80'}`}>
+                                      {isChecked && <Check className="w-3 h-3" strokeWidth={4} />}
                                     </div>
                                     <div className="flex flex-col gap-1 w-full min-w-0">
                                       <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="text-sm font-bold text-slate-800 leading-none">{perm.name}</span>
+                                        <span className="text-xs font-bold text-[#1E293B] leading-none">{perm.name}</span>
                                         {isSensitive && (
-                                          <span className="bg-rose-500/10 text-rose-600 border border-rose-500/20 text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider shrink-0">
+                                          <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 text-[8.5px] px-1.5 py-0.5 rounded-xl font-bold uppercase tracking-wider shrink-0 shadow-sm">
                                             Nhạy cảm
                                           </span>
                                         )}
                                       </div>
-                                      <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-tight">{perm.code}</span>
+                                      <span className="text-[9.5px] font-mono font-bold text-[#64748B] uppercase tracking-tight">{perm.code}</span>
                                       {perm.description && (
-                                        <span className={`text-[11px] leading-relaxed mt-1 ${
-                                          isSensitive ? 'text-rose-600/90 font-semibold' : 'text-slate-500'
-                                        }`}>
+                                        <span className={`text-[10.5px] leading-relaxed mt-1 ${isSensitive ? 'text-rose-700 font-semibold' : 'text-[#64748B]'}`}>
                                           {perm.description}
                                         </span>
                                       )}
@@ -337,7 +315,7 @@ export default function RoleModal({
                       })
                     ) : (
                       <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-20">
-                        <Search className="w-12 h-12 opacity-20" />
+                        <Search className="w-6 h-6 opacity-20" />
                         <p className="text-sm font-medium">Không tìm thấy quyền nào phù hợp với yêu cầu.</p>
                       </div>
                     )}
@@ -346,8 +324,8 @@ export default function RoleModal({
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-between px-8 py-5 border-t border-slate-100 bg-slate-50/50 shrink-0">
-                <div className="hidden md:flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+              <div className="flex items-center justify-between px-6 py-4 border-t border-white/50 bg-white/20 shrink-0">
+                <div className="hidden md:flex items-center gap-1.5 text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
                   <Check className="w-3.5 h-3.5 text-blue-500" />
                   Sẵn sàng lưu thay đổi
                 </div>
@@ -355,7 +333,7 @@ export default function RoleModal({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-6 py-2.5 text-sm font-black text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 rounded-xl transition-all shadow-sm"
+                    className="px-5 h-9 text-xs font-bold text-[#64748B] bg-white/50 border border-white/80 hover:bg-white/80 hover:text-[#1E293B] rounded-xl transition-all duration-150 ease-out hover:scale-[1.02] active:scale-[0.98] shadow-sm"
                   >
                     Hủy bỏ
                   </button>
@@ -363,12 +341,12 @@ export default function RoleModal({
                     type="submit"
                     form="role-form"
                     disabled={isSubmitting}
-                    className="px-8 py-2.5 text-sm font-black text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl shadow-lg shadow-blue-600/25 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
+                    className="px-6 h-9 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#155cb4] rounded-xl shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out disabled:opacity-50 flex items-center gap-1.5 shadow-indigo-100"
                   >
                     {isSubmitting ? (
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                      <Save className="w-4 h-4" />
+                      <Save className="w-3.5 h-3.5" />
                     )}
                     {isEditing ? 'Cập nhật ngay' : 'Xác nhận tạo'}
                   </button>

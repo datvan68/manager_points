@@ -1,4 +1,4 @@
-import { tokenStorage } from './auth-api';
+import { httpClient, handleResponse } from './http-client';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -51,27 +51,7 @@ export interface QueryNotificationDto {
   targetRole?: 'all' | 'student' | 'teacher' | 'supervisor';
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  const text = await res.text();
-  let data: any;
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch (e) {
-    data = { message: text || 'Đã xảy ra lỗi phản hồi từ máy chủ' };
-  }
-  if (!res.ok) {
-    throw new Error(data.message || data.error || 'Đã xảy ra lỗi');
-  }
-  return data as T;
-}
-
-function authHeaders(extra?: HeadersInit): HeadersInit {
-  const token = tokenStorage.getAccessToken();
-  return {
-    ...(extra || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
+// Helpers are now imported from http-client
 
 export const notificationApi = {
   async getNotifications(query: QueryNotificationDto): Promise<{
@@ -99,9 +79,7 @@ export const notificationApi = {
     const queryString = params.toString();
     const url = `${API_BASE}/notifications${queryString ? `?${queryString}` : ''}`;
 
-    const res = await fetch(url, {
-      headers: authHeaders(),
-    });
+    const res = await httpClient(url);
     const data = await handleResponse<{
       items: any[];
       total: number;
@@ -120,9 +98,7 @@ export const notificationApi = {
   },
 
   async getUnreadCount(): Promise<{ count: number }> {
-    const res = await fetch(`${API_BASE}/notifications/unread-count`, {
-      headers: authHeaders(),
-    });
+    const res = await httpClient(`${API_BASE}/notifications/unread-count`);
     return handleResponse<{ count: number }>(res);
   },
 
@@ -134,16 +110,14 @@ export const notificationApi = {
     info: number;
     system: number;
   }> {
-    const res = await fetch(`${API_BASE}/notifications/count-summary`, {
-      headers: authHeaders(),
-    });
+    const res = await httpClient(`${API_BASE}/notifications/count-summary`);
     return handleResponse<any>(res);
   },
 
   async createNotification(dto: CreateNotificationDto): Promise<NotificationItem> {
-    const res = await fetch(`${API_BASE}/notifications`, {
+    const res = await httpClient(`${API_BASE}/notifications`, {
       method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
     const item = await handleResponse<any>(res);
@@ -151,9 +125,9 @@ export const notificationApi = {
   },
 
   async updateNotification(id: string, dto: UpdateNotificationDto): Promise<NotificationItem> {
-    const res = await fetch(`${API_BASE}/notifications/${id}`, {
+    const res = await httpClient(`${API_BASE}/notifications/${id}`, {
       method: 'PATCH',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
     const item = await handleResponse<any>(res);
@@ -161,35 +135,32 @@ export const notificationApi = {
   },
 
   async markRead(id: string): Promise<NotificationItem> {
-    const res = await fetch(`${API_BASE}/notifications/${id}/read`, {
+    const res = await httpClient(`${API_BASE}/notifications/${id}/read`, {
       method: 'PATCH',
-      headers: authHeaders(),
     });
     const item = await handleResponse<any>(res);
     return { ...item, id: item._id || item.id };
   },
 
   async markAllRead(): Promise<any> {
-    const res = await fetch(`${API_BASE}/notifications/read-all`, {
+    const res = await httpClient(`${API_BASE}/notifications/read-all`, {
       method: 'PATCH',
-      headers: authHeaders(),
     });
     return handleResponse<any>(res);
   },
 
   async deleteNotification(id: string): Promise<NotificationItem> {
-    const res = await fetch(`${API_BASE}/notifications/${id}`, {
+    const res = await httpClient(`${API_BASE}/notifications/${id}`, {
       method: 'DELETE',
-      headers: authHeaders(),
     });
     const item = await handleResponse<any>(res);
     return { ...item, id: item._id || item.id };
   },
 
   async deleteNotificationsBulk(ids: string[]): Promise<{ matchedCount: number; modifiedCount: number }> {
-    const res = await fetch(`${API_BASE}/notifications/delete-bulk`, {
+    const res = await httpClient(`${API_BASE}/notifications/delete-bulk`, {
       method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),
     });
     return handleResponse<any>(res);
@@ -201,9 +172,7 @@ export const notificationApi = {
     email: string;
     roleName: string;
   }>> {
-    const res = await fetch(`${API_BASE}/notifications/${id}/readers`, {
-      headers: authHeaders(),
-    });
+    const res = await httpClient(`${API_BASE}/notifications/${id}/readers`);
     return handleResponse<any>(res);
   },
 };

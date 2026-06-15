@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Users, Mail, ShieldAlert } from 'lucide-react';
 import { notificationApi } from '@/api/notification-api';
+import { isAuthError } from '@/api/http-client';
 
 interface ReaderInfo {
   id: string;
@@ -37,8 +38,10 @@ const NotificationReadersModal: React.FC<NotificationReadersModalProps> = ({
           const data = await notificationApi.getNotificationReaders(notificationId);
           setReaders(data);
         } catch (err: any) {
-          console.error(err);
-          setError(err.message || 'Không thể tải danh sách người đã xem.');
+          if (!isAuthError(err)) {
+            console.error(err);
+            setError(err.message || 'Không thể tải danh sách người đã xem.');
+          }
         } finally {
           setIsLoading(false);
         }

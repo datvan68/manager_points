@@ -9,6 +9,10 @@ export class ApiError extends Error {
   }
 }
 
+export function isAuthError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as any).status === 401;
+}
+
 interface Subscriber {
   resolve: (token: string) => void;
   reject: (error: Error) => void;

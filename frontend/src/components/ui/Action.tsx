@@ -52,7 +52,7 @@ const Action = ({
             e.stopPropagation();
             onView?.();
           }}
-          className="flex items-center justify-center w-8 h-8 rounded-[10px] transition-all group hover:bg-slate-100"
+          className="flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-150 ease-out group hover:bg-white/60 border border-transparent hover:border-white/50 hover:scale-[1.05] active:scale-[0.95]"
           title="Xem chi tiết"
         >
           <Eye 
@@ -67,7 +67,7 @@ const Action = ({
             e.stopPropagation();
             onEdit?.();
           }}
-          className="flex items-center justify-center w-8 h-8 rounded-[10px] transition-all group hover:bg-slate-100"
+          className="flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-150 ease-out group hover:bg-white/60 border border-transparent hover:border-white/50 hover:scale-[1.05] active:scale-[0.95]"
           title="Chỉnh sửa"
         >
           <PencilLine 
@@ -82,7 +82,7 @@ const Action = ({
             e.stopPropagation();
             onDelete?.();
           }}
-          className="flex items-center justify-center w-8 h-8 rounded-[10px] transition-all group hover:bg-slate-100"
+          className="flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-150 ease-out group hover:bg-white/60 border border-transparent hover:border-white/50 hover:scale-[1.05] active:scale-[0.95]"
           title="Xóa"
         >
           <Trash2 

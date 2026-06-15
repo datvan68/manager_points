@@ -19,6 +19,7 @@ import NotificationReadersModal from '@/components/modals/NotificationReadersMod
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import { isAuthError } from '@/api/http-client';
 
 function NotificationsPageContent() {
   const router = useRouter();
@@ -68,7 +69,9 @@ function NotificationsPageContent() {
         views: res.all, // Views filter shows statistics for all notifications
       });
     } catch (e) {
-      console.error('Failed to load counts:', e);
+      if (!isAuthError(e)) {
+        console.error('Failed to load counts:', e);
+      }
     }
   };
 
@@ -92,8 +95,10 @@ function NotificationsPageContent() {
       setTotal(res.total);
       setTotalPages(res.totalPages);
     } catch (e) {
-      console.error('Failed to load paginated list:', e);
-      toast.error('Không thể tải danh sách thông báo.');
+      if (!isAuthError(e)) {
+        console.error('Failed to load paginated list:', e);
+        toast.error('Không thể tải danh sách thông báo.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -116,7 +121,9 @@ function NotificationsPageContent() {
       }
       window.dispatchEvent(new Event('notifications-updated'));
     } catch (err: any) {
-      toast.error(err.message || 'Lỗi khi lưu thông báo.');
+      if (!isAuthError(err)) {
+        toast.error(err.message || 'Lỗi khi lưu thông báo.');
+      }
       throw err;
     }
     setEditingNotification(null);
@@ -146,7 +153,9 @@ function NotificationsPageContent() {
       await notificationApi.markRead(id);
       window.dispatchEvent(new Event('notifications-updated'));
     } catch (err) {
-      console.error('Failed to mark read:', err);
+      if (!isAuthError(err)) {
+        console.error('Failed to mark read:', err);
+      }
     }
   };
 
@@ -156,7 +165,9 @@ function NotificationsPageContent() {
       toast.success('Đã đánh dấu đọc tất cả thông báo!');
       window.dispatchEvent(new Event('notifications-updated'));
     } catch (err: any) {
-      toast.error(err.message || 'Lỗi khi đánh dấu đọc.');
+      if (!isAuthError(err)) {
+        toast.error(err.message || 'Lỗi khi đánh dấu đọc.');
+      }
     }
   };
 
@@ -173,7 +184,9 @@ function NotificationsPageContent() {
       toast.success('Đã xóa thông báo!');
       window.dispatchEvent(new Event('notifications-updated'));
     } catch (err: any) {
-      toast.error(err.message || 'Lỗi khi xóa thông báo.');
+      if (!isAuthError(err)) {
+        toast.error(err.message || 'Lỗi khi xóa thông báo.');
+      }
     } finally {
       setNotificationToDelete(null);
     }
@@ -208,7 +221,9 @@ function NotificationsPageContent() {
       setSelectedIds([]);
       window.dispatchEvent(new Event('notifications-updated'));
     } catch (err: any) {
-      toast.error(err.message || 'Lỗi khi xóa các thông báo.');
+      if (!isAuthError(err)) {
+        toast.error(err.message || 'Lỗi khi xóa các thông báo.');
+      }
     }
   };
 
@@ -218,7 +233,9 @@ function NotificationsPageContent() {
       await notificationApi.markRead(item.id);
       window.dispatchEvent(new Event('notifications-updated'));
     } catch (err) {
-      console.error(err);
+      if (!isAuthError(err)) {
+        console.error(err);
+      }
     }
     if (item.routeUrl) {
       toast.info(`Chuyển hướng đến: ${item.title}`);

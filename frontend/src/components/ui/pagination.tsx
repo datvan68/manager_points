@@ -107,7 +107,7 @@ export function CustomPagination({
         <button
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
           disabled={currentPage === 1}
-          className="w-8 h-8 flex items-center justify-center rounded-full bg-white/30 border border-white/60 hover:bg-white/80 hover:scale-[1.01] disabled:opacity-30 disabled:hover:scale-100 transition-all duration-150 ease-out cursor-pointer"
+          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/30 border border-white/60 hover:bg-white/80 hover:scale-[1.05] active:scale-[0.95] disabled:opacity-30 disabled:hover:scale-100 disabled:active:scale-100 transition-all duration-150 ease-out cursor-pointer"
           aria-label="Trang trước"
         >
           <ChevronLeft className="w-[14px] h-[14px] text-[#1E293B]" />
@@ -130,10 +130,10 @@ export function CustomPagination({
                 key={index}
                 onClick={() => onPageChange(page as number)}
                 className={cn(
-                  "flex items-center justify-center w-8 h-8 rounded-full text-[13.5px] font-bold transition-all duration-150 ease-out cursor-pointer",
+                  "flex items-center justify-center w-8 h-8 rounded-xl text-[13.5px] font-bold transition-all duration-150 ease-out cursor-pointer",
                   isActive 
-                    ? "bg-[#1A73E8] text-white shadow-sm hover:scale-[1.01]" 
-                    : "text-[#1E293B] bg-white/30 border border-white/40 hover:bg-white/80 hover:scale-[1.01]"
+                    ? "bg-[#1A73E8] text-white shadow-sm hover:scale-[1.05] active:scale-[0.95]" 
+                    : "text-[#1E293B] bg-white/30 border border-white/40 hover:bg-white/80 hover:scale-[1.05] active:scale-[0.95]"
                 )}
               >
                 {page}
@@ -146,7 +146,7 @@ export function CustomPagination({
         <button
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage === totalPages}
-          className="w-8 h-8 flex items-center justify-center rounded-full bg-white/30 border border-white/60 hover:bg-white/80 hover:scale-[1.01] disabled:opacity-30 disabled:hover:scale-100 transition-all duration-150 ease-out cursor-pointer"
+          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/30 border border-white/60 hover:bg-white/80 hover:scale-[1.05] active:scale-[0.95] disabled:opacity-30 disabled:hover:scale-100 disabled:active:scale-100 transition-all duration-150 ease-out cursor-pointer"
           aria-label="Trang sau"
         >
           <ChevronRight className="w-[14px] h-[14px] text-[#1E293B]" />

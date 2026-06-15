@@ -7,6 +7,7 @@ import { RouteGuard } from '@/components/guards/RouteGuard';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { isAuthError } from '@/api/http-client';
 
 // APIs
 import { studentApi } from '@/api/student-api';
@@ -325,8 +326,10 @@ export default function ReportsPage() {
         loginLogs: fullLogs
       };
     } catch (error: any) {
-      console.error('Failed to fetch full data for export:', error);
-      toast.error(error.message || 'Lỗi khi tải dữ liệu đầy đủ để xuất Excel');
+      if (!isAuthError(error)) {
+        console.error('Failed to fetch full data for export:', error);
+        toast.error(error.message || 'Lỗi khi tải dữ liệu đầy đủ để xuất Excel');
+      }
       return null;
     }
   };

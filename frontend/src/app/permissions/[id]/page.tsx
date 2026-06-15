@@ -174,9 +174,9 @@ export default function UserDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex bg-slate-50 h-screen overflow-hidden font-sans">
+      <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
         <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0 h-full">
+        <div className="flex-1 flex flex-col min-w-0 h-full bg-transparent">
           <Header />
           <TabNavigation
             tabs={[
@@ -188,7 +188,7 @@ export default function UserDetailPage() {
             activeTab={activeTab}
             onTabChange={(id) => setActiveTab(id)}
           />
-          <main className="flex-1 p-8 overflow-y-auto bg-slate-50">
+          <main className="flex-1 p-6 overflow-y-auto bg-transparent">
             <div className="max-w-6xl mx-auto space-y-6">
               <Skeleton className="h-32 w-full rounded-2xl" />
               <div className="grid grid-cols-12 gap-6">
@@ -206,53 +206,53 @@ export default function UserDetailPage() {
   }
 
   return (
-    <div className="flex bg-slate-50 h-screen overflow-hidden font-sans">
+    <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 h-full">
+      <div className="flex-1 flex flex-col min-w-0 h-full bg-transparent">
         <Header />
-        <main className="flex-1 p-8 overflow-y-auto bg-slate-50 scrollbar-hide">
+        <main className="flex-1 p-6 overflow-y-auto bg-transparent scrollbar-hide">
           <div className="max-w-[1280px] mx-auto space-y-6">
             {/* Header Card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex items-center justify-between"
+              className="bg-white/45 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4"
             >
               <div className="flex items-center gap-6">
                 {/* Avatar */}
-                <div className="w-24 h-24 rounded-full bg-blue-100 border-4 border-white shadow-md flex items-center justify-center text-3xl font-bold text-blue-600">
+                <div className="w-20 h-20 rounded-full bg-[#1A73E8]/10 ring-4 ring-white/60 shadow-sm flex items-center justify-center text-2xl font-bold text-[#1A73E8] shrink-0">
                   {(user?.user_name || user?.username || "NQ")
                     .substring(0, 2)
                     .toUpperCase()}
                 </div>
 
                 {/* User Info */}
-                <div className="space-y-2">
-                  <h1 className="text-2xl font-bold text-slate-900">
+                <div className="space-y-1.5">
+                  <h1 className="text-xl font-bold text-[#1E293B]">
                     {user?.user_name || user?.username || "Nguyễn Quang Huy"}
                   </h1>
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Mail className="w-4 h-4" />
-                      <span className="text-sm font-medium">
+                  <div className="flex flex-wrap items-center gap-3 md:gap-4">
+                    <div className="flex items-center gap-1.5 text-[#64748B]">
+                      <Mail className="w-3.5 h-3.5" />
+                      <span className="text-xs font-semibold">
                         {user?.email || "huy.nq@edu.vn"}
                       </span>
                     </div>
-                    <div className="bg-slate-100 px-3 py-1 rounded-md text-[11px] font-mono font-bold text-slate-500">
+                    <div className="bg-white/50 border border-white/80 px-2 py-0.5 rounded-xl text-[10.5px] font-mono font-bold text-[#64748B] shadow-sm">
                       UUID:{" "}
                       {user?._id?.substring(0, 8).toUpperCase() || "8A7F-2B1C"}
                     </div>
                     {user?.status === "locked" ? (
-                      <div className="flex items-center gap-2 px-3 py-1 bg-rose-50 border border-rose-100 rounded-full">
+                      <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-rose-500/10 border border-rose-500/20 rounded-xl shadow-sm">
                         <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                        <span className="text-xs font-bold text-rose-700">
+                        <span className="text-[11px] font-bold text-rose-700">
                           Đã bị khóa
                         </span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-full">
+                      <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl shadow-sm">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        <span className="text-xs font-bold text-emerald-700">
+                        <span className="text-[11px] font-bold text-emerald-700">
                           Đang hoạt động
                         </span>
                       </div>
@@ -262,7 +262,7 @@ export default function UserDetailPage() {
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <Button
                   variant="outline"
                   disabled={isResettingPassword || isTogglingStatus || isSaving}
@@ -302,15 +302,15 @@ export default function UserDetailPage() {
                       setIsResettingPassword(false);
                     }
                   }}
-                  className="flex items-center gap-2 border-slate-200 text-slate-600 font-bold disabled:opacity-50"
+                  className="flex items-center gap-1.5 bg-white/50 hover:bg-white/80 border border-white/80 rounded-xl text-[#64748B] hover:text-[#1E293B] font-bold hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out disabled:opacity-50 shadow-sm text-xs py-1.5 h-9"
                 >
                   {isResettingPassword ? (
-                    <svg className="animate-spin h-4 w-4 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-3.5 w-3.5 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                   ) : (
-                    <RefreshCcw className="w-4 h-4" />
+                    <RefreshCcw className="w-3.5 h-3.5" />
                   )}
                   {isResettingPassword ? "Đang đặt lại..." : "Đặt lại mật khẩu"}
                 </Button>
@@ -345,21 +345,21 @@ export default function UserDetailPage() {
                     }
                   }}
                   className={cn(
-                    "flex items-center gap-2 border-slate-200 font-bold disabled:opacity-50",
+                    "flex items-center gap-1.5 font-bold hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out disabled:opacity-50 shadow-sm text-xs py-1.5 h-9 rounded-xl border",
                     user?.status === "locked"
-                      ? "border-emerald-200 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                      : "border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50"
+                      ? "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 text-emerald-700"
+                      : "bg-white/50 hover:bg-rose-500/10 border-white/80 hover:border-rose-500/20 text-slate-700 hover:text-rose-700"
                   )}
                 >
                   {isTogglingStatus ? (
-                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                   ) : user?.status === "locked" ? (
-                    <CheckCircle2 className="w-4 h-4" />
+                    <CheckCircle2 className="w-3.5 h-3.5" />
                   ) : (
-                    <Ban className="w-4 h-4" />
+                    <Ban className="w-3.5 h-3.5" />
                   )}
                   {isTogglingStatus
                     ? (user?.status === "locked" ? "Đang mở khoá..." : "Đang tạm khoá...")
@@ -377,9 +377,9 @@ export default function UserDetailPage() {
                 transition={{ delay: 0.1 }}
                 className="col-span-4"
               >
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-full">
-                  <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-slate-900">
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl overflow-hidden h-full">
+                  <div className="px-5 py-4 border-b border-white/50 bg-white/10 flex items-center justify-between">
+                    <h2 className="text-sm font-bold text-[#1E293B] uppercase tracking-wider">
                       Thông tin cá nhân
                     </h2>
                     {isEditing ? (
@@ -398,7 +398,7 @@ export default function UserDetailPage() {
                             });
                           }}
                           disabled={isSaving}
-                          className="text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-xs font-bold text-[#64748B] hover:text-[#1E293B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 ease-out"
                         >
                           Hủy
                         </button>
@@ -434,10 +434,10 @@ export default function UserDetailPage() {
                             }
                           }}
                           disabled={isSaving}
-                          className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                          className="text-xs font-bold text-[#1A73E8] hover:text-[#155cb4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 ease-out"
                         >
                           {isSaving && (
-                            <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg className="animate-spin h-3.5 w-3.5 text-[#1A73E8]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -448,13 +448,13 @@ export default function UserDetailPage() {
                     ) : (
                       <button
                         onClick={() => setIsEditing(true)}
-                        className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                        className="text-xs font-bold text-[#1A73E8] hover:text-[#155cb4] transition-colors hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 ease-out"
                       >
                         Chỉnh sửa
                       </button>
                     )}
                   </div>
-                  <div className="p-6 space-y-5">
+                  <div className="p-5 space-y-4">
                     <Input
                       label="Họ và tên"
                       value={editValues.username}
@@ -465,6 +465,7 @@ export default function UserDetailPage() {
                         })
                       }
                       readOnly={!isEditing || isSaving}
+                      className="h-9 text-xs py-1.5 placeholder:text-slate-400/70 shadow-sm"
                     />
                     <Input
                       label="Email"
@@ -473,6 +474,7 @@ export default function UserDetailPage() {
                         setEditValues({ ...editValues, email: e.target.value })
                       }
                       readOnly={!isEditing || isSaving}
+                      className="h-9 text-xs py-1.5 placeholder:text-slate-400/70 shadow-sm"
                     />
                     <Input
                       label="Số điện thoại"
@@ -481,10 +483,11 @@ export default function UserDetailPage() {
                         setEditValues({ ...editValues, phone: e.target.value })
                       }
                       readOnly={!isEditing || isSaving}
+                      className="h-9 text-xs py-1.5 placeholder:text-slate-400/70 shadow-sm"
                     />
                     {isEditing ? (
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-500 tracking-wider">
+                        <label className="text-xs font-bold text-[#64748B] tracking-wider px-1">
                           Ngày sinh
                         </label>
                         <Popover
@@ -494,10 +497,10 @@ export default function UserDetailPage() {
                           <PopoverTrigger asChild>
                             <button
                               disabled={isSaving}
-                              className="flex items-center justify-between w-full h-10 px-3 bg-[#f8fafc] border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="flex items-center justify-between w-full h-9 px-3 bg-white/50 border border-white/80 rounded-xl text-xs text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out text-left disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                             >
                               <span>{editValues.dob || "Chọn ngày sinh"}</span>
-                              <CalendarIcon className="w-4 h-4 text-slate-400" />
+                              <CalendarIcon className="w-3.5 h-3.5 text-[#64748B]" />
                             </button>
                           </PopoverTrigger>
                           <PopoverContent
@@ -526,10 +529,11 @@ export default function UserDetailPage() {
                         label="Ngày sinh"
                         value={editValues.dob}
                         readOnly={true}
+                        className="h-9 text-xs py-1.5 placeholder:text-slate-400/70 shadow-sm"
                       />
                     )}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-500 tracking-wider">
+                      <label className="text-xs font-bold text-[#64748B] tracking-wider px-1">
                         Khoa / Phòng ban
                       </label>
                       {isEditing ? (
@@ -540,29 +544,29 @@ export default function UserDetailPage() {
                           }
                           disabled={isSaving}
                         >
-                          <SelectTrigger className="disabled:opacity-50 disabled:cursor-not-allowed">
+                          <SelectTrigger className="h-9 bg-white/50 border border-white/80 rounded-xl text-xs text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all duration-150 ease-out">
                             <SelectValue placeholder="Chọn khoa / phòng ban" />
                           </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Khoa Công nghệ thông tin">
+                          <SelectContent className="bg-white/95 backdrop-blur-md border border-white/70 rounded-xl shadow-md">
+                            <SelectItem value="Khoa Công nghệ thông tin" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
                               Khoa Công nghệ thông tin
                             </SelectItem>
-                            <SelectItem value="Khoa Điện - Điện tử">
+                            <SelectItem value="Khoa Điện - Điện tử" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
                               Khoa Điện - Điện tử
                             </SelectItem>
-                            <SelectItem value="Khoa Kinh tế quốc tế">
+                            <SelectItem value="Khoa Kinh tế quốc tế" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
                               Khoa Kinh tế quốc tế
                             </SelectItem>
-                            <SelectItem value="Khoa Cơ khí chế tạo">
+                            <SelectItem value="Khoa Cơ khí chế tạo" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
                               Khoa Cơ khí chế tạo
                             </SelectItem>
-                            <SelectItem value="Khoa Ngoại ngữ">
+                            <SelectItem value="Khoa Ngoại ngữ" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
                               Khoa Ngoại ngữ
                             </SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (
-                        <div className="flex items-center justify-between h-10 px-3 bg-[#f8fafc] border border-slate-200/60 rounded-lg text-sm text-slate-900">
+                        <div className="flex items-center justify-between h-9 px-3 bg-white/30 border border-white/60 rounded-xl text-xs text-[#1E293B] shadow-sm">
                           <span>{editValues.department}</span>
                         </div>
                       )}
@@ -578,68 +582,38 @@ export default function UserDetailPage() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                  className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl overflow-hidden"
                 >
-                  <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                  <div className="px-5 py-4 border-b border-white/50 bg-white/10 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-5 h-5 text-blue-600" />
-                      <h2 className="text-lg font-bold text-slate-900">
+                      <ShieldCheck className="w-5 h-5 text-[#1A73E8]" />
+                      <h2 className="text-sm font-bold text-[#1E293B] uppercase tracking-wider">
                         Vai trò hiện tại
                       </h2>
                     </div>
-                    <div className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider">
+                    <div className="bg-[#1A73E8]/10 text-[#1A73E8] border border-[#1A73E8]/20 px-2.5 py-0.5 rounded-xl text-[11px] font-bold uppercase tracking-wider shadow-sm">
                       {user?.role ? "Đã gán vai trò" : "Chưa gán vai trò"}
                     </div>
                   </div>
-                  <div className="p-6 space-y-6">
+                  <div className="p-5 space-y-5">
                     <div className="flex flex-wrap gap-3 items-center">
                       {user?.role ? (
                         <div
                           className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-lg border shadow-sm transition-all hover:shadow-md font-sans",
+                            "flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all hover:scale-[1.01] duration-150 ease-out font-sans",
                             user.role.name === "Admin"
-                              ? "bg-purple-50 border-purple-100 text-purple-700"
-                              : "bg-blue-50 border-blue-100 text-blue-700"
+                              ? "bg-purple-500/10 border-purple-500/20 text-purple-700"
+                              : "bg-blue-500/10 border-blue-500/20 text-[#1A73E8]"
                           )}
                         >
-                          <span className="text-sm font-bold">{user.role.name}</span>
+                          <span className="text-xs font-bold">{user.role.name}</span>
                         </div>
                       ) : (
-                        <div className="text-sm text-slate-400 font-medium italic font-sans">
+                        <div className="text-xs text-[#64748B] font-medium italic font-sans">
                           Tài khoản này chưa được gán vai trò nào.
                         </div>
                       )}
                     </div>
-
-                    {/* Giao diện thay đổi vai trò cực kỳ cao cấp */}
-                    {/* <div className="pt-4 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-800 mb-1">Thay đổi vai trò tài khoản</h4>
-                        <p className="text-xs text-slate-500">Chọn vai trò mới từ danh sách hệ thống để cập nhật lại tức thì quyền hạn truy cập của người dùng này.</p>
-                      </div>
-                      <div className="w-full md:w-64">
-                        <Select
-                          disabled={isAssigningRole}
-                          value={user?.role?._id || user?.role?.id || ""}
-                          onValueChange={handleRoleChange}
-                        >
-                          <SelectTrigger className="w-full bg-slate-50 border-slate-200 text-slate-700 font-semibold focus:ring-blue-500/20">
-                            <SelectValue placeholder="Chọn vai trò..." />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border-slate-200">
-                            {rolesList.map((r) => (
-                              <SelectItem
-                                key={r._id || r.id}
-                                value={r._id || r.id}
-                                className="font-medium text-slate-700 focus:bg-slate-50"
-                              >
-                                {r.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div> */}
                   </div>
                 </motion.div>
 
@@ -648,41 +622,41 @@ export default function UserDetailPage() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                  className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl overflow-hidden"
                 >
-                  <div className="px-6 py-5 border-b border-slate-100">
+                  <div className="px-5 py-4 border-b border-white/50 bg-white/10">
                     <div className="flex items-center gap-2">
-                      <Lock className="w-5 h-5 text-blue-600" />
-                      <h2 className="text-lg font-bold text-slate-900">
+                      <Lock className="w-5 h-5 text-[#1A73E8]" />
+                      <h2 className="text-sm font-bold text-[#1E293B] uppercase tracking-wider">
                         Quyền hạn truy cập tổng hợp
                       </h2>
                     </div>
                   </div>
-                  <div className="p-6">
+                  <div className="p-5">
                     {user?.role?.permissions && user.role.permissions.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Cột 1: Nửa đầu danh sách quyền hạn thực tế */}
-                        <div className="bg-[#f8fafc] border border-slate-100 rounded-xl p-5 space-y-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <GraduationCap className="w-5 h-5 text-blue-600" />
+                        <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 bg-blue-500/10 rounded-xl flex items-center justify-center">
+                              <GraduationCap className="w-4 h-4 text-blue-600" />
                             </div>
-                            <h3 className="font-bold text-slate-900">
+                            <h3 className="font-bold text-[#1E293B] text-xs uppercase tracking-wide">
                               Quyền tác vụ phân bổ (Phần 1)
                             </h3>
                           </div>
-                          <ul className="space-y-3">
+                          <ul className="space-y-2.5">
                             {user.role.permissions.slice(0, Math.ceil(user.role.permissions.length / 2)).map((perm: any, i: number) => {
                               const details = getPermissionDetails(perm);
                               return (
                                 <li
                                   key={i}
-                                  className="flex items-start gap-2.5 text-sm text-slate-600 font-sans"
+                                  className="flex items-start gap-2 text-xs text-[#64748B] font-sans"
                                 >
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
                                   <div className="flex flex-col">
-                                    <span className="font-bold text-slate-800 leading-snug">{details.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono mt-0.5">{details.code}</span>
+                                    <span className="font-bold text-[#1E293B] leading-snug">{details.name}</span>
+                                    <span className="text-[9.5px] text-[#64748B] font-mono mt-0.5">{details.code}</span>
                                   </div>
                                 </li>
                               );
@@ -691,27 +665,27 @@ export default function UserDetailPage() {
                         </div>
 
                         {/* Cột 2: Nửa sau danh sách quyền hạn thực tế */}
-                        <div className="bg-[#f8fafc] border border-slate-100 rounded-xl p-5 space-y-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                              <LayoutGrid className="w-5 h-5 text-orange-600" />
+                        <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 bg-amber-500/10 rounded-xl flex items-center justify-center">
+                              <LayoutGrid className="w-4 h-4 text-amber-600" />
                             </div>
-                            <h3 className="font-bold text-slate-900">
+                            <h3 className="font-bold text-[#1E293B] text-xs uppercase tracking-wide">
                               Thông tin & Hệ thống (Phần 2)
                             </h3>
                           </div>
-                          <ul className="space-y-3">
+                          <ul className="space-y-2.5">
                             {user.role.permissions.slice(Math.ceil(user.role.permissions.length / 2)).map((perm: any, i: number) => {
                               const details = getPermissionDetails(perm);
                               return (
                                 <li
                                   key={i}
-                                  className="flex items-start gap-2.5 text-sm text-slate-600 font-sans"
+                                  className="flex items-start gap-2 text-xs text-[#64748B] font-sans"
                                 >
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
                                   <div className="flex flex-col">
-                                    <span className="font-bold text-slate-800 leading-snug">{details.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono mt-0.5">{details.code}</span>
+                                    <span className="font-bold text-[#1E293B] leading-snug">{details.name}</span>
+                                    <span className="text-[9.5px] text-[#64748B] font-mono mt-0.5">{details.code}</span>
                                   </div>
                                 </li>
                               );
@@ -720,15 +694,15 @@ export default function UserDetailPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="py-12 text-center text-slate-400 font-medium text-sm border border-dashed border-slate-200 rounded-xl font-sans">
+                      <div className="py-10 text-center text-[#64748B] font-medium text-xs border border-dashed border-white/60 rounded-xl bg-white/20 font-sans">
                         {user?.role ? "Vai trò hiện tại không được gán quyền hạn cụ thể nào." : "Tài khoản chưa có vai trò nên chưa được cấp quyền truy cập nào."}
                       </div>
                     )}
 
-                    <div className="mt-8 flex justify-end">
+                    <div className="mt-6 flex justify-end">
                       <Button
                         onClick={() => router.push("/permissions")}
-                        className="bg-[#135bec] hover:bg-[#1151d4] px-10 font-bold"
+                        className="bg-[#1A73E8] hover:bg-[#155cb4] text-white px-8 rounded-xl font-bold hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-sm h-9 text-xs"
                       >
                         Đóng
                       </Button>

@@ -142,7 +142,7 @@ export default function PermissionModal({
             animate={{ opacity: 0.4 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 flex items-center justify-center p-4"
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
             <motion.div
@@ -150,23 +150,23 @@ export default function PermissionModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-[560px] flex flex-col pointer-events-auto overflow-hidden font-sans"
+              className="bg-white/80 backdrop-blur-lg border border-white/80 rounded-2xl shadow-xl shadow-slate-300/30 w-full max-w-[560px] flex flex-col pointer-events-auto overflow-hidden font-sans"
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white">
-                <h2 className="text-xl font-bold text-slate-800">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/50 bg-white/30 shrink-0">
+                <h2 className="text-base font-bold text-[#1E293B] tracking-tight">
                   {isEditing ? "Cập nhật Quyền" : "Thêm Quyền mới"}
                 </h2>
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="w-8 h-8 flex items-center justify-center text-[#64748B] bg-white/50 hover:bg-white/80 rounded-xl border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Form Body */}
-              <div className="px-6 py-6 bg-white overflow-visible">
+              <div className="px-6 py-6 bg-transparent overflow-visible">
                 <form
                   id="permission-form"
                   onSubmit={handleSubmit}
@@ -185,7 +185,6 @@ export default function PermissionModal({
                       onChange={handleCodeChange}
                       placeholder="VD: view_report"
                       containerClassName="w-full"
-                      className="bg-[#f8fafc] "
                     />
 
                     {/* Thuộc nhóm */}
@@ -196,7 +195,7 @@ export default function PermissionModal({
                       value={formData.groupId}
                       onValueChange={handleSelectChange}
                     >
-                      <SelectTrigger className="h-10 bg-[#f8fafc] border-slate-200/60">
+                      <SelectTrigger className="h-10 border-white/80 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 focus-within:border-[#1A73E8]/50 transition-all duration-150">
                         <SelectValue placeholder="Chọn nhóm quyền" />
                       </SelectTrigger>
                       <SelectContent className="z-[60]">
@@ -221,12 +220,11 @@ export default function PermissionModal({
                     value={formData.name}
                     onChange={handleChange}
                     placeholder="VD: Xem báo cáo thống kê"
-                    className="bg-[#f8fafc]"
                   />
 
                   {/* Mô tả chi tiết */}
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-bold text-slate-700">
+                    <label className="text-xs font-bold text-[#1E293B]">
                       Mô tả chi tiết
                     </label>
                     <textarea
@@ -235,17 +233,18 @@ export default function PermissionModal({
                       onChange={handleChange}
                       placeholder="Mô tả chi tiết về phạm vi và tác động của quyền này..."
                       rows={4}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 resize-none"
+                      className="w-full px-3 py-2 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 resize-none shadow-sm"
                     />
                   </div>
                 </form>
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-white shrink-0">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/50 bg-white/20 shrink-0">
                 <Button
                   type="button"
-                  variant="cancel"
+                  variant="secondary"
+                  size="sm"
                   onClick={onClose}
                 >
                   Hủy bỏ
@@ -254,9 +253,10 @@ export default function PermissionModal({
                   type="submit"
                   form="permission-form"
                   disabled={isSubmitting}
+                  size="sm"
                 >
                   {isSubmitting && (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   )}
                   Lưu Quyền
                 </Button>

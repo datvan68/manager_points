@@ -1,177 +1,204 @@
-# Task Scope Review: Next.js Client Chunk Cache Fix
+# Task Scope Review: Notification Unauthorized Console Error
 
-## Objective
+## Review Objective
 
-Review the previous analysis and correction for the runtime error where Next.js could not instantiate the `lucide-react` `Loader2` client module required by `SemesterModal.tsx`.
-
-Observed error:
+Review the current notification-auth fix scope and add the missing or inaccurate items needed to fully resolve the Next.js development overlay:
 
 ```text
-Module [project]/node_modules/lucide-react/dist/esm/icons/loader-circle.js [app-client] (ecmascript) <export default as Loader2> was instantiated because it was required from module [project]/src/components/grading/SemesterModal.tsx [app-client] (ecmascript), but the module factory is not available.
+Console Error
+Unauthorized
 ```
 
-## Review Result
-
-The root-cause direction is correct: this is most likely a stale Next.js client chunk/runtime mismatch, not an invalid `Loader2` import. The `lucide-react` dependency is installed and `Loader2` is imported through the normal package entrypoint.
-
-No app-level service worker, `next-pwa`, or Workbox configuration was found in the repository. That means the stale response is more likely coming from one of these layers:
-
-- Browser cache.
-- CDN or reverse proxy cache.
-- Stale HTML/RSC response after deployment.
-- Incomplete cache invalidation between Next.js builds.
-
-## What Was Wrong Or Incomplete
-
-### 1. The previous document was accidentally emptied
-
-`taskscope-1.md` currently has no content in the working tree. That loses the root-cause notes, the intended fix, and the verification checklist.
-
-Required correction:
-
-- Restore this file with the reviewed scope.
-- Keep the scope focused on the `Loader2`/Next.js client chunk cache issue.
-- Record what was wrong, what was corrected, and what still needs verification.
-
-### 2. `middleware.ts` is deprecated in this project context
-
-The first implementation used `frontend/src/middleware.ts`. The project is on Next.js `^16.1.6`, where the middleware file convention has been renamed to `proxy`; `middleware` is deprecated.
-
-Required correction:
-
-- Remove `frontend/src/middleware.ts`.
-- Add `frontend/src/proxy.ts`.
-- Export a function named `proxy`.
-
-Current status:
-
-- `frontend/src/middleware.ts` is no longer present.
-- `frontend/src/proxy.ts` exists and exports `proxy`.
-
-### 3. The previous middleware shape had an unused request parameter
-
-The earlier middleware imported `NextRequest` and accepted a `request` argument that was not used. This is not a runtime bug, but it is unnecessary and may become a lint/type hygiene issue if stricter rules are enabled.
-
-Required correction:
-
-- Do not import `NextRequest`.
-- Do not accept an unused `request` argument.
-
-Current status:
-
-- `frontend/src/proxy.ts` imports only `NextResponse`.
-- `proxy()` has no unused parameter.
-
-### 4. `/_next/static` must not be overridden
-
-An earlier attempted fix changed cache headers for `/_next/static`. That is not correct for this issue. Next.js static chunks are content-hashed and should keep the framework default caching behavior.
-
-Required correction:
-
-- Do not add custom `Cache-Control` headers for `/_next/static`.
-- Apply no-cache behavior only to app shell and route responses that may reference stale chunks.
-- Exclude `/_next/static`, `/_next/image`, `favicon.ico`, and file-like asset paths from the matcher.
-
-Current status:
-
-```ts
-export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)'],
-};
-```
-
-### 5. The fix reduces recurrence but does not repair already-stale clients by itself
-
-Adding app-shell no-cache headers prevents future stale HTML/RSC responses from lingering, but users who already have a stale browser/CDN response may still need cache invalidation.
-
-Required correction:
-
-- Purge CDN/reverse proxy cache for HTML and app responses during deployment.
-- Ask affected users to hard refresh once if they already loaded the stale runtime.
-- Confirm no external service worker or platform-level cache rule is serving old responses.
-
-### 6. Build verification is still blocked
-
-`npm run build` was attempted but failed before proving the application build:
+The screenshots point to notification loading paths:
 
 ```text
-EPERM: operation not permitted, open 'D:\PROJECT\manager point\frontend\.next\trace'
+handleResponse -> async fetchNotifications
+handleResponse -> async Object.getNotifications -> async fetchNotifications
 ```
 
-This points to a local Windows permission or file-lock issue around `.next\trace`. It does not prove the code change is invalid, but it means build verification is incomplete.
+## Current Status In Working Tree
+
+The initial root-cause direction is correct. Notification endpoints are protected by `JwtAuthGuard`, and the frontend must treat `401 Unauthorized` as an authenticated-session problem, not as an unexpected notification feature error.
+
+Some corrective work is already present:
+
+- `frontend/src/api/notification-api.ts` now imports `httpClient` and `handleResponse` from `frontend/src/api/http-client.ts`.
+- `notification-api.ts` no longer builds its own `Authorization` header from `tokenStorage`.
+- `Header.tsx` fetches unread count and recent notifications concurrently with `Promise.all`.
+- `Header.tsx` suppresses `console.error` for errors with `status === 401`.
+- `frontend/src/lib/notifications.ts` suppresses `console.error` for errors with `status === 401`.
+- `AuthProvider` now clears token/user state when `/api/auth/me` returns `401`.
+
+## What Was Inaccurate Or Already Resolved
+
+### 1. The primary notification API refactor is no longer pending
+
+The previous scope says `notification-api.ts` still needs to move from raw `fetch()` to `httpClient()`. That is now already implemented in the working tree.
+
+Keep it as an acceptance criterion, but do not treat it as an unfixed item unless future diffs reintroduce raw authenticated `fetch()` in `notification-api.ts`.
+
+### 2. Header initial notification loading is partially fixed
+
+The `fetchNotifications()` path in `Header.tsx` now avoids logging expected `401` errors, which should address the first screenshot stack.
+
+Remaining issue:
+
+- On an auth failure, the header currently suppresses the error but does not explicitly reset stale `notifications` and `unreadCount` inside the catch block.
+- If the user had previous notification state and the session becomes invalid, stale count/list values may remain until `user` becomes `null`.
 
 Required correction:
 
-- Stop any running Next.js process that may hold `.next\trace`.
-- Clean the local `.next` directory only after confirming it is safe.
-- Re-run `npm run build`.
+- On expected `401`, set `notifications` to `[]` and `unreadCount` to `0`.
+- Keep non-auth errors visible, but avoid repeated console spam from update events.
 
-## Implemented Correction
+### 3. Background helper logging is partially fixed
 
-The deprecated middleware approach was replaced with a Next.js 16-compatible proxy file.
+`frontend/src/lib/notifications.ts` now suppresses console errors for `401`, so the second screenshot stack is likely covered.
 
-Implemented file:
+Remaining issue:
 
-```txt
-frontend/src/proxy.ts
-```
+- The file repeats the same `if (error?.status !== 401) console.error(...)` pattern across several methods.
+- This is easy to miss in future notification helper methods.
 
-Current implementation:
+Required correction:
+
+- Add a small shared helper such as `isExpectedAuthError(error)` or `logUnexpectedNotificationError(message, error)`.
+- Use it consistently across `getNotifications`, `addNotification`, `updateNotification`, `markRead`, `markAllRead`, and `deleteNotification`.
+
+## Missing Items To Add To The Fix Scope
+
+### 1. `AuthProvider` can still restore stale student user state after `/students/me` returns `401`
+
+In `frontend/src/providers/auth-provider.tsx`, when the student-link request returns `401`, the code clears tokens and state:
 
 ```ts
-import { NextResponse } from 'next/server';
+tokenStorage.clearTokens();
+setUser(null);
+setPermissions([]);
+```
 
-const APP_SHELL_CACHE_CONTROL = 'private, no-cache, no-store, max-age=0, must-revalidate';
+However, the function can continue to the later `if (storedUser)` block and call:
 
-export function proxy() {
-  const response = NextResponse.next();
+```ts
+tokenStorage.setUser(updatedUser);
+setUser(updatedUser);
+```
 
-  response.headers.set('Cache-Control', APP_SHELL_CACHE_CONTROL);
+That can rehydrate the stale user immediately after clearing it.
 
-  return response;
+Required correction:
+
+- After handling `studentRes.status === 401`, return from `loadUserPermissions()` immediately.
+- Alternatively throw a shared `ApiError`/session-expired signal and handle it in one place.
+
+### 2. Auth validation fetches bypass the shared refresh flow
+
+`loadUserPermissions()` uses raw `fetch()` for:
+
+- `GET /api/auth/me`
+- `GET /students/me`
+
+This means these validation requests do not benefit from `httpClient()` refresh/retry behavior.
+
+Required correction:
+
+- Prefer `httpClient()` for these protected validation calls, or explicitly document that `AuthProvider` is the one place allowed to handle validation without retry.
+- If using `httpClient()`, avoid duplicate redirects/toasts because `httpClient()` already clears tokens and redirects when refresh fails.
+
+### 3. Notification page call sites still log or toast expected auth failures
+
+`frontend/src/app/notifications/page.tsx` still has direct notification calls that can log expected auth failures:
+
+- `loadCounts()`
+- `loadPaginated()`
+- `handleMarkRead()`
+- `handleNavigate()`
+
+These paths are not shown in the screenshots, but they use the same `notificationApi` and can still surface noisy console errors when auth state is stale.
+
+Required correction:
+
+- Apply the same expected-401 handling used in `Header.tsx`.
+- For page-level loads, avoid showing "cannot load notifications" toast when the real issue is session expiration.
+- For user-triggered mutations, let the global auth/session handling own the redirect and only show a toast for non-auth failures.
+
+### 4. Dashboard and reports notification calls need verification
+
+Other call sites also use `notificationApi`:
+
+- `frontend/src/app/page.tsx`
+- `frontend/src/app/reports/page.tsx`
+
+They mostly use `.catch(() => fallback)`, which reduces overlay risk. Still, these paths should be included in verification because they run on protected pages with `Header` mounted and can race with stale auth.
+
+Required correction:
+
+- Confirm expected auth failures return fallback data without `console.error`.
+- Confirm non-auth failures still have enough diagnostics during development.
+
+### 5. Centralize expected auth error detection
+
+Current code checks `error?.status !== 401` inline. That works for `ApiError`, but it is fragile if another client throws a differently shaped auth error.
+
+Required correction:
+
+- Export or define a small helper:
+
+```ts
+export function isAuthError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as any).status === 401;
 }
-
-export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)'],
-};
 ```
 
-## Files To Keep Or Review
+- Use it in notification UI/background code.
+- Keep the helper status-based and avoid matching only the message text `"Unauthorized"`.
 
-- `frontend/src/proxy.ts`: keep this as the active cache-control fix.
-- `frontend/src/middleware.ts`: should remain removed.
-- `frontend/next.config.js`: should not contain custom `/_next/static` cache headers.
-- `taskscope-1.md`: keep this reviewed scope as the action record for the `Loader2` issue.
+### 6. Avoid duplicate notification requests where possible
 
-## Verification Completed
+`Header` fetches notifications, and pages like dashboard or notifications center can also fetch notifications on mount. This is acceptable, but it can produce repeated requests during session expiry.
 
-- `npm test` for the frontend passed previously with 95 tests.
-- The known `CopyScoreModal` stderr during tests is expected from the test case that simulates an API connection error.
+Recommended follow-up:
 
-## Verification Still Required
+- Keep the current `Promise.all` pattern for independent count/list calls.
+- Consider a shared client-side notification query layer later, such as SWR, to dedupe requests and revalidate after `notifications-updated`.
+- This is a follow-up improvement, not required to fix the screenshots.
 
-1. Resolve the local `.next\trace` file lock or permission issue.
-2. Re-run `npm run build`.
-3. Run the production server with `npm run start`.
-4. Open the grading semester modal that uses `SemesterModal.tsx`.
-5. Confirm the `Loader2` module factory error no longer appears.
-6. Confirm app shell responses include:
+## Updated Required Fix
 
-```text
-Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate
+1. Keep `notification-api.ts` on the shared `httpClient()` and shared `handleResponse()`.
+2. Add consistent expected-auth-error handling for every notification call site that can run in the background.
+3. Reset header notification state on expected `401`.
+4. Fix `AuthProvider.loadUserPermissions()` so `studentRes.status === 401` cannot clear auth and then re-set a stale user.
+5. Decide whether `AuthProvider` protected validation calls should use `httpClient()` or remain intentionally raw with explicit session handling.
+6. Review `/notifications` page logging/toast behavior so session-expired cases do not show noisy feature-level errors.
+
+## Verification Checklist
+
+1. Log in normally and confirm the header bell loads unread count and recent notifications.
+2. Expire the access token while the refresh cookie is valid; confirm notification requests refresh and retry without an overlay.
+3. Expire or remove the refresh cookie while keeping stale local user state; confirm the app clears auth and redirects without an `Unauthorized` overlay.
+4. Confirm the header resets unread count and notification list after expected auth failure.
+5. Open `/notifications` with a stale session and confirm no `console.error` overlay is produced for expected `401`.
+6. Open dashboard and reports pages with a stale session and confirm notification fallback paths do not spam the console.
+7. For non-auth server failures such as `500`, confirm useful diagnostics still appear.
+8. Run frontend tests:
+
+```bash
+npm test
 ```
 
-7. Confirm `/_next/static/*` chunk responses are still handled by Next.js defaults.
-8. Confirm deployment/CDN/proxy rules do not override the intended headers.
-9. Purge stale HTML/app response cache during the next deployment.
+9. Run a production build after clearing any local `.next` file lock:
+
+```bash
+npm run build
+```
 
 ## Acceptance Criteria
 
-- `frontend/src/proxy.ts` is used instead of deprecated `middleware.ts`.
-- No unused proxy request parameter remains.
-- App shell responses force revalidation.
-- `/_next/static` chunk cache behavior is left to Next.js defaults.
-- CDN/proxy cache rules do not serve stale HTML/RSC responses after deployment.
-- `npm test` passes for the frontend.
-- `npm run build` passes after the `.next\trace` lock is cleared.
-- `SemesterModal.tsx` no longer triggers the missing `Loader2` module factory error after deployment and cache purge.
+- `notification-api.ts` uses `httpClient()` for all protected notification endpoints.
+- Expected notification `401` failures do not trigger the Next.js development console overlay.
+- Header notification state is cleared on expected auth failure.
+- `AuthProvider` does not re-set stale users after clearing auth on `401`.
+- `/notifications`, dashboard, reports, and helper notification paths handle expected auth failures consistently.
+- Non-auth errors remain debuggable.
+- Tests and manual notification flows pass.

@@ -1,6 +1,7 @@
 'use client';
 
 import { notificationApi, NotificationItem, UpdateNotificationDto } from '@/api/notification-api';
+import { isAuthError } from '@/api/http-client';
 
 export type { NotificationItem };
 
@@ -11,12 +12,18 @@ export type { NotificationItem };
  * từ `@/api/notification-api` để xử lý ngoại lệ và hiển thị thông báo lỗi (Toast) rõ ràng.
  */
 
+function logUnexpectedNotificationError(message: string, error: unknown) {
+  if (!isAuthError(error)) {
+    console.error(message, error);
+  }
+}
+
 export const getNotifications = async (): Promise<NotificationItem[]> => {
   try {
     const data = await notificationApi.getNotifications({ page: 1, limit: 100 });
     return data.items;
   } catch (error) {
-    console.error('Failed to fetch notifications:', error);
+    logUnexpectedNotificationError('Failed to fetch notifications:', error);
     return [];
   }
 };
@@ -31,7 +38,7 @@ export const addNotification = async (
     await notificationApi.createNotification({ title, description, type, routeUrl });
     window.dispatchEvent(new Event('notifications-updated'));
   } catch (error) {
-    console.error('Failed to add notification:', error);
+    logUnexpectedNotificationError('Failed to add notification:', error);
   }
 };
 
@@ -43,7 +50,7 @@ export const updateNotification = async (
     await notificationApi.updateNotification(id, updatedFields);
     window.dispatchEvent(new Event('notifications-updated'));
   } catch (error) {
-    console.error('Failed to update notification:', error);
+    logUnexpectedNotificationError('Failed to update notification:', error);
   }
 };
 
@@ -52,7 +59,7 @@ export const markRead = async (id: string): Promise<void> => {
     await notificationApi.markRead(id);
     window.dispatchEvent(new Event('notifications-updated'));
   } catch (error) {
-    console.error('Failed to mark notification as read:', error);
+    logUnexpectedNotificationError('Failed to mark notification as read:', error);
   }
 };
 
@@ -61,7 +68,7 @@ export const markAllRead = async (): Promise<void> => {
     await notificationApi.markAllRead();
     window.dispatchEvent(new Event('notifications-updated'));
   } catch (error) {
-    console.error('Failed to mark all notifications as read:', error);
+    logUnexpectedNotificationError('Failed to mark all notifications as read:', error);
   }
 };
 
@@ -70,6 +77,6 @@ export const deleteNotification = async (id: string): Promise<void> => {
     await notificationApi.deleteNotification(id);
     window.dispatchEvent(new Event('notifications-updated'));
   } catch (error) {
-    console.error('Failed to delete notification:', error);
+    logUnexpectedNotificationError('Failed to delete notification:', error);
   }
 };
