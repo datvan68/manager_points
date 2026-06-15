@@ -1,122 +1,92 @@
-# Task Scope: Profile Role toLowerCase Runtime Error
+# Task Scope: Teacher Basic Permission Defaults
 
-## User Report
+## Objective
 
-Opening the personal profile page fails with:
+Update the default RBAC seed for the `Teacher` role so Teacher accounts receive the basic permissions required to access and view student-management and grading areas.
 
-```text
-profile?.role?.toLowerCase is not a function
-```
+## Target Role
 
-The affected screen is the profile page that loads the current user through `GET /api/auth/me`.
+- Role name: `Teacher`
+- Role code: `TEACHER`
 
-## Primary Finding
+## Required Default Permissions
 
-The profile page treats `role` as both a string and an object.
+The Teacher role should be seeded with exactly these basic permissions:
 
-In `frontend/src/app/profile/page.tsx`, student detection calls:
+- `STUDENT_READ`
+- `GRADING_PAGE`
+- `STUDENT_PAGE`
 
-```ts
-data?.role?.toLowerCase() === 'student'
-profile?.role?.toLowerCase() === 'student'
-```
+## Current Context
 
-However, the backend `AuthService.getMe(...)` returns `role` as a populated object:
-
-```ts
-role: role ? {
-  _id: role._id.toString(),
-  name: role.name,
-  role_code: role.role_code,
-  permissions: role.permissions || [],
-} : null
-```
-
-Because `role` is an object, not a string, optional chaining only protects against `null` or `undefined`. It does not protect against calling `toLowerCase()` on a non-string value. When the profile page evaluates this expression, the browser throws the reported runtime error.
-
-## Contract Mismatch
-
-The current `GET /api/auth/me` response already exposes normalized role fields for role checks:
-
-- `roleName`: display/name value such as `Student`
-- `roleCode`: stable code such as `STUDENT`
-- `permissions`: flattened permission codes
-- `role`: populated role object for role metadata and permission details
-
-Therefore, profile role checks should use `roleCode`, `roleName`, or a small role-normalization helper. They should not call string methods directly on `profile.role`.
-
-## Affected Code
-
-- `frontend/src/app/profile/page.tsx`
-  - The `fetchProfile` student check uses `data?.role?.toLowerCase()`.
-  - The header rank badge condition uses `profile?.role?.toLowerCase()`.
-  - The permissions tab correctly assumes `profile.role` is an object when reading `profile?.role?.permissions`.
+The current backend RBAC seed defines the Teacher role in:
 
 - `backend/src/auth/services/auth.service.ts`
-  - `getMe(...)` intentionally returns `role` as an object and should not need to change for this bug.
 
-## Recommended Fix Scope
+The existing Teacher seed currently includes:
 
-1. Add a local helper or reuse the existing role utility to detect student users safely.
+- `view_users`
+- `GRADING_PAGE`
+- `READ_STUDENT_TASK`
 
-   Recommended local helper shape:
+This should be adjusted so Teacher no longer receives the unrelated user-list or task-read defaults as part of the basic Teacher permission set.
 
-   ```ts
-   const isStudentProfile = (user: any): boolean => {
-     if (!user) return false;
-     if (user.roleCode === 'STUDENT') return true;
-     const roleName = String(user.roleName || user.role?.name || '').toLowerCase();
-     return roleName === 'student';
-   };
-   ```
+## Implementation Scope
 
-2. Replace both profile-page student checks with the helper.
+### Backend
 
-   The two call sites should become:
+Update the `seedRbac()` Teacher role definition in `backend/src/auth/services/auth.service.ts`.
 
-   ```ts
-   const isStudent = isStudentProfile(data);
-   ```
+Change the Teacher permissions array to:
 
-   and:
+```ts
+permissions: [
+  createdPerms['STUDENT_READ'],
+  createdPerms['GRADING_PAGE'],
+  createdPerms['STUDENT_PAGE'],
+].filter(Boolean),
+```
 
-   ```tsx
-   {isStudentProfile(profile) && (...)}
-   ```
+Use `.filter(Boolean)` to avoid writing `undefined` values if a permission seed is missing unexpectedly.
 
-3. Keep `profile.role.permissions` usage unchanged.
+### Frontend
 
-   That part matches the backend response contract because `role` is a populated object.
+No frontend code change is required for this scope.
 
-4. Avoid changing the backend response shape unless there is a broader API contract decision.
+The frontend already reads permissions from the authenticated user payload and uses permission helpers such as `hasPermission(...)`, `hasAnyPermission(...)`, and route permission mappings.
 
-   Changing `role` back to a string would likely break the permissions tab and any code that expects populated role details.
+## Out Of Scope
 
-## Files To Touch If Fixing
-
-- `frontend/src/app/profile/page.tsx`
-
-Optional follow-up:
-
-- `frontend/src/utils/role.util.ts`
-  - Consider extending `isStudentRole(...)` to handle `user.role?.name`, because the current helper safely stringifies `user.role` but would produce `[object Object]` for populated role objects.
+- Adding new permission codes.
+- Changing route permission mappings.
+- Changing page-level action permissions.
+- Granting Teacher create, update, delete, import, export, or task-management permissions.
+- Modifying existing users manually in the database.
+- Changing Admin, Supervisor, Student, or system operation role defaults.
 
 ## Acceptance Criteria
 
-- Opening `/profile` no longer throws `profile?.role?.toLowerCase is not a function`.
-- Student users still trigger `summariesPointApi.getMyLatestSummary()`.
-- The rank badge still appears for Student profiles.
-- Non-student profiles do not call the latest summary endpoint.
-- The permissions tab still renders `profile.role.permissions`.
-- No backend API contract change is required.
+- The Teacher seed in `backend/src/auth/services/auth.service.ts` includes `STUDENT_READ`.
+- The Teacher seed includes `GRADING_PAGE`.
+- The Teacher seed includes `STUDENT_PAGE`.
+- The Teacher seed no longer includes `view_users`.
+- The Teacher seed no longer includes `READ_STUDENT_TASK`.
+- On backend startup, the `TEACHER` role is upserted with the updated permission list.
+- A Teacher user receives the updated permission codes through JWT validation and `/api/auth/me`.
+- Teacher can access grading pages that require `GRADING_PAGE`.
+- Teacher can access student-management pages that require `STUDENT_PAGE`.
+- Teacher can view student data guarded by `STUDENT_READ`.
 
-## Manual Verification
+## Verification Notes
 
-1. Log in as a Student user.
-2. Open the personal profile page.
-3. Confirm the page renders without a runtime error.
-4. Confirm the rank badge area appears and the latest summary request is made.
-5. Switch to the role and permissions tab.
-6. Confirm the permissions list still renders from `profile.role.permissions`.
-7. Log in as a non-student user.
-8. Open the profile page and confirm no latest summary request is made.
+1. Restart the backend so RBAC seeding runs.
+2. Log in as a Teacher user.
+3. Confirm `/api/auth/me` returns:
+   - `STUDENT_READ`
+   - `GRADING_PAGE`
+   - `STUDENT_PAGE`
+4. Confirm `/api/auth/me` does not return:
+   - `view_users`
+   - `READ_STUDENT_TASK`
+5. Confirm Teacher can open the student and grading modules.
+6. Confirm Teacher does not gain create, update, delete, import, export, or task-management permissions unless assigned separately.

@@ -365,7 +365,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="bg-white/90 backdrop-blur-lg border border-white/80 rounded-2xl w-full max-w-[1152px] h-[90vh] max-h-[850px] shadow-[0_20px_50px_rgba(0,0,0,0.12)] relative z-10 overflow-hidden flex flex-col font-sans animate-in fade-in duration-200"
+            className="bg-[#eef4fd]/90 backdrop-blur-lg border border-white/80 rounded-2xl w-full max-w-[1152px] h-[90vh] max-h-[850px] shadow-[0_20px_50px_rgba(0,0,0,0.12)] relative z-10 overflow-hidden flex flex-col font-sans animate-in fade-in duration-200"
           >
             {/* Header */}
             <div className="px-10 py-5 border-b border-white/70 flex items-center justify-between shrink-0 bg-gradient-to-r from-blue-50/20 via-white to-slate-50/20">

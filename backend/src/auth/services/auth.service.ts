@@ -722,10 +722,10 @@ export class AuthService implements OnModuleInit {
         role_code: 'TEACHER',
         description: 'Giảng viên cố vấn học tập',
         permissions: [
-          createdPerms['view_users'],
+          createdPerms['STUDENT_READ'],
           createdPerms['GRADING_PAGE'],
-          createdPerms['READ_STUDENT_TASK'],
-        ],
+          createdPerms['STUDENT_PAGE'],
+        ].filter(Boolean),
       },
       {
         name: 'Supervisor',

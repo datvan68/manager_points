@@ -619,93 +619,61 @@ function CategoriesPage() {
               {/* Header chứa các chỉ số thống kê bento và nút Thêm danh mục đặt chung một hàng flex */}
               <div className="flex items-center justify-between w-full shrink-0 px-1 pt-1 gap-[32px]">
                 {/* Stats Row */}
-                <div className="flex flex-1 gap-[12px] items-start min-w-px">
+                <div className="flex flex-1 gap-[12px] items-stretch min-w-px">
                   {/* Tổng số danh mục */}
-                  <div className={`${glassCardClass} flex flex-1 flex-col items-start min-w-px relative w-full`} data-node-id="479:2005">
-                    <div className="relative shrink-0 w-full">
-                      <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
-                        <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-semibold text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
-                            TỔNG SỐ DANH MỤC
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-bold text-[#005bbf] text-[18px] leading-[27px] whitespace-nowrap min-h-[27px] flex items-center">
-                            {isInitialLoading ? (
-                              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
-                            ) : (
-                              categories.length
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className={`${glassCardClass} flex flex-1 flex-col gap-1 items-start min-w-px relative w-full`} data-node-id="479:2005">
+                    <span className="font-sans font-semibold text-[#5f6368] text-[10px] tracking-[0.55px] uppercase leading-tight whitespace-nowrap">
+                      TỔNG SỐ DANH MỤC
+                    </span>
+                    <span className="font-sans font-bold text-[#005bbf] text-[20px] leading-none mt-1">
+                      {isInitialLoading ? (
+                        <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
+                      ) : (
+                        categories.length
+                      )}
+                    </span>
                   </div>
 
                   {/* Tiêu chí khen thưởng */}
-                  <div className={`${glassCardClass} flex flex-1 flex-col items-start min-w-px relative w-full`} data-node-id="479:2011">
-                    <div className="relative shrink-0 w-full">
-                      <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
-                        <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-semibold text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
-                            TIÊU CHÍ KHEN THƯỞNG
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-bold text-[#006d2b] text-[18px] leading-[27px] whitespace-nowrap min-h-[27px] flex items-center">
-                            {isInitialLoading ? (
-                              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
-                            ) : (
-                              criteria.filter(c => c.type === 'khen_thuong' || c.type === 'cong_diem').length
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className={`${glassCardClass} flex flex-1 flex-col gap-1 items-start min-w-px relative w-full`} data-node-id="479:2011">
+                    <span className="font-sans font-semibold text-[#5f6368] text-[10px] tracking-[0.55px] uppercase leading-tight whitespace-nowrap">
+                      TIÊU CHÍ KHEN THƯỜNG
+                    </span>
+                    <span className="font-sans font-bold text-[#006d2b] text-[20px] leading-none mt-1">
+                      {isInitialLoading ? (
+                        <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
+                      ) : (
+                        criteria.filter(c => c.type === 'khen_thuong' || c.type === 'cong_diem').length
+                      )}
+                    </span>
                   </div>
 
                   {/* Tiêu chí kỷ luật */}
-                  <div className={`${glassCardClass} flex flex-1 flex-col items-start min-w-px relative w-full`} data-node-id="479:2017">
-                    <div className="relative shrink-0 w-full">
-                      <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
-                        <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-semibold text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
-                            TIÊU CHÍ KỶ LUẬT
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-bold text-[#ba1a1a] text-[18px] leading-[27px] whitespace-nowrap min-h-[27px] flex items-center">
-                            {isInitialLoading ? (
-                              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
-                            ) : (
-                              criteria.filter(c => c.type === 'ky_luat').length
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className={`${glassCardClass} flex flex-1 flex-col gap-1 items-start min-w-px relative w-full`} data-node-id="479:2017">
+                    <span className="font-sans font-semibold text-[#5f6368] text-[10px] tracking-[0.55px] uppercase leading-tight whitespace-nowrap">
+                      TIÊU CHÍ KỶ LUẬT
+                    </span>
+                    <span className="font-sans font-bold text-[#ba1a1a] text-[20px] leading-none mt-1">
+                      {isInitialLoading ? (
+                        <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
+                      ) : (
+                        criteria.filter(c => c.type === 'ky_luat').length
+                      )}
+                    </span>
                   </div>
 
                   {/* Điểm tối đa TB */}
-                  <div className={`${glassCardClass} flex flex-1 flex-col items-start min-w-px relative w-full`} data-node-id="479:2023">
-                    <div className="relative shrink-0 w-full">
-                      <div className="bg-clip-padding border-0 border-transparent border-solid flex items-center justify-between px-[20px] py-[12px] w-full">
-                        <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-semibold text-[#5f6368] text-[11px] tracking-[0.55px] uppercase whitespace-nowrap leading-[16.5px]">
-                            ĐIỂM TỐI ĐA TB
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-start relative shrink-0">
-                          <span className="font-sans font-bold text-[#f9ab00] text-[18px] leading-[27px] whitespace-nowrap min-h-[27px] flex items-center">
-                            {isInitialLoading ? (
-                              <Skeleton className="h-5 w-12 bg-slate-100/80 rounded-xl" />
-                            ) : (
-                              Math.min(categories.reduce((sum, c) => sum + c.maxPoints, 0), 100)
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className={`${glassCardClass} flex flex-1 flex-col gap-1 items-start min-w-px relative w-full`} data-node-id="479:2023">
+                    <span className="font-sans font-semibold text-[#5f6368] text-[10px] tracking-[0.55px] uppercase leading-tight whitespace-nowrap">
+                      ĐIỂM TỐI ĐA TB
+                    </span>
+                    <span className="font-sans font-bold text-[#f9ab00] text-[20px] leading-none mt-1">
+                      {isInitialLoading ? (
+                        <Skeleton className="h-5 w-12 bg-slate-100/80 rounded-xl" />
+                      ) : (
+                        Math.min(categories.reduce((sum, c) => sum + c.maxPoints, 0), 100)
+                      )}
+                    </span>
                   </div>
                 </div>
 

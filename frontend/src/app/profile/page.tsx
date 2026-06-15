@@ -218,7 +218,10 @@ export default function ProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="flex bg-slate-50 h-screen overflow-hidden font-sans">
+      <div 
+        className="flex h-screen overflow-hidden font-sans"
+        style={{ background: "linear-gradient(135deg, #EBF2FA 0%, #DCE6F1 100%)" }}
+      >
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full">
           <Header />
@@ -230,14 +233,14 @@ export default function ProfilePage() {
             activeTab={activeTab}
             onTabChange={(id) => setActiveTab(id)}
           />
-          <main className="flex-1 p-8 overflow-y-auto bg-slate-50">
+          <main className="flex-1 p-3 md:p-4 overflow-y-auto bg-transparent">
             <div className="max-w-6xl mx-auto space-y-6">
-              <Skeleton className="h-32 w-full rounded-2xl" />
+              <Skeleton className="h-32 w-full rounded-2xl animate-pulse bg-white/20" />
               <div className="grid grid-cols-12 gap-6">
-                <Skeleton className="col-span-4 h-[500px] rounded-2xl" />
+                <Skeleton className="col-span-4 h-[500px] rounded-2xl animate-pulse bg-white/20" />
                 <div className="col-span-8 space-y-6">
-                  <Skeleton className="h-40 w-full rounded-2xl" />
-                  <Skeleton className="h-64 w-full rounded-2xl" />
+                  <Skeleton className="h-40 w-full rounded-2xl animate-pulse bg-white/20" />
+                  <Skeleton className="h-64 w-full rounded-2xl animate-pulse bg-white/20" />
                 </div>
               </div>
             </div>
@@ -248,7 +251,10 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="flex bg-slate-50 h-screen overflow-hidden font-sans">
+    <div 
+      className="flex h-screen overflow-hidden font-sans"
+      style={{ background: "linear-gradient(135deg, #EBF2FA 0%, #DCE6F1 100%)" }}
+    >
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header />
@@ -260,17 +266,17 @@ export default function ProfilePage() {
           activeTab={activeTab}
           onTabChange={(id) => setActiveTab(id)}
         />
-        <main className="flex-1 p-8 overflow-y-auto bg-slate-50 scrollbar-hide">
+        <main className="flex-1 p-3 md:p-4 overflow-y-auto bg-transparent scrollbar-hide">
           <div className="max-w-[1280px] mx-auto space-y-6">
             {/* Header Card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex items-center justify-between w-full"
+              className="bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 p-5 flex items-center justify-between w-full hover:scale-[1.01] transition-all duration-150 ease-out"
             >
               <div className="flex items-center gap-6 w-full">
                 {/* Avatar */}
-                <div className="w-24 h-24 shrink-0 rounded-full bg-blue-100 border-4 border-white shadow-md flex items-center justify-center text-3xl font-bold text-blue-600 uppercase">
+                <div className="w-20 h-20 shrink-0 rounded-full bg-[#1A73E8]/10 border-4 border-white/80 shadow-sm shadow-slate-300/40 flex items-center justify-center text-2xl font-semibold text-[#1A73E8] uppercase transition-all duration-150 ease-out hover:scale-[1.03]">
                   {(profile?.user_name || "US").substring(0, 2)}
                 </div>
 
@@ -278,26 +284,26 @@ export default function ProfilePage() {
                 <div className="space-y-2 flex-1">
                   <div className="flex items-start justify-between w-full">
                     <div>
-                      <h1 className="text-2xl font-bold text-slate-900">
+                      <h1 className="text-xl font-bold text-[#1E293B] tracking-tight">
                         {profile?.user_name || "Người dùng"}
                       </h1>
-                      <div className="flex items-center gap-6 flex-wrap mt-2">
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <Mail className="w-4 h-4" />
-                          <span className="text-sm font-medium">{profile?.email}</span>
+                      <div className="flex items-center gap-4 flex-wrap mt-1.5">
+                        <div className="flex items-center gap-2 text-[#64748B]">
+                          <Mail className="w-4 h-4 text-[#1A73E8]" />
+                          <span className="text-xs font-medium">{profile?.email}</span>
                         </div>
                         {profile?.phone_number && (
-                          <div className="flex items-center gap-2 text-slate-500">
-                            <Phone className="w-4 h-4" />
-                            <span className="text-sm font-medium">{profile.phone_number}</span>
+                          <div className="flex items-center gap-2 text-[#64748B]">
+                            <Phone className="w-4 h-4 text-[#1A73E8]" />
+                            <span className="text-xs font-medium">{profile.phone_number}</span>
                           </div>
                         )}
-                        <div className="bg-slate-100 px-3 py-1 rounded-md text-[11px] font-mono font-bold text-slate-500">
+                        <div className="bg-white/50 backdrop-blur-sm border border-white/80 px-2 py-0.5 rounded-xl text-[10px] font-mono font-bold text-[#64748B] shadow-sm">
                           UUID: {profile?.id?.substring(0, 8).toUpperCase()}
                         </div>
-                        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-full">
+                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 rounded-xl">
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          <span className="text-xs font-bold text-emerald-700">
+                          <span className="text-[11px] font-bold">
                             Đang hoạt động
                           </span>
                         </div>
@@ -309,17 +315,17 @@ export default function ProfilePage() {
                       latestSummary && latestSummary.status === 'locked' ? (() => {
                         const style = getRankStyle(latestSummary.rank_tier);
                         return (
-                          <div className={`flex items-center gap-2 px-5 py-2.5 rounded-full border shadow-sm ${style.glassBg || style.bg} ${style.glassBorder || style.border}`}>
-                            <Diamond className={`w-5 h-5 fill-currentColor shrink-0 ${style.text}`} />
-                            <span className={`text-[15px] font-bold ${style.text}`}>
+                          <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border shadow-sm ${style.glassBg || style.bg} ${style.glassBorder || style.border}`}>
+                            <Diamond className={`w-4 h-4 fill-currentColor shrink-0 ${style.text}`} />
+                            <span className={`text-[13px] font-bold ${style.text}`}>
                               Hạng: {latestSummary.rank_label || style.label} ({latestSummary.total_score}đ) - {latestSummary.semester}
                             </span>
                           </div>
                         );
                       })() : (
-                        <div className="flex items-center gap-2 px-5 py-2.5 rounded-full border shadow-sm bg-white/30 backdrop-blur-sm border-white/40">
-                          <Diamond className="w-5 h-5 text-slate-400 shrink-0" />
-                          <span className="text-[15px] font-bold text-slate-500">
+                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl border shadow-sm bg-white/30 backdrop-blur-sm border-white/40">
+                          <Diamond className="w-4 h-4 text-slate-400 shrink-0" />
+                          <span className="text-[13px] font-bold text-slate-500">
                             Chưa có điểm rèn luyện đã chốt
                           </span>
                         </div>
@@ -337,10 +343,10 @@ export default function ProfilePage() {
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="col-span-12 lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                  className="col-span-12 lg:col-span-8 bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 overflow-hidden hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
-                  <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-slate-900">
+                  <div className="px-5 py-4 border-b border-white/40 flex items-center justify-between">
+                    <h2 className="text-[15px] font-bold text-[#1E293B]">
                       Hồ sơ cá nhân
                     </h2>
                     {isEditing ? (
@@ -356,17 +362,17 @@ export default function ProfilePage() {
                             });
                           }}
                           disabled={isSaving}
-                          className="text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors disabled:opacity-50"
+                          className="text-xs font-bold text-[#64748B] hover:text-[#1E293B] transition-all duration-150 ease-out hover:scale-[1.01] disabled:opacity-50"
                         >
                           Hủy
                         </button>
                         <button
                           onClick={handleSave}
                           disabled={isSaving}
-                          className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                          className="text-xs font-bold text-[#1A73E8] hover:opacity-80 transition-all duration-150 ease-out hover:scale-[1.01] disabled:opacity-50 flex items-center gap-1.5"
                         >
                           {isSaving && (
-                            <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg className="animate-spin h-3.5 w-3.5 text-[#1A73E8]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -377,15 +383,15 @@ export default function ProfilePage() {
                     ) : (
                       <button
                         onClick={() => setIsEditing(true)}
-                        className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                        className="text-xs font-bold text-[#1A73E8] hover:opacity-80 transition-all duration-150 ease-out hover:scale-[1.01]"
                       >
                         Chỉnh sửa
                       </button>
                     )}
                   </div>
 
-                  <div className="p-6 space-y-5">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         label="Họ và tên"
                         value={editValues.username}
@@ -405,7 +411,7 @@ export default function ProfilePage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         label="Số điện thoại"
                         value={editValues.phone}
@@ -419,7 +425,7 @@ export default function ProfilePage() {
                       />
                       {isEditing ? (
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-500 tracking-wider">
+                          <label className="text-[13px] px-1 font-bold text-[#1E293B]">
                             Ngày sinh
                           </label>
                           <Popover
@@ -429,10 +435,10 @@ export default function ProfilePage() {
                             <PopoverTrigger asChild>
                               <button
                                 disabled={isSaving}
-                                className="flex items-center justify-between w-full h-10 px-3 bg-[#f8fafc] border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-left disabled:opacity-50"
+                                className="flex items-center justify-between w-full h-10 px-3 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out text-left disabled:opacity-50 hover:bg-white/70 hover:scale-[1.01]"
                               >
                                 <span>{editValues.dob || "Chọn ngày sinh"}</span>
-                                <CalendarIcon className="w-4 h-4 text-slate-400" />
+                                <CalendarIcon className="w-4 h-4 text-[#64748B]" />
                               </button>
                             </PopoverTrigger>
                             <PopoverContent
@@ -465,9 +471,9 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-500 tracking-wider">
+                        <label className="text-[13px] px-1 font-bold text-[#1E293B]">
                           Khoa / Phòng ban
                         </label>
                         {isEditing ? (
@@ -500,13 +506,11 @@ export default function ProfilePage() {
                             </SelectContent>
                           </Select>
                         ) : (
-                          <div className="flex items-center justify-between h-10 px-3 bg-[#f8fafc] border border-slate-200/60 rounded-lg text-sm text-slate-900">
+                          <div className="flex items-center justify-between h-10 px-3 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-sm text-[#1E293B]">
                             <span>{editValues.department || "Chưa cập nhật"}</span>
                           </div>
                         )}
                       </div>
-
-                      {/* Xóa trường đổi mật khẩu trực tiếp ở đây */}
                     </div>
                   </div>
                 </motion.div>
@@ -517,26 +521,26 @@ export default function ProfilePage() {
                   animate={{ opacity: 1, x: 0 }}
                   className="col-span-12 lg:col-span-4 space-y-6"
                 >
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                    <h3 className="font-bold text-slate-900">Bảo mật tài khoản</h3>
-                    <p className="text-xs text-slate-500">
+                  <div className="bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 p-5 space-y-3 hover:scale-[1.01] transition-all duration-150 ease-out">
+                    <h3 className="text-[15px] font-bold text-[#1E293B]">Bảo mật tài khoản</h3>
+                    <p className="text-xs text-[#64748B]">
                       Bạn có thể chỉnh sửa thông tin cá nhân của mình bằng cách nhấn vào nút **Chỉnh sửa** trên thẻ hồ sơ. Để đổi mật khẩu, vui lòng sử dụng phần đổi mật khẩu phía dưới.
                     </p>
-                    <div className="flex items-center gap-3 text-slate-600 text-sm">
-                      <Lock className="w-4 h-4 text-blue-500" />
+                    <div className="flex items-center gap-3 text-[#64748B] text-xs">
+                      <Lock className="w-4 h-4 text-[#1A73E8]" />
                       <span>Mật khẩu được bảo mật bằng thuật toán hash một chiều</span>
                     </div>
                   </div>
 
                   {/* Đổi mật khẩu */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                    <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                      <Lock className="w-5 h-5 text-blue-600" />
+                  <div className="bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 p-5 space-y-3 hover:scale-[1.01] transition-all duration-150 ease-out">
+                    <h3 className="text-[15px] font-bold text-[#1E293B] flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-[#1A73E8]" />
                       Đổi mật khẩu
                     </h3>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-500 tracking-wider">
+                        <label className="text-[13px] px-1 font-bold text-[#1E293B]">
                           Mật khẩu cũ
                         </label>
                         <Input
@@ -550,7 +554,7 @@ export default function ProfilePage() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-500 tracking-wider">
+                        <label className="text-[13px] px-1 font-bold text-[#1E293B]">
                           Mật khẩu mới
                         </label>
                         <Input
@@ -564,7 +568,7 @@ export default function ProfilePage() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-500 tracking-wider">
+                        <label className="text-[13px] px-1 font-bold text-[#1E293B]">
                           Xác nhận mật khẩu mới
                         </label>
                         <Input
@@ -580,7 +584,8 @@ export default function ProfilePage() {
                       <Button
                         onClick={handleChangePassword}
                         disabled={isChangingPassword}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg h-10 font-bold flex items-center justify-center gap-1.5 transition-all"
+                        variant="default"
+                        className="w-full h-10 mt-1"
                       >
                         {isChangingPassword ? "Đang xử lý..." : "Cập nhật mật khẩu"}
                       </Button>
@@ -594,53 +599,53 @@ export default function ProfilePage() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="col-span-12 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                  className="col-span-12 bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 overflow-hidden hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
-                  <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                  <div className="px-5 py-4 border-b border-white/40 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-5 h-5 text-blue-600" />
-                      <h2 className="text-lg font-bold text-slate-900">
-                        Vai trò hiện tại: <span className="text-blue-600">{profile?.roleName}</span>
+                      <ShieldCheck className="w-5 h-5 text-[#1A73E8]" />
+                      <h2 className="text-[15px] font-bold text-[#1E293B]">
+                        Vai trò hiện tại: <span className="text-[#1A73E8]">{profile?.roleName}</span>
                       </h2>
                     </div>
                   </div>
-                  <div className="p-6">
+                  <div className="p-5">
                     {profile?.role?.permissions && profile.role.permissions.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-[#f8fafc] border border-slate-100 rounded-xl p-5 space-y-4">
-                          <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                            <UserIcon className="w-5 h-5 text-blue-500" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white/30 backdrop-blur-sm border border-white/50 rounded-xl p-4 space-y-3">
+                          <h3 className="text-[13px] font-bold text-[#1E293B] flex items-center gap-2">
+                            <UserIcon className="w-4 h-4 text-[#1A73E8]" />
                             Danh sách quyền hạn được cấp (Phần 1)
                           </h3>
-                          <ul className="space-y-3">
+                          <ul className="space-y-2">
                             {profile.role.permissions
                               .slice(0, Math.ceil(profile.role.permissions.length / 2))
                               .map((perm: any, i: number) => (
-                                <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                <li key={i} className="flex items-start gap-2 text-xs text-[#64748B]">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
                                   <div className="flex flex-col">
-                                    <span className="font-bold text-slate-800">{perm.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono">{perm.code}</span>
+                                    <span className="font-bold text-[#1E293B]">{perm.name}</span>
+                                    <span className="text-[9px] text-[#64748B]/70 font-mono">{perm.code}</span>
                                   </div>
                                 </li>
                               ))}
                           </ul>
                         </div>
 
-                        <div className="bg-[#f8fafc] border border-slate-100 rounded-xl p-5 space-y-4">
-                          <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                            <ShieldCheck className="w-5 h-5 text-blue-500" />
+                        <div className="bg-white/30 backdrop-blur-sm border border-white/50 rounded-xl p-4 space-y-3">
+                          <h3 className="text-[13px] font-bold text-[#1E293B] flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-[#1A73E8]" />
                             Danh sách quyền hạn được cấp (Phần 2)
                           </h3>
-                          <ul className="space-y-3">
+                          <ul className="space-y-2">
                             {profile.role.permissions
                               .slice(Math.ceil(profile.role.permissions.length / 2))
                               .map((perm: any, i: number) => (
-                                <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                <li key={i} className="flex items-start gap-2 text-xs text-[#64748B]">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
                                   <div className="flex flex-col">
-                                    <span className="font-bold text-slate-800">{perm.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono">{perm.code}</span>
+                                    <span className="font-bold text-[#1E293B]">{perm.name}</span>
+                                    <span className="text-[9px] text-[#64748B]/70 font-mono">{perm.code}</span>
                                   </div>
                                 </li>
                               ))}
@@ -648,7 +653,7 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="py-12 text-center text-slate-400 font-medium text-sm border border-dashed border-slate-200 rounded-xl">
+                      <div className="py-12 text-center text-[#64748B] font-medium text-xs border border-dashed border-white/50 rounded-xl bg-white/20 backdrop-blur-sm">
                         Tài khoản của bạn chưa được cấp quyền hạn cụ thể nào.
                       </div>
                     )}
