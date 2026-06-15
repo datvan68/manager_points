@@ -59,6 +59,12 @@ describe('role.util tests', () => {
       expect(isStudentRole({ roles: [null, undefined, { name: '' }, { name: 'student' }] })).toBe(true);
       expect(isStudentRole({ roles: [null, undefined, { role_code: '' }, 'TEACHER'] })).toBe(false);
     });
+
+    it('should identify student role when role object or roles array contains code instead of name or role_code', () => {
+      expect(isStudentRole({ role: { code: 'STUDENT' } })).toBe(true);
+      expect(isStudentRole({ role: { code: 'student' } })).toBe(true);
+      expect(isStudentRole({ roles: [{ code: 'STUDENT' }] })).toBe(true);
+    });
   });
 
   describe('isTeacherRole', () => {
@@ -120,6 +126,12 @@ describe('role.util tests', () => {
       expect(isTeacherRole({ roles: [null, undefined, { name: '' }, { name: 'giáo viên' }] })).toBe(true);
       expect(isTeacherRole({ roles: [null, undefined, { role_code: '' }, 'STUDENT'] })).toBe(false);
     });
+
+    it('should identify teacher role when role object or roles array contains code instead of name or role_code', () => {
+      expect(isTeacherRole({ role: { code: 'TEACHER' } })).toBe(true);
+      expect(isTeacherRole({ role: { code: 'teacher' } })).toBe(true);
+      expect(isTeacherRole({ roles: [{ code: 'TEACHER' }] })).toBe(true);
+    });
   });
 
   describe('isAdminRole', () => {
@@ -170,6 +182,12 @@ describe('role.util tests', () => {
       expect(isAdminRole({ roles: [null, undefined, '', 'ADMIN'] })).toBe(true);
       expect(isAdminRole({ roles: [null, undefined, { name: '' }, { name: 'admin' }] })).toBe(true);
       expect(isAdminRole({ roles: [null, undefined, { role_code: '' }, 'STUDENT'] })).toBe(false);
+    });
+
+    it('should identify admin role when role object or roles array contains code instead of name or role_code', () => {
+      expect(isAdminRole({ role: { code: 'ADMIN' } })).toBe(true);
+      expect(isAdminRole({ role: { code: 'admin' } })).toBe(true);
+      expect(isAdminRole({ roles: [{ code: 'ADMIN' }] })).toBe(true);
     });
   });
 
@@ -229,6 +247,12 @@ describe('role.util tests', () => {
       expect(isAdminOrSupervisor({ roles: [null, undefined, '', 'SUPERVISOR'] })).toBe(true);
       expect(isAdminOrSupervisor({ roles: [null, undefined, { name: '' }, { name: 'admin' }] })).toBe(true);
       expect(isAdminOrSupervisor({ roles: [null, undefined, { role_code: '' }, 'STUDENT'] })).toBe(false);
+    });
+
+    it('should identify admin/supervisor role when role object or roles array contains code instead of name or role_code', () => {
+      expect(isAdminOrSupervisor({ role: { code: 'SUPERVISOR' } })).toBe(true);
+      expect(isAdminOrSupervisor({ role: { code: 'supervisor' } })).toBe(true);
+      expect(isAdminOrSupervisor({ roles: [{ code: 'SUPERVISOR' }] })).toBe(true);
     });
   });
 });

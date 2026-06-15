@@ -9,14 +9,14 @@ function getRoleString(user: any): string {
   if (typeof user.role === 'string') {
     roleNames.push(user.role);
   } else if (user.role && typeof user.role === 'object') {
-    const roleName = user.role.name || user.role.role_code || '';
+    const roleName = user.role.name || user.role.role_code || user.role.code || '';
     if (roleName) roleNames.push(String(roleName));
   }
 
   if (Array.isArray(user.roles)) {
     user.roles.forEach((r: any) => {
       if (r) {
-        const name = typeof r === 'string' ? r : r.name || r.role_code || '';
+        const name = typeof r === 'string' ? r : r.name || r.role_code || r.code || '';
         if (name) roleNames.push(String(name));
       }
     });

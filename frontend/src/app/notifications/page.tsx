@@ -7,6 +7,7 @@ import Header from '@/components/layout/Header';
 import { RouteGuard } from '@/components/guards/RouteGuard';
 import { notificationApi, NotificationItem } from '@/api/notification-api';
 import { useAuth } from '@/providers/auth-provider';
+import { normalizeNotifications } from './_lib/normalize-notifications';
 import { 
   AlertTriangle, Sparkles, ClipboardList, Info, 
   Trash2, ExternalLink, CheckSquare, ChevronLeft, ChevronRight, BellOff, Filter,
@@ -87,7 +88,7 @@ function NotificationsPageContent() {
         return;
       }
 
-      setNotifications(res.items);
+      setNotifications(normalizeNotifications(res.items));
       setTotal(res.total);
       setTotalPages(res.totalPages);
     } catch (e) {

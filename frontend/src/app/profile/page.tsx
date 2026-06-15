@@ -30,6 +30,7 @@ import {
   User as UserIcon,
   Award,
   Diamond,
+  AlertTriangle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { authApi, tokenStorage } from "../../api/auth-api";
@@ -40,18 +41,20 @@ import { useAuth } from "../../providers/auth-provider";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { normalizeProfile, NormalizedProfile } from "./_lib/normalize-profile";
 
 export default function ProfilePage() {
   const router = useRouter();
   const { checkAuth, logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState("Thông tin cá nhân");
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<NormalizedProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [latestSummary, setLatestSummary] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [editValues, setEditValues] = useState({
     username: "",
@@ -89,7 +92,15 @@ export default function ProfilePage() {
     return `${day}/${month}/${year}`;
   };
 
+  const formatProfileDate = (dateStr: string): string => {
+    if (!dateStr) return "";
+    const parsed = parseDate(dateStr);
+    return parsed && !isNaN(parsed.getTime()) ? formatDateStr(parsed) : "";
+  };
+
   const fetchProfile = async () => {
+    setLoadError(null);
+    setIsLoading(true);
     const token = tokenStorage.getAccessToken();
     if (!token) {
       router.push("/login");
@@ -97,12 +108,13 @@ export default function ProfilePage() {
     }
 
     try {
-      const data = await authApi.getMe(token);
+      const rawData = await authApi.getMe(token);
+      const data = normalizeProfile(rawData);
       setProfile(data);
       setEditValues({
-        username: data.user_name || "",
-        phone: data.phone_number || "",
-        dob: data.date_birth ? formatDateStr(new Date(data.date_birth)) : "",
+        username: data.user_name,
+        phone: data.phone_number,
+        dob: data.date_birth ? formatProfileDate(data.date_birth) : "",
         department: data.department || "Khoa Công nghệ thông tin",
       });
 
@@ -117,7 +129,7 @@ export default function ProfilePage() {
         }
       }
     } catch (error: any) {
-      toast.error("Lỗi khi tải thông tin hồ sơ: " + error.message);
+      setLoadError(error.message || "Lỗi khi tải thông tin hồ sơ.");
     } finally {
       setIsLoading(false);
     }
@@ -250,6 +262,51 @@ export default function ProfilePage() {
     );
   }
 
+  if (loadError && !isLoading) {
+    return (
+      <div 
+        className="flex h-screen overflow-hidden font-sans"
+        style={{ background: "linear-gradient(135deg, #EBF2FA 0%, #DCE6F1 100%)" }}
+      >
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0 h-full">
+          <Header />
+          <TabNavigation
+            tabs={[
+              { id: "Thông tin cá nhân", label: "Thông tin cá nhân" },
+              { id: "Vai trò & Quyền hạn", label: "Vai trò & Quyền hạn" },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => setActiveTab(id)}
+          />
+          <main className="flex-1 p-4 overflow-y-auto flex items-center justify-center bg-transparent">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="max-w-md w-full p-6 bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-lg shadow-slate-300/40 text-center space-y-4"
+            >
+              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-6 h-6 text-red-500" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-lg font-bold text-slate-800">Không thể tải thông tin hồ sơ</h2>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  {loadError}
+                </p>
+              </div>
+              <Button 
+                onClick={() => fetchProfile()} 
+                className="w-full bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white font-medium py-2 px-4 rounded-xl shadow-md transition-all duration-150 ease-out hover:scale-[1.01]"
+              >
+                Thử lại
+              </Button>
+            </motion.div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       className="flex h-screen overflow-hidden font-sans"
@@ -357,7 +414,7 @@ export default function ProfilePage() {
                             setEditValues({
                               username: profile?.user_name || "",
                               phone: profile?.phone_number || "",
-                              dob: profile?.date_birth ? formatDateStr(new Date(profile.date_birth)) : "",
+                              dob: profile?.date_birth ? formatProfileDate(profile.date_birth) : "",
                               department: profile?.department || "Khoa Công nghệ thông tin",
                             });
                           }}

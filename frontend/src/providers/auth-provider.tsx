@@ -92,8 +92,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Update stored user with permissions and student details if Student role
         const storedUser = tokenStorage.getUser();
-        const role = data.roleName || storedUser?.role || "User";
-        const isStudent = role.toLowerCase().includes("student") || role.toLowerCase().includes("sinh vien") || role.toLowerCase().includes("hoc sinh");
+        const isStudent = isStudentRole({
+          ...storedUser,
+          ...data
+        });
 
         let studentId = storedUser?.studentId;
         let classId = storedUser?.classId;
