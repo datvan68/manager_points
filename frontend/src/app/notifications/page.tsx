@@ -231,26 +231,26 @@ function NotificationsPageContent() {
     switch (type) {
       case 'warning':
         return (
-          <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center text-red-500 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-700 shrink-0">
             <AlertTriangle size={18} />
           </div>
         );
       case 'success':
         return (
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-700 shrink-0">
             <Sparkles size={18} />
           </div>
         );
       case 'info':
         return (
-          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1A73E8] shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-[#1A73E8] shrink-0">
             <ClipboardList size={18} />
           </div>
         );
       case 'system':
       default:
         return (
-          <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-500 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-slate-500/10 border border-slate-500/20 flex items-center justify-center text-[#64748B] shrink-0">
             <Info size={18} />
           </div>
         );
@@ -270,12 +270,12 @@ function NotificationsPageContent() {
   };
 
   return (
-    <div className="flex bg-gray-50 h-screen overflow-hidden font-sans">
+    <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header customMappings={{ notifications: 'Trung tâm thông báo' }} />
         
-        <main className="flex-1 p-4 overflow-hidden flex flex-col bg-gray-50 relative gap-4">
+        <main className="flex-1 p-4 overflow-hidden flex flex-col bg-transparent relative gap-4">
           
           {/* Title and Action */}
           <div className="flex items-center justify-between shrink-0">
@@ -299,7 +299,7 @@ function NotificationsPageContent() {
               {counts.unread > 0 && (
                 <button
                   onClick={handleMarkAllRead}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[#1A73E8] bg-blue-50 hover:bg-blue-100 active:scale-[0.99] rounded-xl border border-blue-100/50 transition-all duration-150 cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[#1A73E8] bg-white/50 backdrop-blur-sm hover:bg-[#1A73E8] hover:text-white active:scale-[0.99] rounded-xl border border-white/80 transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                 >
                   <CheckSquare size={16} />
                   <span>Đánh dấu đọc tất cả</span>
@@ -333,10 +333,10 @@ function NotificationsPageContent() {
                       setActiveFilter(filter.id);
                       setCurrentPage(1);
                     }}
-                    className={`w-full p-3 rounded-xl border text-left transition-all shrink-0 flex items-center justify-between cursor-pointer ${
+                    className={`w-full p-3 rounded-xl border text-left transition-all duration-150 ease-out shrink-0 flex items-center justify-between cursor-pointer hover:scale-[1.01] ${
                       activeFilter === filter.id
-                        ? 'bg-white border-[#1A73E8] shadow-md font-bold text-[#1A73E8] ring-1 ring-[#1A73E8]/10'
-                        : 'bg-white border-slate-200/50 text-[#475569] hover:border-blue-200 hover:bg-slate-50/50'
+                        ? 'bg-white/80 border-[#1A73E8] shadow-sm font-bold text-[#1A73E8]'
+                        : 'bg-white/45 backdrop-blur-md border border-white/70 text-[#475569] hover:bg-white/70'
                     }`}
                   >
                     <span className="text-xs font-semibold">{filter.label}</span>
@@ -351,11 +351,11 @@ function NotificationsPageContent() {
             </div>
 
             {/* Right Column: Notification Details List */}
-            <div className="flex-1 bg-white/40 backdrop-blur-md border border-white/80 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/10">
+            <div className="flex-1 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/40">
               
               {/* Bulk Action Bar */}
               {isPrivileged && notifications.length > 0 && (
-                <div className="px-5 py-3 border-b border-slate-200/50 bg-slate-50/50 flex items-center justify-between shrink-0">
+                <div className="px-5 py-3 border-b border-white/60 bg-white/20 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-2.5 cursor-pointer select-none">
                       <input
@@ -367,7 +367,7 @@ function NotificationsPageContent() {
                       <span className="text-xs font-bold text-slate-700">Chọn tất cả trang này</span>
                     </label>
                     {selectedIds.length > 0 && (
-                      <span className="text-xs font-bold text-[#1A73E8] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100/50">
+                      <span className="text-xs font-bold text-[#1A73E8] bg-blue-500/10 px-2 py-0.5 rounded-xl border border-blue-500/20">
                         Đã chọn {selectedIds.length}
                       </span>
                     )}
@@ -375,7 +375,7 @@ function NotificationsPageContent() {
                   {selectedIds.length > 0 && (
                     <button
                       onClick={() => setIsBulkDeleteModalOpen(true)}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-red-500 hover:bg-red-650 active:scale-[0.98] rounded-xl transition-all shadow-xs cursor-pointer shadow-red-500/10"
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-red-700 bg-red-500/10 hover:bg-red-500 hover:text-white border border-red-500/20 active:scale-[0.98] rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-xs shadow-red-500/10"
                     >
                       <Trash2 size={13} />
                       <span>Xóa đã chọn ({selectedIds.length})</span>
@@ -402,8 +402,8 @@ function NotificationsPageContent() {
                           handleMarkRead(item.id);
                         }
                       }}
-                      className={`py-4 px-3.5 flex gap-4 transition-all duration-150 hover:bg-white/60 cursor-pointer relative group rounded-2xl border border-transparent hover:border-slate-200/50 ${
-                        !item.isRead && activeFilter !== 'views' ? 'bg-blue-50/10' : ''
+                      className={`py-4 px-3.5 flex gap-4 transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/60 cursor-pointer relative group rounded-xl border border-transparent hover:border-white/70 ${
+                        !item.isRead && activeFilter !== 'views' ? 'bg-blue-500/5' : ''
                       }`}
                     >
                       {/* Unread Indicator */}
@@ -437,20 +437,20 @@ function NotificationsPageContent() {
                             {item.title}
                           </h4>
                           {isPrivileged && item.targetRole && (
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-xl border ${
                               item.targetRole === 'student'
-                                ? 'bg-green-50 text-green-700 border-green-200'
+                                ? 'bg-green-500/10 text-green-700 border-green-500/20'
                                 : item.targetRole === 'teacher'
-                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  ? 'bg-purple-500/10 text-purple-700 border-purple-500/20'
                                   : item.targetRole === 'supervisor'
-                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                    : 'bg-slate-50 text-slate-700 border-slate-200'
+                                    ? 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+                                    : 'bg-slate-500/10 text-[#64748B] border-slate-500/20'
                             }`}>
                               {item.targetRole === 'student' ? 'HSSV' : item.targetRole === 'teacher' ? 'Giảng viên' : item.targetRole === 'supervisor' ? 'Quản sinh' : 'Tất cả'}
                             </span>
                           )}
                           {!item.isRead && activeFilter !== 'views' && (
-                            <span className="bg-blue-50 text-[#1A73E8] border border-blue-100 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                            <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 text-[9px] font-bold px-1.5 py-0.5 rounded-xl">
                               Mới
                             </span>
                           )}
@@ -482,7 +482,7 @@ function NotificationsPageContent() {
                       </div>
 
                       {/* Actions */}
-                      <div className="absolute right-4 top-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150" onClick={(e) => e.stopPropagation()}>
+                      <div className="absolute right-4 top-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150 ease-out" onClick={(e) => e.stopPropagation()}>
                         {activeFilter === 'views' ? (
                           <button
                             onClick={() => {
@@ -490,7 +490,7 @@ function NotificationsPageContent() {
                               setReadersNotificationTitle(item.title);
                               setIsReadersModalOpen(true);
                             }}
-                            className="px-3 py-1.5 rounded-xl border border-blue-100 bg-blue-50 text-[#1A73E8] hover:bg-blue-100 hover:border-blue-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                            className="px-3 py-1.5 rounded-xl border border-blue-500/20 bg-blue-500/10 text-[#1A73E8] hover:bg-[#1A73E8] hover:text-white text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer flex items-center gap-1 shadow-xs"
                             title="Xem chi tiết người đã đọc"
                           >
                             <Users size={12} />
@@ -501,7 +501,7 @@ function NotificationsPageContent() {
                             {item.routeUrl && (
                               <button
                                 onClick={(e) => handleNavigate(item, e)}
-                                className="p-1.5 rounded-xl border border-gray-200 bg-white text-gray-500 hover:border-[#1A73E8] hover:text-[#1A73E8] transition-all cursor-pointer"
+                                className="p-1.5 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-[#64748B] hover:border-[#1A73E8] hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer"
                                 title="Đi tới trang liên kết"
                               >
                                 <ExternalLink size={14} />
@@ -514,14 +514,14 @@ function NotificationsPageContent() {
                                     setEditingNotification(item);
                                     setIsModalOpen(true);
                                   }}
-                                  className="p-1.5 rounded-xl border border-gray-200 bg-white text-slate-500 hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer"
+                                  className="p-1.5 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-slate-500 hover:border-blue-500/30 hover:bg-blue-500/10 hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer"
                                   title="Chỉnh sửa thông báo"
                                 >
                                   <PencilLine size={14} />
                                 </button>
                                 <button
                                   onClick={(e) => handleDelete(item.id, e)}
-                                  className="p-1.5 rounded-xl border border-gray-200 bg-white text-red-500 hover:border-red-300 hover:bg-red-50 transition-all cursor-pointer"
+                                  className="p-1.5 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-red-500 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-700 hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer"
                                   title="Xóa thông báo"
                                 >
                                   <Trash2 size={14} />
@@ -544,7 +544,7 @@ function NotificationsPageContent() {
               </div>
 
               {/* Footer (Pagination) */}
-              <div className="px-5 py-3 border-t border-white/80 bg-white/20 flex items-center justify-between shrink-0">
+              <div className="px-5 py-3 border-t border-white/60 bg-white/20 flex items-center justify-between shrink-0">
                 <span className="text-xs text-[#64748B] font-semibold">
                   Hiển thị {startItem} - {endItem} trong tổng số {total}
                 </span>
@@ -553,7 +553,7 @@ function NotificationsPageContent() {
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="w-7 h-7 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm text-[#64748B] hover:bg-white/70 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 ease-out hover:scale-[1.05]"
                   >
                     <ChevronLeft size={14} />
                   </button>
@@ -562,10 +562,10 @@ function NotificationsPageContent() {
                     <button
                       key={idx}
                       onClick={() => setCurrentPage(idx + 1)}
-                      className={`w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      className={`w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.05] cursor-pointer ${
                         currentPage === idx + 1
                           ? 'bg-[#1A73E8] text-white shadow-sm shadow-blue-500/15'
-                          : 'border border-gray-200 bg-white text-[#64748B] hover:bg-slate-50'
+                          : 'border border-white/70 bg-white/50 backdrop-blur-sm text-[#64748B] hover:bg-white/70'
                       }`}
                     >
                       {idx + 1}
@@ -575,7 +575,7 @@ function NotificationsPageContent() {
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
-                    className="w-7 h-7 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm text-[#64748B] hover:bg-white/70 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 ease-out hover:scale-[1.05]"
                   >
                     <ChevronRight size={14} />
                   </button>
