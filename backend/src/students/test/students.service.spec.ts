@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { NotFoundException, ForbiddenException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { StudentsService } from '../students.service';
 import { Student } from '../schemas/student.schema';
@@ -86,6 +86,9 @@ describe('StudentsService', () => {
           useValue: {
             insertMany: jest.fn().mockResolvedValue([]),
             bulkWrite: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
+            deleteMany: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue({ deletedCount: 1 }),
+            }),
           },
         },
         {
@@ -183,6 +186,30 @@ describe('StudentsService', () => {
       expect(result).toBeDefined();
       expect(result.student_code).toEqual(dto.student_code);
     });
+
+    it('should not create summaries for non-Studying statuses during create', async () => {
+      const dto = {
+        student_code: 'SV-2023-001',
+        full_name: 'Nguyễn Văn A',
+        email: 'a.nv@student.edu.vn',
+        date_bir: '2003-01-01',
+        sex: 'Male',
+        status: 'Reserved',
+        class_id: '507f1f77bcf86cd799439012',
+        training_point_id: 'mock-tp-id',
+      };
+      
+      model.mockImplementationOnce((d: any) => ({
+        ...d,
+        save: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', ...d }),
+      }));
+      
+      summaryPointModel.bulkWrite.mockClear();
+
+      const result = await service.create(dto);
+      expect(result).toBeDefined();
+      expect(summaryPointModel.bulkWrite).not.toHaveBeenCalled();
+    });
   });
 
   describe('createBulk', () => {
@@ -235,6 +262,51 @@ describe('StudentsService', () => {
       expect(result).toBeDefined();
       expect(Array.isArray(result)).toBe(true);
       expect(result[0].student_code).toEqual(dtos[0].student_code);
+    });
+
+    it('should only build summaries for Studying students during bulk import', async () => {
+      const dtos = [
+        {
+          student_code: 'SV-2023-001',
+          full_name: 'Nguyễn Văn A',
+          email: 'a.nv@student.edu.vn',
+          date_bir: '2003-01-01',
+          sex: 'Male',
+          status: 'Studying',
+          class_id: '507f1f77bcf86cd799439012',
+          training_point_id: 'mock-tp-id',
+        },
+        {
+          student_code: 'SV-2023-002',
+          full_name: 'Nguyễn Văn B',
+          email: 'b.nv@student.edu.vn',
+          date_bir: '2003-01-01',
+          sex: 'Male',
+          status: 'Reserved',
+          class_id: '507f1f77bcf86cd799439012',
+          training_point_id: 'mock-tp-id',
+        },
+      ];
+
+      const mockResult = [
+        { ...mockStudent, student_code: 'SV-2023-001', status: 'Studying' },
+        { ...mockStudent, student_code: 'SV-2023-002', status: 'Reserved' },
+      ];
+      model.insertMany.mockResolvedValueOnce(mockResult);
+      model.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce(mockResult),
+      });
+
+      summaryPointModel.bulkWrite.mockClear();
+
+      const result = await service.createBulk(dtos);
+      expect(result).toBeDefined();
+      expect(summaryPointModel.bulkWrite).toHaveBeenCalled();
+      
+      const bulkOps = summaryPointModel.bulkWrite.mock.calls[0][0];
+      expect(bulkOps.length).toBe(1);
+      expect(bulkOps[0].updateOne.filter.student_id).toEqual(mockResult[0]._id);
     });
   });
 
@@ -429,6 +501,35 @@ describe('StudentsService', () => {
       await expect(service.update('invalid-id', {})).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('should throw BadRequestException if changing status from Studying without confirmation', async () => {
+      const updateDto = { status: 'Reserved' };
+      await expect(service.update('507f1f77bcf86cd799439011', updateDto)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should delete related summaries when status change is confirmed', async () => {
+      const updateDto = { status: 'Reserved', deleteTrainingScoresConfirmed: true };
+      
+      summaryPointModel.deleteMany.mockClear();
+
+      const result = await service.update('507f1f77bcf86cd799439011', updateDto);
+      expect(result).toBeDefined();
+      expect(summaryPointModel.deleteMany).toHaveBeenCalledWith({
+        student_id: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      });
+    });
+
+    it('should not delete summaries when status is not changed away from Studying', async () => {
+      const updateDto = { status: 'Studying' };
+      
+      summaryPointModel.deleteMany.mockClear();
+
+      const result = await service.update('507f1f77bcf86cd799439011', updateDto);
+      expect(result).toBeDefined();
+      expect(summaryPointModel.deleteMany).not.toHaveBeenCalled();
     });
   });
 

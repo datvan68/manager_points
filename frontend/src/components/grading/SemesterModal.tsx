@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, X, Edit2, Trash2, Clock, Settings, Users, Sparkles, Plus, GraduationCap, ChevronRight, AlertCircle, CalendarRange } from 'lucide-react';
+import { Calendar, X, Edit2, Trash2, Clock, Settings, Users, Sparkles, Plus, GraduationCap, ChevronRight, AlertCircle, CalendarRange, Loader2 } from 'lucide-react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
@@ -55,6 +55,8 @@ export default function SemesterModal({
     gv_deadline: '',
     admin_deadline: ''
   });
+  const [isSavingPeriod, setIsSavingPeriod] = useState(false);
+  const [isSavingSemester, setIsSavingSemester] = useState(false);
 
   const loadPeriodForSemester = async (semesterId: string) => {
     try {
@@ -91,6 +93,7 @@ export default function SemesterModal({
       toast.error('Vui lòng nhập đầy đủ thời hạn cho các giai đoạn!');
       return;
     }
+    setIsSavingPeriod(true);
     try {
       if (periodForm._id) {
         await evaluationPeriodApi.updateEvaluationPeriod(periodForm._id, {
@@ -113,6 +116,8 @@ export default function SemesterModal({
       }
     } catch (error: any) {
       toast.error('Lỗi khi lưu kỳ đánh giá: ' + error.message);
+    } finally {
+      setIsSavingPeriod(false);
     }
   };
 
@@ -166,6 +171,7 @@ export default function SemesterModal({
       toast.error('Vui lòng điền đầy đủ thông tin học kỳ!');
       return;
     }
+    setIsSavingSemester(true);
     try {
       if (semesterForm._id) {
         await semesterApi.updateSemester(semesterForm._id, {
@@ -197,6 +203,8 @@ export default function SemesterModal({
       });
     } catch (error: any) {
       toast.error('Lỗi khi lưu học kỳ: ' + error.message);
+    } finally {
+      setIsSavingSemester(false);
     }
   };
 
@@ -233,7 +241,7 @@ export default function SemesterModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-slate-950/60 backdrop-blur-md"
+            className="absolute inset-0 bg-blue-950/25 backdrop-blur-[4px]"
           />
 
           {/* Content Box */}
@@ -242,38 +250,38 @@ export default function SemesterModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="bg-white rounded-[24px] w-full max-w-[850px] h-[580px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] relative z-10 overflow-hidden flex flex-col border border-slate-100"
+            className="bg-gradient-to-br from-[#EBF2FA]/95 via-[#EBF2FA]/90 to-[#DCE6F1]/95 backdrop-blur-md rounded-2xl w-full max-w-[850px] h-[580px] shadow-[0_8px_32px_rgba(31,38,135,0.08)] relative z-10 overflow-hidden flex flex-col border border-white/80"
           >
             {/* Header with elegant subtle gradient */}
-            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/20">
+            <div className="px-6 py-4 border-b border-white/60 flex items-center justify-between shrink-0 bg-white/40 backdrop-blur-sm">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
                   <Calendar size={18} className="animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-800 text-[16px]">Quản lý Học kỳ</h3>
+                  <h3 className="font-bold text-slate-800 text-[15px]">Quản lý Học kỳ</h3>
                   <p className="text-[11px] text-slate-400 font-medium mt-0.5">Thiết lập học kỳ giảng dạy và kỳ rèn luyện tương ứng</p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all flex items-center justify-center cursor-pointer border border-transparent hover:border-slate-200/50"
+                className="w-8 h-8 rounded-xl hover:bg-white/60 text-slate-500 hover:text-slate-700 transition-all duration-150 ease-out flex items-center justify-center cursor-pointer border border-transparent hover:border-white/80 hover:scale-[1.03]"
               >
                 <X size={16} />
               </button>
             </div>
 
             {/* Body (Split columns) */}
-            <div className="flex-1 overflow-hidden flex divide-x divide-slate-100">
+            <div className="flex-1 overflow-hidden flex divide-x divide-white/40">
               {/* Left side: Semester List */}
-              <div className="w-[45%] h-full p-5 overflow-y-auto flex flex-col gap-3 custom-scrollbar bg-slate-50/30">
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="font-bold text-[11px] text-slate-400 uppercase tracking-widest">
+              <div className="w-[45%] h-full p-4 overflow-y-auto flex flex-col gap-2.5 custom-scrollbar bg-[#EBF2FA]/40 backdrop-blur-xs border-r border-white/50">
+                <div className="flex items-center justify-between mb-0.5">
+                  <h4 className="font-bold text-[11px] text-slate-500 uppercase tracking-widest">
                     Danh sách học kỳ ({apiSemesters.length})
                   </h4>
                   <button
                     onClick={() => handleOpenSemesterForm()}
-                    className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
+                    className="text-[11px] font-bold text-[#1A73E8] hover:text-[#1A73E8]/80 flex items-center gap-1 cursor-pointer transition-colors"
                   >
                     <Plus size={12} /> Tạo mới
                   </button>
@@ -293,20 +301,20 @@ export default function SemesterModal({
                           key={sem._id}
                           layoutId={`sem-${sem._id}`}
                           onClick={() => handleOpenSemesterForm(sem)}
-                          className={`p-3.5 rounded-xl border flex flex-col gap-1 transition-all group relative cursor-pointer ${
+                          className={`p-3 rounded-xl border transition-all duration-150 ease-out group relative cursor-pointer flex flex-col gap-1 ${
                             isSelected 
-                              ? 'border-blue-500 bg-gradient-to-br from-blue-50/20 to-indigo-50/20 shadow-[0_4px_16px_rgba(59,130,246,0.06)]' 
-                              : 'border-slate-200/60 hover:border-slate-300 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.01)]'
+                              ? 'border-[#1A73E8]/40 bg-gradient-to-br from-[#1A73E8]/10 to-[#1A73E8]/5 shadow-sm text-[#1A73E8]' 
+                              : 'border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] shadow-sm shadow-blue-900/5'
                           }`}
                         >
-                          <div className="font-bold text-[13.5px] text-slate-800 pr-12 group-hover:text-blue-600 transition-colors">
+                          <div className={`font-bold text-[13px] pr-12 transition-colors ${isSelected ? 'text-[#1A73E8]' : 'text-[#1E293B] group-hover:text-[#1A73E8]'}`}>
                             {sem.semester_name}
                           </div>
-                          <div className="text-[11px] text-slate-400 font-semibold flex items-center gap-1.5 mt-0.5">
-                            <Clock size={11.5} className="text-slate-300" />
+                          <div className={`text-[11px] font-semibold flex items-center gap-1.5 mt-0.5 ${isSelected ? 'text-[#1A73E8]/75' : 'text-[#64748B]'}`}>
+                            <Clock size={11} className={isSelected ? 'text-[#1A73E8]/50' : 'text-slate-400'} />
                             {sem.start_date ? sem.start_date.substring(0, 10) : ''} → {sem.end_date ? sem.end_date.substring(0, 10) : ''}
                           </div>
-                          <div className="flex items-center justify-between mt-2.5">
+                          <div className="flex items-center justify-between mt-2">
                             <div className="flex items-center gap-1.5">
                               {sem.status === 'active' && (
                                 <span className="relative flex h-2 w-2">
@@ -314,34 +322,34 @@ export default function SemesterModal({
                                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                 </span>
                               )}
-                              <span className={`px-2.5 py-0.5 rounded-full text-[8.5px] font-extrabold uppercase tracking-wider ${
+                              <span className={`px-2 py-0.5 rounded-xl text-[8.5px] font-extrabold uppercase tracking-wider border ${
                                 sem.status === 'active' 
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/60' 
+                                  ? 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20' 
                                   : sem.status === 'upcoming'
-                                    ? 'bg-amber-50 text-amber-700 border border-amber-100/60'
-                                    : 'bg-slate-100 text-slate-500 border border-slate-200/50'
+                                    ? 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+                                    : 'bg-slate-500/10 text-[#64748B] border-slate-500/20'
                               }`}>
                                 {sem.status === 'active' ? 'Hoạt động' : sem.status === 'upcoming' ? 'Sắp diễn ra' : 'Đã ẩn'}
                               </span>
                             </div>
-                            <ChevronRight size={13} className={`text-slate-300 group-hover:text-blue-500 transition-all ${isSelected ? 'translate-x-0.5 text-blue-500' : ''}`} />
+                            <ChevronRight size={13} className={`transition-all duration-150 ${isSelected ? 'translate-x-0.5 text-[#1A73E8]' : 'text-slate-300 group-hover:text-[#1A73E8] group-hover:translate-x-0.5'}`} />
                           </div>
 
                           {/* Action Buttons with subtle hover glow */}
-                          <div className="absolute right-3.5 top-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white/90 backdrop-blur-[2px] p-1 rounded-lg border border-slate-100 shadow-sm" onClick={(e) => e.stopPropagation()}>
+                          <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-all duration-150 flex gap-0.5 bg-white/80 backdrop-blur-md p-0.5 rounded-xl border border-white/80 shadow-sm" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={() => handleOpenSemesterForm(sem)}
-                              className="p-1.5 rounded-md text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-all cursor-pointer"
+                              className="p-1.5 rounded-xl text-slate-500 hover:text-[#1A73E8] hover:bg-white/90 transition-all duration-150 ease-out cursor-pointer"
                               title="Sửa học kỳ"
                             >
-                              <Edit2 size={12} />
+                              <Edit2 size={11} />
                             </button>
                             <button
                               onClick={() => handleDeleteSemester(sem._id)}
-                              className="p-1.5 rounded-md text-slate-500 hover:text-rose-600 hover:bg-slate-50 transition-all cursor-pointer"
+                              className="p-1.5 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-white/90 transition-all duration-150 ease-out cursor-pointer"
                               title="Xóa học kỳ"
                             >
-                              <Trash2 size={12} />
+                              <Trash2 size={11} />
                             </button>
                           </div>
                         </motion.div>
@@ -352,42 +360,42 @@ export default function SemesterModal({
               </div>
 
               {/* Right side: Add/Edit Form */}
-              <div className="w-[55%] h-full p-6 overflow-y-auto flex flex-col justify-between">
-                <div className="flex flex-col gap-5">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h4 className="font-bold text-[14px] text-slate-800 flex items-center gap-1.5">
-                      <Sparkles size={14} className="text-amber-500" />
+              <div className="w-[55%] h-full p-5 overflow-y-auto flex flex-col justify-between bg-white/10 backdrop-blur-xs">
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between border-b border-white/60 pb-2.5">
+                    <h4 className="font-bold text-[13px] text-[#1E293B] flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-amber-500" />
                       {semesterForm._id ? 'Cập nhật Học kỳ' : 'Thêm Học kỳ mới'}
                     </h4>
                     {semesterForm._id && (
-                      <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">ID: {semesterForm._id.substring(semesterForm._id.length - 6)}</span>
+                      <span className="text-[10px] font-bold text-slate-500 bg-white/60 border border-white/80 px-2 py-0.5 rounded-xl">ID: {semesterForm._id.substring(semesterForm._id.length - 6)}</span>
                     )}
                   </div>
 
                   {/* Tabs Slider logic using Framer Motion */}
                   {semesterForm._id && (
-                    <div className="flex bg-slate-100 rounded-xl p-1 gap-1 w-full border border-slate-200/20 relative">
+                    <div className="flex bg-white/40 backdrop-blur-sm rounded-xl p-0.5 gap-0.5 w-full border border-white/60 relative">
                       <button
                         type="button"
                         onClick={() => setActiveTab('info')}
-                        className={`flex-1 py-1.5 rounded-lg text-[12px] font-bold transition-all relative z-10 cursor-pointer ${
-                          activeTab === 'info' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                        className={`flex-1 py-1 rounded-xl text-[11px] font-bold transition-all duration-150 relative z-10 cursor-pointer ${
+                          activeTab === 'info' ? 'text-[#1A73E8]' : 'text-[#64748B] hover:text-[#1E293B]'
                         }`}
                       >
                         {activeTab === 'info' && (
-                          <motion.span layoutId="tab-pill" className="absolute inset-0 bg-white rounded-lg shadow-sm z-[-1]" />
+                          <motion.span layoutId="tab-pill" className="absolute inset-0 bg-white/80 rounded-xl shadow-sm z-[-1]" />
                         )}
                         Thông tin học kỳ
                       </button>
                       <button
                         type="button"
                         onClick={() => setActiveTab('period')}
-                        className={`flex-1 py-1.5 rounded-lg text-[12px] font-bold transition-all relative z-10 cursor-pointer ${
-                          activeTab === 'period' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                        className={`flex-1 py-1 rounded-xl text-[11px] font-bold transition-all duration-150 relative z-10 cursor-pointer ${
+                          activeTab === 'period' ? 'text-[#1A73E8]' : 'text-[#64748B] hover:text-[#1E293B]'
                         }`}
                       >
                         {activeTab === 'period' && (
-                          <motion.span layoutId="tab-pill" className="absolute inset-0 bg-white rounded-lg shadow-sm z-[-1]" />
+                          <motion.span layoutId="tab-pill" className="absolute inset-0 bg-white/80 rounded-xl shadow-sm z-[-1]" />
                         )}
                         Kỳ đánh giá rèn luyện
                       </button>
@@ -397,36 +405,36 @@ export default function SemesterModal({
                   {activeTab === 'info' ? (
                     <div className="flex flex-col gap-4">
                       {/* Semester Name */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9.5px] font-bold text-[#64748B] uppercase tracking-widest">
                           Tên học kỳ
                         </label>
                         <input
                           type="text"
                           placeholder="Ví dụ: Học kỳ 1 - 2025-2026"
-                          className="w-full bg-slate-50/60 border border-slate-100 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-2.5 text-[13px] font-medium placeholder:text-gray-400 transition-all outline-none"
+                          className="w-full bg-white/60 backdrop-blur-sm border border-white/80 focus:border-[#1A73E8] focus:bg-white/88 focus:ring-2 focus:ring-[#1A73E8]/20 rounded-xl px-3 py-2 text-[12.5px] font-medium placeholder:text-slate-400 transition-all duration-150 ease-out outline-none text-[#1E293B]"
                           value={semesterForm.semester_name}
                           onChange={(e) => setSemesterForm({ ...semesterForm, semester_name: e.target.value })}
                         />
                       </div>
 
                       {/* Dates (CustomCalendar) */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9.5px] font-bold text-[#64748B] uppercase tracking-widest">
                           Thời gian diễn ra học kỳ
                         </label>
                         <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                           <PopoverTrigger asChild>
                             <button 
                               type="button"
-                              className="w-full bg-slate-50/60 border border-slate-100 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-100/40 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-left flex items-center justify-between cursor-pointer h-[42px]"
+                              className="w-full bg-white/60 backdrop-blur-sm border border-white/80 rounded-xl px-3 py-2 text-[12.5px] font-medium text-[#1E293B] hover:bg-white/80 focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20 transition-all duration-150 ease-out outline-none text-left flex items-center justify-between cursor-pointer h-[38px]"
                             >
                               <span>
                                 {semesterForm.start_date && semesterForm.end_date
                                   ? `${formatDateToDisplay(semesterForm.start_date)} → ${formatDateToDisplay(semesterForm.end_date)}`
                                   : 'Chọn thời gian học kỳ'}
                               </span>
-                              <Calendar size={15} className="text-slate-400" />
+                              <Calendar size={14} className="text-slate-400" />
                             </button>
                           </PopoverTrigger>
                           <PopoverContent 
@@ -460,15 +468,15 @@ export default function SemesterModal({
                       </div>
 
                       {/* Status */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9.5px] font-bold text-[#64748B] uppercase tracking-widest">
                           Trạng thái học kỳ
                         </label>
                         <Select
                           value={semesterForm.status}
                           onValueChange={(val: any) => setSemesterForm({ ...semesterForm, status: val })}
                         >
-                          <SelectTrigger className="h-[42px] bg-slate-55 border border-slate-100 bg-slate-50/60 rounded-xl text-[13px] font-medium text-slate-700 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10 transition-all shadow-none">
+                          <SelectTrigger className="h-[38px] border border-white/80 bg-white/60 backdrop-blur-sm rounded-xl text-[12.5px] font-medium text-[#1E293B] focus:bg-white/85 focus:ring-2 focus:ring-[#1A73E8]/20 transition-all duration-150 ease-out shadow-none">
                             <SelectValue placeholder="Chọn trạng thái" />
                           </SelectTrigger>
                           <SelectContent>
@@ -480,13 +488,13 @@ export default function SemesterModal({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-4">
                       {/* Stepper Timeline for Evaluation Phases */}
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9.5px] font-bold text-[#64748B] uppercase tracking-widest">
                           Bản đồ Giai đoạn đánh giá
                         </label>
-                        <div className="flex items-center justify-between bg-slate-50 border border-slate-200/50 p-3 rounded-2xl gap-1.5 overflow-x-auto">
+                        <div className="flex items-center justify-between bg-white/40 backdrop-blur-sm border border-white/60 p-2.5 rounded-xl gap-1.5 overflow-x-auto">
                           {phases.map((phase, index) => {
                             const isCurrent = periodForm.status === phase.id;
                             const PhaseIcon = phase.icon;
@@ -495,26 +503,26 @@ export default function SemesterModal({
                                 <button
                                   type="button"
                                   onClick={() => setPeriodForm({ ...periodForm, status: phase.id })}
-                                  className={`flex flex-col items-center gap-1 cursor-pointer group transition-all shrink-0 p-1.5 rounded-xl ${
+                                  className={`flex flex-col items-center gap-1 cursor-pointer group transition-all duration-150 ease-out shrink-0 p-1 rounded-xl ${
                                     isCurrent 
                                       ? 'scale-105' 
                                       : 'opacity-50 hover:opacity-85'
                                   }`}
                                   title={`${phase.name}: ${phase.desc}`}
                                 >
-                                  <div className={`w-8.5 h-8.5 rounded-full flex items-center justify-center border transition-all ${
+                                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all duration-150 ease-out ${
                                     isCurrent 
-                                      ? `bg-gradient-to-br ${phase.color} text-white border-transparent shadow-[0_4px_10px_rgba(59,130,246,0.2)]` 
+                                      ? `bg-gradient-to-br ${phase.color} text-white border-transparent shadow-[0_2px_8px_rgba(59,130,246,0.15)]` 
                                       : 'bg-white text-slate-500 border-slate-200'
                                   }`}>
-                                    <PhaseIcon size={14} className={isCurrent ? 'animate-pulse' : ''} />
+                                    <PhaseIcon size={13} className={isCurrent ? 'animate-pulse' : ''} />
                                   </div>
-                                  <span className={`text-[9.5px] font-bold ${isCurrent ? 'text-slate-800' : 'text-slate-500'}`}>
+                                  <span className={`text-[9px] font-bold ${isCurrent ? 'text-slate-800' : 'text-slate-500'}`}>
                                     {phase.name}
                                   </span>
                                 </button>
                                 {index < phases.length - 1 && (
-                                  <div className="h-[1.5px] flex-1 bg-slate-200 min-w-[15px]" />
+                                  <div className="h-[1.5px] flex-1 bg-white/40 min-w-[15px]" />
                                 )}
                               </React.Fragment>
                             );
@@ -523,35 +531,35 @@ export default function SemesterModal({
                       </div>
 
                       {/* Info Alert Box */}
-                      <div className={`flex items-start gap-2.5 p-3 rounded-xl border ${
-                        phases.find(p => p.id === periodForm.status)?.bgLight || 'bg-slate-50 text-slate-600 border-slate-200'
+                      <div className={`flex items-start gap-2.5 p-2.5 rounded-xl border backdrop-blur-xs ${
+                        phases.find(p => p.id === periodForm.status)?.bgLight || 'bg-slate-50/50 text-slate-600 border-slate-200/50'
                       }`}>
-                        <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                        <AlertCircle size={14} className="shrink-0 mt-0.5" />
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-[11px] font-extrabold uppercase tracking-wide">
+                          <span className="text-[10.5px] font-extrabold uppercase tracking-wide">
                             Giai đoạn: {phases.find(p => p.id === periodForm.status)?.name}
                           </span>
-                          <span className="text-[11px] font-medium leading-relaxed">
+                          <span className="text-[10.5px] font-medium leading-relaxed">
                             {phases.find(p => p.id === periodForm.status)?.desc}. Hệ thống sẽ khóa hoặc mở quyền tương ứng với thời hạn thiết lập dưới đây.
                           </span>
                         </div>
                       </div>
 
                       {/* SV Deadline */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9.5px] font-bold text-[#64748B] uppercase tracking-widest">
                           Hạn chót Sinh viên tự chấm (SV Deadline)
                         </label>
                         <Popover open={isSvCalendarOpen} onOpenChange={setIsSvCalendarOpen}>
                           <PopoverTrigger asChild>
                             <button
                               type="button"
-                              className="w-full bg-slate-50/60 border border-slate-100 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-100/40 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-left flex items-center justify-between cursor-pointer h-[42px]"
+                              className="w-full bg-white/60 backdrop-blur-sm border border-white/80 rounded-xl px-3 py-2 text-[12.5px] font-medium text-[#1E293B] hover:bg-white/80 focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20 transition-all duration-150 ease-out outline-none text-left flex items-center justify-between cursor-pointer h-[38px]"
                             >
                               <span>
                                 {periodForm.sv_deadline ? formatDateToDisplay(periodForm.sv_deadline) : 'Chọn hạn chót'}
                               </span>
-                              <Calendar size={15} className="text-slate-400" />
+                              <Calendar size={14} className="text-slate-400" />
                             </button>
                           </PopoverTrigger>
                           <PopoverContent
@@ -583,20 +591,20 @@ export default function SemesterModal({
                       </div>
 
                       {/* GV Deadline */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9.5px] font-bold text-[#64748B] uppercase tracking-widest">
                           Hạn chót Cố vấn chấm (GV Deadline)
                         </label>
                         <Popover open={isGvCalendarOpen} onOpenChange={setIsGvCalendarOpen}>
                           <PopoverTrigger asChild>
                             <button
                               type="button"
-                              className="w-full bg-slate-50/60 border border-slate-100 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-100/40 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-left flex items-center justify-between cursor-pointer h-[42px]"
+                              className="w-full bg-white/60 backdrop-blur-sm border border-white/80 rounded-xl px-3 py-2 text-[12.5px] font-medium text-[#1E293B] hover:bg-white/80 focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20 transition-all duration-150 ease-out outline-none text-left flex items-center justify-between cursor-pointer h-[38px]"
                             >
                               <span>
                                 {periodForm.gv_deadline ? formatDateToDisplay(periodForm.gv_deadline) : 'Chọn hạn chót'}
                               </span>
-                              <Calendar size={15} className="text-slate-400" />
+                              <Calendar size={14} className="text-slate-400" />
                             </button>
                           </PopoverTrigger>
                           <PopoverContent
@@ -628,20 +636,20 @@ export default function SemesterModal({
                       </div>
 
                       {/* Admin Deadline */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9.5px] font-bold text-[#64748B] uppercase tracking-widest">
                           Hạn chót Hội đồng phê duyệt (Admin Deadline)
                         </label>
                         <Popover open={isAdminCalendarOpen} onOpenChange={setIsAdminCalendarOpen}>
                           <PopoverTrigger asChild>
                             <button
                               type="button"
-                              className="w-full bg-slate-50/60 border border-slate-100 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-100/40 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-left flex items-center justify-between cursor-pointer h-[42px]"
+                              className="w-full bg-white/60 backdrop-blur-sm border border-white/80 rounded-xl px-3 py-2 text-[12.5px] font-medium text-[#1E293B] hover:bg-white/80 focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20 transition-all duration-150 ease-out outline-none text-left flex items-center justify-between cursor-pointer h-[38px]"
                             >
                               <span>
                                 {periodForm.admin_deadline ? formatDateToDisplay(periodForm.admin_deadline) : 'Chọn hạn chót'}
                               </span>
-                              <Calendar size={15} className="text-slate-400" />
+                              <Calendar size={14} className="text-slate-400" />
                             </button>
                           </PopoverTrigger>
                           <PopoverContent
@@ -676,33 +684,53 @@ export default function SemesterModal({
                 </div>
 
                 {/* Form actions */}
-                <div className="flex items-center justify-end gap-2.5 pt-4 mt-6 border-t border-slate-50 shrink-0">
+                <div className="flex items-center justify-end gap-2 pt-3.5 mt-5 border-t border-white/60 shrink-0">
                   {activeTab === 'info' ? (
                     <>
                       {semesterForm._id && (
                         <button
                           type="button"
                           onClick={() => handleOpenSemesterForm()}
-                          className="px-4 py-2.5 rounded-xl text-[12.5px] font-bold text-slate-500 hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1.5 border border-transparent hover:border-slate-100"
+                          className="px-3.5 py-2 rounded-xl text-[12px] font-bold text-slate-600 hover:bg-white/60 hover:text-slate-800 transition-all duration-150 ease-out cursor-pointer flex items-center gap-1 border border-transparent hover:border-white/80"
                         >
-                          <Plus size={14} /> Tạo mới
+                          <Plus size={13} /> Tạo mới
                         </button>
                       )}
                       <button
                         type="button"
                         onClick={handleSaveSemester}
-                        className="px-6 py-2.5 rounded-xl text-[12.5px] font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all shadow-[0_4px_16px_rgba(37,99,235,0.2)] hover:shadow-[0_4px_20px_rgba(37,99,235,0.3)] active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer"
+                        disabled={isSavingSemester}
+                        className={`px-5 py-2 rounded-xl text-[12px] font-bold text-white bg-[#1A73E8] hover:bg-[#1A73E8]/90 transition-all duration-150 ease-out shadow-sm shadow-blue-500/20 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5 ${
+                          isSavingSemester ? 'opacity-70 cursor-not-allowed' : ''
+                        }`}
                       >
-                        Lưu học kỳ
+                        {isSavingSemester ? (
+                          <>
+                            <Loader2 size={13} className="animate-spin" />
+                            <span>Đang lưu...</span>
+                          </>
+                        ) : (
+                          <span>Lưu học kỳ</span>
+                        )}
                       </button>
                     </>
                   ) : (
                     <button
                       type="button"
                       onClick={handleSavePeriod}
-                      className="px-6 py-2.5 rounded-xl text-[12.5px] font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all shadow-[0_4px_16px_rgba(37,99,235,0.2)] hover:shadow-[0_4px_20px_rgba(37,99,235,0.3)] active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer"
+                      disabled={isSavingPeriod}
+                      className={`px-5 py-2 rounded-xl text-[12px] font-bold text-white bg-[#1A73E8] hover:bg-[#1A73E8]/90 transition-all duration-150 ease-out shadow-sm shadow-blue-500/20 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5 ${
+                        isSavingPeriod ? 'opacity-70 cursor-not-allowed' : ''
+                      }`}
                     >
-                      Lưu kỳ đánh giá
+                      {isSavingPeriod ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>Đang lưu...</span>
+                        </>
+                      ) : (
+                        <span>Lưu kỳ đánh giá</span>
+                      )}
                     </button>
                   )}
                 </div>

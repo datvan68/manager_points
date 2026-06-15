@@ -130,6 +130,14 @@ export class SummariesPointService {
   ): Promise<SummaryPoint> {
     await this.assertCanAccessStudent(createSummaryPointDto.student_id, requester);
 
+    const student = await this.studentModel.findById(createSummaryPointDto.student_id).exec();
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${createSummaryPointDto.student_id} not found`);
+    }
+    if (student.status !== 'Studying') {
+      throw new BadRequestException('Chỉ sinh viên đang học mới được tạo bảng điểm rèn luyện.');
+    }
+
     const identity = this.buildSummaryIdentity(
       createSummaryPointDto.student_id,
       createSummaryPointDto.semester_id,

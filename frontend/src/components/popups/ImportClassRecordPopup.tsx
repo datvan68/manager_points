@@ -197,6 +197,11 @@ export default function ImportClassRecordPopup({ isOpen, onClose, onSuccess }: I
           const normalizedStudentCode = normalizeText(studentCode);
           const foundStudent = allStudents.find((s: any) => s._id === studentCode || normalizeText(s.student_code) === normalizedStudentCode);
           if (!foundStudent) { errors.push({ row: rowNumber, studentCode, fullName: undefined, reason: `Không tìm thấy sinh viên: ${studentCode}` }); continue; }
+          // student must be Studying
+          if (foundStudent.status !== 'Studying') {
+            errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Sinh viên không ở trạng thái "Đang học" (Trạng thái hiện tại: ${foundStudent.status})` });
+            continue;
+          }
           // student must belong to class
           const studentClassId = typeof foundStudent.class_id === 'object' ? foundStudent.class_id?._id : foundStudent.class_id;
           if (studentClassId !== foundClass._id) { errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Sinh viên không thuộc lớp ${classCode}` }); continue; }

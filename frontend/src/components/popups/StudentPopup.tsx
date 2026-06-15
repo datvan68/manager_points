@@ -19,6 +19,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { format } from 'date-fns';
 import ImportStudentPopup from './ImportStudentPopup';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 
 interface StudentPopupProps {
     isOpen: boolean;
@@ -38,7 +39,7 @@ const formSchema = z.object({
     studentId: z.string().min(1, { message: "Mã sinh viên bắt buộc nhập" }),
     department: z.string().min(1, { message: "Khoa bắt buộc nhập" }),
     classId: z.string().min(1, { message: "Lớp bắt buộc nhập" }),
-    status: z.enum(['Studying', 'Reserved', 'Dropped', 'Graduated']),
+    status: z.enum(['Studying', 'Reserved', 'Dropped', 'Graduated', 'Suspended']),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -50,6 +51,8 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
     const [isLoadingData, setIsLoadingData] = useState(false);
     const [isCalendarOpen, setIsCalendarOpen] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [pendingData, setPendingData] = useState<FormValues | null>(null);
 
     const {
         register,
@@ -130,7 +133,14 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
         }
     }, [isOpen, initialData, defaultClassId, reset]);
 
-    const onSubmit = async (data: FormValues) => {
+    const onSubmit = async (data: FormValues, forceSubmit = false) => {
+        const isTransitioningFromStudying = initialData?.status === 'Studying' && data.status !== 'Studying';
+        if (isTransitioningFromStudying && !forceSubmit) {
+            setPendingData(data);
+            setIsConfirmOpen(true);
+            return;
+        }
+
         setIsSubmitting(true);
         try {
             // Map from FormValues to Student API DTO
@@ -142,6 +152,7 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                 status: data.status as any,
                 class_id: data.classId,
                 email: data.email || undefined,
+                deleteTrainingScoresConfirmed: isTransitioningFromStudying ? true : undefined,
             };
 
             if (data._id) {
@@ -169,12 +180,30 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
             }
         } finally {
             setIsSubmitting(false);
+            setIsConfirmOpen(false);
+            setPendingData(null);
         }
     };
 
+    const handleConfirmSave = () => {
+        if (pendingData) {
+            onSubmit(pendingData, true);
+        }
+    };
+
+    const handleCancelSave = () => {
+        setIsConfirmOpen(false);
+        setPendingData(null);
+    };
+
+    const handleFormSubmit = (data: FormValues) => {
+        onSubmit(data, false);
+    };
+
     return (
-        <Popup isOpen={isOpen} onClose={onClose} className="max-w-fit bg-white/80 backdrop-blur-xl border border-white/80 rounded-2xl shadow-lg shadow-slate-300/40" contentClassName="p-6">
-            <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col w-[600px] max-w-[95vw] bg-transparent">
+        <>
+            <Popup isOpen={isOpen} onClose={onClose} className="max-w-fit bg-white/80 backdrop-blur-xl border border-white/80 rounded-2xl shadow-lg shadow-slate-300/40" contentClassName="p-6">
+                <form onSubmit={handleSubmit(handleFormSubmit)} className="flex flex-col w-[600px] max-w-[95vw] bg-transparent">
                 {/* Header Custom as per Figma */}
                 <div className="flex items-center justify-between pb-6 border-b border-white/60">
                     <div className="flex flex-col gap-1">
@@ -384,6 +413,9 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                                         <SelectItem value="Graduated" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
                                             Tốt nghiệp
                                         </SelectItem>
+                                        <SelectItem value="Suspended" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
+                                            Đình chỉ
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                             )}
@@ -411,8 +443,19 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                         {initialData ? "Lưu thay đổi" : "Thêm mới"}
                     </Button>
                 </div>
-            </form>
-        </Popup>
+                </form>
+            </Popup>
+            <ConfirmModal
+                isOpen={isConfirmOpen}
+                onClose={handleCancelSave}
+                onConfirm={handleConfirmSave}
+                title="Xác nhận thay đổi trạng thái"
+                message="Sinh viên sẽ không còn đủ điều kiện có bảng điểm rèn luyện. Các bảng điểm rèn luyện hiện tại của sinh viên này sẽ bị xóa. Bạn có chắc chắn muốn lưu thay đổi này không?"
+                confirmLabel="Xác nhận"
+                cancelLabel="Hủy"
+                variant="warning"
+            />
+        </>
     );
 }
 

@@ -649,7 +649,13 @@ function GradingPage() {
 
       // 3. Kiểm tra xem sinh viên nào chưa có trong bảng summaries cho học kỳ đang chọn
       const createPromises: Promise<any>[] = [];
+      let skippedCount = 0;
       classStudents.forEach((student: any) => {
+        if (student.status !== 'Studying') {
+          skippedCount++;
+          return;
+        }
+
         const hasSummary = summariesData.some((summary: any) => {
           const semId = typeof summary.semester_id === 'object' ? summary.semester_id?._id : summary.semester_id;
           const studId = typeof summary.student_id === 'object' ? summary.student_id?._id : summary.student_id;
@@ -668,6 +674,10 @@ function GradingPage() {
           );
         }
       });
+
+      if (skippedCount > 0) {
+        toast.info(`Bỏ qua ${skippedCount} sinh viên không có trạng thái "Đang học" khi khởi tạo bảng điểm.`);
+      }
 
       if (createPromises.length > 0) {
         toast.info(`Phát hiện ${createPromises.length} sinh viên chưa có bảng điểm rèn luyện. Đang tự động khởi tạo...`);

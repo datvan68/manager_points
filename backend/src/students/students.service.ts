@@ -6,6 +6,7 @@ import {
   OnModuleInit,
   ForbiddenException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -361,53 +362,55 @@ export class StudentsService implements OnModuleInit {
         );
       }
 
-      try {
-        let semesters = await this.semesterModel
-          .find({ status: 'active' })
-          .exec();
-        if (semesters.length === 0) {
-          semesters = await this.semesterModel.find().exec();
-        }
+      if (createdStudent.status === 'Studying') {
+        try {
+          let semesters = await this.semesterModel
+            .find({ status: 'active' })
+            .exec();
+          if (semesters.length === 0) {
+            semesters = await this.semesterModel.find().exec();
+          }
 
-        const bulkOps = semesters.map((sem) => ({
-          updateOne: {
-            filter: {
-              student_id: (createdStudent as any)._id,
-              semester_id: sem._id,
-              period_id: null,
-            },
-            update: {
-              $setOnInsert: {
+          const bulkOps = semesters.map((sem) => ({
+            updateOne: {
+              filter: {
                 student_id: (createdStudent as any)._id,
                 semester_id: sem._id,
                 period_id: null,
-                total_score: 0,
-                grading: 'chưa xếp loại',
-                status: 'draft',
-                details: [],
               },
+              update: {
+                $setOnInsert: {
+                  student_id: (createdStudent as any)._id,
+                  semester_id: sem._id,
+                  period_id: null,
+                  total_score: 0,
+                  grading: 'chưa xếp loại',
+                  status: 'draft',
+                  details: [],
+                },
+              },
+              upsert: true,
             },
-            upsert: true,
-          },
-        }));
+          }));
 
-        if (bulkOps.length > 0) {
-          await this.summaryPointModel.bulkWrite(bulkOps, { ordered: false });
-          this.logger.log(
-            `Auto-created or verified summary point rows for ${createStudentDto.full_name}.`,
-          );
-        }
-      } catch (sumErr: any) {
-        const isDupKey = sumErr.code === 11000 || (sumErr.writeErrors && sumErr.writeErrors.some((e: any) => e.code === 11000));
-        if (isDupKey) {
-          this.logger.warn(
-            `Summary points already existed for student ${createStudentDto.full_name} (${createdStudent.student_code}).`,
-          );
-        } else {
-          this.logger.error(
-            `Failed to auto-create summary points for new student ${createStudentDto.full_name}:`,
-            sumErr,
-          );
+          if (bulkOps.length > 0) {
+            await this.summaryPointModel.bulkWrite(bulkOps, { ordered: false });
+            this.logger.log(
+              `Auto-created or verified summary point rows for ${createStudentDto.full_name}.`,
+            );
+          }
+        } catch (sumErr: any) {
+          const isDupKey = sumErr.code === 11000 || (sumErr.writeErrors && sumErr.writeErrors.some((e: any) => e.code === 11000));
+          if (isDupKey) {
+            this.logger.warn(
+              `Summary points already existed for student ${createStudentDto.full_name} (${createdStudent.student_code}).`,
+            );
+          } else {
+            this.logger.error(
+              `Failed to auto-create summary points for new student ${createStudentDto.full_name}:`,
+              sumErr,
+            );
+          }
         }
       }
 
@@ -472,29 +475,31 @@ export class StudentsService implements OnModuleInit {
 
         const bulkOps: any[] = [];
         createdStudents.forEach((student) => {
-          semesters.forEach((sem) => {
-            bulkOps.push({
-              updateOne: {
-                filter: {
-                  student_id: (student as any)._id,
-                  semester_id: sem._id,
-                  period_id: null,
-                },
-                update: {
-                  $setOnInsert: {
+          if (student.status === 'Studying') {
+            semesters.forEach((sem) => {
+              bulkOps.push({
+                updateOne: {
+                  filter: {
                     student_id: (student as any)._id,
                     semester_id: sem._id,
                     period_id: null,
-                    total_score: 0,
-                    grading: 'chưa xếp loại',
-                    status: 'draft',
-                    details: [],
                   },
+                  update: {
+                    $setOnInsert: {
+                      student_id: (student as any)._id,
+                      semester_id: sem._id,
+                      period_id: null,
+                      total_score: 0,
+                      grading: 'chưa xếp loại',
+                      status: 'draft',
+                      details: [],
+                    },
+                  },
+                  upsert: true,
                 },
-                upsert: true,
-              },
+              });
             });
-          });
+          }
         });
 
         if (bulkOps.length > 0) {
@@ -747,11 +752,25 @@ export class StudentsService implements OnModuleInit {
     if (requester && isStudent(requester)) {
       throw new ForbiddenException('Bạn không có quyền chỉnh sửa hồ sơ sinh viên.');
     }
+    const oldStudent = await this.studentModel.findById(id).exec();
+    if (!oldStudent) {
+      throw new NotFoundException(`Student with ID ${id} not found`);
+    }
+
+    const isTransitionFromStudying = oldStudent.status === 'Studying' && updateStudentDto.status !== 'Studying' && updateStudentDto.status !== undefined;
+    if (isTransitionFromStudying) {
+      if (!updateStudentDto.deleteTrainingScoresConfirmed) {
+        throw new BadRequestException('Chuyển đổi trạng thái yêu cầu xác nhận xóa bảng điểm rèn luyện.');
+      }
+      await this.summaryPointModel.deleteMany({ student_id: new Types.ObjectId(id) }).exec();
+    }
+
     try {
+      const { deleteTrainingScoresConfirmed, ...cleanDto } = updateStudentDto;
       const normalizedUpdateDto = {
-        ...updateStudentDto,
-        ...(Object.prototype.hasOwnProperty.call(updateStudentDto, 'user_id')
-          ? { user_id: this.normalizeStudentUserId(updateStudentDto.user_id) || null }
+        ...cleanDto,
+        ...(Object.prototype.hasOwnProperty.call(cleanDto, 'user_id')
+          ? { user_id: this.normalizeStudentUserId(cleanDto.user_id) || null }
           : {}),
       };
 

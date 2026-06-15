@@ -64,6 +64,7 @@ describe('SummariesPointService', () => {
   const mockStudentModel = {
     find: jest.fn(),
     findOne: jest.fn(),
+    findById: jest.fn(),
   };
 
   const mockClassModel = {
@@ -90,6 +91,9 @@ describe('SummariesPointService', () => {
     }).compile();
 
     service = module.get<SummariesPointService>(SummariesPointService);
+    mockStudentModel.findById.mockReturnValue({
+      exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', status: 'Studying' }),
+    });
   });
 
   afterEach(() => {
@@ -225,6 +229,16 @@ describe('SummariesPointService', () => {
         period_id: null,
       }));
       expect(result).toEqual(mockExisting);
+    });
+
+    it('should throw BadRequestException if target student is not Studying', async () => {
+      jest.spyOn(service as any, 'assertCanAccessStudent').mockResolvedValue(undefined);
+      
+      mockStudentModel.findById.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', status: 'Reserved' }),
+      });
+
+      await expect(service.create(createDto)).rejects.toThrow(BadRequestException);
     });
   });
 
