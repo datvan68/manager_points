@@ -18,7 +18,7 @@ yarn-error.log*
 .eslintcache
 *.tsbuildinfo
 .taskscope.md
-.taskscope-1.md
+# .taskscope-1.md
 # Build outputs
 dist/
 build/
