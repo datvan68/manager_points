@@ -10,6 +10,7 @@ export type ReportTabType = 'overview' | 'student' | 'score' | 'record' | 'atten
 interface ReportTabsProps {
   activeTab: ReportTabType;
   onChange: (tab: ReportTabType) => void;
+  onTabMouseEnter?: (tab: ReportTabType) => void;
   counts?: Record<string, number>;
   showSystemTab?: boolean;
 }
@@ -23,6 +24,7 @@ interface TabItem {
 export default function ReportTabs({
   activeTab,
   onChange,
+  onTabMouseEnter,
   counts = {},
   showSystemTab = true
 }: ReportTabsProps) {
@@ -51,6 +53,8 @@ export default function ReportTabs({
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
+              onMouseEnter={() => onTabMouseEnter && onTabMouseEnter(tab.id)}
+              onFocus={() => onTabMouseEnter && onTabMouseEnter(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 text-[13px] font-bold rounded-xl transition-all duration-150 cursor-pointer whitespace-nowrap outline-none ${
                 isActive
                   ? 'bg-white/60 border border-white/75 shadow-sm text-[#1A73E8] scale-[1.01]'

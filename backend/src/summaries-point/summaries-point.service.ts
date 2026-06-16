@@ -192,6 +192,75 @@ export class SummariesPointService {
     }
   }
 
+  async initializeClass(
+    classId: string,
+    semesterId: string,
+    requester?: any,
+  ): Promise<{ success: boolean; createdCount: number }> {
+    if (!classId || !Types.ObjectId.isValid(classId)) {
+      throw new BadRequestException('Mã lớp học không hợp lệ.');
+    }
+    if (!semesterId || !Types.ObjectId.isValid(semesterId)) {
+      throw new BadRequestException('Mã học kỳ không hợp lệ.');
+    }
+
+    const classObj = await this.classModel.findById(classId).exec();
+    if (!classObj) {
+      throw new NotFoundException(`Lớp học với ID ${classId} không tồn tại.`);
+    }
+
+    const roleName = ((requester?.roleName || requester?.role || '') + '').toLowerCase();
+    const isAdminOrSupervisor =
+      roleName.includes('admin') ||
+      roleName.includes('supervisor') ||
+      roleName.includes('quản sinh') ||
+      roleName.includes('quan sinh');
+
+    if (!isAdminOrSupervisor && classObj.advisor_id?.toString() !== requester?.userId) {
+      throw new ForbiddenException('Bạn không có quyền thao tác trên lớp học này.');
+    }
+
+    const students = await this.studentModel.find({
+      class_id: new Types.ObjectId(classId),
+      status: 'Studying'
+    }).exec();
+
+    if (students.length === 0) {
+      return { success: true, createdCount: 0 };
+    }
+
+    const studentIds = students.map(s => s._id);
+    const existingSummaries = await this.summaryPointModel.find({
+      student_id: { $in: studentIds },
+      semester_id: new Types.ObjectId(semesterId),
+      period_id: null
+    } as any).select('student_id').exec();
+
+    const existingStudentIds = new Set(existingSummaries.map(s => s.student_id.toString()));
+
+    const studentsToInit = students.filter(s => !existingStudentIds.has(s._id.toString()));
+
+    if (studentsToInit.length === 0) {
+      return { success: true, createdCount: 0 };
+    }
+
+    const insertPayloads = studentsToInit.map(s => ({
+      student_id: s._id,
+      semester_id: new Types.ObjectId(semesterId),
+      period_id: null,
+      total_score: 100,
+      grading: 'Xuất sắc',
+      status: 'draft'
+    }));
+
+    await this.summaryPointModel.insertMany(insertPayloads);
+
+    return {
+      success: true,
+      createdCount: studentsToInit.length
+    };
+  }
+
   async findAll(
     requester?: any,
     query?: {
@@ -200,6 +269,7 @@ export class SummariesPointService {
       semesterId?: string;
       classId?: string;
       studentId?: string;
+      studentIds?: string | string[];
       status?: string;
     },
   ): Promise<any> {
@@ -231,6 +301,30 @@ export class SummariesPointService {
         }
       }
     }
+
+    let studentIdsList: string[] = [];
+    if (query?.studentIds) {
+      if (Array.isArray(query.studentIds)) {
+        studentIdsList = query.studentIds;
+      } else if (typeof query.studentIds === 'string') {
+        studentIdsList = query.studentIds.split(',').map(id => id.trim()).filter(Boolean);
+      }
+    }
+
+    if (studentIdsList.length > 0) {
+      const validObjectIds = studentIdsList
+        .filter(id => Types.ObjectId.isValid(id))
+        .map(id => new Types.ObjectId(id));
+      
+      if (filter.student_id && filter.student_id.$in) {
+        filter.student_id.$in = filter.student_id.$in.filter((id: any) =>
+          validObjectIds.some((sId: any) => sId.toString() === id.toString()),
+        );
+      } else {
+        filter.student_id = { $in: validObjectIds };
+      }
+    }
+
     if (query?.status) {
       filter.status = query.status;
     }

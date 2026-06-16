@@ -113,7 +113,6 @@ interface AddClassReportViewProps {
 export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: AddClassReportViewProps) {
   const { user } = useAuth();
   const [classes, setClasses] = useState<Class[]>([]);
-  const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
 
@@ -151,10 +150,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       try {
         const classList = await classApi.getClasses();
         setClasses(classList);
-
-        const studentListRes = await studentApi.getStudents();
-        const studentList = Array.isArray(studentListRes) ? studentListRes : (studentListRes?.data || []);
-        setAllStudents(studentList);
 
         const criteriaList = await criteriaApi.getCriteria();
         setCriteria(criteriaList);
@@ -254,41 +249,91 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const [summaryPointCache, setSummaryPointCache] = useState<Record<string, string>>({});
   const [evaluationDetailCache, setEvaluationDetailCache] = useState<Record<string, string>>({});
 
-  // Lọc sinh viên theo lớp học đang chọn
-  useEffect(() => {
-    if (classId) {
-      setIsStudentsLoading(true);
-      const timer = setTimeout(() => {
-        if (allStudents.length > 0) {
-          const filtered = allStudents.filter(s => {
-            const sClassId = typeof s.class_id === 'object' ? s.class_id?._id : s.class_id;
-            return sClassId === classId;
-          });
-          setClassStudents(filtered);
-        } else {
-          setClassStudents([]);
-        }
-        setIsStudentsLoading(false);
-      }, 400); // Tạo trễ nhỏ giả lập loading chuyên nghiệp
+  const [studentsPage, setStudentsPage] = useState(1);
+  const [studentsSearch, setStudentsSearch] = useState("");
+  const [hasMoreStudents, setHasMoreStudents] = useState(true);
+  const [totalStudentsCount, setTotalStudentsCount] = useState(0);
 
+  const fetchClassStudents = async (page: number, searchVal: string, append: boolean = false) => {
+    if (!classId) return;
+    setIsStudentsLoading(true);
+    try {
+      const limit = 30;
+      const res = await studentApi.getStudents({
+        classId,
+        page,
+        limit,
+        search: searchVal || undefined
+      });
+      
+      const newStudents = Array.isArray(res) ? res : (res?.data || []);
+      const total = (!Array.isArray(res) && res?.meta?.total) ? res.meta.total : newStudents.length;
+
+      if (page === 1) {
+        setTotalStudentsCount(total);
+      }
+
+      setClassStudents(prev => append ? [...prev, ...newStudents] : newStudents);
+      setHasMoreStudents(newStudents.length >= limit);
+    } catch (err) {
+      console.warn('Lỗi nạp sinh viên lớp:', err);
+      if (!append) {
+        setClassStudents([]);
+        setTotalStudentsCount(0);
+      }
+    } finally {
+      setIsStudentsLoading(false);
+    }
+  };
+
+  // Lọc sinh viên theo lớp học đang chọn từ backend
+  useEffect(() => {
+    setSelectedStudentId('');
+    setSelectedCriterionId('');
+    setViolationNote('');
+    setStudentsPage(1);
+    setStudentsSearch("");
+    setHasMoreStudents(true);
+    setTotalStudentsCount(0);
+    setClassStudents([]);
+    if (classId) {
+      fetchClassStudents(1, "");
       // Nếu không ở edit mode hoặc đổi lớp khác, reset vi phạm cũ
       if (!reportToEdit) {
         setAddedViolations([]);
       }
-      return () => clearTimeout(timer);
     } else {
-      setClassStudents([]);
       setAddedViolations([]);
-      setIsStudentsLoading(false);
     }
-    setSelectedStudentId('');
-    setSelectedCriterionId('');
-    setViolationNote('');
-  }, [classId, allStudents]);
+  }, [classId]);
+
+  // Tránh search liên tục khi gõ, ta dùng debounce
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  
+  const handleStudentSearch = (query: string) => {
+    setStudentsSearch(query);
+    setStudentsPage(1);
+    setHasMoreStudents(true);
+    
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchClassStudents(1, query, false);
+    }, 400);
+  };
+
+  const handleLoadMoreStudents = () => {
+    if (isStudentsLoading || !hasMoreStudents) return;
+    const nextPage = studentsPage + 1;
+    setStudentsPage(nextPage);
+    fetchClassStudents(nextPage, studentsSearch, true);
+  };
 
   // Tự động tính toán sĩ số dựa trên danh sách sinh viên vắng mặt (vi phạm vắng học được cấu hình)
   useEffect(() => {
-    if (classStudents.length > 0) {
+    if (totalStudentsCount > 0) {
       // Chỉ đếm những vi phạm thuộc tiêu chí được cấu hình tính vắng mặt hoặc có chứa từ khóa "vắng"
       const absentViolations = addedViolations.filter(v => 
         absentCriteriaIds.includes(v.criterion_id) || 
@@ -297,12 +342,12 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       const uniqueAbsentIds = new Set(absentViolations.map(v => v.student_id));
       const absentCount = uniqueAbsentIds.size;
       setTotalAbsent(absentCount);
-      setTotalPresent(Math.max(0, classStudents.length - absentCount));
+      setTotalPresent(Math.max(0, totalStudentsCount - absentCount));
     } else {
       setTotalPresent(0);
       setTotalAbsent(0);
     }
-  }, [addedViolations, classStudents, absentCriteriaIds]);
+  }, [addedViolations, totalStudentsCount, absentCriteriaIds]);
 
   // Thêm vi phạm vào danh sách tạm
   const handleAddViolationToList = () => {
@@ -644,6 +689,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         <Select
                           value={selectedStudentId}
                           onValueChange={setSelectedStudentId}
+                          onSearchQueryChange={handleStudentSearch}
                           label="Họ tên sinh viên"
                           error={""}
                         >
@@ -653,10 +699,20 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           >
                             <SelectValue placeholder={classId ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
                           </SelectTrigger>
-                          <SelectContent lazyLoad className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
+                          <SelectContent 
+                            lazyLoad 
+                            onLoadMore={handleLoadMoreStudents}
+                            className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60"
+                          >
                             {classStudents.map(s => (
                               <SelectItem key={s._id} value={s._id}>{s.full_name} ({s.student_code})</SelectItem>
                             ))}
+                            {isStudentsLoading && (
+                              <div className="flex items-center justify-center p-2 text-xs text-slate-400">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                                Đang tải thêm...
+                              </div>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>

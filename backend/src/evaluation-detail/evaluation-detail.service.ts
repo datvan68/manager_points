@@ -444,10 +444,118 @@ export class EvaluationDetailService {
     return newDetail;
   }
 
-  async findAll(requester?: any): Promise<EvaluationDetail[]> {
-    const scopeFilter = await this.getSummaryScopeFilter(requester);
-    const summaries = await this.summaryPointModel.find(scopeFilter).exec();
-    return summaries.flatMap((s) => s.details || []);
+  async findAll(
+    query?: {
+      page?: number;
+      limit?: number;
+      summaryId?: string;
+      semesterId?: string;
+      classId?: string;
+      studentId?: string;
+    },
+    requester?: any,
+  ): Promise<any> {
+    let page: number | undefined;
+    let limit: number | undefined;
+    let summaryId: string | undefined;
+    let semesterId: string | undefined;
+    let classId: string | undefined;
+    let studentId: string | undefined;
+    let actualRequester = requester;
+
+    if (query && ('roleName' in query || 'userId' in query || 'role' in query || 'username' in query)) {
+      actualRequester = query;
+    } else if (query) {
+      page = query.page;
+      limit = query.limit;
+      summaryId = query.summaryId;
+      semesterId = query.semesterId;
+      classId = query.classId;
+      studentId = query.studentId;
+    }
+
+    const scopeFilter = await this.getSummaryScopeFilter(actualRequester);
+    const filter: any = { ...scopeFilter };
+
+    if (summaryId && Types.ObjectId.isValid(summaryId)) {
+      filter._id = new Types.ObjectId(summaryId);
+    }
+
+    if (semesterId && Types.ObjectId.isValid(semesterId)) {
+      filter.semester_id = new Types.ObjectId(semesterId);
+    }
+
+    if (classId && Types.ObjectId.isValid(classId)) {
+      const classStudents = await this.studentModel.find({ class_id: new Types.ObjectId(classId) }).select('_id').exec();
+      const studentIds = classStudents.map(s => s._id);
+      if (filter.student_id) {
+        if (filter.student_id.$in) {
+          filter.student_id.$in = filter.student_id.$in.filter((id: any) =>
+            studentIds.some(sId => sId.toString() === id.toString())
+          );
+        } else {
+          if (!studentIds.some(sId => sId.toString() === filter.student_id.toString())) {
+            return (page !== undefined || limit !== undefined) ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+          }
+        }
+      } else {
+        filter.student_id = { $in: studentIds };
+      }
+    }
+
+    if (studentId && Types.ObjectId.isValid(studentId)) {
+      const targetStudentObjectId = new Types.ObjectId(studentId);
+      if (filter.student_id) {
+        if (filter.student_id.$in) {
+          const hasAccess = filter.student_id.$in.some((id: any) => id.toString() === studentId);
+          if (!hasAccess) {
+            return (page !== undefined || limit !== undefined) ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+          }
+        } else {
+          if (filter.student_id.toString() !== studentId) {
+            return (page !== undefined || limit !== undefined) ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+          }
+        }
+      }
+      filter.student_id = targetStudentObjectId;
+    }
+
+    const summaries = await this.summaryPointModel.find(filter).lean().exec();
+
+    const allDetails: any[] = [];
+    for (const s of summaries) {
+      if (s.details && s.details.length > 0) {
+        for (const detail of s.details) {
+          allDetails.push({
+            ...detail,
+            summary_id: s._id.toString(),
+            student_id: s.student_id ? s.student_id.toString() : null,
+            semester_id: s.semester_id ? s.semester_id.toString() : null,
+          });
+        }
+      }
+    }
+
+    const isPaginationRequested = page !== undefined || limit !== undefined;
+    if (isPaginationRequested) {
+      const p = page || 1;
+      const l = limit || 10;
+      const total = allDetails.length;
+      const startIndex = (p - 1) * l;
+      const paginatedData = allDetails.slice(startIndex, startIndex + l);
+
+      return {
+        data: paginatedData,
+        meta: {
+          total,
+          page: p,
+          limit: l,
+          totalPages: Math.ceil(total / l)
+        }
+      };
+    } else {
+      return allDetails;
+    }
   }
 
   async findOne(id: string, requester?: any): Promise<EvaluationDetail> {

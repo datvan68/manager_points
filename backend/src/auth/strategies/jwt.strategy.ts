@@ -33,6 +33,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Token không hợp lệ');
     }
 
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('Tài khoản đã bị khóa hoặc chưa kích hoạt');
+    }
+
     const role = user.role as any;
     const permissions = role?.permissions?.map((p: any) => p.code) || [];
 

@@ -1,204 +1,206 @@
-# Task Scope Review: Notification Unauthorized Console Error
+# Student Permissions Display Build Error and Login Impact Review
 
-## Review Objective
+## Objective
 
-Review the current notification-auth fix scope and add the missing or inaccurate items needed to fully resolve the Next.js development overlay:
+Review the build error shown in the screenshot and document whether the recent `/permissions` student display-name changes can affect the dedicated student login flow:
+
+- student login identifier: student code
+- initial/default password: date of birth in `ddmmyyyy`
+- admin activation required before login
+- `/permissions` user-management display should show the student full name without changing login identity
+
+## Screenshot Error
+
+The screenshot shows a Next.js build/parsing error in:
 
 ```text
-Console Error
-Unauthorized
+frontend/src/app/permissions/page.tsx
 ```
 
-The screenshots point to notification loading paths:
+The error is:
 
 ```text
-handleResponse -> async fetchNotifications
-handleResponse -> async Object.getNotifications -> async fetchNotifications
+Expected ',', got 'const'
 ```
 
-## Current Status In Working Tree
+The failing area is around the import block for `preview-permissions`.
 
-The initial root-cause direction is correct. Notification endpoints are protected by `JwtAuthGuard`, and the frontend must treat `401 Unauthorized` as an authenticated-session problem, not as an unexpected notification feature error.
-
-Some corrective work is already present:
-
-- `frontend/src/api/notification-api.ts` now imports `httpClient` and `handleResponse` from `frontend/src/api/http-client.ts`.
-- `notification-api.ts` no longer builds its own `Authorization` header from `tokenStorage`.
-- `Header.tsx` fetches unread count and recent notifications concurrently with `Promise.all`.
-- `Header.tsx` suppresses `console.error` for errors with `status === 401`.
-- `frontend/src/lib/notifications.ts` suppresses `console.error` for errors with `status === 401`.
-- `AuthProvider` now clears token/user state when `/api/auth/me` returns `401`.
-
-## What Was Inaccurate Or Already Resolved
-
-### 1. The primary notification API refactor is no longer pending
-
-The previous scope says `notification-api.ts` still needs to move from raw `fetch()` to `httpClient()`. That is now already implemented in the working tree.
-
-Keep it as an acceptance criterion, but do not treat it as an unfixed item unless future diffs reintroduce raw authenticated `fetch()` in `notification-api.ts`.
-
-### 2. Header initial notification loading is partially fixed
-
-The `fetchNotifications()` path in `Header.tsx` now avoids logging expected `401` errors, which should address the first screenshot stack.
-
-Remaining issue:
-
-- On an auth failure, the header currently suppresses the error but does not explicitly reset stale `notifications` and `unreadCount` inside the catch block.
-- If the user had previous notification state and the session becomes invalid, stale count/list values may remain until `user` becomes `null`.
-
-Required correction:
-
-- On expected `401`, set `notifications` to `[]` and `unreadCount` to `0`.
-- Keep non-auth errors visible, but avoid repeated console spam from update events.
-
-### 3. Background helper logging is partially fixed
-
-`frontend/src/lib/notifications.ts` now suppresses console errors for `401`, so the second screenshot stack is likely covered.
-
-Remaining issue:
-
-- The file repeats the same `if (error?.status !== 401) console.error(...)` pattern across several methods.
-- This is easy to miss in future notification helper methods.
-
-Required correction:
-
-- Add a small shared helper such as `isExpectedAuthError(error)` or `logUnexpectedNotificationError(message, error)`.
-- Use it consistently across `getNotifications`, `addNotification`, `updateNotification`, `markRead`, `markAllRead`, and `deleteNotification`.
-
-## Missing Items To Add To The Fix Scope
-
-### 1. `AuthProvider` can still restore stale student user state after `/students/me` returns `401`
-
-In `frontend/src/providers/auth-provider.tsx`, when the student-link request returns `401`, the code clears tokens and state:
+Current broken shape:
 
 ```ts
-tokenStorage.clearTokens();
-setUser(null);
-setPermissions([]);
+import {
+  resolvePreviewSubject,
+  getPreviewPermissions,
+  buildSystemPreviewAccess,
+  getPagePreviewScope,
+  type PreviewSubject,
+  type PreviewPermissionItem
+const getUserDisplayName = (user: any) =>
+  user?.student_profile?.full_name || user?.display_name || user?.user_name || user?.username || 'Unknown user';
 ```
 
-However, the function can continue to the later `if (storedUser)` block and call:
+The import block is missing:
+
+- the closing `}`
+- the `from './preview-permissions';` clause
+- a blank separation before declaring `getUserDisplayName`
+
+Correct shape:
 
 ```ts
-tokenStorage.setUser(updatedUser);
-setUser(updatedUser);
+import {
+  resolvePreviewSubject,
+  getPreviewPermissions,
+  buildSystemPreviewAccess,
+  getPagePreviewScope,
+  type PreviewSubject,
+  type PreviewPermissionItem,
+} from './preview-permissions';
+
+const getUserDisplayName = (user: any) =>
+  user?.student_profile?.full_name ||
+  user?.display_name ||
+  user?.user_name ||
+  user?.username ||
+  'Unknown user';
 ```
 
-That can rehydrate the stale user immediately after clearing it.
+## Current Implementation Review
 
-Required correction:
+### Backend Student Login Identity
 
-- After handling `studentRes.status === 401`, return from `loadUserPermissions()` immediately.
-- Alternatively throw a shared `ApiError`/session-expired signal and handle it in one place.
+- `StudentsService.generateStudentUser()` creates the linked user with `user_name = student.student_code`.
+- The generated default password is derived from `student.date_bir` in `ddmmyyyy` format.
+- Auto-created student users are created as `inactive`.
+- `StudentsService.activateStudentAccount()` activates the linked account and creates the account with `user_name = student.student_code` if no linked user exists.
+- `AuthService.login()` still supports numeric student-code login by resolving a numeric input to `<student_code>@school.edu.vn` and also checking `user_name = loginKey`.
+- `AuthService.login()` rejects `inactive` users, so admin activation is still required before a student can sign in.
 
-### 2. Auth validation fetches bypass the shared refresh flow
+Conclusion:
 
-`loadUserPermissions()` uses raw `fetch()` for:
+- The display-name change should not affect student login as long as it only adds `display_name` and `student_profile`.
+- Do not overwrite `user.user_name` with `student.full_name`.
 
-- `GET /api/auth/me`
-- `GET /students/me`
+### Backend `/permissions` User Enrichment
 
-This means these validation requests do not benefit from `httpClient()` refresh/retry behavior.
+- `AuthModule` now registers `Student` and `StudentSchema`.
+- `AuthService.getUsers()` now loads users, finds linked student profiles by `user_id`, and returns:
+  - `display_name = student.full_name` for linked students
+  - `student_profile.student_code`
+  - `student_profile.full_name`
+  - `student_profile.class_id`
+- For non-student users, `display_name` falls back to `user.user_name`.
 
-Required correction:
+This is the correct backend direction because it avoids per-row frontend requests and keeps the login username untouched.
 
-- Prefer `httpClient()` for these protected validation calls, or explicitly document that `AuthProvider` is the one place allowed to handle validation without retry.
-- If using `httpClient()`, avoid duplicate redirects/toasts because `httpClient()` already clears tokens and redirects when refresh fails.
+### Frontend `/permissions` Display
 
-### 3. Notification page call sites still log or toast expected auth failures
+- The user table now intends to render `getUserDisplayName(user)` as the primary name.
+- The user table search now includes:
+  - `user_name`
+  - `email`
+  - `display_name`
+  - `student_profile.full_name`
+  - `student_profile.student_code`
+- The preview user selector and preview identity card also intend to use `getUserDisplayName()`.
 
-`frontend/src/app/notifications/page.tsx` still has direct notification calls that can log expected auth failures:
+These changes are functionally correct, but the current syntax error prevents the page from compiling.
 
-- `loadCounts()`
-- `loadPaginated()`
-- `handleMarkRead()`
-- `handleNavigate()`
+## Findings
 
-These paths are not shown in the screenshots, but they use the same `notificationApi` and can still surface noisy console errors when auth state is stale.
+### P0 - Build Is Broken By A Malformed Import Block
 
-Required correction:
+Impact:
 
-- Apply the same expected-401 handling used in `Header.tsx`.
-- For page-level loads, avoid showing "cannot load notifications" toast when the real issue is session expiration.
-- For user-triggered mutations, let the global auth/session handling own the redirect and only show a toast for non-auth failures.
+- `/permissions` cannot compile.
+- A production build can fail even though the backend login flow is unchanged.
+- The app may show the build overlay before admins can verify the new student display-name behavior.
 
-### 4. Dashboard and reports notification calls need verification
+Required fix:
 
-Other call sites also use `notificationApi`:
+- Close the `preview-permissions` import block correctly.
+- Add `from './preview-permissions';`.
+- Declare `getUserDisplayName` after all import statements.
 
-- `frontend/src/app/page.tsx`
-- `frontend/src/app/reports/page.tsx`
+### P0 - Student Login Must Keep `user_name = student_code`
 
-They mostly use `.catch(() => fallback)`, which reduces overlay risk. Still, these paths should be included in verification because they run on protected pages with `Header` mounted and can race with stale auth.
+Impact if violated:
 
-Required correction:
+- Student-code login can break if `user_name` is changed to the student's full name.
+- Default DOB password login after admin activation depends on the linked user remaining findable by student code/email fallback.
 
-- Confirm expected auth failures return fallback data without `console.error`.
-- Confirm non-auth failures still have enough diagnostics during development.
+Required guardrail:
 
-### 5. Centralize expected auth error detection
+- Display full name through `display_name` or `student_profile.full_name`.
+- Keep `user_name` as the student account identifier.
+- Do not save student full name through `authApi.updateUser({ user_name: ... })`.
 
-Current code checks `error?.status !== 401` inline. That works for `ApiError`, but it is fragile if another client throws a differently shaped auth error.
+### P1 - `/permissions/[id]` Still Needs The Same Display Rule
 
-Required correction:
+The list page is being updated, but the detail page also needs review.
 
-- Export or define a small helper:
+Required fix:
 
-```ts
-export function isAuthError(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as any).status === 401;
-}
-```
+- Show `student_profile.full_name` as the primary header/name for student accounts.
+- Show `student_profile.student_code` and `user_name` as account metadata.
+- Keep student profile name editing separate from account username editing.
 
-- Use it in notification UI/background code.
-- Keep the helper status-based and avoid matching only the message text `"Unauthorized"`.
+### P1 - Need Regression Tests For Student Login After Display Enrichment
 
-### 6. Avoid duplicate notification requests where possible
+Required coverage:
 
-`Header` fetches notifications, and pages like dashboard or notifications center can also fetch notifications on mount. This is acceptable, but it can produce repeated requests during session expiry.
+- A student user with `user_name = student_code` can log in using the student code after admin activation.
+- An inactive student cannot log in even with the correct DOB password.
+- Enriched `/api/auth/users` response includes `display_name` and `student_profile` without mutating `user_name`.
+- `/permissions` renders full name for student accounts and still searches by student code.
 
-Recommended follow-up:
+### P2 - UI Labels Should Avoid Encoding Drift
 
-- Keep the current `Promise.all` pattern for independent count/list calls.
-- Consider a shared client-side notification query layer later, such as SWR, to dedupe requests and revalidate after `notifications-updated`.
-- This is a follow-up improvement, not required to fix the screenshots.
+Some visible Vietnamese labels in the file may appear corrupted depending on encoding/tooling.
 
-## Updated Required Fix
+Recommended check:
 
-1. Keep `notification-api.ts` on the shared `httpClient()` and shared `handleResponse()`.
-2. Add consistent expected-auth-error handling for every notification call site that can run in the background.
-3. Reset header notification state on expected `401`.
-4. Fix `AuthProvider.loadUserPermissions()` so `studentRes.status === 401` cannot clear auth and then re-set a stale user.
-5. Decide whether `AuthProvider` protected validation calls should use `httpClient()` or remain intentionally raw with explicit session handling.
-6. Review `/notifications` page logging/toast behavior so session-expired cases do not show noisy feature-level errors.
+- Keep source files in UTF-8.
+- Verify labels such as "Student code" or localized Vietnamese equivalents render correctly in the browser after the build error is fixed.
+
+## Required Fix Plan
+
+1. Fix the malformed import in `frontend/src/app/permissions/page.tsx`.
+2. Keep `getUserDisplayName` at module scope after imports.
+3. Confirm `getUserDisplayName` is used only for display and search, not for login or update payloads.
+4. Confirm `AuthService.getUsers()` enrichment does not mutate `user_name`.
+5. Update `/permissions/[id]` to use the same display-name rule for student accounts.
+6. Add backend tests for student login by student code plus DOB password after admin activation.
+7. Add backend tests proving inactive students remain blocked.
+8. Add backend tests for enriched users API preserving `user_name`.
+9. Add frontend coverage or manual verification for `/permissions` table, search, and preview selector.
+10. Run a production build after the syntax fix.
 
 ## Verification Checklist
 
-1. Log in normally and confirm the header bell loads unread count and recent notifications.
-2. Expire the access token while the refresh cookie is valid; confirm notification requests refresh and retry without an overlay.
-3. Expire or remove the refresh cookie while keeping stale local user state; confirm the app clears auth and redirects without an `Unauthorized` overlay.
-4. Confirm the header resets unread count and notification list after expected auth failure.
-5. Open `/notifications` with a stale session and confirm no `console.error` overlay is produced for expected `401`.
-6. Open dashboard and reports pages with a stale session and confirm notification fallback paths do not spam the console.
-7. For non-auth server failures such as `500`, confirm useful diagnostics still appear.
-8. Run frontend tests:
-
-```bash
-npm test
-```
-
-9. Run a production build after clearing any local `.next` file lock:
-
-```bash
-npm run build
-```
+1. Start the frontend and confirm `/permissions` no longer shows `Expected ',', got 'const'`.
+2. Run the frontend build and confirm parsing succeeds.
+3. Create/import a student with `student_code = SV001` and a known `date_bir`.
+4. Confirm the linked user has:
+   - `user_name = SV001`
+   - password hash generated from DOB `ddmmyyyy`
+   - `status = inactive`
+5. Attempt login with `SV001` and DOB password before activation; expect blocked.
+6. Admin activates the account.
+7. Attempt login with `SV001` and DOB password after activation; expect success.
+8. Call `GET /api/auth/users`; confirm:
+   - `user_name` is still `SV001`
+   - `display_name` equals the student full name
+   - `student_profile.student_code` equals `SV001`
+9. Open `/permissions`; confirm the table shows the full name as primary text and student code as secondary text.
+10. Search by full name and by student code; both should find the same student account.
 
 ## Acceptance Criteria
 
-- `notification-api.ts` uses `httpClient()` for all protected notification endpoints.
-- Expected notification `401` failures do not trigger the Next.js development console overlay.
-- Header notification state is cleared on expected auth failure.
-- `AuthProvider` does not re-set stale users after clearing auth on `401`.
-- `/notifications`, dashboard, reports, and helper notification paths handle expected auth failures consistently.
-- Non-auth errors remain debuggable.
-- Tests and manual notification flows pass.
+- The `/permissions` page compiles without the screenshot build error.
+- Student display-name changes do not alter student login identity.
+- Student login by student code and DOB password still works after admin activation.
+- Inactive students still cannot log in before admin activation.
+- `user_name` remains the account identifier for student accounts.
+- `display_name` and `student_profile.full_name` are used only for display/search.
+- `/permissions` and `/permissions/[id]` consistently show student full name as the primary identity and student code as metadata.

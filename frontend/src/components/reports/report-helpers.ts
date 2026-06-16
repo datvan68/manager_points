@@ -21,6 +21,13 @@ export function getEntityId(value: any): string {
   if (typeof value === 'object' && value._id) return value._id;
   if (typeof value === 'object' && value.id) return value.id;
   return String(value);
+}// Helper to safely resolve student object from student_id field (string or populated object)
+export function resolveStudent(studentIdField: any, studentsList: any[]): any {
+  if (studentIdField && typeof studentIdField === 'object' && studentIdField._id) {
+    return studentIdField;
+  }
+  const idStr = getEntityId(studentIdField);
+  return studentsList.find(s => s._id === idStr);
 }
 
 // Safely format date strings
@@ -164,8 +171,7 @@ export function processReportsData(
 
   // 2. FILTER SCORE SUMMARIES
   const filteredSummaries = summaries.filter(sum => {
-    const studentIdStr = getEntityId(sum.student_id);
-    const student = students.find(s => s._id === studentIdStr);
+    const student = resolveStudent(sum.student_id, students);
     if (!student) return false; // Exclude summaries without valid student
 
     const classIdStr = getEntityId(student.class_id);
@@ -187,8 +193,7 @@ export function processReportsData(
   });
 
   const scoreRows: ScoreReportRow[] = filteredSummaries.map(sum => {
-    const studentIdStr = getEntityId(sum.student_id);
-    const student = students.find(s => s._id === studentIdStr)!;
+    const student = resolveStudent(sum.student_id, students)!;
     const classIdStr = getEntityId(student.class_id);
     const details = getStudentClassAndDept(classIdStr);
     const semIdStr = getEntityId(sum.semester_id);
@@ -215,8 +220,7 @@ export function processReportsData(
     const sum = summaries.find(s => s._id === summaryIdStr);
     if (!sum) return false;
 
-    const studentIdStr = getEntityId(sum.student_id);
-    const student = students.find(s => s._id === studentIdStr);
+    const student = resolveStudent(detail.summary_id ? (summaries.find(s => s._id === getEntityId(detail.summary_id))?.student_id) : null, students);
     if (!student) return false;
 
     const classIdStr = getEntityId(student.class_id);
@@ -240,8 +244,7 @@ export function processReportsData(
   const scoreDetailRows: ScoreDetailReportRow[] = filteredDetails.map(detail => {
     const summaryIdStr = getEntityId(detail.summary_id);
     const sum = summaries.find(s => s._id === summaryIdStr)!;
-    const studentIdStr = getEntityId(sum.student_id);
-    const student = students.find(s => s._id === studentIdStr)!;
+    const student = resolveStudent(sum?.student_id, students)!;
     const classIdStr = getEntityId(student.class_id);
     const details = getStudentClassAndDept(classIdStr);
 
@@ -271,8 +274,7 @@ export function processReportsData(
   // 4. FILTER ACADEMIC RECORDS (Khen thuong / Ky luat)
   const filteredRecords = academicRecords.filter(rec => {
     if (rec.is_deleted) return false;
-    const studentIdStr = getEntityId(rec.student_id);
-    const student = students.find(s => s._id === studentIdStr);
+    const student = resolveStudent(rec.student_id, students);
     if (!student) return false;
 
     const classIdStr = getEntityId(student.class_id);
@@ -315,8 +317,7 @@ export function processReportsData(
   });
 
   const recordRows: AcademicRecordReportRow[] = filteredRecords.map(rec => {
-    const studentIdStr = getEntityId(rec.student_id);
-    const student = students.find(s => s._id === studentIdStr)!;
+    const student = resolveStudent(rec.student_id, students)!;
     const classIdStr = getEntityId(student.class_id);
     const details = getStudentClassAndDept(classIdStr);
 
@@ -551,7 +552,7 @@ export function processReportsData(
   const kpis: ReportKpi[] = [
     {
       title: 'Tổng sinh viên',
-      value: filteredStudents.length,
+      value: dataset.studentsTotal !== undefined ? dataset.studentsTotal : filteredStudents.length,
       description: 'Sinh viên trong phạm vi bộ lọc',
       iconName: 'users'
     },

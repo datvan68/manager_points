@@ -43,6 +43,7 @@ export const summariesPointApi = {
     semesterId?: string;
     classId?: string;
     studentId?: string;
+    studentIds?: string | string[];
     status?: string;
   }): Promise<{ data: SummaryPoint[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
     const query = new URLSearchParams();
@@ -51,6 +52,10 @@ export const summariesPointApi = {
     if (params?.semesterId) query.set('semesterId', params.semesterId);
     if (params?.classId) query.set('classId', params.classId);
     if (params?.studentId) query.set('studentId', params.studentId);
+    if (params?.studentIds) {
+      const idsParam = Array.isArray(params.studentIds) ? params.studentIds.join(',') : params.studentIds;
+      query.set('studentIds', idsParam);
+    }
     if (params?.status) query.set('status', params.status);
     
     const qs = query.toString();
@@ -117,5 +122,14 @@ export const summariesPointApi = {
       body: JSON.stringify({ summaryIds, reason }),
     });
     return handleResponse<any[]>(res);
+  },
+
+  async initializeClass(classId: string, semesterId: string): Promise<{ success: boolean; createdCount: number }> {
+    const res = await httpClient(`${API_BASE}/summaries-points/initialize-class`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classId, semesterId }),
+    });
+    return handleResponse<{ success: boolean; createdCount: number }>(res);
   }
 };

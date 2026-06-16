@@ -62,7 +62,7 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
       );
     }
 
-    const { currentScore, grading, evaluationStatus, positiveRecords, warningRecords, nextAction } = spotlight;
+    const { currentScore, grading, evaluationStatus, positiveRecords, warningRecords, totalPositiveCount, totalWarningCount, nextAction } = spotlight;
 
     const getStatusText = (status: string | null) => {
       switch (status) {
@@ -144,16 +144,16 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
         </div>
 
         {/* Records Lists */}
-        {(positiveRecords.length > 0 || warningRecords.length > 0) && (
+        {((totalPositiveCount ?? positiveRecords.length) > 0 || (totalWarningCount ?? warningRecords.length) > 0) && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-5 border-t border-slate-200/50">
             
             {/* Positive / Bonus Records */}
             <div>
               <h3 className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 mb-3">
                 <CheckCircle2 size={15} />
-                <span>Ghi nhận tích cực & điểm cộng ({positiveRecords.length})</span>
+                <span>Ghi nhận tích cực & điểm cộng ({totalPositiveCount ?? positiveRecords.length})</span>
               </h3>
-              {positiveRecords.length === 0 ? (
+              {(totalPositiveCount ?? positiveRecords.length) === 0 ? (
                 <p className="text-xs text-[#64748B] italic py-2">Chưa có ghi nhận tích cực nào trong học kỳ này.</p>
               ) : (
                 <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 scrollbar-hover">
@@ -179,14 +179,14 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
                 </div>
               )}
             </div>
-
+ 
             {/* Warnings / Discipline Records */}
             <div>
               <h3 className="text-xs font-bold text-rose-700 flex items-center gap-1.5 mb-3">
                 <AlertCircle size={15} />
-                <span>Cảnh báo & trừ điểm ({warningRecords.length})</span>
+                <span>Cảnh báo & trừ điểm ({totalWarningCount ?? warningRecords.length})</span>
               </h3>
-              {warningRecords.length === 0 ? (
+              {(totalWarningCount ?? warningRecords.length) === 0 ? (
                 <p className="text-xs text-[#64748B] italic py-2">Tuyệt vời! Không có ghi nhận cảnh báo/vi phạm nào.</p>
               ) : (
                 <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 scrollbar-hover">

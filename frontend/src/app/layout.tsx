@@ -8,7 +8,7 @@ import { Suspense } from 'react'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'EduManager - Hệ thống quản lý',
+  title: 'HOCSINHSINHVIEN - Hệ thống quản lý',
   description: 'Hệ thống quản lý công việc và sinh viên',
 }
 

@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { StudentsService } from './students.service';
 import { StudentsController } from './students.controller';
 import { Student, StudentSchema } from './schemas/student.schema';
+import { RefreshToken, RefreshTokenSchema } from '../auth/schemas/refresh-token.schema';
 import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
 import {
   SummaryPoint,
@@ -16,6 +17,7 @@ import { Class, ClassSchema } from '../classes/schemas/class.schema';
   imports: [
     MongooseModule.forFeature([
       { name: Student.name, schema: StudentSchema },
+      { name: RefreshToken.name, schema: RefreshTokenSchema },
       { name: Semester.name, schema: SemesterSchema },
       { name: SummaryPoint.name, schema: SummaryPointSchema },
       { name: User.name, schema: UserSchema },

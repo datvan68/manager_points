@@ -18,7 +18,10 @@ import {
     Loader2,
     ExternalLink,
     Compass,
-    CheckCircle
+    CheckCircle,
+    Key,
+    ShieldAlert,
+    ShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
@@ -56,6 +59,7 @@ function ClassStudentsPageContent() {
         canImportStudent: 'STUDENT_IMPORT',
         canExportStudent: 'STUDENT_EXPORT',
         canActivateStudentAccount: 'STUDENT_ACCOUNT_ACTIVATE',
+        canResetStudentPassword: 'STUDENT_ACCOUNT_RESET_PASSWORD',
         canTransferStudent: 'STUDENT_TRANSFER',
         canUpdateStudent: 'STUDENT_UPDATE',
         canDeleteStudent: 'STUDENT_DELETE',
@@ -92,7 +96,10 @@ function ClassStudentsPageContent() {
 
     const [selectedClass, setSelectedClass] = useState<Class | null>(null);
     const [studentsList, setStudentsList] = useState<Student[]>([]);
+    const [totalStudents, setTotalStudents] = useState(0);
     const [summaryMap, setSummaryMap] = useState<Map<string, any>>(new Map());
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+    const [itemsPerPage, setItemsPerPage] = useState(50);
 
     // Tải thông tin lớp học
     useEffect(() => {
@@ -100,6 +107,19 @@ function ClassStudentsPageContent() {
             .then(setSelectedClass)
             .catch(err => console.error('Lỗi khi tải thông tin lớp học:', err));
     }, [classId]);
+
+    const mapTabToStatus = (tab: string) => {
+        switch (tab) {
+            case 'Đang học':
+                return 'Studying';
+            case 'Bảo lưu':
+                return 'Reserved';
+            case 'Thôi học':
+                return 'Dropped';
+            default:
+                return undefined;
+        }
+    };
 
     // Tải danh sách sinh viên thực tế theo lớp học
     const fetchStudents = async () => {
@@ -109,17 +129,38 @@ function ClassStudentsPageContent() {
             const activeSemester = semesters.find(s => s.status === 'active');
             const activeSemesterId = activeSemester?._id;
 
-            const [studentsRes, summariesRes] = await Promise.all([
-                studentApi.getStudents({ classId }),
-                summariesPointApi.getSummariesPoints({
-                    classId,
-                    semesterId: activeSemesterId,
-                    limit: 100
-                })
-            ]);
+            const apiParams = {
+                classId,
+                page: currentPage,
+                limit: itemsPerPage,
+                search: debouncedSearchTerm.trim() || undefined,
+                status: mapTabToStatus(activeTab)
+            };
 
-            const studentsData = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.data || []);
-            const summariesData = summariesRes?.data || [];
+            const studentsRes = await studentApi.getStudents(apiParams);
+
+            let studentsData: Student[] = [];
+            let total = 0;
+
+            if (studentsRes && 'data' in studentsRes) {
+                studentsData = studentsRes.data;
+                total = studentsRes.meta?.total ?? studentsRes.data.length;
+            } else if (Array.isArray(studentsRes)) {
+                studentsData = studentsRes;
+                total = studentsRes.length;
+            }
+
+            const studentIds = studentsData.map(s => s._id);
+            let summariesData: any[] = [];
+
+            if (studentIds.length > 0 && activeSemesterId) {
+                const summariesRes = await summariesPointApi.getSummariesPoints({
+                    studentIds,
+                    semesterId: activeSemesterId,
+                    limit: studentIds.length
+                });
+                summariesData = summariesRes?.data || [];
+            }
 
             const map = new Map<string, any>();
             summariesData.forEach((item: any) => {
@@ -130,6 +171,7 @@ function ClassStudentsPageContent() {
             });
 
             setStudentsList(studentsData);
+            setTotalStudents(total);
             setSummaryMap(map);
         } catch (err: any) {
             console.error('Lỗi khi tải danh sách sinh viên và điểm rèn luyện:', err);
@@ -140,9 +182,18 @@ function ClassStudentsPageContent() {
         }
     };
 
+    // Debounce search term
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    // Lắng nghe thay đổi của các filter/phân trang để fetch lại
     useEffect(() => {
         fetchStudents();
-    }, [classId]);
+    }, [classId, currentPage, itemsPerPage, activeTab, debouncedSearchTerm]);
 
     // Tự động tải thông tin chi tiết sinh viên từ API khi mở Drawer
     useEffect(() => {
@@ -168,12 +219,12 @@ function ClassStudentsPageContent() {
         fetchDrawerStudent();
     }, [openDrawerId]);
 
-    const [itemsPerPage, setItemsPerPage] = useState(50);
+
 
     // Reset về trang 1 khi tìm kiếm, lọc hoặc đổi số lượng phần tử mỗi trang
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, activeTab, itemsPerPage]);
+    }, [debouncedSearchTerm, activeTab, itemsPerPage]);
 
     // Định dạng ngày sinh YYYY-MM-DD sang DD/MM/YYYY
     const formatDob = (dobString?: string) => {
@@ -203,17 +254,7 @@ function ClassStudentsPageContent() {
         }
     };
 
-    const filteredStudents = studentsList.filter(student => {
-        const matchesSearch = student.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            student.student_code.includes(searchTerm);
-
-        const mappedStatus = getVietnameseStatus(student.status);
-        const matchesStatus = activeTab === 'Tất cả' || mappedStatus === activeTab;
-
-        return matchesSearch && matchesStatus;
-    });
-
-    const paginatedStudents = filteredStudents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const paginatedStudents = studentsList;
 
     const toggleStudentSelection = (id: string) => {
         setSelectedStudentIds(prev =>
@@ -233,114 +274,105 @@ function ClassStudentsPageContent() {
         toast.success(`Đã xuất file ${selectedStudentIds.length} sinh viên thành công.`);
     };
 
+    const handleResetPassword = async (studentId: string, fullName: string) => {
+        setConfirmConfig({
+            title: "Reset mật khẩu",
+            message: `Bạn có chắc chắn muốn đặt lại mật khẩu cho sinh viên ${fullName} về mặc định (ngày sinh ddmmyyyy) không? Hành động này sẽ thu hồi toàn bộ các phiên làm việc hiện tại của sinh viên.`,
+            variant: 'warning',
+            confirmLabel: 'Reset mật khẩu',
+            onConfirm: async () => {
+                setIsDataLoading(true);
+                try {
+                    const updatedStudent = await studentApi.resetStudentPassword(studentId);
+                    toast.success(`Đặt lại mật khẩu cho sinh viên ${fullName} thành công về mặc định (ngày sinh ddmmyyyy).`);
+                    setDrawerStudent(updatedStudent);
+                    fetchStudents();
+                } catch (err: any) {
+                    console.error("Lỗi khi reset mật khẩu sinh viên:", err);
+                    toast.error(err.message || "Không thể đặt lại mật khẩu sinh viên.");
+                } finally {
+                    setIsDataLoading(false);
+                }
+            }
+        });
+        setIsConfirmOpen(true);
+    };
+
+    const handleActivateSingle = async (studentId: string, fullName: string) => {
+        setIsDataLoading(true);
+        try {
+            const updatedStudent = await studentApi.activateStudent(studentId);
+            toast.success(`Đã kích hoạt tài khoản đăng nhập cho sinh viên ${fullName} thành công.`);
+            setDrawerStudent(updatedStudent);
+            fetchStudents();
+        } catch (err: any) {
+            console.error("Lỗi khi kích hoạt tài khoản sinh viên:", err);
+            toast.error(err.message || "Không thể kích hoạt tài khoản sinh viên.");
+        } finally {
+            setIsDataLoading(false);
+        }
+    };
+
+    const handleLockAccount = async (studentId: string, fullName: string) => {
+        setConfirmConfig({
+            title: "Khóa tài khoản",
+            message: `Bạn có chắc chắn muốn KHÓA tài khoản đăng nhập của sinh viên ${fullName} không? Sinh viên sẽ bị đăng xuất khỏi tất cả thiết bị và không thể đăng nhập lại.`,
+            variant: 'danger',
+            confirmLabel: 'Khóa tài khoản',
+            onConfirm: async () => {
+                setIsDataLoading(true);
+                try {
+                    const updatedStudent = await studentApi.lockStudent(studentId);
+                    toast.success(`Đã khóa tài khoản đăng nhập của sinh viên ${fullName} thành công.`);
+                    setDrawerStudent(updatedStudent);
+                    fetchStudents();
+                } catch (err: any) {
+                    console.error("Lỗi khi khóa tài khoản sinh viên:", err);
+                    toast.error(err.message || "Không thể khóa tài khoản sinh viên.");
+                } finally {
+                    setIsDataLoading(false);
+                }
+            }
+        });
+        setIsConfirmOpen(true);
+    };
+
+    const handleUnlockAccount = async (studentId: string, fullName: string) => {
+        setIsDataLoading(true);
+        try {
+            const updatedStudent = await studentApi.unlockStudent(studentId);
+            toast.success(`Đã mở khóa tài khoản đăng nhập của sinh viên ${fullName} thành công.`);
+            setDrawerStudent(updatedStudent);
+            fetchStudents();
+        } catch (err: any) {
+            console.error("Lỗi khi mở khóa tài khoản sinh viên:", err);
+            toast.error(err.message || "Không thể mở khóa tài khoản sinh viên.");
+        } finally {
+            setIsDataLoading(false);
+        }
+    };
+
     const handleActivateAccounts = async () => {
         if (selectedStudentIds.length === 0) return;
         setIsDataLoading(true);
-        const token = tokenStorage.getAccessToken();
-        let successCount = 0;
-        let failCount = 0;
 
         try {
-            // 1. Lấy danh sách vai trò (roles) để tìm vai trò 'Student'
-            let studentRoleId = "";
-            if (token) {
-                try {
-                    const roles = await authApi.getRoles(token);
-                    const studentRole = roles.find(r => r.name?.toLowerCase() === 'student');
-                    if (studentRole) {
-                        studentRoleId = studentRole._id || studentRole.id;
-                    }
-                } catch (err) {
-                    console.error("Không thể lấy danh sách vai trò:", err);
-                }
+            const result = await studentApi.bulkActivateStudents(selectedStudentIds);
+            
+            if (result.success > 0) {
+                toast.success(`Đã kích hoạt thành công tài khoản cho ${result.success}/${result.total} sinh viên.`);
             }
-
-            // 2. Lấy danh sách người dùng ban đầu
-            let allUsers: any[] = [];
-            if (token) {
-                try {
-                    allUsers = await authApi.getUsers(token);
-                } catch (err) {
-                    console.error("Không thể lấy danh sách users ban đầu:", err);
-                }
-            }
-
-            const newlyRegisteredEmails: string[] = [];
-
-            for (const studentId of selectedStudentIds) {
-                const student = studentsList.find(s => s._id === studentId);
-                if (!student) continue;
-
-                const dob = new Date(student.date_bir);
-                const day = String(dob.getDate()).padStart(2, '0');
-                const month = String(dob.getMonth() + 1).padStart(2, '0');
-                const year = dob.getFullYear();
-                const plainPassword = `${day}${month}${year}`;
-                const studentEmail = student.email || `${student.student_code}@school.edu.vn`;
-
-                try {
-                    await authApi.register(student.full_name, studentEmail, plainPassword);
-                    successCount++;
-                    newlyRegisteredEmails.push(studentEmail);
-                } catch (regErr: any) {
-                    const isDuplicate = regErr.message?.toLowerCase().includes('đã được sử dụng') || 
-                                       regErr.message?.toLowerCase().includes('tồn tại') || 
-                                       regErr.status === 409;
-                    if (isDuplicate && token) {
-                        const matchedUser = allUsers.find(u => u.email?.toLowerCase() === studentEmail.toLowerCase());
-                        if (matchedUser) {
-                            try {
-                                const userId = matchedUser._id || matchedUser.id;
-                                await authApi.updateUser(userId, { status: 'active' }, token);
-                                successCount++;
-                                
-                                // Gán quyền 'Student' luôn cho tài khoản cũ vừa kích hoạt
-                                if (studentRoleId) {
-                                    await authApi.assignRole(userId, studentRoleId, token);
-                                }
-                                continue;
-                            } catch (updateErr) {
-                                console.error("Lỗi khi kích hoạt tài khoản đã có:", updateErr);
-                            }
-                        }
-                    }
-                    failCount++;
-                    continue;
-                }
-            }
-
-            // Gán quyền Student cho tất cả tài khoản đăng ký mới ở cuối sau vòng lặp
-            if (newlyRegisteredEmails.length > 0 && token && studentRoleId) {
-                try {
-                    const updatedUsers = await authApi.getUsers(token);
-                    for (const email of newlyRegisteredEmails) {
-                        const newUser = updatedUsers.find(u => u.email?.toLowerCase() === email.toLowerCase());
-                        if (newUser) {
-                            const newUserId = newUser._id || newUser.id;
-                            try {
-                                await authApi.assignRole(newUserId, studentRoleId, token);
-                            } catch (roleErr) {
-                                console.error("Lỗi khi gán vai trò Student cho tài khoản mới:", roleErr);
-                            }
-                        }
-                    }
-                } catch (roleErr) {
-                    console.error("Lỗi khi tải danh sách users hoặc gán vai trò Student:", roleErr);
-                }
-            }
-
-            if (successCount > 0) {
-                toast.success(`Đã kích hoạt thành công tài khoản và gán quyền Student cho ${successCount} sinh viên.`);
-            }
-            if (failCount > 0) {
-                toast.error(`Kích hoạt thất bại cho ${failCount} sinh viên.`);
+            const failed = result.total - result.success;
+            if (failed > 0) {
+                toast.error(`Kích hoạt thất bại cho ${failed} sinh viên.`);
             }
             
-            setSelectedStudentIds([]);
+            // Tải lại danh sách sinh viên
             fetchStudents();
-        } catch (err) {
-            console.error("Lỗi khi xử lý kích hoạt tài khoản sinh viên:", err);
-            toast.error("Đã xảy ra lỗi trong quá trình kích hoạt tài khoản.");
+            setSelectedStudentIds([]);
+        } catch (error: any) {
+            console.error("Lỗi trong quá trình kích hoạt tài khoản:", error);
+            toast.error(error.message || "Đã xảy ra lỗi hệ thống khi kích hoạt tài khoản.");
         } finally {
             setIsDataLoading(false);
         }
@@ -451,7 +483,7 @@ function ClassStudentsPageContent() {
                                     <div className="hidden md:flex items-center gap-3">
                                          <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 rounded-xl text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
                                              <Users className="w-3.5 h-3.5 text-[#1A73E8]" />
-                                             <span>Sĩ số: {filteredStudents.length} sinh viên</span>
+                                             <span>Sĩ số: {totalStudents} sinh viên</span>
                                          </div>
                                          <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-white/60 text-[#64748B] border border-white/80 rounded-xl text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
                                              <User className="w-3.5 h-3.5 text-[#64748B]" />
@@ -656,7 +688,7 @@ function ClassStudentsPageContent() {
                             <CustomPagination
                                 currentPage={currentPage}
                                 pageSize={itemsPerPage}
-                                totalItems={filteredStudents.length}
+                                totalItems={totalStudents}
                                 onPageChange={(page) => setCurrentPage(page)}
                                 onPageSizeChange={setItemsPerPage}
                                 label="sinh viên"
@@ -813,6 +845,42 @@ function ClassStudentsPageContent() {
                                 {permissions.canTransferStudent && (
                                 <button className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-blue-500/10 cursor-pointer">
                                     <ArrowRightLeft className="w-4 h-4" /> Chuyển lớp
+                                </button>
+                                )}
+                                {/* Account lifecycle buttons based on status */}
+                                {(!drawerStudent.account_status || drawerStudent.account_status === 'inactive') && permissions.canActivateStudentAccount && (
+                                <button
+                                    onClick={() => handleActivateSingle(drawerStudent._id, drawerStudent.full_name)}
+                                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-sm transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-green-500/10 cursor-pointer"
+                                >
+                                    <CheckCircle className="w-4 h-4" /> Kích hoạt tài khoản
+                                </button>
+                                )}
+
+                                {drawerStudent.account_status === 'active' && permissions.canActivateStudentAccount && (
+                                <button
+                                    onClick={() => handleLockAccount(drawerStudent._id, drawerStudent.full_name)}
+                                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-sm transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-rose-500/10 cursor-pointer"
+                                >
+                                    <ShieldAlert className="w-4 h-4" /> Khóa tài khoản
+                                </button>
+                                )}
+
+                                {drawerStudent.account_status === 'locked' && permissions.canActivateStudentAccount && (
+                                <button
+                                    onClick={() => handleUnlockAccount(drawerStudent._id, drawerStudent.full_name)}
+                                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#1A73E8] hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-blue-500/10 cursor-pointer"
+                                >
+                                    <ShieldCheck className="w-4 h-4" /> Mở khóa tài khoản
+                                </button>
+                                )}
+
+                                {drawerStudent.account_status && drawerStudent.account_status !== 'inactive' && permissions.canResetStudentPassword && (
+                                <button
+                                    onClick={() => handleResetPassword(drawerStudent._id, drawerStudent.full_name)}
+                                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-amber-500/10 cursor-pointer"
+                                >
+                                    <Key className="w-4 h-4" /> Reset mật khẩu
                                 </button>
                                 )}
                                 <div className="flex gap-3">

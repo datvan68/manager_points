@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import Popup from './Popup';
 import { Upload, FileSpreadsheet, X, CheckCircle, AlertCircle } from 'lucide-react';
-import * as XLSX from 'xlsx';
+
 import ImportConfirmPopup from './ImportConfirmPopup';
 
 interface ImportPopupProps {
@@ -72,7 +72,8 @@ const ImportPopup: React.FC<ImportPopupProps> = ({
         setUploadStatus('uploading');
         
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
+            const XLSX = await import('xlsx');
             const data = e.target?.result;
             if (data) {
                 const workbook = XLSX.read(data, { type: 'binary' });

@@ -8,6 +8,12 @@ interface AcademicRecordReportTabProps {
   data: AcademicRecordReportRow[];
   isLoading: boolean;
   onExport: () => void;
+  serverSide?: boolean;
+  totalItems?: number;
+  currentPage?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
 }
 
 const columns: TableColumn[] = [
@@ -60,7 +66,17 @@ const columns: TableColumn[] = [
   }
 ];
 
-export default function AcademicRecordReportTab({ data, isLoading, onExport }: AcademicRecordReportTabProps) {
+export default function AcademicRecordReportTab({
+  data,
+  isLoading,
+  onExport,
+  serverSide,
+  totalItems,
+  currentPage,
+  pageSize,
+  onPageChange,
+  onPageSizeChange
+}: AcademicRecordReportTabProps) {
   return (
     <div className="p-6">
       <ReportTable
@@ -71,6 +87,12 @@ export default function AcademicRecordReportTab({ data, isLoading, onExport }: A
         onExportExcel={onExport}
         label="ghi nhận"
         emptyMessage="Không tìm thấy ghi nhận rèn luyện nào khớp với bộ lọc."
+        serverSide={serverSide}
+        totalItems={totalItems}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
     </div>
   );

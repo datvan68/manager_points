@@ -9,6 +9,7 @@ import { SummaryPoint } from '../../summaries-point/schemas/summary-point.schema
 import { User } from '../../auth/schemas/user.schema';
 import { Role } from '../../auth/schemas/role.schema';
 import { Class } from '../../classes/schemas/class.schema';
+import { RefreshToken } from '../../auth/schemas/refresh-token.schema';
 
 const mockStudent = {
   _id: '507f1f77bcf86cd799439011',
@@ -34,6 +35,7 @@ describe('StudentsService', () => {
   let model: any;
   let classModel: any;
   let summaryPointModel: any;
+  let refreshTokenModel: any;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -102,6 +104,9 @@ describe('StudentsService', () => {
               exec: jest.fn().mockResolvedValue(null),
             }),
             create: jest.fn().mockResolvedValue({ _id: 'mock-user-id' }),
+            findById: jest.fn().mockImplementation(() => ({
+              exec: jest.fn().mockResolvedValue(null),
+            })),
             deleteOne: jest.fn().mockResolvedValue({ deletedCount: 1 }),
           },
         },
@@ -123,6 +128,12 @@ describe('StudentsService', () => {
             }),
           },
         },
+        {
+          provide: getModelToken(RefreshToken.name),
+          useValue: {
+            updateMany: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+          },
+        },
       ],
     }).compile();
 
@@ -130,6 +141,7 @@ describe('StudentsService', () => {
     model = module.get(getModelToken(Student.name));
     classModel = module.get(getModelToken(Class.name));
     summaryPointModel = module.get(getModelToken(SummaryPoint.name));
+    refreshTokenModel = module.get(getModelToken(RefreshToken.name));
   });
 
   it('should be defined', () => {
@@ -596,6 +608,271 @@ describe('StudentsService', () => {
       await expect(service.findOne('invalid-id')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('activateStudentAccount', () => {
+    it('should activate an existing user if email/user exists', async () => {
+      const mockUser = {
+        _id: '507f1f77bcf86cd799439013',
+        status: 'inactive',
+        role: '507f1f77bcf86cd799439012',
+        save: jest.fn().mockResolvedValue(true),
+      };
+      
+      jest.spyOn(service['userModel'], 'findOne').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockUser),
+      } as any);
+      jest.spyOn(service['userModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockUser),
+      } as any);
+      jest.spyOn(service['studentModel'], 'updateOne').mockResolvedValue({} as any);
+
+      const result = await service.activateStudentAccount('507f1f77bcf86cd799439011');
+      expect(result).toBeDefined();
+      expect(mockUser.status).toEqual('active');
+      expect(mockUser.save).toHaveBeenCalled();
+    });
+
+    it('should create and activate a new user if no user exists', async () => {
+      jest.spyOn(service['userModel'], 'findOne').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      } as any);
+      jest.spyOn(service['userModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      } as any);
+
+      const mockCreatedUser = {
+        _id: '507f1f77bcf86cd799439014',
+        status: 'active',
+        save: jest.fn(),
+      };
+      jest.spyOn(service['userModel'], 'create').mockResolvedValue(mockCreatedUser as any);
+      jest.spyOn(service['studentModel'], 'updateOne').mockResolvedValue({} as any);
+
+      const result = await service.activateStudentAccount('507f1f77bcf86cd799439011');
+      expect(result).toBeDefined();
+      expect(service['userModel'].create).toHaveBeenCalled();
+    });
+  });
+
+  describe('bulkActivateStudentAccounts', () => {
+    it('should activate multiple accounts successfully', async () => {
+      const mockUser = {
+        _id: '507f1f77bcf86cd799439013',
+        status: 'inactive',
+        role: '507f1f77bcf86cd799439012',
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      jest.spyOn(service['userModel'], 'findOne').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockUser),
+      } as any);
+      jest.spyOn(service['userModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockUser),
+      } as any);
+      jest.spyOn(service['studentModel'], 'updateOne').mockResolvedValue({} as any);
+
+      const result = await service.bulkActivateStudentAccounts(['507f1f77bcf86cd799439011']);
+      expect(result).toBeDefined();
+      expect(result.success).toEqual(1);
+    });
+  });
+
+  describe('resetStudentAccountPassword', () => {
+    it('should throw ForbiddenException if requester is Student', async () => {
+      const requester = { userId: 'student-id', roleName: 'Student' };
+      await expect(
+        service.resetStudentAccountPassword('507f1f77bcf86cd799439011', requester),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if student is not found', async () => {
+      const requester = { userId: 'admin-id', roleName: 'Admin' };
+      jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      } as any);
+
+      await expect(
+        service.resetStudentAccountPassword('507f1f77bcf86cd799439011', requester),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if student has no linked user_id', async () => {
+      const requester = { userId: 'admin-id', roleName: 'Admin' };
+      const studentNoUser = { ...getCloneMockStudent(), user_id: null };
+      
+      jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(studentNoUser),
+      } as any);
+
+      await expect(
+        service.resetStudentAccountPassword('507f1f77bcf86cd799439011', requester),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should successfully reset password, keep INACTIVE status, and revoke refresh tokens', async () => {
+      const requester = { userId: 'admin-id', roleName: 'Admin' };
+      const student = getCloneMockStudent();
+      const mockUser = {
+        _id: '507f1f77bcf86cd799439013',
+        status: 'inactive',
+        pw_hash: 'old-hash',
+        failed_login_attempts: 5,
+        locked_until: new Date(),
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(student),
+      } as any);
+      
+      jest.spyOn(service['userModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockUser),
+      } as any);
+
+      const updateManySpy = jest.spyOn(refreshTokenModel, 'updateMany').mockResolvedValue({} as any);
+
+      // Mock getAccountStatusMap to prevent errors in attachAccountStatus
+      jest.spyOn(service as any, 'getAccountStatusMap').mockResolvedValue({
+        byId: new Map([[mockUser._id, 'inactive']]),
+        byEmail: new Map(),
+      });
+
+      const result = await service.resetStudentAccountPassword('507f1f77bcf86cd799439011', requester);
+
+      expect(result).toBeDefined();
+      expect(mockUser.status).toBe('inactive');
+      expect(mockUser.failed_login_attempts).toBe(0);
+      expect(mockUser.locked_until).toBeNull();
+      expect(mockUser.save).toHaveBeenCalled();
+      expect(updateManySpy).toHaveBeenCalledWith(
+        { user_id: mockUser._id },
+        { $set: { is_revoked: true } },
+      );
+    });
+
+    it('should successfully reset password, change status from locked to active, and revoke refresh tokens', async () => {
+      const requester = { userId: 'admin-id', roleName: 'Admin' };
+      const student = getCloneMockStudent();
+      const mockUser = {
+        _id: '507f1f77bcf86cd799439013',
+        status: 'locked',
+        pw_hash: 'old-hash',
+        failed_login_attempts: 5,
+        locked_until: new Date(),
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(student),
+      } as any);
+      
+      jest.spyOn(service['userModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockUser),
+      } as any);
+
+      const updateManySpy = jest.spyOn(refreshTokenModel, 'updateMany').mockResolvedValue({} as any);
+
+      // Mock getAccountStatusMap to prevent errors in attachAccountStatus
+      jest.spyOn(service as any, 'getAccountStatusMap').mockResolvedValue({
+        byId: new Map([[mockUser._id, 'active']]),
+        byEmail: new Map(),
+      });
+
+      const result = await service.resetStudentAccountPassword('507f1f77bcf86cd799439011', requester);
+
+      expect(result).toBeDefined();
+      expect(mockUser.status).toBe('active');
+      expect(mockUser.failed_login_attempts).toBe(0);
+      expect(mockUser.locked_until).toBeNull();
+      expect(mockUser.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('lockStudentAccount', () => {
+    it('should throw ForbiddenException if requester is Student', async () => {
+      const requester = { userId: 'student-id', roleName: 'Student' };
+      await expect(
+        service.lockStudentAccount('507f1f77bcf86cd799439011', requester),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should lock user successfully and revoke refresh tokens', async () => {
+      const requester = { userId: 'admin-id', roleName: 'Admin' };
+      const student = getCloneMockStudent();
+      const mockUser = {
+        _id: '507f1f77bcf86cd799439013',
+        status: 'active',
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(student),
+      } as any);
+      
+      jest.spyOn(service['userModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockUser),
+      } as any);
+
+      const updateManySpy = jest.spyOn(refreshTokenModel, 'updateMany').mockResolvedValue({} as any);
+
+      jest.spyOn(service as any, 'getAccountStatusMap').mockResolvedValue({
+        byId: new Map([[mockUser._id, 'locked']]),
+        byEmail: new Map(),
+      });
+
+      const result = await service.lockStudentAccount('507f1f77bcf86cd799439011', requester);
+
+      expect(result).toBeDefined();
+      expect(mockUser.status).toBe('locked');
+      expect(mockUser.save).toHaveBeenCalled();
+      expect(updateManySpy).toHaveBeenCalledWith(
+        { user_id: mockUser._id },
+        { $set: { is_revoked: true } },
+      );
+    });
+  });
+
+  describe('unlockStudentAccount', () => {
+    it('should throw ForbiddenException if requester is Student', async () => {
+      const requester = { userId: 'student-id', roleName: 'Student' };
+      await expect(
+        service.unlockStudentAccount('507f1f77bcf86cd799439011', requester),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should unlock user successfully', async () => {
+      const requester = { userId: 'admin-id', roleName: 'Admin' };
+      const student = getCloneMockStudent();
+      const mockUser = {
+        _id: '507f1f77bcf86cd799439013',
+        status: 'locked',
+        locked_until: new Date(),
+        failed_login_attempts: 3,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(student),
+      } as any);
+      
+      jest.spyOn(service['userModel'], 'findById').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockUser),
+      } as any);
+
+      jest.spyOn(service as any, 'getAccountStatusMap').mockResolvedValue({
+        byId: new Map([[mockUser._id, 'active']]),
+        byEmail: new Map(),
+      });
+
+      const result = await service.unlockStudentAccount('507f1f77bcf86cd799439011', requester);
+
+      expect(result).toBeDefined();
+      expect(mockUser.status).toBe('active');
+      expect(mockUser.locked_until).toBeNull();
+      expect(mockUser.failed_login_attempts).toBe(0);
+      expect(mockUser.save).toHaveBeenCalled();
     });
   });
 });

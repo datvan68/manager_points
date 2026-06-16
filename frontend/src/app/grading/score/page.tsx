@@ -25,6 +25,7 @@ import {
   Settings,
   Info,
   Copy,
+  Search,
 } from "lucide-react";
 import CopyScoreModal from "./_components/CopyScoreModal";
 import { buildTargetSafeCounts } from "./_utils/copy-score";
@@ -676,8 +677,22 @@ function GradingScoreContent() {
     }
   };
 
-  // States
   const [students, setStudents] = useState<StudentData[]>([]);
+  const [rosterSearch, setRosterSearch] = useState("");
+
+  const filteredStudentsForRoster = React.useMemo(() => {
+    let list = students;
+    if (rosterSearch) {
+      const searchLower = rosterSearch.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(searchLower) ||
+          s.id.toLowerCase().includes(searchLower)
+      );
+    }
+    return list.slice(0, 30);
+  }, [students, rosterSearch]);
+
   const [activeStudentId, setActiveStudentId] = useState<string>("");
   const [subTab, setSubTab] = useState<"category" | "history">("category");
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -913,14 +928,10 @@ function GradingScoreContent() {
         // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên savedSem và effectiveClassId
         // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên savedSem và effectiveClassId
         const fetchAllSummaries = async (sem: string, clsId?: string, resolvedStudentId?: string) => {
-          let allData: any[] = [];
-          let currentPage = 1;
-          let total = 0;
-          
           const params: any = {
             semesterId: sem,
-            page: currentPage,
-            limit: 100,
+            page: 1,
+            limit: 1000,
           };
           if (clsId) {
             params.classId = clsId;
@@ -934,34 +945,16 @@ function GradingScoreContent() {
               }
             }
           } else if (currentUserRole === "teacher") {
-            // Nếu GVCN chưa có lớp nào để load
             return [];
           }
           
           try {
-            do {
-              const res = await summariesPointApi.getSummariesPoints({
-                ...params,
-                page: currentPage,
-              });
-              
-              const pageData = Array.isArray(res) ? res : res?.data || [];
-              const meta = (res as any)?.meta;
-              
-              allData = [...allData, ...pageData];
-              total = meta?.total || allData.length;
-              
-              if (meta && meta.totalPages && currentPage < meta.totalPages) {
-                currentPage++;
-              } else {
-                break;
-              }
-            } while (allData.length < total);
+            const res = await summariesPointApi.getSummariesPoints(params);
+            return Array.isArray(res) ? res : res?.data || [];
           } catch (err) {
             console.error("Failed to fetch summaries points:", err);
+            return [];
           }
-          
-          return allData;
         };
 
         // Lấy danh sách Student đầy đủ từ roster làm Source of Truth (dùng Class Boundary hoặc Student Profile)
@@ -977,19 +970,8 @@ function GradingScoreContent() {
             }
           } catch (err) {
             console.error("Failed to load current student profile:", err);
-            // Fallback to client-side filtering if API fails
-            const backendStudentsResult = await studentApi.getStudents();
-            const backendStudents = Array.isArray(backendStudentsResult)
-              ? backendStudentsResult
-              : (backendStudentsResult as any)?.data || [];
-            filteredStudents = backendStudents.filter((s) =>
-              matchesCurrentStudent({
-                currentUser,
-                studentIdParam,
-                studentId: s.student_code || s._id || s.id || "",
-                dbStudent: s,
-              })
-            );
+            toast.error("Không thể tải thông tin sinh viên của bạn.");
+            filteredStudents = [];
           }
         } else {
           if (effectiveClassId) {
@@ -2483,10 +2465,22 @@ function GradingScoreContent() {
             {/* ================= STUDENT HERO SLIDER ================= */}
             {shouldShowStudentSlider && (
               <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4 relative overflow-hidden">
-                <div className="flex items-center justify-between w-full">
-                  <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase">
-                    Sinh viên đang chấm điểm
-                  </h3>
+                <div className="flex flex-col md:flex-row md:items-center justify-between w-full gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase shrink-0">
+                      Sinh viên đang chấm điểm
+                    </h3>
+                    <div className="relative flex-1 max-w-[240px]">
+                      <input
+                        type="text"
+                        placeholder="Tìm MSSV hoặc tên..."
+                        value={rosterSearch}
+                        onChange={(e) => setRosterSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/70 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1A73E8]"
+                      />
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    </div>
+                  </div>
                   <div className="flex gap-2 items-center">
                     <button
                       onClick={() => scrollSlider("left")}
@@ -2526,13 +2520,13 @@ function GradingScoreContent() {
                           </div>
                         </div>
                       ))
-                    : students.length === 0 ? (
+                    : filteredStudentsForRoster.length === 0 ? (
                         <div className="flex-1 py-6 flex flex-col items-center justify-center text-center text-[#64748B] font-medium text-[13.5px] border border-dashed border-slate-300/60 rounded-2xl bg-white/40 select-none">
                           {selectedClassId 
-                            ? "Lớp học hiện tại chưa có sinh viên nào."
+                            ? "Không tìm thấy sinh viên nào khớp với bộ lọc."
                             : "Vui lòng chọn lớp học để xem danh sách sinh viên."}
                         </div>
-                      ) : students.map((student, idx) => {
+                      ) : filteredStudentsForRoster.map((student, idx) => {
                         const isActive = student.id === activeStudentId;
                         const initials = getInitials(student.name);
 

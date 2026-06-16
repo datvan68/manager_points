@@ -59,159 +59,40 @@ export default function DashboardPage() {
   const [systemRequests, setSystemRequests] = useState<any[]>([]);
   const [backups, setBackups] = useState<any[]>([]);
 
-  // Raw fetched arrays to re-aggregate when filter changes without re-fetching
-  const [rawState, setRawState] = useState<{
-    students: any[];
-    classes: any[];
-    departments: any[];
-    semesters: any[];
-    periods: any[];
-    summaries: any[];
-    academicRecords: any[];
-    criteria: any[];
-    categories: any[];
-    tasks: any[];
-    notifications: any[];
-    unreadCount: number;
-    systemData: any;
-  } | null>(null);
-
-  const loadData = useCallback(async (showIndicator = true) => {
+  const loadData = useCallback(async (showIndicator = true, targetSemId?: string | null) => {
     if (!user) return;
     if (showIndicator) {
       setIsRefreshing(true);
     }
 
     try {
-      const role = (user?.roleCode || user?.roleName || user?.role || '').toUpperCase();
-      const isSysAdmin = role === 'ADMIN' || (user?.permissions || []).includes('ADMIN_FULL');
-      const isTeacher = role.includes('TEACHER') || role.includes('ADVISOR') || role.includes('GIANG VIEN') || role.includes('CO VAN');
-      const isStudent = role.includes('STUDENT') || role.includes('SINH VIEN') || role.includes('HOC SINH');
-      const isSystemOp = (user?.permissions || []).some(p => ['LOGIN_LOG_READ', 'SYSTEM_REQUEST_READ', 'DATABASE_BACKUP_READ'].includes(p));
+      // 1. Fetch semesters list first if empty
+      let currentSemesters = semestersList;
+      if (semestersList.length === 0) {
+        currentSemesters = await semesterApi.getSemesters().catch(() => []);
+        setSemestersList(currentSemesters);
+      }
 
-      // Construct promises arrays to call concurrent APIs safely using .catch() wrappers
-      const pStudents = (isSysAdmin || isTeacher) 
-        ? studentApi.getStudents().then(res => Array.isArray(res) ? res : (res?.data || [])).catch(() => []) 
-        : isStudent 
-          ? studentApi.getMyStudent().then(s => s ? [s] : []).catch(() => [])
-          : Promise.resolve([]);
-
-      const pClasses = (isSysAdmin || isTeacher)
-        ? classApi.getClasses().catch(() => [])
-        : Promise.resolve([]);
-
-      const pDepts = (isSysAdmin || isTeacher)
-        ? departmentApi.getDepartments().catch(() => [])
-        : Promise.resolve([]);
-
-      const pSemesters = semesterApi.getSemesters().catch(() => []);
-      const pPeriods = evaluationPeriodApi.getEvaluationPeriods().catch(() => []);
-      const pSummaries = summariesPointApi.getSummariesPoints().then(res => res?.data || []).catch(() => []);
-
-      const pAcademicRecords = (isSysAdmin || isTeacher)
-        ? academicRecordApi.getAcademicRecords().catch(() => [])
-        : (isStudent && user.studentId)
-          ? academicRecordApi.getAcademicRecordsByStudent(user.studentId).catch(() => [])
-          : Promise.resolve([]);
-
-      const pCriteria = criteriaApi.getCriteria().catch(() => []);
-      const pCategories = categoryApi.getCategories().catch(() => []);
-
-      const pTasks = studentTaskApi.getTasks({ page: 1, limit: 10, sort: 'deadline_asc' })
-        .then(res => res.items || [])
-        .catch(() => []);
-
-      const pUnreadCount = notificationApi.getUnreadCount()
-        .then(res => res.count || 0)
-        .catch(() => 0);
-
-      const pNotifications = notificationApi.getNotifications({ page: 1, limit: 10 })
-        .then(res => res.items || [])
-        .catch(() => []);
-
-      // System Operator exclusive promises
-      const pLoginSummary = (isSysAdmin || isSystemOp)
-        ? systemApi.getLoginLogsSummary().catch(() => null)
-        : Promise.resolve(null);
-
-      const pRequests = (isSysAdmin || isSystemOp)
-        ? systemApi.getRequests({ page: 1, limit: 5 }).then(res => res.items || []).catch(() => [])
-        : Promise.resolve([]);
-
-      const pBackupsList = (isSysAdmin || isSystemOp)
-        ? systemApi.getBackups({ page: 1, limit: 5 }).then(res => res.items || []).catch(() => [])
-        : Promise.resolve([]);
-
-      // Resolve all promises concurrently
-      const [
-        students,
-        classes,
-        departments,
-        semesters,
-        periods,
-        summaries,
-        academicRecords,
-        criteria,
-        categories,
-        tasks,
-        unreadCount,
-        notifications,
-        loginSummary,
-        requests,
-        backupsList
-      ] = await Promise.all([
-        pStudents,
-        pClasses,
-        pDepts,
-        pSemesters,
-        pPeriods,
-        pSummaries,
-        pAcademicRecords,
-        pCriteria,
-        pCategories,
-        pTasks,
-        pUnreadCount,
-        pNotifications,
-        pLoginSummary,
-        pRequests,
-        pBackupsList
-      ]);
-
-      setSemestersList(semesters);
-
-      // Default selectedSemesterId to active semester if not already set
-      if (!selectedSemesterId && semesters.length > 0) {
-        const activeSem = semesters.find(s => s.status === 'active') || semesters[0];
+      // Determine the semester ID to load
+      let semIdToLoad = targetSemId !== undefined ? targetSemId : selectedSemesterId;
+      if (!semIdToLoad && currentSemesters.length > 0) {
+        const activeSem = currentSemesters.find(s => s.status === 'active') || currentSemesters[0];
         if (activeSem) {
+          semIdToLoad = activeSem._id;
           setSelectedSemesterId(activeSem._id);
         }
       }
 
-      const systemData = {
-        loginSummary,
-        systemRequests: requests,
-        backups: backupsList
-      };
+      // 2. Fetch metrics
+      const dashboardMetrics = await systemApi.getDashboardMetrics(semIdToLoad || undefined);
+      setMetrics(dashboardMetrics);
 
-      // Store raw state for filtering
-      setRawState({
-        students,
-        classes,
-        departments,
-        semesters,
-        periods,
-        summaries,
-        academicRecords,
-        criteria,
-        categories,
-        tasks,
-        notifications,
-        unreadCount,
-        systemData
-      });
+      // 3. Set system operator data
+      if (dashboardMetrics.systemData) {
+        setSystemRequests(dashboardMetrics.systemData.systemRequests || []);
+        setBackups(dashboardMetrics.systemData.backups || []);
+      }
 
-      setSystemRequests(requests);
-      setBackups(backupsList);
       setLastUpdated(new Date());
     } catch (err) {
       console.error('Failed to load dashboard statistics:', err);
@@ -219,40 +100,14 @@ export default function DashboardPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user, selectedSemesterId]);
+  }, [user, selectedSemesterId, semestersList]);
 
   // Run initial load
   useEffect(() => {
     if (user) {
       loadData(false);
     }
-  }, [user, loadData]);
-
-
-
-  // Re-aggregate when selected semester filters change or raw state loads
-  useEffect(() => {
-    if (user && rawState) {
-      const computedMetrics = buildDashboardOverview({
-        user,
-        students: rawState.students,
-        classes: rawState.classes,
-        departments: rawState.departments,
-        semesters: rawState.semesters,
-        periods: rawState.periods,
-        summaries: rawState.summaries,
-        academicRecords: rawState.academicRecords,
-        criteria: rawState.criteria,
-        categories: rawState.categories,
-        tasks: rawState.tasks,
-        notifications: rawState.notifications,
-        unreadCount: rawState.unreadCount,
-        systemData: rawState.systemData,
-        selectedSemesterId
-      });
-      setMetrics(computedMetrics);
-    }
-  }, [selectedSemesterId, rawState, user]);
+  }, [user]);
 
   const handleRefresh = () => {
     loadData(true);
@@ -260,6 +115,7 @@ export default function DashboardPage() {
 
   const handleSemesterChange = (semesterId: string) => {
     setSelectedSemesterId(semesterId);
+    loadData(true, semesterId);
   };
 
   // Compute Attention Warnings

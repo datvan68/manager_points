@@ -10,6 +10,7 @@ import { RbacService } from './services/rbac.service';
 import { AuthController } from './controllers/auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User, UserSchema } from './schemas/user.schema';
+import { Student, StudentSchema } from '../students/schemas/student.schema';
 import {
   RefreshToken,
   RefreshTokenSchema,
@@ -51,6 +52,7 @@ import {
       { name: Permission.name, schema: PermissionSchema },
       { name: PermissionGroup.name, schema: PermissionGroupSchema },
       { name: RoutePermission.name, schema: RoutePermissionSchema },
+      { name: Student.name, schema: StudentSchema },
     ]),
   ],
   controllers: [AuthController],

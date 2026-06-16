@@ -5,7 +5,7 @@ import {
   Download, UploadCloud, Info, Loader2, FileSpreadsheet, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
+
 import { studentApi } from '@/api/student-api';
 import ImportResultPopup, { ImportValidationError } from './ImportResultPopup';
 
@@ -29,8 +29,9 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
   });
 
   // 1. Generate and Download dynamic Excel Template file
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     try {
+      const XLSX = await import('xlsx');
       const headers = [['Mã SV', 'Họ đệm', 'Tên', 'Giới tính', 'Ngày sinh']];
       const sampleData = [
         ['SV202601', 'Nguyễn Văn', 'Anh', 'Nam', '15/05/2004'],
@@ -118,6 +119,7 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
 
     reader.onload = async (e) => {
       try {
+        const XLSX = await import('xlsx');
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];

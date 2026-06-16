@@ -11,6 +11,18 @@ interface SystemReportTabProps {
   onExportLogs: () => void;
   isLoading: boolean;
   showLogs: boolean;
+  serverSide?: boolean;
+  notificationTotalItems?: number;
+  notificationCurrentPage?: number;
+  notificationPageSize?: number;
+  notificationOnPageChange?: (page: number) => void;
+  notificationOnPageSizeChange?: (limit: number) => void;
+  logsServerSide?: boolean;
+  logsTotalItems?: number;
+  logsCurrentPage?: number;
+  logsPageSize?: number;
+  logsOnPageChange?: (page: number) => void;
+  logsOnPageSizeChange?: (limit: number) => void;
 }
 
 const notificationColumns: TableColumn[] = [
@@ -75,7 +87,19 @@ export default function SystemReportTab({
   logsData,
   onExportLogs,
   isLoading,
-  showLogs
+  showLogs,
+  serverSide,
+  notificationTotalItems,
+  notificationCurrentPage,
+  notificationPageSize,
+  notificationOnPageChange,
+  notificationOnPageSizeChange,
+  logsServerSide,
+  logsTotalItems,
+  logsCurrentPage,
+  logsPageSize,
+  logsOnPageChange,
+  logsOnPageSizeChange
 }: SystemReportTabProps) {
   return (
     <div className="p-6 space-y-6">
@@ -88,6 +112,12 @@ export default function SystemReportTab({
         onExportExcel={onExportNotifications}
         label="thông báo"
         emptyMessage="Không tìm thấy thông tin thông báo nào khớp với bộ lọc."
+        serverSide={serverSide}
+        totalItems={notificationTotalItems}
+        currentPage={notificationCurrentPage}
+        pageSize={notificationPageSize}
+        onPageChange={notificationOnPageChange}
+        onPageSizeChange={notificationOnPageSizeChange}
       />
 
       {/* Table 2: System Logs (Admin only) */}
@@ -100,6 +130,12 @@ export default function SystemReportTab({
           onExportExcel={onExportLogs}
           label="nhật ký logs"
           emptyMessage="Không tìm thấy nhật ký logs nào khớp với bộ lọc."
+          serverSide={logsServerSide}
+          totalItems={logsTotalItems}
+          currentPage={logsCurrentPage}
+          pageSize={logsPageSize}
+          onPageChange={logsOnPageChange}
+          onPageSizeChange={logsOnPageSizeChange}
         />
       )}
     </div>

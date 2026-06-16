@@ -1,7 +1,9 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
+import logoNsg from "@/assets/cropped-logo-nsg.png";
 import {
   LayoutDashboard,
   Users,
@@ -289,12 +291,18 @@ const Sidebar = () => {
           <div
             className={`flex items-center gap-2 mb-2 ${isExpanded ? "" : "justify-center"}`}
           >
-            <div className="w-8 h-8 min-w-[32px] bg-[#1A73E8] rounded-xl flex items-center justify-center text-white font-bold shadow-sm">
-              E
+            <div className="w-8 h-8 min-w-[32px] flex items-center justify-center rounded-xl overflow-hidden shadow-sm bg-white/80">
+              <Image
+                src={logoNsg}
+                alt="NSG Logo"
+                width={32}
+                height={32}
+                className="object-contain"
+              />
             </div>
             {isExpanded && (
-              <span className="text-xl font-bold text-[#1E293B] animate-in fade-in duration-200">
-                EduManager
+              <span className="text-[14px] font-black glassmorphic-text tracking-wide whitespace-nowrap animate-in fade-in duration-200">
+                HOCSINHSINHVIEN
               </span>
             )}
           </div>

@@ -7,12 +7,15 @@ import {
   RefreshToken,
   RefreshTokenDocument,
 } from '../schemas/refresh-token.schema';
+import { User, UserDocument } from '../schemas/user.schema';
 
 @Injectable()
 export class TokenService {
   constructor(
     @InjectModel(RefreshToken.name)
     private refreshTokenModel: Model<RefreshTokenDocument>,
+    @InjectModel(User.name)
+    private userModel: Model<UserDocument>,
     private jwtService: JwtService,
   ) {}
 
@@ -30,6 +33,11 @@ export class TokenService {
     const storedToken = await this.refreshTokenModel.findOne({ token });
     if (!storedToken) {
       throw new UnauthorizedException('Phiên làm việc không tồn tại');
+    }
+
+    const user = await this.userModel.findById(storedToken.user_id).exec();
+    if (!user || user.status !== 'active') {
+      throw new UnauthorizedException('Tài khoản đã bị khóa hoặc chưa kích hoạt');
     }
 
     if (storedToken.is_revoked) {

@@ -63,7 +63,9 @@ export class PasswordService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto, ip: string) {
-    const email = dto.email.trim().toLowerCase();
+    const inputKey = dto.email.trim().toLowerCase();
+    const isStudentCode = /^\d+$/.test(inputKey);
+    const email = isStudentCode ? `${inputKey}@school.edu.vn` : inputKey;
     const emailHash = crypto.createHash('sha256').update(email).digest('hex');
     
     // Check Rate limits (IP and Email Hash)

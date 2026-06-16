@@ -38,10 +38,58 @@ export class StudentsController {
     return this.studentsService.checkDuplicate(studentCodes, req.user);
   }
 
+  @Post('bulk-activate')
+  @UseGuards(checkPermission('STUDENT_ACCOUNT_ACTIVATE'))
+  bulkActivate(@Body('studentIds') studentIds: string[], @Request() req: any) {
+    return this.studentsService.bulkActivateStudentAccounts(studentIds, req.user);
+  }
+
+  @Post(':id/activate')
+  @UseGuards(checkPermission('STUDENT_ACCOUNT_ACTIVATE'))
+  activate(@Param('id') id: string, @Request() req: any) {
+    return this.studentsService.activateStudentAccount(id, req.user);
+  }
+
+  @Post(':id/lock')
+  @UseGuards(checkPermission('STUDENT_ACCOUNT_ACTIVATE'))
+  lockAccount(@Param('id') id: string, @Request() req: any) {
+    return this.studentsService.lockStudentAccount(id, req.user);
+  }
+
+  @Post(':id/unlock')
+  @UseGuards(checkPermission('STUDENT_ACCOUNT_ACTIVATE'))
+  unlockAccount(@Param('id') id: string, @Request() req: any) {
+    return this.studentsService.unlockStudentAccount(id, req.user);
+  }
+
+  @Post(':id/reset-password')
+  @UseGuards(checkPermission('STUDENT_ACCOUNT_RESET_PASSWORD'))
+  resetPassword(@Param('id') id: string, @Request() req: any) {
+    return this.studentsService.resetStudentAccountPassword(id, req.user);
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll(@Request() req: any, @Query('classId') classId?: string) {
-    return this.studentsService.findAll({ classId }, req.user);
+  findAll(
+    @Request() req: any,
+    @Query('classId') classId?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.studentsService.findAll(
+      {
+        classId,
+        departmentId,
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+        search,
+        status,
+      },
+      req.user,
+    );
   }
 
   @Get('me')

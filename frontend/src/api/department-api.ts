@@ -1,4 +1,5 @@
 import { httpClient, handleResponse } from './http-client';
+import { apiCache } from './api-cache';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -26,8 +27,10 @@ export interface UpdateDepartmentDto {
 export const departmentApi = {
   // Departments
   async getDepartments(): Promise<Department[]> {
-    const res = await httpClient(`${API_BASE}/departments`);
-    return handleResponse<Department[]>(res);
+    return apiCache.get('departments', async () => {
+      const res = await httpClient(`${API_BASE}/departments`);
+      return handleResponse<Department[]>(res);
+    });
   },
 
   async getDepartment(id: string): Promise<Department> {
@@ -41,7 +44,9 @@ export const departmentApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    return handleResponse<Department>(res);
+    const data = await handleResponse<Department>(res);
+    apiCache.invalidate('departments');
+    return data;
   },
 
   async updateDepartment(id: string, dto: UpdateDepartmentDto): Promise<Department> {
@@ -50,13 +55,17 @@ export const departmentApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    return handleResponse<Department>(res);
+    const data = await handleResponse<Department>(res);
+    apiCache.invalidate('departments');
+    return data;
   },
 
   async deleteDepartment(id: string): Promise<Department> {
     const res = await httpClient(`${API_BASE}/departments/${id}`, {
       method: 'DELETE',
     });
-    return handleResponse<Department>(res);
+    const data = await handleResponse<Department>(res);
+    apiCache.invalidate('departments');
+    return data;
   }
 };

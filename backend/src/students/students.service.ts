@@ -17,6 +17,7 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { Semester } from '../semesters/schemas/semester.schema';
 import { SummaryPoint } from '../summaries-point/schemas/summary-point.schema';
 import { User, UserDocument, UserStatus } from '../auth/schemas/user.schema';
+import { RefreshToken, RefreshTokenDocument } from '../auth/schemas/refresh-token.schema';
 import { Role, RoleDocument } from '../auth/schemas/role.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { getRequesterRoleName, isStudent, isTeacher, isSupervisor, isAdmin } from '../auth/utils/role.util';
@@ -32,6 +33,7 @@ export class StudentsService implements OnModuleInit {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
     @InjectModel(Class.name) private classModel: Model<ClassDocument>,
+    @InjectModel(RefreshToken.name) private refreshTokenModel: Model<RefreshTokenDocument>,
   ) {}
 
   async onModuleInit() {
@@ -249,19 +251,19 @@ export class StudentsService implements OnModuleInit {
       .exec();
     const existingEmails = new Set(existingUsers.map((user) => user.email));
 
-    const legacyCodeUsers = existingUsers.filter((user) =>
-      /^\d+$/.test(user.user_name),
+    const legacyNameUsers = existingUsers.filter((user) =>
+      !/^\d+$/.test(user.user_name),
     );
-    if (legacyCodeUsers.length > 0) {
+    if (legacyNameUsers.length > 0) {
       this.logger.log(
-        `Detected ${legacyCodeUsers.length} legacy student accounts with code-based usernames.`,
+        `Detected ${legacyNameUsers.length} legacy student accounts with name-based usernames.`,
       );
-      for (const user of legacyCodeUsers) {
+      for (const user of legacyNameUsers) {
         const student = students.find(
           (candidate) => this.getStudentEmail(candidate) === user.email,
         );
         if (student) {
-          user.user_name = student.full_name;
+          user.user_name = student.student_code;
           await user.save();
         }
       }
@@ -316,7 +318,7 @@ export class StudentsService implements OnModuleInit {
     }
 
     const createdUser = await this.userModel.create({
-      user_name: student.full_name,
+      user_name: student.student_code,
       email: studentEmail,
       pw_hash,
       status: UserStatus.INACTIVE,
@@ -571,8 +573,23 @@ export class StudentsService implements OnModuleInit {
     }));
   }
 
-  async findAll(query?: { classId?: string }, requester?: any): Promise<any[]> {
+  async findAll(
+    query?: {
+      classId?: string;
+      departmentId?: string;
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: string;
+    },
+    requester?: any,
+  ): Promise<any> {
     let classId: string | undefined;
+    let departmentId: string | undefined;
+    let page: number | undefined;
+    let limit: number | undefined;
+    let search: string | undefined;
+    let status: string | undefined;
     let actualRequester = requester;
 
     if (query && ('roleName' in query || 'userId' in query || 'role' in query || 'username' in query)) {
@@ -580,13 +597,21 @@ export class StudentsService implements OnModuleInit {
       classId = undefined;
     } else if (query) {
       classId = query.classId;
+      departmentId = query.departmentId;
+      page = query.page;
+      limit = query.limit;
+      search = query.search;
+      status = query.status;
     }
 
+    const isPaginationRequested = page !== undefined || limit !== undefined;
     const isRequesterStudent = isStudent(actualRequester);
 
     if (isRequesterStudent) {
       if (!actualRequester?.userId || !Types.ObjectId.isValid(actualRequester.userId)) {
-        return [];
+        return isPaginationRequested
+          ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+          : [];
       }
       const student = await this.studentModel
         .findOne({ user_id: new Types.ObjectId(actualRequester.userId) })
@@ -597,22 +622,32 @@ export class StudentsService implements OnModuleInit {
         .populate('training_point_id')
         .populate('user_id', 'user_name email status role')
         .exec();
-      if (!student) return [];
+      if (!student) {
+        return isPaginationRequested
+          ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+          : [];
+      }
       const attached = await this.attachAccountStatus(student);
 
       if (classId) {
         if (!Types.ObjectId.isValid(classId)) {
-          return [];
+          return isPaginationRequested
+            ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+            : [];
         }
         const studentClassId = typeof student.class_id === 'object'
           ? (student.class_id as any)?._id?.toString()
           : (student.class_id as any)?.toString();
         if (studentClassId !== classId) {
-          return [];
+          return isPaginationRequested
+            ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+            : [];
         }
       }
 
-      return [attached];
+      return isPaginationRequested
+        ? { data: [attached], meta: { total: 1, page: page || 1, limit: limit || 10, totalPages: 1 } }
+        : [attached];
     }
 
     const teacherClassIds = await this.getTeacherClassIds(actualRequester);
@@ -620,33 +655,103 @@ export class StudentsService implements OnModuleInit {
 
     if (classId) {
       if (!Types.ObjectId.isValid(classId)) {
-        return [];
+        return isPaginationRequested
+          ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+          : [];
       }
 
       if (teacherClassIds) {
         const isAssigned = teacherClassIds.some((id) => id.toString() === classId);
         if (!isAssigned) {
-          return [];
+          return isPaginationRequested
+            ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+            : [];
         }
       }
       filter.class_id = new Types.ObjectId(classId);
+    } else if (departmentId) {
+      if (!Types.ObjectId.isValid(departmentId)) {
+        return isPaginationRequested
+          ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+          : [];
+      }
+      const deptClasses = await this.classModel.find({ dept_id: new Types.ObjectId(departmentId) } as any).select('_id').lean().exec();
+      const deptClassIds = deptClasses.map((c) => c._id);
+      if (teacherClassIds) {
+        const allowedClassIds = teacherClassIds.filter((id) =>
+          deptClassIds.some((dId) => dId.toString() === id.toString()),
+        );
+        filter.class_id = { $in: allowedClassIds };
+      } else {
+        filter.class_id = { $in: deptClassIds };
+      }
     } else if (teacherClassIds) {
       filter.class_id = { $in: teacherClassIds };
     }
 
-    const students = await this.studentModel
-      .find(filter)
-      .populate({
-        path: 'class_id',
-        populate: { path: 'dept_id', select: 'name code' },
-      })
-      .populate('training_point_id')
-      .populate('user_id', 'user_name email status role')
-      .exec();
-    const statusMap = await this.getAccountStatusMap(students);
-    return Promise.all(
-      students.map((student) => this.attachAccountStatus(student, statusMap)),
-    );
+    if (search) {
+      filter.$or = [
+        { full_name: { $regex: search, $options: 'i' } },
+        { student_code: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    if (status) {
+      if (status === 'Dropped') {
+        filter.status = { $in: ['Dropped', 'Suspended'] };
+      } else {
+        filter.status = status;
+      }
+    }
+
+    if (isPaginationRequested) {
+      const p = page || 1;
+      const l = limit || 10;
+
+      const [students, total] = await Promise.all([
+        this.studentModel
+          .find(filter)
+          .populate({
+            path: 'class_id',
+            populate: { path: 'dept_id', select: 'name code' },
+          })
+          .populate('training_point_id')
+          .populate('user_id', 'user_name email status role')
+          .skip((p - 1) * l)
+          .limit(l)
+          .exec(),
+        this.studentModel.countDocuments(filter).exec(),
+      ]);
+
+      const statusMap = await this.getAccountStatusMap(students);
+      const data = await Promise.all(
+        students.map((student) => this.attachAccountStatus(student, statusMap)),
+      );
+
+      return {
+        data,
+        meta: {
+          total,
+          page: p,
+          limit: l,
+          totalPages: Math.ceil(total / l),
+        },
+      };
+    } else {
+      const students = await this.studentModel
+        .find(filter)
+        .populate({
+          path: 'class_id',
+          populate: { path: 'dept_id', select: 'name code' },
+        })
+        .populate('training_point_id')
+        .populate('user_id', 'user_name email status role')
+        .exec();
+      const statusMap = await this.getAccountStatusMap(students);
+      return Promise.all(
+        students.map((student) => this.attachAccountStatus(student, statusMap)),
+      );
+    }
   }
 
   async findMe(requester: any): Promise<any> {
@@ -801,6 +906,201 @@ export class StudentsService implements OnModuleInit {
       }
       throw error;
     }
+  }
+
+  async activateStudentAccount(id: string, requester?: any) {
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền kích hoạt tài khoản sinh viên.');
+    }
+
+    const student = await this.studentModel.findById(id);
+    if (!student) {
+      throw new NotFoundException(`Không tìm thấy sinh viên với ID ${id}`);
+    }
+
+    const studentEmail = this.getStudentEmail(student);
+    const dob = new Date(student.date_bir);
+    const day = String(dob.getDate()).padStart(2, '0');
+    const month = String(dob.getMonth() + 1).padStart(2, '0');
+    const year = dob.getFullYear();
+    const plainPassword = `${day}${month}${year}`;
+
+    // Tìm xem đã có user_id liên kết chưa
+    let user: UserDocument | null = null;
+    const linkedUserId = this.getLinkedUserId(student);
+
+    if (linkedUserId) {
+      user = await this.userModel.findById(linkedUserId).exec();
+    }
+
+    if (!user) {
+      // Tìm bằng email
+      user = await this.userModel.findOne({ email: studentEmail }).exec();
+    }
+
+    const defaultRole = await this.roleModel.findOne({ name: 'Student' }).exec();
+
+    if (user) {
+      // Nếu user đã tồn tại, cập nhật status sang active, gán role Student nếu chưa có
+      user.status = UserStatus.ACTIVE;
+      user.failed_login_attempts = 0;
+      user.locked_until = null;
+      if (defaultRole) {
+        user.role = defaultRole._id;
+      }
+      await user.save();
+      
+      // Đảm bảo student.user_id trỏ tới user này
+      await this.ensureStudentUserLink(student, user);
+    } else {
+      // Nếu chưa có, tạo user mới ở trạng thái ACTIVE
+      const pw_hash = await bcrypt.hash(plainPassword, 12);
+      const createdUser = await this.userModel.create({
+        user_name: student.student_code, // sử dụng student_code làm user_name
+        email: studentEmail,
+        pw_hash,
+        status: UserStatus.ACTIVE,
+        role: defaultRole?._id,
+        date_birth: student.date_bir,
+      });
+
+      await this.ensureStudentUserLink(student, createdUser);
+      user = createdUser;
+    }
+
+    return this.attachAccountStatus(student);
+  }
+
+  async bulkActivateStudentAccounts(ids: string[], requester?: any) {
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền kích hoạt tài khoản sinh viên.');
+    }
+
+    let successCount = 0;
+    const results = [];
+
+    for (const id of ids) {
+      try {
+        await this.activateStudentAccount(id, requester);
+        successCount++;
+        results.push({ id, status: 'success' });
+      } catch (err: any) {
+        this.logger.error(`Failed to activate student account ${id}:`, err);
+        results.push({ id, status: 'fail', error: err.message });
+      }
+    }
+
+    return {
+      success: successCount,
+      total: ids.length,
+      results,
+    };
+  }
+
+  async resetStudentAccountPassword(id: string, requester?: any) {
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền reset mật khẩu sinh viên.');
+    }
+
+    const student = await this.studentModel.findById(id).exec();
+    if (!student) {
+      throw new NotFoundException(`Không tìm thấy sinh viên với ID ${id}`);
+    }
+
+    const linkedUserId = this.getLinkedUserId(student);
+    if (!linkedUserId) {
+      throw new BadRequestException('Sinh viên chưa được liên kết tài khoản login.');
+    }
+
+    const user = await this.userModel.findById(linkedUserId).exec();
+    if (!user) {
+      throw new BadRequestException('Không tìm thấy tài khoản người dùng liên kết.');
+    }
+
+    // Reset password sang DOB mặc định ddmmyyyy
+    const dob = new Date(student.date_bir);
+    const day = String(dob.getDate()).padStart(2, '0');
+    const month = String(dob.getMonth() + 1).padStart(2, '0');
+    const year = dob.getFullYear();
+    const plainPassword = `${day}${month}${year}`;
+
+    const pw_hash = await bcrypt.hash(plainPassword, 12);
+    user.pw_hash = pw_hash;
+    if (user.status !== UserStatus.INACTIVE) {
+      user.status = UserStatus.ACTIVE;
+    }
+    user.failed_login_attempts = 0;
+    user.locked_until = null;
+    await user.save();
+
+    // Thu hồi toàn bộ refresh tokens
+    await this.refreshTokenModel.updateMany(
+      { user_id: user._id },
+      { $set: { is_revoked: true } },
+    );
+
+    return this.attachAccountStatus(student);
+  }
+
+  async lockStudentAccount(id: string, requester?: any) {
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền khóa tài khoản sinh viên.');
+    }
+
+    const student = await this.studentModel.findById(id).exec();
+    if (!student) {
+      throw new NotFoundException(`Không tìm thấy sinh viên với ID ${id}`);
+    }
+
+    const linkedUserId = this.getLinkedUserId(student);
+    if (!linkedUserId) {
+      throw new BadRequestException('Sinh viên chưa được liên kết tài khoản login.');
+    }
+
+    const user = await this.userModel.findById(linkedUserId).exec();
+    if (!user) {
+      throw new BadRequestException('Không tìm thấy tài khoản người dùng liên kết.');
+    }
+
+    user.status = UserStatus.LOCKED;
+    user.locked_until = null; // Manual Lock
+    await user.save();
+
+    // Thu hồi toàn bộ refresh tokens
+    await this.refreshTokenModel.updateMany(
+      { user_id: user._id },
+      { $set: { is_revoked: true } },
+    );
+
+    return this.attachAccountStatus(student);
+  }
+
+  async unlockStudentAccount(id: string, requester?: any) {
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền mở khóa tài khoản sinh viên.');
+    }
+
+    const student = await this.studentModel.findById(id).exec();
+    if (!student) {
+      throw new NotFoundException(`Không tìm thấy sinh viên với ID ${id}`);
+    }
+
+    const linkedUserId = this.getLinkedUserId(student);
+    if (!linkedUserId) {
+      throw new BadRequestException('Sinh viên chưa được liên kết tài khoản login.');
+    }
+
+    const user = await this.userModel.findById(linkedUserId).exec();
+    if (!user) {
+      throw new BadRequestException('Không tìm thấy tài khoản người dùng liên kết.');
+    }
+
+    user.status = UserStatus.ACTIVE;
+    user.locked_until = null;
+    user.failed_login_attempts = 0;
+    await user.save();
+
+    return this.attachAccountStatus(student);
   }
 
   async remove(id: string, requester?: any): Promise<Student> {

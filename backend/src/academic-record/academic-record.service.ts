@@ -139,6 +139,116 @@ export class AcademicRecordService {
   }
 
 
+  async syncMultipleStudentCriterionScores(
+    records: { student_id: any, semester_id: any, criterion_id: any }[]
+  ): Promise<void> {
+    if (!records || records.length === 0) return;
+
+    // Group by student_id and semester_id
+    const groups = new Map<string, { studentId: string; semesterId: string; criterionIds: Set<string> }>();
+    for (const r of records) {
+      const sId = r.student_id ? r.student_id.toString() : '';
+      const semId = r.semester_id ? r.semester_id.toString() : '';
+      const cId = r.criterion_id ? r.criterion_id.toString() : '';
+      if (!sId || !semId || !cId) continue;
+      const key = `${sId}_${semId}`;
+      if (!groups.has(key)) {
+        groups.set(key, { studentId: sId, semesterId: semId, criterionIds: new Set() });
+      }
+      groups.get(key)!.criterionIds.add(cId);
+    }
+
+    // Preload criteria definitions to avoid N+1 queries
+    const allCriterionIds = Array.from(new Set(records.map(r => r.criterion_id ? r.criterion_id.toString() : '').filter(Boolean)));
+    const criteria = await this.criterionModel.find({ _id: { $in: allCriterionIds as any } } as any).lean().exec();
+    const criteriaMap = new Map(criteria.map((c: any) => [c._id.toString(), c]));
+
+    // Sync each student/semester group
+    for (const [_, group] of groups) {
+      const { studentId, semesterId, criterionIds } = group;
+      if (!Types.ObjectId.isValid(studentId) || !Types.ObjectId.isValid(semesterId)) continue;
+
+      // Count active academic records for all criteria of this student/semester in one aggregation
+      const activeCounts = await this.academicRecordModel.aggregate([
+        {
+          $match: {
+            student_id: new Types.ObjectId(studentId),
+            semester_id: new Types.ObjectId(semesterId),
+            criterion_id: { $in: Array.from(criterionIds).map(id => new Types.ObjectId(id)) },
+            status: 'active',
+            is_deleted: { $ne: true }
+          }
+        },
+        {
+          $group: {
+            _id: '$criterion_id',
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+      const countMap = new Map(activeCounts.map(c => [c._id.toString(), c.count]));
+
+      // Load all SummaryPoints for this student and semester
+      const summaries = await this.summaryPointModel.find({
+        student_id: new Types.ObjectId(studentId),
+        semester_id: new Types.ObjectId(semesterId)
+      } as any).exec();
+
+      for (const summary of summaries) {
+        if (summary.status === 'locked') continue;
+        let details = summary.details || [];
+
+        for (const criterionId of criterionIds) {
+          const criterion = criteriaMap.get(criterionId) as any;
+          if (!criterion) continue;
+
+          const activeCount = countMap.get(criterionId) || 0;
+          let systemScore = activeCount * criterion.score_per_unit;
+          if (criterion.score_per_unit >= 0) {
+            systemScore = Math.max(criterion.min_score, Math.min(criterion.max_score, systemScore));
+          } else {
+            systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
+          }
+
+          const detailIndex = details.findIndex(d => d.criterion_id && d.criterion_id.toString() === criterionId);
+          if (detailIndex === -1) {
+            details.push({
+              criterion_id: new Types.ObjectId(criterionId) as any,
+              current_count: activeCount,
+              system_score: systemScore,
+              sv_score: null,
+              sv_submitted_at: null,
+              gv_score: null,
+              gv_reviewed_at: null,
+              gv_reviewed_by: null,
+              final_score: null,
+              locked_at: null,
+              locked_by: null,
+              status: 'draft',
+              description: '',
+              log: [],
+            });
+          } else {
+            const detail = details[detailIndex];
+            detail.current_count = activeCount;
+            detail.system_score = systemScore;
+            if (detail.status === 'draft') {
+              detail.sv_score = systemScore;
+              detail.gv_score = systemScore;
+            }
+            details[detailIndex] = detail;
+          }
+        }
+
+        summary.details = details;
+        summary.markModified('details');
+        await summary.save();
+        await this.summariesPointService.recomputeTotalScore(summary._id.toString());
+      }
+    }
+  }
+
+
   async create(
     createAcademicRecordDto: CreateAcademicRecordDto,
     requester?: any,
@@ -278,23 +388,53 @@ export class AcademicRecordService {
     };
   }
 
-  async findAll(requester?: any): Promise<AcademicRecord[]> {
+  async findAll(
+    query?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      classId?: string;
+      semesterId?: string;
+      studentId?: string;
+    },
+    requester?: any,
+  ): Promise<any> {
+    let page: number | undefined;
+    let limit: number | undefined;
+    let search: string | undefined;
+    let classId: string | undefined;
+    let semesterId: string | undefined;
+    let studentId: string | undefined;
+    let actualRequester = requester;
+
+    if (query && ('roleName' in query || 'userId' in query || 'role' in query || 'username' in query)) {
+      actualRequester = query;
+    } else if (query) {
+      page = query.page;
+      limit = query.limit;
+      search = query.search;
+      classId = query.classId;
+      semesterId = query.semesterId;
+      studentId = query.studentId;
+    }
+
+    const isPaginationRequested = page !== undefined || limit !== undefined;
     const filter: any = { status: 'active', is_deleted: { $ne: true } };
 
-    if (requester) {
-      const roleName = (requester.roleName || '').toLowerCase();
+    if (actualRequester) {
+      const roleName = (actualRequester.roleName || '').toLowerCase();
       
       // Nếu là Student, chỉ trả về các bản ghi thuộc student của user đó
       if (roleName.includes('student')) {
-        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(actualRequester.userId) }).exec();
         if (!student) {
-          return []; // Không có sinh viên liên kết, không trả về gì
+          return isPaginationRequested ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
         }
         filter.student_id = student._id;
       } 
       // Nếu là Teacher, chỉ trả về các bản ghi thuộc class của teacher phụ trách
       else if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
-        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+        const classes = await this.classModel.find({ advisor_id: actualRequester.userId }).select('_id').exec();
         const classIds = classes.map(c => c._id);
         
         const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
@@ -302,17 +442,97 @@ export class AcademicRecordService {
         
         filter.student_id = { $in: studentIds };
       }
-      // Admin và Supervisor có quyền xem toàn bộ, không cần filter thêm
     }
 
-    return this.academicRecordModel
-      .find(filter)
-      .populate('criterion_id')
-      .populate('student_id')
-      .populate('semester_id')
-      .populate('daily_report_id')
-      .populate({ path: 'recorded_by', populate: { path: 'role' } })
-      .exec();
+    // Apply class filter if provided
+    if (classId && Types.ObjectId.isValid(classId)) {
+      const classStudents = await this.studentModel.find({ class_id: new Types.ObjectId(classId) }).select('_id').exec();
+      const classStudentIds = classStudents.map(s => s._id);
+      
+      if (filter.student_id) {
+        if (filter.student_id.$in) {
+          filter.student_id.$in = filter.student_id.$in.filter((id: any) => 
+            classStudentIds.some(csId => csId.toString() === id.toString())
+          );
+        } else {
+          // Lọc theo một studentId cụ thể của Student
+          if (!classStudentIds.some(csId => csId.toString() === filter.student_id.toString())) {
+            return isPaginationRequested ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+          }
+        }
+      } else {
+        filter.student_id = { $in: classStudentIds };
+      }
+    }
+
+    // Apply student filter if provided
+    if (studentId && Types.ObjectId.isValid(studentId)) {
+      const targetStudentObjectId = new Types.ObjectId(studentId);
+      if (filter.student_id) {
+        if (filter.student_id.$in) {
+          const hasAccess = filter.student_id.$in.some((id: any) => id.toString() === studentId);
+          if (!hasAccess) {
+            return isPaginationRequested ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+          }
+        } else {
+          if (filter.student_id.toString() !== studentId) {
+            return isPaginationRequested ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+          }
+        }
+      }
+      filter.student_id = targetStudentObjectId;
+    }
+
+    // Apply semester filter
+    if (semesterId && Types.ObjectId.isValid(semesterId)) {
+      filter.semester_id = new Types.ObjectId(semesterId);
+    }
+
+    // Apply search filter
+    if (search) {
+      filter.$or = [
+        { record_title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    if (isPaginationRequested) {
+      const p = page || 1;
+      const l = limit || 10;
+
+      const [records, total] = await Promise.all([
+        this.academicRecordModel
+          .find(filter)
+          .populate('criterion_id')
+          .populate('student_id')
+          .populate('semester_id')
+          .populate('daily_report_id')
+          .populate({ path: 'recorded_by', populate: { path: 'role' } })
+          .skip((p - 1) * l)
+          .limit(l)
+          .exec(),
+        this.academicRecordModel.countDocuments(filter).exec()
+      ]);
+
+      return {
+        data: records,
+        meta: {
+          total,
+          page: p,
+          limit: l,
+          totalPages: Math.ceil(total / l)
+        }
+      };
+    } else {
+      return this.academicRecordModel
+        .find(filter)
+        .populate('criterion_id')
+        .populate('student_id')
+        .populate('semester_id')
+        .populate('daily_report_id')
+        .populate({ path: 'recorded_by', populate: { path: 'role' } })
+        .exec();
+    }
   }
 
   async findDeleted(requester?: any): Promise<AcademicRecord[]> {
@@ -696,5 +916,158 @@ export class AcademicRecordService {
 
     // Cấp thấp hơn không được xóa
     throw new ForbiddenException('Bạn không có quyền xóa ghi nhận rèn luyện của cấp bậc cao hơn.');
+  }
+
+  async importRecords(
+    rows: any[],
+    requester: any,
+    commit: boolean = false,
+  ): Promise<any> {
+    const semesterModel = this.academicRecordModel.db.model('Semester');
+    
+    // 1. Thu thập tất cả student_code để query
+    const studentCodes = Array.from(new Set(rows.map(r => {
+      const code = r['Ma SV'] || r['Mã SV'] || r['Mã sinh viên'] || r['student_code'];
+      return code ? code.toString().trim() : '';
+    }).filter(Boolean)));
+
+    // 2. Query students
+    const students = await this.studentModel.find({ student_code: { $in: studentCodes } }).lean().exec();
+    const studentMap = new Map(students.map(s => [s.student_code.toLowerCase(), s]));
+
+    // 3. Query all criteria and semesters (dung lượng nhỏ)
+    const criteria = await this.criterionModel.find().lean().exec();
+    const criteriaMap = new Map(criteria.map(c => [(c.criterion_name || '').toString().trim().toLowerCase(), c]));
+
+    const semesters = await semesterModel.find().lean().exec();
+    const semesterMap = new Map(semesters.map((s: any) => [(s.semester_name || s.name || '').toString().trim().toLowerCase(), s]));
+    const activeSem = semesters.find((s: any) => s.status === 'active');
+
+    const errors: any[] = [];
+    const validItems: any[] = [];
+    const seen = new Map<string, number>();
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNumber = i + 2;
+      const studentCodeRaw = row['Ma SV'] || row['Mã SV'] || row['Mã sinh viên'] || row['student_code'];
+      const criterionRaw = row['Tieu chi'] || row['Tiêu chí'] || row['criterion'] || row['Tieu chi (*)'];
+      const dateRaw = row['Ngay ghi nhan'] || row['Ngày ghi nhận'] || row['recorded_at'] || row['Ngay'];
+      const noteRaw = row['Ghi chu'] || row['Ghi chú'] || row['note'];
+      const semesterRaw = row['Hoc ky'] || row['Học kỳ'] || row['semester'];
+      const statusRaw = row['Trang thai'] || row['Trạng thái'] || row['status'];
+
+      const studentCode = studentCodeRaw ? studentCodeRaw.toString().trim() : '';
+      if (!studentCode) {
+        errors.push({ row: rowNumber, reason: 'Thiếu Mã SV' });
+        continue;
+      }
+
+      if (!criterionRaw) {
+        errors.push({ row: rowNumber, studentCode, reason: 'Thiếu Tiêu chí' });
+        continue;
+      }
+
+      if (dateRaw === undefined || dateRaw === null || dateRaw === '') {
+        errors.push({ row: rowNumber, studentCode, reason: 'Thiếu Ngày ghi nhận' });
+        continue;
+      }
+
+      const foundStudent = studentMap.get(studentCode.toLowerCase());
+      if (!foundStudent) {
+        errors.push({ row: rowNumber, studentCode, reason: 'Không tìm thấy sinh viên theo Mã SV' });
+        continue;
+      }
+
+      const criterionName = criterionRaw.toString().trim();
+      const foundCriterion = criteriaMap.get(criterionName.toLowerCase());
+      if (!foundCriterion) {
+        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Không tìm thấy tiêu chí: ${criterionName}` });
+        continue;
+      }
+
+      // Parse date
+      let recordedAtIso = '';
+      let dateErr = false;
+      if (typeof dateRaw === 'number') {
+        const jsDate = new Date(Math.round((dateRaw - 25569) * 86400 * 1000));
+        if (isNaN(jsDate.getTime())) dateErr = true; else recordedAtIso = jsDate.toISOString();
+      } else {
+        const str = dateRaw ? dateRaw.toString().trim() : '';
+        const dmy = /^([0-9]{1,2})[\/\-]([0-9]{1,2})[\/\-]([0-9]{4})$/;
+        const m = str.match(dmy);
+        if (m) {
+          const day = parseInt(m[1], 10); const month = parseInt(m[2], 10) - 1; const year = parseInt(m[3], 10);
+          const parsed = new Date(year, month, day);
+          if (isNaN(parsed.getTime()) || parsed.getDate() !== day) dateErr = true; else recordedAtIso = parsed.toISOString();
+        } else {
+          const parsed = new Date(str);
+          if (isNaN(parsed.getTime())) dateErr = true; else recordedAtIso = parsed.toISOString();
+        }
+      }
+      if (dateErr) {
+        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Định dạng ngày không hợp lệ: ${dateRaw}` });
+        continue;
+      }
+
+      // Semester
+      let semesterId = '';
+      if (semesterRaw) {
+        const semStr = semesterRaw.toString().trim().toLowerCase();
+        const foundSem = semesterMap.get(semStr) || semesters.find((s: any) => s._id.toString() === semStr);
+        if (foundSem) semesterId = foundSem._id.toString();
+      }
+      if (!semesterId && activeSem) {
+        semesterId = activeSem._id.toString();
+      }
+      if (!semesterId) {
+        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: 'Không có học kỳ active' });
+        continue;
+      }
+
+      const status = statusRaw ? statusRaw.toString().trim().toLowerCase() : 'active';
+      if (statusRaw && status !== 'active' && status !== 'inactive') {
+        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Trạng thái không hợp lệ: ${statusRaw}` });
+        continue;
+      }
+
+      // duplicate check in file
+      const key = `${studentCode}||${foundCriterion._id.toString()}||${recordedAtIso}`;
+      if (seen.has(key)) {
+        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Bản ghi trùng lặp trong file (trùng với dòng ${seen.get(key)})` });
+        continue;
+      }
+      seen.set(key, rowNumber);
+
+      const pointsEffect = foundCriterion.score_per_unit || 0;
+
+      validItems.push({
+        student_id: foundStudent._id,
+        criterion_id: foundCriterion._id,
+        semester_id: new Types.ObjectId(semesterId),
+        record_title: foundCriterion.criterion_name,
+        description: noteRaw ? noteRaw.toString().trim() : '',
+        recorded_by: requester ? new Types.ObjectId(requester.userId) : null,
+        recorded_at: new Date(recordedAtIso),
+        points_effect: pointsEffect,
+        status: status || 'active'
+      });
+    }
+
+    if (errors.length > 0) {
+      return { success: false, errors, count: 0 };
+    }
+
+    if (commit && validItems.length > 0) {
+      // Perform bulk insert
+      const results = await this.academicRecordModel.insertMany(validItems);
+      
+      // Sync training points for student summaries in bulk
+      this.syncMultipleStudentCriterionScores(validItems).catch((e: any) => console.error('Failed to sync student scores:', e));
+
+      return { success: true, errors: [], count: results.length };
+    }
+
+    return { success: true, errors: [], count: validItems.length };
   }
 }

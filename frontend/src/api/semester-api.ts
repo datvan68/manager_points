@@ -1,4 +1,5 @@
 import { httpClient, handleResponse } from './http-client';
+import { apiCache } from './api-cache';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -28,8 +29,10 @@ export interface UpdateSemesterDto {
 
 export const semesterApi = {
   async getSemesters(): Promise<Semester[]> {
-    const res = await httpClient(`${API_BASE}/semesters`);
-    return handleResponse<Semester[]>(res);
+    return apiCache.get('semesters', async () => {
+      const res = await httpClient(`${API_BASE}/semesters`);
+      return handleResponse<Semester[]>(res);
+    });
   },
 
   async getSemester(id: string): Promise<Semester> {
@@ -43,7 +46,9 @@ export const semesterApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    return handleResponse<Semester>(res);
+    const data = await handleResponse<Semester>(res);
+    apiCache.invalidate('semesters');
+    return data;
   },
 
   async updateSemester(id: string, dto: UpdateSemesterDto): Promise<Semester> {
@@ -52,13 +57,17 @@ export const semesterApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    return handleResponse<Semester>(res);
+    const data = await handleResponse<Semester>(res);
+    apiCache.invalidate('semesters');
+    return data;
   },
 
   async deleteSemester(id: string): Promise<Semester> {
     const res = await httpClient(`${API_BASE}/semesters/${id}`, {
       method: 'DELETE',
     });
-    return handleResponse<Semester>(res);
+    const data = await handleResponse<Semester>(res);
+    apiCache.invalidate('semesters');
+    return data;
   }
 };

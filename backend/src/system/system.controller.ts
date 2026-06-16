@@ -20,6 +20,15 @@ export interface AuthenticatedRequest extends Request {
 export class SystemController {
   constructor(private readonly systemService: SystemService) {}
 
+  @Get('dashboard-metrics')
+  @Permissions()
+  getDashboardMetrics(
+    @Query('semesterId') semesterId: string,
+    @Req() req: AuthenticatedRequest
+  ) {
+    return this.systemService.getDashboardMetrics(req.user, semesterId);
+  }
+
   // ─── LOGIN LOGS ─────────────────────────────────────────────────────────────
 
   @Get('login-logs')

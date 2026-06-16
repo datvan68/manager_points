@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import type * as XLSX_Type from 'xlsx';
 
 export interface ColumnConfig {
   key: string;       // Key in raw row object
@@ -16,17 +16,19 @@ export const reportExportHelper = {
   },
 
   // Create a new empty workbook
-  createWorkbook(): XLSX.WorkBook {
+  async createWorkbook(): Promise<XLSX_Type.WorkBook> {
+    const XLSX = await import('xlsx');
     return XLSX.utils.book_new();
   },
 
   // Convert raw rows using columnConfig to sheet rows, format types, and append to workbook
-  appendJsonSheet(
-    workbook: XLSX.WorkBook,
+  async appendJsonSheet(
+    workbook: XLSX_Type.WorkBook,
     sheetName: string,
     rows: any[],
     columnConfig: ColumnConfig[]
-  ): XLSX.WorkSheet {
+  ): Promise<XLSX_Type.WorkSheet> {
+    const XLSX = await import('xlsx');
     const cleanSheetName = this.sanitizeSheetName(sheetName);
 
     // Transform raw rows into Excel-friendly formatted rows
@@ -94,7 +96,8 @@ export const reportExportHelper = {
   },
 
   // Write workbook to file
-  writeWorkbook(workbook: XLSX.WorkBook, fileName: string) {
+  async writeWorkbook(workbook: XLSX_Type.WorkBook, fileName: string): Promise<void> {
+    const XLSX = await import('xlsx');
     XLSX.writeFile(workbook, fileName);
   }
 };

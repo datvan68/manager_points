@@ -48,6 +48,8 @@ export interface StudentPersonalSpotlight {
   evaluationStatus: 'draft' | 'sv_submitted' | 'gv_reviewed' | 'locked' | null;
   positiveRecords: StudentHighlightItem[];
   warningRecords: StudentHighlightItem[];
+  totalPositiveCount?: number;
+  totalWarningCount?: number;
   nextAction?: {
     label: string;
     href: string;

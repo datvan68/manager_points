@@ -153,6 +153,15 @@ export interface SystemPerformanceMetricPayload {
 }
 
 export const systemApi = {
+  async getDashboardMetrics(semesterId?: string): Promise<any> {
+    const params = new URLSearchParams();
+    if (semesterId) {
+      params.append('semesterId', semesterId);
+    }
+    const res = await httpClient(`${API_BASE}/api/system/dashboard-metrics?${params.toString()}`);
+    return handleResponse<any>(res);
+  },
+
   // ─── LOGIN LOGS ─────────────────────────────────────────────────────────────
   async getLoginLogs(query: {
     page?: number;

@@ -1,5 +1,6 @@
 import { httpClient, handleResponse } from './http-client';
 import { Category } from './category-api';
+import { apiCache } from './api-cache';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -38,11 +39,14 @@ export interface UpdateCriterionDto {
 
 export const criteriaApi = {
   async getCriteria(categoryId?: string): Promise<Criterion[]> {
-    const url = categoryId 
-      ? `${API_BASE}/criteria?category_id=${categoryId}` 
-      : `${API_BASE}/criteria`;
-    const res = await httpClient(url);
-    return handleResponse<Criterion[]>(res);
+    const cacheKey = `criteria_${categoryId || 'all'}`;
+    return apiCache.get(cacheKey, async () => {
+      const url = categoryId 
+        ? `${API_BASE}/criteria?category_id=${categoryId}` 
+        : `${API_BASE}/criteria`;
+      const res = await httpClient(url);
+      return handleResponse<Criterion[]>(res);
+    });
   },
 
   async getCriterion(id: string): Promise<Criterion> {
@@ -56,7 +60,9 @@ export const criteriaApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    return handleResponse<Criterion>(res);
+    const data = await handleResponse<Criterion>(res);
+    apiCache.invalidate(/^criteria/);
+    return data;
   },
 
   async updateCriterion(id: string, dto: UpdateCriterionDto): Promise<Criterion> {
@@ -65,14 +71,18 @@ export const criteriaApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    return handleResponse<Criterion>(res);
+    const data = await handleResponse<Criterion>(res);
+    apiCache.invalidate(/^criteria/);
+    return data;
   },
 
   async deleteCriterion(id: string): Promise<Criterion> {
     const res = await httpClient(`${API_BASE}/criteria/${id}`, {
       method: 'DELETE',
     });
-    return handleResponse<Criterion>(res);
+    const data = await handleResponse<Criterion>(res);
+    apiCache.invalidate(/^criteria/);
+    return data;
   },
 
   async deleteCriteria(ids: string[]): Promise<{ deletedCount: number }> {
@@ -81,7 +91,9 @@ export const criteriaApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),
     });
-    return handleResponse<{ deletedCount: number }>(res);
+    const data = await handleResponse<{ deletedCount: number }>(res);
+    apiCache.invalidate(/^criteria/);
+    return data;
   }
 };
 

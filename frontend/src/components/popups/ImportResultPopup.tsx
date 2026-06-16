@@ -4,7 +4,7 @@ import Popup from './Popup';
 import {
   Download, AlertCircle, CheckCircle2, Calendar, User, GraduationCap, FileWarning
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+
 import { Button } from '@/components/ui/button';
 
 export interface ImportValidationError {
@@ -24,8 +24,9 @@ interface ImportResultPopupProps {
 export default function ImportResultPopup({ isOpen, onClose, successCount, errors }: ImportResultPopupProps) {
 
   // Export only the error records into a new Excel file for user correction
-  const handleDownloadErrorReport = () => {
+  const handleDownloadErrorReport = async () => {
     try {
+      const XLSX = await import('xlsx');
       const headers = [['Dòng', 'Mã SV', 'Họ và tên', 'Nguyên nhân Lỗi / Cảnh báo']];
       const errorData = errors.map(err => [
         `Dòng ${err.row}`,

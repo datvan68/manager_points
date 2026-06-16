@@ -16,6 +16,7 @@ interface UserInfo {
   id: string;
   user_name?: string;
   username?: string;
+  display_name?: string;
   role?: string;
   roleName?: string;
   roleCode?: string;
@@ -126,6 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (storedUser) {
           const updatedUser = {
             ...storedUser,
+            display_name: data.display_name || storedUser.display_name,
             permissions: perms,
             role: data.roleName || storedUser.role,
             roleName: data.roleName || storedUser.roleName || storedUser.role,

@@ -26,6 +26,7 @@ export interface ReportFilterState {
 
 export interface ReportsDataset {
   students: Student[];
+  studentsTotal?: number;
   classes: Class[];
   departments: Department[];
   semesters: Semester[];

@@ -20,6 +20,14 @@ interface ReportTableProps {
   onExportExcel: () => void;
   label?: string;
   emptyMessage?: string;
+  
+  // Server-side pagination props
+  serverSide?: boolean;
+  totalItems?: number;
+  currentPage?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
 }
 
 export default function ReportTable({
@@ -29,23 +37,42 @@ export default function ReportTable({
   isLoading,
   onExportExcel,
   label = 'dòng',
-  emptyMessage
+  emptyMessage,
+  serverSide = false,
+  totalItems,
+  currentPage,
+  pageSize,
+  onPageChange,
+  onPageSizeChange
 }: ReportTableProps) {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [localCurrentPage, setLocalCurrentPage] = useState(1);
+  const [localPageSize, setLocalPageSize] = useState(10);
 
-  const totalItems = data.length;
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, totalItems);
-  const paginatedData = data.slice(startIndex, endIndex);
+  const activeCurrentPage = serverSide ? (currentPage ?? 1) : localCurrentPage;
+  const activePageSize = serverSide ? (pageSize ?? 10) : localPageSize;
+
+  const totalCount = serverSide ? (totalItems ?? data.length) : data.length;
+  
+  const paginatedData = serverSide ? data : data.slice(
+    (activeCurrentPage - 1) * activePageSize,
+    activeCurrentPage * activePageSize
+  );
 
   const handlePageChange = (page: number) => {
-    setCurrentPage(page);
+    if (serverSide && onPageChange) {
+      onPageChange(page);
+    } else {
+      setLocalCurrentPage(page);
+    }
   };
 
   const handlePageSizeChange = (size: number) => {
-    setPageSize(size);
-    setCurrentPage(1);
+    if (serverSide && onPageSizeChange) {
+      onPageSizeChange(size);
+    } else {
+      setLocalPageSize(size);
+      setLocalCurrentPage(1);
+    }
   };
 
   return (
@@ -55,12 +82,12 @@ export default function ReportTable({
         <div>
           <h3 className="font-bold text-[#1E293B] text-[15px]">{title}</h3>
           <span className="text-[11px] text-[#64748B] font-semibold">
-            Tổng cộng: {totalItems} bản ghi
+            Tổng cộng: {totalCount} bản ghi
           </span>
         </div>
         <button
           onClick={onExportExcel}
-          disabled={totalItems === 0 || isLoading}
+          disabled={totalCount === 0 || isLoading}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-white/40 hover:bg-white/70 border border-white/70 text-[#1E293B] disabled:opacity-50 disabled:scale-100 active:scale-95 transition-all text-xs font-bold rounded-xl shadow-sm cursor-pointer"
         >
           <Download size={13} className="text-[#64748B]" />
@@ -107,7 +134,7 @@ export default function ReportTable({
                 <tr key={row.key || rIdx} className="hover:bg-white/60 transition-colors duration-150">
                   {columns.map((col, cIdx) => (
                     <td key={cIdx} className={`px-6 py-3.5 align-middle ${col.className || ''}`}>
-                      {col.render ? col.render(row[col.key], row) : String(row[col.key] ?? '')}
+                       {col.render ? col.render(row[col.key], row) : String(row[col.key] ?? '')}
                     </td>
                   ))}
                 </tr>
@@ -118,12 +145,12 @@ export default function ReportTable({
       </div>
 
       {/* Table Pagination */}
-      {!isLoading && totalItems > 0 && (
+      {!isLoading && totalCount > 0 && (
         <div className="border-t border-white/50">
           <CustomPagination
-            totalItems={totalItems}
-            pageSize={pageSize}
-            currentPage={currentPage}
+            totalItems={totalCount}
+            pageSize={activePageSize}
+            currentPage={activeCurrentPage}
             onPageChange={handlePageChange}
             onPageSizeChange={handlePageSizeChange}
             label={label}

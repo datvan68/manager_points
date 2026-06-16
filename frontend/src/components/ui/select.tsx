@@ -16,6 +16,7 @@ interface SelectContextProps {
   setSelectedLabel: (label: string) => void;
   openUp: boolean;
   error?: string;
+  onSearchQueryChange?: (query: string) => void;
 }
 
 const SelectContext = React.createContext<SelectContextProps | undefined>(undefined);
@@ -36,6 +37,7 @@ export const Select = ({
   children,
   value,
   onValueChange,
+  onSearchQueryChange,
   label,
   required,
   error,
@@ -105,6 +107,7 @@ export const Select = ({
         setSelectedLabel,
         openUp,
         error,
+        onSearchQueryChange,
       }}
     >
       <div ref={containerRef} className={cn("flex flex-col gap-1.5 w-full", containerClassName)}>
@@ -167,6 +170,9 @@ export const SelectTrigger = React.forwardRef<any, any>(
           onChange={(e) => {
             setOpen(true);
             setSearchQuery(e.target.value);
+            if (context.onSearchQueryChange) {
+              context.onSearchQueryChange(e.target.value);
+            }
           }}
           onClick={(e) => {
             e.stopPropagation();
@@ -183,7 +189,7 @@ SelectTrigger.displayName = "SelectTrigger";
 
 
 export const SelectContent = React.forwardRef<any, any>(
-  ({ className, children, position = "popper", lazyLoad = false, ...props }, ref) => {
+  ({ className, children, position = "popper", lazyLoad = false, onLoadMore, ...props }, ref) => {
     const context = React.useContext(SelectContext);
     if (!context) throw new Error("SelectContent must be used inside Select");
 
@@ -217,10 +223,14 @@ export const SelectContent = React.forwardRef<any, any>(
     }, [open, searchQuery, lazyLoad, filteredChildren.length]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-      if (!lazyLoad) return;
       const target = e.currentTarget;
       if (target.scrollHeight - target.scrollTop <= target.clientHeight + 15) {
-        setVisibleCount((prev) => Math.min(prev + 5, filteredChildren.length));
+        if (lazyLoad) {
+          setVisibleCount((prev) => Math.min(prev + 5, filteredChildren.length));
+        }
+        if (onLoadMore) {
+          onLoadMore();
+        }
       }
     };
 

@@ -215,7 +215,7 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
                className="relative w-8 h-8 rounded-full bg-[#1A73E8]/10 flex items-center justify-center text-[#1A73E8] font-bold text-xs ring-2 ring-white/80 shadow-sm hover:ring-[#1A73E8]/30 transition-all focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20"
                data-id="btn/Profile"
              >
-               {user ? getInitials(user.user_name || user.username || '') : '??'}
+               {user ? getInitials(user.display_name || user.user_name || user.username || '') : '??'}
                <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
              </button>
    
@@ -224,11 +224,11 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
                 <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-md shadow-slate-300/40 border border-slate-100 py-2 z-[100] animate-in fade-in zoom-in-95 duration-200" data-id="popup/Profile">
                   <div className="px-4 py-3 border-b border-white/50 flex items-center gap-3">
                       <div className="relative w-10 h-10 rounded-full bg-[#1A73E8]/10 flex items-center justify-center text-[#1A73E8] font-bold text-sm">
-                          {user ? getInitials(user.user_name || user.username || '') : '??'}
+                          {user ? getInitials(user.display_name || user.user_name || user.username || '') : '??'}
                           <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
                       </div>
                       <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-[#1E293B] truncate">{user?.user_name || user?.username || 'Guest'}</p>
+                          <p className="text-sm font-semibold text-[#1E293B] truncate">{user?.display_name || user?.user_name || user?.username || 'Guest'}</p>
                           <p className="text-xs text-[#64748B] truncate">ID: {user?.id?.substring(0, 8)}...</p>
                       </div>
                   </div>

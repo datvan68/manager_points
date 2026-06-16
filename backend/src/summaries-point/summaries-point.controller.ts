@@ -40,6 +40,16 @@ export class SummariesPointController {
     return this.summariesPointService.create(createSummaryPointDto, req.user);
   }
 
+  @Post('initialize-class')
+  @ApiOperation({ summary: 'Khởi tạo bảng điểm rèn luyện hàng loạt cho một lớp học' })
+  @ApiResponse({ status: 200, description: 'Khởi tạo bảng điểm rèn luyện thành công.' })
+  initializeClass(
+    @Body() body: { classId: string; semesterId: string },
+    @Request() req: any,
+  ) {
+    return this.summariesPointService.initializeClass(body.classId, body.semesterId, req.user);
+  }
+
   @Post('export-pdf')
   @ApiOperation({
     summary: 'Xuất file PDF kết quả điểm rèn luyện sinh viên bằng Puppeteer',
@@ -92,6 +102,7 @@ export class SummariesPointController {
     @Query('semesterId') semesterId?: string,
     @Query('classId') classId?: string,
     @Query('studentId') studentId?: string,
+    @Query('studentIds') studentIds?: string,
     @Query('status') status?: string,
   ) {
     return this.summariesPointService.findAll(req.user, {
@@ -100,6 +111,7 @@ export class SummariesPointController {
       semesterId,
       classId,
       studentId,
+      studentIds,
       status,
     });
   }

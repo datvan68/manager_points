@@ -67,9 +67,25 @@ export interface UpdateEvaluationDetailDto {
 }
 
 export const evaluationDetailApi = {
-  async getEvaluationDetails(): Promise<EvaluationDetail[]> {
-    const res = await httpClient(`${API_BASE}/evaluation-detail`);
-    return handleResponse<EvaluationDetail[]>(res);
+  async getEvaluationDetails(params?: {
+    page?: number;
+    limit?: number;
+    summaryId?: string;
+    semesterId?: string;
+    classId?: string;
+    studentId?: string;
+  }): Promise<EvaluationDetail[] | { data: EvaluationDetail[]; meta: any }> {
+    const queryParts: string[] = [];
+    if (params) {
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null && val !== '') {
+          queryParts.push(`${key}=${encodeURIComponent(val)}`);
+        }
+      });
+    }
+    const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+    const res = await httpClient(`${API_BASE}/evaluation-detail${queryString}`);
+    return handleResponse<any>(res);
   },
 
   async getEvaluationDetail(id: string): Promise<EvaluationDetail> {

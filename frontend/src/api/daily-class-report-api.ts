@@ -10,6 +10,7 @@ export interface DailyClassReport {
   total_absent: number;
   teacher_name: string;
   class_note: string;
+  recordedStudentsCount?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -35,9 +36,25 @@ export interface UpdateDailyClassReportDto {
 }
 
 export const dailyClassReportApi = {
-  async getDailyClassReports(): Promise<DailyClassReport[]> {
-    const res = await httpClient(`${API_BASE}/daily-class-reports`);
-    return handleResponse<DailyClassReport[]>(res);
+  async getDailyClassReports(params?: {
+    page?: number;
+    limit?: number;
+    classId?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  }): Promise<DailyClassReport[] | { data: DailyClassReport[]; meta: any }> {
+    const queryParts: string[] = [];
+    if (params) {
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null && val !== '') {
+          queryParts.push(`${key}=${encodeURIComponent(val)}`);
+        }
+      });
+    }
+    const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+    const res = await httpClient(`${API_BASE}/daily-class-reports${queryString}`);
+    return handleResponse<any>(res);
   },
 
   async getDailyClassReport(id: string): Promise<DailyClassReport> {
@@ -113,5 +130,16 @@ export const dailyClassReportApi = {
       method: 'DELETE',
     });
     return handleResponse<DailyClassReport>(res);
+  },
+
+  async importClassRecords(rows: any[], commit?: boolean): Promise<{ success: boolean; errors: any[]; reportsCreated?: number; recordsCreated?: number; count: number }> {
+    const res = await httpClient(`${API_BASE}/daily-class-reports/import`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ rows, commit }),
+    });
+    return handleResponse<{ success: boolean; errors: any[]; reportsCreated?: number; recordsCreated?: number; count: number }>(res);
   }
 };

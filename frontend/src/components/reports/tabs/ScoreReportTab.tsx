@@ -10,6 +10,22 @@ interface ScoreReportTabProps {
   isLoading: boolean;
   onExport: () => void;
   onExportDetails: () => void;
+  
+  // Table 1 (summaries) pagination
+  serverSide?: boolean;
+  totalItems?: number;
+  currentPage?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+
+  // Table 2 (details) pagination
+  detailsServerSide?: boolean;
+  detailsTotalItems?: number;
+  detailsCurrentPage?: number;
+  detailsPageSize?: number;
+  detailsOnPageChange?: (page: number) => void;
+  detailsOnPageSizeChange?: (size: number) => void;
 }
 
 const columns: TableColumn[] = [
@@ -107,7 +123,19 @@ export default function ScoreReportTab({
   scoreDetailsData, 
   isLoading, 
   onExport, 
-  onExportDetails 
+  onExportDetails,
+  serverSide,
+  totalItems,
+  currentPage,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  detailsServerSide,
+  detailsTotalItems,
+  detailsCurrentPage,
+  detailsPageSize,
+  detailsOnPageChange,
+  detailsOnPageSizeChange
 }: ScoreReportTabProps) {
   return (
     <div className="p-6 space-y-6">
@@ -120,6 +148,12 @@ export default function ScoreReportTab({
         onExportExcel={onExport}
         label="kết quả điểm"
         emptyMessage="Không tìm thấy kết quả điểm rèn luyện nào khớp với bộ lọc."
+        serverSide={serverSide}
+        totalItems={totalItems}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
 
       {/* Table 2: Criteria Details */}
@@ -131,6 +165,12 @@ export default function ScoreReportTab({
         onExportExcel={onExportDetails}
         label="chi tiết tiêu chí"
         emptyMessage="Không tìm thấy chi tiết tiêu chí rèn luyện nào khớp với bộ lọc."
+        serverSide={detailsServerSide}
+        totalItems={detailsTotalItems}
+        currentPage={detailsCurrentPage}
+        pageSize={detailsPageSize}
+        onPageChange={detailsOnPageChange}
+        onPageSizeChange={detailsOnPageSizeChange}
       />
     </div>
   );

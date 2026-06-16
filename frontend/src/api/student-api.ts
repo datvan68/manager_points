@@ -31,11 +31,17 @@ export const studentApi = {
     page?: number;
     limit?: number;
     classId?: string;
+    departmentId?: string;
+    search?: string;
+    status?: string;
   }): Promise<{ data: Student[]; meta?: any } | Student[]> {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', params.page.toString());
     if (params?.limit) query.set('limit', params.limit.toString());
     if (params?.classId) query.set('classId', params.classId);
+    if (params?.departmentId) query.set('departmentId', params.departmentId);
+    if (params?.search) query.set('search', params.search);
+    if (params?.status) query.set('status', params.status);
     
     const qs = query.toString();
     const url = `${API_BASE}/students${qs ? `?${qs}` : ''}`;
@@ -92,6 +98,43 @@ export const studentApi = {
   async deleteStudent(id: string): Promise<Student> {
     const res = await httpClient(`${API_BASE}/students/${id}`, {
       method: 'DELETE',
+    });
+    return handleResponse<Student>(res);
+  },
+
+  async activateStudent(id: string): Promise<Student> {
+    const res = await httpClient(`${API_BASE}/students/${id}/activate`, {
+      method: 'POST',
+    });
+    return handleResponse<Student>(res);
+  },
+
+  async bulkActivateStudents(studentIds: string[]): Promise<{ success: number; total: number; results: any[] }> {
+    const res = await httpClient(`${API_BASE}/students/bulk-activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentIds }),
+    });
+    return handleResponse<{ success: number; total: number; results: any[] }>(res);
+  },
+
+  async resetStudentPassword(id: string): Promise<Student> {
+    const res = await httpClient(`${API_BASE}/students/${id}/reset-password`, {
+      method: 'POST',
+    });
+    return handleResponse<Student>(res);
+  },
+
+  async lockStudent(id: string): Promise<Student> {
+    const res = await httpClient(`${API_BASE}/students/${id}/lock`, {
+      method: 'POST',
+    });
+    return handleResponse<Student>(res);
+  },
+
+  async unlockStudent(id: string): Promise<Student> {
+    const res = await httpClient(`${API_BASE}/students/${id}/unlock`, {
+      method: 'POST',
     });
     return handleResponse<Student>(res);
   }

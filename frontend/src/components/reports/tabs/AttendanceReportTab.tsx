@@ -8,6 +8,12 @@ interface AttendanceReportTabProps {
   data: AttendanceReportRow[];
   isLoading: boolean;
   onExport: () => void;
+  serverSide?: boolean;
+  totalItems?: number;
+  currentPage?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
 }
 
 const columns: TableColumn[] = [
@@ -36,7 +42,17 @@ const columns: TableColumn[] = [
   { key: 'class_note', header: 'Ghi chú', className: 'max-w-[200px] truncate text-[#64748B] font-medium' }
 ];
 
-export default function AttendanceReportTab({ data, isLoading, onExport }: AttendanceReportTabProps) {
+export default function AttendanceReportTab({
+  data,
+  isLoading,
+  onExport,
+  serverSide,
+  totalItems,
+  currentPage,
+  pageSize,
+  onPageChange,
+  onPageSizeChange
+}: AttendanceReportTabProps) {
   return (
     <div className="p-6">
       <ReportTable
@@ -47,6 +63,12 @@ export default function AttendanceReportTab({ data, isLoading, onExport }: Atten
         onExportExcel={onExport}
         label="báo cáo ngày"
         emptyMessage="Không tìm thấy báo cáo chuyên cần nào khớp với bộ lọc."
+        serverSide={serverSide}
+        totalItems={totalItems}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
     </div>
   );

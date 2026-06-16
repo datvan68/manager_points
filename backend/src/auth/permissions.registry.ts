@@ -120,6 +120,12 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     description: 'Cho phép kích hoạt hoặc tạm khóa tài khoản đăng nhập của sinh viên.',
   },
   {
+    code: 'STUDENT_ACCOUNT_RESET_PASSWORD',
+    name: 'Reset mật khẩu sinh viên',
+    module: STUDENT_MANAGER_GROUP.name,
+    description: 'Cho phép đặt lại mật khẩu của sinh viên về ngày sinh mặc định.',
+  },
+  {
     code: 'STUDENT_TRANSFER',
     name: 'Chuyển lớp sinh viên',
     module: STUDENT_MANAGER_GROUP.name,

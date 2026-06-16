@@ -8,6 +8,12 @@ interface StudentReportTabProps {
   data: StudentReportRow[];
   isLoading: boolean;
   onExport: () => void;
+  serverSide?: boolean;
+  totalItems?: number;
+  currentPage?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
 }
 
 const columns: TableColumn[] = [
@@ -50,7 +56,17 @@ const columns: TableColumn[] = [
   }
 ];
 
-export default function StudentReportTab({ data, isLoading, onExport }: StudentReportTabProps) {
+export default function StudentReportTab({
+  data,
+  isLoading,
+  onExport,
+  serverSide = false,
+  totalItems,
+  currentPage,
+  pageSize,
+  onPageChange,
+  onPageSizeChange
+}: StudentReportTabProps) {
   return (
     <div className="p-6">
       <ReportTable
@@ -61,6 +77,12 @@ export default function StudentReportTab({ data, isLoading, onExport }: StudentR
         onExportExcel={onExport}
         label="học sinh sinh viên"
         emptyMessage="Không tìm thấy học sinh sinh viên nào khớp với bộ lọc."
+        serverSide={serverSide}
+        totalItems={totalItems}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
     </div>
   );

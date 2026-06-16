@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
+import logoNsg from '../../assets/cropped-logo-nsg.png';
 import Sidebar from '../../components/layout/Sidebar';
 import Header from '../../components/layout/Header';
 import UserModal from '../../components/modals/UserModal';
@@ -22,15 +24,27 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import ConfirmModal from '../../components/modals/ConfirmModal';
 import { RouteGuard, invalidateRoutePermissionCache } from '@/components/guards/RouteGuard';
-import PermissionFlowDiagram from '../../components/permissions/PermissionFlowDiagram';
+import dynamic from 'next/dynamic';
+
+const PermissionFlowDiagram = dynamic(() => import('../../components/permissions/PermissionFlowDiagram'), {
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-white/20 backdrop-blur-sm rounded-2xl">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1A73E8]"></div>
+    </div>
+  ),
+  ssr: false
+});
 import { 
   resolvePreviewSubject, 
   getPreviewPermissions, 
   buildSystemPreviewAccess,
   getPagePreviewScope,
   type PreviewSubject,
-  type PreviewPermissionItem
+  type PreviewPermissionItem,
 } from './preview-permissions';
+
+const getUserDisplayName = (user: any) =>
+  user?.student_profile?.full_name || user?.display_name || user?.user_name || user?.username || 'Unknown user';
 
 function PermissionsPageContent() {
   const [activeTab, setActiveTab] = useState('Người dùng');
@@ -832,7 +846,10 @@ function PermissionsPageContent() {
   const filteredUsers = users.filter(u => {
     const matchesSearch = 
       (u.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (u.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+      (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.display_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.student_profile?.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.student_profile?.student_code || '').toLowerCase().includes(searchTerm.toLowerCase());
       
     const userRole = u.role?.name || 'User';
     const matchesRole = filterRole === 'Tất cả' || userRole === filterRole;
@@ -1114,11 +1131,13 @@ function PermissionsPageContent() {
                               <td className="px-5 py-2 align-middle">
                                 <div className="flex items-center gap-2.5">
                                   <div className="w-8 h-8 rounded-full bg-white/60 border border-white/80 flex items-center justify-center text-xs font-bold text-[#1E293B] shadow-xs shrink-0">
-                                    {(user.user_name || 'U').substring(0, 2).toUpperCase()}
+                                    {getUserDisplayName(user).substring(0, 2).toUpperCase()}
                                   </div>
                                   <div className="flex flex-col">
-                                    <span className="text-xs font-bold text-[#1E293B]">{user.user_name || user.username}</span>
-                                    <span className="text-[11px] font-medium text-[#64748B] mt-0.5">ID: {user._id.substring(user._id.length - 8)}</span>
+                                    <span className="text-xs font-bold text-[#1E293B]">{getUserDisplayName(user)}</span>
+                                    <span className="text-[11px] font-medium text-[#64748B] mt-0.5">
+                                      {user.student_profile ? '' : `Username: ${user.user_name || user.username} • `}ID: {user._id.substring(user._id.length - 8)}
+                                    </span>
                                   </div>
                                 </div>
                               </td>
@@ -1844,11 +1863,15 @@ function PermissionsPageContent() {
                           </SelectTrigger>
                           <SelectContent className="z-[60] bg-white border border-slate-200 shadow-lg rounded-lg">
                             <SelectItem value="none" className="text-xs font-bold text-slate-500 italic">Mặc định (Admin)</SelectItem>
-                            {users.map((u) => (
-                              <SelectItem key={u._id || u.id} value={u._id || u.id} className="text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
-                                {u.user_name || u.username} ({u.role?.name || 'User'})
-                              </SelectItem>
-                            ))}
+                            {users.map((u) => {
+                              const displayName = getUserDisplayName(u);
+                              const subLabel = u.student_profile ? ` (${u.student_profile.student_code})` : '';
+                              return (
+                                <SelectItem key={u._id || u.id} value={u._id || u.id} className="text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                                  {displayName}{subLabel} ({u.role?.name || 'User'})
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1950,8 +1973,16 @@ function PermissionsPageContent() {
                           <div className="absolute top-0 right-0 bg-indigo-550 text-[8px] font-black text-white px-2 py-0.5 rounded-bl-lg tracking-widest uppercase">Khung mô phỏng</div>
                           
                           <div className="flex items-center gap-2 px-2 pb-4 border-b border-slate-100 mb-4">
-                            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0">E</div>
-                            <span className="text-sm font-bold text-slate-800">EduManager</span>
+                            <div className="w-7 h-7 flex items-center justify-center rounded-lg overflow-hidden bg-slate-50 border border-slate-100 shrink-0">
+                              <Image
+                                src={logoNsg}
+                                alt="NSG Logo"
+                                width={28}
+                                height={28}
+                                className="object-contain"
+                              />
+                            </div>
+                            <span className="text-xs font-black glassmorphic-text tracking-wide whitespace-nowrap">HOCSINHSINHVIEN</span>
                           </div>
 
                           <div className="flex flex-col gap-1.5 flex-grow overflow-y-auto">
@@ -2038,12 +2069,17 @@ function PermissionsPageContent() {
                           {/* Profile Info mockup */}
                           <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center gap-2.5 mt-auto">
                             <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-xs font-black text-blue-600 shrink-0">
-                              {(previewUserObj?.user_name || previewRoleObj?.name || 'A').substring(0, 2).toUpperCase()}
+                              {(previewUserObj ? getUserDisplayName(previewUserObj) : (previewRoleObj?.name || 'A')).substring(0, 2).toUpperCase()}
                             </div>
                             <div className="flex flex-col min-w-0">
                               <span className="text-[11px] font-black text-slate-800 truncate leading-none">
-                                {previewUserObj ? previewUserObj.user_name : (previewRoleObj?.name || 'Chưa chọn')}
+                                {previewUserObj ? getUserDisplayName(previewUserObj) : (previewRoleObj?.name || 'Chưa chọn')}
                               </span>
+                              {previewUserObj?.student_profile && (
+                                <span className="text-[9px] font-bold text-indigo-600 truncate mt-1 leading-none">
+                                  Mã SV: {previewUserObj.student_profile.student_code}
+                                </span>
+                              )}
                               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1.5 leading-none">
                                 {previewRoleCode || 'GUEST'}
                               </span>
@@ -2078,7 +2114,7 @@ function PermissionsPageContent() {
                                 <div className="p-6 space-y-6 overflow-y-auto">
                                   <div className="flex items-center gap-2">
                                     <LayoutDashboard className="w-5 h-5 text-blue-600" />
-                                    <h4 className="text-xs font-bold text-slate-800">Trang chủ EduManager</h4>
+                                    <h4 className="text-xs font-bold text-slate-800">Trang chủ HOCSINHSINHVIEN</h4>
                                   </div>
 
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2099,7 +2135,7 @@ function PermissionsPageContent() {
                                   <div className="border border-slate-150 rounded-xl p-4 space-y-3">
                                     <h5 className="text-[11px] font-bold text-slate-700">Thông báo mới nhất</h5>
                                     <div className="text-[11px] text-slate-500 font-medium space-y-2">
-                                      <p className="p-2 bg-slate-50 rounded">📢 Hệ thống EduManager nâng cấp tính năng Xem trước phân quyền thành công.</p>
+                                      <p className="p-2 bg-slate-50 rounded">📢 Hệ thống HOCSINHSINHVIEN nâng cấp tính năng Xem trước phân quyền thành công.</p>
                                       <p className="p-2 bg-slate-50 rounded">📢 Lịch sao lưu cơ sở dữ liệu định kỳ tự động chạy vào 0h hàng ngày.</p>
                                     </div>
                                   </div>

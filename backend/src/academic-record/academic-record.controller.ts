@@ -49,13 +49,46 @@ export class AcademicRecordController {
     return this.academicRecordService.bulkCreate(bulkCreateDto, requester);
   }
 
+  @Post('import')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Validate or commit bulk import of student academic records',
+  })
+  importRecords(
+    @Body() body: { rows: any[]; commit?: boolean },
+    @Request() req: any,
+  ) {
+    const requester = req.user;
+    const commit = body.commit === true;
+    return this.academicRecordService.importRecords(body.rows, requester, commit);
+  }
+
   @Get()
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all academic records' })
-  findAll(@Request() req: any) {
+  @ApiOperation({ summary: 'Get all academic records with pagination and filters' })
+  findAll(
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('classId') classId?: string,
+    @Query('semesterId') semesterId?: string,
+    @Query('studentId') studentId?: string,
+  ) {
     const requester = req.user;
-    return this.academicRecordService.findAll(requester);
+    return this.academicRecordService.findAll(
+      {
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+        search,
+        classId,
+        semesterId,
+        studentId,
+      },
+      requester,
+    );
   }
 
   @Get('deleted/all')

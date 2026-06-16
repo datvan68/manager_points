@@ -40,6 +40,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import ConfirmModal from "@/components/modals/ConfirmModal";
 
+const getUserDisplayName = (user: any) =>
+  user?.student_profile?.full_name || user?.display_name || user?.user_name || user?.username || 'Unknown user';
+
 export default function UserDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -115,7 +118,7 @@ export default function UserDetailPage() {
       if (foundUser) {
         setUser(foundUser);
         setEditValues({
-          username: foundUser.user_name || foundUser.username || "",
+          username: foundUser.student_profile?.full_name || foundUser.user_name || foundUser.username || "",
           email: foundUser.email || "",
           phone: foundUser.phone_number || foundUser.phone || "0912 345 678",
           staffId: foundUser.staffId || "GV-2023-089",
@@ -221,16 +224,23 @@ export default function UserDetailPage() {
               <div className="flex items-center gap-6">
                 {/* Avatar */}
                 <div className="w-20 h-20 rounded-full bg-[#1A73E8]/10 ring-4 ring-white/60 shadow-sm flex items-center justify-center text-2xl font-bold text-[#1A73E8] shrink-0">
-                  {(user?.user_name || user?.username || "NQ")
+                  {getUserDisplayName(user)
                     .substring(0, 2)
                     .toUpperCase()}
                 </div>
 
                 {/* User Info */}
                 <div className="space-y-1.5">
-                  <h1 className="text-xl font-bold text-[#1E293B]">
-                    {user?.user_name || user?.username || "Nguyễn Quang Huy"}
-                  </h1>
+                  <div className="flex items-center flex-wrap gap-2">
+                    <h1 className="text-xl font-bold text-[#1E293B]">
+                      {getUserDisplayName(user)}
+                    </h1>
+                    {user?.student_profile && (
+                      <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-700 border border-indigo-500/20 rounded-xl text-[10.5px] font-bold shadow-xs">
+                        Mã SV: {user.student_profile.student_code}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex flex-wrap items-center gap-3 md:gap-4">
                     <div className="flex items-center gap-1.5 text-[#64748B]">
                       <Mail className="w-3.5 h-3.5" />
@@ -238,6 +248,11 @@ export default function UserDetailPage() {
                         {user?.email || "huy.nq@edu.vn"}
                       </span>
                     </div>
+                    {!user?.student_profile && (
+                      <div className="bg-white/50 border border-white/80 px-2 py-0.5 rounded-xl text-[10.5px] font-mono font-bold text-[#64748B] shadow-sm">
+                        Username: {user?.user_name}
+                      </div>
+                    )}
                     <div className="bg-white/50 border border-white/80 px-2 py-0.5 rounded-xl text-[10.5px] font-mono font-bold text-[#64748B] shadow-sm">
                       UUID:{" "}
                       {user?._id?.substring(0, 8).toUpperCase() || "8A7F-2B1C"}
@@ -389,7 +404,7 @@ export default function UserDetailPage() {
                             setIsEditing(false);
                             // Restore original values
                             setEditValues({
-                              username: user?.user_name || user?.username || "",
+                              username: user?.student_profile?.full_name || user?.user_name || user?.username || "",
                               email: user?.email || "",
                               phone: user?.phone_number || user?.phone || "0912 345 678",
                               staffId: user?.staffId || "GV-2023-089",
@@ -415,7 +430,7 @@ export default function UserDetailPage() {
                               const response = await authApi.updateUser(
                                 id,
                                 {
-                                  user_name: editValues.username,
+                                  user_name: user?.student_profile ? user.user_name : editValues.username,
                                   email: editValues.email,
                                   phone_number: editValues.phone,
                                   department: editValues.department,
@@ -464,9 +479,17 @@ export default function UserDetailPage() {
                           username: e.target.value,
                         })
                       }
-                      readOnly={!isEditing || isSaving}
-                      className="h-9 text-xs py-1.5 placeholder:text-slate-400/70 shadow-sm"
+                      readOnly={user?.student_profile ? true : (!isEditing || isSaving)}
+                      className="h-9 text-xs py-1.5 placeholder:text-slate-400/70 shadow-sm disabled:opacity-85 disabled:bg-slate-50/30"
                     />
+                    {user?.student_profile && (
+                      <Input
+                        label="Tên đăng nhập (Mã sinh viên)"
+                        value={user?.user_name || ""}
+                        readOnly={true}
+                        className="h-9 text-xs py-1.5 placeholder:text-slate-400/70 shadow-sm disabled:opacity-85 bg-slate-50/50"
+                      />
+                    )}
                     <Input
                       label="Email"
                       value={editValues.email}

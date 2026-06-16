@@ -21,7 +21,6 @@ import {
   FileSpreadsheet,
   RotateCcw,
 } from "lucide-react";
-import * as XLSX from "xlsx";
 
 import { CustomPagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -209,10 +208,12 @@ function GhiNhanTab() {
 
   // Academic record states
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [allCriteria, setAllCriteria] = useState<Criterion[]>([]);
 
   // Class tab states
   const [classReports, setClassReports] = useState<DailyClassReport[]>([]);
+  const [totalClassReports, setTotalClassReports] = useState(0);
   const [classes, setClasses] = useState<Class[]>([]);
   const [isClassLoading, setIsClassLoading] = useState(false);
   const [classSearchTerm, setClassSearchTerm] = useState("");
@@ -231,9 +232,6 @@ function GhiNhanTab() {
   const [isOpeningEditRecord, setIsOpeningEditRecord] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [classCurrentPage, setClassCurrentPage] = useState(1);
-  const [classReportRecordCounts, setClassReportRecordCounts] = useState<
-    Record<string, number>
-  >({});
   const [isDeletingClassReports, setIsDeletingClassReports] = useState(false);
 
   // Global configurations for absent criteria
@@ -303,19 +301,27 @@ function GhiNhanTab() {
         }
       }
 
-      let records = [];
+      let records: any[] = [];
+      let total = 0;
       try {
-        records = await academicRecordApi.getAcademicRecords();
+        const res = await academicRecordApi.getAcademicRecords({
+          page: currentPage,
+          limit: itemsPerPage,
+          search: searchTerm || undefined,
+          classId: selectedClassIdForStudent === "all" ? undefined : selectedClassIdForStudent,
+        });
+        if (res && 'data' in res) {
+          records = res.data;
+          total = res.meta.total;
+        } else {
+          records = Array.isArray(res) ? res : [];
+          total = records.length;
+        }
       } catch (apiErr) {
         console.warn("API getAcademicRecords lỗi:", apiErr);
       }
-      // Sắp xếp các record theo ngày tạo giảm dần
-      records.sort(
-        (a: any, b: any) =>
-          new Date(b.createdAt || 0).getTime() -
-          new Date(a.createdAt || 0).getTime(),
-      );
       setAcademicRecords(records);
+      setTotalRecords(total);
     } catch (err) {
       console.error("Lỗi khi nạp dữ liệu ghi nhận HSSV:", err);
       toast.error("Không thể tải dữ liệu ghi nhận HSSV.");
@@ -472,29 +478,30 @@ function GhiNhanTab() {
         console.warn("Không thể load tiêu chí:", critErr);
       }
 
-      let reports = [];
+      let reports: any[] = [];
+      let total = 0;
       try {
-        reports = await dailyClassReportApi.getDailyClassReports();
+        const res = await dailyClassReportApi.getDailyClassReports({
+          page: classCurrentPage,
+          limit: classItemsPerPage,
+          classId: selectedClassId === "all" ? undefined : selectedClassId,
+          search: classSearchTerm || undefined,
+          startDate: selectedReportDateRange?.start ? format(selectedReportDateRange.start, "yyyy-MM-dd") : undefined,
+          endDate: selectedReportDateRange?.end ? format(selectedReportDateRange.end, "yyyy-MM-dd") : undefined,
+        });
+        if (res && 'data' in res) {
+          reports = res.data;
+          total = res.meta.total;
+        } else {
+          reports = Array.isArray(res) ? res : [];
+          total = reports.length;
+        }
       } catch (apiErr) {
         console.warn("API dailyClassReports lỗi:", apiErr);
       }
 
-      // Sort reports by date descending
-      reports.sort((a, b) => {
-        const parseDate = (dStr: string) => {
-          const parts = dStr.split("/");
-          if (parts.length === 3) {
-            return new Date(
-              parseInt(parts[2]),
-              parseInt(parts[1]) - 1,
-              parseInt(parts[0]),
-            ).getTime();
-          }
-          return new Date(dStr).getTime();
-        };
-        return parseDate(b.report_date) - parseDate(a.report_date);
-      });
       setClassReports(reports);
+      setTotalClassReports(total);
 
       let classList = [];
       try {
@@ -503,43 +510,6 @@ function GhiNhanTab() {
         console.warn("API getClasses lỗi:", classApiErr);
       }
       setClasses(classList);
-
-      // Fetch academic records to count recorded students per daily report
-      try {
-        const records = await academicRecordApi.getAcademicRecords();
-        const counts: Record<string, Set<string>> = {};
-        records.forEach((rec) => {
-          const reportId = rec.daily_report_id
-            ? typeof rec.daily_report_id === "object"
-              ? rec.daily_report_id._id
-              : rec.daily_report_id
-            : null;
-          if (reportId && rec.status === "active") {
-            const studentId = rec.student_id
-              ? typeof rec.student_id === "object"
-                ? rec.student_id._id
-                : rec.student_id
-              : null;
-            if (studentId) {
-              if (!counts[reportId]) {
-                counts[reportId] = new Set<string>();
-              }
-              counts[reportId].add(studentId);
-            }
-          }
-        });
-
-        const finalCounts: Record<string, number> = {};
-        Object.keys(counts).forEach((reportId) => {
-          finalCounts[reportId] = counts[reportId].size;
-        });
-        setClassReportRecordCounts(finalCounts);
-      } catch (recErr) {
-        console.warn(
-          "Lỗi khi nạp dữ liệu ghi nhận sinh viên cho báo cáo lớp:",
-          recErr,
-        );
-      }
     } catch (err) {
       console.error("Lỗi khi nạp dữ liệu lớp học:", err);
       toast.error("Không thể tải dữ liệu tình hình lớp học.");
@@ -688,11 +658,8 @@ function GhiNhanTab() {
     return matchesSearch && matchesDate && matchesClass && matchesCreator;
   });
 
-  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
-  const paginatedRecords = filteredRecords.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  );
+  const totalPages = Math.ceil(totalRecords / itemsPerPage);
+  const paginatedRecords = filteredRecords;
 
   // Class filtering
   const filteredClassReports = classReports.filter((report) => {
@@ -751,11 +718,8 @@ function GhiNhanTab() {
     return matchesClass && matchesDate && matchesSearch;
   });
 
-  const totalClassPages = Math.ceil(filteredClassReports.length / classItemsPerPage);
-  const paginatedClassReports = filteredClassReports.slice(
-    (classCurrentPage - 1) * classItemsPerPage,
-    classCurrentPage * classItemsPerPage,
-  );
+  const totalClassPages = Math.ceil(totalClassReports / classItemsPerPage);
+  const paginatedClassReports = filteredClassReports;
 
   // Student list toggle selects
   const toggleSelectAll = () => {
@@ -1009,12 +973,13 @@ function GhiNhanTab() {
     }
   };
 
-  const handleExportStudentExcel = () => {
+  const handleExportStudentExcel = async () => {
     if (filteredRecords.length === 0) {
       toast.error("Không có dữ liệu để xuất Excel");
       return;
     }
     try {
+      const XLSX = await import("xlsx");
       const data = filteredRecords.map((r) => ({
         "Mã SV": r.studentId,
         "Họ và tên": r.fullName,
@@ -1038,12 +1003,13 @@ function GhiNhanTab() {
     }
   };
 
-  const handleExportClassExcel = () => {
+  const handleExportClassExcel = async () => {
     if (filteredClassReports.length === 0) {
       toast.error("Không có dữ liệu để xuất Excel");
       return;
     }
     try {
+      const XLSX = await import("xlsx");
       const data = filteredClassReports.map((report) => {
         const classObj =
           typeof report.class_id === "object" ? report.class_id : null;
@@ -1081,12 +1047,13 @@ function GhiNhanTab() {
     }
   };
 
-  const handleExportSelectedStudentExcel = () => {
+  const handleExportSelectedStudentExcel = async () => {
     if (selectedIds.length === 0) {
       toast.error("Không có dữ liệu được chọn để xuất Excel");
       return;
     }
     try {
+      const XLSX = await import("xlsx");
       const selectedRecords = mappedRecords.filter((r) =>
         selectedIds.includes(r.id),
       );
@@ -1119,12 +1086,13 @@ function GhiNhanTab() {
     }
   };
 
-  const handleExportSelectedClassExcel = () => {
+  const handleExportSelectedClassExcel = async () => {
     if (selectedReportIds.length === 0) {
       toast.error("Không có dữ liệu được chọn để xuất Excel");
       return;
     }
     try {
+      const XLSX = await import("xlsx");
       const selectedReports = classReports.filter((report) =>
         selectedReportIds.includes(report._id),
       );
@@ -2714,11 +2682,11 @@ function GhiNhanTab() {
           </div>
 
           {/* Pagination Bar Student */}
-          {filteredRecords.length > 0 && (
+          {totalRecords > 0 && (
             <CustomPagination
               currentPage={currentPage}
               pageSize={itemsPerPage}
-              totalItems={filteredRecords.length}
+              totalItems={totalRecords}
               onPageChange={(page) => {
                 setIsLoading(true);
                 setCurrentPage(page);
@@ -2959,8 +2927,7 @@ function GhiNhanTab() {
                               Hiện diện: {totalPresent}/{totalStudents}
                             </span>
                             <span className="text-[#1A73E8] font-bold bg-blue-50 px-1.5 py-0.5 rounded-xl border border-blue-100/50">
-                              {classReportRecordCounts[report._id] || 0} ghi
-                              nhận
+                              {report.recordedStudentsCount || 0} ghi nhận
                             </span>
                             <span>Vắng: {totalAbsent}</span>
                           </div>
@@ -3213,8 +3180,7 @@ function GhiNhanTab() {
                               </div>
                             </td>
                             <td className="px-5 py-4 text-sm font-semibold text-[#64748B]">
-                              {classReportRecordCounts[report._id] || 0} ghi
-                              nhận
+                              {report.recordedStudentsCount || 0} ghi nhận
                             </td>
                             <td className="px-5 py-4 text-sm font-bold text-[#1E293B]">
                               {report.teacher_name}
@@ -3290,11 +3256,11 @@ function GhiNhanTab() {
           </div>
 
           {/* Pagination Bar Class */}
-          {filteredClassReports.length > 0 && (
+          {totalClassReports > 0 && (
             <CustomPagination
               currentPage={classCurrentPage}
               pageSize={classItemsPerPage}
-              totalItems={filteredClassReports.length}
+              totalItems={totalClassReports}
               onPageChange={(page) => {
                 setIsClassLoading(true);
                 setClassCurrentPage(page);

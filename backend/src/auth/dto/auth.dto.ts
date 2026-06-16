@@ -6,6 +6,7 @@ import {
   IsArray,
   IsOptional,
   IsMongoId,
+  Matches,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -23,6 +24,9 @@ export class RegisterDto {
   @ApiProperty({ example: '12345678' })
   @IsString()
   @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, {
+    message: 'Mật khẩu phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
+  })
   password: string;
 }
 
@@ -58,6 +62,9 @@ export class ResetPasswordDto {
   @ApiProperty({ example: 'newpassword123' })
   @IsString()
   @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, {
+    message: 'Mật khẩu mới phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
+  })
   new_password: string;
 }
 
@@ -70,6 +77,9 @@ export class ChangePasswordDto {
   @ApiProperty({ example: 'newpassword123' })
   @IsString()
   @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, {
+    message: 'Mật khẩu mới phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
+  })
   new_password: string;
 }
 
@@ -327,7 +337,7 @@ export class UpdateUserDto {
 
   @ApiProperty({
     example: 'active',
-    enum: ['active', 'locked'],
+    enum: ['active', 'inactive', 'locked'],
     required: false,
   })
   @IsString()

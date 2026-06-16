@@ -55,7 +55,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
     }
   }, [taskId, markStarted]);
   const [classes, setClasses] = useState<Class[]>([]);
-  const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
 
@@ -87,10 +86,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
         const classList = await classApi.getClasses();
         setClasses(classList);
 
-        const studentListRes = await studentApi.getStudents();
-        const studentList = Array.isArray(studentListRes) ? studentListRes : (studentListRes?.data || []);
-        setAllStudents(studentList);
-
         const criteriaList = await criteriaApi.getCriteria();
         setCriteria(criteriaList);
 
@@ -111,15 +106,18 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
           const studentObj = typeof recordToEdit.student_id === 'object' ? recordToEdit.student_id : null;
           const studentIdStr = studentObj ? studentObj._id : (typeof recordToEdit.student_id === 'string' ? recordToEdit.student_id : '');
           
-          // Resolve class from student object or by looking up in allStudents
+          // Resolve class from student object or by calling student API
           let classIdFromRecord = '';
           if (studentObj?.class_id) {
             classIdFromRecord = typeof studentObj.class_id === 'object' ? studentObj.class_id?._id : studentObj.class_id;
-          } else if (studentIdStr && allStudents.length > 0) {
-            // Fallback: look up student in allStudents by _id
-            const foundStudent = allStudents.find(s => s._id === studentIdStr);
-            if (foundStudent) {
-              classIdFromRecord = typeof foundStudent.class_id === 'object' ? foundStudent.class_id?._id : foundStudent.class_id;
+          } else if (studentIdStr) {
+            try {
+              const sObj = await studentApi.getStudent(studentIdStr);
+              if (sObj) {
+                classIdFromRecord = typeof sObj.class_id === 'object' ? sObj.class_id?._id : sObj.class_id;
+              }
+            } catch (err) {
+              console.warn('Lỗi phân giải lớp từ sinh viên:', err);
             }
           }
 
@@ -179,6 +177,35 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
     loadData();
   }, [recordToEdit]);
 
+  const [studentsPage, setStudentsPage] = useState(1);
+  const [studentsSearch, setStudentsSearch] = useState("");
+  const [hasMoreStudents, setHasMoreStudents] = useState(true);
+
+  const fetchClassStudents = async (page: number, searchVal: string, append: boolean = false) => {
+    if (!classId) return;
+    setIsStudentsLoading(true);
+    try {
+      const limit = 30;
+      const res = await studentApi.getStudents({
+        classId,
+        page,
+        limit,
+        search: searchVal || undefined
+      });
+      
+      const newStudents = Array.isArray(res) ? res : (res?.data || []);
+      setClassStudents(prev => append ? [...prev, ...newStudents] : newStudents);
+      setHasMoreStudents(newStudents.length >= limit);
+    } catch (err) {
+      console.warn('Lỗi nạp sinh viên lớp:', err);
+      if (!append) {
+        setClassStudents([]);
+      }
+    } finally {
+      setIsStudentsLoading(false);
+    }
+  };
+
   const handleClassChange = (nextClassId: string) => {
     setClassId(nextClassId);
     setSelectedStudentId('');
@@ -186,32 +213,45 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
     setAddedViolations([]);
   };
 
-  // Lọc sinh viên theo lớp học đang chọn
+  // Lọc sinh viên theo lớp học đang chọn từ backend
   useEffect(() => {
+    setSelectedStudentId('');
+    setViolationNote('');
+    setStudentsPage(1);
+    setStudentsSearch("");
+    setHasMoreStudents(true);
+    setClassStudents([]);
     if (classId) {
-      setIsStudentsLoading(true);
-      const timer = setTimeout(() => {
-        if (allStudents.length > 0) {
-          const filtered = allStudents.filter(s => {
-            const sClassId = typeof s.class_id === 'object' ? s.class_id?._id : s.class_id;
-            return sClassId === classId;
-          });
-          setClassStudents(filtered);
-        } else {
-          setClassStudents([]);
-        }
-        setIsStudentsLoading(false);
-      }, 400); // Tạo trễ nhỏ giả lập loading chuyên nghiệp
-
-      // Reset danh sách ghi nhận tạm nếu đổi lớp
+      fetchClassStudents(1, "");
       setAddedViolations([]);
-      return () => clearTimeout(timer);
     } else {
-      setClassStudents([]);
       setAddedViolations([]);
-      setIsStudentsLoading(false);
     }
-  }, [classId, allStudents]);
+  }, [classId]);
+
+  // Tránh search liên tục khi gõ, ta dùng debounce
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  
+  const handleStudentSearch = (query: string) => {
+    setStudentsSearch(query);
+    setStudentsPage(1);
+    setHasMoreStudents(true);
+    
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchClassStudents(1, query, false);
+    }, 400);
+  };
+
+  const handleLoadMoreStudents = () => {
+    if (isStudentsLoading || !hasMoreStudents) return;
+    const nextPage = studentsPage + 1;
+    setStudentsPage(nextPage);
+    fetchClassStudents(nextPage, studentsSearch, true);
+  };
 
   // Lọc danh sách tiêu chí (lấy tất cả không cần qua danh mục)
   const filteredCriteria = criteria;
@@ -580,6 +620,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         <Select
                           value={selectedStudentId}
                           onValueChange={setSelectedStudentId}
+                          onSearchQueryChange={handleStudentSearch}
                           label="Họ tên sinh viên"
                           error={""}
                         >
@@ -589,10 +630,20 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           >
                             <SelectValue placeholder={classId ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
                           </SelectTrigger>
-                          <SelectContent lazyLoad className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
+                          <SelectContent 
+                            lazyLoad 
+                            onLoadMore={handleLoadMoreStudents}
+                            className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60"
+                          >
                             {classStudents.map(s => (
                               <SelectItem key={s._id} value={s._id}>{s.full_name} ({s.student_code})</SelectItem>
                             ))}
+                            {isStudentsLoading && (
+                              <div className="flex items-center justify-center p-2 text-xs text-slate-400">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                                Đang tải thêm...
+                              </div>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>

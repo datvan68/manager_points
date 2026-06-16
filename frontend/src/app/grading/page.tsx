@@ -398,17 +398,30 @@ function GradingPage() {
   const fetchData = async () => {
     try {
       setIsFetching(true);
-      const [backendDepts, backendClasses, backendSemesters, backendCats, backendCriteria] = await Promise.all([
+      const [backendDepts, backendClasses, backendSemesters] = await Promise.all([
         departmentApi.getDepartments(),
         classApi.getClasses(),
-        semesterApi.getSemesters(),
-        categoryApi.getCategories(),
-        criteriaApi.getCriteria()
+        semesterApi.getSemesters()
       ]);
 
       setApiDepartments(backendDepts || []);
       setApiClasses(backendClasses || []);
       setApiSemesters(backendSemesters || []);
+    } catch (error: any) {
+      toast.error('Lỗi khi tải dữ liệu từ database: ' + error.message);
+    } finally {
+      setIsInitialLoading(false);
+      setIsFetching(false);
+    }
+  };
+
+  const fetchCategoriesAndCriteria = async () => {
+    if (categories.length > 0) return;
+    try {
+      const [backendCats, backendCriteria] = await Promise.all([
+        categoryApi.getCategories(),
+        criteriaApi.getCriteria()
+      ]);
 
       // Map categories và criteria sang cấu trúc chuẩn
       const categoriesMapped = (backendCats || []).map((cat: any) => {
@@ -435,12 +448,15 @@ function GradingPage() {
 
       setCategories(categoriesMapped);
     } catch (error: any) {
-      toast.error('Lỗi khi tải dữ liệu từ database: ' + error.message);
-    } finally {
-      setIsInitialLoading(false);
-      setIsFetching(false);
+      console.error('Lỗi khi tải cấu hình tiêu chí chấm điểm: ', error);
     }
   };
+
+  useEffect(() => {
+    if (isBulkGradingOpen || isPrintModalOpen) {
+      fetchCategoriesAndCriteria();
+    }
+  }, [isBulkGradingOpen, isPrintModalOpen]);
 
   const fetchSummaries = async (pageToFetch: number = currentPage) => {
     if (!appliedClass || !appliedSemester) return;
@@ -635,57 +651,15 @@ function GradingPage() {
     try {
       setIsTableLoading(true);
 
-      // 1. Tải tất cả sinh viên và tất cả summaries
-      const [backendStudents, backendSummaries] = await Promise.all([
-        studentApi.getStudents({ limit: 1000, classId: selectedClass }),
-        summariesPointApi.getSummariesPoints({ limit: 1000, classId: selectedClass, semesterId: selectedSemester })
-      ]);
-        
-      const studentsData = (backendStudents as any)?.data || backendStudents || [];
-      const summariesData = (backendSummaries as any)?.data || backendSummaries || [];
-
-      // 2. Lọc các sinh viên thuộc lớp đang chọn (đã lọc qua tham số backend)
-      const classStudents = studentsData;
-
-      // 3. Kiểm tra xem sinh viên nào chưa có trong bảng summaries cho học kỳ đang chọn
-      const createPromises: Promise<any>[] = [];
-      let skippedCount = 0;
-      classStudents.forEach((student: any) => {
-        if (student.status !== 'Studying') {
-          skippedCount++;
-          return;
+      // Gọi API khởi tạo bảng điểm hàng loạt ở Backend
+      const initRes = await summariesPointApi.initializeClass(selectedClass, selectedSemester);
+      if (initRes.success) {
+        if (initRes.createdCount > 0) {
+          toast.success(`Đã tự động khởi tạo bảng điểm cho ${initRes.createdCount} sinh viên mới!`);
         }
-
-        const hasSummary = summariesData.some((summary: any) => {
-          const semId = typeof summary.semester_id === 'object' ? summary.semester_id?._id : summary.semester_id;
-          const studId = typeof summary.student_id === 'object' ? summary.student_id?._id : summary.student_id;
-          return semId === selectedSemester && studId === student._id;
-        });
-
-        if (!hasSummary) {
-          createPromises.push(
-            summariesPointApi.createSummariesPoint({
-              student_id: student._id,
-              semester_id: selectedSemester,
-              total_score: 0,
-              grading: 'Chưa xếp loại',
-              status: 'draft'
-            })
-          );
-        }
-      });
-
-      if (skippedCount > 0) {
-        toast.info(`Bỏ qua ${skippedCount} sinh viên không có trạng thái "Đang học" khi khởi tạo bảng điểm.`);
       }
 
-      if (createPromises.length > 0) {
-        toast.info(`Phát hiện ${createPromises.length} sinh viên chưa có bảng điểm rèn luyện. Đang tự động khởi tạo...`);
-        await Promise.all(createPromises);
-        toast.success(`Đã tự động khởi tạo bảng điểm cho ${createPromises.length} sinh viên mới!`);
-      }
-
-      // 4. Load lại dữ liệu và áp dụng bộ lọc
+      // Load lại dữ liệu và áp dụng bộ lọc
       await fetchData();
 
       setAppliedSemester(selectedSemester);

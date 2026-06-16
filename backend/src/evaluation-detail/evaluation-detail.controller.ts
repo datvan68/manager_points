@@ -45,8 +45,26 @@ export class EvaluationDetailController {
     status: 200,
     description: 'Trả về danh sách chi tiết chấm điểm.',
   })
-  findAll(@Request() req: any) {
-    return this.evaluationDetailService.findAll(req.user);
+  findAll(
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('summaryId') summaryId?: string,
+    @Query('semesterId') semesterId?: string,
+    @Query('classId') classId?: string,
+    @Query('studentId') studentId?: string,
+  ) {
+    return this.evaluationDetailService.findAll(
+      {
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+        summaryId,
+        semesterId,
+        classId,
+        studentId,
+      },
+      req.user,
+    );
   }
 
   @Get('pre-counts/:summaryId')

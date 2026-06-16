@@ -88,4 +88,35 @@ export class ClassesService {
     }
     return deletedClass;
   }
+
+  async getClassSummary(requester?: any): Promise<any[]> {
+    const classes = await this.findAll(requester);
+    const studentModel = this.classModel.db.model('Student');
+    
+    const summaries = await Promise.all(classes.map(async (cls: any) => {
+      const [studentCount, avatarsRaw] = await Promise.all([
+        studentModel.countDocuments({ class_id: cls._id }).exec(),
+        studentModel
+          .find({ class_id: cls._id })
+          .select('_id full_name student_code')
+          .limit(3)
+          .lean()
+          .exec()
+      ]);
+      
+      const avatars = avatarsRaw.map((s: any) => ({
+        _id: s._id,
+        full_name: s.full_name,
+        student_code: s.student_code
+      }));
+      
+      return {
+        classId: cls._id.toString(),
+        studentCount,
+        avatars
+      };
+    }));
+    
+    return summaries;
+  }
 }

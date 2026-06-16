@@ -341,3 +341,14 @@ body {
     color: #e0f2fe;
   }
 }
+
+/* Glassmorphism/Neumorphism Text Effect for Brand Logo */
+.glassmorphic-text {
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: rgba(30, 41, 59, 0.95); /* Deep slate color for optimal contrast on white glass background */
+  text-shadow: 
+    -1px -1px 0px rgba(255, 255, 255, 0.9), /* Bright top-left bevel highlight */
+    1px 1px 0px rgba(15, 23, 42, 0.15),      /* Shadow for 3D indentation */
+    2px 3px 5px rgba(15, 23, 42, 0.1);       /* Soft drop shadow for elevation */
+}

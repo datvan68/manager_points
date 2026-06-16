@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Popup from './Popup';
 import { Download, UploadCloud, Info, Loader2, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
+
 import ImportResultPopup, { ImportValidationError } from './ImportResultPopup';
 import { studentApi } from '@/api/student-api';
 import { criteriaApi } from '@/api/criteria-api';
@@ -27,8 +27,9 @@ export default function ImportStudentRecordPopup({ isOpen, onClose, onSuccess }:
   const [showResultPopup, setShowResultPopup] = useState(false);
   const [importStats, setImportStats] = useState<{ successCount: number; errors: ImportValidationError[] }>({ successCount: 0, errors: [] });
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     try {
+      const XLSX = await import('xlsx');
       const headers = [['Ma SV', 'Tieu chi', 'Ngay ghi nhan', 'Ghi chu', 'Hoc ky', 'Trang thai']];
       const sample = [ ['SV202601', 'Vắng có phép', '15/05/2026', 'Ghi chú mẫu', '', 'active'] ];
       const ws = XLSX.utils.aoa_to_sheet([...headers, ...sample]);
@@ -91,6 +92,7 @@ export default function ImportStudentRecordPopup({ isOpen, onClose, onSuccess }:
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
+        const XLSX = await import('xlsx');
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: 'array' });
         const sheetName = wb.SheetNames[0];
@@ -99,171 +101,39 @@ export default function ImportStudentRecordPopup({ isOpen, onClose, onSuccess }:
         if (rawRows.length === 0) throw new Error('Tệp Excel không chứa dữ liệu hoặc sai định dạng!');
         if (rawRows.length > 5000) throw new Error('Số lượng bản ghi vượt quá giới hạn 5.000!');
 
-        // load reference data
-        const [allStudentsRes, allCriteria, allSemesters] = await Promise.all([
-          studentApi.getStudents(),
-          criteriaApi.getCriteria(),
-          semesterApi.getSemesters()
-        ]);
-        const allStudents = Array.isArray(allStudentsRes) ? allStudentsRes : (allStudentsRes?.data || []);
-
-        const errors: ImportValidationError[] = [];
-        const validItems: Array<{ row: number; dto: any; studentCode?: string; fullName?: string; criterionName?: string }> = [];
-        const seen = new Map<string, number>();
-
-        for (let i = 0; i < rawRows.length; i++) {
-          const row = rawRows[i];
-          const rowNumber = i + 2;
-          const studentCodeRaw = row['Ma SV'] || row['Mã SV'] || row['Mã sinh viên'] || row['student_code'];
-          const criterionRaw = row['Tieu chi'] || row['Tiêu chí'] || row['Tiêu chí'] || row['criterion'] || row['Tieu chi (*)'];
-          const dateRaw = row['Ngay ghi nhan'] || row['Ngày ghi nhận'] || row['recorded_at'] || row['Ngay'];
-          const noteRaw = row['Ghi chu'] || row['Ghi chú'] || row['note'];
-          const semesterRaw = row['Hoc ky'] || row['Học kỳ'] || row['semester'];
-          const statusRaw = row['Trang thai'] || row['Trạng thái'] || row['status'];
-
-          const studentCode = studentCodeRaw ? studentCodeRaw.toString().trim() : '';
-          if (!studentCode) {
-            errors.push({ row: rowNumber, studentCode: undefined, fullName: undefined, reason: 'Thiếu Mã SV' });
-            continue;
-          }
-
-          if (!criterionRaw) {
-            errors.push({ row: rowNumber, studentCode, fullName: undefined, reason: 'Thiếu Tiêu chí' });
-            continue;
-          }
-
-          if (dateRaw === undefined || dateRaw === null || dateRaw === '') {
-            errors.push({ row: rowNumber, studentCode, fullName: undefined, reason: 'Thiếu Ngày ghi nhận' });
-            continue;
-          }
-
-          // resolve student
-          const foundStudent = allStudents.find((s: any) => s.student_code === studentCode);
-          if (!foundStudent) {
-            errors.push({ row: rowNumber, studentCode, fullName: undefined, reason: 'Không tìm thấy sinh viên theo Mã SV' });
-            continue;
-          }
-
-          // resolve criterion
-          const criterionName = criterionRaw.toString().trim();
-          const foundCriterion = allCriteria.find((c: any) => (c.criterion_name || '').toString().trim().toLowerCase() === criterionName.toLowerCase());
-          if (!foundCriterion) {
-            errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Không tìm thấy tiêu chí: ${criterionName}` });
-            continue;
-          }
-
-          // parse date
-          let recordedAtIso = '';
-          let dateErr = false;
-          if (typeof dateRaw === 'number') {
-            const jsDate = new Date(Math.round((dateRaw - 25569) * 86400 * 1000));
-            if (isNaN(jsDate.getTime())) dateErr = true; else recordedAtIso = jsDate.toISOString();
-          } else {
-            const str = dateRaw ? dateRaw.toString().trim() : '';
-            const dmy = /^([0-9]{1,2})[\/\-]([0-9]{1,2})[\/\-]([0-9]{4})$/;
-            const m = str.match(dmy);
-            if (m) {
-              const day = parseInt(m[1], 10); const month = parseInt(m[2], 10) - 1; const year = parseInt(m[3], 10);
-              const parsed = new Date(year, month, day);
-              if (isNaN(parsed.getTime()) || parsed.getDate() !== day) dateErr = true; else recordedAtIso = parsed.toISOString();
-            } else {
-              const parsed = new Date(str);
-              if (isNaN(parsed.getTime())) dateErr = true; else recordedAtIso = parsed.toISOString();
-            }
-          }
-          if (dateErr) {
-            errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Định dạng ngày không hợp lệ: ${dateRaw}` });
-            continue;
-          }
-
-          // semester resolution
-          let semesterId = '';
-          if (semesterRaw) {
-            const semStr = semesterRaw.toString().trim();
-            const foundSem = allSemesters.find((s: any) => (s.semester_name || s.name || '').toString().toLowerCase() === semStr.toLowerCase() || s._id === semStr);
-            if (foundSem) semesterId = foundSem._id;
-          }
-          if (!semesterId) {
-            const activeSem = allSemesters.find((s: any) => s.status === 'active');
-            if (activeSem) semesterId = activeSem._id;
-          }
-          if (!semesterId) {
-            errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: 'Không có học kỳ active' });
-            continue;
-          }
-
-          const status = statusRaw ? statusRaw.toString().trim().toLowerCase() : 'active';
-          if (statusRaw && status !== 'active' && status !== 'inactive') {
-            errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Trạng thái không hợp lệ: ${statusRaw}` });
-            continue;
-          }
-
-          // duplicate check within file
-          const key = `${studentCode}||${foundCriterion._id}||${recordedAtIso}`;
-          if (seen.has(key)) {
-            errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Bản ghi trùng lặp trong file (trùng với dòng ${seen.get(key)})` });
-            continue;
-          }
-          seen.set(key, rowNumber);
-
-          validItems.push({ row: rowNumber, dto: {
-            student_id: foundStudent._id,
-            criterion_id: foundCriterion._id,
-            semester_id: semesterId,
-            record_title: foundCriterion.criterion_name,
-            description: noteRaw ? noteRaw.toString().trim() : '',
-            recorded_by: user?.id,
-            recorded_at: recordedAtIso,
-            status: status || 'active'
-          }, studentCode, fullName: foundStudent.full_name, criterionName });
-        }
-
-        // If all rows invalid and no validItems -> show errors
-        if (validItems.length === 0) {
-          // sort errors
-          errors.sort((a,b) => a.row - b.row);
+        // Gọi API validate ở backend
+        const validateRes = await academicRecordApi.importRecords(rawRows, false);
+        
+        if (!validateRes.success && validateRes.errors && validateRes.errors.length > 0) {
+          const errors = validateRes.errors.map((err: any) => ({
+            row: err.row,
+            studentCode: err.studentCode,
+            fullName: err.fullName,
+            reason: err.reason
+          }));
+          errors.sort((a: any, b: any) => a.row - b.row);
           setImportStats({ successCount: 0, errors });
           setShowResultPopup(true);
           closeAndReset();
           return;
         }
 
-        // Attempt to create records sequentially to collect per-row API errors
-        let successCount = 0;
-        const createdItems: typeof validItems = [];
-        for (const item of validItems) {
-          try {
-            await academicRecordApi.createAcademicRecord(item.dto);
-            successCount++;
-            createdItems.push(item);
-          } catch (apiErr: any) {
-            errors.push({ row: item.row, studentCode: (item as any).studentCode || undefined, fullName: (item as any).fullName || undefined, reason: apiErr?.message || 'Lỗi khi tạo ghi nhận' });
-          }
-        }
-
-        // After creation, re-check criteria still exist
-        if (createdItems.length > 0) {
-          try {
-            const refreshedCriteria = await criteriaApi.getCriteria();
-            const critSet = new Set(refreshedCriteria.map((c: any) => c._id));
-            createdItems.forEach((it) => {
-              if (!critSet.has(it.dto.criterion_id)) {
-                errors.push({ row: it.row, studentCode: (it as any).studentCode, fullName: (it as any).fullName, reason: 'Tiêu chí liên kết không tồn tại sau khi import' });
-              }
-            });
-          } catch (e) {
-            console.warn('Không thể nạp lại danh sách tiêu chí để kiểm tra sau import', e);
-          }
-        }
-
-        errors.sort((a,b) => a.row - b.row);
-        if (errors.length > 0) {
-          setImportStats({ successCount, errors });
-          setShowResultPopup(true);
+        // Thực hiện commit thực tế lên database
+        const commitRes = await academicRecordApi.importRecords(rawRows, true);
+        if (commitRes.success) {
+          toast.success(`Import thành công ${commitRes.count} ghi nhận!`);
+          if (onSuccess) onSuccess();
           closeAndReset();
         } else {
-          toast.success(`Import thành công ${successCount} ghi nhận!`);
-          if (onSuccess) onSuccess();
+          const errors = commitRes.errors.map((err: any) => ({
+            row: err.row,
+            studentCode: err.studentCode,
+            fullName: err.fullName,
+            reason: err.reason
+          }));
+          errors.sort((a: any, b: any) => a.row - b.row);
+          setImportStats({ successCount: commitRes.count || 0, errors });
+          setShowResultPopup(true);
           closeAndReset();
         }
       } catch (err: any) {

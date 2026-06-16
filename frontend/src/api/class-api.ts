@@ -1,5 +1,6 @@
 import { httpClient, handleResponse } from './http-client';
 import { Department } from './department-api';
+import { apiCache } from './api-cache';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -17,6 +18,16 @@ export interface Class {
   updatedAt?: string;
 }
 
+export interface ClassSummary {
+  classId: string;
+  studentCount: number;
+  avatars: Array<{
+    _id: string;
+    full_name: string;
+    student_code: string;
+  }>;
+}
+
 function normalizeClass(data: any): Class {
   return {
     ...data,
@@ -31,9 +42,16 @@ function normalizeClasses(data: any[]): Class[] {
 
 export const classApi = {
   async getClasses(): Promise<Class[]> {
-    const res = await httpClient(`${API_BASE}/classes`);
-    const data = await handleResponse<any[]>(res);
-    return normalizeClasses(data);
+    return apiCache.get('classes', async () => {
+      const res = await httpClient(`${API_BASE}/classes`);
+      const data = await handleResponse<any[]>(res);
+      return normalizeClasses(data);
+    });
+  },
+
+  async getClassSummary(): Promise<ClassSummary[]> {
+    const res = await httpClient(`${API_BASE}/classes/summary`);
+    return handleResponse<ClassSummary[]>(res);
   },
 
   async getClass(id: string): Promise<Class> {
@@ -49,7 +67,9 @@ export const classApi = {
       body: JSON.stringify(dto),
     });
     const data = await handleResponse<any>(res);
-    return normalizeClass(data);
+    const normalized = normalizeClass(data);
+    apiCache.invalidate('classes');
+    return normalized;
   },
 
   async updateClass(id: string, dto: any): Promise<Class> {
@@ -59,13 +79,17 @@ export const classApi = {
       body: JSON.stringify(dto),
     });
     const data = await handleResponse<any>(res);
-    return normalizeClass(data);
+    const normalized = normalizeClass(data);
+    apiCache.invalidate('classes');
+    return normalized;
   },
 
   async deleteClass(id: string): Promise<Class> {
     const res = await httpClient(`${API_BASE}/classes/${id}`, {
       method: 'DELETE',
     });
-    return handleResponse<Class>(res);
+    const data = await handleResponse<Class>(res);
+    apiCache.invalidate('classes');
+    return data;
   }
 };

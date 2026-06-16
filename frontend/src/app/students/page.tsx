@@ -61,7 +61,7 @@ function StudentsPageContent() {
 
   const [deptsList, setDeptsList] = useState<Department[]>([]);
   const [classesList, setClassesList] = useState<Class[]>([]);
-  const [studentsList, setStudentsList] = useState<Student[]>([]);
+  const [classSummaries, setClassSummaries] = useState<any[]>([]);
   const [selectedDept, setSelectedDept] = useState<string>("");
   const [isClassPopupOpen, setIsClassPopupOpen] = useState(false);
   const [isDeptPopupOpen, setIsDeptPopupOpen] = useState(false);
@@ -126,7 +126,8 @@ function StudentsPageContent() {
         });
       }
 
-      await Promise.all([fetchClasses(fetchedDepts), fetchStudents()]);
+      await fetchClasses(fetchedDepts);
+      fetchClassSummaries();
     } catch (error: any) {
       toast.error("Không thể tải danh sách khoa: " + error.message);
     } finally {
@@ -134,13 +135,12 @@ function StudentsPageContent() {
     }
   };
 
-  const fetchStudents = async () => {
+  const fetchClassSummaries = async () => {
     try {
-      const fetchedStudentsRes = await studentApi.getStudents();
-      const fetchedStudents = Array.isArray(fetchedStudentsRes) ? fetchedStudentsRes : (fetchedStudentsRes?.data || []);
-      setStudentsList(fetchedStudents);
+      const summaries = await classApi.getClassSummary();
+      setClassSummaries(summaries);
     } catch (error: any) {
-      console.error("Error fetching students:", error);
+      console.error("Error fetching class summaries:", error);
     }
   };
 
@@ -256,21 +256,13 @@ function StudentsPageContent() {
       );
     })
     .map((cls) => {
-      const classStudents = studentsList.filter((s) => {
-        const studentClassId =
-          typeof s.class_id === "string" ? s.class_id : s.class_id?._id;
-        return studentClassId === cls._id;
-      });
-
+      const summary = classSummaries.find((s) => s.classId === cls._id);
+      const studentCount = summary ? summary.studentCount : 0;
+      const avatars = summary ? (summary.avatars || []) : [];
       const maxAvatars = 3;
-      const avatars = classStudents.slice(0, maxAvatars).map((s) => ({
-        _id: s._id,
-        full_name: s.full_name,
-        student_code: s.student_code,
-      }));
       const extraStudents =
-        classStudents.length > maxAvatars
-          ? classStudents.length - maxAvatars
+        studentCount > maxAvatars
+          ? studentCount - maxAvatars
           : 0;
 
       return {
@@ -288,7 +280,7 @@ function StudentsPageContent() {
           : cls.class_name.includes("K43")
             ? "Đã tốt nghiệp"
             : "Đang học",
-        students: classStudents.length,
+        students: studentCount,
         avatars,
         extraStudents,
       };

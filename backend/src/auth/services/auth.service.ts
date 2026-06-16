@@ -9,6 +9,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User, UserDocument, UserStatus } from '../schemas/user.schema';
+import { Student } from '../../students/schemas/student.schema';
 import { LoginLog, LoginLogDocument } from '../schemas/login-log.schema';
 import { Role, RoleDocument } from '../schemas/role.schema';
 import { Permission, PermissionDocument } from '../schemas/permission.schema';
@@ -54,6 +55,7 @@ export class AuthService implements OnModuleInit {
     private permissionGroupModel: Model<PermissionGroupDocument>,
     @InjectModel(RoutePermission.name)
     private routePermissionModel: Model<RoutePermissionDocument>,
+    @InjectModel(Student.name) private studentModel: Model<any>,
     private tokenService: TokenService,
     private passwordService: PasswordService,
     private rbacService: RbacService,
@@ -103,7 +105,8 @@ export class AuthService implements OnModuleInit {
       .findOne({
         $or: [{ email: studentEmail.toLowerCase() }, { user_name: loginKey }],
       })
-      .populate('role');
+      .populate('role')
+      .exec();
 
     if (!user) {
       await this.logAction(
@@ -115,20 +118,34 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException(INVALID_LOGIN_MESSAGE);
     }
 
+    if (user.status === UserStatus.INACTIVE) {
+      await this.logAction(
+        user._id,
+        ip,
+        'login_failure',
+        `Inactive user login attempt: ${dto.email}`,
+      );
+      throw new ForbiddenException('Tài khoản chưa được kích hoạt bởi quản trị viên.');
+    }
+
     // Check account lock
-    if (user.status === UserStatus.LOCKED && user.locked_until) {
-      if (new Date() < new Date(user.locked_until)) {
-        const minutesLeft = Math.ceil(
-          (new Date(user.locked_until).getTime() - Date.now()) / 60000,
-        );
-        throw new ForbiddenException(
-          `Tài khoản bị khóa. Vui lòng thử lại sau ${minutesLeft} phút.`,
-        );
+    if (user.status === UserStatus.LOCKED) {
+      if (user.locked_until) {
+        if (new Date() < new Date(user.locked_until)) {
+          const minutesLeft = Math.ceil(
+            (new Date(user.locked_until).getTime() - Date.now()) / 60000,
+          );
+          throw new ForbiddenException(
+            `Tài khoản bị khóa. Vui lòng thử lại sau ${minutesLeft} phút.`,
+          );
+        }
+        user.status = UserStatus.ACTIVE;
+        user.failed_login_attempts = 0;
+        user.locked_until = null;
+        await user.save();
+      } else {
+        throw new ForbiddenException('Tài khoản đã bị khóa bởi quản trị viên.');
       }
-      user.status = UserStatus.ACTIVE;
-      user.failed_login_attempts = 0;
-      user.locked_until = null;
-      await user.save();
     }
 
     const passwordHash = user.pw_hash || (user as any).password_hash;
@@ -157,9 +174,6 @@ export class AuthService implements OnModuleInit {
     // Success
     user.failed_login_attempts = 0;
     user.locked_until = null;
-    if (user.status === UserStatus.INACTIVE) {
-      user.status = UserStatus.ACTIVE;
-    }
     await user.save();
 
     const role = user.role as any;
@@ -181,12 +195,16 @@ export class AuthService implements OnModuleInit {
       `Remember: ${!!dto.remember}`,
     );
 
+    const student = await this.studentModel.findOne({ user_id: user._id }).exec();
+    const displayName = student ? student.full_name : user.user_name;
+
     return {
       access_token,
       refresh_token,
       user: {
         id: user._id.toString(),
         username: user.user_name,
+        display_name: displayName,
         role: role?.name || 'User',
       },
     };
@@ -351,6 +369,7 @@ export class AuthService implements OnModuleInit {
           'STUDENT_IMPORT',
           'STUDENT_EXPORT',
           'STUDENT_ACCOUNT_ACTIVATE',
+          'STUDENT_ACCOUNT_RESET_PASSWORD',
           'STUDENT_TRANSFER',
           'DEPT_CREATE',
           'DEPT_UPDATE',
@@ -415,9 +434,13 @@ export class AuthService implements OnModuleInit {
     const role = user.role as any;
     const permissions = role?.permissions?.map((p: any) => p.code) || [];
 
+    const student = await this.studentModel.findOne({ user_id: user._id }).exec();
+    const displayName = student ? student.full_name : user.user_name;
+
     return {
       id: user._id.toString(),
       user_name: user.user_name,
+      display_name: displayName,
       email: user.email,
       phone_number: user.phone_number || '',
       department: user.department || '',
@@ -463,7 +486,34 @@ export class AuthService implements OnModuleInit {
   }
 
   async getUsers() {
-    return this.userModel.find().populate('role').select('-pw_hash');
+    const users = await this.userModel.find().populate('role').select('-pw_hash').exec();
+    
+    const userIds = users.map(u => u._id);
+    const students = await this.studentModel.find({ user_id: { $in: userIds } }).exec();
+    
+    const studentMap = new Map();
+    for (const student of students) {
+      if (student.user_id) {
+        studentMap.set(student.user_id.toString(), student);
+      }
+    }
+    
+    return users.map(user => {
+      const userObj = user.toObject() as any;
+      const student = studentMap.get(user._id.toString());
+      if (student) {
+        userObj.display_name = student.full_name;
+        userObj.student_profile = {
+          id: student._id,
+          student_code: student.student_code,
+          full_name: student.full_name,
+          class_id: student.class_id,
+        };
+      } else {
+        userObj.display_name = user.user_name;
+      }
+      return userObj;
+    });
   }
 
   async updateUser(userId: string, dto: UpdateUserDto, ip: string) {
@@ -494,6 +544,8 @@ export class AuthService implements OnModuleInit {
       user.email = dto.email.toLowerCase();
     }
 
+    let shouldRevokeTokens = false;
+
     // Check role existence if role_id is provided
     if (dto.role_id) {
       if (!Types.ObjectId.isValid(dto.role_id)) {
@@ -503,20 +555,29 @@ export class AuthService implements OnModuleInit {
       if (!role) {
         throw new BadRequestException('Vai trò không tồn tại');
       }
-      user.role = role._id;
+      if (user.role && user.role.toString() !== role._id.toString()) {
+        user.role = role._id;
+        shouldRevokeTokens = true;
+      }
     }
 
     // Update other fields
     if (dto.status) {
       if (
         dto.status !== UserStatus.ACTIVE &&
-        dto.status !== UserStatus.LOCKED
+        dto.status !== UserStatus.LOCKED &&
+        dto.status !== UserStatus.INACTIVE
       ) {
         throw new BadRequestException('Trạng thái không hợp lệ');
       }
-      user.status = dto.status as UserStatus;
-      // If status changes to Active, clear locking properties
-      if (dto.status === UserStatus.ACTIVE) {
+      if (user.status !== dto.status) {
+        user.status = dto.status as UserStatus;
+        if (dto.status === UserStatus.LOCKED || dto.status === UserStatus.INACTIVE) {
+          shouldRevokeTokens = true;
+        }
+      }
+      // If status changes to Active or Inactive, clear locking properties
+      if (dto.status === UserStatus.ACTIVE || dto.status === UserStatus.INACTIVE) {
         user.failed_login_attempts = 0;
         user.locked_until = null;
       }
@@ -530,6 +591,8 @@ export class AuthService implements OnModuleInit {
       user.pw_hash = await this.passwordService.hashPassword(dto.password);
       user.failed_login_attempts = 0;
       user.locked_until = null;
+      user.status = UserStatus.ACTIVE;
+      shouldRevokeTokens = true;
       await this.logAction(
         user._id,
         ip,
@@ -539,6 +602,10 @@ export class AuthService implements OnModuleInit {
     }
 
     await user.save();
+
+    if (shouldRevokeTokens) {
+      await this.tokenService.revokeAllUserTokens(user._id.toString());
+    }
 
     // Populate role and return updated user (without pw_hash)
     const updatedUser = await this.userModel

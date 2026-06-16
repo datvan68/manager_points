@@ -1,4 +1,5 @@
 import { httpClient, handleResponse } from './http-client';
+import { apiCache } from './api-cache';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -28,8 +29,10 @@ export interface UpdateCategoryDto {
 
 export const categoryApi = {
   async getCategories(): Promise<Category[]> {
-    const res = await httpClient(`${API_BASE}/categories`);
-    return handleResponse<Category[]>(res);
+    return apiCache.get('categories', async () => {
+      const res = await httpClient(`${API_BASE}/categories`);
+      return handleResponse<Category[]>(res);
+    });
   },
 
   async getCategory(id: string): Promise<Category> {
@@ -43,7 +46,9 @@ export const categoryApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    return handleResponse<Category>(res);
+    const data = await handleResponse<Category>(res);
+    apiCache.invalidate('categories');
+    return data;
   },
 
   async updateCategory(id: string, dto: UpdateCategoryDto): Promise<Category> {
@@ -52,13 +57,17 @@ export const categoryApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    return handleResponse<Category>(res);
+    const data = await handleResponse<Category>(res);
+    apiCache.invalidate('categories');
+    return data;
   },
 
   async deleteCategory(id: string): Promise<Category> {
     const res = await httpClient(`${API_BASE}/categories/${id}`, {
       method: 'DELETE',
     });
-    return handleResponse<Category>(res);
+    const data = await handleResponse<Category>(res);
+    apiCache.invalidate('categories');
+    return data;
   }
 };

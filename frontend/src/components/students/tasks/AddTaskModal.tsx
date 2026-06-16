@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, PlusCircle, Link as LinkIcon, UserCheck, Calendar as CalendarIcon } from 'lucide-react';
+import { X, PlusCircle, Link as LinkIcon, UserCheck, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { studentApi } from '@/api/student-api';
 import { classApi } from '@/api/class-api';
 import { studentTaskApi } from '@/api/task-api';
@@ -67,6 +67,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
   const [classesList, setClassesList] = useState<any[]>([]);
   const [teachersList, setTeachersList] = useState<any[]>([]);
   const [isLoadingSpecificData, setIsLoadingSpecificData] = useState(false);
+
+  const [studentsPage, setStudentsPage] = useState(1);
+  const [studentsSearch, setStudentsSearch] = useState("");
+  const [hasMoreStudents, setHasMoreStudents] = useState(true);
+  const [isStudentsLoading, setIsStudentsLoading] = useState(false);
 
   // Selected Specific IDs
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -142,7 +147,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
     }
   }, [editingTask, isOpen]);
 
-  // Load specific items for checkbox lists when Scope is Cụ thể
+  // Load specific items for checkbox lists when Scope is Cụ thể (except students)
   useEffect(() => {
     if (isOpen && targetScope === 'Cụ thể') {
       const loadSpecificData = async () => {
@@ -151,11 +156,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
           // Load classes
           const classes = await classApi.getClasses();
           setClassesList(classes);
-
-          // Load students
-          const studentsRes = await studentApi.getStudents();
-          const students = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.data || []);
-          setStudentsList(students);
 
           // Load teachers sử dụng API đã chuẩn hóa dùng shared httpClient
           const teachers = await studentTaskApi.getTeachers();
@@ -169,6 +169,80 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
       loadSpecificData();
     }
   }, [isOpen, targetScope]);
+
+  const loadStudentsOfSelectedClasses = async (page: number, searchVal: string, append: boolean = false) => {
+    if (selectedClassIds.length === 0) {
+      setStudentsList([]);
+      setHasMoreStudents(false);
+      return;
+    }
+    setIsStudentsLoading(true);
+    try {
+      const limit = 30;
+      const promises = selectedClassIds.map(async (classId) => {
+        const res = await studentApi.getStudents({
+          classId,
+          page,
+          limit,
+          search: searchVal || undefined
+        });
+        return Array.isArray(res) ? res : (res?.data || []);
+      });
+      const results = await Promise.all(promises);
+      const newStudents = results.flat();
+      setStudentsList(prev => append ? [...prev, ...newStudents] : newStudents);
+      setHasMoreStudents(newStudents.length >= limit);
+    } catch (err) {
+      console.warn('Lỗi khi tải học sinh theo các lớp đã chọn:', err);
+      if (!append) {
+        setStudentsList([]);
+      }
+    } finally {
+      setIsStudentsLoading(false);
+    }
+  };
+
+  // Load students belonging ONLY to the selected classes
+  useEffect(() => {
+    if (isOpen && targetScope === 'Cụ thể' && targetType === 'HSSV') {
+      setStudentsPage(1);
+      setStudentsSearch("");
+      setHasMoreStudents(true);
+      loadStudentsOfSelectedClasses(1, "");
+    } else {
+      setStudentsList([]);
+    }
+  }, [isOpen, targetScope, targetType, selectedClassIds]);
+
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleStudentSearch = (query: string) => {
+    setStudentsSearch(query);
+    setStudentsPage(1);
+    setHasMoreStudents(true);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      loadStudentsOfSelectedClasses(1, query, false);
+    }, 400);
+  };
+
+  const handleLoadMoreStudents = () => {
+    if (isStudentsLoading || !hasMoreStudents) return;
+    const nextPage = studentsPage + 1;
+    setStudentsPage(nextPage);
+    loadStudentsOfSelectedClasses(nextPage, studentsSearch, true);
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (target.scrollHeight - target.scrollTop <= target.clientHeight + 15) {
+      handleLoadMoreStudents();
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -480,7 +554,17 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                                   {/* Chọn học sinh */}
                                   <div className="space-y-1">
                                     <label className="text-xs font-semibold text-[#64748B] block">Chọn Học sinh cụ thể (Không bắt buộc nếu đã chọn lớp)</label>
-                                    <div className="border border-white/70 rounded-xl p-2 bg-white/50 max-h-40 overflow-y-auto space-y-1.5">
+                                    <input 
+                                      type="text" 
+                                      placeholder="Tìm học sinh..." 
+                                      className="w-full text-xs border border-white/70 rounded-lg p-1.5 bg-white/50 mb-1 outline-none focus:ring-1 focus:ring-blue-500" 
+                                      value={studentsSearch}
+                                      onChange={(e) => handleStudentSearch(e.target.value)}
+                                    />
+                                    <div 
+                                      onScroll={handleScroll}
+                                      className="border border-white/70 rounded-xl p-2 bg-white/50 max-h-40 overflow-y-auto space-y-1.5"
+                                    >
                                       {studentsList.map((stud) => {
                                         const isChecked = selectedStudentIds.includes(stud._id);
                                         return (
@@ -501,7 +585,13 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                                           </label>
                                         );
                                       })}
-                                      {studentsList.length === 0 && <div className="text-xs text-gray-400 p-2">Không có học sinh nào</div>}
+                                      {isStudentsLoading && (
+                                        <div className="flex items-center justify-center p-2 text-xs text-slate-400">
+                                          <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                          Đang tải thêm...
+                                        </div>
+                                      )}
+                                      {studentsList.length === 0 && !isStudentsLoading && <div className="text-xs text-gray-400 p-2">Không có học sinh nào</div>}
                                     </div>
                                   </div>
                                 </div>

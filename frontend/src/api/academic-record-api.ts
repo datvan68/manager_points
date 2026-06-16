@@ -61,14 +61,30 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export const academicRecordApi = {
-  async getAcademicRecords(): Promise<AcademicRecord[]> {
+  async getAcademicRecords(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    classId?: string;
+    semesterId?: string;
+    studentId?: string;
+  }): Promise<AcademicRecord[] | { data: AcademicRecord[]; meta: any }> {
     const token = tokenStorage.getAccessToken() || '';
-    const res = await fetch(`${API_BASE}/academic-records`, {
+    const queryParts: string[] = [];
+    if (params) {
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null && val !== '') {
+          queryParts.push(`${key}=${encodeURIComponent(val)}`);
+        }
+      });
+    }
+    const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+    const res = await fetch(`${API_BASE}/academic-records${queryString}`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
     });
-    return handleResponse<AcademicRecord[]>(res);
+    return handleResponse<any>(res);
   },
 
   async getAcademicRecord(id: string): Promise<AcademicRecord> {
@@ -178,5 +194,18 @@ export const academicRecordApi = {
       },
     });
     return handleResponse<AcademicRecord>(res);
+  },
+  
+  async importRecords(rows: any[], commit?: boolean): Promise<{ success: boolean; errors: any[]; count: number }> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/import`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ rows, commit }),
+    });
+    return handleResponse<{ success: boolean; errors: any[]; count: number }>(res);
   }
 };

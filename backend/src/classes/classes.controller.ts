@@ -41,6 +41,14 @@ export class ClassesController {
       : this.classesService.findAll();
   }
 
+  @Get('summary')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get summary of all classes (student count, avatars)' })
+  getClassSummary(@Request() req?: any) {
+    return this.classesService.getClassSummary(req?.user);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

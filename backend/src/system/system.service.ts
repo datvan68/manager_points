@@ -8,6 +8,7 @@ import { LoginLog, LoginLogDocument } from '../auth/schemas/login-log.schema';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { SystemPerformanceMetric, SystemPerformanceMetricDocument } from './schemas/system-performance-metric.schema';
 import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto } from './dto/system.dto';
+import { getRequesterRoleName, isStudent, isTeacher, isSupervisor, isAdmin, isAdminUser } from '../auth/utils/role.util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
@@ -786,5 +787,1147 @@ export class SystemService {
     ]);
 
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getDashboardMetrics(requester: any, semesterId?: string) {
+    const studentModel = this.connection.model('Student');
+    const classModel = this.connection.model('Class');
+    const departmentModel = this.connection.model('Department');
+    const semesterModel = this.connection.model('Semester');
+    const evaluationPeriodModel = this.connection.model('EvaluationPeriod');
+    const summaryPointModel = this.connection.model('SummaryPoint');
+    const academicRecordModel = this.connection.model('AcademicRecord');
+    const studentTaskModel = this.connection.model('StudentTask');
+    const notificationModel = this.connection.model('Notification');
+    const criterionModel = this.connection.model('Criterion');
+
+    const role = getRequesterRoleName(requester);
+    let roleScope: 'admin' | 'teacher' | 'student' | 'system' | 'unknown' = 'unknown';
+
+    if (isAdminUser(requester)) {
+      roleScope = 'admin';
+    } else if (isTeacher(requester)) {
+      roleScope = 'teacher';
+    } else if (isStudent(requester)) {
+      roleScope = 'student';
+    } else if ((requester?.permissions || []).some((p: any) => ['LOGIN_LOG_READ', 'SYSTEM_REQUEST_READ', 'DATABASE_BACKUP_READ'].includes(p))) {
+      roleScope = 'system';
+    }
+
+    const semesters = (await semesterModel.find().lean().exec()) as any[];
+    const activeSem = semesters.find(s => s.status === 'active') || semesters.find(s => s.status === 'upcoming') || null;
+    const targetSemesterId = semesterId && Types.ObjectId.isValid(semesterId)
+      ? new Types.ObjectId(semesterId)
+      : (activeSem ? activeSem._id : null);
+
+    let activePeriod = null;
+    if (targetSemesterId) {
+      activePeriod = await evaluationPeriodModel.findOne({
+        semester_id: targetSemesterId,
+        status: { $ne: 'closed' }
+      }).lean().exec();
+    } else {
+      activePeriod = await evaluationPeriodModel.findOne({
+        status: { $ne: 'closed' }
+      }).lean().exec();
+    }
+
+    let teacherClassIds: Types.ObjectId[] = [];
+    let studentIds: Types.ObjectId[] = [];
+    let student: any = null;
+    let summariesMap = new Map<string, any>();
+
+    if (roleScope === 'teacher') {
+      const teacherClasses = await classModel.find({ advisor_id: new Types.ObjectId(requester.userId) }).select('_id').lean().exec();
+      teacherClassIds = teacherClasses.map(c => c._id);
+    } else if (roleScope === 'student') {
+      student = await studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).lean().exec();
+      if (student) {
+        studentIds = [student._id];
+      }
+    }
+
+    // ─── KPIs ────────────────────────────────────────────────────────────────
+    let totalStudents = 0;
+    if (roleScope === 'teacher') {
+      totalStudents = await studentModel.countDocuments({ class_id: { $in: teacherClassIds } });
+    } else if (roleScope === 'student') {
+      totalStudents = studentIds.length;
+    } else {
+      totalStudents = await studentModel.countDocuments();
+    }
+
+    let totalClasses = 0;
+    if (roleScope === 'teacher') {
+      totalClasses = teacherClassIds.length;
+    } else if (roleScope === 'student') {
+      totalClasses = student?.class_id ? 1 : 0;
+    } else {
+      totalClasses = await classModel.countDocuments();
+    }
+
+    const totalDepartments = await departmentModel.countDocuments();
+
+    // Average Score
+    let averageScore = 0;
+    if (targetSemesterId) {
+      let avgResult;
+      if (roleScope === 'teacher') {
+        avgResult = await summaryPointModel.aggregate([
+          {
+            $lookup: {
+              from: 'students',
+              localField: 'student_id',
+              foreignField: '_id',
+              as: 'student'
+            }
+          },
+          { $unwind: '$student' },
+          {
+            $match: {
+              semester_id: targetSemesterId,
+              period_id: null,
+              total_score: { $ne: null },
+              'student.class_id': { $in: teacherClassIds }
+            }
+          },
+          { $group: { _id: null, avgScore: { $avg: '$total_score' } } }
+        ]);
+      } else {
+        const matchSummaryFilter: any = {
+          semester_id: targetSemesterId,
+          period_id: null,
+          total_score: { $ne: null }
+        };
+        if (roleScope === 'student') {
+          matchSummaryFilter.student_id = { $in: studentIds };
+        }
+        avgResult = await summaryPointModel.aggregate([
+          { $match: matchSummaryFilter },
+          { $group: { _id: null, avgScore: { $avg: '$total_score' } } }
+        ]);
+      }
+      averageScore = avgResult.length > 0 ? Math.round(avgResult[0].avgScore * 10) / 10 : 0;
+    }
+
+    // Pending My Review Count
+    let pendingMyReviewCount = 0;
+    if (targetSemesterId) {
+      if (roleScope === 'teacher') {
+        const result = await summaryPointModel.aggregate([
+          {
+            $lookup: {
+              from: 'students',
+              localField: 'student_id',
+              foreignField: '_id',
+              as: 'student'
+            }
+          },
+          { $unwind: '$student' },
+          {
+            $match: {
+              semester_id: targetSemesterId,
+              period_id: null,
+              status: 'sv_submitted',
+              'student.class_id': { $in: teacherClassIds }
+            }
+          },
+          { $count: 'count' }
+        ]);
+        pendingMyReviewCount = result.length > 0 ? result[0].count : 0;
+      } else if (roleScope === 'student') {
+        pendingMyReviewCount = await summaryPointModel.countDocuments({
+          semester_id: targetSemesterId,
+          period_id: null,
+          status: 'draft',
+          student_id: { $in: studentIds }
+        });
+      } else if (roleScope === 'admin') {
+        pendingMyReviewCount = await summaryPointModel.countDocuments({
+          semester_id: targetSemesterId,
+          period_id: null,
+          status: { $in: ['gv_reviewed', 'sv_submitted'] }
+        });
+      }
+    }
+
+    // Urgent Tasks
+    const now = new Date();
+    const threeDaysLater = new Date(now.getTime() + 3 * 24 * 3600 * 1000);
+    const taskFilter: any = {
+      status: { $ne: 'completed' },
+      deletedAt: null,
+      $or: [
+        { priority: 'high' },
+        { deadline: { $gte: now, $lte: threeDaysLater } }
+      ]
+    };
+
+    if (roleScope === 'student' && student) {
+      taskFilter.$or = [
+        { targetType: 'student', targetScope: 'all' },
+        { targetType: 'student', targetScope: 'specific', targetStudentIds: student._id }
+      ];
+    } else if (roleScope === 'teacher') {
+      taskFilter.$or = [
+        { targetType: 'teacher', targetScope: 'all' },
+        { targetType: 'teacher', targetScope: 'specific', targetTeacherIds: new Types.ObjectId(requester.userId) },
+        { createdBy: new Types.ObjectId(requester.userId) }
+      ];
+    }
+
+    const urgentTasks = await studentTaskModel.find(taskFilter).sort({ deadline: 1 }).limit(5).lean().exec();
+    const urgentTasksCount = await studentTaskModel.countDocuments(taskFilter);
+
+    // Notifications
+    const normalizedRoleLower = role.toLowerCase();
+    const notifFilter: any = {
+      deletedAt: null,
+      $or: [
+        { recipientUserId: new Types.ObjectId(requester.userId) },
+        { recipientUserId: null, targetRole: { $in: ['all', normalizedRoleLower] } }
+      ]
+    };
+    const recentNotifications = await notificationModel.find(notifFilter).sort({ createdAt: -1 }).limit(5).lean().exec();
+    const unreadNotificationsCount = await notificationModel.countDocuments({
+      ...notifFilter,
+      readByUserIds: { $ne: new Types.ObjectId(requester.userId) }
+    });
+
+    // ─── DISTRIBUTIONS ───────────────────────────────────────────────────────
+    // Student Status
+    const studentStatusMatch = roleScope === 'teacher' ? { class_id: { $in: teacherClassIds } } : {};
+    const statusResult = await studentModel.aggregate([
+      { $match: studentStatusMatch },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    const studentStatus: Record<string, number> = {};
+    statusResult.forEach(item => {
+      studentStatus[item._id] = item.count;
+    });
+
+    // Evaluation Status
+    const evaluationStatus: Record<string, number> = {
+      draft: 0,
+      sv_submitted: 0,
+      gv_reviewed: 0,
+      locked: 0,
+    };
+    if (targetSemesterId) {
+      let evalResult;
+      if (roleScope === 'teacher') {
+        evalResult = await summaryPointModel.aggregate([
+          {
+            $lookup: {
+              from: 'students',
+              localField: 'student_id',
+              foreignField: '_id',
+              as: 'student'
+            }
+          },
+          { $unwind: '$student' },
+          {
+            $match: {
+              semester_id: targetSemesterId,
+              period_id: null,
+              'student.class_id': { $in: teacherClassIds }
+            }
+          },
+          { $group: { _id: '$status', count: { $sum: 1 } } }
+        ]);
+      } else {
+        const evalMatch: any = { semester_id: targetSemesterId, period_id: null };
+        if (roleScope === 'student') {
+          evalMatch.student_id = { $in: studentIds };
+        }
+        evalResult = await summaryPointModel.aggregate([
+          { $match: evalMatch },
+          { $group: { _id: '$status', count: { $sum: 1 } } }
+        ]);
+      }
+      evalResult.forEach(item => {
+        if (evaluationStatus[item._id] !== undefined) {
+          evaluationStatus[item._id] = item.count;
+        }
+      });
+    }
+
+    // Class Distribution by Dept
+    const classMatch = roleScope === 'teacher' ? { advisor_id: new Types.ObjectId(requester.userId) } : {};
+    const classDistResult = await classModel.aggregate([
+      { $match: classMatch },
+      { $group: { _id: '$dept_id', count: { $sum: 1 } } }
+    ]);
+    const deptIds = classDistResult.map(c => c._id).filter(Boolean);
+    const depts = (await departmentModel.find({ _id: { $in: deptIds } }).select('_id name').lean().exec()) as any[];
+    const deptMap = new Map(depts.map((d: any) => [d._id.toString(), d.name]));
+    const classDistributionByDept: Record<string, number> = {};
+    classDistResult.forEach(item => {
+      const deptName = item._id ? (deptMap.get(item._id.toString()) || 'Chưa phân khoa') : 'Chưa phân khoa';
+      classDistributionByDept[deptName] = item.count;
+    });
+
+    // Score Distribution
+    const scoreDistribution = {
+      xuatsac: 0,
+      tot: 0,
+      kha: 0,
+      trungbinh: 0,
+      yeu: 0,
+    };
+    if (targetSemesterId) {
+      let scoreDistResult;
+      if (roleScope === 'teacher') {
+        scoreDistResult = await summaryPointModel.aggregate([
+          {
+            $lookup: {
+              from: 'students',
+              localField: 'student_id',
+              foreignField: '_id',
+              as: 'student'
+            }
+          },
+          { $unwind: '$student' },
+          {
+            $match: {
+              semester_id: targetSemesterId,
+              period_id: null,
+              total_score: { $ne: null },
+              'student.class_id': { $in: teacherClassIds }
+            }
+          },
+          {
+            $project: {
+              bucket: {
+                $cond: [
+                  { $gte: ['$total_score', 90] }, 'xuatsac',
+                  {
+                    $cond: [
+                      { $gte: ['$total_score', 80] }, 'tot',
+                      {
+                        $cond: [
+                          { $gte: ['$total_score', 65] }, 'kha',
+                          {
+                            $cond: [
+                              { $gte: ['$total_score', 50] }, 'trungbinh', 'yeu'
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          { $group: { _id: '$bucket', count: { $sum: 1 } } }
+        ]);
+      } else {
+        const scoreDistMatch: any = { semester_id: targetSemesterId, period_id: null, total_score: { $ne: null } };
+        if (roleScope === 'student') {
+          scoreDistMatch.student_id = { $in: studentIds };
+        }
+        scoreDistResult = await summaryPointModel.aggregate([
+          { $match: scoreDistMatch },
+          {
+            $project: {
+              bucket: {
+                $cond: [
+                  { $gte: ['$total_score', 90] }, 'xuatsac',
+                  {
+                    $cond: [
+                      { $gte: ['$total_score', 80] }, 'tot',
+                      {
+                        $cond: [
+                          { $gte: ['$total_score', 65] }, 'kha',
+                          {
+                            $cond: [
+                              { $gte: ['$total_score', 50] }, 'trungbinh', 'yeu'
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          { $group: { _id: '$bucket', count: { $sum: 1 } } }
+        ]);
+      }
+      scoreDistResult.forEach(item => {
+        if (item._id in scoreDistribution) {
+          scoreDistribution[item._id as keyof typeof scoreDistribution] = item.count;
+        }
+      });
+    }
+
+    // ─── RECENT LISTS & HIGHLIGHTS ───────────────────────────────────────────
+    let recentAcademicRecords: any[] = [];
+    let topScores: any[] = [];
+    let topRewards: any[] = [];
+    let topBonus: any[] = [];
+    let topDiscipline: any[] = [];
+    let mySpotlight: any = undefined;
+
+    if (targetSemesterId) {
+      if (roleScope === 'teacher') {
+        recentAcademicRecords = await academicRecordModel.aggregate([
+          {
+            $lookup: {
+              from: 'students',
+              localField: 'student_id',
+              foreignField: '_id',
+              as: 'student_id'
+            }
+          },
+          { $unwind: '$student_id' },
+          {
+            $match: {
+              semester_id: targetSemesterId,
+              status: 'active',
+              is_deleted: { $ne: true },
+              'student_id.class_id': { $in: teacherClassIds }
+            }
+          },
+          { $sort: { recorded_at: -1, createdAt: -1 } },
+          { $limit: 5 },
+          {
+            $lookup: {
+              from: 'criteria',
+              localField: 'criterion_id',
+              foreignField: '_id',
+              as: 'criterion_id'
+            }
+          },
+          { $unwind: { path: '$criterion_id', preserveNullAndEmptyArrays: true } }
+        ]);
+      } else {
+        const academicRecordFilter: any = {
+          semester_id: targetSemesterId,
+          status: 'active',
+          is_deleted: { $ne: true }
+        };
+        if (roleScope === 'student') {
+          academicRecordFilter.student_id = { $in: studentIds };
+        }
+        recentAcademicRecords = await academicRecordModel.find(academicRecordFilter)
+          .populate('student_id', 'full_name student_code class_id')
+          .populate('criterion_id', 'criterion_name criterion_type score_per_unit')
+          .sort({ recorded_at: -1, createdAt: -1 })
+          .limit(5)
+          .lean()
+          .exec();
+      }
+
+      // Top Scores
+      let topScoresRaw: any[] = [];
+      if (roleScope === 'teacher') {
+        topScoresRaw = await summaryPointModel.aggregate([
+          {
+            $lookup: {
+              from: 'students',
+              localField: 'student_id',
+              foreignField: '_id',
+              as: 'student_id'
+            }
+          },
+          { $unwind: '$student_id' },
+          {
+            $match: {
+              semester_id: targetSemesterId,
+              period_id: null,
+              total_score: { $ne: null },
+              'student_id.class_id': { $in: teacherClassIds }
+            }
+          },
+          { $sort: { total_score: -1 } },
+          { $limit: 5 },
+          {
+            $lookup: {
+              from: 'classes',
+              localField: 'student_id.class_id',
+              foreignField: '_id',
+              as: 'student_id.class_id'
+            }
+          },
+          { $unwind: { path: '$student_id.class_id', preserveNullAndEmptyArrays: true } }
+        ]);
+      } else {
+        const topScoresMatch: any = {
+          semester_id: targetSemesterId,
+          period_id: null,
+          total_score: { $ne: null }
+        };
+        if (roleScope === 'student') {
+          topScoresMatch.student_id = { $in: studentIds };
+        }
+        topScoresRaw = await summaryPointModel.find(topScoresMatch)
+          .populate({
+            path: 'student_id',
+            select: 'full_name student_code class_id',
+            populate: { path: 'class_id', select: 'class_name' }
+          })
+          .sort({ total_score: -1 })
+          .limit(5)
+          .lean()
+          .exec();
+      }
+
+      // Preload latestRecord for top scores to avoid N+1 query pattern
+      const topStudentIds = topScoresRaw.map((s: any) => s.student_id?._id).filter(Boolean);
+      const latestRecordsRaw = await academicRecordModel.aggregate([
+        {
+          $match: {
+            student_id: { $in: topStudentIds },
+            semester_id: targetSemesterId,
+            status: 'active',
+            is_deleted: { $ne: true }
+          }
+        },
+        { $sort: { recorded_at: -1, createdAt: -1 } },
+        {
+          $group: {
+            _id: '$student_id',
+            latestRecordId: { $first: '$_id' }
+          }
+        }
+      ]);
+      
+      const latestRecordIds = latestRecordsRaw.map(r => r.latestRecordId);
+      const latestRecords = await academicRecordModel.find({ _id: { $in: latestRecordIds } })
+        .populate('criterion_id', 'criterion_name')
+        .lean()
+        .exec();
+        
+      const latestRecordMap = new Map<string, any>(latestRecords.map((r: any) => [r.student_id.toString(), r]));
+
+      topScores = topScoresRaw.map((s: any) => {
+        const latestRecord = latestRecordMap.get(s.student_id?._id?.toString() || '');
+        const classId = s.student_id?.class_id?._id || s.student_id?.class_id;
+        const className = s.student_id?.class_id?.class_name || '';
+
+        return {
+          studentId: s.student_id?._id,
+          classId,
+          studentName: s.student_id?.full_name || '',
+          studentCode: s.student_id?.student_code || '',
+          className,
+          currentScore: s.total_score,
+          grading: s.grading,
+          recordCount: 0,
+          impactScore: 0,
+          latestRecordTitle: latestRecord?.record_title || latestRecord?.criterion_id?.criterion_name || 'Không có ghi nhận',
+          latestRecordAt: latestRecord?.recorded_at || latestRecord?.createdAt || null,
+          dominantCriterionName: latestRecord?.criterion_id?.criterion_name || null,
+          type: 'score',
+          href: classId ? `/students/${classId}/${s.student_id._id}` : `/students`
+        };
+      });
+
+      // 1. Build base match filter for academic records
+      const getHighlightBaseStages = () => {
+        if (roleScope === 'teacher') {
+          return [
+            {
+              $lookup: {
+                from: 'students',
+                localField: 'student_id',
+                foreignField: '_id',
+                as: 'student_doc'
+              }
+            },
+            { $unwind: '$student_doc' },
+            {
+              $match: {
+                semester_id: targetSemesterId,
+                status: 'active',
+                is_deleted: { $ne: true },
+                'student_doc.class_id': { $in: teacherClassIds }
+              }
+            }
+          ];
+        }
+        const match: any = {
+          semester_id: targetSemesterId,
+          status: 'active',
+          is_deleted: { $ne: true }
+        };
+        if (roleScope === 'student') {
+          match.student_id = { $in: studentIds };
+        }
+        return [{ $match: match }];
+      };
+
+      // 2. Fetch top highlights using MongoDB Aggregation Pipelines
+      const [rewardsAgg, bonusAgg, disciplineAgg] = await Promise.all([
+        academicRecordModel.aggregate([
+          ...getHighlightBaseStages(),
+          {
+            $lookup: {
+              from: criterionModel.collection.name,
+              localField: 'criterion_id',
+              foreignField: '_id',
+              as: 'criterion'
+            }
+          },
+          { $unwind: '$criterion' },
+          { $match: { 'criterion.criterion_type': 'khen_thuong' } },
+          { $sort: { recorded_at: -1, createdAt: -1 } },
+          {
+            $group: {
+              _id: '$student_id',
+              recordCount: { $sum: 1 },
+              impactScore: {
+                $sum: { $ifNull: ['$points_effect', '$criterion.score_per_unit'] }
+              },
+              latestRecord: { $first: '$$ROOT' }
+            }
+          },
+          {
+            $sort: {
+              recordCount: -1,
+              impactScore: -1,
+              'latestRecord.recorded_at': -1
+            }
+          },
+          { $limit: 5 },
+          {
+            $lookup: {
+              from: studentModel.collection.name,
+              localField: '_id',
+              foreignField: '_id',
+              as: 'student'
+            }
+          },
+          { $unwind: '$student' },
+          {
+            $lookup: {
+              from: classModel.collection.name,
+              localField: 'student.class_id',
+              foreignField: '_id',
+              as: 'class'
+            }
+          },
+          { $unwind: { path: '$class', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: summaryPointModel.collection.name,
+              let: { studentId: '$_id' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ['$student_id', '$$studentId'] },
+                        { $eq: ['$semester_id', targetSemesterId] },
+                        { $eq: ['$period_id', null] }
+                      ]
+                    }
+                  }
+                }
+              ],
+              as: 'summary'
+            }
+          },
+          { $unwind: { path: '$summary', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              studentId: '$_id',
+              classId: '$student.class_id',
+              studentName: '$student.full_name',
+              studentCode: '$student.student_code',
+              className: { $ifNull: ['$class.class_name', ''] },
+              currentScore: { $ifNull: ['$summary.total_score', null] },
+              grading: { $ifNull: ['$summary.grading', null] },
+              recordCount: 1,
+              impactScore: 1,
+              latestRecordTitle: {
+                $ifNull: [
+                  '$latestRecord.record_title',
+                  '$latestRecord.criterion.criterion_name',
+                  'Không có ghi nhận'
+                ]
+              },
+              latestRecordAt: {
+                $ifNull: [
+                  '$latestRecord.recorded_at',
+                  '$latestRecord.createdAt',
+                  null
+                ]
+              },
+              dominantCriterionName: { $ifNull: ['$latestRecord.criterion.criterion_name', null] },
+              type: { $literal: 'khen_thuong' },
+              href: {
+                $cond: [
+                  { $not: ['$student.class_id'] },
+                  '/students',
+                  { $concat: ['/students/', { $toString: '$student.class_id' }, '/', { $toString: '$_id' }] }
+                ]
+              }
+            }
+          }
+        ]).exec(),
+
+        academicRecordModel.aggregate([
+          ...getHighlightBaseStages(),
+          {
+            $lookup: {
+              from: criterionModel.collection.name,
+              localField: 'criterion_id',
+              foreignField: '_id',
+              as: 'criterion'
+            }
+          },
+          { $unwind: '$criterion' },
+          {
+            $match: {
+              $or: [
+                { 'criterion.criterion_type': 'cong_diem' },
+                { points_effect: { $gt: 0 } },
+                { $and: [ { points_effect: null }, { 'criterion.score_per_unit': { $gt: 0 } } ] }
+              ]
+            }
+          },
+          { $sort: { recorded_at: -1, createdAt: -1 } },
+          {
+            $group: {
+              _id: '$student_id',
+              recordCount: { $sum: 1 },
+              impactScore: {
+                $sum: { $ifNull: ['$points_effect', '$criterion.score_per_unit'] }
+              },
+              latestRecord: { $first: '$$ROOT' }
+            }
+          },
+          {
+            $sort: {
+              impactScore: -1,
+              recordCount: -1,
+              'latestRecord.recorded_at': -1
+            }
+          },
+          { $limit: 5 },
+          {
+            $lookup: {
+              from: studentModel.collection.name,
+              localField: '_id',
+              foreignField: '_id',
+              as: 'student'
+            }
+          },
+          { $unwind: '$student' },
+          {
+            $lookup: {
+              from: classModel.collection.name,
+              localField: 'student.class_id',
+              foreignField: '_id',
+              as: 'class'
+            }
+          },
+          { $unwind: { path: '$class', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: summaryPointModel.collection.name,
+              let: { studentId: '$_id' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ['$student_id', '$$studentId'] },
+                        { $eq: ['$semester_id', targetSemesterId] },
+                        { $eq: ['$period_id', null] }
+                      ]
+                    }
+                  }
+                }
+              ],
+              as: 'summary'
+            }
+          },
+          { $unwind: { path: '$summary', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              studentId: '$_id',
+              classId: '$student.class_id',
+              studentName: '$student.full_name',
+              studentCode: '$student.student_code',
+              className: { $ifNull: ['$class.class_name', ''] },
+              currentScore: { $ifNull: ['$summary.total_score', null] },
+              grading: { $ifNull: ['$summary.grading', null] },
+              recordCount: 1,
+              impactScore: 1,
+              latestRecordTitle: {
+                $ifNull: [
+                  '$latestRecord.record_title',
+                  '$latestRecord.criterion.criterion_name',
+                  'Không có ghi nhận'
+                ]
+              },
+              latestRecordAt: {
+                $ifNull: [
+                  '$latestRecord.recorded_at',
+                  '$latestRecord.createdAt',
+                  null
+                ]
+              },
+              dominantCriterionName: { $ifNull: ['$latestRecord.criterion.criterion_name', null] },
+              type: { $literal: 'cong_diem' },
+              href: {
+                $cond: [
+                  { $not: ['$student.class_id'] },
+                  '/students',
+                  { $concat: ['/students/', { $toString: '$student.class_id' }, '/', { $toString: '$_id' }] }
+                ]
+              }
+            }
+          }
+        ]).exec(),
+
+        academicRecordModel.aggregate([
+          ...getHighlightBaseStages(),
+          {
+            $lookup: {
+              from: criterionModel.collection.name,
+              localField: 'criterion_id',
+              foreignField: '_id',
+              as: 'criterion'
+            }
+          },
+          { $unwind: '$criterion' },
+          {
+            $match: {
+              $or: [
+                { 'criterion.criterion_type': 'ky_luat' },
+                { points_effect: { $lt: 0 } },
+                { $and: [ { points_effect: null }, { 'criterion.score_per_unit': { $lt: 0 } } ] }
+              ]
+            }
+          },
+          { $sort: { recorded_at: -1, createdAt: -1 } },
+          {
+            $group: {
+              _id: '$student_id',
+              recordCount: { $sum: 1 },
+              impactScore: {
+                $sum: { $ifNull: ['$points_effect', '$criterion.score_per_unit'] }
+              },
+              latestRecord: { $first: '$$ROOT' }
+            }
+          },
+          {
+            $sort: {
+              recordCount: -1,
+              impactScore: 1,
+              'latestRecord.recorded_at': -1
+            }
+          },
+          { $limit: 5 },
+          {
+            $lookup: {
+              from: studentModel.collection.name,
+              localField: '_id',
+              foreignField: '_id',
+              as: 'student'
+            }
+          },
+          { $unwind: '$student' },
+          {
+            $lookup: {
+              from: classModel.collection.name,
+              localField: 'student.class_id',
+              foreignField: '_id',
+              as: 'class'
+            }
+          },
+          { $unwind: { path: '$class', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: summaryPointModel.collection.name,
+              let: { studentId: '$_id' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ['$student_id', '$$studentId'] },
+                        { $eq: ['$semester_id', targetSemesterId] },
+                        { $eq: ['$period_id', null] }
+                      ]
+                    }
+                  }
+                }
+              ],
+              as: 'summary'
+            }
+          },
+          { $unwind: { path: '$summary', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              studentId: '$_id',
+              classId: '$student.class_id',
+              studentName: '$student.full_name',
+              studentCode: '$student.student_code',
+              className: { $ifNull: ['$class.class_name', ''] },
+              currentScore: { $ifNull: ['$summary.total_score', null] },
+              grading: { $ifNull: ['$summary.grading', null] },
+              recordCount: 1,
+              impactScore: 1,
+              latestRecordTitle: {
+                $ifNull: [
+                  '$latestRecord.record_title',
+                  '$latestRecord.criterion.criterion_name',
+                  'Không có ghi nhận'
+                ]
+              },
+              latestRecordAt: {
+                $ifNull: [
+                  '$latestRecord.recorded_at',
+                  '$latestRecord.createdAt',
+                  null
+                ]
+              },
+              dominantCriterionName: { $ifNull: ['$latestRecord.criterion.criterion_name', null] },
+              type: { $literal: 'ky_luat' },
+              href: {
+                $cond: [
+                  { $not: ['$student.class_id'] },
+                  '/students',
+                  { $concat: ['/students/', { $toString: '$student.class_id' }, '/', { $toString: '$_id' }] }
+                ]
+              }
+            }
+          }
+        ]).exec()
+      ]);
+
+      topRewards = rewardsAgg;
+      topBonus = bonusAgg;
+      topDiscipline = disciplineAgg;
+
+      // Student spotlight
+      if (roleScope === 'student' && studentIds.length > 0) {
+        const sId = studentIds[0];
+        
+        // Find discipline criterion IDs
+        const disciplineCriteria = await criterionModel.find({ criterion_type: 'ky_luat' }).select('_id').lean().exec();
+        const disciplineIds = disciplineCriteria.map(c => c._id);
+
+        const [studentInfo, summary, totalPositiveCount, totalWarningCount, positiveRecordsRaw, warningRecordsRaw] = await Promise.all([
+          studentModel.findById(sId).lean().exec() as any,
+          summaryPointModel.findOne({
+            student_id: sId,
+            semester_id: targetSemesterId,
+            period_id: null
+          }).lean().exec() as any,
+          academicRecordModel.countDocuments({
+            student_id: sId,
+            semester_id: targetSemesterId,
+            status: 'active',
+            is_deleted: { $ne: true },
+            points_effect: { $gte: 0 },
+            criterion_id: { $not: { $in: disciplineIds } }
+          }),
+          academicRecordModel.countDocuments({
+            student_id: sId,
+            semester_id: targetSemesterId,
+            status: 'active',
+            is_deleted: { $ne: true },
+            $or: [
+              { points_effect: { $lt: 0 } },
+              { criterion_id: { $in: disciplineIds } }
+            ]
+          }),
+          academicRecordModel.find({
+            student_id: sId,
+            semester_id: targetSemesterId,
+            status: 'active',
+            is_deleted: { $ne: true },
+            points_effect: { $gte: 0 },
+            criterion_id: { $not: { $in: disciplineIds } }
+          })
+          .populate('criterion_id', 'criterion_name criterion_type score_per_unit')
+          .sort({ recorded_at: -1, createdAt: -1 })
+          .limit(10)
+          .lean()
+          .exec() as any,
+          academicRecordModel.find({
+            student_id: sId,
+            semester_id: targetSemesterId,
+            status: 'active',
+            is_deleted: { $ne: true },
+            $or: [
+              { points_effect: { $lt: 0 } },
+              { criterion_id: { $in: disciplineIds } }
+            ]
+          })
+          .populate('criterion_id', 'criterion_name criterion_type score_per_unit')
+          .sort({ recorded_at: -1, createdAt: -1 })
+          .limit(10)
+          .lean()
+          .exec() as any
+        ]);
+
+        if (studentInfo) {
+          const classObj = studentInfo.class_id ? await classModel.findById(studentInfo.class_id).select('class_name').lean().exec() as any : null;
+          const className = classObj?.class_name || '';
+
+          const score = summary ? summary.total_score : null;
+          const grading = summary ? summary.grading : null;
+          const evaluationStatus = summary ? summary.status : null;
+
+          const mapRecord = (r: any, defaultType: string) => {
+            const pointsEffect = r.points_effect !== undefined && r.points_effect !== null
+              ? Number(r.points_effect)
+              : (r.criterion_id?.score_per_unit || 0);
+
+            return {
+              studentId: sId.toString(),
+              classId: studentInfo.class_id,
+              studentName: studentInfo.full_name || '',
+              studentCode: studentInfo.student_code || '',
+              className,
+              currentScore: score,
+              grading,
+              recordCount: 1,
+              impactScore: pointsEffect,
+              latestRecordTitle: r.record_title || r.criterion_id?.criterion_name || 'Ghi nhận mới',
+              latestRecordAt: r.recorded_at || r.createdAt,
+              dominantCriterionName: r.criterion_id?.criterion_name || null,
+              type: defaultType,
+              href: studentInfo.class_id ? `/students/${studentInfo.class_id}/${sId}` : `/students`
+            };
+          };
+
+          const positiveRecords = positiveRecordsRaw.map((r: any) => mapRecord(r, 'cong_diem'));
+          const warningRecords = warningRecordsRaw.map((r: any) => mapRecord(r, 'ky_luat'));
+
+          let nextActionLabel = 'Tự đánh giá điểm rèn luyện';
+          let nextActionHref = '/grading/score';
+          if (evaluationStatus === 'sv_submitted') {
+            nextActionLabel = 'Xem hồ sơ đã nộp';
+          } else if (evaluationStatus === 'gv_reviewed') {
+            nextActionLabel = 'Hồ sơ đã được duyệt';
+          } else if (evaluationStatus === 'locked') {
+            nextActionLabel = 'Xem kết quả chính thức';
+          }
+
+          mySpotlight = {
+            studentId: sId.toString(),
+            classId: studentInfo.class_id,
+            currentScore: score,
+            grading,
+            evaluationStatus,
+            positiveRecords,
+            warningRecords,
+            totalPositiveCount,
+            totalWarningCount,
+            nextAction: {
+              label: nextActionLabel,
+              href: nextActionHref
+            }
+          };
+        }
+      }
+    }
+
+    // ─── OPERATOR KPIs ───────────────────────────────────────────────────────
+    let todayLoginSuccess = 0;
+    let todayLoginFailure = 0;
+    let pendingSystemRequests = 0;
+    let lastBackupStatus: string | null = null;
+    let lastBackupTime: Date | null = null;
+    let systemRequestsList: any[] = [];
+    let backupsList: any[] = [];
+
+    if (roleScope === 'admin' || roleScope === 'system') {
+      const loginLogsSummary = await this.getLoginLogsSummary();
+      todayLoginSuccess = loginLogsSummary?.today?.login_success || 0;
+      todayLoginFailure = loginLogsSummary?.today?.login_failure || 0;
+
+      const requestModel = this.connection.model('SystemRequest');
+      pendingSystemRequests = await requestModel.countDocuments({ status: 'pending', deletedAt: null });
+      systemRequestsList = await requestModel.find({ deletedAt: null })
+        .populate('requester_id', 'user_name email')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean()
+        .exec();
+
+      backupsList = await this.backupJobModel.find()
+        .populate('requested_by', 'user_name email')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean()
+        .exec();
+
+      const latestBackup = backupsList[0];
+      lastBackupStatus = latestBackup ? latestBackup.status : null;
+      lastBackupTime = latestBackup ? latestBackup.createdAt : null;
+    }
+
+    // Student specific
+    let myCurrentScore: number | null = null;
+    let myGrading: string | null = null;
+    let myEvaluationStatus: 'draft' | 'sv_submitted' | 'gv_reviewed' | 'locked' | null = null;
+    if (roleScope === 'student' && studentIds.length > 0) {
+      const summary = summariesMap.get(studentIds[0].toString());
+      if (summary) {
+        myCurrentScore = summary.total_score;
+        myGrading = summary.grading;
+        myEvaluationStatus = summary.status;
+      }
+    }
+
+    return {
+      roleScope,
+      activeSemester: activeSem,
+      activePeriod,
+      systemData: {
+        systemRequests: systemRequestsList,
+        backups: backupsList
+      },
+      kpis: {
+        totalStudents,
+        totalClasses,
+        totalDepartments,
+        averageScore,
+        pendingMyReviewCount,
+        urgentTasksCount,
+        unreadNotificationsCount,
+        
+        myCurrentScore,
+        myGrading,
+        myEvaluationStatus,
+        
+        todayLoginSuccess,
+        todayLoginFailure,
+        pendingSystemRequests,
+        lastBackupStatus,
+        lastBackupTime,
+      },
+      distributions: {
+        studentStatus,
+        evaluationStatus,
+        classDistributionByDept,
+        scoreDistribution,
+        attendanceRate: 100,
+        attendanceTodaySubmitted: 0,
+        attendanceTodayPending: 0,
+      },
+      recentNotifications,
+      urgentTasks,
+      recentAcademicRecords,
+      recentDailyReports: [],
+      studentHighlights: {
+        topScores,
+        topRewards,
+        topBonus,
+        topDiscipline,
+        mySpotlight: mySpotlight || undefined
+      }
+    };
   }
 }

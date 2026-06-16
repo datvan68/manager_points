@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
 import { DailyClassReportService } from './daily-class-report.service';
 import { CreateDailyClassReportDto } from './dto/create-daily-class-report.dto';
@@ -34,13 +35,46 @@ export class DailyClassReportController {
     return this.dailyClassReportService.create(createDailyClassReportDto, requester);
   }
 
+  @Post('import')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Validate or commit bulk import of daily class reports and student records',
+  })
+  importRecords(
+    @Body() body: { rows: any[]; commit?: boolean },
+    @Request() req: any,
+  ) {
+    const requester = req.user;
+    const commit = body.commit === true;
+    return this.dailyClassReportService.importClassRecords(body.rows, requester, commit);
+  }
+
   @Get()
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all daily class reports' })
-  findAll(@Request() req: any) {
+  findAll(
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('classId') classId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('search') search?: string,
+  ) {
     const requester = req.user;
-    return this.dailyClassReportService.findAll(requester);
+    return this.dailyClassReportService.findAll(
+      {
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+        classId,
+        startDate,
+        endDate,
+        search,
+      },
+      requester,
+    );
   }
 
   @Get('deleted/all')

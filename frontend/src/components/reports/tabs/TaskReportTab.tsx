@@ -10,6 +10,18 @@ interface TaskReportTabProps {
   isLoading: boolean;
   onExport: () => void;
   onExportProgress: () => void;
+  serverSide?: boolean;
+  totalItems?: number;
+  currentPage?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (limit: number) => void;
+  progressServerSide?: boolean;
+  progressTotalItems?: number;
+  progressCurrentPage?: number;
+  progressPageSize?: number;
+  progressOnPageChange?: (page: number) => void;
+  progressOnPageSizeChange?: (limit: number) => void;
 }
 
 const columns: TableColumn[] = [
@@ -102,7 +114,19 @@ export default function TaskReportTab({
   taskProgressData, 
   isLoading, 
   onExport, 
-  onExportProgress 
+  onExportProgress,
+  serverSide,
+  totalItems,
+  currentPage,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  progressServerSide,
+  progressTotalItems,
+  progressCurrentPage,
+  progressPageSize,
+  progressOnPageChange,
+  progressOnPageSizeChange
 }: TaskReportTabProps) {
   return (
     <div className="p-6 space-y-6">
@@ -115,6 +139,12 @@ export default function TaskReportTab({
         onExportExcel={onExport}
         label="nhiệm vụ"
         emptyMessage="Không tìm thấy nhiệm vụ nào khớp với bộ lọc."
+        serverSide={serverSide}
+        totalItems={totalItems}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
 
       {/* Table 2: Assignee Progress */}
@@ -126,6 +156,12 @@ export default function TaskReportTab({
         onExportExcel={onExportProgress}
         label="tiến độ người nhận"
         emptyMessage="Không tìm thấy thông tin tiến độ nào khớp với bộ lọc."
+        serverSide={progressServerSide}
+        totalItems={progressTotalItems}
+        currentPage={progressCurrentPage}
+        pageSize={progressPageSize}
+        onPageChange={progressOnPageChange}
+        onPageSizeChange={progressOnPageSizeChange}
       />
     </div>
   );
