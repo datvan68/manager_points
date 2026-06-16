@@ -2931,11 +2931,11 @@ function GradingScoreContent() {
 
                   {/* Nút lưu & đặt lại ở dưới cùng - Pill Shaped */}
                   {canModifyScore && (
-                    <div className="flex items-center justify-end gap-3.5 pt-4 pb-12 w-full">
+                    <div className="flex flex-col-reverse md:flex-row items-stretch md:items-center md:justify-end gap-2.5 md:gap-3.5 pt-4 pb-20 md:pb-12 w-full">
                       <Button
                         onClick={handleReset}
                         variant="outline"
-                        className="bg-white/60 backdrop-blur-sm border border-white/80 hover:bg-white/90 text-[#1E293B] font-bold text-[14px] px-7 py-2.5 rounded-xl flex items-center gap-2 transition-all active:scale-95 cursor-pointer h-[42px] hover:scale-[1.02] shadow-sm"
+                        className="bg-white/60 backdrop-blur-sm border border-white/80 hover:bg-white/90 text-[#1E293B] font-bold text-[14px] px-7 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer h-[42px] hover:scale-[1.02] shadow-sm w-full md:w-auto"
                         title="Đặt lại các tiêu chí"
                       >
                         <RotateCcw size={15} strokeWidth={2.5} />
@@ -2946,7 +2946,7 @@ function GradingScoreContent() {
                           onClick={() => setIsCopyModalOpen(true)}
                           disabled={!activeStudent || !studentSummaryMap[activeStudentId] || isFetching}
                           variant="outline"
-                          className="bg-white/60 backdrop-blur-sm border border-white/80 hover:bg-white/90 text-[#1A73E8] hover:text-[#155cc4] font-bold text-[14px] px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all active:scale-95 cursor-pointer h-[42px] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] shadow-sm"
+                          className="bg-white/60 backdrop-blur-sm border border-white/80 hover:bg-white/90 text-[#1A73E8] hover:text-[#155cc4] font-bold text-[14px] px-6 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer h-[42px] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] shadow-sm w-full md:w-auto"
                           title="Sao chép điểm rèn luyện sang các sinh viên khác"
                         >
                           <Copy size={15} strokeWidth={2.5} />
@@ -2956,7 +2956,7 @@ function GradingScoreContent() {
                       <Button
                         onClick={handleSave}
                         disabled={isFetching}
-                        className="bg-[#1A73E8] hover:bg-[#155cc4] text-white font-bold text-[14px] px-8 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-[0_4px_12px_rgba(26,115,232,0.15)] active:scale-95 cursor-pointer h-[42px] disabled:opacity-80 disabled:cursor-not-allowed hover:scale-[1.02]"
+                        className="bg-[#1A73E8] hover:bg-[#155cc4] text-white font-bold text-[14px] px-8 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_4px_12px_rgba(26,115,232,0.15)] active:scale-95 cursor-pointer h-[42px] disabled:opacity-80 disabled:cursor-not-allowed hover:scale-[1.02] w-full md:w-auto"
                         title="Lưu điểm rèn luyện"
                       >
                         {isFetching ? (

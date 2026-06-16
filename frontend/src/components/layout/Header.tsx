@@ -3,6 +3,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, Search, LayoutGrid, User, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import Link from 'next/link';
+import Image from 'next/image';
+import logoNsg from '@/assets/cropped-logo-nsg.png';
 import { useAuth } from '@/providers/auth-provider';
 import SubsystemPopup from '@/components/popups/SubsystemPopup';
 import NotificationPopup from '@/components/popups/NotificationPopup';
@@ -31,6 +34,32 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
     const profileRef = useRef<HTMLDivElement>(null);
     const notificationRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
+
+    // Xác định tên phân hệ hiện tại dựa trên url path
+    const pathSegments = pathname.split('/').filter(segment => segment !== '');
+    const firstSegment = pathSegments[0] || '';
+
+    const getSubsystemName = (segment: string) => {
+        const staticLabels: Record<string, string> = {
+            'students': 'Học sinh sinh viên',
+            'tasks': 'Công việc',
+            'grading': 'Rèn luyện',
+            'dormitory': 'Ký túc xá',
+            'reports': 'Thống kê báo cáo',
+            'permissions': 'Phân quyền',
+            'club': 'Câu lạc bộ',
+            'system': 'Hệ thống',
+            'profile': 'Hồ sơ cá nhân',
+            'login': 'Đăng nhập',
+            'register': 'Đăng ký',
+            'forgot-password': 'Quên mật khẩu',
+            'reset-password': 'Đặt lại mật khẩu',
+            'select-module': 'Chọn phân hệ',
+        };
+        return staticLabels[segment] || segment || 'Trang chủ';
+    };
+
+    const subsystemName = getSubsystemName(firstSegment);
 
     const fetchNotifications = async () => {
         if (!user) return;
@@ -167,19 +196,42 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
   return (
     <>
       <header className="h-16 bg-white/45 backdrop-blur-md border-b border-white/70 flex items-center justify-between px-4 relative z-50 shadow-sm shadow-slate-200/20">
-        {/* Left: Breadcrumbs/Title */}
-        <div className="flex items-center gap-2">
-           <Breadcrumb customMappings={customMappings} />
+        {/* Left: Logo + System Name (mobile/tablet) OR Breadcrumbs (desktop) */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {/* Logo & System Name (Chỉ hiển thị trên mobile/tablet: lg:hidden) */}
+          <div className="flex items-center gap-2 sm:gap-3 lg:hidden min-w-0">
+            {/* Logo */}
+            <Link href="/" className="w-8 h-8 min-w-[32px] flex items-center justify-center rounded-xl overflow-hidden shadow-sm bg-white/80 shrink-0 hover:opacity-90 transition-opacity">
+              <Image
+                src={logoNsg}
+                alt="NSG Logo"
+                width={32}
+                height={32}
+                className="object-contain"
+              />
+            </Link>
+            
+            {/* Tên hệ thống */}
+            <span className="text-[13px] sm:text-[14px] font-black glassmorphic-text tracking-wide whitespace-nowrap select-none">
+              HOCSINHSINHVIEN
+            </span>
+          </div>
+
+          {/* Breadcrumb (Chỉ hiển thị trên desktop: lg:flex) */}
+          <div className="hidden lg:flex items-center gap-2">
+            <Breadcrumb customMappings={customMappings} />
+          </div>
         </div>
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          <button className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer">
+          {/* Nút tìm kiếm (Chỉ hiển thị trên desktop: lg:flex) */}
+          <button className="hidden lg:flex w-8 h-8 rounded-xl items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer">
             <Search size={18} />
           </button>
           
-          {/* Notification Bell with Dropdown */}
-          <div className="relative" ref={notificationRef}>
+          {/* Chuông thông báo (Chỉ hiển thị trên desktop: lg:block) */}
+          <div className="hidden lg:block relative" ref={notificationRef}>
               <button 
                 onClick={() => setIsNotificationOpen(!isNotificationOpen)}
                 className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out relative cursor-pointer"
@@ -201,14 +253,16 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
               />
           </div>
 
+          {/* Quản lý phân hệ (Luôn hiển thị) */}
           <button 
             onClick={() => setIsSubsystemOpen(true)}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer"
+            title="Quản lý phân hệ"
           >
             <LayoutGrid size={18} />
           </button>
           
-            {/* User Profile */}
+          {/* User Profile (Luôn hiển thị) */}
           <div className="relative pl-3 border-l border-white/60 ml-1.5" ref={profileRef}>
              <button 
                onClick={() => setIsProfileOpen(!isProfileOpen)}

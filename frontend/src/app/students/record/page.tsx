@@ -20,6 +20,7 @@ import {
   Copy,
   FileSpreadsheet,
   RotateCcw,
+  ArrowLeft,
 } from "lucide-react";
 
 import { CustomPagination } from "@/components/ui/pagination";
@@ -75,7 +76,12 @@ import FloatingActionBar from "@/components/ui/FloatingActionBar";
 import ConfirmModal from "@/components/modals/ConfirmModal";
 import { useAuth } from "@/providers/auth-provider";
 
-function GhiNhanTab() {
+interface GhiNhanTabProps {
+  activeSubTab: "class" | "student";
+  setActiveSubTab: (tab: "class" | "student") => void;
+}
+
+function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const taskId = searchParams.get("taskId");
@@ -146,7 +152,7 @@ function GhiNhanTab() {
     return getClassReportCreatorId(report) === currentUserId;
   };
 
-  const [currentView, setCurrentView] = useState<"list" | "add" | "edit">(
+  const [currentView, setCurrentView] = useState<"list" | "add" | "edit" | "detail">(
     "list",
   );
   const [searchTerm, setSearchTerm] = useState("");
@@ -168,9 +174,6 @@ function GhiNhanTab() {
   );
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [drawerHistory, setDrawerHistory] = useState<any[]>([]);
-  const [activeSubTab, setActiveSubTab] = useState<"class" | "student">(
-    "student",
-  );
   const canCreateRecords =
     activeSubTab === "class"
       ? ghiNhanAccess.createClassRecord
@@ -233,6 +236,9 @@ function GhiNhanTab() {
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [classCurrentPage, setClassCurrentPage] = useState(1);
   const [isDeletingClassReports, setIsDeletingClassReports] = useState(false);
+  const [detailRecord, setDetailRecord] = useState<any>(null);
+  const [detailRecordHistory, setDetailRecordHistory] = useState<any[]>([]);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
 
   // Global configurations for absent criteria
   const [globalCriteria, setGlobalCriteria] = useState<Criterion[]>([]);
@@ -240,6 +246,8 @@ function GhiNhanTab() {
     string[]
   >([]);
   const [isGlobalConfigModalOpen, setIsGlobalConfigModalOpen] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isClassSearchExpanded, setIsClassSearchExpanded] = useState(false);
   const [viewLayout, setViewLayout] = useState<"table" | "card">("table");
   const [creatorFilter, setCreatorFilter] = useState<
     "all" | "student" | "teacher" | "admin" | "supervisor"
@@ -1184,6 +1192,111 @@ function GhiNhanTab() {
     setCurrentView("edit");
   };
 
+  const handleOpenDetailView = async (record: any) => {
+    setDetailRecord(record);
+    setCurrentView("detail");
+    setIsDetailLoading(true);
+    try {
+      const studentObj =
+        typeof record.original?.student_id === "object"
+          ? record.original.student_id
+          : null;
+      const studentId = studentObj?._id || record.original?.student_id;
+
+      if (studentId) {
+        const studentRecords =
+          await academicRecordApi.getAcademicRecordsByStudent(studentId);
+
+        const mappedStudentRecords = studentRecords.map((r) => {
+          const student =
+            typeof r.student_id === "object" ? r.student_id : null;
+          const evalDetail =
+            typeof r.evaluation_detail_id === "object"
+              ? r.evaluation_detail_id
+              : null;
+          const criterionId = r.criterion_id
+            ? typeof r.criterion_id === "object"
+              ? r.criterion_id?._id
+              : r.criterion_id
+            : r.criteria_id
+              ? typeof r.criteria_id === "object"
+                ? r.criteria_id?._id
+                : r.criteria_id
+              : evalDetail
+                ? typeof evalDetail.criterion_id === "object"
+                  ? evalDetail.criterion_id?._id
+                  : evalDetail.criterion_id
+                : r.evaluation_detail_id;
+
+          const foundCriterion = allCriteria.find(
+            (c) => c._id === criterionId,
+          );
+
+          let className = "N/A";
+          if (student) {
+            const classId =
+              typeof student.class_id === "object"
+                ? student.class_id?._id
+                : student.class_id;
+            const foundClass = classes.find((c) => c._id === classId);
+            className = foundClass ? foundClass.class_name : "N/A";
+          }
+
+          const pts = foundCriterion
+            ? foundCriterion.score_per_unit || foundCriterion.min_score || 0
+            : r.points_effect || 0;
+
+          const recordType = foundCriterion
+            ? foundCriterion.criterion_type === "khen_thuong"
+              ? "Khen thưởng"
+              : foundCriterion.criterion_type === "ky_luat"
+                ? "Kỷ luật"
+                : "Cộng điểm"
+            : pts > 0
+              ? "Cộng điểm"
+              : pts < 0
+                ? "Kỷ luật"
+                : "Cộng điểm";
+
+          return {
+            id: r._id,
+            studentId: student ? student.student_code : "",
+            fullName: student ? student.full_name : "",
+            className: className,
+            recordType: recordType,
+            criteria: (() => {
+              const raw = foundCriterion
+                ? foundCriterion.criterion_name
+                : r.record_title;
+              return raw ? raw.replace(/\s*\(.*?\)\s*$/, "") : "N/A";
+            })(),
+            date: r.recorded_at
+              ? format(new Date(r.recorded_at), "dd/MM/yyyy")
+              : r.date_record
+                ? format(new Date(r.date_record), "dd/MM/yyyy")
+                : r.createdAt
+                  ? format(new Date(r.createdAt), "dd/MM/yyyy")
+                  : format(new Date(), "dd/MM/yyyy"),
+            points: (pts >= 0 ? "+" : "") + pts,
+            original: r,
+          };
+        });
+
+        mappedStudentRecords.sort(
+          (a: any, b: any) =>
+            new Date(b.original.createdAt || 0).getTime() -
+            new Date(a.original.createdAt || 0).getTime(),
+        );
+        setDetailRecordHistory(mappedStudentRecords);
+      }
+    } catch (err) {
+      console.error("Lỗi khi tải lịch sử sinh viên:", err);
+      toast.error("Không thể tải lịch sử rèn luyện.");
+    } finally {
+      setIsDetailLoading(false);
+    }
+  };
+
   if (currentView === "add" && canCreateRecords) {
     return (
       <motion.div
@@ -1294,140 +1407,713 @@ function GhiNhanTab() {
     );
   }
 
-  return (
-    <div className="flex flex-col h-full bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 overflow-hidden">
-      {activeSubTab === "student" ? (
-        // ==================== TAB 1: TÌNH HÌNH HSSV ====================
-        <>
-          {/* Top Bar */}
-          <div className="p-4 border-b border-white/70 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/45 backdrop-blur-md shadow-sm shrink-0">
-            <div className="flex flex-row items-center gap-3 flex-1">
-              {/* Tab điều hướng dạng Pill Shape Glassmorphic */}
-              {isStudent ? (
-                <div className="text-sm font-bold text-[#1E293B] px-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl shadow-sm">
-                  Ghi nhận rèn luyện cá nhân
-                </div>
-              ) : (
-                <div className="flex bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl p-1 gap-1.5 shrink-0 shadow-sm">
-                  <button
-                    onClick={() => setActiveSubTab("student")}
-                    className="px-4 py-1.5 font-bold text-[12.5px] transition-all duration-150 ease-out hover:scale-[1.01] rounded-xl cursor-pointer whitespace-nowrap bg-white/85 text-[#1A73E8] shadow-sm"
-                  >
-                    Tình hình HSSV
-                  </button>
-                  <button
-                    onClick={() => setActiveSubTab("class")}
-                    className={`px-4 py-1.5 font-bold text-[12.5px] transition-all duration-150 ease-out hover:scale-[1.01] rounded-xl whitespace-nowrap ${canAccessClassTab ? "cursor-pointer text-slate-500 hover:text-slate-800" : "hidden"}`}
-                  >
-                    Tình hình lớp học
-                  </button>
-                </div>
-              )}
+  if (currentView === "detail" && detailRecord) {
+    return (
+      <motion.div
+        key="detail-view"
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.98 }}
+        transition={{ duration: 0.2 }}
+        className="flex-1 w-full h-full bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 p-6 flex flex-col gap-6 overflow-y-auto"
+      >
+        <div className="flex items-center gap-3 border-b border-gray-100 pb-4 shrink-0">
+          <button
+            onClick={() => {
+              setCurrentView("list");
+              setDetailRecord(null);
+              setDetailRecordHistory([]);
+            }}
+            className="p-1.5 hover:bg-white/60 active:bg-white/85 rounded-xl text-blue-650 border border-transparent hover:border-white/50 shadow-sm flex items-center justify-center transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <h2 className="text-lg font-bold text-slate-900">
+            Chi tiết trạng thái HSSV
+          </h2>
+        </div>
 
-              <div className="relative flex-1 min-w-0 max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B]"
-                />
+        <div className="flex items-center gap-4 bg-white/30 border border-white/50 p-4 rounded-xl">
+          <div className="w-[60px] h-[60px] rounded-full overflow-hidden flex items-center justify-center shrink-0 border border-slate-200 bg-white">
+            <img
+              src={`https://api.dicebear.com/7.x/notionists/svg?seed=${detailRecord.studentId}&backgroundColor=b6e3f4`}
+              alt="Avatar"
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="flex flex-col items-start min-w-0">
+            <h3 className="text-[18px] font-bold text-slate-900 leading-snug truncate w-full">
+              {detailRecord.fullName}
+            </h3>
+            <p className="text-[12px] font-medium text-slate-500 truncate w-full mt-1">
+              Mã SV: {detailRecord.studentId} • Lớp {detailRecord.className}
+            </p>
+          </div>
+        </div>
+
+        {(() => {
+          const khenThuongCount = detailRecordHistory.filter(
+            (mr) => mr.recordType === "Khen thưởng"
+          ).length;
+          const congDiemCount = detailRecordHistory.filter(
+            (mr) => mr.recordType === "Cộng điểm"
+          ).length;
+          const kyLuatCount = detailRecordHistory.filter(
+            (mr) => mr.recordType === "Kỷ luật"
+          ).length;
+
+          return (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mb-1">
+                  Khen thưởng
+                </span>
+                <span className="text-xl font-black text-emerald-600 leading-none">
+                  {isDetailLoading ? "..." : khenThuongCount}
+                </span>
+              </div>
+              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                <span className="text-[9px] font-bold text-blue-600 uppercase tracking-wider mb-1">
+                  Cộng điểm
+                </span>
+                <span className="text-xl font-black text-blue-600 leading-none">
+                  {isDetailLoading ? "..." : congDiemCount}
+                </span>
+              </div>
+              <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                <span className="text-[9px] font-bold text-rose-600 uppercase tracking-wider mb-1">
+                  Kỷ luật
+                </span>
+                <span className="text-xl font-black text-rose-600 leading-none">
+                  {isDetailLoading ? "..." : kyLuatCount}
+                </span>
               </div>
             </div>
+          );
+        })()}
 
-            <div className="flex items-center justify-end gap-3 w-full lg:w-auto">
-              <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    className={`flex items-center gap-2 px-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap ${filterDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
-                  >
-                    <CalendarIcon
-                      className={`w-4 h-4 ${filterDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
-                    />
-                    <span className="hidden sm:inline">
-                      {filterDateRange
-                        ? `${format(filterDateRange.start, "dd/MM")} - ${format(filterDateRange.end, "dd/MM")}`
-                        : "Chọn khoảng ngày"}
-                    </span>
-                    <span className="sm:hidden">
-                      {filterDateRange ? "Đã lọc" : "Lọc"}
-                    </span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
-                  align="end"
-                  side="bottom"
-                  sideOffset={6}
-                >
-                  <CustomCalendar
-                    startDate={filterDateRange?.start || null}
-                    endDate={filterDateRange?.end || null}
-                    onRangeSelect={(start, end) =>
-                      setFilterDateRange({ start, end })
-                    }
-                    onCancel={() => {
-                      setFilterDateRange(null);
-                      setIsCalendarOpen(false);
-                    }}
-                    onConfirm={() => setIsCalendarOpen(false)}
+        <div className="flex flex-col gap-4">
+          <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+            Lịch sử ghi nhận
+          </h4>
+
+          {isDetailLoading ? (
+            <div className="flex flex-col gap-4 mt-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex gap-4">
+                  <Skeleton className="w-5 h-5 rounded-full shrink-0" />
+                  <div className="flex-1 flex flex-col gap-2 pt-0.5">
+                    <Skeleton className="w-24 h-3" />
+                    <Skeleton className="w-48 h-4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : detailRecordHistory.length === 0 ? (
+            <div className="text-center py-8 text-slate-400 italic text-[12px] bg-white/30 border border-dashed border-white/60 rounded-xl">
+              Chưa có ghi nhận nào cho học sinh này.
+            </div>
+          ) : (
+            <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
+              {detailRecordHistory.map((mr, i) => {
+                const isKyLuat = mr.recordType === "Kỷ luật";
+                const isKhenThuong = mr.recordType === "Khen thưởng";
+
+                let bulletBg = "bg-[#1A73E8]";
+                let badgeClass = "bg-blue-500/10 text-[#1A73E8] border border-blue-500/20";
+                if (isKhenThuong) {
+                  bulletBg = "bg-emerald-500";
+                  badgeClass = "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20";
+                } else if (isKyLuat) {
+                  bulletBg = "bg-rose-500";
+                  badgeClass = "bg-rose-500/10 text-rose-700 border border-rose-500/20";
+                }
+
+                return (
+                  <div key={mr.id} className="flex gap-4 relative mb-6 last:mb-0">
+                    <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
+                      <div className={`w-3 h-3 rounded-full ${bulletBg} shadow-sm border-2 border-white box-content`} />
+                    </div>
+
+                    <div className="flex-1 flex flex-col pt-0.5 bg-white/30 border border-white/50 p-3 rounded-xl">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[11px] font-bold text-slate-500">
+                          {mr.date}
+                        </span>
+                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                          {mr.recordType} ({mr.points}đ)
+                        </span>
+                      </div>
+                      <span className="text-[13px] font-bold text-slate-900 mt-1.5 leading-snug">
+                        {mr.criteria}
+                      </span>
+                      {mr.original?.description && (
+                        <p className="text-[11.5px] font-medium text-slate-600 mt-2 bg-slate-50/50 p-2 rounded-lg italic">
+                          "{mr.original.description}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col gap-3 overflow-hidden min-h-0 bg-transparent w-full">
+      {/* Outer row: contains sub-tabs on the left, search/filters/buttons on the right */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0 w-full">
+        {/* Left Side: Sub-tabs (or title if student) */}
+        {isStudent ? (
+          <div className="text-sm font-bold text-[#1E293B] px-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl shadow-sm w-full sm:w-auto text-center sm:text-left">
+            Ghi nhận rèn luyện cá nhân
+          </div>
+        ) : (
+          canAccessClassTab && (
+            <div className="flex items-center gap-2 bg-white/40 p-1 rounded-xl w-fit border border-white/70 backdrop-blur-md shrink-0 shadow-sm shadow-slate-300/40">
+              <button
+                onClick={() => setActiveSubTab("student")}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] ${
+                  activeSubTab === "student"
+                    ? "bg-white text-[#1A73E8] shadow-sm"
+                    : "text-[#64748B] hover:text-[#1E293B]"
+                }`}
+              >
+                Tình hình HSSV
+              </button>
+              <button
+                onClick={() => setActiveSubTab("class")}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] ${
+                  activeSubTab === "class"
+                    ? "bg-white text-[#1A73E8] shadow-sm"
+                    : "text-[#64748B] hover:text-[#1E293B]"
+                }`}
+              >
+                Tình hình lớp học
+              </button>
+            </div>
+          )
+        )}
+
+        {/* Right Side: Filters, Search, Buttons */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 lg:justify-end flex-1 w-full lg:w-auto">
+          {activeSubTab === "student" ? (
+            <>
+              {/* Desktop View: Full search input and normal filters/buttons */}
+              <div className="hidden lg:flex items-center gap-3 w-full lg:w-auto justify-end">
+                <div className="relative w-full sm:max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B] shadow-sm"
                   />
-                </PopoverContent>
-              </Popover>
+                </div>
 
-              {/* Class Dropdown for Student */}
-              {!isStudent && (
-                <div className="w-[180px]">
-                  <Select
-                    value={selectedClassIdForStudent}
-                    onValueChange={(val: string) => {
-                      setSelectedClassIdForStudent(val);
-                      setCurrentPage(1);
-                    }}
+                <div className="flex items-center gap-2.5">
+                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        className={`flex items-center gap-2 px-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap ${filterDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
+                      >
+                        <CalendarIcon
+                          className={`w-4 h-4 ${filterDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
+                        />
+                        <span>
+                          {filterDateRange
+                            ? `${format(filterDateRange.start, "dd/MM")} - ${format(filterDateRange.end, "dd/MM")}`
+                            : "Chọn khoảng ngày"}
+                        </span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
+                      align="end"
+                      side="bottom"
+                      sideOffset={6}
+                    >
+                      <CustomCalendar
+                        startDate={filterDateRange?.start || null}
+                        endDate={filterDateRange?.end || null}
+                        onRangeSelect={(start, end) =>
+                          setFilterDateRange({ start, end })
+                        }
+                        onCancel={() => {
+                          setFilterDateRange(null);
+                          setIsCalendarOpen(false);
+                        }}
+                        onConfirm={() => setIsCalendarOpen(false)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Class Dropdown for Student */}
+                  {!isStudent && (
+                    <div className="w-[160px]">
+                      <Select
+                        value={selectedClassIdForStudent}
+                        onValueChange={(val: string) => {
+                          setSelectedClassIdForStudent(val);
+                          setCurrentPage(1);
+                        }}
+                      >
+                        <SelectTrigger className="h-8.5 bg-white/40 border border-white/70 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-sm rounded-xl shadow-sm">
+                          <SelectValue placeholder="Tất cả các lớp" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tất cả các lớp</SelectItem>
+                          {classes.map((c) => (
+                            <SelectItem key={c._id} value={c._id}>
+                              {c.class_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {ghiNhanAccess.configRecord && (
+                    <button
+                      onClick={() => setIsGlobalConfigModalOpen(true)}
+                      className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                      title="Cấu hình tiêu chí vắng mặt"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  {ghiNhanAccess.createStudentRecord && (
+                    <button
+                      onClick={handleCreate}
+                      className="flex items-center gap-2 px-3.5 py-1.5 bg-[#1A73E8] text-white text-sm font-semibold rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Thêm ghi nhận</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Mobile View: Collapsible Search icon row */}
+              <div className="lg:hidden w-full">
+                {isSearchExpanded ? (
+                  <div className="flex items-center gap-1.5 w-full">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Tìm kiếm..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        autoFocus
+                        className="w-full pl-9 pr-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B] shadow-sm"
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsSearchExpanded(false);
+                        setSearchTerm("");
+                      }}
+                      className="flex items-center justify-center p-2 bg-white/40 border border-white/70 rounded-xl text-slate-500 hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out shadow-sm cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 w-full justify-between">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {/* Popover / Calendar for mobile */}
+                      <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                        <PopoverTrigger asChild>
+                          <button
+                            className={`flex items-center justify-center p-2 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shrink-0 ${filterDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
+                            title="Lọc ngày"
+                          >
+                            <CalendarIcon
+                              className={`w-4 h-4 ${filterDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
+                            />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
+                          align="start"
+                          side="bottom"
+                          sideOffset={6}
+                        >
+                          <CustomCalendar
+                            startDate={filterDateRange?.start || null}
+                            endDate={filterDateRange?.end || null}
+                            onRangeSelect={(start, end) =>
+                              setFilterDateRange({ start, end })
+                            }
+                            onCancel={() => {
+                              setFilterDateRange(null);
+                              setIsCalendarOpen(false);
+                            }}
+                            onConfirm={() => setIsCalendarOpen(false)}
+                          />
+                        </PopoverContent>
+                      </Popover>
+
+                      {/* Class Dropdown for mobile */}
+                      {!isStudent && (
+                        <div className="flex-1 min-w-[100px] max-w-[150px]">
+                          <Select
+                            value={selectedClassIdForStudent}
+                            onValueChange={(val: string) => {
+                              setSelectedClassIdForStudent(val);
+                              setCurrentPage(1);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 bg-white/40 border border-white/70 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-xs rounded-xl shadow-sm">
+                              <SelectValue placeholder="Lớp" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Tất cả lớp</SelectItem>
+                              {classes.map((c) => (
+                                <SelectItem key={c._id} value={c._id}>
+                                  {c.class_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {ghiNhanAccess.configRecord && (
+                        <button
+                          onClick={() => setIsGlobalConfigModalOpen(true)}
+                          className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                          title="Cấu hình tiêu chí vắng mặt"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => setIsSearchExpanded(true)}
+                        className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-500 hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center"
+                        title="Tìm kiếm"
+                      >
+                        <Search className="w-4 h-4" />
+                      </button>
+
+                      {ghiNhanAccess.createStudentRecord && (
+                        <button
+                          onClick={handleCreate}
+                          className="flex items-center justify-center p-2 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer"
+                          title="Thêm ghi nhận"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Desktop View: Full search input and normal filters/buttons */}
+              <div className="hidden lg:flex items-center gap-3 w-full lg:w-auto justify-end">
+                <div className="relative w-full sm:max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Nhập tên giảng viên hoặc ghi chú lớp..."
+                    value={classSearchTerm}
+                    onChange={(e) => setClassSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B] shadow-sm"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <Popover
+                    open={isClassDateCalendarOpen}
+                    onOpenChange={setIsClassDateCalendarOpen}
                   >
-                    <SelectTrigger className="h-8.5 bg-white/50 border border-white/80 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-sm rounded-xl shadow-sm">
-                      <SelectValue placeholder="Tất cả các lớp" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tất cả các lớp</SelectItem>
-                      {classes.map((c) => (
-                        <SelectItem key={c._id} value={c._id}>
-                          {c.class_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <PopoverTrigger asChild>
+                      <button
+                        className={`flex items-center gap-2 px-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap ${selectedReportDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
+                      >
+                        <CalendarIcon
+                          className={`w-4 h-4 ${selectedReportDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
+                        />
+                        <span>
+                          {selectedReportDateRange
+                            ? `${format(selectedReportDateRange.start, "dd/MM")} - ${format(selectedReportDateRange.end, "dd/MM")}`
+                            : "Chọn khoảng ngày"}
+                        </span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
+                      align="end"
+                      side="bottom"
+                      sideOffset={6}
+                    >
+                      <CustomCalendar
+                        startDate={selectedReportDateRange?.start || null}
+                        endDate={selectedReportDateRange?.end || null}
+                        onRangeSelect={(start, end) =>
+                          setSelectedReportDateRange({ start, end })
+                        }
+                        onCancel={() => {
+                          setSelectedReportDateRange(null);
+                          setIsClassDateCalendarOpen(false);
+                        }}
+                        onConfirm={() => setIsClassDateCalendarOpen(false)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Class Dropdown */}
+                  <div className="w-[160px]">
+                    <Select
+                      value={selectedClassId}
+                      onValueChange={(val: string) => {
+                        setSelectedClassId(val);
+                        setClassCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="h-8.5 bg-white/40 border border-white/70 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-sm rounded-xl shadow-sm">
+                        <SelectValue placeholder="Tất cả các lớp" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tất cả các lớp</SelectItem>
+                        {classes.map((c) => (
+                          <SelectItem key={c._id} value={c._id}>
+                            {c.class_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {ghiNhanAccess.configRecord && (
+                    <button
+                      onClick={() => setIsGlobalConfigModalOpen(true)}
+                      className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                      title="Cấu hình tiêu chí vắng mặt"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  {ghiNhanAccess.createClassRecord && (
+                    <button
+                      onClick={handleCreate}
+                      className="flex items-center gap-2 px-3.5 py-1.5 bg-[#1A73E8] text-white text-sm font-semibold rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Thêm ghi nhận</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Mobile View: Collapsible Search icon row */}
+              <div className="lg:hidden w-full">
+                {isClassSearchExpanded ? (
+                  <div className="flex items-center gap-1.5 w-full">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Nhập tên giảng viên hoặc ghi chú lớp..."
+                        value={classSearchTerm}
+                        onChange={(e) => setClassSearchTerm(e.target.value)}
+                        autoFocus
+                        className="w-full pl-9 pr-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B] shadow-sm"
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsClassSearchExpanded(false);
+                        setClassSearchTerm("");
+                      }}
+                      className="flex items-center justify-center p-2 bg-white/40 border border-white/70 rounded-xl text-slate-500 hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out shadow-sm cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 w-full justify-between">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {/* Calendar Popover for mobile */}
+                      <Popover
+                        open={isClassDateCalendarOpen}
+                        onOpenChange={setIsClassDateCalendarOpen}
+                      >
+                        <PopoverTrigger asChild>
+                          <button
+                            className={`flex items-center justify-center p-2 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shrink-0 ${selectedReportDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
+                            title="Lọc ngày"
+                          >
+                            <CalendarIcon
+                              className={`w-4 h-4 ${selectedReportDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
+                            />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
+                          align="start"
+                          side="bottom"
+                          sideOffset={6}
+                        >
+                          <CustomCalendar
+                            startDate={selectedReportDateRange?.start || null}
+                            endDate={selectedReportDateRange?.end || null}
+                            onRangeSelect={(start, end) =>
+                              setSelectedReportDateRange({ start, end })
+                            }
+                            onCancel={() => {
+                              setSelectedReportDateRange(null);
+                              setIsClassDateCalendarOpen(false);
+                            }}
+                            onConfirm={() => setIsClassDateCalendarOpen(false)}
+                          />
+                        </PopoverContent>
+                      </Popover>
+
+                      {/* Class Dropdown for mobile */}
+                      <div className="flex-1 min-w-[100px] max-w-[150px]">
+                        <Select
+                          value={selectedClassId}
+                          onValueChange={(val: string) => {
+                            setSelectedClassId(val);
+                            setClassCurrentPage(1);
+                          }}
+                        >
+                          <SelectTrigger className="h-8 bg-white/40 border border-white/70 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-xs rounded-xl shadow-sm">
+                            <SelectValue placeholder="Lớp" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tất cả lớp</SelectItem>
+                            {classes.map((c) => (
+                              <SelectItem key={c._id} value={c._id}>
+                                {c.class_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {ghiNhanAccess.configRecord && (
+                        <button
+                          onClick={() => setIsGlobalConfigModalOpen(true)}
+                          className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                          title="Cấu hình tiêu chí vắng mặt"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => setIsClassSearchExpanded(true)}
+                        className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-500 hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center"
+                        title="Tìm kiếm"
+                      >
+                        <Search className="w-4 h-4" />
+                      </button>
+
+                      {ghiNhanAccess.createClassRecord && (
+                        <button
+                          onClick={handleCreate}
+                          className="flex items-center justify-center p-2 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer"
+                          title="Thêm ghi nhận"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Main card containing only the table/content */}
+      <div className="flex-1 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 overflow-hidden flex flex-col min-h-0 w-full">
+        {activeSubTab === "student" ? (
+          <>
+            {/* Table Content student record */}
+            <div className="flex-1 overflow-y-auto w-full max-w-full bg-transparent flex flex-col">
+            {/* Mobile/Tablet View (Luôn hiển thị dạng thẻ tinh giản và ẩn trên desktop) */}
+            <div className="p-4 bg-blue-50/30 backdrop-blur-md lg:hidden flex-1 overflow-y-auto">
+              {isLoading ? (
+                <div className="flex flex-col gap-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="bg-white/40 backdrop-blur-md p-4 rounded-xl border border-white/70 shadow-sm flex flex-col gap-3"
+                    >
+                      <Skeleton className="w-1/3 h-5" />
+                      <Skeleton className="w-1/2 h-4" />
+                      <Skeleton className="w-full h-8" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {paginatedRecords.map((record) => (
+                    <div
+                      key={record.id}
+                      className="bg-white/50 backdrop-blur-md border border-white/70 rounded-xl p-4 shadow-sm flex flex-col gap-3"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-sm font-bold text-[#1E293B]">
+                            {record.fullName}
+                          </h3>
+                          <p className="text-[11px] font-semibold text-[#64748B] mt-0.5">
+                            Lớp: {record.className}
+                          </p>
+                        </div>
+                        <span className="text-[11px] text-slate-500 font-semibold bg-white/70 border border-white/90 px-2 py-0.5 rounded-full shadow-sm shrink-0">
+                          {record.date}
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-50/50 border border-slate-100 rounded-lg p-2.5 text-[12px] text-[#334155] font-medium leading-relaxed">
+                        {record.criteria || "Không có tiêu chí"}
+                      </div>
+
+                      <div className="flex justify-end pt-1">
+                        <button
+                          onClick={() => handleOpenDetailView(record)}
+                          className="px-3.5 py-1.5 bg-[#1A73E8]/10 hover:bg-[#1A73E8]/20 text-[#1A73E8] rounded-xl text-xs font-bold transition-all duration-150 active:scale-[0.97] cursor-pointer shadow-sm border border-[#1A73E8]/10"
+                        >
+                          Chi tiết
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {paginatedRecords.length === 0 && (
+                    <div className="text-center py-12 text-slate-400 italic text-[12.5px] bg-white/30 border border-dashed border-white/60 rounded-2xl">
+                      Không tìm thấy ghi nhận nào.
+                    </div>
+                  )}
                 </div>
               )}
-
-              {ghiNhanAccess.configRecord && (
-                <button
-                  onClick={() => setIsGlobalConfigModalOpen(true)}
-                  className="p-2 bg-white/50 border border-white/80 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
-                  title="Cấu hình tiêu chí vắng mặt"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-              )}
-
-              {ghiNhanAccess.createStudentRecord && (
-                <button
-                  onClick={handleCreate}
-                  className="flex items-center gap-2 px-3.5 py-1.5 bg-[#1A73E8] text-white text-sm font-semibold rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Thêm ghi nhận</span>
-                  <span className="sm:hidden">Thêm</span>
-                </button>
-              )}
             </div>
-          </div>
 
-          {/* Table Content student record */}
-          <div className="flex-1 overflow-x-auto overflow-y-auto w-full max-w-full bg-transparent border-t border-white/60">
-            {viewLayout === "card" ? (
-              <div className="p-4 bg-blue-50/30 backdrop-blur-md">
+            {/* Desktop View (lg:block - chỉ hiển thị trên desktop) */}
+            <div className="hidden lg:block h-full">
+              {viewLayout === "card" ? (
+                <div className="p-4 bg-blue-50/30 backdrop-blur-md">
                 {isLoading ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Array.from({ length: 9 }).map((_, i) => (
@@ -2679,155 +3365,155 @@ function GhiNhanTab() {
                 </tbody>
               </table>
             )}
+            </div>
           </div>
 
           {/* Pagination Bar Student */}
           {totalRecords > 0 && (
-            <CustomPagination
-              currentPage={currentPage}
-              pageSize={itemsPerPage}
-              totalItems={totalRecords}
-              onPageChange={(page) => {
-                setIsLoading(true);
-                setCurrentPage(page);
-                setTimeout(() => setIsLoading(false), 300);
-              }}
-              onPageSizeChange={setItemsPerPage}
-              label="ghi nhận"
-              isLoading={isLoading}
-            />
+            <div className="hidden lg:block shrink-0">
+              <CustomPagination
+                currentPage={currentPage}
+                pageSize={itemsPerPage}
+                totalItems={totalRecords}
+                onPageChange={(page) => {
+                  setIsLoading(true);
+                  setCurrentPage(page);
+                  setTimeout(() => setIsLoading(false), 300);
+                }}
+                onPageSizeChange={setItemsPerPage}
+                label="ghi nhận"
+                isLoading={isLoading}
+              />
+            </div>
           )}
         </>
       ) : (
         // ==================== TAB 2: TÌNH HÌNH LỚP HỌC ====================
         <>
-          {/* Top Bar */}
-          <div className="p-4 border-b border-white/70 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/45 backdrop-blur-md shadow-sm shrink-0">
-            <div className="flex flex-row items-center gap-3 flex-1">
-              {/* Tab điều hướng dạng Pill Shape */}
-              <div className="flex bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl p-1 gap-1.5 shrink-0 shadow-sm">
-                <button
-                  onClick={() => setActiveSubTab("student")}
-                  className="px-4 py-1.5 font-bold text-[12.5px] transition-all duration-150 ease-out hover:scale-[1.01] rounded-xl cursor-pointer whitespace-nowrap text-slate-500 hover:text-slate-800"
-                >
-                  Tình hình HSSV
-                </button>
-                <button
-                  onClick={() => setActiveSubTab("class")}
-                  className="px-4 py-1.5 font-bold text-[12.5px] transition-all duration-150 ease-out hover:scale-[1.01] rounded-xl cursor-pointer whitespace-nowrap bg-white/85 text-[#1A73E8] shadow-sm"
-                >
-                  Tình hình lớp học
-                </button>
-              </div>
-
-              <div className="relative flex-1 min-w-0 max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Nhập tên giảng viên hoặc ghi chú lớp..."
-                  value={classSearchTerm}
-                  onChange={(e) => setClassSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B]"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 w-full lg:w-auto">
-              {/* Datepicker */}
-              <Popover
-                open={isClassDateCalendarOpen}
-                onOpenChange={setIsClassDateCalendarOpen}
-              >
-                <PopoverTrigger asChild>
-                  <button
-                    className={`flex items-center gap-2 px-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap ${selectedReportDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
-                  >
-                    <CalendarIcon
-                      className={`w-4 h-4 ${selectedReportDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
-                    />
-                    <span className="hidden sm:inline">
-                      {selectedReportDateRange
-                        ? `${format(selectedReportDateRange.start, "dd/MM")} - ${format(selectedReportDateRange.end, "dd/MM")}`
-                        : "Chọn khoảng ngày"}
-                    </span>
-                    <span className="sm:hidden">
-                      {selectedReportDateRange ? "Đã lọc" : "Lọc"}
-                    </span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
-                  align="end"
-                  side="bottom"
-                  sideOffset={6}
-                >
-                  <CustomCalendar
-                    startDate={selectedReportDateRange?.start || null}
-                    endDate={selectedReportDateRange?.end || null}
-                    onRangeSelect={(start, end) =>
-                      setSelectedReportDateRange({ start, end })
-                    }
-                    onCancel={() => {
-                      setSelectedReportDateRange(null);
-                      setIsClassDateCalendarOpen(false);
-                    }}
-                    onConfirm={() => setIsClassDateCalendarOpen(false)}
-                  />
-                </PopoverContent>
-              </Popover>
-
-              {/* Class Dropdown */}
-              <div className="w-[180px]">
-                <Select
-                  value={selectedClassId}
-                  onValueChange={(val: string) => {
-                    setSelectedClassId(val);
-                    setClassCurrentPage(1);
-                  }}
-                >
-                  <SelectTrigger className="h-8.5 bg-white/50 border border-white/80 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-sm rounded-xl shadow-sm">
-                    <SelectValue placeholder="Tất cả các lớp" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tất cả các lớp</SelectItem>
-                    {classes.map((c) => (
-                      <SelectItem key={c._id} value={c._id}>
-                        {c.class_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {ghiNhanAccess.configRecord && (
-                <>
-                  <button
-                    onClick={() => setIsGlobalConfigModalOpen(true)}
-                    className="p-2 bg-white/50 border border-white/80 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
-                    title="Cấu hình tiêu chí vắng mặt"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </button>
-                </>
-              )}
-              {ghiNhanAccess.createClassRecord && (
-                  <button
-                    onClick={handleCreate}
-                    className="flex items-center gap-2 px-3.5 py-1.5 bg-[#1A73E8] text-white text-sm font-semibold rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span className="hidden sm:inline">Thêm ghi nhận</span>
-                    <span className="sm:hidden">Thêm</span>
-                  </button>
-                )}
-              {/* Import button for class moved to Global Config modal per taskscope */}
-            </div>
-          </div>
-
           {/* Table Content class record */}
-          <div className="flex-1 overflow-x-auto overflow-y-auto w-full max-w-full bg-transparent border-t border-white/60">
-            {viewLayout === "card" ? (
-              <div className="p-4 bg-blue-50/30 backdrop-blur-md">
+          <div className="flex-1 overflow-y-auto w-full max-w-full bg-transparent flex flex-col">
+            {/* Mobile/Tablet View (Luôn hiển thị dạng thẻ và ẩn trên desktop) */}
+            <div className="p-4 bg-blue-50/30 backdrop-blur-md lg:hidden flex-1 overflow-y-auto">
+              {isClassLoading ? (
+                <div className="flex flex-col gap-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="bg-white/40 backdrop-blur-md p-4 rounded-xl border border-white/70 shadow-sm flex flex-col gap-3"
+                    >
+                      <Skeleton className="w-1/3 h-5" />
+                      <Skeleton className="w-1/2 h-4" />
+                      <Skeleton className="w-full h-8" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {paginatedClassReports.map((report) => {
+                    const classObj =
+                      typeof report.class_id === "object"
+                        ? report.class_id
+                        : null;
+                    const className = classObj
+                      ? classObj.class_name
+                      : "CS-101-A";
+
+                    const totalPresent = report.total_present || 0;
+                    const totalAbsent = report.total_absent || 0;
+                    const totalStudents = totalPresent + totalAbsent;
+                    const percent =
+                      totalStudents === 0
+                        ? 0
+                        : Math.round((totalPresent / totalStudents) * 100);
+
+                    return (
+                      <div
+                        key={report._id}
+                        className="bg-white/50 backdrop-blur-md border border-white/70 rounded-xl p-4 shadow-sm flex flex-col gap-3"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="text-sm font-bold text-[#1E293B]">
+                              {className}
+                            </h3>
+                            {classObj?.headquarters && (
+                              <p className="text-[10.5px] font-semibold text-[#64748B] mt-0.5">
+                                {classObj.headquarters}
+                              </p>
+                            )}
+                          </div>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-[10px] font-bold uppercase border shrink-0 ${
+                              percent >= 80
+                                ? "bg-emerald-50 text-emerald-600 border-emerald-100/50"
+                                : "bg-rose-50 text-rose-600 border-rose-100/50"
+                            }`}
+                          >
+                            Sĩ số: {percent}%
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-50/50 border border-slate-100 rounded-lg p-2.5 flex items-center justify-between text-[11.5px] text-[#1E293B] font-semibold">
+                          <span>
+                            Hiện diện: {totalPresent}/{totalStudents}
+                          </span>
+                          <span>Vắng: {totalAbsent}</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <div className="text-[11.5px] font-bold text-[#1E293B]">
+                            GV: {report.teacher_name}
+                          </div>
+                          {report.class_note && (
+                            <p className="text-[11px] text-[#64748B] font-medium italic">
+                              "{report.class_note}"
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex justify-between items-center border-t border-white/40 pt-2.5 mt-1">
+                          <span className="text-[11px] font-bold text-[#1E293B]">
+                            {(() => {
+                              const dStr = report.report_date;
+                              if (!dStr) return "N/A";
+                              if (dStr.includes("/")) return dStr;
+                              try {
+                                return format(new Date(dStr), "dd/MM/yyyy");
+                              } catch {
+                                return dStr;
+                              }
+                            })()}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <ClassReportDetailDialog
+                              report={report}
+                              className={className}
+                              totalPresent={totalPresent}
+                              totalAbsent={totalAbsent}
+                              allCriteria={allCriteria}
+                            >
+                              <button className="px-3.5 py-1.5 bg-[#1A73E8]/10 hover:bg-[#1A73E8]/20 text-[#1A73E8] rounded-xl text-xs font-bold transition-all duration-150 active:scale-[0.97] cursor-pointer shadow-sm border border-[#1A73E8]/10">
+                                Chi tiết
+                              </button>
+                            </ClassReportDetailDialog>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {paginatedClassReports.length === 0 && (
+                    <div className="text-center py-12 text-slate-400 italic text-[12.5px] bg-white/30 border border-dashed border-white/60 rounded-2xl">
+                      Không tìm thấy báo cáo tình hình lớp học nào phù hợp.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop View (lg:block - chỉ hiển thị trên desktop) */}
+            <div className="hidden lg:block h-full">
+              {viewLayout === "card" ? (
+                <div className="p-4 bg-blue-50/30 backdrop-blur-md">
                 {isClassLoading ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -3253,26 +3939,30 @@ function GhiNhanTab() {
                 </tbody>
               </table>
             )}
+            </div>
           </div>
 
           {/* Pagination Bar Class */}
           {totalClassReports > 0 && (
-            <CustomPagination
-              currentPage={classCurrentPage}
-              pageSize={classItemsPerPage}
-              totalItems={totalClassReports}
-              onPageChange={(page) => {
-                setIsClassLoading(true);
-                setClassCurrentPage(page);
-                setTimeout(() => setIsClassLoading(false), 300);
-              }}
-              onPageSizeChange={setClassItemsPerPage}
-              label="báo cáo lớp"
-              isLoading={isClassLoading}
-            />
+            <div className="hidden lg:block shrink-0">
+              <CustomPagination
+                currentPage={classCurrentPage}
+                pageSize={classItemsPerPage}
+                totalItems={totalClassReports}
+                onPageChange={(page) => {
+                  setIsClassLoading(true);
+                  setClassCurrentPage(page);
+                  setTimeout(() => setIsClassLoading(false), 300);
+                }}
+                onPageSizeChange={setClassItemsPerPage}
+                label="báo cáo lớp"
+                isLoading={isClassLoading}
+              />
+            </div>
           )}
         </>
       )}
+      </div>
 
       {activeSubTab === "student" ? (
         <FloatingActionBar
@@ -3280,21 +3970,23 @@ function GhiNhanTab() {
           onClear={() => setSelectedIds([])}
           variant="dark"
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={handleExportSelectedStudentExcel}
-                className="bg-[#107c41] hover:bg-[#0e6c38] text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,124,65,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                className="bg-[#107c41] hover:bg-[#0e6c38] text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,124,65,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
               >
                 <FileSpreadsheet size={13} strokeWidth={2.5} />
-                <span>Xuất Excel ({selectedIds.length})</span>
+                <span className="hidden sm:inline">Xuất Excel ({selectedIds.length})</span>
+                <span className="inline sm:hidden">({selectedIds.length})</span>
               </button>
               {selectedIds.length > 0 && ghiNhanAccess.deleteStudentRecord && (
                 <button
                   onClick={() => setIsDeleteConfirmOpen(true)}
-                  className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                  className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
                 >
                   <Trash2 size={13} strokeWidth={2.5} />
-                  <span>Xóa ({selectedIds.length})</span>
+                  <span className="hidden sm:inline">Xóa ({selectedIds.length})</span>
+                  <span className="inline sm:hidden">({selectedIds.length})</span>
                 </button>
               )}
             </div>
@@ -3306,27 +3998,29 @@ function GhiNhanTab() {
           onClear={() => setSelectedReportIds([])}
           variant="dark"
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={handleExportSelectedClassExcel}
-                className="bg-[#107c41] hover:bg-[#0e6c38] text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,124,65,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                className="bg-[#107c41] hover:bg-[#0e6c38] text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,124,65,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
               >
                 <FileSpreadsheet size={13} strokeWidth={2.5} />
-                <span>Xuất Excel ({selectedReportIds.length})</span>
+                <span className="hidden sm:inline">Xuất Excel ({selectedReportIds.length})</span>
+                <span className="inline sm:hidden">({selectedReportIds.length})</span>
               </button>
               {selectedReportIds.length > 0 &&
                 ghiNhanAccess.deleteClassRecord && (
                   <button
                     onClick={() => setIsDeleteClassConfirmOpen(true)}
                     disabled={isDeletingClassReports}
-                    className={`bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0 ${isDeletingClassReports ? "opacity-50 cursor-not-allowed" : ""}`}
+                    className={`bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0 ${isDeletingClassReports ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     {isDeletingClassReports ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
                       <Trash2 size={13} strokeWidth={2.5} />
                     )}
-                    <span>Xóa ({selectedReportIds.length})</span>
+                    <span className="hidden sm:inline">Xóa ({selectedReportIds.length})</span>
+                    <span className="inline sm:hidden">({selectedReportIds.length})</span>
                   </button>
                 )}
             </div>
@@ -4053,7 +4747,7 @@ function ClassReportDetailDialog({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="max-w-[440px] sm:max-w-[480px] bg-white/45 backdrop-blur-xl rounded-2xl p-6 border border-white/70 shadow-2xl z-50 overflow-hidden gap-0 text-[#1E293B]">
+      <DialogContent className="max-w-[440px] sm:max-w-[480px] w-[calc(100%-2rem)] sm:w-full bg-white/45 backdrop-blur-xl rounded-2xl p-6 border border-white/70 shadow-2xl z-50 overflow-hidden gap-0 text-[#1E293B]">
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between border-b border-white/60 pb-3 pr-6">
             <div className="flex flex-col">
@@ -4317,11 +5011,17 @@ function ClassReportDetailDialog({
 function StudentRecordPageContent() {
   const router = useRouter();
   const { user } = useAuth();
+  const [activeSubTab, setActiveSubTab] = useState<"class" | "student">("student");
   const userRole = String(user?.role || '').toLowerCase();
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
 
+  const ghiNhanAccess = usePermission({
+    viewClassRecord: "READ_CLASS_RECORD",
+  });
+  const canAccessClassTab = !isStudent && ghiNhanAccess.viewClassRecord;
+
   return (
-    <div className="flex bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] h-screen overflow-hidden font-sans">
+    <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <Header
@@ -4350,7 +5050,7 @@ function StudentRecordPageContent() {
           }}
         />
         <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-transparent relative">
-          <GhiNhanTab />
+          <GhiNhanTab activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
         </main>
       </div>
     </div>

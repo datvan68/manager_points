@@ -74,9 +74,9 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[95vh]">
+      <div className="w-full max-w-lg bg-gradient-to-br from-[#EBF2FA]/92 to-[#DCE6F1]/92 backdrop-blur-md border border-white/80 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[95vh]">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-white/60 flex items-center justify-between bg-white/20">
+        <div className="px-5 py-4 border-b border-white/60 flex items-center justify-between bg-white/10 shrink-0">
           <div className="flex items-center gap-2">
             <Bell className="text-[#1A73E8] w-5 h-5" />
             <h3 className="font-bold text-base text-[#1E293B]">
@@ -117,10 +117,10 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
               onChange={(e) => setType(e.target.value as NotificationItem['type'])}
               className="w-full rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <option value="system">Hệ thống (System)</option>
-              <option value="info">Nhiệm vụ & Công việc (Info)</option>
-              <option value="success">Khen thưởng & Điểm số (Success)</option>
-              <option value="warning">Cảnh báo chuyên cần (Warning)</option>
+              <option value="system" className="bg-[#EBF2FA]">Hệ thống (System)</option>
+              <option value="info" className="bg-[#EBF2FA]">Nhiệm vụ & Công việc (Info)</option>
+              <option value="success" className="bg-[#EBF2FA]">Khen thưởng & Điểm số (Success)</option>
+              <option value="warning" className="bg-[#EBF2FA]">Cảnh báo chuyên cần (Warning)</option>
             </select>
           </div>
 
@@ -133,10 +133,10 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
               onChange={(e) => setTargetRole(e.target.value as any)}
               className="w-full rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <option value="all">Tất cả đối tượng (All)</option>
-              <option value="student">Học sinh - Sinh viên (Student)</option>
-              <option value="teacher">Cố vấn - Giảng viên (Teacher)</option>
-              <option value="supervisor">Quản sinh (Supervisor)</option>
+              <option value="all" className="bg-[#EBF2FA]">Tất cả đối tượng (All)</option>
+              <option value="student" className="bg-[#EBF2FA]">Học sinh - Sinh viên (Student)</option>
+              <option value="teacher" className="bg-[#EBF2FA]">Cố vấn - Giảng viên (Teacher)</option>
+              <option value="supervisor" className="bg-[#EBF2FA]">Quản sinh (Supervisor)</option>
             </select>
           </div>
 
@@ -168,7 +168,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-white/60 bg-white/20 -mx-5 -mb-5 p-5">
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-white/60 bg-white/10 -mx-5 -mb-5 p-5">
             <button
               type="button"
               onClick={onClose}

@@ -82,7 +82,7 @@ export default function ConfirmModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-              className="w-full max-w-[448px] bg-white rounded-[20px] shadow-2xl pointer-events-auto overflow-hidden font-sans"
+              className="w-[calc(100%-2rem)] sm:w-full max-w-[448px] bg-white rounded-[20px] shadow-2xl pointer-events-auto overflow-hidden font-sans"
             >
               <div className="p-6">
                 <div className="flex items-start gap-4">
@@ -111,11 +111,11 @@ export default function ConfirmModal({
                 </div>
 
                 {/* Actions */}
-                <div className="mt-8 flex items-center justify-end gap-3">
+                <div className="mt-8 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
                   {showCancel && (
                     <button
                       onClick={onClose}
-                      className="flex-1 md:flex-none px-6 py-2.5 bg-white border border-[#D0D5DD] rounded-xl text-[14px] font-bold text-[#344054] hover:bg-slate-50 transition-colors"
+                      className="w-full sm:w-auto px-6 py-2.5 bg-white border border-[#D0D5DD] rounded-xl text-[14px] font-bold text-[#344054] hover:bg-slate-50 transition-colors"
                     >
                       {cancelLabel}
                     </button>
@@ -125,7 +125,7 @@ export default function ConfirmModal({
                       onConfirm();
                       onClose();
                     }}
-                    className={cn("flex-1 md:flex-none px-6 py-2.5 rounded-xl text-[14px] font-bold transition-all", styles.confirmBtn)}
+                    className={cn("w-full sm:w-auto px-6 py-2.5 rounded-xl text-[14px] font-bold transition-all", styles.confirmBtn)}
                   >
                     {confirmLabel}
                   </button>

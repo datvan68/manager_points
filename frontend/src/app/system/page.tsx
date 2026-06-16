@@ -11,6 +11,7 @@ import { systemPerformance } from "@/lib/performance/system-performance";
 import { tokenStorage } from "@/api/auth-api";
 import { toast } from "sonner";
 import ConfirmModal from "@/components/modals/ConfirmModal";
+import ResponsiveDataView, { ResponsiveColumn } from "@/components/ui/ResponsiveDataView";
 import {
   Shield,
   History,
@@ -528,6 +529,210 @@ function SystemAdminDashboard() {
     }
   };
 
+  const logsColumns: ResponsiveColumn<LoginLog>[] = [
+    {
+      key: "login_time",
+      header: "Thời gian",
+      priority: "secondary",
+      render: (_, log) => new Date(log.login_time || log.createdAt).toLocaleString()
+    },
+    {
+      key: "user_name",
+      header: "Tài khoản",
+      priority: "primary",
+      render: (_, log) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-[#1E293B]">
+            {log.user_id?.user_name ?? "Chưa xác thực"}
+          </span>
+          <span className="text-[10px] text-[#64748B]">
+            {log.user_id?.email ?? "N/A"}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: "ip_address",
+      header: "Địa chỉ IP",
+      priority: "metadata",
+      render: (val) => <span className="font-mono text-[#64748B]">{val}</span>
+    },
+    {
+      key: "action",
+      header: "Hành động",
+      priority: "metadata",
+      render: (val) => {
+        if (val === "login_success") return <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Login Success</span>;
+        if (val === "login_failure") return <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Login Failure</span>;
+        if (val === "logout") return <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Logout</span>;
+        if (val === "password_reset" || val === "password_change" || val === "admin_reset_password") return <span className="bg-indigo-500/10 text-indigo-700 border border-indigo-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Security Change</span>;
+        return <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Unknown</span>;
+      }
+    },
+    {
+      key: "details",
+      header: "Chi tiết",
+      priority: "metadata",
+      render: (val) => <span className="max-w-xs truncate block text-[#64748B]" title={val}>{val || "-"}</span>
+    }
+  ];
+
+  const requestsColumns: ResponsiveColumn<SystemRequest>[] = [
+    {
+      key: "title",
+      header: "Yêu cầu",
+      priority: "primary",
+      render: (_, req) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-[#1E293B] hover:text-[#1A73E8] transition-colors">
+            {req.title}
+          </span>
+          <span className="text-[10px] text-[#64748B] truncate max-w-xs">
+            {req.description || "Không có mô tả"}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: "type",
+      header: "Loại",
+      priority: "secondary",
+      render: (val) => <span className="capitalize font-semibold text-[#64748B]">{val}</span>
+    },
+    {
+      key: "priority",
+      header: "Độ ưu tiên",
+      priority: "metadata",
+      render: (val) => getPriorityBadge(val)
+    },
+    {
+      key: "status",
+      header: "Trạng thái",
+      priority: "metadata",
+      render: (val) => getStatusBadge(val)
+    },
+    {
+      key: "requester_id",
+      header: "Người yêu cầu",
+      priority: "metadata",
+      render: (_, req) => <span className="text-[#64748B]">{req.requester_id?.user_name ?? "System"}</span>
+    },
+    {
+      key: "assignee_id",
+      header: "Người xử lý",
+      priority: "metadata",
+      render: (_, req) => <span className="text-[#64748B]">{req.assignee_id?.user_name ?? "Chưa phân công"}</span>
+    },
+    {
+      key: "createdAt",
+      header: "Ngày tạo",
+      priority: "metadata",
+      render: (val) => <span className="text-[#64748B]">{new Date(val).toLocaleDateString()}</span>
+    }
+  ];
+
+  const backupsColumns: ResponsiveColumn<BackupJob>[] = [
+    {
+      key: "file_name",
+      header: "Bản sao lưu",
+      priority: "primary",
+      render: (_, job) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-[#1E293B]">
+            {job.file_name ?? "Chờ khởi tạo..."}
+          </span>
+          <span className="text-[10px] text-[#64748B]">
+            {new Date(job.createdAt).toLocaleString()}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: "file_size",
+      header: "Dung lượng",
+      priority: "secondary",
+      render: (val) => <span className="font-medium text-[#64748B]">{val ? formatBytes(val) : "-"}</span>
+    },
+    {
+      key: "requested_by",
+      header: "Yêu cầu bởi",
+      priority: "metadata",
+      render: (_, job) => <span className="text-[#64748B]">{job.requested_by?.user_name ?? "System"}</span>
+    },
+    {
+      key: "status",
+      header: "Trạng thái",
+      priority: "metadata",
+      render: (_, job) => {
+        if (job.status === "running") return <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px] animate-pulse flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
+        if (job.status === "success") return <span className="bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Success</span>;
+        if (job.status === "failed") return <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Failed</span>;
+        return <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Queued</span>;
+      }
+    },
+    {
+      key: "actions",
+      header: "Tác vụ",
+      priority: "action",
+      render: (_, job) => (
+        <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {canDownloadBackup && (
+            <button
+              disabled={job.status !== "success"}
+              onClick={() => handleDownloadBackup(job)}
+              className="p-1.5 text-[#1A73E8] hover:bg-white/50 disabled:opacity-40 disabled:hover:bg-transparent rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
+              title="Tải xuống"
+            >
+              <Download size={14} />
+            </button>
+          )}
+          {canDeleteBackup && (
+            <button
+              onClick={() => requestDeleteBackup(job._id)}
+              className="p-1.5 text-rose-600 hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
+              title="Xóa"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      )
+    }
+  ];
+
+  const slowApisColumns: ResponsiveColumn<any>[] = [
+    {
+      key: "name",
+      header: "API Endpoint",
+      priority: "primary",
+      render: (val) => <span className="font-mono text-[11px] text-[#64748B]">{val}</span>
+    },
+    {
+      key: "avg",
+      header: "Avg (ms)",
+      priority: "secondary",
+      render: (val) => Math.round(val)
+    },
+    {
+      key: "p75",
+      header: "p75 (ms)",
+      priority: "metadata",
+      render: (val) => <span className="text-amber-600 font-medium">{Math.round(val)}</span>
+    },
+    {
+      key: "p95",
+      header: "p95 (ms)",
+      priority: "metadata",
+      render: (val) => <span className="text-rose-600 font-bold">{Math.round(val)}</span>
+    },
+    {
+      key: "samples",
+      header: "Mẫu",
+      priority: "metadata",
+      render: (val) => val
+    }
+  ];
+
   return (
     <div className="flex min-h-screen h-screen overflow-hidden font-sans" style={{ background: "linear-gradient(135deg, #EBF2FA 0%, #DCE6F1 100%)" }}>
       <Sidebar />
@@ -717,237 +922,43 @@ function SystemAdminDashboard() {
                   </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto border border-white/50 rounded-xl bg-white/10 backdrop-blur-sm">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-white/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-white/40">
-                        <th className="px-4 py-3">Thời gian</th>
-                        <th className="px-4 py-3">Tài khoản</th>
-                        <th className="px-4 py-3">Địa chỉ IP</th>
-                        <th className="px-4 py-3">Hành động</th>
-                        <th className="px-4 py-3">Chi tiết</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/20 text-xs text-[#1E293B]">
-                      {logsLoading && logs.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="text-center py-8 text-[#64748B]">
-                            Đang tải nhật ký...
-                          </td>
-                        </tr>
-                      ) : logs.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="text-center py-8 text-[#64748B]">
-                            Không tìm thấy bản ghi hoạt động nào.
-                          </td>
-                        </tr>
-                      ) : (
-                        logs.map((log) => {
-                          let actionBadge = <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Unknown</span>;
-                          if (log.action === "login_success") actionBadge = <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Login Success</span>;
-                          else if (log.action === "login_failure") actionBadge = <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Login Failure</span>;
-                          else if (log.action === "logout") actionBadge = <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Logout</span>;
-                          else if (log.action === "password_reset" || log.action === "password_change" || log.action === "admin_reset_password") actionBadge = <span className="bg-indigo-500/10 text-indigo-700 border border-indigo-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Security Change</span>;
-
-                          return (
-                            <tr key={log._id} className="hover:bg-white/40 border-b border-white/20 transition-all duration-150 ease-out">
-                              <td className="px-4 py-3 whitespace-nowrap text-[#64748B]">
-                                {new Date(log.login_time || log.createdAt).toLocaleString()}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-col">
-                                  <span className="font-semibold text-[#1E293B]">
-                                    {log.user_id?.user_name ?? "Chưa xác thực"}
-                                  </span>
-                                  <span className="text-[10px] text-[#64748B]">
-                                    {log.user_id?.email ?? "N/A"}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 font-mono text-[#64748B]">
-                                {log.ip_address}
-                              </td>
-                              <td className="px-4 py-3">
-                                {actionBadge}
-                              </td>
-                              <td className="px-4 py-3 text-[#64748B] max-w-xs truncate" title={log.details}>
-                                {log.details || "-"}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination */}
-                {logsTotalPages > 1 && (
-                  <div className="flex items-center justify-between pt-4 border-t border-white/20">
-                    <span className="text-xs text-[#64748B]">
-                      Trang {logsPage} / {logsTotalPages}
-                    </span>
-                    <div className="flex gap-1">
-                      <button
-                        disabled={logsPage === 1}
-                        onClick={() => setLogsPage(prev => prev - 1)}
-                        className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-semibold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
-                      >
-                        Trước
-                      </button>
-                      <button
-                        disabled={logsPage === logsTotalPages}
-                        onClick={() => setLogsPage(prev => prev + 1)}
-                        className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-semibold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
-                      >
-                        Sau
-                      </button>
+                {/* Responsive Data View */}
+                <ResponsiveDataView
+                  data={logs}
+                  columns={logsColumns}
+                  isLoading={logsLoading}
+                  emptyState={
+                    <div className="text-center py-8 text-[#64748B] text-xs font-semibold">
+                      Không tìm thấy bản ghi hoạt động nào.
                     </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* --------------------------------------------------------------------- */}
-      {/* TAB 4: PERFORMANCE (BLOCK 1) */}
-      {/* --------------------------------------------------------------------- */}
-      {activeTab === "performance" && (
-        <div className="space-y-6">
-          {!canReadPerformance ? (
-            <div className="bg-white/40 backdrop-blur-md border border-red-500/20 p-8 rounded-2xl shadow-sm shadow-slate-300/40 text-center">
-              <Lock className="mx-auto text-red-400 mb-2" size={32} />
-              <p className="text-sm font-bold text-[#1E293B]">Bạn không có quyền xem thông tin hiệu năng</p>
-            </div>
-          ) : (
-            <>
-              {/* KPI Dashboard */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
-                  <span className="text-xs font-semibold text-[#64748B]">Load p75</span>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-2xl font-bold text-[#1E293B]">
-                      {performanceSummary?.p75?.load_event_ms ? Math.round(performanceSummary.p75.load_event_ms) : 0}
-                    </span>
-                    <span className="text-[10px] text-[#64748B]">ms</span>
-                  </div>
-                </div>
-                
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
-                  <span className="text-xs font-semibold text-[#64748B]">LCP p75</span>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-2xl font-bold text-emerald-600">
-                      {performanceSummary?.p75?.lcp_ms ? Math.round(performanceSummary.p75.lcp_ms) : 0}
-                    </span>
-                    <span className="text-[10px] text-[#64748B]">ms</span>
-                  </div>
-                </div>
-
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
-                  <span className="text-xs font-semibold text-[#64748B]">API p95</span>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-2xl font-bold text-indigo-600">
-                      {performanceSummary?.p95?.api_total_ms ? Math.round(performanceSummary.p95.api_total_ms) : 0}
-                    </span>
-                    <span className="text-[10px] text-[#64748B]">ms</span>
-                  </div>
-                </div>
-
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
-                  <span className="text-xs font-semibold text-[#64748B]">Tổng mẫu thu thập</span>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-2xl font-bold text-blue-600">
-                      {performanceSummary?.total_samples ?? 0}
-                    </span>
-                    <span className="text-[10px] text-[#64748B]">mẫu</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* Slow APIs */}
-                <div className="lg:col-span-2 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
-                  <h2 className="text-sm font-bold text-[#1E293B]">Các API chậm</h2>
-                  <div className="overflow-x-auto border border-white/50 rounded-xl bg-white/10 backdrop-blur-sm">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-white/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-white/40">
-                          <th className="px-4 py-3">Endpoint</th>
-                          <th className="px-4 py-3">Trung bình</th>
-                          <th className="px-4 py-3">p75</th>
-                          <th className="px-4 py-3">p95</th>
-                          <th className="px-4 py-3">Mẫu</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/20 text-xs text-[#1E293B]">
-                        {performanceLoading ? (
-                          <tr>
-                            <td colSpan={5} className="text-center py-8 text-[#64748B]">Đang tải dữ liệu...</td>
-                          </tr>
-                        ) : !performanceSummary?.slow_apis?.length ? (
-                          <tr>
-                            <td colSpan={5} className="text-center py-8 text-[#64748B]">
-                              Chưa có dữ liệu API chậm.
-                            </td>
-                          </tr>
-                        ) : (
-                          performanceSummary.slow_apis.map((api, i) => (
-                            <tr key={i} className="hover:bg-white/40 border-b border-white/20 transition-all duration-150 ease-out">
-                              <td className="px-4 py-3 font-semibold text-[#1E293B]">{api.name}</td>
-                              <td className="px-4 py-3 text-[#64748B]">{Math.round(api.avg)}ms</td>
-                              <td className="px-4 py-3 text-amber-600">{Math.round(api.p75)}ms</td>
-                              <td className="px-4 py-3 text-rose-600">{Math.round(api.p95)}ms</td>
-                              <td className="px-4 py-3 text-[#64748B]">{api.samples}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Recommendations */}
-                <div className="lg:col-span-1 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 h-fit transition-all duration-150 ease-out hover:scale-[1.01]">
-                  <div className="flex justify-between items-center">
-                    <h2 className="text-sm font-bold text-[#1E293B]">Đề xuất tối ưu</h2>
-                    <button 
-                      onClick={fetchPerformance} 
-                      disabled={performanceLoading}
-                      className="p-1.5 bg-white/50 border border-white/80 text-[#64748B] rounded-xl hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.05]"
-                      title="Làm mới dữ liệu"
-                    >
-                      <RefreshCw size={12} className={performanceLoading ? "animate-spin" : ""} />
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    {performanceLoading ? (
-                      <p className="text-xs text-[#64748B] text-center py-8">Đang tải đề xuất...</p>
-                    ) : !performanceSummary?.recommendations?.length ? (
-                      <p className="text-xs text-[#64748B] text-center py-8 border border-dashed rounded-xl border-white/40 bg-white/10">
-                        Hệ thống hoạt động tốt, chưa có đề xuất nào.
-                      </p>
-                    ) : (
-                      performanceSummary.recommendations.map((rec, i) => (
-                        <div key={i} className={`p-3 text-xs rounded-xl border ${
-                          rec.severity === 'critical' ? 'bg-rose-500/10 border-rose-500/20 text-rose-700' :
-                          rec.severity === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-700' :
-                          'bg-blue-500/10 border-blue-500/20 text-blue-700'
-                        }`}>
-                          <p className="font-bold mb-1 flex items-center gap-1.5">
-                            {rec.severity === 'critical' && <AlertCircle size={14} />}
-                            {rec.severity === 'warning' && <AlertTriangle size={14} />}
-                            {rec.severity === 'info' && <CheckCircle size={14} />}
-                            {rec.code}
-                          </p>
-                          <p className="opacity-90">{rec.message}</p>
+                  }
+                  keyExtractor={(log) => log._id}
+                  pagination={
+                    logsTotalPages > 1 ? (
+                      <div className="flex items-center justify-between pt-4 border-t border-white/20 px-4 pb-2">
+                        <span className="text-xs text-[#64748B] font-semibold">
+                          Trang {logsPage} / {logsTotalPages}
+                        </span>
+                        <div className="flex gap-1">
+                          <button
+                            disabled={logsPage === 1}
+                            onClick={() => setLogsPage(prev => prev - 1)}
+                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                          >
+                            Trước
+                          </button>
+                          <button
+                            disabled={logsPage === logsTotalPages}
+                            onClick={() => setLogsPage(prev => prev + 1)}
+                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                          >
+                            Sau
+                          </button>
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+                      </div>
+                    ) : null
+                  }
+                />
               </div>
             </>
           )}
@@ -1027,102 +1038,47 @@ function SystemAdminDashboard() {
               </div>
 
               {/* Requests Table */}
-              <div className="overflow-x-auto border border-white/50 rounded-xl bg-white/10 backdrop-blur-sm">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-white/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-white/40">
-                      <th className="px-4 py-3">Yêu cầu</th>
-                      <th className="px-4 py-3">Loại</th>
-                      <th className="px-4 py-3">Độ ưu tiên</th>
-                      <th className="px-4 py-3">Trạng thái</th>
-                      <th className="px-4 py-3">Người yêu cầu</th>
-                      <th className="px-4 py-3">Người xử lý</th>
-                      <th className="px-4 py-3">Ngày tạo</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/20 text-xs text-[#1E293B]">
-                    {requestsLoading ? (
-                      <tr>
-                        <td colSpan={7} className="text-center py-8 text-[#64748B]">
-                          Đang tải danh sách yêu cầu...
-                        </td>
-                      </tr>
-                    ) : requests.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="text-center py-8 text-[#64748B]">
-                          Không có yêu cầu hệ thống nào được ghi nhận.
-                        </td>
-                      </tr>
-                    ) : (
-                      requests.map((req) => (
-                        <tr
-                          key={req._id}
-                          onClick={() => {
-                            setSelectedRequest(req);
-                            setUpdateStatusVal(req.status);
-                            setIsDetailDrawerOpen(true);
-                          }}
-                          className="hover:bg-white/40 border-b border-white/20 cursor-pointer transition-all duration-150 ease-out"
-                        >
-                          <td className="px-4 py-3">
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-[#1E293B] hover:text-[#1A73E8] transition-colors">
-                                {req.title}
-                              </span>
-                              <span className="text-[10px] text-[#64748B] truncate max-w-xs">
-                                {req.description || "Không có mô tả"}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 capitalize font-semibold text-[#64748B]">
-                            {req.type}
-                          </td>
-                          <td className="px-4 py-3">
-                            {getPriorityBadge(req.priority)}
-                          </td>
-                          <td className="px-4 py-3">
-                            {getStatusBadge(req.status)}
-                          </td>
-                          <td className="px-4 py-3 text-[#64748B]">
-                            {req.requester_id?.user_name ?? "System"}
-                          </td>
-                          <td className="px-4 py-3 text-[#64748B]">
-                            {req.assignee_id?.user_name ?? "Chưa phân công"}
-                          </td>
-                          <td className="px-4 py-3 text-[#64748B] whitespace-nowrap">
-                            {new Date(req.createdAt).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              {requestsTotalPages > 1 && (
-                <div className="flex items-center justify-between pt-4 border-t border-white/20">
-                  <span className="text-xs text-[#64748B]">
-                    Trang {requestsPage} / {requestsTotalPages}
-                  </span>
-                  <div className="flex gap-1">
-                    <button
-                      disabled={requestsPage === 1}
-                      onClick={() => setRequestsPage(prev => prev - 1)}
-                      className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-semibold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
-                    >
-                      Trước
-                    </button>
-                    <button
-                      disabled={requestsPage === requestsTotalPages}
-                      onClick={() => setRequestsPage(prev => prev + 1)}
-                      className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-semibold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
-                    >
-                      Sau
-                    </button>
+              <ResponsiveDataView
+                data={requests}
+                columns={requestsColumns}
+                isLoading={requestsLoading}
+                emptyState={
+                  <div className="text-center py-8 text-[#64748B] text-xs font-semibold">
+                    Không có yêu cầu hệ thống nào được ghi nhận.
                   </div>
-                </div>
-              )}
+                }
+                keyExtractor={(req) => req._id}
+                onRowClick={(req) => {
+                  setSelectedRequest(req);
+                  setUpdateStatusVal(req.status);
+                  setIsDetailDrawerOpen(true);
+                }}
+                pagination={
+                  requestsTotalPages > 1 ? (
+                    <div className="flex items-center justify-between pt-4 border-t border-white/20 px-4 pb-2">
+                      <span className="text-xs text-[#64748B] font-semibold">
+                        Trang {requestsPage} / {requestsTotalPages}
+                      </span>
+                      <div className="flex gap-1">
+                        <button
+                          disabled={requestsPage === 1}
+                          onClick={() => setRequestsPage(prev => prev - 1)}
+                          className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                        >
+                          Trước
+                        </button>
+                        <button
+                          disabled={requestsPage === requestsTotalPages}
+                          onClick={() => setRequestsPage(prev => prev + 1)}
+                          className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                        >
+                          Sau
+                        </button>
+                      </div>
+                    </div>
+                  ) : null
+                }
+              />
             </div>
           )}
         </div>
@@ -1188,113 +1144,42 @@ function SystemAdminDashboard() {
                 <h2 className="text-sm font-bold text-[#1E293B]">Lịch sử và danh sách các bản sao lưu</h2>
 
                 {/* Backups Table */}
-                <div className="overflow-x-auto border border-white/50 rounded-xl bg-white/10 backdrop-blur-sm">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-white/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-white/40">
-                        <th className="px-4 py-3">Bản sao lưu</th>
-                        <th className="px-4 py-3">Dung lượng</th>
-                        <th className="px-4 py-3">Yêu cầu bởi</th>
-                        <th className="px-4 py-3">Trạng thái</th>
-                        <th className="px-4 py-3 text-right">Tải về / Xóa</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/20 text-xs text-[#1E293B]">
-                      {backupsLoading && backups.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="text-center py-8 text-[#64748B]">
-                            Đang tải danh sách bản sao lưu...
-                          </td>
-                        </tr>
-                      ) : backups.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="text-center py-8 text-[#64748B]">
-                            Chưa có bản sao lưu nào được thực hiện.
-                          </td>
-                        </tr>
-                      ) : (
-                        backups.map((job) => {
-                          let statusBadge = <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Queued</span>;
-                          if (job.status === "running") statusBadge = <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px] animate-pulse flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
-                          else if (job.status === "success") statusBadge = <span className="bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Success</span>;
-                          else if (job.status === "failed") statusBadge = <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Failed</span>;
-
-                          return (
-                            <tr key={job._id} className="hover:bg-white/40 border-b border-white/20 transition-all duration-150 ease-out">
-                              <td className="px-4 py-3">
-                                <div className="flex flex-col">
-                                  <span className="font-semibold text-[#1E293B]">
-                                    {job.file_name ?? "Chờ khởi tạo..."}
-                                  </span>
-                                  <span className="text-[10px] text-[#64748B]">
-                                    {new Date(job.createdAt).toLocaleString()}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 font-medium text-[#64748B]">
-                                {job.file_size ? formatBytes(job.file_size) : "-"}
-                              </td>
-                              <td className="px-4 py-3 text-[#64748B]">
-                                {job.requested_by?.user_name ?? "System"}
-                              </td>
-                              <td className="px-4 py-3">
-                                {statusBadge}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <div className="flex justify-end gap-1.5">
-                                  {canDownloadBackup && (
-                                    <button
-                                      disabled={job.status !== "success"}
-                                      onClick={() => handleDownloadBackup(job)}
-                                      className="p-1.5 text-[#1A73E8] hover:bg-white/50 disabled:opacity-40 disabled:hover:bg-transparent rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
-                                      title="Tải xuống"
-                                    >
-                                      <Download size={14} />
-                                    </button>
-                                  )}
-                                  {canDeleteBackup && (
-                                    <button
-                                      onClick={() => requestDeleteBackup(job._id)}
-                                      className="p-1.5 text-rose-600 hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
-                                      title="Xóa"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination */}
-                {backupsTotalPages > 1 && (
-                  <div className="flex items-center justify-between pt-4 border-t border-white/20">
-                    <span className="text-xs text-[#64748B]">
-                      Trang {backupsPage} / {backupsTotalPages}
-                    </span>
-                    <div className="flex gap-1">
-                      <button
-                        disabled={backupsPage === 1}
-                        onClick={() => setBackupsPage(prev => prev - 1)}
-                        className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-semibold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
-                      >
-                        Trước
-                      </button>
-                      <button
-                        disabled={backupsPage === backupsTotalPages}
-                        onClick={() => setBackupsPage(prev => prev + 1)}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-250 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-colors"
-                      >
-                        Sau
-                      </button>
+                <ResponsiveDataView
+                  data={backups}
+                  columns={backupsColumns}
+                  isLoading={backupsLoading}
+                  emptyState={
+                    <div className="text-center py-8 text-[#64748B] text-xs font-semibold">
+                      Chưa có bản sao lưu nào được thực hiện.
                     </div>
-                  </div>
-                )}
+                  }
+                  keyExtractor={(job) => job._id}
+                  pagination={
+                    backupsTotalPages > 1 ? (
+                      <div className="flex items-center justify-between pt-4 border-t border-white/20 px-4 pb-2">
+                        <span className="text-xs text-[#64748B] font-semibold">
+                          Trang {backupsPage} / {backupsTotalPages}
+                        </span>
+                        <div className="flex gap-1">
+                          <button
+                            disabled={backupsPage === 1}
+                            onClick={() => setBackupsPage(prev => prev - 1)}
+                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                          >
+                            Trước
+                          </button>
+                          <button
+                            disabled={backupsPage === backupsTotalPages}
+                            onClick={() => setBackupsPage(prev => prev + 1)}
+                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                          >
+                            Sau
+                          </button>
+                        </div>
+                      </div>
+                    ) : null
+                  }
+                />
               </div>
             </>
           )}
@@ -1384,36 +1269,17 @@ function SystemAdminDashboard() {
                     {/* Slow APIs Table */}
                     <div className="lg:col-span-2 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
                       <h2 className="text-sm font-bold text-[#1E293B]">Các API chậm nhất (Theo p95)</h2>
-                      <div className="overflow-x-auto border border-white/50 rounded-xl bg-white/10 backdrop-blur-sm">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-white/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-white/40">
-                              <th className="px-4 py-3">API Endpoint</th>
-                              <th className="px-4 py-3 text-right">Avg (ms)</th>
-                              <th className="px-4 py-3 text-right">p75 (ms)</th>
-                              <th className="px-4 py-3 text-right">p95 (ms)</th>
-                              <th className="px-4 py-3 text-right">Mẫu</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/20 text-xs text-[#1E293B]">
-                            {performanceSummary.slow_apis.length === 0 ? (
-                              <tr>
-                                <td colSpan={5} className="text-center py-6 text-[#64748B]">Không có dữ liệu API</td>
-                              </tr>
-                            ) : (
-                              performanceSummary.slow_apis.map((api, idx) => (
-                                <tr key={idx} className="hover:bg-white/40 border-b border-white/20 transition-all duration-150 ease-out">
-                                  <td className="px-4 py-3 font-mono text-[#64748B]">{api.name}</td>
-                                  <td className="px-4 py-3 text-right font-medium">{Math.round(api.avg)}</td>
-                                  <td className="px-4 py-3 text-right font-medium text-amber-600">{Math.round(api.p75)}</td>
-                                  <td className="px-4 py-3 text-right font-bold text-rose-600">{Math.round(api.p95)}</td>
-                                  <td className="px-4 py-3 text-right text-[#64748B]">{api.samples}</td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+                      <ResponsiveDataView
+                        data={performanceSummary.slow_apis}
+                        columns={slowApisColumns}
+                        isLoading={performanceLoading}
+                        emptyState={
+                          <div className="text-center py-6 text-[#64748B] text-xs font-semibold">
+                            Không có dữ liệu API
+                          </div>
+                        }
+                        keyExtractor={(api, idx) => api.name || String(idx)}
+                      />
                     </div>
 
                     {/* Recommendations Panel */}

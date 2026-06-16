@@ -96,7 +96,7 @@ export default function LoginPage() {
 
           {/* Heading Container */}
           <div className="flex flex-col gap-[8px] items-center text-center">
-            <h1 className="font-['Inter'] font-semibold text-[#1e293b] text-[36px] tracking-tight leading-[44px]">
+            <h1 className="font-['Inter'] font-semibold text-[#1e293b] text-[28px] sm:text-[36px] tracking-tight leading-[36px] sm:leading-[44px]">
               Chào mừng trở lại
             </h1>
             <p className="font-['Inter'] font-semibold text-[#64748b] text-[14px] leading-[20px]">
@@ -201,6 +201,7 @@ export default function LoginPage() {
             </button>
 
             {/* Footer / bottom registration link */}
+            {/* 
             <div className="flex justify-center w-full mt-2">
               <span className="font-['Inter'] font-semibold text-[#566069] text-[14px]">
                 Chưa có tài khoản?{' '}
@@ -209,6 +210,7 @@ export default function LoginPage() {
                 </Link>
               </span>
             </div>
+            */}
 
           </form>
 

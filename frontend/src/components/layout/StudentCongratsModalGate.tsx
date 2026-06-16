@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Diamond, Award } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { isStudentRole } from '@/utils/role.util';
-import { summariesPointApi } from '@/api/summaries-point-api';
+import { summariesPointApi, LatestStudentSummary } from '@/api/summaries-point-api';
 import { getRankStyle, RankTier, getCongratsMessage } from '@/lib/grading-rank';
 import { getCongratsStorageKey } from './congrats-storage';
 import { Dancing_Script } from 'next/font/google';
@@ -71,7 +71,7 @@ const FloatingDiamond = ({ size = 14, delay = 0, duration = 5, yOffset = -35 }: 
 
 interface CongratsData {
   name: string;
-  id: string;
+  className: string;
   score: number;
   rankTier: RankTier;
   rankLabel: string;
@@ -150,7 +150,7 @@ const NeonHandwritingText = ({ text }: { text: string }) => {
               filter: 'blur(8px)',
               transition: { duration: 0.5, ease: "easeIn" } 
             }}
-            className={`${dancingScript.className} text-[40px] font-normal tracking-wide neon-handwriting-diamond leading-normal py-1 px-4 flex flex-wrap justify-center`}
+            className={`${dancingScript.className} text-[24px] sm:text-[38px] font-normal tracking-wide neon-handwriting-diamond leading-normal py-1 px-2 flex flex-nowrap whitespace-nowrap justify-center`}
           >
             {words.map((word, wordIndex) => (
               <span key={wordIndex} className="inline-flex whitespace-nowrap">
@@ -174,6 +174,26 @@ const NeonHandwritingText = ({ text }: { text: string }) => {
 };
 
 
+function resolveStudentCongratsIdentity(summary: LatestStudentSummary, user: any) {
+  const summaryStudent = summary.student;
+  const classObj = summaryStudent?.class_id;
+  const isStudent = isStudentRole(user);
+
+  return {
+    name:
+      summaryStudent?.full_name ||
+      summary.studentName ||
+      user?.display_name ||
+      (!isStudent ? user?.user_name || user?.username : undefined) ||
+      'Sinh viên',
+    className:
+      classObj?.class_name ||
+      summary.className ||
+      'Chưa cập nhật',
+  };
+}
+
+
 export default function StudentCongratsModalGate() {
   const { user } = useAuth();
   const router = useRouter();
@@ -184,21 +204,20 @@ export default function StudentCongratsModalGate() {
       if (!user || !isStudentRole(user)) return;
       
       try {
-        const summary = await summariesPointApi.getMyLatestSummary();
+        const summary: LatestStudentSummary | null = await summariesPointApi.getMyLatestSummary();
         if (summary && summary.status === 'locked') {
           const userId = user.id || user.studentId;
           if (!userId || !summary._id) return;
 
-          const lockedAt = summary.rank_locked_at || summary.locked_at || summary.updatedAt || '';
+          const lockedAt = summary.locked_at || '';
           const storageKey = getCongratsStorageKey(userId, summary._id, lockedAt);
           const congratsShown = sessionStorage.getItem(storageKey);
           if (!congratsShown) {
-            const semName = summary.semester_id && typeof summary.semester_id === 'object' 
-              ? ((summary.semester_id as any).semester_name || (summary.semester_id as any).name)
-              : (summary.semester && summary.semester !== 'N/A' ? summary.semester : 'Học kỳ');
+            const semName = summary.semester && summary.semester !== 'N/A' ? summary.semester : 'Học kỳ';
+            const identity = resolveStudentCongratsIdentity(summary, user);
             setCongratsData({
-              name: user.user_name || user.username || 'Sinh viên',
-              id: user.studentId || user.id || '',
+              name: identity.name,
+              className: identity.className,
               score: summary.total_score || 0,
               rankTier: summary.rank_tier || 'unranked',
               rankLabel: summary.rank_label || 'Chưa xếp hạng',
@@ -252,7 +271,7 @@ export default function StudentCongratsModalGate() {
             transition={{ type: "spring", damping: 25, stiffness: 350 }}
             className={`congrats-modal-card ${
               congratsData.rankTier === 'diamond' ? 'congrats-modal-card-diamond' : ''
-            } relative overflow-hidden w-full max-w-[480px] rounded-3xl p-8 flex flex-col items-center text-center ${
+            } relative overflow-hidden w-[calc(100%-0.5rem)] xs:w-full max-w-[450px] rounded-3xl p-5 xs:p-6 sm:p-8 flex flex-col items-center text-center ${
               getRankStyle(congratsData.rankTier).glassBorder || getRankStyle(congratsData.rankTier).border
             } ${
               getRankStyle(congratsData.rankTier).glassBg || getRankStyle(congratsData.rankTier).bg
@@ -320,7 +339,7 @@ export default function StudentCongratsModalGate() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.15, type: "spring", stiffness: 200 }}
-              className="relative w-24 h-24 rounded-full flex items-center justify-center text-4xl shadow-md border border-white/10 mb-6 bg-white/10 backdrop-blur-md z-10"
+              className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-3xl sm:text-4xl shadow-md border border-white/10 mb-4 sm:mb-6 bg-white/10 backdrop-blur-md z-10"
               style={{
                 boxShadow: congratsData.rankTier === 'diamond' 
                   ? `0 0 35px rgba(${getCongratsMessage(congratsData.rankTier).rgb}, 0.45), inset 0 0 15px rgba(255, 255, 255, 0.2)`
@@ -329,7 +348,7 @@ export default function StudentCongratsModalGate() {
             >
               {congratsData.rankTier === 'diamond' ? (
                 <>
-                  <Diamond className="w-12 h-12 fill-currentColor shrink-0 drop-shadow-[0_0_12px_rgba(125,211,252,0.85)]" style={{ color: getRankStyle(congratsData.rankTier).accent }} />
+                  <Diamond className="w-10 h-10 sm:w-12 sm:h-12 fill-currentColor shrink-0 drop-shadow-[0_0_12px_rgba(125,211,252,0.85)]" style={{ color: getRankStyle(congratsData.rankTier).accent }} />
                   {/* Additional Diamond Shine Aura */}
                   <motion.div 
                     className="absolute inset-0 rounded-full bg-sky-400/15 filter blur-md pointer-events-none"
@@ -348,7 +367,7 @@ export default function StudentCongratsModalGate() {
                 </>
               ) : (
                 <>
-                  <Award className="w-12 h-12 fill-currentColor shrink-0" style={{ color: getRankStyle(congratsData.rankTier).accent }} />
+                  <Award className="w-10 h-10 sm:w-12 sm:h-12 fill-currentColor shrink-0" style={{ color: getRankStyle(congratsData.rankTier).accent }} />
                   {/* Pulse Ring */}
                   <div
                     className="absolute -inset-2 rounded-full border border-current opacity-20 animate-ping pointer-events-none"
@@ -362,32 +381,34 @@ export default function StudentCongratsModalGate() {
             {congratsData.rankTier === 'diamond' ? (
               <NeonHandwritingText text="Chúc mừng hoàn thành!" />
             ) : (
-              <h2 className={`relative z-10 text-2xl font-black tracking-tight uppercase bg-gradient-to-r ${getCongratsMessage(congratsData.rankTier).gradient} bg-clip-text text-transparent mb-1`}>
+              <h2 className={`relative z-10 text-xl sm:text-2xl font-black tracking-tight uppercase bg-gradient-to-r ${getCongratsMessage(congratsData.rankTier).gradient} bg-clip-text text-transparent mb-1`}>
                 Chúc mừng hoàn thành!
               </h2>
             )}
-            <p className={`relative z-10 text-[12px] font-bold uppercase tracking-widest mb-6 ${getRankStyle(congratsData.rankTier).descText || 'text-slate-400'}`}>
+            <p className={`relative z-10 text-[11px] sm:text-[12px] font-bold uppercase tracking-widest mb-4 sm:mb-6 ${getRankStyle(congratsData.rankTier).descText || 'text-slate-400'}`}>
               {congratsData.semester}
             </p>
 
             {/* Box Thông tin Sinh viên (Glassmorphic) */}
-            <div className="relative z-10 w-full bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 flex items-center gap-4 mb-6 text-left">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-[16px] text-white bg-gradient-to-r ${getCongratsMessage(congratsData.rankTier).gradient} shrink-0`}>
+            <div className="relative z-10 w-full bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4 mb-5 sm:mb-6 text-left">
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-[14px] sm:text-[16px] text-white bg-gradient-to-r ${getCongratsMessage(congratsData.rankTier).gradient} shrink-0`}>
                 {getInitials(congratsData.name)}
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className={`font-extrabold text-[15px] truncate ${getRankStyle(congratsData.rankTier).titleText || 'text-white'}`}>{congratsData.name}</h4>
-                <p className={`text-[11.5px] font-bold ${getRankStyle(congratsData.rankTier).descText || 'text-slate-400'}`}>MSSV: {congratsData.id}</p>
+                <h4 className={`font-extrabold text-[14px] sm:text-[15px] truncate ${getRankStyle(congratsData.rankTier).titleText || 'text-white'}`}>{congratsData.name}</h4>
+                <p className={`text-[11px] sm:text-[11.5px] font-bold ${getRankStyle(congratsData.rankTier).descText || 'text-slate-400'}`}>
+                  Lớp: {congratsData.className}
+                </p>
               </div>
             </div>
 
             {/* Trình diễn Điểm & Xếp hạng */}
-            <div className="relative z-10 flex flex-col items-center justify-center mb-6">
+            <div className="relative z-10 flex flex-col items-center justify-center mb-5 sm:mb-6">
               <div className="flex items-baseline gap-1">
-                <span className={`text-6xl font-black font-mono tracking-tight bg-gradient-to-r ${getCongratsMessage(congratsData.rankTier).gradient} bg-clip-text text-transparent`}>
+                <span className={`text-5xl sm:text-6xl font-black font-mono tracking-tight bg-gradient-to-r ${getCongratsMessage(congratsData.rankTier).gradient} bg-clip-text text-transparent`}>
                   {congratsData.score}
                 </span>
-                <span className="text-xl font-bold text-slate-400">/ 100đ</span>
+                <span className="text-lg sm:text-xl font-bold text-slate-400">/ 100đ</span>
               </div>
               <div className="mt-2.5">
                 <span className={`text-[12px] font-extrabold px-3.5 py-1 rounded-full ${getRankStyle(congratsData.rankTier).bg} ${getRankStyle(congratsData.rankTier).text} border ${getRankStyle(congratsData.rankTier).border} shadow-sm`}>
@@ -402,10 +423,10 @@ export default function StudentCongratsModalGate() {
             </p>
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 w-full mt-8 z-10">
+            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 w-full mt-6 sm:mt-8 z-10">
               <button
                 onClick={handleViewDetails}
-                className={`flex-1 py-3 bg-gradient-to-r ${getCongratsMessage(congratsData.rankTier).gradient} hover:opacity-90 active:scale-[0.98] text-white font-bold text-[14px] rounded-full shadow-lg transition-all cursor-pointer border border-white/20`}
+                className={`flex-1 py-2.5 sm:py-3 bg-gradient-to-r ${getCongratsMessage(congratsData.rankTier).gradient} hover:opacity-90 active:scale-[0.98] text-white font-bold text-[13.5px] sm:text-[14px] rounded-full shadow-lg transition-all cursor-pointer border border-white/20`}
                 style={{
                   boxShadow: `0 8px 20px rgba(${getCongratsMessage(congratsData.rankTier).rgb}, 0.15)`,
                 }}
@@ -414,7 +435,7 @@ export default function StudentCongratsModalGate() {
               </button>
               <button
                 onClick={handleDismiss}
-                className="flex-1 py-3 bg-white/10 hover:bg-white/20 active:scale-[0.98] text-white font-bold text-[14px] rounded-full transition-all cursor-pointer border border-white/10"
+                className="flex-1 py-2.5 sm:py-3 bg-white/10 hover:bg-white/20 active:scale-[0.98] text-white font-bold text-[13.5px] sm:text-[14px] rounded-full transition-all cursor-pointer border border-white/10"
               >
                 Đóng
               </button>

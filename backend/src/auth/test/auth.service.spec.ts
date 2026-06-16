@@ -105,6 +105,9 @@ describe('AuthService', () => {
             find: jest.fn().mockReturnValue({
               exec: jest.fn().mockResolvedValue([]),
             }),
+            findOne: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue(null),
+            }),
           },
         },
         {

@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   PanelLeftClose,
   Lock,
+  ChevronLeft,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -579,6 +580,67 @@ function CategoriesPage() {
     }
   };
 
+  // Helper render bảng thống kê
+  const renderStatsRow = (isMobile: boolean) => (
+    <div className={`grid ${isMobile ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-4'} gap-3 w-full`}>
+      {/* Tổng số danh mục */}
+      <div className={`${glassCardClass} flex flex-col gap-1 items-start min-w-px relative w-full`}>
+        <span className={`font-sans font-semibold text-[#5f6368] ${isMobile ? 'text-[9px] sm:text-[10px]' : 'text-[10px]'} tracking-[0.55px] uppercase leading-tight ${isMobile ? 'whitespace-normal sm:whitespace-nowrap' : 'whitespace-nowrap'}`}>
+          TỔNG SỐ DANH MỤC
+        </span>
+        <span className="font-sans font-bold text-[#005bbf] text-[20px] leading-none mt-1">
+          {isInitialLoading ? (
+            <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
+          ) : (
+            categories.length
+          )}
+        </span>
+      </div>
+
+      {/* Tiêu chí khen thưởng */}
+      <div className={`${glassCardClass} flex flex-col gap-1 items-start min-w-px relative w-full`}>
+        <span className={`font-sans font-semibold text-[#5f6368] ${isMobile ? 'text-[9px] sm:text-[10px]' : 'text-[10px]'} tracking-[0.55px] uppercase leading-tight ${isMobile ? 'whitespace-normal sm:whitespace-nowrap' : 'whitespace-nowrap'}`}>
+          TIÊU CHÍ KHEN THƯỜNG
+        </span>
+        <span className="font-sans font-bold text-[#006d2b] text-[20px] leading-none mt-1">
+          {isInitialLoading ? (
+            <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
+          ) : (
+            criteria.filter(c => c.type === 'khen_thuong' || c.type === 'cong_diem').length
+          )}
+        </span>
+      </div>
+
+      {/* Tiêu chí kỷ luật */}
+      <div className={`${glassCardClass} flex flex-col gap-1 items-start min-w-px relative w-full`}>
+        <span className={`font-sans font-semibold text-[#5f6368] ${isMobile ? 'text-[9px] sm:text-[10px]' : 'text-[10px]'} tracking-[0.55px] uppercase leading-tight ${isMobile ? 'whitespace-normal sm:whitespace-nowrap' : 'whitespace-nowrap'}`}>
+          TIÊU CHÍ KỶ LUẬT
+        </span>
+        <span className="font-sans font-bold text-[#ba1a1a] text-[20px] leading-none mt-1">
+          {isInitialLoading ? (
+            <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
+          ) : (
+            criteria.filter(c => c.type === 'ky_luat').length
+          )}
+        </span>
+      </div>
+
+      {/* Điểm tối đa TB */}
+      <div className={`${glassCardClass} flex flex-col gap-1 items-start min-w-px relative w-full`}>
+        <span className={`font-sans font-semibold text-[#5f6368] ${isMobile ? 'text-[9px] sm:text-[10px]' : 'text-[10px]'} tracking-[0.55px] uppercase leading-tight ${isMobile ? 'whitespace-normal sm:whitespace-nowrap' : 'whitespace-nowrap'}`}>
+          ĐIỂM TỐI ĐA TB
+        </span>
+        <span className="font-sans font-bold text-[#f9ab00] text-[20px] leading-none mt-1">
+          {isInitialLoading ? (
+            <Skeleton className="h-5 w-12 bg-slate-100/80 rounded-xl" />
+          ) : (
+            Math.min(categories.reduce((sum, c) => sum + c.maxPoints, 0), 100)
+          )}
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <style>{`
@@ -617,70 +679,16 @@ function CategoriesPage() {
             {/* Tab Cấu hình danh mục - Giao diện kéo thả Kanban cao cấp theo Figma */}
             <div className={`${glassCardClass} flex-1 flex flex-col gap-5 min-h-0 overflow-hidden w-full font-sans`}> 
               {/* Header chứa các chỉ số thống kê bento và nút Thêm danh mục đặt chung một hàng flex */}
-              <div className="flex items-center justify-between w-full shrink-0 px-1 pt-1 gap-[32px]">
-                {/* Stats Row */}
-                <div className="flex flex-1 gap-[12px] items-stretch min-w-px">
-                  {/* Tổng số danh mục */}
-                  <div className={`${glassCardClass} flex flex-1 flex-col gap-1 items-start min-w-px relative w-full`} data-node-id="479:2005">
-                    <span className="font-sans font-semibold text-[#5f6368] text-[10px] tracking-[0.55px] uppercase leading-tight whitespace-nowrap">
-                      TỔNG SỐ DANH MỤC
-                    </span>
-                    <span className="font-sans font-bold text-[#005bbf] text-[20px] leading-none mt-1">
-                      {isInitialLoading ? (
-                        <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
-                      ) : (
-                        categories.length
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Tiêu chí khen thưởng */}
-                  <div className={`${glassCardClass} flex flex-1 flex-col gap-1 items-start min-w-px relative w-full`} data-node-id="479:2011">
-                    <span className="font-sans font-semibold text-[#5f6368] text-[10px] tracking-[0.55px] uppercase leading-tight whitespace-nowrap">
-                      TIÊU CHÍ KHEN THƯỜNG
-                    </span>
-                    <span className="font-sans font-bold text-[#006d2b] text-[20px] leading-none mt-1">
-                      {isInitialLoading ? (
-                        <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
-                      ) : (
-                        criteria.filter(c => c.type === 'khen_thuong' || c.type === 'cong_diem').length
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Tiêu chí kỷ luật */}
-                  <div className={`${glassCardClass} flex flex-1 flex-col gap-1 items-start min-w-px relative w-full`} data-node-id="479:2017">
-                    <span className="font-sans font-semibold text-[#5f6368] text-[10px] tracking-[0.55px] uppercase leading-tight whitespace-nowrap">
-                      TIÊU CHÍ KỶ LUẬT
-                    </span>
-                    <span className="font-sans font-bold text-[#ba1a1a] text-[20px] leading-none mt-1">
-                      {isInitialLoading ? (
-                        <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
-                      ) : (
-                        criteria.filter(c => c.type === 'ky_luat').length
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Điểm tối đa TB */}
-                  <div className={`${glassCardClass} flex flex-1 flex-col gap-1 items-start min-w-px relative w-full`} data-node-id="479:2023">
-                    <span className="font-sans font-semibold text-[#5f6368] text-[10px] tracking-[0.55px] uppercase leading-tight whitespace-nowrap">
-                      ĐIỂM TỐI ĐA TB
-                    </span>
-                    <span className="font-sans font-bold text-[#f9ab00] text-[20px] leading-none mt-1">
-                      {isInitialLoading ? (
-                        <Skeleton className="h-5 w-12 bg-slate-100/80 rounded-xl" />
-                      ) : (
-                        Math.min(categories.reduce((sum, c) => sum + c.maxPoints, 0), 100)
-                      )}
-                    </span>
-                  </div>
-                </div>
-
+              {/* Header chứa các nút điều khiển */}
+              <div className="flex items-center justify-between w-full shrink-0 px-1 pt-1">
+                <h2 className="text-[16px] font-bold text-slate-800 font-sans hidden lg:block">
+                  Quản lý Danh mục & Tiêu chí
+                </h2>
+                
                 {/* Toggle View Mode + Nút Thêm danh mục */}
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center justify-between lg:justify-end gap-2 shrink-0 w-full lg:w-auto">
                   {/* Toggle chế độ xem */}
-                  <div className="flex items-center bg-white/45 backdrop-blur-md border border-white/70 rounded-xl p-1 h-[40px]">
+                  <div className="flex items-center bg-white/45 backdrop-blur-md border border-white/70 rounded-xl p-1 h-[40px] flex-1 lg:flex-none justify-around lg:justify-start">
                     <button
                       disabled={isInitialLoading}
                       onClick={() => setViewMode('kanban')}
@@ -714,16 +722,21 @@ function CategoriesPage() {
                       setSelectedCategory(null);
                       setIsModalOpen(true);
                     }}
-                    className={`text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 font-semibold text-[14px] transition-all duration-150 ease-out shrink-0 h-[40px] w-[180px] bg-[#1A73E8] ${isInitialLoading ? 'opacity-60 cursor-not-allowed shadow-none' : 'hover:bg-[#155FC0] hover:scale-[1.01] shadow-sm cursor-pointer'}`}
+                    className={`text-white transition-all duration-150 ease-out shrink-0 h-[40px] flex items-center justify-center rounded-xl bg-[#1A73E8] w-[40px] md:w-auto md:px-4 md:py-2 md:gap-2 font-semibold text-[14px] ${isInitialLoading ? 'opacity-60 cursor-not-allowed shadow-none' : 'hover:bg-[#155FC0] hover:scale-[1.01] shadow-sm cursor-pointer'}`}
+                    title="Thêm danh mục"
                   >
                     <Plus size={16} strokeWidth={2.5} className="shrink-0" />
-                    <span>Thêm danh mục</span>
+                    <span className="hidden md:inline">Thêm danh mục</span>
                   </button>
                 </div>
               </div>
 
               {/* Category Columns — Chế độ Kanban hoặc Master-Detail */}
-              <div className="flex-1 overflow-y-auto pb-6 pr-1">
+              <div className="flex-1 overflow-y-auto pb-6 pr-1 flex flex-col gap-6 custom-scrollbar">
+                {/* Stats Row on Desktop */}
+                <div className="hidden lg:block shrink-0">
+                  {renderStatsRow(false)}
+                </div>
 
                 {/* ===== CHẾ ĐỘ MASTER-DETAIL (Layout 4/6) ===== */}
                 {viewMode === 'master-detail' && (() => {
@@ -733,9 +746,9 @@ function CategoriesPage() {
                   const bgBadgeColors = ['bg-[#d8e2ff] text-[#005bbf]', 'bg-[#96f8a1]/30 text-[#006d2b]', 'bg-[rgba(249,171,0,0.1)] text-[#f9ab00]', 'bg-[#f3e5f5] text-[#7b2cbf]'];
 
                   return (
-                    <div className="flex gap-5 w-full items-start h-full">
+                    <div className="flex flex-col lg:flex-row gap-5 w-full items-start h-full">
                       {/* ── Sidebar trái (40%) — Danh sách danh mục ── */}
-                      <div className="w-2/5 flex flex-col gap-3 shrink-0">
+                      <div className={`w-full lg:w-2/5 flex flex-col gap-3 shrink-0 ${selectedCategoryId !== null ? 'hidden lg:flex' : 'flex'}`}>
                         {/* Search danh mục */}
                         <div className="relative">
                           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -858,14 +871,20 @@ function CategoriesPage() {
                       </div>
 
                       {/* ── Panel phải (60%) — Chi tiết tiêu chí ── */}
-                      <div className="w-3/5 flex flex-col gap-0 min-h-[500px]">
+                      <div className={`w-full lg:w-3/5 flex flex-col gap-0 min-h-[500px] ${selectedCategoryId === null ? 'hidden lg:flex' : 'flex'}`}>
                         {isInitialLoading ? (
                           /* Skeleton Detail Panel cho Panel bên phải */
                           <div className={`${glassCardClass} overflow-hidden flex flex-col min-h-[500px] animate-pulse`}>
                             {/* Header thông tin danh mục skeleton */}
-                            <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white animate-pulse">
+                            <div className="px-4 py-4 md:px-6 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white animate-pulse">
                               <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3 w-full">
+                                <div className="flex items-center gap-2.5 md:gap-3 w-full">
+                                  <button
+                                    onClick={() => setSelectedCategoryId(null)}
+                                    className="lg:hidden p-1.5 hover:bg-white/60 rounded-xl text-slate-400 mr-1 cursor-pointer shrink-0"
+                                  >
+                                    <ChevronLeft size={18} strokeWidth={2.5} />
+                                  </button>
                                   <div className="w-1.5 h-10 rounded-xl bg-slate-100 shrink-0" />
                                   <div className="flex flex-col gap-2 w-2/3">
                                     <Skeleton className="h-3 w-16 bg-slate-100 rounded-xl" />
@@ -922,19 +941,27 @@ function CategoriesPage() {
                           /* Panel hiển thị tiêu chí của danh mục đang chọn */
                           <div className={`${glassCardClass} overflow-hidden flex flex-col min-h-[500px]`}>
                             {/* Header thông tin danh mục */}
-                            <div className="px-6 py-4 border-b border-white/60 bg-gradient-to-r from-white/30 to-white/60 backdrop-blur-sm">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
+                            <div className="px-4 py-4 md:px-6 border-b border-white/60 bg-gradient-to-r from-white/30 to-white/60 backdrop-blur-sm">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
+                                  {/* Nút quay lại trên mobile */}
+                                  <button
+                                    onClick={() => setSelectedCategoryId(null)}
+                                    className="lg:hidden p-1.5 hover:bg-white/60 rounded-xl text-slate-500 hover:text-slate-700 transition-colors mr-1 cursor-pointer shrink-0"
+                                    title="Quay lại danh sách"
+                                  >
+                                    <ChevronLeft size={18} strokeWidth={2.5} />
+                                  </button>
                                   <div
                                     className="w-1.5 h-10 rounded-xl shrink-0"
                                     style={{ backgroundColor: borderColors[categories.findIndex(c => c.id === activeCat.id) % borderColors.length] }}
                                   />
-                                  <div className="flex items-center gap-2.5 flex-wrap">
+                                  <div className="flex items-center gap-2 flex-wrap min-w-0">
                                     <span className={`px-2 py-0.5 rounded-xl text-[9px] font-bold tracking-wider uppercase shrink-0 ${bgBadgeColors[categories.findIndex(c => c.id === activeCat.id) % bgBadgeColors.length]}`}>
                                       {activeCat.id}
                                     </span>
-                                    <h2 className="font-bold text-slate-800 text-[16px] leading-[22px]" title={activeCat.name}>
-                                      {activeCat.name.length > 60 ? activeCat.name.slice(0, 60) + '...' : activeCat.name}
+                                    <h2 className="font-bold text-slate-800 text-[15px] sm:text-[16px] leading-[22px] truncate max-w-[150px] sm:max-w-md lg:max-w-none" title={activeCat.name}>
+                                      {activeCat.name}
                                     </h2>
                                   </div>
                                 </div>
@@ -1441,6 +1468,11 @@ function CategoriesPage() {
 
                   </div>
                 )}
+
+                {/* Stats Row on Mobile */}
+                <div className="block lg:hidden shrink-0 mt-2">
+                  {renderStatsRow(true)}
+                </div>
               </div>
             </div>
           </main>

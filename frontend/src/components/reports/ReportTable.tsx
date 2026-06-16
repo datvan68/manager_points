@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Download } from 'lucide-react';
 import { CustomPagination } from '@/components/ui/pagination';
 import ReportEmptyState from './ReportEmptyState';
+import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 
 export interface TableColumn {
   key: string;
@@ -75,10 +76,48 @@ export default function ReportTable({
     }
   };
 
+  const responsiveColumns: ResponsiveColumn[] = columns.map((col, idx) => {
+    let priority: 'primary' | 'secondary' | 'metadata' | 'action' | undefined = undefined;
+    if (idx === 0) priority = 'primary';
+    else if (idx === 1) priority = 'secondary';
+    else if (
+      col.key === 'action' || 
+      col.key === 'actions' || 
+      col.header.toLowerCase().includes('tác vụ') || 
+      col.header.toLowerCase().includes('hành động')
+    ) {
+      priority = 'action';
+    } else {
+      priority = 'metadata';
+    }
+
+    return {
+      key: col.key,
+      header: col.header,
+      priority,
+      className: col.className,
+      render: (val, row) => col.render ? col.render(val, row) : String(val ?? '')
+    };
+  });
+
+  const paginationNode = !isLoading && totalCount > 0 ? (
+    <div className="border-t border-white/50 w-full">
+      <CustomPagination
+        totalItems={totalCount}
+        pageSize={activePageSize}
+        currentPage={activeCurrentPage}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        label={label}
+        className="shadow-none border-none rounded-none bg-transparent"
+      />
+    </div>
+  ) : null;
+
   return (
     <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl shadow-sm overflow-hidden flex flex-col">
       {/* Header of Table */}
-      <div className="px-6 py-4 border-b border-white/50 flex items-center justify-between bg-white/40">
+      <div className="px-6 py-4 border-b border-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/40">
         <div>
           <h3 className="font-bold text-[#1E293B] text-[15px]">{title}</h3>
           <span className="text-[11px] text-[#64748B] font-semibold">
@@ -88,7 +127,7 @@ export default function ReportTable({
         <button
           onClick={onExportExcel}
           disabled={totalCount === 0 || isLoading}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/40 hover:bg-white/70 border border-white/70 text-[#1E293B] disabled:opacity-50 disabled:scale-100 active:scale-95 transition-all text-xs font-bold rounded-xl shadow-sm cursor-pointer"
+          className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white/40 hover:bg-white/70 border border-white/70 text-[#1E293B] disabled:opacity-50 disabled:scale-100 active:scale-95 transition-all text-xs font-bold rounded-xl shadow-sm cursor-pointer w-full sm:w-auto shrink-0"
         >
           <Download size={13} className="text-[#64748B]" />
           <span>Xuất Excel</span>
@@ -97,67 +136,19 @@ export default function ReportTable({
 
       {/* Table Content */}
       <div className="overflow-x-auto custom-scrollbar flex-1 min-h-[300px]">
-        {isLoading ? (
-          <div className="w-full">
-            {/* Skeleton Header */}
-            <div className="grid grid-cols-6 gap-4 px-6 py-3.5 border-b border-white/50 bg-white/40">
-              {Array.from({ length: 6 }).map((_, idx) => (
-                <div key={idx} className="h-4 bg-slate-200/80 rounded-md animate-pulse" />
-              ))}
+        <ResponsiveDataView
+          data={paginatedData}
+          columns={responsiveColumns}
+          isLoading={isLoading}
+          emptyState={
+            <div className="py-12 flex justify-center w-full">
+              <ReportEmptyState message={emptyMessage} />
             </div>
-            {/* Skeleton Rows */}
-            {Array.from({ length: 5 }).map((_, rIdx) => (
-              <div key={rIdx} className="grid grid-cols-6 gap-4 px-6 py-4 border-b border-white/40">
-                {Array.from({ length: 6 }).map((_, cIdx) => (
-                  <div key={cIdx} className="h-3.5 bg-slate-100 rounded-md animate-pulse" />
-                ))}
-              </div>
-            ))}
-          </div>
-        ) : paginatedData.length === 0 ? (
-          <div className="py-12 flex justify-center">
-            <ReportEmptyState message={emptyMessage} />
-          </div>
-        ) : (
-          <table className="w-full border-collapse text-left text-[13px] font-sans">
-            <thead>
-              <tr className="bg-white/50 border-b border-white/75 text-[#64748B] font-bold">
-                {columns.map((col, idx) => (
-                  <th key={idx} className={`px-6 py-3.5 font-bold uppercase tracking-wider text-[11px] select-none ${col.className || ''}`}>
-                    {col.header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/40 text-[#1E293B] font-semibold">
-              {paginatedData.map((row, rIdx) => (
-                <tr key={row.key || rIdx} className="hover:bg-white/60 transition-colors duration-150">
-                  {columns.map((col, cIdx) => (
-                    <td key={cIdx} className={`px-6 py-3.5 align-middle ${col.className || ''}`}>
-                       {col.render ? col.render(row[col.key], row) : String(row[col.key] ?? '')}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+          }
+          keyExtractor={(row, idx) => row.key || row._id || row.id || String(idx)}
+          pagination={paginationNode}
+        />
       </div>
-
-      {/* Table Pagination */}
-      {!isLoading && totalCount > 0 && (
-        <div className="border-t border-white/50">
-          <CustomPagination
-            totalItems={totalCount}
-            pageSize={activePageSize}
-            currentPage={activeCurrentPage}
-            onPageChange={handlePageChange}
-            onPageSizeChange={handlePageSizeChange}
-            label={label}
-            className="shadow-none border-none rounded-none bg-transparent"
-          />
-        </div>
-      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   Trash2,
   Edit,
   ChevronDown,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import ClassPopup from "@/components/popups/ClassPopup";
@@ -79,6 +80,7 @@ function StudentsPageContent() {
   const [deptSearchTerm, setDeptSearchTerm] = useState("");
   const [isCaoDangExpanded, setIsCaoDangExpanded] = useState(true);
   const [isTrungCapExpanded, setIsTrungCapExpanded] = useState(true);
+  const [isMobileViewClasses, setIsMobileViewClasses] = useState(false);
 
   const fetchDepartments = async () => {
     try {
@@ -324,7 +326,7 @@ function StudentsPageContent() {
         <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-transparent relative">
           <div className="flex-1 flex flex-col xl:flex-row gap-4 min-h-0 w-full overflow-y-auto xl:overflow-hidden">
             {/* Left Column: Departments */}
-            <div className="w-full xl:w-80 flex flex-col gap-4 shrink-0 overflow-hidden xl:max-h-full">
+            <div className={`w-full xl:w-80 flex-col gap-4 shrink-0 overflow-hidden xl:max-h-full ${isMobileViewClasses ? "hidden xl:flex" : "flex"}`}>
               <div className="flex items-center justify-between shrink-0 mb-2">
                 <div className="flex items-center gap-2">
                   <h3 className="text-[14px] font-bold text-slate-900 tracking-tight uppercase">
@@ -361,7 +363,10 @@ function StudentsPageContent() {
                       key={dept._id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => setSelectedDept(dept._id)}
+                      onClick={() => {
+                        setSelectedDept(dept._id);
+                        setIsMobileViewClasses(true);
+                      }}
                       className={`w-full p-3 rounded-xl border text-left transition-all duration-150 ease-out shrink-0 group flex flex-col cursor-pointer ${
                         selectedDept === dept._id
                           ? "bg-white/60 backdrop-blur-md border-white/80 shadow-sm"
@@ -434,47 +439,54 @@ function StudentsPageContent() {
             </div>
 
             {/* Right Column: Class List */}
-            <div className="flex-1 bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 flex flex-col min-w-0 overflow-hidden relative">
+            <div className={`flex-1 bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 flex-col min-w-0 overflow-hidden relative ${isMobileViewClasses ? "flex" : "hidden xl:flex"}`}>
               {/* Header */}
-              <div className="px-8 py-6 border-b border-white/50 shrink-0">
+              <div className="px-4 py-4 md:px-8 md:py-6 border-b border-white/50 shrink-0">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-[24px] font-bold text-[#1f2937] leading-[32px] tracking-tight">
+                  <div className="flex flex-col gap-1.5">
+                    {/* Hàng tiêu đề có nút Quay lại trên mobile */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsMobileViewClasses(false)}
+                        className="xl:hidden p-1.5 hover:bg-white/60 active:bg-white/80 rounded-xl text-blue-600 transition-colors -ml-1 border border-transparent hover:border-white/50 shadow-sm flex items-center justify-center shrink-0"
+                        title="Quay lại danh sách khoa"
+                      >
+                        <ArrowLeft size={18} />
+                      </button>
+                      <h2 className="text-[20px] md:text-[24px] font-bold text-[#1f2937] tracking-tight flex items-center gap-2">
                         Danh sách lớp
+                        <span className="text-[11px] md:text-[12px] font-bold text-[#4f46e5] bg-[#eef2ff] px-2 py-0.5 md:px-[12px] md:py-[4px] rounded-full">
+                          {filteredClasses.length} lớp
+                        </span>
                       </h2>
-                      <span className="text-[12px] font-bold text-[#4f46e5] bg-[#eef2ff] px-[12px] py-[4px] rounded-full">
-                        {filteredClasses.length} lớp
-                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-[14px]">
-                      <span className="text-[#6b7280] font-medium">
-                        Thuộc khoa:
-                      </span>
-                      <span className="font-bold text-[#1f2937] flex items-center gap-1.5">
-                        <School size={16} className="text-[#6b7280]" />
-                        {currentDeptName}
-                      </span>
+
+                    <div className="flex items-center gap-1.5 text-[13px] md:text-[14px] text-[#1f2937] font-bold leading-tight flex-wrap mt-0.5">
+                      <School size={15} className="text-[#6b7280] shrink-0" />
+                      <span>{currentDeptName}</span>
                     </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="flex items-center gap-2 w-full lg:w-auto mt-3 lg:mt-0">
                     <Research
                       placeholder="Tìm tên lớp..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
+                      containerClassName="flex-1 max-w-none lg:max-w-[231px]"
                     />
                     {permissions.canCreateClass && (
                       <Button
+                        size="sm"
+                        className="shrink-0 h-10 px-3 text-xs md:text-sm"
                         onClick={() => {
                           setEditingClass({ departmentId: selectedDept });
                           setIsClassPopupOpen(true);
                         }}
                       >
-                        <span className="text-[20px] font-bold leading-none -mt-0.5">
+                        <span className="text-[18px] font-bold leading-none -mt-0.5">
                           +
                         </span>
-                        Thêm lớp
+                        <span>Thêm lớp</span>
                       </Button>
                     )}
                   </div>
@@ -482,7 +494,7 @@ function StudentsPageContent() {
               </div>
 
               {/* Class cards container */}
-              <div className="flex-1 overflow-y-auto px-8 py-4 bg-transparent scrollbar-hover">
+              <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 bg-transparent scrollbar-hover">
                 <div className="flex flex-col gap-4 w-full">
                   {isLoading || isDataLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

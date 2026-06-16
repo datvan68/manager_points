@@ -56,6 +56,7 @@ function NotificationsPageContent() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<'filters' | 'list'>('filters');
 
   useEffect(() => {
     setSelectedIds([]);
@@ -308,19 +309,23 @@ function NotificationsPageContent() {
                     setEditingNotification(null);
                     setIsModalOpen(true);
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-[#1A73E8] hover:bg-[#155cb4] active:scale-[0.99] rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-blue-500/10 cursor-pointer"
+                  className={`text-white transition-all duration-150 ease-out shrink-0 h-[40px] flex items-center justify-center rounded-xl bg-[#1A73E8] w-[40px] md:w-auto md:px-4 md:py-2 md:gap-1.5 font-semibold text-sm ${
+                    isLoading ? 'opacity-60 cursor-not-allowed shadow-none' : 'hover:bg-[#155cb4] hover:scale-[1.01] shadow-sm cursor-pointer'
+                  }`}
+                  title="Thêm mới thông báo"
                 >
-                  <Plus size={16} />
-                  <span>Thêm mới</span>
+                  <Plus size={16} strokeWidth={2.5} className="shrink-0" />
+                  <span className="hidden md:inline">Thêm mới</span>
                 </button>
               )}
               {counts.unread > 0 && (
                 <button
                   onClick={handleMarkAllRead}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[#1A73E8] bg-white/50 backdrop-blur-sm hover:bg-[#1A73E8] hover:text-white active:scale-[0.99] rounded-xl border border-white/80 transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
+                  className="text-[#1A73E8] bg-white/50 backdrop-blur-sm hover:bg-[#1A73E8] hover:text-white rounded-xl border border-white/80 transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer h-[40px] w-[40px] md:w-auto md:px-4 md:py-2 md:gap-1.5 flex items-center justify-center font-semibold text-sm shrink-0"
+                  title="Đánh dấu đọc tất cả"
                 >
-                  <CheckSquare size={16} />
-                  <span>Đánh dấu đọc tất cả</span>
+                  <CheckSquare size={16} className="shrink-0" />
+                  <span className="hidden md:inline">Đánh dấu đọc tất cả</span>
                 </button>
               )}
             </div>
@@ -329,7 +334,7 @@ function NotificationsPageContent() {
           <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 overflow-y-auto lg:overflow-hidden">
             
             {/* Left Column: Filter Sidebar */}
-            <div className="w-full lg:w-72 flex flex-col gap-3 shrink-0 overflow-hidden lg:max-h-full">
+            <div className={`w-full lg:w-72 flex flex-col gap-3 shrink-0 overflow-hidden lg:max-h-full ${mobileView !== 'filters' ? 'hidden lg:flex' : 'flex'}`}>
               <div className="flex items-center gap-2 px-1 py-1 shrink-0">
                 <Filter size={15} className="text-slate-500" />
                 <h3 className="text-xs font-bold text-slate-800 tracking-wider uppercase">BỘ LỌC THÔNG BÁO</h3>
@@ -350,6 +355,7 @@ function NotificationsPageContent() {
                     onClick={() => {
                       setActiveFilter(filter.id);
                       setCurrentPage(1);
+                      setMobileView('list');
                     }}
                     className={`w-full p-3 rounded-xl border text-left transition-all duration-150 ease-out shrink-0 flex items-center justify-between cursor-pointer hover:scale-[1.01] ${
                       activeFilter === filter.id
@@ -369,7 +375,30 @@ function NotificationsPageContent() {
             </div>
 
             {/* Right Column: Notification Details List */}
-            <div className="flex-1 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/40">
+            <div className={`flex-1 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/40 ${mobileView !== 'list' ? 'hidden lg:flex' : 'flex'}`}>
+              {/* Mobile Header Bar */}
+              <div className="lg:hidden px-4 py-3 border-b border-white/60 bg-white/30 flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => setMobileView('filters')}
+                  className="p-1.5 hover:bg-white/60 rounded-xl text-slate-500 hover:text-slate-700 transition-colors cursor-pointer shrink-0"
+                  title="Quay lại bộ lọc"
+                >
+                  <ChevronLeft size={20} strokeWidth={2.5} />
+                </button>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-slate-700 truncate">
+                    {([
+                      { id: 'all' as const, label: 'Tất cả thông báo' },
+                      { id: 'unread' as const, label: 'Chưa đọc' },
+                      { id: 'warning' as const, label: 'Cảnh báo chuyên cần' },
+                      { id: 'success' as const, label: 'Khen thưởng & Điểm số' },
+                      { id: 'info' as const, label: 'Nhiệm vụ & Công việc' },
+                      { id: 'system' as const, label: 'Thông báo hệ thống' },
+                      { id: 'views' as const, label: 'Lượt xem & Người đọc' }
+                    ]).find(f => f.id === activeFilter)?.label || 'Thông báo'}
+                  </span>
+                </div>
+              </div>
               
               {/* Bulk Action Bar */}
               {isPrivileged && notifications.length > 0 && (
@@ -402,7 +431,7 @@ function NotificationsPageContent() {
                 </div>
               )}
 
-              <div className="flex-1 p-4 overflow-y-auto min-h-0 divide-y divide-slate-100/55 bg-white/15">
+              <div className="flex-1 p-4 overflow-y-auto min-h-0 bg-white/15 flex flex-col gap-3.5 custom-scrollbar">
                 {isLoading ? (
                   <div className="h-full min-h-[300px] flex items-center justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1A73E8]" />
@@ -420,18 +449,20 @@ function NotificationsPageContent() {
                           handleMarkRead(item.id);
                         }
                       }}
-                      className={`py-4 px-3.5 flex gap-4 transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/60 cursor-pointer relative group rounded-xl border border-transparent hover:border-white/70 ${
-                        !item.isRead && activeFilter !== 'views' ? 'bg-blue-500/5' : ''
+                      className={`p-4 flex gap-3.5 md:gap-4 transition-all duration-250 ease-out hover:-translate-y-0.5 hover:shadow-md cursor-pointer relative group rounded-2xl border ${
+                        !item.isRead && activeFilter !== 'views'
+                          ? 'bg-blue-50/70 border-blue-100/80 shadow-xs shadow-blue-100/20'
+                          : 'bg-white/45 backdrop-blur-md border border-white/70 shadow-xs hover:bg-white/75'
                       }`}
                     >
-                      {/* Unread Indicator */}
+                      {/* Unread Dot Indicator */}
                       {!item.isRead && activeFilter !== 'views' && (
-                        <span className="absolute top-5 left-2 w-2 h-2 bg-[#1A73E8] rounded-full" />
+                        <span className="absolute top-4 left-2.5 w-2.5 h-2.5 bg-[#1A73E8] rounded-full shadow-[0_0_8px_#1A73E8]" />
                       )}
 
                       {/* Checkbox for selection */}
                       {isPrivileged && (
-                        <div className="flex items-center shrink-0 pl-1 pr-1.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center shrink-0 pl-1.5 pr-0.5" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedIds.includes(item.id)}
@@ -441,113 +472,127 @@ function NotificationsPageContent() {
                         </div>
                       )}
 
-                      {/* Icon */}
-                      <div className="pl-2.5">
-                        {getIcon(item.type)}
-                      </div>
+                      {/* Card content */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-2">
+                        {/* Header: Icon + Title & Badges */}
+                        <div className="flex items-start gap-3 w-full">
+                          {/* Icon */}
+                          <div className="shrink-0 pl-1">
+                            {getIcon(item.type)}
+                          </div>
 
-                      {/* Content details */}
-                      <div className="flex-1 min-w-0 pr-10">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className={`text-sm font-bold text-[#1E293B] group-hover:text-[#1A73E8] transition-colors ${
-                            !item.isRead && activeFilter !== 'views' ? 'font-extrabold text-slate-900' : ''
-                          }`}>
-                            {item.title}
-                          </h4>
-                          {isPrivileged && item.targetRole && (
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-xl border ${
-                              item.targetRole === 'student'
-                                ? 'bg-green-500/10 text-green-700 border-green-500/20'
-                                : item.targetRole === 'teacher'
-                                  ? 'bg-purple-500/10 text-purple-700 border-purple-500/20'
-                                  : item.targetRole === 'supervisor'
-                                    ? 'bg-amber-500/10 text-amber-700 border-amber-500/20'
-                                    : 'bg-slate-500/10 text-[#64748B] border-slate-500/20'
-                            }`}>
-                              {item.targetRole === 'student' ? 'HSSV' : item.targetRole === 'teacher' ? 'Giảng viên' : item.targetRole === 'supervisor' ? 'Quản sinh' : 'Tất cả'}
-                            </span>
-                          )}
-                          {!item.isRead && activeFilter !== 'views' && (
-                            <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 text-[9px] font-bold px-1.5 py-0.5 rounded-xl">
-                              Mới
-                            </span>
-                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                              <h4 className={`text-[14px] md:text-[15px] font-bold text-[#1E293B] group-hover:text-[#1A73E8] transition-colors leading-snug ${
+                                !item.isRead && activeFilter !== 'views' ? 'font-extrabold text-slate-900' : ''
+                              }`}>
+                                {item.title}
+                              </h4>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {isPrivileged && item.targetRole && (
+                                  <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-lg border uppercase tracking-wider ${
+                                    item.targetRole === 'student'
+                                      ? 'bg-green-500/10 text-green-700 border-green-500/20'
+                                      : item.targetRole === 'teacher'
+                                        ? 'bg-purple-500/10 text-purple-700 border-purple-500/20'
+                                        : item.targetRole === 'supervisor'
+                                          ? 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+                                          : 'bg-slate-500/10 text-[#64748B] border-slate-500/20'
+                                  }`}>
+                                    {item.targetRole === 'student' ? 'HSSV' : item.targetRole === 'teacher' ? 'Giảng viên' : item.targetRole === 'supervisor' ? 'Quản sinh' : 'Tất cả'}
+                                  </span>
+                                )}
+                                {!item.isRead && activeFilter !== 'views' && (
+                                  <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 text-[9px] font-extrabold px-1.5 py-0.5 rounded-lg uppercase tracking-wider">
+                                    Mới
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-xs text-[#64748B] mt-1 leading-5">
+
+                        {/* Description (Aligned below title) */}
+                        <p className="text-xs text-[#515F72] mt-0.5 leading-relaxed break-words pl-[52px]">
                           {item.description}
                         </p>
-                        <div className="flex items-center gap-4 mt-2.5">
-                          <span className="text-[10px] text-[#64748B] font-semibold">
-                            {formatTime(item.createdAt)}
-                          </span>
-                          {activeFilter === 'views' ? (
-                            <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
-                              <Users size={10} className="text-slate-500" />
-                              Lượt xem: {item.readByUserIds?.length || 0}
-                            </span>
-                          ) : (
-                            item.routeUrl && (
-                              <button
-                                onClick={(e) => handleNavigate(item, e)}
-                                className="text-[10px] font-bold text-[#1A73E8] hover:text-[#155cb4] flex items-center gap-0.5 hover:underline cursor-pointer"
-                              >
-                                <ExternalLink size={10} />
-                                Đi tới trang liên kết
-                              </button>
-                            )
-                          )}
-                        </div>
-                      </div>
 
-                      {/* Actions */}
-                      <div className="absolute right-4 top-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150 ease-out" onClick={(e) => e.stopPropagation()}>
-                        {activeFilter === 'views' ? (
-                          <button
-                            onClick={() => {
-                              setReadersNotificationId(item.id);
-                              setReadersNotificationTitle(item.title);
-                              setIsReadersModalOpen(true);
-                            }}
-                            className="px-3 py-1.5 rounded-xl border border-blue-500/20 bg-blue-500/10 text-[#1A73E8] hover:bg-[#1A73E8] hover:text-white text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer flex items-center gap-1 shadow-xs"
-                            title="Xem chi tiết người đã đọc"
-                          >
-                            <Users size={12} />
-                            <span>Chi tiết</span>
-                          </button>
-                        ) : (
-                          <>
-                            {item.routeUrl && (
-                              <button
-                                onClick={(e) => handleNavigate(item, e)}
-                                className="p-1.5 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-[#64748B] hover:border-[#1A73E8] hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer"
-                                title="Đi tới trang liên kết"
-                              >
-                                <ExternalLink size={14} />
-                              </button>
+                        {/* Footer details: Metadata & Actions */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2 pt-2.5 border-t border-slate-100/70 pl-[52px]">
+                          {/* Metadata */}
+                          <div className="flex flex-wrap items-center gap-4">
+                            <span className="text-[10px] text-[#64748B] font-semibold">
+                              {formatTime(item.createdAt)}
+                            </span>
+                            {activeFilter === 'views' ? (
+                              <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                                <Users size={10} className="text-slate-500" />
+                                Lượt xem: {item.readByUserIds?.length || 0}
+                              </span>
+                            ) : (
+                              item.routeUrl && (
+                                <button
+                                  onClick={(e) => handleNavigate(item, e)}
+                                  className="text-[10px] font-bold text-[#1A73E8] hover:text-[#155cc4] flex items-center gap-0.5 hover:underline cursor-pointer"
+                                >
+                                  <ExternalLink size={10} />
+                                  Đi tới trang liên kết
+                                </button>
+                              )
                             )}
-                            {isPrivileged && (
+                          </div>
+
+                          {/* Actions (Always visible on mobile, hover-only on desktop) */}
+                          <div className="flex items-center gap-1.5 self-end sm:self-auto opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200 ease-out" onClick={(e) => e.stopPropagation()}>
+                            {activeFilter === 'views' ? (
+                              <button
+                                onClick={() => {
+                                  setReadersNotificationId(item.id);
+                                  setReadersNotificationTitle(item.title);
+                                  setIsReadersModalOpen(true);
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg border border-blue-500/20 bg-blue-500/15 text-[#1A73E8] hover:bg-[#1A73E8] hover:text-white text-[11px] font-bold transition-all duration-150 ease-out hover:scale-[1.02] cursor-pointer flex items-center gap-1 shadow-xs"
+                                title="Xem chi tiết người đã đọc"
+                              >
+                                <Users size={12} />
+                                <span>Chi tiết</span>
+                              </button>
+                            ) : (
                               <>
-                                <button
-                                  onClick={(e) => {
-                                    setEditingNotification(item);
-                                    setIsModalOpen(true);
-                                  }}
-                                  className="p-1.5 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-slate-500 hover:border-blue-500/30 hover:bg-blue-500/10 hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer"
-                                  title="Chỉnh sửa thông báo"
-                                >
-                                  <PencilLine size={14} />
-                                </button>
-                                <button
-                                  onClick={(e) => handleDelete(item.id, e)}
-                                  className="p-1.5 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-red-500 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-700 hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer"
-                                  title="Xóa thông báo"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                {item.routeUrl && (
+                                  <button
+                                    onClick={(e) => handleNavigate(item, e)}
+                                    className="p-1.5 rounded-lg border border-white/80 bg-white/50 backdrop-blur-sm text-[#64748B] hover:border-[#1A73E8] hover:text-[#1A73E8] hover:scale-[1.02] transition-all duration-150 ease-out cursor-pointer"
+                                    title="Đi tới trang liên kết"
+                                  >
+                                    <ExternalLink size={13} />
+                                  </button>
+                                )}
+                                {isPrivileged && (
+                                  <>
+                                    <button
+                                      onClick={(e) => {
+                                        setEditingNotification(item);
+                                        setIsModalOpen(true);
+                                      }}
+                                      className="p-1.5 rounded-lg border border-white/80 bg-white/50 backdrop-blur-sm text-slate-500 hover:border-blue-500/30 hover:bg-blue-500/10 hover:text-[#1A73E8] hover:scale-[1.02] transition-all duration-150 ease-out cursor-pointer"
+                                      title="Chỉnh sửa thông báo"
+                                    >
+                                      <PencilLine size={13} />
+                                    </button>
+                                    <button
+                                      onClick={(e) => handleDelete(item.id, e)}
+                                      className="p-1.5 rounded-lg border border-white/80 bg-white/50 backdrop-blur-sm text-red-500 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-700 hover:scale-[1.02] transition-all duration-150 ease-out cursor-pointer"
+                                      title="Xóa thông báo"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </>
+                                )}
                               </>
                             )}
-                          </>
-                        )}
+                          </div>
+                        </div>
                       </div>
 
                     </div>
@@ -562,7 +607,7 @@ function NotificationsPageContent() {
               </div>
 
               {/* Footer (Pagination) */}
-              <div className="px-5 py-3 border-t border-white/60 bg-white/20 flex items-center justify-between shrink-0">
+              <div className="hidden lg:flex px-5 py-3 border-t border-white/60 bg-white/20 items-center justify-between shrink-0">
                 <span className="text-xs text-[#64748B] font-semibold">
                   Hiển thị {startItem} - {endItem} trong tổng số {total}
                 </span>

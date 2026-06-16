@@ -194,9 +194,9 @@ export default function UserDetailPage() {
           <main className="flex-1 p-6 overflow-y-auto bg-transparent">
             <div className="max-w-6xl mx-auto space-y-6">
               <Skeleton className="h-32 w-full rounded-2xl" />
-              <div className="grid grid-cols-12 gap-6">
-                <Skeleton className="col-span-4 h-[500px] rounded-2xl" />
-                <div className="col-span-8 space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <Skeleton className="col-span-1 lg:col-span-4 h-[500px] rounded-2xl" />
+                <div className="col-span-1 lg:col-span-8 space-y-6">
                   <Skeleton className="h-40 w-full rounded-2xl" />
                   <Skeleton className="h-64 w-full rounded-2xl" />
                 </div>
@@ -384,13 +384,13 @@ export default function UserDetailPage() {
             </motion.div>
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Left Column: Personal Info */}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
-                className="col-span-4"
+                className="col-span-1 lg:col-span-4"
               >
                 <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl overflow-hidden h-full">
                   <div className="px-5 py-4 border-b border-white/50 bg-white/10 flex items-center justify-between">
@@ -599,7 +599,7 @@ export default function UserDetailPage() {
               </motion.div>
 
               {/* Right Column: Roles & Permissions */}
-              <div className="col-span-8 space-y-6">
+              <div className="col-span-1 lg:col-span-8 space-y-6">
                 {/* Roles Card */}
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}

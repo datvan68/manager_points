@@ -18,6 +18,7 @@ import { CustomPagination } from '@/components/ui/pagination';
 import TabNavigation from '@/components/ui/TabNavigation';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import Action from '@/components/ui/Action';
+import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 import { authApi, tokenStorage } from '../../api/auth-api';
 import { systemApi } from '../../api/system-api';
 import { useRouter } from 'next/navigation';
@@ -885,6 +886,129 @@ function PermissionsPageContent() {
     userCurrentPage * userPageSize,
   );
 
+  const userColumns: ResponsiveColumn<any>[] = [
+    {
+      key: 'name',
+      header: 'Tên',
+      priority: 'primary',
+      render: (_, u) => (
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-white/60 border border-white/80 flex items-center justify-center text-xs font-bold text-[#1E293B] shadow-xs shrink-0">
+            {getUserDisplayName(u).substring(0, 2).toUpperCase()}
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs font-bold text-[#1E293B]">{getUserDisplayName(u)}</span>
+            <span className="text-[11px] font-medium text-[#64748B] mt-0.5">
+              {u.student_profile ? '' : `Username: ${u.user_name || u.username} • `}ID: {u._id.substring(u._id.length - 8)}
+            </span>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'email',
+      header: 'Liên hệ',
+      priority: 'metadata',
+      render: (_, u) => (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 text-xs">
+            <Mail className="w-3.5 h-3.5 text-[#64748B] shrink-0" />
+            <span className="text-[#1E293B] font-medium">{u.email}</span>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'role',
+      header: 'Vai trò',
+      priority: 'metadata',
+      render: (_, u) => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {u.role && (
+            <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-xl border ${u.role.name === 'Admin' 
+              ? 'bg-purple-500/10 text-purple-700 border-purple-500/20' 
+              : 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
+              }`}>
+              {u.role.name}
+            </span>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'status',
+      header: 'Trạng thái',
+      priority: 'metadata',
+      render: (_, u) => (
+        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-xl border ${u.status === 'active' 
+          ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' 
+          : 'bg-rose-500/10 text-rose-700 border-rose-500/20'
+          }`}>
+          <div className={`w-1.5 h-1.5 rounded-full ${u.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+          <span className="text-[10px] font-bold">{u.status === 'active' ? 'Hoạt động' : u.status}</span>
+        </div>
+      )
+    },
+    {
+      key: 'actions',
+      header: 'Hành động',
+      priority: 'action',
+      className: 'text-right',
+      render: (_, u) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <Action
+            onView={() => router.push(`/permissions/${u._id || u.id}`)}
+            onEdit={() => handleOpenEditModal(u)}
+            onDelete={() => handleDeleteUser(u)}
+          />
+        </div>
+      )
+    }
+  ];
+
+  const permissionColumns: ResponsiveColumn<any>[] = [
+    {
+      key: 'code',
+      header: 'Mã Quyền',
+      priority: 'secondary',
+      className: 'font-mono text-[11.5px] font-semibold text-[#64748B] tracking-tight w-full md:w-[20%]',
+    },
+    {
+      key: 'name',
+      header: 'Tên Quyền',
+      priority: 'primary',
+      className: 'font-bold text-xs text-[#1E293B] w-full md:w-[25%]',
+    },
+    {
+      key: 'desc',
+      header: 'Mô tả',
+      priority: 'metadata',
+      className: 'text-xs text-[#64748B] font-medium leading-relaxed w-full md:w-[40%]',
+    },
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      priority: 'action',
+      className: 'text-right w-full md:w-[15%]',
+      render: (_, perm) => (
+        <div className="flex items-center justify-end gap-1.5 opacity-100 transition-all duration-150" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => handleOpenEditPermissionModal(perm)}
+            className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handlePermissionDelete(perm)}
+            className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )
+    }
+  ];
+
   return (
     <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
       <Sidebar />
@@ -909,8 +1033,8 @@ function PermissionsPageContent() {
             {activeTab === 'Người dùng' && (
               <>
                 {/* Toolbar */}
-                <div className="flex items-center justify-between px-5 py-3 border-b border-white/40 bg-white/10 shrink-0">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between px-5 py-3 border-b border-white/40 bg-white/10 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                       <input
@@ -1038,7 +1162,7 @@ function PermissionsPageContent() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-end gap-2 shrink-0">
                     <button className="w-8 h-8 flex items-center justify-center text-[#64748B] bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.05] active:scale-[0.95] rounded-xl border border-white/70 shadow-xs transition-all duration-150 ease-out">
                       <Settings className="w-4 h-4" />
                     </button>
@@ -1053,158 +1177,37 @@ function PermissionsPageContent() {
                   </div>
                 </div>
 
-                {/* Table người dùng */}
-                <div className="flex-1 overflow-auto bg-transparent relative">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="bg-white/92 backdrop-blur-md sticky top-0 z-10 border-b border-white/80 shadow-xs">
-                      <tr>
-                        <th className="px-5 py-2.5 w-12">
-                          <input 
-                            type="checkbox" 
-                            checked={paginatedUsers.length > 0 && paginatedUsers.every(u => selectedUserIds.includes(u._id || u.id))}
-                            onChange={() => toggleSelectAllUsers(paginatedUsers)}
-                            className="rounded-md border-white/80 bg-white/50 text-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer w-3.5 h-3.5" 
-                          />
-                        </th>
-                        <th className="px-5 py-2.5 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider">Tên</th>
-                        <th className="px-5 py-2.5 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider">Liên hệ</th>
-                        <th className="px-5 py-2.5 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider">Vai trò</th>
-                        <th className="px-5 py-2.5 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider">Trạng thái</th>
-                        <th className="px-5 py-2.5 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider text-right">Hành động</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/40">
-                      {isDataLoading ? (
-                        Array.from({ length: userPageSize }).map((_, i) => (
-                          <tr key={i}>
-                            <td className="px-6 py-3 border-b border-gray-50"><Skeleton className="w-4 h-4 rounded" /></td>
-                            <td className="px-6 py-3 border-b border-gray-50">
-                              <div className="flex items-center gap-3">
-                                <Skeleton className="w-9 h-9 rounded-full" />
-                                <div className="flex flex-col gap-1">
-                                  <Skeleton className="w-24 h-4" />
-                                  <Skeleton className="w-16 h-3" />
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-3 border-b border-gray-50">
-                              <div className="flex flex-col gap-1.5">
-                                <Skeleton className="w-32 h-4" />
-                                <Skeleton className="w-24 h-4" />
-                              </div>
-                            </td>
-                            <td className="px-6 py-3 border-b border-gray-50">
-                              <div className="flex items-center gap-1.5">
-                                <Skeleton className="w-16 h-5 rounded-md" />
-                                <Skeleton className="w-20 h-5 rounded-md" />
-                              </div>
-                            </td>
-                            <td className="px-6 py-3 border-b border-gray-50">
-                              <Skeleton className="w-16 h-5 rounded-full" />
-                            </td>
-                            <td className="px-6 py-3 border-b border-gray-50 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <Skeleton className="w-8 h-8 rounded-lg" />
-                                <Skeleton className="w-8 h-8 rounded-lg" />
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <AnimatePresence>
-                          {paginatedUsers.map((user, idx) => (
-                            <motion.tr
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.15, delay: idx * 0.03 }}
-                              key={user._id}
-                              className="hover:bg-white/40 transition-colors duration-150 ease-out group"
-                            >
-                              <td className="px-5 py-2 align-middle">
-                                <input 
-                                  type="checkbox" 
-                                  checked={selectedUserIds.includes(user._id || user.id)}
-                                  onChange={() => toggleSelectUser(user._id || user.id)}
-                                  className="rounded-md border-white/80 bg-white/50 text-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer w-3.5 h-3.5" 
-                                />
-                              </td>
-                              <td className="px-5 py-2 align-middle">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full bg-white/60 border border-white/80 flex items-center justify-center text-xs font-bold text-[#1E293B] shadow-xs shrink-0">
-                                    {getUserDisplayName(user).substring(0, 2).toUpperCase()}
-                                  </div>
-                                  <div className="flex flex-col">
-                                    <span className="text-xs font-bold text-[#1E293B]">{getUserDisplayName(user)}</span>
-                                    <span className="text-[11px] font-medium text-[#64748B] mt-0.5">
-                                      {user.student_profile ? '' : `Username: ${user.user_name || user.username} • `}ID: {user._id.substring(user._id.length - 8)}
-                                    </span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-5 py-2 align-middle">
-                                <div className="flex flex-col gap-1">
-                                  <div className="flex items-center gap-1.5 text-xs">
-                                    <Mail className="w-3.5 h-3.5 text-[#64748B] shrink-0" />
-                                    <span className="text-[#1E293B] font-medium">{user.email}</span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-5 py-2 align-middle">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  {user.role && (
-                                    <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-xl border ${user.role.name === 'Admin' 
-                                      ? 'bg-purple-500/10 text-purple-700 border-purple-500/20' 
-                                      : 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
-                                      }`}>
-                                      {user.role.name}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-5 py-2 align-middle">
-                                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-xl border ${user.status === 'active' 
-                                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' 
-                                  : 'bg-rose-500/10 text-rose-700 border-rose-500/20'
-                                  }`}>
-                                  <div className={`w-1.5 h-1.5 rounded-full ${user.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                                  <span className="text-[10px] font-bold">{user.status === 'active' ? 'Hoạt động' : user.status}</span>
-                                </div>
-                              </td>
-                              <td className="px-5 py-2 align-middle text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <Action
-                                    onView={() => router.push(`/permissions/${user._id || user.id}`)}
-                                    onEdit={() => handleOpenEditModal(user)}
-                                    onDelete={() => handleDeleteUser(user)}
-                                  />
-                                </div>
-                              </td>
-                            </motion.tr>
-                          ))}
-                        </AnimatePresence>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Footer Pagination */}
-                <CustomPagination
-                  currentPage={userCurrentPage}
-                  pageSize={userPageSize}
-                  totalItems={filteredUsers.length}
-                  onPageChange={setUserCurrentPage}
-                  onPageSizeChange={setUserPageSize}
-                  label="người"
+                <ResponsiveDataView
+                  data={paginatedUsers}
+                  columns={userColumns}
                   isLoading={isDataLoading}
+                  keyExtractor={(u) => u._id || u.id}
+                  selection={{
+                    selectedKeys: selectedUserIds,
+                    onSelectRow: (id) => toggleSelectUser(id),
+                    onSelectAll: () => toggleSelectAllUsers(paginatedUsers),
+                    allSelected: paginatedUsers.length > 0 && paginatedUsers.every(u => selectedUserIds.includes(u._id || u.id))
+                  }}
+                  pagination={
+                    <CustomPagination
+                      currentPage={userCurrentPage}
+                      pageSize={userPageSize}
+                      totalItems={filteredUsers.length}
+                      onPageChange={setUserCurrentPage}
+                      onPageSizeChange={setUserPageSize}
+                      label="người"
+                      isLoading={isDataLoading}
+                    />
+                  }
                 />
               </>
             )}
 
             {/* --- TAB QUYỀN HẠN --- */}
             {activeTab === 'Quyền hạn' && (
-              <div className="flex-1 flex overflow-hidden">
+              <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
                 {/* Left Sidebar: Groups */}
-                <div className="w-[320px] bg-white/10 border-r border-white/50 flex flex-col shrink-0">
+                <div className="w-full lg:w-[320px] bg-white/10 border-b lg:border-b-0 lg:border-r border-white/50 flex flex-col shrink-0">
                   <div className="px-4 py-3 border-b border-white/50 bg-white/10 flex items-center justify-between">
                     <h2 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Danh sách Nhóm quyền</h2>
                     <button
@@ -1282,7 +1285,7 @@ function PermissionsPageContent() {
                 </div>
 
                 {/* Right Panel: Permissions List */}
-                <div className="flex-1 bg-transparent flex flex-col min-w-0">
+                <div className="flex-1 bg-transparent flex flex-col min-w-0 min-h-[400px] lg:min-h-0">
                   {/* Header / Tabs right panel */}
                   <div className="px-5 py-2 flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/50 bg-white/10 shrink-0 gap-4">
                     {/* Inner Tabs */}
@@ -1322,88 +1325,21 @@ function PermissionsPageContent() {
 
                   {/* Table area */}
                   <div className="flex-1 overflow-y-auto p-5 bg-transparent">
-                    <div className="bg-white/60 border border-white/80 shadow-sm shadow-slate-200/20 rounded-2xl overflow-hidden flex flex-col h-full">
-                      <table className="w-full text-left border-collapse shrink-0">
-                        <thead className="bg-white/20 border-b border-white/50">
-                          <tr>
-                            <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Mã Quyền</th>
-                            <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Tên Quyền</th>
-                            <th className="px-4 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider w-[40%]">Mô tả</th>
-                            <th className="px-6 py-3 text-[11px] font-bold text-[#64748B] uppercase tracking-wider text-right">Thao tác</th>
-                          </tr>
-                        </thead>
-                      </table>
-                      <div className="flex-1 overflow-y-auto">
-                        <table className="w-full text-left border-collapse">
-                          <tbody className="divide-y divide-slate-50">
-                            {isRightPanelLoading || isDataLoading ? (
-                              Array.from({ length: 4 }).map((_, i) => (
-                                <tr key={`skel-${i}`} className="inline-table w-full">
-                                  <td className="px-6 py-3.5 w-[20%]"><Skeleton className="w-24 h-4" /></td>
-                                  <td className="px-6 py-3.5 w-[25%]"><Skeleton className="w-32 h-4" /></td>
-                                  <td className="px-4 py-3.5 w-[40%]"><Skeleton className="w-full h-8" /></td>
-                                  <td className="px-6 py-3.5 text-right w-[15%]"><Skeleton className="w-16 h-4 inline-block" /></td>
-                                </tr>
-                              ))
-                            ) : (
-                              <AnimatePresence mode="popLayout">
-                                {(permissionsByGroup[selectedGroup] || []).length > 0 ? (
-                                  permissionsByGroup[selectedGroup].map((perm, idx) => (
-                                    <motion.tr
-                                      initial={{ opacity: 0, x: -10 }}
-                                      animate={{ opacity: 1, x: 0 }}
-                                      exit={{ opacity: 0, x: 10 }}
-                                      transition={{ duration: 0.15, delay: idx * 0.05 }}
-                                      key={`${selectedGroup}-${perm.code}`}
-                                      className="hover:bg-white/40 border-b border-white/20 inline-table w-full group transition-all duration-150 ease-out hover:scale-[1.005]"
-                                    >
-                                      <td className="px-6 py-3.5 w-[20%] font-mono text-[11.5px] font-semibold text-[#64748B] tracking-tight">
-                                        {perm.code}
-                                      </td>
-                                      <td className="px-6 py-3.5 w-[25%] font-bold text-xs text-[#1E293B]">
-                                        {perm.name}
-                                      </td>
-                                      <td className="px-4 py-3.5 w-[40%] text-xs text-[#64748B] font-medium leading-relaxed">
-                                        {perm.desc}
-                                      </td>
-                                      <td className="px-6 py-3.5 text-right align-middle w-[15%]">
-                                        <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-150">
-                                          <button
-                                            onClick={() => handleOpenEditPermissionModal(perm)}
-                                            className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
-                                          >
-                                            <Pencil className="w-3.5 h-3.5" />
-                                          </button>
-                                          <button
-                                            onClick={() => handlePermissionDelete(perm)}
-                                            className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </motion.tr>
-                                  ))
-                                ) : (
-                                  <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium text-sm">
-                                      Không có quyền nào trong nhóm này.
-                                    </td>
-                                  </tr>
-                                )}
-                              </AnimatePresence>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <CustomPagination
-                        currentPage={1}
-                        pageSize={10}
-                        totalItems={(permissionsByGroup[selectedGroup] || []).length}
-                        onPageChange={() => { }}
-                        label="quyền"
+                    <div className="bg-white/60 border border-white/80 shadow-sm shadow-slate-200/20 rounded-2xl overflow-hidden flex flex-col h-full min-h-[300px]">
+                      <ResponsiveDataView
+                        data={permissionsByGroup[selectedGroup] || []}
+                        columns={permissionColumns}
+                        isLoading={isRightPanelLoading || isDataLoading}
+                        keyExtractor={(perm) => `${selectedGroup}-${perm.code}`}
+                        pagination={
+                          <CustomPagination
+                            currentPage={1}
+                            pageSize={10}
+                            totalItems={(permissionsByGroup[selectedGroup] || []).length}
+                            onPageChange={() => { }}
+                            label="quyền"
+                          />
+                        }
                       />
                     </div>
                   </div>
@@ -1413,9 +1349,9 @@ function PermissionsPageContent() {
 
             {/* --- TAB VAI TRÒ --- */}
             {activeTab === 'Vai trò' && (
-              <div className="flex-1 flex overflow-hidden">
+              <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
                 {/* Left Sidebar: Roles */}
-                <div className="w-[340px] bg-white/10 border-r border-white/50 flex flex-col shrink-0">
+                <div className="w-full lg:w-[340px] bg-white/10 border-b lg:border-b-0 lg:border-r border-white/50 flex flex-col shrink-0">
                   <div className="px-4 py-3 border-b border-white/50 bg-white/10 flex items-center justify-between">
                     <h2 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Danh sách vai trò</h2>
                     <button
@@ -1458,37 +1394,29 @@ function PermissionsPageContent() {
                             <span
                               className={`px-2 py-0.5 text-[9.5px] font-bold rounded-xl border ${
                                 role.name === 'Admin'
-                                  ? 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
-                                  : 'bg-purple-500/10 text-purple-700 border-purple-500/20'
+                                  ? 'bg-purple-500/10 text-purple-700 border-purple-500/20'
+                                  : 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
                               }`}
                             >
-                              System
+                              {role.name}
                             </span>
                           </div>
-                          <p className="text-[11px] text-[#64748B] mb-3 line-clamp-1">{role.description}</p>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                <span className="text-[10.5px] font-bold text-emerald-700">
-                                  Hoạt động
-                                </span>
-                              </div>
-                              <span className="text-slate-300 text-[10px]">•</span>
-                              <span className="text-[10.5px] font-bold text-[#64748B]">{role.permissions?.length || 0} quyền</span>
-                            </div>
-                            <div className={`flex items-center gap-1.5 ${selectedRole === role._id ? 'opacity-100' : 'opacity-0'}`}>
+                          <p className="text-[11px] text-[#64748B] font-medium leading-relaxed mt-1">{role.description || 'Chưa cấu hình mô tả'}</p>
+                          <div className="flex items-center justify-between mt-3.5 pt-2.5 border-t border-white/20">
+                            <span className="text-[10px] text-[#64748B] font-bold">
+                              {role.permissions ? role.permissions.length : 0} Quyền hạn
+                            </span>
+                            <div className="flex items-center gap-1.5">
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleOpenEditRoleModal(role); }}
                                 className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
                               >
-                                <Pencil className="w-3 h-3" />
+                                <Pencil className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleRoleDelete(role); }}
                                 className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
                               >
-                                <Trash2 className="w-3 h-3" />
                               </button>
                             </div>
                           </div>

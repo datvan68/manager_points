@@ -48,6 +48,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomPagination } from '@/components/ui/pagination';
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
+import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 
 
 function ClassStudentsPageContent() {
@@ -459,10 +460,110 @@ function ClassStudentsPageContent() {
         setIsStudentPopupOpen(true);
     };
 
+    const studentsColumns: ResponsiveColumn<Student>[] = [
+        {
+            key: 'student_code',
+            header: 'MÃ SV',
+            priority: 'secondary',
+            className: 'font-mono text-[14px] text-[#64748B]',
+            render: (val) => val
+        },
+        {
+            key: 'full_name',
+            header: 'HỌ VÀ TÊN',
+            priority: 'primary',
+            render: (_, student) => (
+                <div className="flex items-center gap-[12px]">
+                    <StudentAvatar fullName={student.full_name} sizeClass="w-[36px] h-[36px]" />
+                    <div>
+                        <div className="font-semibold text-[14px] text-[#1E293B]">{student.full_name}</div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            key: 'date_bir',
+            header: 'NGÀY SINH',
+            priority: 'metadata',
+            className: 'text-[14px] text-[#64748B]',
+            render: (_, student) => formatDob(student.date_bir)
+        },
+        {
+            key: 'sex',
+            header: 'GIỚI TÍNH',
+            priority: 'metadata',
+            className: 'text-[14px] text-[#64748B]',
+            render: (val) => val === 'Male' ? 'Nam' : val === 'Female' ? 'Nữ' : 'Khác'
+        },
+        {
+            key: 'training_point_id',
+            header: 'ĐRL',
+            priority: 'metadata',
+            render: (_, student) => {
+                const resolvedScore = resolveDrlScore(summaryMap.get(student._id)) ?? resolveDrlScore(student.training_point_id);
+                const vScore = resolvedScore !== null ? `${resolvedScore}` : 'N/A';
+                return (
+                    <div className="flex items-center gap-[4px] font-bold">
+                        <span className="text-[14px] text-[#1E293B]">{vScore}</span>
+                        {vScore !== 'N/A' && <span className="text-[10px] text-[#64748B] font-normal">/100</span>}
+                    </div>
+                );
+            }
+        },
+        {
+            key: 'status',
+            header: 'TRẠNG THÁI',
+            priority: 'metadata',
+            render: (val) => {
+                const vStatus = getVietnameseStatus(val);
+                return (
+                    <span className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-xl font-bold text-[12px] border ${vStatus === 'Đang học' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' :
+                        vStatus === 'Bảo lưu' ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' :
+                            'bg-rose-500/10 text-rose-700 border-rose-500/20'
+                        }`}>
+                        {vStatus}
+                    </span>
+                );
+            }
+        },
+        {
+            key: 'account_status',
+            header: 'TÀI KHOẢN',
+            priority: 'metadata',
+            render: (val) => (
+                <span className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-xl font-bold text-[12px] border ${val === 'active' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' :
+                    val === 'locked' ? 'bg-rose-500/10 text-rose-700 border-rose-500/20' :
+                        'bg-slate-500/10 text-[#64748B] border border-slate-500/20'
+                    }`}>
+                    {val === 'active' ? 'Đã kích hoạt' :
+                        val === 'locked' ? 'Đang khóa' : 'Chưa active'}
+                </span>
+            )
+        },
+        {
+            key: 'actions',
+            header: 'HÀNH ĐỘNG',
+            priority: 'action',
+            className: 'text-right',
+            render: (_, student) => (
+                <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                    <Action
+                        onView={() => setOpenDrawerId(student._id)}
+                        onEdit={() => handleEditStudent(student)}
+                        onDelete={() => handleDeleteSingle(student._id, student.full_name)}
+                        permissionView="STUDENT_READ"
+                        permissionEdit="STUDENT_UPDATE"
+                        permissionDelete="STUDENT_DELETE"
+                    />
+                </div>
+            )
+        }
+    ];
+
     return (
         <div className="flex bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] h-screen overflow-hidden font-sans">
             <Sidebar />
-            <div className="flex-1 flex flex-col min-w-0 h-full">
+            <div className="flex-1 flex flex-col min-w-0 h-full relative">
                 <Header customMappings={{ [classId]: selectedClass ? selectedClass.class_name : classId }} />
                 <main className="flex-1 p-4 overflow-hidden flex flex-col bg-transparent relative">
                     <motion.div
@@ -565,134 +666,47 @@ function ClassStudentsPageContent() {
 
                         {/* Student Table */}
                         <div className="flex-1 overflow-hidden bg-transparent max-w-screen-2xl w-full mx-auto relative flex flex-col mb-4">
-                            <div className="overflow-x-auto flex-1 h-full">
-                                <table className="w-full text-left border-collapse min-w-[1000px]">
-                                    <thead className="bg-white/90 backdrop-blur-md sticky top-0 z-20 border-b border-white/80">
-                                        <tr>
-                                            <th className="px-4 py-4 w-16 text-center">
-                                                <input
-                                                    type="checkbox"
-                                                    className="rounded border-gray-300 text-primary w-4 h-4 cursor-pointer"
-                                                    checked={paginatedStudents.length > 0 && selectedStudentIds.length === paginatedStudents.length}
-                                                    onChange={toggleSelectAll}
-                                                />
-                                            </th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase min-w-[100px]">MÃ SV</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase min-w-[200px]">HỌ VÀ TÊN</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase min-w-[110px]">NGÀY SINH</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase min-w-[90px]">GIỚI TÍNH</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase min-w-[80px]">ĐRL</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase text-center min-w-[120px]">TRẠNG THÁI</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase text-center min-w-[130px]">TÀI KHOẢN</th>
-                                            <th className="px-6 py-4 text-[12px] font-bold text-[#334155] tracking-[0.6px] uppercase text-right min-w-[100px]">HÀNH ĐỘNG</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/10">
-                                        {isLoading || isDataLoading ? (
-                                            Array.from({ length: 6 }).map((_, i) => (
-                                                <tr key={i} className="h-[49px]">
-                                                    <td className="px-4 text-center"><Skeleton className="w-4 h-4 rounded mx-auto" /></td>
-                                                    <td className="px-6"><Skeleton className="w-20 h-4" /></td>
-                                                    <td className="px-6 py-2 flex items-center gap-[12px] h-[49px]"><Skeleton className="w-[36px] h-[36px] rounded-full shrink-0" /><Skeleton className="w-32 h-4 rounded" /></td>
-                                                    <td className="px-6"><Skeleton className="w-20 h-4" /></td>
-                                                    <td className="px-6"><Skeleton className="w-12 h-4" /></td>
-                                                    <td className="px-6"><Skeleton className="w-12 h-4" /></td>
-                                                    <td className="px-6 text-center"><Skeleton className="w-20 h-6 rounded-xl mx-auto" /></td>
-                                                    <td className="px-6 text-center"><Skeleton className="w-24 h-6 rounded-xl mx-auto" /></td>
-                                                    <td className="px-6 text-right"><Skeleton className="w-8 h-8 rounded-xl ml-auto" /></td>
-                                                </tr>
-                                            ))
-                                        ) : paginatedStudents.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={9} className="px-6 py-12 text-center text-gray-400 text-sm">
-                                                    Không tìm thấy sinh viên nào trong lớp này.
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            paginatedStudents.map((student, idx) => {
-                                                const vDob = formatDob(student.date_bir);
-                                                const vGender = student.sex === 'Male' ? 'Nam' : student.sex === 'Female' ? 'Nữ' : 'Khác';
-                                                const resolvedScore = resolveDrlScore(summaryMap.get(student._id)) ?? resolveDrlScore(student.training_point_id);
-                                                const vScore = resolvedScore !== null ? `${resolvedScore}` : 'N/A';
-                                                const vStatus = getVietnameseStatus(student.status);
-
-                                                return (
-                                                    <motion.tr
-                                                        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.1, delay: idx * 0.05 }}
-                                                        key={student._id} className="hover:bg-white/50 transition-all duration-150 ease-out group h-[49px]"
-                                                    >
-                                                        <td className="px-4 text-center">
-                                                            <input
-                                                                type="checkbox"
-                                                                className="rounded border-[#cbd5e1] text-primary w-4 h-4 cursor-pointer"
-                                                                checked={selectedStudentIds.includes(student._id)}
-                                                                onChange={() => toggleStudentSelection(student._id)}
-                                                            />
-                                                        </td>
-                                                        <td className="px-6 font-mono text-[14px] text-[#64748B]">{student.student_code}</td>
-                                                        <td className="px-6 py-2">
-                                                            <div className="flex items-center gap-[12px]">
-                                                                <StudentAvatar fullName={student.full_name} sizeClass="w-[36px] h-[36px]" />
-                                                                <div>
-                                                                    <div className="font-semibold text-[14px] text-[#1E293B]">{student.full_name}</div>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 text-[14px] text-[#64748B]">{vDob}</td>
-                                                        <td className="px-6 text-[14px] text-[#64748B]">{vGender}</td>
-                                                        <td className="px-6">
-                                                            <div className="flex items-center gap-[4px] font-bold">
-                                                                <span className="text-[14px] text-[#1E293B]">{vScore}</span>
-                                                                {vScore !== 'N/A' && <span className="text-[10px] text-[#64748B] font-normal">/100</span>}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 text-center">
-                                                            <span className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-xl font-bold text-[12px] border ${vStatus === 'Đang học' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' :
-                                                                vStatus === 'Bảo lưu' ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' :
-                                                                    'bg-rose-500/10 text-rose-700 border-rose-500/20'
-                                                                }`}>
-                                                                {vStatus}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 text-center">
-                                                            <span className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-xl font-bold text-[12px] border ${student.account_status === 'active' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' :
-                                                                student.account_status === 'locked' ? 'bg-rose-500/10 text-rose-700 border-rose-500/20' :
-                                                                    'bg-slate-500/10 text-[#64748B] border border-slate-500/20'
-                                                                }`}>
-                                                                {student.account_status === 'active' ? 'Đã kích hoạt' :
-                                                                    student.account_status === 'locked' ? 'Đang khóa' : 'Chưa active'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 text-right">
-                                                            <div className="flex items-center justify-end gap-1">
-                                                                <Action
-                                                                    onView={() => setOpenDrawerId(student._id)}
-                                                                    onEdit={() => handleEditStudent(student)}
-                                                                    onDelete={() => handleDeleteSingle(student._id, student.full_name)}
-                                                                    permissionView="STUDENT_READ"
-                                                                    permissionEdit="STUDENT_UPDATE"
-                                                                    permissionDelete="STUDENT_DELETE"
-                                                                />
-                                                            </div>
-                                                        </td>
-                                                    </motion.tr>
-                                                );
-                                            })
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <div className="sticky bottom-0 z-10 border-t border-white/60 mt-auto bg-white/40 backdrop-blur-md">
-                            <CustomPagination
-                                currentPage={currentPage}
-                                pageSize={itemsPerPage}
-                                totalItems={totalStudents}
-                                onPageChange={(page) => setCurrentPage(page)}
-                                onPageSizeChange={setItemsPerPage}
-                                label="sinh viên"
-                                isLoading={isDataLoading}
+                            <ResponsiveDataView
+                                data={paginatedStudents}
+                                columns={studentsColumns}
+                                isLoading={isLoading || isDataLoading}
+                                emptyState={
+                                    <div className="text-center py-12 text-gray-400 text-sm font-semibold">
+                                        Không tìm thấy sinh viên nào trong lớp này.
+                                    </div>
+                                }
+                                keyExtractor={(student) => student._id}
+                                selection={{
+                                    selectedKeys: selectedStudentIds,
+                                    onSelectRow: (key, checked) => {
+                                        if (checked) {
+                                            setSelectedStudentIds(prev => [...prev, key]);
+                                        } else {
+                                            setSelectedStudentIds(prev => prev.filter(id => id !== key));
+                                        }
+                                    },
+                                    onSelectAll: (checked) => {
+                                        if (checked) {
+                                            setSelectedStudentIds(paginatedStudents.map(s => s._id));
+                                        } else {
+                                            setSelectedStudentIds([]);
+                                        }
+                                    },
+                                    allSelected: paginatedStudents.length > 0 && selectedStudentIds.length === paginatedStudents.length
+                                }}
+                                onRowClick={(student) => setOpenDrawerId(student._id)}
+                                pagination={
+                                    <CustomPagination
+                                        currentPage={currentPage}
+                                        pageSize={itemsPerPage}
+                                        totalItems={totalStudents}
+                                        onPageChange={(page) => setCurrentPage(page)}
+                                        onPageSizeChange={setItemsPerPage}
+                                        label="sinh viên"
+                                        isLoading={isDataLoading}
+                                        className="shadow-none border-none rounded-none bg-transparent"
+                                    />
+                                }
                             />
                         </div>
                     </motion.div>
@@ -922,9 +936,10 @@ function ClassStudentsPageContent() {
                         {permissions.canExportStudent && (
                         <button
                             onClick={handleExport}
-                            className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-slate-600 bg-white/80 border border-slate-200 rounded-full hover:bg-slate-50 transition-all select-none shadow-sm"
+                            className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 text-[12px] font-bold text-slate-600 bg-white/80 border border-slate-200 rounded-full hover:bg-slate-50 transition-all select-none shadow-sm cursor-pointer"
                         >
-                            <Download className="w-3.5 h-3.5" /> Xuất file
+                            <Download className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Xuất file</span>
                         </button>
                         )}
 
@@ -932,10 +947,10 @@ function ClassStudentsPageContent() {
                         <button
                             onClick={handleActivateAccounts}
                             disabled={isDataLoading}
-                            className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-white bg-[#135bec] rounded-full hover:bg-blue-600 active:bg-blue-700 transition-all disabled:opacity-50 select-none shadow-sm shadow-blue-500/10"
+                            className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 text-[12px] font-bold text-white bg-[#135bec] rounded-full hover:bg-blue-600 active:bg-blue-700 transition-all disabled:opacity-50 select-none shadow-sm shadow-blue-500/10 cursor-pointer"
                         >
                             {isDataLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                            Kích hoạt
+                            <span className="hidden sm:inline">Kích hoạt</span>
                         </button>
                         )}
                     </>

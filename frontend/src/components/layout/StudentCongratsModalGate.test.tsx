@@ -193,7 +193,8 @@ describe('StudentCongratsModalGate Component Logic Regression', () => {
     // Student A setup
     const userA = {
       id: 'student_A',
-      user_name: 'Student A',
+      user_name: '1251510001',
+      display_name: 'Nguyen Van A',
       studentId: 'student_A',
     };
 
@@ -230,8 +231,8 @@ describe('StudentCongratsModalGate Component Logic Regression', () => {
     // Assert setState called with summary A data
     expect(mockSetState).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'Student A',
-        id: 'student_A',
+        name: 'Nguyen Van A',
+        className: 'Chưa cập nhật',
         score: 95,
         rankTier: 'diamond',
         rankLabel: 'Kim cương',
@@ -240,6 +241,7 @@ describe('StudentCongratsModalGate Component Logic Regression', () => {
         storageKey: 'congrats_shown_student_A_summary_A_2026-06-13',
       })
     );
+    expect(stateValue.name).not.toBe('1251510001');
 
     // Mock Student A's dismissal
     const keyA = 'congrats_shown_student_A_summary_A_2026-06-13';
@@ -250,7 +252,7 @@ describe('StudentCongratsModalGate Component Logic Regression', () => {
     // Transition / login of Student B
     const userB = {
       id: 'student_B',
-      user_name: 'Student B',
+      user_name: '1251510002',
       studentId: 'student_B',
     };
 
@@ -283,8 +285,8 @@ describe('StudentCongratsModalGate Component Logic Regression', () => {
     // Assert setState called with summary B data
     expect(mockSetState).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'Student B',
-        id: 'student_B',
+        name: 'Sinh viên',
+        className: 'Chưa cập nhật',
         score: 88,
         rankTier: 'gold',
         rankLabel: 'Vàng',
@@ -293,6 +295,7 @@ describe('StudentCongratsModalGate Component Logic Regression', () => {
         storageKey: 'congrats_shown_student_B_summary_B_2026-06-14',
       })
     );
+    expect(stateValue.name).not.toBe('1251510002');
 
     // Verify Student A's dismissal key is still in sessionStorage
     expect(sessionStorage.getItem(keyA)).toBe('true');
@@ -328,7 +331,8 @@ describe('StudentCongratsModalGate DOM Rendering', () => {
     // Mock Student A Setup
     const userA = {
       id: 'student_A',
-      user_name: 'Student A',
+      user_name: '1251510001',
+      display_name: 'Nguyen Van A',
       studentId: 'student_A',
     };
     vi.mocked(useAuth).mockReturnValue({ user: userA } as any);
@@ -342,6 +346,7 @@ describe('StudentCongratsModalGate DOM Rendering', () => {
       rank_label: 'Kim cương',
       semester: 'Học kỳ I',
       locked_at: '2026-06-13',
+      className: 'DPT16',
     };
     vi.mocked(summariesPointApi.getMyLatestSummary).mockResolvedValue(summaryA as any);
 
@@ -357,8 +362,9 @@ describe('StudentCongratsModalGate DOM Rendering', () => {
     expect(title.textContent?.replace(/\u00a0/g, ' ')).toBe('Chúc mừng hoàn thành!');
 
     // Verify detailed content is rendering properly
-    expect(screen.getByText('Student A')).toBeDefined();
-    expect(screen.getByText('MSSV: student_A')).toBeDefined();
+    expect(screen.getByText('Nguyen Van A')).toBeDefined();
+    expect(screen.queryByText('1251510001')).toBeNull(); // Should not display student code username
+    expect(screen.getByText('Lớp: DPT16')).toBeDefined();
     expect(screen.getByText('95')).toBeDefined();
     expect(screen.getByText('Hạng: Kim cương')).toBeDefined();
 
@@ -376,7 +382,7 @@ describe('StudentCongratsModalGate DOM Rendering', () => {
     // Mock Login Transition to Student B
     const userB = {
       id: 'student_B',
-      user_name: 'Student B',
+      user_name: '1251510002',
       studentId: 'student_B',
     };
     vi.mocked(useAuth).mockReturnValue({ user: userB } as any);
@@ -389,6 +395,7 @@ describe('StudentCongratsModalGate DOM Rendering', () => {
       rank_label: 'Vàng',
       semester: 'Học kỳ II',
       locked_at: '2026-06-14',
+      className: 'CNTT2',
     };
     vi.mocked(summariesPointApi.getMyLatestSummary).mockResolvedValue(summaryB as any);
 
@@ -398,8 +405,9 @@ describe('StudentCongratsModalGate DOM Rendering', () => {
     // Verify Student B's congrats modal renders successfully and is not blocked by Student A's key
     const titleB = await screen.findByText('Chúc mừng hoàn thành!');
     expect(titleB).toBeDefined();
-    expect(screen.getByText('Student B')).toBeDefined();
-    expect(screen.getByText('MSSV: student_B')).toBeDefined();
+    expect(screen.getByText('Sinh viên')).toBeDefined(); // Fallback name
+    expect(screen.queryByText('1251510002')).toBeNull(); // Should not display student code username
+    expect(screen.getByText('Lớp: CNTT2')).toBeDefined();
     expect(screen.getByText('88')).toBeDefined();
     expect(screen.getByText('Hạng: Vàng')).toBeDefined();
   });

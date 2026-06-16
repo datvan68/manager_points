@@ -69,6 +69,7 @@ describe('SummariesPointService', () => {
 
   const mockClassModel = {
     find: jest.fn(),
+    findById: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -545,13 +546,20 @@ describe('SummariesPointService', () => {
 
   describe('findLatestForStudent', () => {
     it('should return null if student not found', async () => {
-      mockStudentModel.findOne.mockResolvedValue(null);
+      mockStudentModel.findOne.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(null),
+      });
       const result = await service.findLatestForStudent('user123');
       expect(result).toBeNull();
+      expect(mockStudentModel.findOne).toHaveBeenCalledWith({ user_id: 'user123' });
     });
 
     it('should return null if no locked summary found', async () => {
-      mockStudentModel.findOne.mockResolvedValue({ _id: 'student123' });
+      mockStudentModel.findOne.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({ _id: 'student123' }),
+      });
       mockSummaryPointModel.findOne.mockReturnValue({
         sort: jest.fn().mockReturnThis(),
         populate: jest.fn().mockReturnThis(),
@@ -562,8 +570,20 @@ describe('SummariesPointService', () => {
       expect(result).toBeNull();
     });
 
-    it('should return formatted summary for student', async () => {
-      mockStudentModel.findOne.mockResolvedValue({ _id: 'student123' });
+    it('should return formatted summary for student with raw class name', async () => {
+      const mockStudent = {
+        _id: 'student123',
+        full_name: 'Nguyễn Văn A',
+        student_code: 'SV001',
+        class_id: {
+          _id: 'class123',
+          class_name: 'CNTT1',
+        },
+      };
+      mockStudentModel.findOne.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockStudent),
+      });
       
       const mockSummary = {
         _id: 'summary1',
@@ -595,7 +615,58 @@ describe('SummariesPointService', () => {
         semester: 'Học kỳ 1',
         period: 'period1',
         locked_at: mockSummary.rank_locked_at,
+        studentName: 'Nguyễn Văn A',
+        className: 'CNTT1',
+        student: {
+          full_name: 'Nguyễn Văn A',
+          student_code: 'SV001',
+          class_id: {
+            _id: 'class123',
+            class_name: 'CNTT1',
+          },
+        },
       });
+      expect(mockStudentModel.findOne).toHaveBeenCalledWith({ user_id: 'user123' });
+      expect(mockSummaryPointModel.findOne).toHaveBeenCalledWith({
+        student_id: 'student123',
+        status: 'locked',
+      });
+    });
+
+    it('should default class name to "Chưa cập nhật" if missing', async () => {
+      const mockStudent = {
+        _id: 'student123',
+        full_name: 'Nguyễn Văn A',
+        student_code: 'SV001',
+        class_id: null,
+      };
+      mockStudentModel.findOne.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockStudent),
+      });
+      
+      const mockSummary = {
+        _id: 'summary1',
+        status: 'locked',
+        total_score: 92,
+        grading: 'Xuất sắc',
+        rank_tier: 'diamond',
+        rank_label: 'Xuất sắc',
+        semester_id: { name: 'Học kỳ 1' },
+        period_id: 'period1',
+        rank_locked_at: new Date('2023-01-01T00:00:00Z'),
+      };
+
+      mockSummaryPointModel.findOne.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      });
+
+      const result = await service.findLatestForStudent('user123');
+      
+      expect(result.className).toBe('Chưa cập nhật');
+      expect(result.student.class_id).toBeNull();
     });
   });
 

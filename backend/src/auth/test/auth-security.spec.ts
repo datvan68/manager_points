@@ -289,6 +289,9 @@ describe('Auth Security (Student Account Policies)', () => {
             provide: getModelToken(Student.name),
             useValue: {
               find: jest.fn(),
+              findOne: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue(null),
+              }),
             },
           },
           {

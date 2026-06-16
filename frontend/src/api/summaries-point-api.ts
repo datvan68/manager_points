@@ -36,6 +36,28 @@ export interface UpdateSummaryPointDto {
   status?: 'draft' | 'sv_submitted' | 'gv_reviewed' | 'locked';
 }
 
+export interface LatestStudentSummary {
+  _id: string;
+  status: 'draft' | 'sv_submitted' | 'gv_reviewed' | 'locked';
+  total_score: number | null;
+  grading: string | null;
+  rank_tier?: 'diamond' | 'gold' | 'silver' | 'bronze' | 'unranked';
+  rank_label?: string;
+  semester: string;
+  period?: any;
+  locked_at: string;
+  studentName?: string;
+  className?: string;
+  student?: {
+    full_name: string;
+    student_code: string;
+    class_id: {
+      _id: string;
+      class_name: string;
+    } | null;
+  };
+}
+
 export const summariesPointApi = {
   async getSummariesPoints(params?: {
     page?: number;
@@ -105,14 +127,14 @@ export const summariesPointApi = {
     return this.approveGrading(id);
   },
 
-  async getMyLatestSummary(params?: { semesterId?: string; periodId?: string }): Promise<any> {
+  async getMyLatestSummary(params?: { semesterId?: string; periodId?: string }): Promise<LatestStudentSummary | null> {
     const query = new URLSearchParams();
     if (params?.semesterId) query.set('semesterId', params.semesterId);
     if (params?.periodId) query.set('periodId', params.periodId);
     const qs = query.toString();
     const url = `${API_BASE}/summaries-points/me/latest${qs ? `?${qs}` : ''}`;
     const res = await httpClient(url);
-    return handleResponse<any>(res);
+    return handleResponse<LatestStudentSummary | null>(res);
   },
 
   async cancelApprovalBulk(summaryIds: string[], reason?: string): Promise<any[]> {

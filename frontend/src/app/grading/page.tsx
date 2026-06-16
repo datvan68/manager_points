@@ -13,8 +13,10 @@ import {
   CheckCircle,
   XCircle,
   Eye,
-  Settings
+  Settings,
+  SlidersHorizontal
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import dynamic from 'next/dynamic';
 const SemesterModal = dynamic(() => import('../../components/grading/SemesterModal'), { ssr: false });
 const BulkGradingModal = dynamic(() => import('../../components/grading/BulkGradingModal'), { ssr: false });
@@ -29,6 +31,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { StudentAvatar } from '@/components/ui/StudentAvatar';
+import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 import { departmentApi } from '../../api/department-api';
 import { classApi } from '../../api/class-api';
 import { semesterApi } from '../../api/semester-api';
@@ -154,6 +157,18 @@ function GradingPage() {
   const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
   const [isBulkGradingOpen, setIsBulkGradingOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      setIsMobileOrTablet(window.innerWidth < 1024);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // State confirm hủy duyệt hàng loạt
   const [cancelBulkConfirm, setCancelBulkConfirm] = useState<{
@@ -462,9 +477,11 @@ function GradingPage() {
     if (!appliedClass || !appliedSemester) return;
     try {
       setIsFetching(true);
+      const limitToUse = isMobileOrTablet ? 9999 : pageSize;
+      const pageToUse = isMobileOrTablet ? 1 : pageToFetch;
       const res = await summariesPointApi.getSummariesPoints({
-        page: pageToFetch,
-        limit: pageSize,
+        page: pageToUse,
+        limit: limitToUse,
         semesterId: appliedSemester,
         classId: appliedClass,
       });
@@ -498,7 +515,7 @@ function GradingPage() {
     if (isStateRestored && appliedClass && appliedSemester) {
       fetchSummaries(currentPage);
     }
-  }, [currentPage, pageSize, appliedClass, appliedSemester, isStateRestored]);
+  }, [currentPage, pageSize, appliedClass, appliedSemester, isStateRestored, isMobileOrTablet]);
 
 
   // Effect 1: Khôi phục trạng thái từ sessionStorage khi mount
@@ -767,6 +784,133 @@ function GradingPage() {
     }
   });
 
+  const columns: ResponsiveColumn<any>[] = [
+    {
+      key: 'id',
+      header: 'Mã sinh viên',
+      priority: 'secondary',
+      className: 'text-sm font-medium text-[#475569]',
+    },
+    {
+      key: 'name',
+      header: 'Tên',
+      priority: 'primary',
+      render: (_, student) => (
+        <div className="flex items-center gap-[12px]">
+          <StudentAvatar fullName={student.name} sizeClass="w-[36px] h-[36px]" />
+          <div>
+            <div className="font-semibold text-[14px] text-[#0f172a]">{student.name}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'classId',
+      header: 'Lớp',
+      priority: 'metadata',
+      render: (_, student) => {
+        return classMap.get(student.classId)?.class_name || student.classId;
+      },
+    },
+    {
+      key: 'score',
+      header: 'Tổng điểm',
+      priority: 'metadata',
+      className: 'text-center',
+      render: (_, student) => {
+        const rank = getRank(student.score);
+        return (
+          <span className={`inline-flex items-center justify-center px-3 py-1 border rounded-xl text-[13px] font-semibold backdrop-blur-sm shadow-sm ${rank.color}`}>
+            {student.score}/100
+          </span>
+        );
+      },
+    },
+    {
+      key: 'grading',
+      header: 'Xếp loại',
+      priority: 'metadata',
+      className: 'text-center',
+      render: (_, student) => (
+        <span className={`px-3 py-1 border rounded-xl text-[11px] font-bold uppercase tracking-tight backdrop-blur-sm shadow-sm ${getRankColor(student.grading)}`}>
+          {student.grading}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Hành động',
+      priority: 'action',
+      className: 'text-right',
+      render: (_, student) => {
+        const currentUser = tokenStorage.getUser();
+        const userRoleLower = currentUser?.role?.toLowerCase() || '';
+        const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
+        const isApproved = student.status === 'locked';
+        const studentPreCounts = preExistingCountsCache[student.summaryId];
+        const hasPreCounts = studentPreCounts ? Object.values(studentPreCounts).some((pc: any) => (pc.current_count || 0) > 0) : false;
+        const hasDetails = (student.details || []).some((detail: any) => (detail.current_count || 0) > 0);
+        const hasEvaluations = hasDetails || hasPreCounts;
+
+        return (
+          <div className="flex gap-2 justify-end items-center" onClick={(e) => e.stopPropagation()}>
+            {isSemesterActive && student.status !== 'locked' ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/grading/score?studentId=${student.id}`);
+                }}
+                className="w-8 h-8 rounded-xl flex items-center justify-center bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 hover:scale-[1.05] transition-all duration-150 ease-out active:scale-95 cursor-pointer shadow-sm"
+                title="Chấm điểm sinh viên"
+              >
+                <SquarePen size={15} />
+              </button>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/grading/score?studentId=${student.id}&view=true`);
+                }}
+                className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/60 border border-white/80 text-slate-600 hover:bg-white/90 hover:scale-[1.05] transition-all duration-150 ease-out active:scale-95 cursor-pointer shadow-sm"
+                title="Xem chi tiết điểm"
+              >
+                <Eye size={15} />
+              </button>
+            )}
+            {canApprove && (isApproved || isSemesterActive) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isApproved) return;
+                  if (!hasEvaluations) {
+                    toast.warning(`Sinh viên ${student.name} chưa được chấm tiêu chí nào để duyệt!`);
+                    return;
+                  }
+                  handleApproveEvaluation(student.summaryId, student.name);
+                }}
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150 ease-out active:scale-95 shadow-sm ${isApproved
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-default'
+                  : !hasEvaluations
+                    ? 'bg-slate-50 border border-slate-100 text-slate-300 opacity-60 cursor-not-allowed'
+                    : 'bg-white/60 border border-white/80 text-slate-400 hover:bg-white/90 hover:scale-[1.05] cursor-pointer'
+                  }`}
+                title={
+                  isApproved
+                    ? "Đã phê duyệt điểm rèn luyện"
+                    : !hasEvaluations
+                      ? "Chưa có tiêu chí nào được chấm để duyệt"
+                      : "Phê duyệt điểm rèn luyện"
+                }
+              >
+                <CheckCircle size={15} />
+              </button>
+            )}
+          </div>
+        );
+      }
+    }
+  ];
+
   return (
     <>
       <style>{`
@@ -786,7 +930,7 @@ function GradingPage() {
       `}</style>
       <div className="flex h-screen bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] font-sans">
         <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
           <Header />
 
           <TabNavigation
@@ -802,14 +946,13 @@ function GradingPage() {
           />
 
           <main className="flex-1 p-4 md:px-8 flex flex-col gap-3 w-full overflow-hidden">
-            {/* Filters Section Container */}
+            {/* Desktop Filters (Visible only on lg and above) */}
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="relative z-20 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl px-4 flex gap-3 items-center shrink-0 h-[68px] shadow-sm shadow-slate-300/40"
+              className="hidden lg:flex relative z-20 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4 flex-row gap-3 items-center shrink-0 min-h-[68px] shadow-sm shadow-slate-300/40 w-full"
             >
               <div className="flex-1 relative">
-
                 <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
                   <Search size={18} />
                 </div>
@@ -824,7 +967,7 @@ function GradingPage() {
 
               {/* Select Học kì */}
               <div className="shrink-0 flex items-center gap-2">
-                <div className="min-w-[160px]">
+                <div className="min-w-[160px] flex-1 md:flex-initial">
                   <Select
                     value={selectedSemester}
                     onValueChange={(val: string) => {
@@ -916,6 +1059,33 @@ function GradingPage() {
               </Button>
             </motion.div>
 
+            {/* Mobile/Tablet Filters Row (Visible only on < lg screens) */}
+            <div className="flex lg:hidden items-center gap-2 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-3 shadow-sm shadow-slate-300/40 shrink-0 w-full">
+              {/* Search Bar (Real-time client-side search) */}
+              <div className="flex-1 relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <Search size={16} />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm tên hoặc MSSV..."
+                  className="w-full bg-white/50 border border-white/80 rounded-xl pl-9 pr-4 py-2 text-[13px] font-medium placeholder:text-slate-400 focus:bg-white/70 focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 ease-out outline-none h-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              {/* Advance Filter Button (Icon only) */}
+              <button
+                type="button"
+                onClick={() => setIsFilterDialogOpen(true)}
+                className="w-10 h-10 shrink-0 rounded-xl bg-white border border-[#D0D5DD] hover:bg-slate-50 text-slate-600 flex items-center justify-center transition-all duration-150 ease-out cursor-pointer shadow-sm active:scale-95"
+                title="Bộ lọc nâng cao"
+              >
+                <SlidersHorizontal size={18} />
+              </button>
+            </div>
+
             {/* Tab Danh sách */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -934,287 +1104,111 @@ function GradingPage() {
                   </p>
                 </div>
               ) : (
-                <>
-                  <div className="flex-1 overflow-auto">
-                    <table className="w-full border-collapse">
-                      <thead className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-white/80 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]">
-                        <tr>
-                          <th className="px-6 py-4 text-left w-16">
-                            <div className="flex items-center">
-                              <input
-                                type="checkbox"
-                                className="rounded border-[#cbd5e1] text-[#137fec] focus:ring-[#137fec] cursor-pointer"
-                                checked={
-                                  filteredStudents.length > 0 &&
-                                  filteredStudents.every(std => selectedStudentIds.includes(std.id))
-                                }
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedStudentIds(prev => {
-                                      const newSelection = [...prev];
-                                      filteredStudents.forEach(std => {
-                                        if (!newSelection.includes(std.id)) {
-                                          newSelection.push(std.id);
-                                        }
-                                      });
-                                      return newSelection;
-                                    });
-                                  } else {
-                                    setSelectedStudentIds(prev =>
-                                      prev.filter(id => !filteredStudents.some(std => std.id === id))
-                                    );
-                                  }
-                                }}
-                              />
-                            </div>
-                          </th>
-                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#334155] uppercase tracking-wider">Mã sinh viên</th>
-                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#334155] uppercase tracking-wider">Tên</th>
-                          <th className="px-6 py-4 text-left text-[12px] font-bold text-[#334155] uppercase tracking-wider">Lớp</th>
-                          <th className="px-6 py-4 text-center text-[12px] font-bold text-[#334155] uppercase tracking-wider">Tổng điểm</th>
-                          <th className="px-6 py-4 text-center text-[12px] font-bold text-[#334155] uppercase tracking-wider">Xếp loại</th>
-                          <th className="px-6 py-4 text-right text-[12px] font-bold text-[#334155] uppercase tracking-wider">Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#f1f5f9] relative">
-                        {isInitialLoading ? (
-                          Array.from({ length: 8 }).map((_, idx) => (
-                            <tr key={`skeleton-${idx}`}>
-                              <td className="px-6 py-4"><Skeleton className="h-4 w-4 rounded" /></td>
-                              <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
-                              <td className="px-6 py-4"><Skeleton className="h-4 w-32 rounded" /></td>
-                              <td className="px-6 py-4"><Skeleton className="h-4 w-20 rounded" /></td>
-                              <td className="px-6 py-4 text-center"><Skeleton className="h-6 w-16 rounded-full mx-auto" /></td>
-                              <td className="px-6 py-4 text-center"><Skeleton className="h-6 w-16 rounded-full mx-auto" /></td>
-                              <td className="px-6 py-4 text-right"><Skeleton className="h-8 w-8 rounded-full ml-auto" /></td>
-                            </tr>
-                          ))
-                        ) : (
-                          <>
-                            {filteredStudents.map((student, idx) => {
-                                const rank = getRank(student.score);
-                                const className = classMap.get(student.classId)?.class_name || student.classId;
-
-                                return (
-                                  <motion.tr
-                                    layout
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    key={student.id || `student-row-${idx}`}
-                                    className="hover:bg-white/60 transition-all duration-150 ease-out group cursor-pointer"
-                                  >
-                                    <td className="px-6 py-4">
-                                      <input
-                                        type="checkbox"
-                                        className="rounded border-[#cbd5e1] text-[#137fec] focus:ring-[#137fec] cursor-pointer"
-                                        checked={selectedStudentIds.includes(student.id)}
-                                        onChange={() => {
-                                          setSelectedStudentIds(prev =>
-                                            prev.includes(student.id)
-                                              ? prev.filter(id => id !== student.id)
-                                              : [...prev, student.id]
-                                          );
-                                        }}
-                                      />
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-medium text-[#475569]">{student.id}</td>
-                                    <td className="px-6 py-2">
-                                      <div className="flex items-center gap-[12px]">
-                                        <StudentAvatar fullName={student.name} sizeClass="w-[36px] h-[36px]" />
-                                        <div>
-                                          <div className="font-semibold text-[14px] text-[#0f172a]">{student.name}</div>
-                                        </div>
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-[#475569]">{className}</td>
-                                    <td className="px-6 py-4 text-center">
-                                      <span className={`inline-flex items-center justify-center px-3 py-1 border rounded-xl text-[13px] font-semibold backdrop-blur-sm shadow-sm ${rank.color}`}>
-                                        {student.score}/100
-                                      </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                      <span className={`px-3 py-1 border rounded-xl text-[11px] font-bold uppercase tracking-tight backdrop-blur-sm shadow-sm ${getRankColor(student.grading)}`}>
-                                        {student.grading}
-                                      </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                      <div className="flex gap-2 justify-end items-center">
-                                        {isSemesterActive && student.status !== 'locked' ? (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              router.push(`/grading/score?studentId=${student.id}`);
-                                            }}
-                                            className="w-8 h-8 rounded-xl flex items-center justify-center bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 hover:scale-[1.05] transition-all duration-150 ease-out active:scale-95 cursor-pointer shadow-sm"
-                                            title="Chấm điểm sinh viên"
-                                          >
-                                            <SquarePen size={15} />
-                                          </button>
-                                        ) : (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              router.push(`/grading/score?studentId=${student.id}&view=true`);
-                                            }}
-                                            className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/60 border border-white/80 text-slate-600 hover:bg-white/90 hover:scale-[1.05] transition-all duration-150 ease-out active:scale-95 cursor-pointer shadow-sm"
-                                            title="Xem chi tiết điểm"
-                                          >
-                                            <Eye size={15} />
-                                          </button>
-                                        )}
-                                        {(() => {
-                                          const currentUser = tokenStorage.getUser();
-                                          const userRoleLower = currentUser?.role?.toLowerCase() || '';
-                                          const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
-
-                                          if (canApprove) {
-                                            const isApproved = student.status === 'locked';
-                                            if (isApproved || isSemesterActive) {
-                                              const studentPreCounts = preExistingCountsCache[student.summaryId];
-                                              const hasPreCounts = studentPreCounts ? Object.values(studentPreCounts).some((pc: any) => (pc.current_count || 0) > 0) : false;
-                                              const hasDetails = (student.details || []).some((detail: any) => (detail.current_count || 0) > 0);
-                                              const hasEvaluations = hasDetails || hasPreCounts;
-
-                                              return (
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (isApproved) return;
-                                                    if (!hasEvaluations) {
-                                                      toast.warning(`Sinh viên ${student.name} chưa được chấm tiêu chí nào để duyệt!`);
-                                                      return;
-                                                    }
-                                                    handleApproveEvaluation(student.summaryId, student.name);
-                                                  }}
-                                                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150 ease-out active:scale-95 shadow-sm ${isApproved
-                                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-default'
-                                                    : !hasEvaluations
-                                                      ? 'bg-slate-50 border border-slate-100 text-slate-300 opacity-60 cursor-not-allowed'
-                                                      : 'bg-white/60 border border-white/80 text-slate-400 hover:bg-white/90 hover:scale-[1.05] cursor-pointer'
-                                                    }`}
-                                                  title={
-                                                    isApproved
-                                                      ? "Đã phê duyệt điểm rèn luyện"
-                                                      : !hasEvaluations
-                                                        ? "Chưa có tiêu chí nào được chấm để duyệt"
-                                                        : "Phê duyệt điểm rèn luyện"
-                                                  }
-                                                >
-                                                  <CheckCircle size={15} />
-                                                </button>
-                                              );
-                                            }
-                                          }
-                                          return null;
-                                        })()}
-                                      </div>
-                                    </td>
-                                  </motion.tr>
-                                );
-                              })
+                <ResponsiveDataView
+                  data={filteredStudents}
+                  columns={columns}
+                  isLoading={isInitialLoading}
+                  keyExtractor={(std) => std.id}
+                  breakpoint="lg"
+                  hidePaginationOnMobile={true}
+                  selection={{
+                    selectedKeys: selectedStudentIds,
+                    onSelectRow: (id, checked) => {
+                      setSelectedStudentIds(prev =>
+                        checked ? [...prev, id] : prev.filter(item => item !== id)
+                      );
+                    },
+                    onSelectAll: (checked) => {
+                      if (checked) {
+                        setSelectedStudentIds(prev => {
+                          const newSelection = [...prev];
+                          filteredStudents.forEach(std => {
+                            if (!newSelection.includes(std.id)) {
+                              newSelection.push(std.id);
                             }
-                            {(isFetching || isTableLoading) && (
-                              <tr className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] z-20 pointer-events-none">
-                                <td colSpan={7} className="h-full w-full p-0">
-                                  <div className="w-full h-full animate-pulse bg-gradient-to-r from-transparent via-slate-100/50 to-transparent" />
-                                </td>
-                              </tr>
-                            )}
-                          </>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <CustomPagination
-                    currentPage={currentPage}
-                    pageSize={pageSize}
-                    totalItems={totalItems}
-                    onPageChange={(page) => {
-                      setIsFetching(true);
-                      setTimeout(() => {
-                        setCurrentPage(page);
-                        setIsFetching(false);
-                      }, 400);
-                    }}
-                    label="sinh viên"
-                    isLoading={isFetching}
-                    pageSizeOptions={[5, 10, 20, 50, 100]}
-                    onPageSizeChange={(size) => {
-                      setPageSize(size);
-                      setCurrentPage(1);
-                    }}
-                  />
-                </>
+                          });
+                          return newSelection;
+                        });
+                      } else {
+                        setSelectedStudentIds(prev =>
+                          prev.filter(id => !filteredStudents.some(std => std.id === id))
+                        );
+                      }
+                    },
+                    allSelected: filteredStudents.length > 0 && filteredStudents.every(std => selectedStudentIds.includes(std.id))
+                  }}
+                  pagination={
+                    <CustomPagination
+                      currentPage={currentPage}
+                      pageSize={pageSize}
+                      totalItems={totalItems}
+                      onPageChange={(page) => {
+                        setIsFetching(true);
+                        setTimeout(() => {
+                          setCurrentPage(page);
+                          setIsFetching(false);
+                        }, 400);
+                      }}
+                      label="sinh viên"
+                      isLoading={isFetching}
+                      pageSizeOptions={[5, 10, 20, 50, 100]}
+                      onPageSizeChange={(size) => {
+                        setPageSize(size);
+                        setCurrentPage(1);
+                      }}
+                    />
+                  }
+                />
               )}
             </motion.div>
           </main>
+
+          {/* Thanh tác vụ chọn sinh viên hàng loạt */}
+          <FloatingActionBar
+            selectedCount={selectedStudentIds.length}
+            onClear={() => setSelectedStudentIds([])}
+            variant="dark"
+            actions={
+              <>
+                <button
+                  onClick={() => setIsBulkGradingOpen(true)}
+                  className="bg-[#137fec] hover:bg-blue-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(19,127,236,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                >
+                  <SquarePen size={13} strokeWidth={2.5} />
+                  <span className="hidden sm:inline">Chấm điểm </span>
+                </button>
+
+                {(() => {
+                  const currentUser = tokenStorage.getUser();
+                  const userRoleLower = currentUser?.role?.toLowerCase() || '';
+                  const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
+
+                  if (canApprove) {
+                    return (
+                      <button
+                        onClick={handleCancelApproveBulk}
+                        className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                      >
+                        <XCircle size={13} strokeWidth={2.5} />
+                        <span className="hidden sm:inline">Hủy duyệt</span>
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
+
+                <button
+                  onClick={() => setIsPrintModalOpen(true)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer h-9 shrink-0 border border-slate-700/60"
+                >
+                  <FileDown size={13} strokeWidth={2.5} />
+                  <span className="hidden sm:inline">Xuất PDF</span>
+                </button>
+              </>
+            }
+          />
         </div>
       </div>
-
-      {/* Modal Quản lý Học kỳ */}
-      <SemesterModal
-        isOpen={isSemesterModalOpen}
-        onClose={() => setIsSemesterModalOpen(false)}
-        apiSemesters={apiSemesters}
-        onRefreshSemesters={(updated) => setApiSemesters(updated)}
-        selectedSemester={selectedSemester}
-        setSelectedSemester={setSelectedSemester}
-      />
-
-      {/* Modal Chấm điểm hàng loạt */}
-      <BulkGradingModal
-        isOpen={isBulkGradingOpen}
-        onClose={() => setIsBulkGradingOpen(false)}
-        selectedCount={selectedStudentIds.length}
-        onConfirm={handleConfirmBulkGrading}
-        categories={categories}
-      />
-
-      {/* Thanh tác vụ chọn sinh viên hàng loạt */}
-      <FloatingActionBar
-        selectedCount={selectedStudentIds.length}
-        onClear={() => setSelectedStudentIds([])}
-        variant="dark"
-        actions={
-          <>
-            <button
-              onClick={() => setIsBulkGradingOpen(true)}
-              className="bg-[#137fec] hover:bg-blue-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(19,127,236,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
-            >
-              <SquarePen size={13} strokeWidth={2.5} />
-              <span>Chấm điểm </span>
-            </button>
-
-            {(() => {
-              const currentUser = tokenStorage.getUser();
-              const userRoleLower = currentUser?.role?.toLowerCase() || '';
-              const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
-
-              if (canApprove) {
-                return (
-                  <button
-                    onClick={handleCancelApproveBulk}
-                    className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
-                  >
-                    <XCircle size={13} strokeWidth={2.5} />
-                    <span>Hủy duyệt</span>
-                  </button>
-                );
-              }
-              return null;
-            })()}
-
-            <button
-              onClick={() => setIsPrintModalOpen(true)}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-[12px] px-5 py-2 rounded-full flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer h-9 shrink-0 border border-slate-700/60"
-            >
-              <FileDown size={13} strokeWidth={2.5} />
-              <span>Xuất PDF</span>
-            </button>
-          </>
-        }
-      />
 
       <GradingPdfTemplate
         isOpen={isPrintModalOpen}
@@ -1236,6 +1230,139 @@ function GradingPage() {
         cancelLabel="Hủy"
         variant="warning"
       />
+
+      {/* Dialog for Advanced Filters (Mobile/Tablet Only) */}
+      <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] sm:w-full max-w-[400px] rounded-2xl bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] border border-white/80 shadow-2xl p-5 z-[100] font-sans">
+          <DialogHeader className="mb-4 text-left">
+            <DialogTitle className="text-base font-bold text-[#1E293B]">Bộ lọc nâng cao</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 my-2">
+            {/* Select Học kì */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Học kỳ</label>
+                {canSelectSemester && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSemesterModalOpen(true);
+                      setIsFilterDialogOpen(false);
+                    }}
+                    className="text-[11px] font-bold text-[#1A73E8] hover:underline"
+                  >
+                    Cấu hình học kỳ
+                  </button>
+                )}
+              </div>
+              <Select
+                value={selectedSemester}
+                onValueChange={(val: string) => {
+                  if (canSelectSemester) {
+                    setSelectedSemester(val);
+                  }
+                }}
+                disabled={!canSelectSemester}
+              >
+                <SelectTrigger
+                  className="h-9 bg-white/60 border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none disabled:cursor-not-allowed disabled:opacity-75 w-full"
+                >
+                  <SelectValue placeholder="-- Chọn học kỳ --" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">-- Chọn học kỳ --</SelectItem>
+                  {apiSemesters.map(sem => (
+                    <SelectItem key={sem._id} value={sem._id}>{sem.semester_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Select Khoa */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Khoa</label>
+              <Select
+                value={selectedDepartment}
+                onValueChange={(val: string) => { 
+                  setSelectedDepartment(val); 
+                  setSelectedClass(''); 
+                }}
+              >
+                <SelectTrigger className="h-9 bg-white/60 border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none w-full">
+                  <SelectValue placeholder="-- Chọn khoa --" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">-- Chọn khoa --</SelectItem>
+                  {visibleDepartments.map(dept => (
+                    <SelectItem key={dept._id} value={dept._id}>{dept.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Select Lớp */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Lớp học</label>
+              <Select
+                value={selectedClass}
+                onValueChange={(val: string) => setSelectedClass(val)}
+              >
+                <SelectTrigger
+                  className={`h-9 bg-white/60 border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none w-full ${
+                    !selectedDepartment ? "pointer-events-none opacity-50 bg-slate-100/80 text-slate-400" : ""
+                  }`}
+                >
+                  <SelectValue placeholder={selectedDepartment ? "Chọn lớp" : "Chọn khoa trước"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">-- Không chọn --</SelectItem>
+                  {classesForSelectedDepartment.map(cls => (
+                    <SelectItem key={cls._id} value={cls._id}>{cls.class_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-2.5">
+            <button
+              onClick={() => {
+                setSelectedDepartment('');
+                setSelectedClass('');
+                setIsFilterDialogOpen(false);
+              }}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-[#64748B] hover:bg-slate-100 active:scale-[0.98] transition-all cursor-pointer border border-slate-200 bg-white"
+            >
+              Đặt lại
+            </button>
+            <Button
+              onClick={async () => {
+                await handleConfirmFilter();
+                setIsFilterDialogOpen(false);
+              }}
+              disabled={!selectedClass || isTableLoading}
+              className={`px-5 py-2 rounded-xl text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center relative ${
+                !selectedClass 
+                  ? "opacity-50 cursor-not-allowed bg-slate-300 hover:bg-slate-300 text-slate-500" 
+                  : isTableLoading 
+                  ? "opacity-80 cursor-not-allowed text-transparent" 
+                  : "bg-[#1A73E8] hover:bg-[#155dfc] text-white shadow-sm shadow-blue-500/10"
+              }`}
+            >
+              {isTableLoading && (
+                <div className="absolute inset-0 flex items-center justify-center text-white">
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+              )}
+              <span>Xác nhận</span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

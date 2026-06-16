@@ -250,7 +250,7 @@ export default function SemesterModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="bg-gradient-to-br from-[#EBF2FA]/95 via-[#EBF2FA]/90 to-[#DCE6F1]/95 backdrop-blur-md rounded-2xl w-full max-w-[850px] h-[580px] shadow-[0_8px_32px_rgba(31,38,135,0.08)] relative z-10 overflow-hidden flex flex-col border border-white/80"
+            className="bg-gradient-to-br from-[#EBF2FA]/95 via-[#EBF2FA]/90 to-[#DCE6F1]/95 backdrop-blur-md rounded-2xl w-[95vw] lg:w-full lg:max-w-[850px] h-[90vh] lg:h-[580px] shadow-[0_8px_32px_rgba(31,38,135,0.08)] relative z-10 overflow-hidden flex flex-col border border-white/80"
           >
             {/* Header with elegant subtle gradient */}
             <div className="px-6 py-4 border-b border-white/60 flex items-center justify-between shrink-0 bg-white/40 backdrop-blur-sm">
@@ -272,9 +272,9 @@ export default function SemesterModal({
             </div>
 
             {/* Body (Split columns) */}
-            <div className="flex-1 overflow-hidden flex divide-x divide-white/40">
+            <div className="flex-1 overflow-hidden flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-white/40">
               {/* Left side: Semester List */}
-              <div className="w-[45%] h-full p-4 overflow-y-auto flex flex-col gap-2.5 custom-scrollbar bg-[#EBF2FA]/40 backdrop-blur-xs border-r border-white/50">
+              <div className="w-full lg:w-[45%] h-[220px] lg:h-full p-4 overflow-y-auto flex flex-col gap-2.5 custom-scrollbar bg-[#EBF2FA]/40 backdrop-blur-xs border-b lg:border-b-0 lg:border-r border-white/50 shrink-0">
                 <div className="flex items-center justify-between mb-0.5">
                   <h4 className="font-bold text-[11px] text-slate-500 uppercase tracking-widest">
                     Danh sách học kỳ ({apiSemesters.length})
@@ -336,7 +336,7 @@ export default function SemesterModal({
                           </div>
 
                           {/* Action Buttons with subtle hover glow */}
-                          <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-all duration-150 flex gap-0.5 bg-white/80 backdrop-blur-md p-0.5 rounded-xl border border-white/80 shadow-sm" onClick={(e) => e.stopPropagation()}>
+                          <div className="absolute right-3 top-3 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-150 flex gap-0.5 bg-white/80 backdrop-blur-md p-0.5 rounded-xl border border-white/80 shadow-sm" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={() => handleOpenSemesterForm(sem)}
                               className="p-1.5 rounded-xl text-slate-500 hover:text-[#1A73E8] hover:bg-white/90 transition-all duration-150 ease-out cursor-pointer"
@@ -360,7 +360,7 @@ export default function SemesterModal({
               </div>
 
               {/* Right side: Add/Edit Form */}
-              <div className="w-[55%] h-full p-5 overflow-y-auto flex flex-col justify-between bg-white/10 backdrop-blur-xs">
+              <div className="w-full lg:w-[55%] flex-1 h-full p-5 overflow-y-auto flex flex-col justify-between bg-white/10 backdrop-blur-xs min-h-0">
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between border-b border-white/60 pb-2.5">
                     <h4 className="font-bold text-[13px] text-[#1E293B] flex items-center gap-1.5">

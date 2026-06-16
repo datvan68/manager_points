@@ -68,13 +68,13 @@ export default function Breadcrumb({ customMappings = {} }: BreadcrumbProps) {
             <li key={itemKey} className="flex items-center space-x-2">
               <ChevronRight size={14} className="text-gray-300 shrink-0" />
               {isLast ? (
-                <span className="text-gray-900 font-bold truncate max-w-[150px] sm:max-w-[200px]">
+                <span className="text-gray-900 font-bold truncate max-w-[150px] sm:max-w-[200px] lg:max-w-none lg:overflow-visible lg:whitespace-nowrap">
                   {label}
                 </span>
               ) : (
                 <Link
                   href={targetHref}
-                  className="text-gray-500 hover:text-[#135bec] transition-colors truncate max-w-[120px] sm:max-w-[150px]"
+                  className="text-gray-500 hover:text-[#135bec] transition-colors truncate max-w-[120px] sm:max-w-[150px] lg:max-w-none lg:overflow-visible lg:whitespace-nowrap"
                 >
                   {label}
                 </Link>

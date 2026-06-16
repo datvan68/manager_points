@@ -28,6 +28,28 @@ export function resolveRankTier(
   return { rank_tier: 'unranked', rank_label: 'Yếu' };
 }
 
+export interface LatestStudentSummaryDto {
+  _id: any;
+  status: string;
+  total_score: number | null;
+  grading: string | null;
+  rank_tier?: string;
+  rank_label?: string;
+  semester: string;
+  period?: any;
+  locked_at: Date | string;
+  studentName: string;
+  className: string;
+  student: {
+    full_name: string;
+    student_code: string;
+    class_id: {
+      _id: any;
+      class_name: string;
+    } | null;
+  };
+}
+
 @Injectable()
 export class SummariesPointService {
   constructor(
@@ -757,12 +779,20 @@ export class SummariesPointService {
     userId: string,
     semesterId?: string,
     periodId?: string,
-  ): Promise<any> {
-    // 1. Tìm student theo user_id
-    const student = await this.studentModel.findOne({ user_id: userId });
+  ): Promise<LatestStudentSummaryDto | null> {
+    // 1. Tìm student theo user_id và populate class_id
+    const student = await this.studentModel
+      .findOne({ user_id: userId })
+      .populate('class_id')
+      .exec();
+
     if (!student) {
       return null;
     }
+
+    // 1.5 Lấy class name thô
+    const classObj = student.class_id as any;
+    const className = classObj?.class_name || 'Chưa cập nhật';
 
     // 2. Build query
     const query: any = {
@@ -796,6 +826,18 @@ export class SummariesPointService {
       semester: semester?.semester_name || semester?.name || semester?.title || 'N/A',
       period: summary.period_id,
       locked_at: summary.rank_locked_at || (summary as any).updatedAt,
+      studentName: student.full_name || 'Sinh viên',
+      className: className,
+      student: {
+        full_name: student.full_name || 'Sinh viên',
+        student_code: student.student_code || '',
+        class_id: student.class_id
+          ? {
+              _id: classObj?._id || student.class_id,
+              class_name: className,
+            }
+          : null,
+      },
     };
   }
 
