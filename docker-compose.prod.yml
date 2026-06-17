@@ -11,16 +11,9 @@ services:
     logging: *default-logging
     env_file:
       - ./.env.production
-    # Production
-    # ports:
-    #   - "80:80"
-    #   - "443:443"
-    
-    # Local
     ports:
-    - "8080:80"
-    - "443:443"
-    - "443:443/udp"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -34,14 +27,18 @@ services:
 
   frontend:
     image: ${REGISTRY}/frontend:${APP_VERSION}
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     restart: unless-stopped
     logging: *default-logging
     env_file:
       - ./.env.production
-    ports:
-      - "3000:3000"
-    # expose:
-    #   - "3000"
+    # ports:
+    #   - "3000:3000"
+    expose:
+      - "3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -57,6 +54,8 @@ services:
 
   backend:
     image: ${REGISTRY}/backend:${APP_VERSION}
+    build:
+      context: ./backend
     restart: unless-stopped
     logging: *default-logging
     env_file:

@@ -1,7 +1,3 @@
-{
-  local_certs
-}
-
 {$FRONTEND_URL} {
   tls internal
   encode gzip zstd
