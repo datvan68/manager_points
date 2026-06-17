@@ -1,25 +1,32 @@
-
-# Base image
-FROM node:20-alpine
-
-# Create app directory
+FROM node:20-alpine AS deps
 WORKDIR /app
-
-# Copy application dependency manifests to the container image.
-# A wildcard is used to ensure both package.json AND package-lock.json are copied.
 COPY package*.json ./
+RUN npm ci
 
-# Install app dependencies
-RUN npm install
-
-# Bundle app source
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Build the app
 RUN npm run build
 
-# Expose the listening port
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Run as non-root user
+RUN addgroup -S app && adduser -S app -G app
+
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY --from=builder /app/dist ./dist
+
+# Create storage directory and set correct owner for non-root app user
+RUN mkdir -p /app/storage && chown -R app:app /app/storage
+
+# Use non-root user
+USER app
+
 EXPOSE 8000
 
-# Run the app
-CMD [ "npm", "run", "start:prod" ]
+CMD ["node", "dist/main"]

@@ -14,11 +14,17 @@ yarn-error.log*
 .env.local
 .env.development.local
 .env.test.local
+.env.production
 .env.production.local
+.env.production.example
+.env.development.example
+.env.test.example
+.env.example
 .eslintcache
 *.tsbuildinfo
 .taskscope.md
-# .taskscope-1.md
+taskscope.md
+taskscope-*.md
 # Build outputs
 dist/
 build/

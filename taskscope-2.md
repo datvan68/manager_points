@@ -32,6 +32,17 @@ registry.example.com/manager-point/backend:<git-sha>
 registry.example.com/manager-point/frontend:<git-sha>
 ```
 
+## Yeu Cau Tien Quyet (Prerequisites)
+
+Cac hang muc sau la yeu cau bat buoc can xu ly hoan thien truoc khi go-live production:
+
+1. Them `docker-compose.prod.yml`.
+2. Them backend multi-stage production Dockerfile va `.dockerignore`.
+3. Them backend endpoint `/health` de healthcheck hoat dong.
+4. Gioi han backend CORS theo `FRONTEND_URL`.
+5. Them CI steps cho test, build, image build, va vulnerability scan.
+6. Them deployment notes de ghi thong tin deploy.
+
 ## Cac File Production Can Co
 
 Tao cac file sau truoc lan deploy production dau tien:
@@ -40,6 +51,8 @@ Tao cac file sau truoc lan deploy production dau tien:
 docker-compose.prod.yml
 infra/caddy/Caddyfile
 infra/prometheus.prod.yml
+infra/mongo/init/01-init.js
+.dockerignore
 ```
 
 File sau chi duoc luu tren production server va khong commit vao Git:
@@ -90,6 +103,20 @@ Quy tac bao mat:
 - Xoay vong `JWT_SECRET`, thong tin SMTP, mat khau database, va registry token theo lich dinh ky.
 - Uu tien dung cloud secret manager hoac Docker secrets neu ha tang ho tro.
 
+## File `infra/mongo/init/01-init.js` Khuyen Nghi
+
+De dam bao `backend` co the ket noi thanh cong trong lan chay dau tien voi `MONGO_URI` su dung tai khoan app (khong dung tai khoan root), ban can tao file init nay. Kich ban nay se tu dong duoc thuc thi khi khoi tao volume MongoDB lan dau:
+
+```javascript
+db.createUser({
+  user: "manager-point-app",  // Khop voi user trong MONGO_URI
+  pwd: "strong-app-password", // Khop voi password trong MONGO_URI
+  roles: [
+    { role: "readWrite", db: "manager-point" }
+  ]
+});
+```
+
 ## File `docker-compose.prod.yml` Khuyen Nghi
 
 ```yaml
@@ -127,11 +154,17 @@ services:
     expose:
       - "3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - internal
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   backend:
     image: ${REGISTRY}/backend:${APP_VERSION}
@@ -145,11 +178,16 @@ services:
       mongodb:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     networks:
       - internal
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   mongodb:
     image: mongo:7
@@ -181,6 +219,11 @@ services:
       - internal
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   prometheus:
     image: prom/prometheus:v2.55.1
@@ -251,7 +294,11 @@ manager-point.example.com {
   }
 
   route /metrics* {
-    respond 404
+    respond 403
+  }
+
+  route /grafana/* {
+    reverse_proxy grafana:3000
   }
 
   reverse_proxy frontend:3000
@@ -275,6 +322,23 @@ scrape_configs:
 ```
 
 ## Khuyen Nghi Hardening Dockerfile
+
+### File `.dockerignore`
+
+Tuyet doi phai tao file `.dockerignore` o ca thu muc `backend` va `frontend` de ngan viec copy cac file khong can thiet hoac file chua secret vao context build:
+
+```text
+node_modules
+dist
+.env
+.env.*
+*.log
+npm-debug.log*
+.git
+.gitignore
+README.md
+docker-compose*.yml
+```
 
 ### Backend
 
@@ -333,6 +397,8 @@ git pull
 export APP_VERSION=$(git rev-parse --short HEAD)
 export REGISTRY=registry.example.com/manager-point
 
+docker login $REGISTRY -u <registry-user> -p <registry-password>
+
 docker build -t $REGISTRY/backend:$APP_VERSION ./backend
 docker build -t $REGISTRY/frontend:$APP_VERSION ./frontend
 
@@ -345,6 +411,7 @@ Chay cac buoc sau tren production server sau khi co human approval:
 ```bash
 cd /opt/manager-point
 git pull
+docker login $REGISTRY -u <registry-user> -p <registry-password>
 APP_VERSION=<approved-version> docker compose -f docker-compose.prod.yml --env-file .env.production pull
 APP_VERSION=<approved-version> docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 docker compose -f docker-compose.prod.yml --env-file .env.production ps
@@ -369,6 +436,7 @@ Dung flow sau cho cac lan release thong thuong:
 7. Pull va restart:
 
 ```bash
+docker login $REGISTRY -u <registry-user> -p <registry-password>
 APP_VERSION=<new-version> docker compose -f docker-compose.prod.yml --env-file .env.production pull backend frontend
 APP_VERSION=<new-version> docker compose -f docker-compose.prod.yml --env-file .env.production up -d backend frontend
 ```
@@ -409,15 +477,17 @@ Tao backup MongoDB tu dong truoc moi lan deploy production va toi thieu moi ngay
 Mau lenh backup khuyen nghi:
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.production exec mongodb mongodump --archive=/tmp/manager-point.archive --gzip
-docker compose -f docker-compose.prod.yml --env-file .env.production cp mongodb:/tmp/manager-point.archive ./backups/manager-point-$(date +%Y%m%d-%H%M%S).archive
+docker compose -f docker-compose.prod.yml --env-file .env.production exec mongodb bash -c 'mongodump --archive=/tmp/manager-point.archive --gzip --username="$MONGO_INITDB_ROOT_USERNAME" --password="$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase=admin'
+export MONGODB_CONTAINER=$(docker compose -f docker-compose.prod.yml ps -q mongodb)
+docker cp ${MONGODB_CONTAINER}:/tmp/manager-point.archive ./backups/manager-point-$(date +%Y%m%d-%H%M%S).archive
 ```
 
 Mau lenh restore:
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.production cp ./backups/<backup-file>.archive mongodb:/tmp/restore.archive
-docker compose -f docker-compose.prod.yml --env-file .env.production exec mongodb mongorestore --archive=/tmp/restore.archive --gzip --drop
+export MONGODB_CONTAINER=$(docker compose -f docker-compose.prod.yml ps -q mongodb)
+docker cp ./backups/<backup-file>.archive ${MONGODB_CONTAINER}:/tmp/restore.archive
+docker compose -f docker-compose.prod.yml --env-file .env.production exec mongodb bash -c 'mongorestore --archive=/tmp/restore.archive --gzip --drop --username="$MONGO_INITDB_ROOT_USERNAME" --password="$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase=admin'
 ```
 
 Restore tren production luon phai co human approval vi thao tac nay thay doi trang thai database.
@@ -520,11 +590,4 @@ Moi thao tac production that su deu can human approval truoc khi thuc hien:
 - Xoay vong secrets.
 - Xoa volumes, images, containers, hoac remote resources.
 
-## Cai Tien De Xuat Tiep Theo
 
-1. Them `docker-compose.prod.yml`.
-2. Them backend multi-stage production Dockerfile.
-3. Them backend endpoint `/health`.
-4. Gioi han backend CORS theo `FRONTEND_URL`.
-5. Them CI steps cho test, build, image build, va vulnerability scan.
-6. Them deployment notes de ghi `previous_version`, `new_version`, thoi gian deploy, nguoi thuc hien, va trang thai rollback.

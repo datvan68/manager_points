@@ -1,0 +1,22 @@
+{
+  local_certs
+}
+
+{$FRONTEND_URL} {
+  tls internal
+  encode gzip zstd
+
+  route /metrics* {
+    respond 403
+  }
+
+  route /grafana/* {
+    reverse_proxy grafana:3000
+  }
+
+  route /api/* {
+    reverse_proxy backend:8000
+  }
+
+  reverse_proxy frontend:3000
+}

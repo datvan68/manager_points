@@ -1,0 +1,157 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - ./.env.production
+    # Production
+    # ports:
+    #   - "80:80"
+    #   - "443:443"
+    
+    # Local
+    ports:
+    - "8080:80"
+    - "443:443"
+    - "443:443/udp"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - public
+      - internal
+
+  frontend:
+    image: ${REGISTRY}/frontend:${APP_VERSION}
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - ./.env.production
+    ports:
+      - "3000:3000"
+    # expose:
+    #   - "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    image: ${REGISTRY}/backend:${APP_VERSION}
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - ./.env.production
+    expose:
+      - "8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE}
+      MONGO_APP_USERNAME: ${MONGO_APP_USERNAME}
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+      - ./infra/mongo/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    logging: *default-logging
+    profiles:
+      - monitoring
+    volumes:
+      - ./infra/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - internal
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    restart: unless-stopped
+    logging: *default-logging
+    profiles:
+      - monitoring
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: ${FRONTEND_URL}/grafana/
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - internal
+
+networks:
+  public:
+  internal:
+    internal: true
+
+volumes:
+  mongo-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+  caddy-data:
+  caddy-config:

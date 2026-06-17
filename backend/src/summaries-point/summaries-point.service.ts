@@ -33,8 +33,8 @@ export interface LatestStudentSummaryDto {
   status: string;
   total_score: number | null;
   grading: string | null;
-  rank_tier?: string;
-  rank_label?: string;
+  rank_tier?: string | null;
+  rank_label?: string | null;
   semester: string;
   period?: any;
   locked_at: Date | string;
