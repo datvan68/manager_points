@@ -58,6 +58,7 @@ describe('SummariesPointService', () => {
       findByIdAndUpdate: jest.fn(),
       findByIdAndDelete: jest.fn(),
       aggregate: jest.fn(),
+      insertMany: jest.fn(),
     }
   );
 
@@ -70,6 +71,14 @@ describe('SummariesPointService', () => {
   const mockClassModel = {
     find: jest.fn(),
     findById: jest.fn(),
+  };
+
+  const mockCategoryModel = {
+    find: jest.fn(),
+  };
+
+  const mockCriterionModel = {
+    find: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -87,6 +96,14 @@ describe('SummariesPointService', () => {
         {
           provide: getModelToken(Class.name),
           useValue: mockClassModel,
+        },
+        {
+          provide: getModelToken('Category'),
+          useValue: mockCategoryModel,
+        },
+        {
+          provide: getModelToken('Criterion'),
+          useValue: mockCriterionModel,
         },
       ],
     }).compile();
@@ -240,6 +257,46 @@ describe('SummariesPointService', () => {
       });
 
       await expect(service.create(createDto)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('initializeClass', () => {
+    it('should throw BadRequestException if classId is invalid', async () => {
+      await expect(service.initializeClass('invalid', '507f1f77bcf86cd799439012')).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw NotFoundException if class does not exist', async () => {
+      mockClassModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+      await expect(service.initializeClass('507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should initialize summaries for students with default values', async () => {
+      mockClassModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue({ _id: 'class-1', advisor_id: 'user1' }) });
+      mockStudentModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          { _id: 'student-1' },
+          { _id: 'student-2' }
+        ])
+      });
+      mockSummaryPointModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ student_id: 'student-1' }])
+      });
+      mockSummaryPointModel.insertMany.mockResolvedValue([{ _id: 'new-summary' }]);
+
+      const result = await service.initializeClass('507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012', { userId: 'user1', roleName: 'teacher' });
+
+      expect(mockSummaryPointModel.insertMany).toHaveBeenCalledWith([
+        {
+          student_id: 'student-2',
+          semester_id: new Types.ObjectId('507f1f77bcf86cd799439012'),
+          period_id: null,
+          total_score: 0,
+          grading: 'CHUA XEP LOAI',
+          status: 'draft'
+        }
+      ]);
+      expect(result).toEqual({ success: true, createdCount: 1 });
     });
   });
 
@@ -707,13 +764,18 @@ describe('SummariesPointService', () => {
         status: 'draft',
         total_score: 0,
         grading: '',
-        details: [{ _id: 'detail-1' }],
+        details: [{ criterion_id: 'cri-1', final_score: 85 }],
         save: jest.fn().mockResolvedValue(true),
       };
 
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
-      mockSummaryPointModel.aggregate.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValueOnce([{ totalScore: 85 }]),
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 }]),
       });
 
       await service.recomputeTotalScore('some-id');
@@ -729,13 +791,18 @@ describe('SummariesPointService', () => {
         status: 'locked',
         total_score: 0,
         grading: '',
-        details: [{ _id: 'detail-1' }],
+        details: [{ criterion_id: 'cri-1', final_score: 92 }],
         save: jest.fn().mockResolvedValue(true),
       };
 
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
-      mockSummaryPointModel.aggregate.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValueOnce([{ totalScore: 92 }]),
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 }]),
       });
 
       await service.recomputeTotalScore('some-id');
@@ -751,13 +818,18 @@ describe('SummariesPointService', () => {
         status: 'locked',
         total_score: 50,
         grading: 'Trung bình',
-        details: [{ _id: 'detail-1' }],
+        details: [{ criterion_id: 'cri-1', final_score: -5 }],
         save: jest.fn().mockResolvedValue(true),
       };
 
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
-      mockSummaryPointModel.aggregate.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValueOnce([{ totalScore: -5 }]),
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 }]),
       });
 
       await service.recomputeTotalScore('some-id');
@@ -773,19 +845,54 @@ describe('SummariesPointService', () => {
         status: 'locked',
         total_score: 50,
         grading: 'Trung bình',
-        details: [{ _id: 'detail-1' }],
+        details: [{ criterion_id: 'cri-1', final_score: 120 }],
         save: jest.fn().mockResolvedValue(true),
       };
 
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
-      mockSummaryPointModel.aggregate.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValueOnce([{ totalScore: 120 }]),
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 }]),
       });
 
       await service.recomputeTotalScore('some-id');
 
       expect(mockSummary.total_score).toBe(100);
       expect(mockSummary.grading).toBe('Xuất sắc');
+      expect(mockSummary.save).toHaveBeenCalled();
+    });
+
+    it('should set discipline score to max_score or 10 if no detail exists (ky_luat)', async () => {
+      const mockSummary = {
+        _id: 'some-id',
+        status: 'draft',
+        total_score: 0,
+        grading: '',
+        details: [], // No detail
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
+      
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([
+          { _id: 'cri-1', category_id: 'cat-1', criterion_type: 'ky_luat', max_score: 10, score_per_unit: -2 }
+        ]),
+      });
+
+      await service.recomputeTotalScore('some-id');
+
+      expect(mockSummary.total_score).toBe(10);
       expect(mockSummary.save).toHaveBeenCalled();
     });
   });

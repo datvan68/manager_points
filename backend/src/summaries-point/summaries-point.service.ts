@@ -9,10 +9,16 @@ import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
+import { Category, CategoryDocument } from '../categories/schemas/category.schema';
+import { Criterion, CriterionDocument } from '../criteria/schemas/criterion.schema';
 
 /**
- * Tính rank tier dựa trên tổng điểm và trạng thái.
- * Chỉ xếp hạng khi status = 'locked' và có điểm hợp lệ.
+ * Tính toán hạng (rank tier) và nhãn hạng (rank label) dựa trên tổng điểm và trạng thái của bảng điểm.
+ * Chỉ thực hiện xếp hạng khi trạng thái bảng điểm là 'locked' (đã chốt).
+ * 
+ * @param totalScore - Tổng điểm rèn luyện của sinh viên (từ 0 đến 100).
+ * @param status - Trạng thái của bảng điểm (vd: 'draft', 'locked').
+ * @returns Object chứa `rank_tier` (diamond, gold, silver, bronze, unranked) và `rank_label`.
  */
 export function resolveRankTier(
   totalScore: number | null,
@@ -59,6 +65,10 @@ export class SummariesPointService {
     private readonly studentModel: Model<StudentDocument>,
     @InjectModel(Class.name)
     private readonly classModel: Model<ClassDocument>,
+    @InjectModel(Category.name)
+    private readonly categoryModel: Model<CategoryDocument>,
+    @InjectModel(Criterion.name)
+    private readonly criterionModel: Model<CriterionDocument>,
   ) {}
 
   private isTeacher(requester?: any) {
@@ -270,8 +280,8 @@ export class SummariesPointService {
       student_id: s._id,
       semester_id: new Types.ObjectId(semesterId),
       period_id: null,
-      total_score: 100,
-      grading: 'Xuất sắc',
+      total_score: 0,
+      grading: 'CHUA XEP LOAI',
       status: 'draft'
     }));
 
@@ -463,6 +473,13 @@ export class SummariesPointService {
     return updated;
   }
 
+  /**
+   * Tính toán lại tổng điểm rèn luyện của một bảng điểm dựa trên các tiêu chí và danh mục.
+   * Đồng thời cập nhật trường `grading` (xếp loại) nếu bảng điểm đã được chốt.
+   * 
+   * @param summaryId - ID của bảng điểm rèn luyện cần tính toán lại.
+   * @returns Promise<void>
+   */
   async recomputeTotalScore(summaryId: string): Promise<void> {
     const summary = await this.summaryPointModel.findById(summaryId);
     if (!summary) return;
@@ -470,79 +487,70 @@ export class SummariesPointService {
     const details = summary.details || [];
     if (details.length === 0) return;
 
-    // We need criterionModel to fetch category info.
-    // However, criterionModel is not injected in SummariesPointService yet.
-    // Instead of doing it here, we will do the calculation using aggregate.
-    const aggResult = await this.summaryPointModel.aggregate([
-      { $match: { _id: summary._id } },
-      { $unwind: '$details' },
-      {
-        $lookup: {
-          from: 'criteria',
-          localField: 'details.criterion_id',
-          foreignField: '_id',
-          as: 'criterion'
-        }
-      },
-      { $unwind: { path: '$criterion', preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: 'categories',
-          localField: 'criterion.category_id',
-          foreignField: '_id',
-          as: 'category'
-        }
-      },
-      { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          categoryId: '$category._id',
-          maxScore: { $ifNull: ['$category.max_score', 100] },
-          score: {
-            $ifNull: [
-              '$details.final_score',
-              {
-                $ifNull: [
-                  '$details.gv_score',
-                  {
-                    $ifNull: [
-                      '$details.sv_score',
-                      { $ifNull: ['$details.system_score', 0] }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      {
-        $group: {
-          _id: '$categoryId',
-          maxScore: { $first: '$maxScore' },
-          currentScore: { $sum: '$score' }
-        }
-      },
-      {
-        $project: {
-          clampedScore: {
-            $cond: [
-              { $gt: ['$currentScore', '$maxScore'] },
-              '$maxScore',
-              { $cond: [{ $lt: ['$currentScore', 0] }, 0, '$currentScore'] }
-            ]
-          }
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalScore: { $sum: '$clampedScore' }
-        }
-      }
-    ]).exec();
+    const categories = await this.categoryModel.find().lean().exec();
+    const criteria = await this.criterionModel.find().lean().exec();
 
-    let totalScore = aggResult.length > 0 ? aggResult[0].totalScore : 0;
+    // Map categories by ID
+    const categoryMap = new Map<string, any>();
+    categories.forEach((cat) => {
+      categoryMap.set(cat._id.toString(), {
+        maxScore: cat.max_score || 100,
+        currentScore: 0,
+      });
+    });
+
+    // Map criteria by category
+    const criteriaByCategory = new Map<string, any[]>();
+    criteria.forEach((cri) => {
+      const catId = cri.category_id.toString();
+      if (!criteriaByCategory.has(catId)) {
+        criteriaByCategory.set(catId, []);
+      }
+      criteriaByCategory.get(catId)!.push(cri);
+    });
+
+    // Calculate score per category
+    for (const [catId, catInfo] of categoryMap.entries()) {
+      const catCriteria = criteriaByCategory.get(catId) || [];
+      for (const cri of catCriteria) {
+        // Find matching detail
+        const detail = details.find(
+          (d) => d.criterion_id.toString() === cri._id.toString()
+        );
+
+        let criterionScore = 0;
+        
+        if (detail) {
+           criterionScore = detail.final_score !== null && detail.final_score !== undefined
+            ? detail.final_score
+            : (detail.gv_score !== null && detail.gv_score !== undefined
+                ? detail.gv_score
+                : (detail.sv_score !== null && detail.sv_score !== undefined
+                    ? detail.sv_score
+                    : (detail.system_score !== null && detail.system_score !== undefined ? detail.system_score : 0)));
+        } else {
+          // If no detail, score depends on criterion type.
+          // For violation (discipline), count = 0, meaning full base score (max_score).
+          // Otherwise 0.
+          if (cri.score_per_unit < 0 || cri.criterion_type === 'ky_luat') {
+             criterionScore = cri.max_score || 10;
+          } else {
+             criterionScore = 0;
+          }
+        }
+        
+        catInfo.currentScore += criterionScore;
+      }
+    }
+
+    let totalScore = 0;
+    for (const catInfo of categoryMap.values()) {
+      let clampedScore = catInfo.currentScore;
+      if (clampedScore > catInfo.maxScore) clampedScore = catInfo.maxScore;
+      if (clampedScore < 0) clampedScore = 0;
+      totalScore += clampedScore;
+    }
+
     if (totalScore > 100) totalScore = 100;
     if (totalScore < 0) totalScore = 0;
 
@@ -561,8 +569,12 @@ export class SummariesPointService {
   }
 
   /**
-   * Phê duyệt điểm rèn luyện: khóa các chi tiết điểm, tính lại total_score, grading, rank_tier.
-   * Yêu cầu: User phải là Admin hoặc Supervisor.
+   * Phê duyệt bảng điểm rèn luyện: khóa các chi tiết điểm, tính toán lại tổng điểm (total_score), xếp loại (grading), và hạng (rank_tier).
+   * Yêu cầu: Người dùng thực hiện phải có vai trò Admin hoặc Supervisor.
+   * 
+   * @param summaryId - ID của bảng điểm cần phê duyệt.
+   * @param requester - Thông tin của người dùng đang thực hiện request (chứa userId, roleName).
+   * @returns Promise<SummaryPointDocument> - Bảng điểm sau khi đã cập nhật trạng thái chốt.
    */
   async approveGrading(summaryId: string, requester: any): Promise<SummaryPointDocument> {
     const roleName = ((requester?.roleName || requester?.role || '') + '').toLowerCase();
@@ -659,9 +671,13 @@ export class SummariesPointService {
   }
 
   /**
-   * Hủy duyệt điểm rèn luyện: chuyển summary và các detail về draft,
-   * reset rank fields, tính toán lại total_score và grading.
-   * Yêu cầu: User phải là Admin hoặc Supervisor.
+   * Hủy phê duyệt bảng điểm rèn luyện: chuyển trạng thái bảng điểm và các chi tiết về 'draft', 
+   * reset các trường liên quan đến hạng, và tính toán lại tổng điểm.
+   * Yêu cầu: Người dùng thực hiện phải có vai trò Admin hoặc Supervisor.
+   * 
+   * @param summaryId - ID của bảng điểm cần hủy duyệt.
+   * @param requester - Thông tin của người dùng đang thực hiện request.
+   * @returns Promise<SummaryPointDocument> - Bảng điểm sau khi đã hủy chốt và trở về bản nháp.
    */
   async cancelApproval(summaryId: string, requester: any): Promise<SummaryPointDocument> {
     // 1. Kiểm tra quyền Admin/Supervisor

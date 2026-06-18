@@ -28,6 +28,7 @@ import {
   Search,
 } from "lucide-react";
 import CopyScoreModal from "./_components/CopyScoreModal";
+import DeleteSummaryModal from "./_components/DeleteSummaryModal";
 import { buildTargetSafeCounts } from "./_utils/copy-score";
 import { motion, AnimatePresence } from "framer-motion";
 import { CustomPagination } from "@/components/ui/pagination";
@@ -86,18 +87,23 @@ interface Category {
   items: Criteria[];
 }
 
-const calculateCriterionScore = (criterion: Criteria, count: number) => {
+export const calculateCriterionScore = (criterion: Criteria, count: number) => {
   const maxScore = criterion.maxScore ?? 10;
   const minScore = criterion.minScore ?? 0;
-  const rawScore = count * criterion.pointsPerUnit;
-
-  return criterion.pointsPerUnit >= 0
-    ? Math.max(minScore, Math.min(maxScore, rawScore))
-    : Math.max(-maxScore, Math.min(0, rawScore));
+  
+  if (criterion.pointsPerUnit >= 0) {
+      const rawScore = count * criterion.pointsPerUnit;
+      return Math.max(minScore, Math.min(maxScore, rawScore));
+  } else {
+      const baseScore = maxScore;
+      const deduction = count * Math.abs(criterion.pointsPerUnit);
+      return Math.max(minScore, Math.min(maxScore, baseScore - deduction));
+  }
 };
 
-const formatScoreLabel = (score?: number | null) => {
+const formatScoreLabel = (score?: number | null, isViolation?: boolean) => {
   if (score === null || score === undefined) return "Chưa chấm";
+  if (isViolation && score > 0) return `${score}đ`;
   return `${score > 0 ? "+" : ""}${score}đ`;
 };
 
@@ -698,6 +704,7 @@ function GradingScoreContent() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // States lưu danh mục & tiêu chí thật từ API
   const [categories, setCategories] =
@@ -1918,6 +1925,80 @@ function GradingScoreContent() {
     return results;
   };
 
+  const handleDeleteConfirm = async (
+    targetSummaryIds: string[],
+    onProgress: (current: number, total: number) => void
+  ) => {
+    try {
+      const results: any[] = [];
+      let processedCount = 0;
+
+      for (const summaryId of targetSummaryIds) {
+        const studentId = Object.keys(studentSummaryMap).find(
+          (key) => studentSummaryMap[key] === summaryId
+        );
+        const targetStudent = students.find((s) => s.id === studentId);
+        const targetName = targetStudent?.name || "Sinh viên";
+
+        if (!targetStudent) {
+          processedCount++;
+          onProgress(processedCount, targetSummaryIds.length);
+          continue;
+        }
+
+        try {
+          await summariesPointApi.deleteSummariesPoint(summaryId);
+
+          setApiSummariesPoints((prev) =>
+            prev.filter((s) => s._id !== summaryId)
+          );
+          setStudentSummaryMap((prev) => {
+            const next = { ...prev };
+            if (studentId) delete next[studentId];
+            return next;
+          });
+          setStudents((prev) =>
+            prev.map((std) =>
+              std.id === studentId
+                ? { ...std, score: 0, gradingStatus: "no_summary" }
+                : std
+            )
+          );
+          setEvaluationCounts((prev) => {
+            const next = { ...prev };
+            if (studentId) delete next[studentId];
+            return next;
+          });
+
+          results.push({
+            studentId,
+            studentName: targetName,
+            status: "success",
+          });
+        } catch (err: any) {
+          results.push({
+            studentId,
+            studentName: targetName,
+            status: "error",
+            message: err.message || "Lỗi xóa",
+          });
+        }
+
+        processedCount++;
+        onProgress(processedCount, targetSummaryIds.length);
+      }
+
+      const successCount = results.filter((r) => r.status === "success").length;
+      if (successCount > 0) {
+        toast.success(`Đã xóa thành công ${successCount} bảng điểm rèn luyện!`);
+      }
+      return results;
+    } catch (error: any) {
+      toast.error("Lỗi khi thực hiện xóa hàng loạt: " + error.message);
+      throw error;
+    }
+  };
+
   // Hàm xóa một bản ghi lịch sử rèn luyện và cập nhật database/realtime score
   const handleDeleteHistoryRecord = async () => {
     if (!recordToDelete) return;
@@ -2482,6 +2563,15 @@ function GradingScoreContent() {
                     </div>
                   </div>
                   <div className="flex gap-2 items-center">
+                    {isAdminOrSupervisor && (
+                      <button
+                        onClick={() => setIsDeleteModalOpen(true)}
+                        className="w-8 h-8 rounded-xl bg-rose-50 backdrop-blur-sm border border-rose-100 flex items-center justify-center text-rose-500 hover:bg-rose-100 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
+                        title="Xóa bảng điểm"
+                      >
+                        <Trash2 size={15} strokeWidth={2.5} />
+                      </button>
+                    )}
                     <button
                       onClick={() => scrollSlider("left")}
                       className="w-8 h-8 rounded-xl bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
@@ -2653,18 +2743,7 @@ function GradingScoreContent() {
                     let catScore = 0;
                     category.items.forEach((cri) => {
                       const count = studentCounts[cri.id] || 0;
-                      const maxScore = (cri as any).maxScore || 10;
-                      const minScore = (cri as any).minScore || 0;
-                      const criterionScore =
-                        cri.pointsPerUnit >= 0
-                          ? Math.max(
-                              minScore,
-                              Math.min(maxScore, count * cri.pointsPerUnit),
-                            )
-                          : Math.max(
-                              -maxScore,
-                              Math.min(0, count * cri.pointsPerUnit),
-                            );
+                      const criterionScore = calculateCriterionScore(cri, count);
                       catScore += criterionScore;
                     });
                     const clampedCatScore = Math.max(
@@ -2761,7 +2840,7 @@ function GradingScoreContent() {
                                     {/* Mobile-only Realtime Points Display on the right of title */}
                                     <div className="flex flex-col items-end shrink-0 md:hidden">
                                       <span className={`font-bold text-[16px] ${hasViolation ? "text-rose-600" : "text-emerald-600"}`}>
-                                        {formatScoreLabel(achievedPoints)}
+                                        {formatScoreLabel(achievedPoints, hasViolation)}
                                       </span>
                                       {item.maxScore !== undefined && (
                                         <span className="text-[8.5px] text-[#64748B] font-bold">
@@ -2777,7 +2856,7 @@ function GradingScoreContent() {
                                     <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-[#1A73E8] text-[10px] font-bold border border-blue-100/40">
                                       <span className="opacity-70">SV:</span>
                                       <span>
-                                        {formatScoreLabel(detail?.sv_score)}
+                                        {formatScoreLabel(detail?.sv_score, hasViolation)}
                                       </span>
                                     </div>
 
@@ -2789,6 +2868,7 @@ function GradingScoreContent() {
                                           hasTeacherReviewed
                                             ? detail?.gv_score
                                             : null,
+                                          hasViolation
                                         )}
                                       </span>
                                     </div>
@@ -2800,7 +2880,7 @@ function GradingScoreContent() {
                                       >
                                         <span className="opacity-70">Đạt:</span>
                                         <span>
-                                          {formatScoreLabel(criterionScore)}
+                                          {formatScoreLabel(criterionScore, hasViolation)}
                                         </span>
                                       </div>
                                     )}
@@ -2893,9 +2973,17 @@ function GradingScoreContent() {
                                     </div>
 
                                     {/* Đơn giá nằm dưới Picker */}
-                                    <span className="text-[#64748B] text-[10px] font-bold tracking-wide pr-3 select-none">
-                                      {item.pointsPerUnit > 0 ? "+" : ""}{item.pointsPerUnit}đ/lần
-                                    </span>
+                                    {hasViolation ? (
+                                      <div className="flex flex-col items-end pr-3 select-none">
+                                        <span className="text-rose-600 text-[10px] font-bold tracking-wide">
+                                          Trừ {Math.abs(item.pointsPerUnit)}đ/lần vi phạm
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[#64748B] text-[10px] font-bold tracking-wide pr-3 select-none">
+                                        +{item.pointsPerUnit}đ/lần
+                                      </span>
+                                    )}
                                   </div>
 
                                   {/* Desktop-only Realtime Points Display */}
@@ -2907,7 +2995,7 @@ function GradingScoreContent() {
                                           : "text-emerald-600"
                                       }`}
                                     >
-                                      {formatScoreLabel(achievedPoints)}
+                                      {formatScoreLabel(achievedPoints, hasViolation)}
                                     </span>
                                     <span className="text-[9.5px] text-[#64748B] font-bold mt-0.5">
                                       {isApproved
@@ -3152,6 +3240,18 @@ function GradingScoreContent() {
         semesterName={currentSemester?.name || "Học kỳ"}
         className={apiClasses.find((c) => c._id === selectedClassId)?.class_name || "Lớp học"}
         onCopyConfirm={handleCopyConfirm}
+      />
+
+      <DeleteSummaryModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        activeStudent={activeStudent}
+        students={students}
+        studentSummaryMap={studentSummaryMap}
+        apiSummariesPoints={apiSummariesPoints}
+        semesterName={currentSemester?.name || "Học kỳ"}
+        className={apiClasses.find((c) => c._id === selectedClassId)?.class_name || "Lớp học"}
+        onDeleteConfirm={handleDeleteConfirm}
       />
 
       {/* Button Cuộn lên đầu trang (Scroll to Top) - Pill Styled */}

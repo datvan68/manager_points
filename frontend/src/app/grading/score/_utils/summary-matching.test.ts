@@ -85,7 +85,10 @@ describe("Summary Matching Utility Tests", () => {
           _id: "stud-id-1",
           student_code: "SV001",
           full_name: "Nguyen Van A",
-          class_id: "class-1",
+          class_id: {
+            _id: "class-1",
+            class_name: "Lop 1A",
+          },
         },
         {
           _id: "stud-id-2",
@@ -112,6 +115,8 @@ describe("Summary Matching Utility Tests", () => {
       expect(mapped[0].id).toBe("SV001");
       expect(mapped[0].score).toBe(85);
       expect(mapped[0].gradingStatus).toBe("locked");
+      expect(mapped[0].classId).toBe("class-1");
+      expect(mapped[0].className).toBe("Lop 1A");
 
       // Student 2 misses summary -> should map to 'no_summary'
       expect(mapped[1].id).toBe("SV002");

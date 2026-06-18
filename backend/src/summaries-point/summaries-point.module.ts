@@ -8,6 +8,8 @@ import {
 } from './schemas/summary-point.schema';
 import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
+import { Category, CategorySchema } from '../categories/schemas/category.schema';
+import { Criterion, CriterionSchema } from '../criteria/schemas/criterion.schema';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { Class, ClassSchema } from '../classes/schemas/class.schema';
       { name: SummaryPoint.name, schema: SummaryPointSchema },
       { name: Student.name, schema: StudentSchema },
       { name: Class.name, schema: ClassSchema },
+      { name: Category.name, schema: CategorySchema },
+      { name: Criterion.name, schema: CriterionSchema },
     ]),
   ],
   controllers: [SummariesPointController],

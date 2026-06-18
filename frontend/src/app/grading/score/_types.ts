@@ -15,6 +15,7 @@ export interface StudentData {
   status: string;
   gradingStatus: GradingStatus;
   classId: string;
+  className?: string;
   avatarUrl?: string;
   colorTheme?: { bg: string; text: string };
 }

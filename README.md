@@ -42,3 +42,6 @@ manager-point/
 - **Backend**: (Chưa xác định - Dự kiến Python Fast API hoặc Node.js)
 - **Frontend**: (Chưa xác định - Dự kiến React/Next.js)
 - **Infrastructure**: Docker & Docker Compose
+
+## 📜 Lịch sử thay đổi (Changelog)
+Mọi cập nhật tính năng mới, sửa lỗi và cải tiến (như Hệ thống Xếp hạng Sinh viên, thẻ hiển thị hạng tích cực...) được ghi nhận chi tiết tại file [CHANGELOG.md](./CHANGELOG.md).

@@ -15,6 +15,7 @@ export interface StudentData {
   status: string;
   gradingStatus: "draft" | "sv_submitted" | "gv_reviewed" | "locked" | "no_summary";
   classId: string;
+  className?: string;
   avatarUrl?: string;
   colorTheme?: { bg: string; text: string };
 }
@@ -223,8 +224,8 @@ export default function ActiveStudentRankCard({ activeStudent }: { activeStudent
             <span className={`w-1 h-1 rounded-full shrink-0 ${activeStudentRankTier === 'unranked' ? 'bg-slate-400' : 'bg-current opacity-60'}`} />
             <span className={`${activeStudentRankStyle.descText || 'text-slate-500'} flex items-center min-w-0 gap-1`}>
               <span>Lớp:</span>
-              <strong className="font-bold truncate max-w-[150px]" title={activeStudent.classId}>
-                {activeStudent.classId}
+              <strong className="font-bold truncate max-w-[150px]" title={activeStudent.className || activeStudent.classId}>
+                {activeStudent.className || activeStudent.classId}
               </strong>
             </span>
           </div>

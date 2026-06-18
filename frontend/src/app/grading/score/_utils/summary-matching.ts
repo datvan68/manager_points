@@ -9,8 +9,12 @@ const getEntityId = (value: any): string => {
 };
 
 /**
- * Lập chỉ mục summaries theo các định danh sinh viên để phục vụ tra cứu O(1)
- * Loại bỏ summary._id khỏi key chỉ mục để tránh so khớp sai lệch
+ * Xây dựng một Map (chỉ mục) từ danh sách summaries để phục vụ tra cứu với độ phức tạp O(1).
+ * Hỗ trợ tra cứu qua nhiều loại định danh khác nhau của sinh viên (ID, student_code).
+ * Loại bỏ summary._id khỏi key chỉ mục để tránh so khớp sai lệch.
+ *
+ * @param summaries - Danh sách các bảng điểm rèn luyện.
+ * @returns Map<string, any> - Bảng băm mapping từ định danh sinh viên sang dữ liệu bảng điểm.
  */
 export const buildSummaryIndex = (summaries: any[]): Map<string, any> => {
   const index = new Map<string, any>();
@@ -34,7 +38,12 @@ export const buildSummaryIndex = (summaries: any[]): Map<string, any> => {
 };
 
 /**
- * Tra cứu summary tương ứng với sinh viên O(1) từ summaryIndex
+ * Tra cứu bảng điểm tương ứng với sinh viên O(1) từ summaryIndex.
+ * Kiểm tra tuần tự các mã định danh có thể có của sinh viên (student_code, _id, id).
+ *
+ * @param student - Object chứa thông tin sinh viên cần tra cứu.
+ * @param summaryIndex - Chỉ mục (Map) các bảng điểm đã được khởi tạo từ hàm `buildSummaryIndex`.
+ * @returns Object bảng điểm nếu tìm thấy, hoặc null nếu không có.
  */
 export const findSummaryForStudent = (student: any, summaryIndex: Map<string, any>): any | null => {
   if (!student || !summaryIndex) return null;
@@ -77,6 +86,10 @@ export const mapRosterWithSummaries = (
 
     const studentName = student.full_name || "Chưa rõ";
     const studentClassId = getEntityId(student.class_id);
+    let studentClassName = undefined;
+    if (typeof student.class_id === "object" && student.class_id?.class_name) {
+      studentClassName = student.class_id.class_name;
+    }
 
     let avatarUrl = undefined;
     if (studentId === "20216001") {
@@ -104,6 +117,7 @@ export const mapRosterWithSummaries = (
       status: student.status || "Studying",
       gradingStatus: summary ? (summary.status || "draft") : "no_summary",
       classId: studentClassId,
+      className: studentClassName,
       avatarUrl,
       colorTheme: colors[idx % colors.length],
     };
