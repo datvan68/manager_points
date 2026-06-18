@@ -1,89 +1,118 @@
-# Task Scope: `/grading/score` Summary Point Workflow
+# Task Scope: Add Bulk Approve Action And Default Pagination Size
 
-## Context
+## Target Page
 
-The `/grading/score` page currently loads class rosters, matches students to `summaries_point` records, edits evaluation detail counts, and persists the calculated training score back to the summary record.
+- `frontend/src/app/grading/page.tsx`
+- Main table: `/grading` student grading list
+- Selected-row toolbar: `FloatingActionBar`
+- Pagination component: `CustomPagination`
 
-Related files:
+## User Request
 
-- `frontend/src/app/grading/score/page.tsx`
-- `frontend/src/app/grading/score/_types.ts`
-- `frontend/src/app/grading/score/_utils/summary-matching.ts`
-- `frontend/src/components/grading/ActiveStudentRankCard.tsx`
-- `frontend/src/api/summaries-point-api.ts`
-- `backend/src/summaries-point/summaries-point.service.ts`
-- `backend/src/summaries-point/summaries-point.controller.ts`
-- `backend/src/summaries-point/schemas/summary-point.schema.ts`
+1. Add a `Duyet` button to the selected-row action toolbar so users can approve many selected `summaries_points` records at once.
+2. Set the default table pagination size to 20 rows.
 
-## Required Changes
+## Current Context
 
-1. Default summary initialization
+- The selected toolbar appears when `selectedStudentIds.length > 0`.
+- Current toolbar actions include:
+  - `Xoa`
+  - `Huy duyet`
+  - `Xuat PDF`
+- Single approval already exists through `handleApproveEvaluation(summaryId, studentName)`.
+- The frontend API currently exposes `summariesPointApi.approveGrading(id)` for one summary point.
+- Bulk cancel approval already exists through `summariesPointApi.cancelApprovalBulk(summaryIds)`.
+- Pagination currently initializes `pageSize` with `10`.
 
-- When `summaries_point` records are created for a class for the first time, every new summary must start with:
-  - `total_score: 0`
-  - `grading: "CHUA XEP LOAI"` or the app's existing Vietnamese display string for "CHUA XEP LOAI"
-  - `status: "draft"`
-  - no approved rank data
-- The current backend initialization path in `SummariesPointService.initializeClass` creates records with `total_score: 100` and `grading: "Xuat sac"`; this must be changed.
-- Existing summary records must not be overwritten by class initialization.
+## Required Change: Bulk Approve Button
 
-2. Delete one or many students' summary point records from the action toolbar
+1. Add a new `Duyet` button to `FloatingActionBar`.
+2. Show the button only for users who can approve grades:
+   - Admin
+   - Supervisor
+   - Quan sinh role if the current role check supports it
+3. The button must approve `summaries_points` records, not student records.
+4. Support both single selection and multi-selection through the same action.
+5. Resolve selected students to summary point IDs before approving:
+   - Use `selectedStudentIds`.
+   - Match selected IDs against `apiSummariesPoints`.
+   - Reuse existing helper logic such as `getSummaryStudentKey(summary)`.
+6. Skip rows that cannot be approved:
+   - No matching summary point.
+   - Already approved or locked.
+   - No evaluated criteria, if the current single-approve rule blocks approval for that case.
+7. Show a confirmation modal before approving:
+   - Title: `Xac nhan duyet bang diem`
+   - Message should include the number of summary point records that will be approved.
+   - If some selected rows are skipped, mention the skipped count and reason.
+8. On confirm, approve all matched summary points:
+   - If no backend bulk endpoint exists, use `summariesPointApi.approveGrading(summaryId)` for each summary.
+   - Prefer `Promise.allSettled` so one failed approval does not hide the rest of the result.
+   - If performance becomes a concern, add a backend bulk approve endpoint as a separate improvement.
+9. After approval succeeds:
+   - Update `apiSummariesPoints` with returned summary data.
+   - Clear `selectedStudentIds` when all selected approval attempts are finished successfully.
+   - Keep failed rows selected if some approvals fail.
+   - Show success toast with approved count.
+10. If some approvals fail:
+   - Keep failed records visible.
+   - Show warning/error toast with success and failure counts.
 
-- Add a toolbar action on `/grading/score` that allows authorized non-student users to delete `summaries_point` records for one or multiple selected students.
-- The action must delete summary records, not only evaluation detail history logs.
-- Support single active student deletion and multi-select deletion from the visible roster/list.
-- Show a confirmation modal with the selected student count and names when practical.
-- Use the existing `DELETE /summaries-points/:id` API for one record, or add a bulk endpoint if the UI needs true batch behavior.
-- Locked/approved summaries must remain protected. The backend already rejects deletion when `status === "locked"`; the UI should also communicate this clearly.
-- After deletion, refresh or update local state so:
-  - deleted summaries are removed from `apiSummariesPoints`
-  - deleted students show `gradingStatus: "no_summary"`
-  - `studentSummaryMap` no longer contains deleted students
-  - score display returns to `0/100`
+## Toolbar UI Notes
 
-3. Active rank card class display
+- Place `Duyet` near `Huy duyet` so approval actions are grouped together.
+- Suggested icon: `CheckCircle` or `Check`.
+- Suggested style: green/emerald success style, visually different from red destructive buttons.
+- Button text:
+  - Desktop: `Duyet`
+  - Mobile/icon-only state can keep the icon visible with `title="Duyet bang diem"`.
+- Preserve existing toolbar actions:
+  - `Xoa`
+  - `Huy duyet`
+  - `Xuat PDF`
 
-- The active rank card currently displays `classId`.
-- Change the display to show the class name instead of the raw ID.
-- Extend the frontend `StudentData` shape with a class display field, for example `className`.
-- Populate that field in `mapRosterWithSummaries` from `student.class_id.class_name` when `class_id` is an object, with fallback to the selected class name or the raw ID only when no name is available.
-- Update `ActiveStudentRankCard` to render the class name and keep the raw ID only as fallback/title metadata if useful.
+## Required Change: Default Pagination Size
 
-4. Discipline criterion scoring logic and UI
+1. Change the default page size from 10 rows to 20 rows.
+2. Update the initial state:
+   - From: `useState(10)`
+   - To: `useState(20)`
+3. Keep `20` in `pageSizeOptions`.
+4. Do not remove other page-size options unless there is a product decision to simplify them.
+5. Reset to page 1 when users manually change page size, keeping the current behavior.
+6. Make sure desktop table fetch uses the updated default page size.
+7. Do not change the mobile/tablet behavior that intentionally loads all rows if that behavior is still required.
 
-- Discipline criteria should behave like a base score with deductions.
-- Example: if the discipline criterion total/base score is `10` and one violation deducts `2`, the achieved criterion score must be `8`, not `-2`.
-- Update the shared frontend score calculation logic so violation criteria use:
-  - `baseScore = maxScore`
-  - `deduction = count * abs(pointsPerUnit)`
-  - `criterionScore = clamp(baseScore - deduction, minScore, maxScore)`
-- Align category totals, realtime score, save payloads, copy-score persistence, history recalculation, and PDF/export calculations with the same rule.
-- Review backend recomputation logic for embedded `details` so approved/locked summaries produce the same total as the frontend.
-- Update the UI for discipline criteria to make the scoring easy to recognize:
-  - show base score, deduction per violation, current violation count, and remaining score
-  - visually distinguish discipline rows from reward rows
-  - avoid displaying discipline achievement as a negative score when it represents remaining points
+## Safety Rules
+
+- Do not approve student documents directly.
+- Do not create or delete summary point records from the `Duyet` action.
+- Only approve existing `summaries_points` records matched to selected rows.
+- Respect backend permission and validation errors.
+- Do not reset unrelated filters, selected semester, selected class, selected department, or search text after approval.
+- Do not break existing `Xoa`, `Huy duyet`, and `Xuat PDF` toolbar actions.
 
 ## Acceptance Criteria
 
-- Initializing a class creates new `summaries_point` records with `0/100`, draft status, and "CHUA XEP LOAI".
-- Reinitializing the same class/semester does not duplicate or reset existing summary records.
-- Users can delete one selected student's summary point from the toolbar.
-- Users can delete multiple selected students' summary points from the toolbar.
-- Deleted summaries disappear from the current score page state without requiring a full browser reload.
-- Locked summaries cannot be deleted and produce a clear error or disabled state.
-- The active rank card shows class name instead of class ID.
-- A discipline criterion with base `10`, `pointsPerUnit = -2`, and `count = 1` contributes `8` points.
-- Reward criteria continue to use the existing additive capped behavior.
-- Frontend realtime totals and persisted backend totals stay consistent after save, copy score, delete history, and approval.
+- Selecting one pending/unapproved student and clicking `Duyet` approves that student's `summaries_points` record after confirmation.
+- Selecting multiple eligible students and clicking `Duyet` approves all matched records after confirmation.
+- Selected rows without a summary point are skipped with a clear warning.
+- Already approved/locked rows are skipped or reported clearly.
+- Partial failure shows success and failure counts.
+- Successful approvals update the table status/rank without requiring a full page reload.
+- Existing toolbar actions still work.
+- The default table pagination is 20 rows on first load.
+- The pagination dropdown still includes the 20-row option.
 
 ## Suggested Verification
 
-- Add or update backend tests for `initializeClass` default values and locked summary deletion.
-- Add or update frontend utility tests for discipline score calculation, including the `10 - 2 = 8` case.
-- Manually verify `/grading/score` with:
-  - a newly initialized class
-  - a student with no summary
-  - one unlocked summary deletion
-  - multi-delete with mixed unlocked and locked summaries
-  - discipline criteria display on desktop and mobile widths
+- Manual test with one selected row that can be approved.
+- Manual test with multiple selected rows that can be approved.
+- Manual test with mixed selected rows:
+  - Has summary point and can be approved.
+  - Missing summary point.
+  - Already approved/locked.
+  - Has no evaluated criteria.
+- Manual test permission handling with a role that cannot approve.
+- Manual test that default pagination displays 20 rows.
+- Run the relevant frontend checks/tests if available.

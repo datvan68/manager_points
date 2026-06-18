@@ -14,12 +14,12 @@ import {
   XCircle,
   Eye,
   Settings,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Trash2
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import dynamic from 'next/dynamic';
 const SemesterModal = dynamic(() => import('../../components/grading/SemesterModal'), { ssr: false });
-const BulkGradingModal = dynamic(() => import('../../components/grading/BulkGradingModal'), { ssr: false });
 const GradingPdfTemplate = dynamic(() => import('../../components/grading/GradingPdfTemplate'), { ssr: false });
 const ConfirmModal = dynamic(() => import('../../components/modals/ConfirmModal'), { ssr: false });
 import { motion, AnimatePresence } from 'framer-motion';
@@ -124,7 +124,7 @@ function GradingPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
@@ -155,10 +155,53 @@ function GradingPage() {
 
   // Modal học kì
   const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
-  const [isBulkGradingOpen, setIsBulkGradingOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+
+  const [deleteBulkConfirm, setDeleteBulkConfirm] = useState<{
+    isOpen: boolean;
+    message: string;
+    summaryIds: string[];
+    skippedStudents: string[];
+  }>({
+    isOpen: false,
+    message: '',
+    summaryIds: [],
+    skippedStudents: []
+  });
+
+  const [deleteProgress, setDeleteProgress] = useState<{
+    isOpen: boolean;
+    total: number;
+    completed: number;
+  }>({
+    isOpen: false,
+    total: 0,
+    completed: 0,
+  });
+
+  const [approveBulkConfirm, setApproveBulkConfirm] = useState<{
+    isOpen: boolean;
+    message: string;
+    summaryIds: string[];
+    skippedStudents: string[];
+  }>({
+    isOpen: false,
+    message: '',
+    summaryIds: [],
+    skippedStudents: []
+  });
+
+  const [approveProgress, setApproveProgress] = useState<{
+    isOpen: boolean;
+    total: number;
+    completed: number;
+  }>({
+    isOpen: false,
+    total: 0,
+    completed: 0,
+  });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -179,6 +222,16 @@ function GradingPage() {
     isOpen: false,
     message: '',
     summaryIds: [],
+  });
+
+  const [cancelProgress, setCancelProgress] = useState<{
+    isOpen: boolean;
+    total: number;
+    completed: number;
+  }>({
+    isOpen: false,
+    total: 0,
+    completed: 0,
   });
 
   const visibleClasses = isTeacher
@@ -210,69 +263,189 @@ function GradingPage() {
     return map;
   }, [apiSemesters]);
 
-  const handleConfirmBulkGrading = async (criteriaId: string, count: number) => {
+  const handleDeleteBulkClick = () => {
     if (selectedStudentIds.length === 0) {
-      toast.error('Vui lòng chọn ít nhất một sinh viên để chấm điểm!');
-      return;
-    }
-    if (count <= 0) {
-      toast.error('Số lượng chấm điểm phải lớn hơn 0!');
+      toast.error('Vui lòng chọn ít nhất một sinh viên để xóa!');
       return;
     }
 
-    setIsTableLoading(true);
-    toast.loading(`Đang chấm điểm rèn luyện hàng loạt cho ${selectedStudentIds.length} sinh viên...`, { id: 'bulk-loading' });
+    const summaryIdsToDelete: string[] = [];
+    const skippedStudents: string[] = [];
 
-    try {
-      const currentUser = tokenStorage.getUser();
-
-      // Tra cứu tiêu chí từ state categories
-      let targetCriterion: any = null;
-      categories.forEach(cat => {
-        const found = cat.items.find((cri: any) => cri.id === criteriaId);
-        if (found) targetCriterion = found;
+    selectedStudentIds.forEach((studentId) => {
+      const summary = (apiSummariesPoints || []).find(s => {
+        const sId = getSummaryStudentKey(s);
+        return sId === studentId;
       });
 
-      if (!targetCriterion) {
-        throw new Error('Không tìm thấy thông tin tiêu chí chấm điểm!');
+      if (summary) {
+        summaryIdsToDelete.push(summary._id);
+      } else {
+        const studentObj = filteredStudents.find(s => s.id === studentId);
+        skippedStudents.push(studentObj?.name || studentId);
       }
+    });
 
-      // Tạo payload cho batch endpoint
-      const actionBatchId = Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+    if (summaryIdsToDelete.length === 0) {
+      toast.error('Không có sinh viên nào có bảng điểm để xóa!');
+      return;
+    }
+
+    let messageText = '';
+    if (skippedStudents.length > 0) {
+      messageText = `Có ${skippedStudents.length} sinh viên chưa có bảng điểm (sẽ bị bỏ qua): ${skippedStudents.join(', ')}. Bạn có chắc chắn muốn xóa ${summaryIdsToDelete.length} bảng điểm còn lại không?`;
+    } else {
+      messageText = `Bạn có chắc chắn muốn xóa ${summaryIdsToDelete.length} bảng điểm đã chọn không?`;
+    }
+
+    setDeleteBulkConfirm({
+      isOpen: true,
+      message: messageText,
+      summaryIds: summaryIdsToDelete,
+      skippedStudents: skippedStudents
+    });
+  };
+
+  const executeDeleteBulk = async (summaryIds: string[]) => {
+    setDeleteBulkConfirm(prev => ({ ...prev, isOpen: false }));
+    setDeleteProgress({ isOpen: true, total: summaryIds.length, completed: 0 });
+
+    let successCount = 0;
+    let failureCount = 0;
+    const failedSummaryIds: string[] = [];
+
+    const promises = summaryIds.map(async (id) => {
+      try {
+        await summariesPointApi.deleteSummariesPoint(id);
+        successCount++;
+      } catch (error) {
+        failureCount++;
+        failedSummaryIds.push(id);
+      } finally {
+        setDeleteProgress(prev => ({ ...prev, completed: prev.completed + 1 }));
+      }
+    });
+
+    await Promise.allSettled(promises);
+
+    setDeleteProgress(prev => ({ ...prev, isOpen: false }));
+
+    if (failureCount > 0) {
+      toast.warning(`Đã xóa thành công ${successCount} bảng điểm, thất bại ${failureCount} bảng điểm.`);
       
-      const recordsToCreate: any[] = [];
-      selectedStudentIds.forEach((studentId) => {
-        for (let i = 0; i < count; i++) {
-          recordsToCreate.push({
-            student_id: studentId,
-            criterion_id: criteriaId,
-            semester_id: appliedSemester,
-            record_title: targetCriterion.name,
-            description: 'Chấm điểm hàng loạt',
-            status: 'active' as const,
-            recorded_at: new Date().toISOString(),
-            recorded_by: currentUser?.id,
-            idempotency_key: `bulk_grading:${appliedSemester}:${criteriaId}:${studentId}:${actionBatchId}:${i}`,
-            source: 'bulk_grading'
-          });
-        }
+      const failedStudentIds = failedSummaryIds.map(fid => {
+        const summary = (apiSummariesPoints || []).find(s => s._id === fid);
+        return summary ? getSummaryStudentKey(summary) : null;
+      }).filter(Boolean) as string[];
+      
+      setSelectedStudentIds(failedStudentIds);
+    } else {
+      toast.success(`Đã xóa thành công ${successCount} bảng điểm!`);
+      setSelectedStudentIds([]);
+    }
+
+    // Refresh state
+    await fetchData();
+    if (appliedClass && appliedSemester) {
+      fetchSummaries(currentPage);
+    }
+  };
+
+  const handleApproveBulkClick = () => {
+    if (selectedStudentIds.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một sinh viên để duyệt!');
+      return;
+    }
+
+    const currentUser = tokenStorage.getUser();
+    const roleLower = (currentUser?.role || '').toLowerCase();
+    const canApprove = roleLower.includes('admin') || roleLower.includes('supervisor') || roleLower.includes('quản sinh');
+
+    if (!canApprove) {
+      toast.error('Bạn không có quyền duyệt điểm rèn luyện!');
+      return;
+    }
+
+    const summaryIdsToApprove: string[] = [];
+    const skippedStudents: string[] = [];
+
+    selectedStudentIds.forEach((studentId) => {
+      const summary = (apiSummariesPoints || []).find(s => {
+        const sId = getSummaryStudentKey(s);
+        return sId === studentId;
       });
 
-      await academicRecordApi.bulkCreateAcademicRecords(recordsToCreate);
+      if (summary) {
+        if (summary.status === 'locked') {
+           const studentObj = typeof summary.student_id === 'object' ? summary.student_id : null;
+           skippedStudents.push(studentObj?.full_name || studentObj?.name || studentId);
+        } else {
+           summaryIdsToApprove.push(summary._id);
+        }
+      }
+    });
 
-      toast.dismiss('bulk-loading');
-      toast.success(`Đã áp dụng chấm điểm hàng loạt thành công cho ${selectedStudentIds.length} sinh viên!`);
+    if (summaryIdsToApprove.length === 0) {
+      toast.error('Không có sinh viên nào hợp lệ để duyệt!');
+      return;
+    }
+
+    let messageText = '';
+    if (skippedStudents.length > 0) {
+      messageText = `Có ${skippedStudents.length} sinh viên đã được duyệt (sẽ bị bỏ qua): ${skippedStudents.join(', ')}. Bạn có chắc chắn muốn duyệt ${summaryIdsToApprove.length} bảng điểm còn lại không?`;
+    } else {
+      messageText = `Bạn có chắc chắn muốn duyệt ${summaryIdsToApprove.length} bảng điểm đã chọn không?`;
+    }
+
+    setApproveBulkConfirm({
+      isOpen: true,
+      message: messageText,
+      summaryIds: summaryIdsToApprove,
+      skippedStudents: skippedStudents
+    });
+  };
+
+  const executeApproveBulk = async (summaryIds: string[]) => {
+    setApproveBulkConfirm(prev => ({ ...prev, isOpen: false }));
+    setApproveProgress({ isOpen: true, total: summaryIds.length, completed: 0 });
+
+    let successCount = 0;
+    let failureCount = 0;
+    const successes: any[] = [];
+
+    const promises = summaryIds.map(async (id) => {
+      try {
+        const updatedSummary = await summariesPointApi.approveGrading(id);
+        successes.push({ summaryId: id, data: updatedSummary });
+        successCount++;
+      } catch (error) {
+        failureCount++;
+      } finally {
+        setApproveProgress(prev => ({ ...prev, completed: prev.completed + 1 }));
+      }
+    });
+
+    await Promise.allSettled(promises);
+
+    setApproveProgress(prev => ({ ...prev, isOpen: false }));
+
+    if (successes.length > 0) {
+      setApiSummariesPoints((prevSummaries) => {
+        return prevSummaries.map((summary) => {
+          const match = successes.find((s: any) => s.summaryId === summary._id);
+          if (match && match.data) {
+            return match.data;
+          }
+          return summary;
+        });
+      });
+    }
+
+    if (failureCount > 0) {
+      toast.warning(`Đã duyệt thành công ${successCount} sinh viên, thất bại ${failureCount} sinh viên.`);
+    } else {
+      toast.success(`Đã duyệt điểm rèn luyện thành công cho ${successCount} sinh viên!`);
       setSelectedStudentIds([]);
-      setIsBulkGradingOpen(false);
-
-      // Tải lại dữ liệu toàn bảng
-      await fetchData();
-
-    } catch (error: any) {
-      toast.dismiss('bulk-loading');
-      toast.error('Lỗi khi chấm điểm hàng loạt: ' + error.message);
-    } finally {
-      setIsTableLoading(false);
     }
   };
 
@@ -367,45 +540,53 @@ function GradingPage() {
   };
 
   const executeCancelApproveBulk = async (summaryIds: string[]) => {
-    setIsTableLoading(true);
-    toast.loading(`Đang hủy duyệt điểm rèn luyện cho ${summaryIds.length} sinh viên...`, { id: 'cancel-bulk-loading' });
+    setCancelBulkConfirm(prev => ({ ...prev, isOpen: false }));
+    setCancelProgress({ isOpen: true, total: summaryIds.length, completed: 0 });
 
-    try {
-      // Gọi API bulk cancel approval ở Backend
-      const results = await summariesPointApi.cancelApprovalBulk(summaryIds);
+    let successCount = 0;
+    let failureCount = 0;
+    const successes: any[] = [];
 
-      // Đếm số thành công và lỗi
-      const successes = results.filter((r: any) => r.success);
-      const failures = results.filter((r: any) => !r.success);
+    const promises = summaryIds.map(async (id) => {
+      try {
+        const results = await summariesPointApi.cancelApprovalBulk([id]);
+        const result = results[0];
+        if (result && result.success) {
+          successes.push(result);
+          successCount++;
+        } else {
+          failureCount++;
+        }
+      } catch (error) {
+        failureCount++;
+      } finally {
+        setCancelProgress(prev => ({ ...prev, completed: prev.completed + 1 }));
+      }
+    });
 
-      if (successes.length > 0) {
-        // Cập nhật local state: thay thế các summary được cập nhật thành công trong apiSummariesPoints
-        setApiSummariesPoints((prevSummaries) => {
-          return prevSummaries.map((summary) => {
-            const match = successes.find((s: any) => s.summaryId === summary._id);
-            if (match && match.data) {
-              return match.data;
-            }
-            return summary;
-          });
+    await Promise.allSettled(promises);
+
+    setCancelProgress(prev => ({ ...prev, isOpen: false }));
+
+    if (successes.length > 0) {
+      // Cập nhật local state: thay thế các summary được cập nhật thành công trong apiSummariesPoints
+      setApiSummariesPoints((prevSummaries) => {
+        return prevSummaries.map((summary) => {
+          const match = successes.find((s: any) => s.summaryId === summary._id);
+          if (match && match.data) {
+            return match.data;
+          }
+          return summary;
         });
-      }
+      });
+    }
 
-      toast.dismiss('cancel-bulk-loading');
-      
-      if (failures.length > 0) {
-        toast.warning(`Đã hủy duyệt thành công ${successes.length} sinh viên, thất bại ${failures.length} sinh viên.`);
-        console.error('Chi tiết lỗi hủy duyệt hàng loạt:', failures);
-      } else {
-        toast.success(`Đã hủy duyệt điểm rèn luyện thành công cho ${successes.length} sinh viên!`);
-      }
-
+    if (failureCount > 0) {
+      toast.warning(`Đã hủy duyệt thành công ${successCount} sinh viên, thất bại ${failureCount} sinh viên.`);
+      console.error(`Có ${failureCount} bản ghi lỗi khi hủy duyệt hàng loạt.`);
+    } else {
+      toast.success(`Đã hủy duyệt điểm rèn luyện thành công cho ${successCount} sinh viên!`);
       setSelectedStudentIds([]); // Xóa danh sách đã chọn
-    } catch (error: any) {
-      toast.dismiss('cancel-bulk-loading');
-      toast.error('Lỗi khi hủy duyệt rèn luyện hàng loạt: ' + error.message);
-    } finally {
-      setIsTableLoading(false);
     }
   };
 
@@ -468,10 +649,10 @@ function GradingPage() {
   };
 
   useEffect(() => {
-    if (isBulkGradingOpen || isPrintModalOpen) {
+    if (isPrintModalOpen) {
       fetchCategoriesAndCriteria();
     }
-  }, [isBulkGradingOpen, isPrintModalOpen]);
+  }, [isPrintModalOpen]);
 
   const fetchSummaries = async (pageToFetch: number = currentPage) => {
     if (!appliedClass || !appliedSemester) return;
@@ -1170,32 +1351,36 @@ function GradingPage() {
             variant="dark"
             actions={
               <>
-                <button
-                  onClick={() => setIsBulkGradingOpen(true)}
-                  className="bg-[#137fec] hover:bg-blue-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(19,127,236,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
-                >
-                  <SquarePen size={13} strokeWidth={2.5} />
-                  <span className="hidden sm:inline">Chấm điểm </span>
-                </button>
+                {isAdminOrSupervisor && (
+                  <>
+                    <button
+                      onClick={handleDeleteBulkClick}
+                      className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                      title="Xóa bảng điểm"
+                    >
+                      <Trash2 size={13} strokeWidth={2.5} />
+                      <span className="hidden sm:inline">Xóa</span>
+                    </button>
 
-                {(() => {
-                  const currentUser = tokenStorage.getUser();
-                  const userRoleLower = currentUser?.role?.toLowerCase() || '';
-                  const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
+                    <button
+                      onClick={handleApproveBulkClick}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,185,129,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                      title="Duyệt hàng loạt"
+                    >
+                      <CheckCircle size={13} strokeWidth={2.5} />
+                      <span className="hidden sm:inline">Duyệt</span>
+                    </button>
 
-                  if (canApprove) {
-                    return (
-                      <button
-                        onClick={handleCancelApproveBulk}
-                        className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
-                      >
-                        <XCircle size={13} strokeWidth={2.5} />
-                        <span className="hidden sm:inline">Hủy duyệt</span>
-                      </button>
-                    );
-                  }
-                  return null;
-                })()}
+                    <button
+                      onClick={handleCancelApproveBulk}
+                      className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                      title="Hủy duyệt hàng loạt"
+                    >
+                      <XCircle size={13} strokeWidth={2.5} />
+                      <span className="hidden sm:inline">Hủy duyệt</span>
+                    </button>
+                  </>
+                )}
 
                 <button
                   onClick={() => setIsPrintModalOpen(true)}
@@ -1230,6 +1415,109 @@ function GradingPage() {
         cancelLabel="Hủy"
         variant="warning"
       />
+
+      <ConfirmModal
+        isOpen={deleteBulkConfirm.isOpen}
+        onClose={() => setDeleteBulkConfirm(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => executeDeleteBulk(deleteBulkConfirm.summaryIds)}
+        title="Xác nhận xóa bảng điểm"
+        message={deleteBulkConfirm.message}
+        confirmLabel="Xóa"
+        cancelLabel="Hủy"
+        variant="danger"
+      />
+
+      <ConfirmModal
+        isOpen={approveBulkConfirm.isOpen}
+        onClose={() => setApproveBulkConfirm(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => executeApproveBulk(approveBulkConfirm.summaryIds)}
+        title="Xác nhận duyệt hàng loạt"
+        message={approveBulkConfirm.message}
+        confirmLabel="Duyệt"
+        cancelLabel="Hủy"
+      />
+
+      <Dialog open={approveProgress.isOpen} onOpenChange={() => {}}>
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md rounded-2xl p-6" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-lg font-bold text-[#1E293B] text-center">
+              Đang thực hiện duyệt điểm...
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center space-y-6 my-4">
+            <div className="w-16 h-16 relative">
+              <svg className="animate-spin w-full h-full text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+              <div 
+                className="bg-emerald-600 h-2.5 rounded-full transition-all duration-300 ease-out" 
+                style={{ width: `${Math.round((approveProgress.completed / Math.max(1, approveProgress.total)) * 100)}%` }}
+              ></div>
+            </div>
+            <p className="text-sm font-semibold text-slate-600">
+              Đã duyệt: {approveProgress.completed} / {approveProgress.total} ({Math.round((approveProgress.completed / Math.max(1, approveProgress.total)) * 100)}%)
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteProgress.isOpen} onOpenChange={() => {}}>
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md rounded-2xl p-6" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-lg font-bold text-[#1E293B] text-center">
+              Đang thực hiện xóa bảng điểm...
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center space-y-6 my-4">
+            <div className="w-16 h-16 relative">
+              <svg className="animate-spin w-full h-full text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+              <div 
+                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out" 
+                style={{ width: `${Math.round((deleteProgress.completed / Math.max(1, deleteProgress.total)) * 100)}%` }}
+              ></div>
+            </div>
+            <p className="text-sm font-semibold text-slate-600">
+              Đã xóa: {deleteProgress.completed} / {deleteProgress.total} ({Math.round((deleteProgress.completed / Math.max(1, deleteProgress.total)) * 100)}%)
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cancelProgress.isOpen} onOpenChange={() => {}}>
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md rounded-2xl p-6" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-lg font-bold text-[#1E293B] text-center">
+              Đang thực hiện hủy duyệt điểm...
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center space-y-6 my-4">
+            <div className="w-16 h-16 relative">
+              <svg className="animate-spin w-full h-full text-rose-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+              <div 
+                className="bg-rose-600 h-2.5 rounded-full transition-all duration-300 ease-out" 
+                style={{ width: `${Math.round((cancelProgress.completed / Math.max(1, cancelProgress.total)) * 100)}%` }}
+              ></div>
+            </div>
+            <p className="text-sm font-semibold text-slate-600">
+              Đã hủy duyệt: {cancelProgress.completed} / {cancelProgress.total} ({Math.round((cancelProgress.completed / Math.max(1, cancelProgress.total)) * 100)}%)
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Dialog for Advanced Filters (Mobile/Tablet Only) */}
       <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
