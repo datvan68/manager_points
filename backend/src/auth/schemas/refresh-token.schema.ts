@@ -1,7 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-export type RefreshTokenDocument = RefreshToken & Document;
+export type RefreshTokenDocument = RefreshToken & Document & {
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 @Schema({ timestamps: true, collection: 'refresh_tokens' })
 export class RefreshToken {
