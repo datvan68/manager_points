@@ -65,6 +65,7 @@ export class AuthService implements OnModuleInit {
     await this.migrateLegacyRoleCodes();
     await this.seedDeclaredPermissions();
     await this.seedRbac();
+    await this.seedSystemAdmin();
     await this.migrateLegacyRoles();
     await this.migrateLegacyUserFields();
   }
@@ -1061,6 +1062,79 @@ export class AuthService implements OnModuleInit {
     console.log(
       `✅ Declared permissions synced to "${UNGROUPED_PERMISSION_GROUP.name}" group`,
     );
+  }
+
+  private async seedSystemAdmin() {
+    const adminEmail = process.env.SYSTEM_ADMIN_EMAIL?.trim().toLowerCase();
+    const adminPassword = process.env.SYSTEM_ADMIN_PASSWORD;
+    const adminUsername =
+      process.env.SYSTEM_ADMIN_USERNAME?.trim() ||
+      adminEmail?.split('@')[0] ||
+      'system-admin';
+
+    if (!adminEmail && !adminPassword) {
+      return;
+    }
+
+    if (!adminEmail || !adminPassword) {
+      throw new Error(
+        'SYSTEM_ADMIN_EMAIL and SYSTEM_ADMIN_PASSWORD must be configured together',
+      );
+    }
+
+    if (adminPassword.length < 8) {
+      throw new Error('SYSTEM_ADMIN_PASSWORD must be at least 8 characters');
+    }
+
+    const adminRole =
+      (await this.roleModel.findOne({ role_code: 'ADMIN' }).exec()) ||
+      (await this.roleModel.findOne({ name: 'Admin' }).exec());
+
+    if (!adminRole) {
+      throw new Error('Admin role was not seeded before system admin creation');
+    }
+
+    const existingAdmin = await this.userModel
+      .findOne({ email: adminEmail })
+      .exec();
+
+    if (existingAdmin) {
+      let changed = false;
+
+      if (
+        !existingAdmin.role ||
+        existingAdmin.role.toString() !== adminRole._id.toString()
+      ) {
+        existingAdmin.role = adminRole._id;
+        changed = true;
+      }
+
+      if (existingAdmin.status !== UserStatus.ACTIVE) {
+        existingAdmin.status = UserStatus.ACTIVE;
+        existingAdmin.failed_login_attempts = 0;
+        existingAdmin.locked_until = null;
+        changed = true;
+      }
+
+      if (changed) {
+        await existingAdmin.save();
+      }
+
+      console.log('✅ System admin account verified');
+      return;
+    }
+
+    const pw_hash = await this.passwordService.hashPassword(adminPassword);
+
+    await this.userModel.create({
+      user_name: adminUsername,
+      email: adminEmail,
+      pw_hash,
+      status: UserStatus.ACTIVE,
+      role: adminRole._id,
+    });
+
+    console.log('✅ System admin account seeded');
   }
 
   private async migrateLegacyRoles() {
