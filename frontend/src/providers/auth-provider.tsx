@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { tokenStorage, authApi } from "@/api/auth-api";
+import { synchronizedRefreshToken } from "@/api/http-client";
 import { toast } from "sonner";
 import { isStudentRole } from "@/utils/role.util";
 
@@ -165,7 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       // Try silent refresh if token is missing (e.g. after tab close)
       try {
-        const result = await authApi.refreshToken();
+        const result = await synchronizedRefreshToken();
         tokenStorage.setAccessToken(result.access_token);
         // Refresh token succeeded - we might still need to get user info if missing
         const userRes = tokenStorage.getUser(); // Usually stored in localStorage
@@ -176,8 +177,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // If user info is lost but token exists, we handle it as unauthenticated for safety
           setUser(null);
         }
-      } catch (err) {
-        setUser(null);
+      } catch (err: any) {
+        const isAuthFailure = 
+          err && 
+          typeof err.status === 'number' && 
+          [400, 401, 403].includes(err.status);
+          
+        if (isAuthFailure) {
+          tokenStorage.clearTokens();
+          setUser(null);
+        } else {
+          // Lỗi mạng hoặc server tạm thời - giữ nguyên user từ localStorage
+          if (storedUser) {
+            setUser(storedUser);
+          } else {
+            setUser(null);
+          }
+        }
       } finally {
         setIsLoading(false);
       }
@@ -194,13 +210,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const interval = setInterval(async () => {
       try {
-        const result = await authApi.refreshToken();
+        const result = await synchronizedRefreshToken();
         tokenStorage.setAccessToken(result.access_token);
         loadUserPermissions(result.access_token);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Silent refresh failed:", err);
-        // Nếu Refresh Token hết hạn thật sự, lúc này mới đăng xuất
-        logout();
+        const isAuthFailure = 
+          err && 
+          typeof err.status === 'number' && 
+          [400, 401, 403].includes(err.status);
+          
+        if (isAuthFailure) {
+          logout();
+        }
       }
     }, 5 * 60 * 1000); // 5 phút
 

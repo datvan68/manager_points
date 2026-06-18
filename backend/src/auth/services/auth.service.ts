@@ -187,6 +187,7 @@ export class AuthService implements OnModuleInit {
     const refresh_token = await this.tokenService.createRefreshToken(
       user._id,
       rtExpirationDays,
+      !!dto.remember,
     );
 
     await this.logAction(

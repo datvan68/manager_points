@@ -25,6 +25,12 @@ services:
     networks:
       - public
       - internal
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
 
   frontend:
     image: ${REGISTRY}/frontend:${APP_VERSION}
@@ -55,6 +61,12 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   backend:
     image: ${REGISTRY}/backend:${APP_VERSION}
@@ -99,9 +111,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   mongodb:
     image: mongo:7.0
+    command: mongod --wiredTigerCacheSizeGB 0.25
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -121,6 +140,12 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+        reservations:
+          memory: 512M
 
   redis:
     image: redis:7.2-alpine
@@ -139,6 +164,12 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
 
   prometheus:
     image: prom/prometheus:v2.55.1
@@ -151,6 +182,12 @@ services:
       - prometheus-data:/prometheus
     networks:
       - internal
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
 
   grafana:
     image: grafana/grafana:11.3.1
@@ -168,6 +205,12 @@ services:
       - grafana-data:/var/lib/grafana
     networks:
       - internal
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
 
 networks:
   public:

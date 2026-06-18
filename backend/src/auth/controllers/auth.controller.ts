@@ -70,15 +70,17 @@ export class AuthController {
     const ip = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
     const result = await this.authService.login(dto, ip);
 
-    // Determine cookie expiration based on token expiration
-    // Note: Admin gets 4h, User with Remember gets 30d (Handled in Service)
-    // We can just set a long-lived cookie or session cookie
+    const isAdmin = result.user.role === 'Admin';
+    const cookieMaxAge = isAdmin
+      ? (dto.remember ? 4 * 60 * 60 * 1000 : undefined)
+      : (dto.remember ? 30 * 24 * 60 * 60 * 1000 : undefined);
+
     res.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      path: '/api/auth', // Restricted to auth paths
-      maxAge: dto.remember ? 30 * 24 * 60 * 60 * 1000 : undefined, // session cookie if not remember
+      path: '/api/auth',
+      maxAge: cookieMaxAge,
     });
 
     // Don't send RT back in body for security
@@ -126,12 +128,17 @@ export class AuthController {
 
     const result = await this.authService.refreshToken(token);
 
+    const maxAge = result.remember
+      ? Math.max(0, new Date(result.expires_at).getTime() - Date.now())
+      : undefined;
+
     // Rotate Cookie
     res.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: '/api/auth',
+      maxAge,
     });
 
     return { access_token: result.access_token };

@@ -21,6 +21,7 @@ import { Permission } from '../schemas/permission.schema';
 import { Student } from '../../students/schemas/student.schema';
 import { PermissionGroup } from '../schemas/permission-group.schema';
 import { RoutePermission } from '../schemas/route-permission.schema';
+import { AuthController } from '../controllers/auth.controller';
 
 describe('Auth Security (Student Account Policies)', () => {
   // Test JwtStrategy
@@ -223,6 +224,48 @@ describe('Auth Security (Student Account Policies)', () => {
       await expect(tokenService.refreshToken('valid-refresh-token')).rejects.toThrow(
         UnauthorizedException,
       );
+    });
+
+    it('should allow concurrent refresh within 10s grace period and return replaced token info', async () => {
+      const userId = new Types.ObjectId();
+      const now = new Date();
+      const mockToken = {
+        _id: 'token-id',
+        user_id: userId,
+        token: 'revoked-refresh-token',
+        expires_at: new Date(now.getTime() + 10000),
+        is_revoked: true,
+        replaced_by: 'replaced-refresh-token',
+        updatedAt: now,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      const mockReplacedToken = {
+        _id: 'replaced-token-id',
+        user_id: userId,
+        token: 'replaced-refresh-token',
+        expires_at: new Date(now.getTime() + 10000),
+        is_revoked: false,
+        remember: true,
+      };
+
+      const mockActiveUser = {
+        _id: userId,
+        status: UserStatus.ACTIVE,
+      };
+
+      refreshTokenModel.findOne
+        .mockResolvedValueOnce(mockToken)
+        .mockResolvedValueOnce(mockReplacedToken);
+
+      userModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockActiveUser),
+      });
+
+      const result = await tokenService.refreshToken('revoked-refresh-token');
+      expect(result).toBeDefined();
+      expect(result.access_token).toBe('mock-new-access-token');
+      expect(result.refresh_token).toBe('replaced-refresh-token');
     });
   });
 
@@ -632,6 +675,135 @@ describe('Auth Security (Student Account Policies)', () => {
           ),
         ).rejects.toThrow(new ForbiddenException('Tài khoản chưa được kích hoạt bởi quản trị viên.'));
       });
+
+      it('should allow active student to login using student code (MSSV) and date of birth password in ddMMyyyy format', async () => {
+        const studentUserId = new Types.ObjectId();
+        const mockStudentUser = {
+          _id: studentUserId,
+          user_name: '20230123', // MSSV
+          email: '20230123@school.edu.vn',
+          pw_hash: 'hashed-dob-password',
+          status: UserStatus.ACTIVE,
+          failed_login_attempts: 0,
+          locked_until: null,
+          role: mockRole,
+          save: jest.fn().mockResolvedValue(true),
+        };
+
+        userModel.findOne.mockReturnValue({
+          populate: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue(mockStudentUser),
+        });
+
+        passwordService.comparePassword.mockResolvedValue(true);
+
+        const result = await authService.login(
+          { email: '20230123', password: '15082003' }, // Student code and ddMMyyyy password
+          '127.0.0.1',
+        );
+
+        expect(result).toBeDefined();
+        expect(result.user.username).toBe('20230123');
+        expect(result.user.role).toBe('Student');
+        expect(passwordService.comparePassword).toHaveBeenCalledWith('15082003', 'hashed-dob-password');
+        expect(mockStudentUser.save).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('AuthController - Cookie Settings', () => {
+    let authController: AuthController;
+    let authService: any;
+
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        controllers: [AuthController],
+        providers: [
+          {
+            provide: AuthService,
+            useValue: {
+              login: jest.fn(),
+            },
+          },
+        ],
+      }).compile();
+
+      authController = module.get<AuthController>(AuthController);
+      authService = module.get(AuthService);
+    });
+
+    it('should set maxAge to 4 hours for Admin login with remember=true', async () => {
+      const mockResult = {
+        access_token: 'mock-access',
+        refresh_token: 'mock-refresh',
+        user: {
+          id: 'admin-id',
+          username: 'admin',
+          role: 'Admin',
+        },
+      };
+
+      authService.login.mockResolvedValue(mockResult);
+
+      const mockRes = {
+        cookie: jest.fn(),
+      } as any;
+
+      const mockReq = {
+        ip: '127.0.0.1',
+      };
+
+      const result = await authController.login(
+        { email: 'admin@school.edu.vn', password: 'password', remember: true },
+        mockReq,
+        mockRes,
+      );
+
+      expect(result).toBeDefined();
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'refresh_token',
+        'mock-refresh',
+        expect.objectContaining({
+          maxAge: 4 * 60 * 60 * 1000,
+        }),
+      );
+    });
+
+    it('should set maxAge to 30 days for regular User login with remember=true', async () => {
+      const mockResult = {
+        access_token: 'mock-access',
+        refresh_token: 'mock-refresh',
+        user: {
+          id: 'user-id',
+          username: 'user',
+          role: 'User',
+        },
+      };
+
+      authService.login.mockResolvedValue(mockResult);
+
+      const mockRes = {
+        cookie: jest.fn(),
+      } as any;
+
+      const mockReq = {
+        ip: '127.0.0.1',
+      };
+
+      const result = await authController.login(
+        { email: 'user@school.edu.vn', password: 'password', remember: true },
+        mockReq,
+        mockRes,
+      );
+
+      expect(result).toBeDefined();
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'refresh_token',
+        'mock-refresh',
+        expect.objectContaining({
+          maxAge: 30 * 24 * 60 * 60 * 1000,
+        }),
+      );
     });
   });
 });

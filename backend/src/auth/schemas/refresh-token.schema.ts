@@ -17,6 +17,9 @@ export class RefreshToken {
   @Prop({ default: false })
   is_revoked: boolean;
 
+  @Prop({ default: false })
+  remember: boolean;
+
   @Prop({ type: String, default: null })
   replaced_by: string | null;
 }

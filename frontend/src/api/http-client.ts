@@ -1,4 +1,4 @@
-import { tokenStorage, authApi } from './auth-api';
+import { tokenStorage, authApi, RefreshResponse } from './auth-api';
 
 export class ApiError extends Error {
   status: number;
@@ -35,6 +35,20 @@ function onRefreshFailed(error: Error) {
   refreshSubscribers = [];
 }
 
+let refreshPromise: Promise<RefreshResponse> | null = null;
+
+export async function synchronizedRefreshToken(): Promise<RefreshResponse> {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+  
+  refreshPromise = authApi.refreshToken().finally(() => {
+    refreshPromise = null;
+  });
+  
+  return refreshPromise;
+}
+
 export async function httpClient(url: string, options: RequestInit = {}): Promise<Response> {
   const token = tokenStorage.getAccessToken();
   const headers = new Headers(options.headers || {});
@@ -46,7 +60,7 @@ export async function httpClient(url: string, options: RequestInit = {}): Promis
   const res = await fetch(url, { ...options, headers });
   
   const isRetry = (options as any)._isRetry;
-
+ 
   if (res.status === 401 && !url.includes('/api/auth/refresh') && !isRetry) {
     if (isRefreshing) {
       // Đang có request khác thực hiện refresh token, xếp hàng chờ
@@ -67,11 +81,11 @@ export async function httpClient(url: string, options: RequestInit = {}): Promis
         );
       });
     }
-
+ 
     // Đây là request đầu tiên gặp lỗi 401, chịu trách nhiệm refresh token
     isRefreshing = true;
     try {
-      const result = await authApi.refreshToken();
+      const result = await synchronizedRefreshToken();
       tokenStorage.setAccessToken(result.access_token);
       isRefreshing = false;
       onRefreshed(result.access_token);
@@ -81,13 +95,26 @@ export async function httpClient(url: string, options: RequestInit = {}): Promis
       return await fetch(url, { ...options, headers, _isRetry: true } as any);
     } catch (err) {
       isRefreshing = false;
-      const error = new ApiError('Phiên đăng nhập đã hết hạn', 401);
-      onRefreshFailed(error);
-      tokenStorage.clearTokens();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+      
+      const isAuthFailure = 
+        err && 
+        typeof err === 'object' && 
+        'status' in err && 
+        typeof (err as any).status === 'number' && 
+        [400, 401, 403].includes((err as any).status);
+
+      if (isAuthFailure) {
+        const error = new ApiError('Phiên đăng nhập đã hết hạn', 401);
+        onRefreshFailed(error);
+        tokenStorage.clearTokens();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        throw error;
+      } else {
+        onRefreshFailed(err as Error);
+        throw err;
       }
-      throw error;
     }
   }
   

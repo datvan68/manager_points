@@ -21,6 +21,7 @@ import Action from '@/components/ui/Action';
 import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 import { authApi, tokenStorage } from '../../api/auth-api';
 import { systemApi } from '../../api/system-api';
+import { synchronizedRefreshToken } from '../../api/http-client';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import ConfirmModal from '../../components/modals/ConfirmModal';
@@ -461,7 +462,7 @@ function PermissionsPageContent() {
       if (error.status === 401) {
         try {
           // Thử âm thầm làm mới token trước khi đăng xuất
-          const refreshResult = await authApi.refreshToken();
+          const refreshResult = await synchronizedRefreshToken();
           tokenStorage.setAccessToken(refreshResult.access_token);
           // Tải lại dữ liệu bằng token mới
           fetchData();

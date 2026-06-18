@@ -19,12 +19,13 @@ export class TokenService {
     private jwtService: JwtService,
   ) {}
 
-  async createRefreshToken(userId: Types.ObjectId, expirationDays: number) {
+  async createRefreshToken(userId: Types.ObjectId, expirationDays: number, remember: boolean = false) {
     const token = uuidv4();
     await this.refreshTokenModel.create({
       user_id: userId,
       token,
       expires_at: new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000),
+      remember,
     });
     return token;
   }
@@ -41,6 +42,23 @@ export class TokenService {
     }
 
     if (storedToken.is_revoked) {
+      const gracePeriodMs = 10000; // 10s grace period
+      const timeSinceRevocation = Date.now() - new Date(storedToken.updatedAt).getTime();
+      
+      if (timeSinceRevocation < gracePeriodMs && storedToken.replaced_by) {
+        const replacedToken = await this.refreshTokenModel.findOne({ token: storedToken.replaced_by });
+        if (replacedToken && !replacedToken.is_revoked && new Date() <= new Date(replacedToken.expires_at)) {
+          const payload = { user_id: replacedToken.user_id.toString() };
+          const access_token = this.jwtService.sign(payload);
+          return { 
+            access_token, 
+            refresh_token: replacedToken.token,
+            expires_at: replacedToken.expires_at,
+            remember: replacedToken.remember,
+          };
+        }
+      }
+
       await this.revokeAllUserTokens(storedToken.user_id.toString());
       throw new UnauthorizedException(
         'Cảnh báo bảo mật: Token đã được sử dụng. Vui lòng đăng nhập lại.',
@@ -64,9 +82,15 @@ export class TokenService {
       user_id: storedToken.user_id,
       token: new_refresh_token,
       expires_at: storedToken.expires_at,
+      remember: storedToken.remember, // Inherit from old token
     });
 
-    return { access_token, refresh_token: new_refresh_token };
+    return { 
+      access_token, 
+      refresh_token: new_refresh_token,
+      expires_at: storedToken.expires_at,
+      remember: storedToken.remember,
+    };
   }
 
   async revokeAllUserTokens(userId: string) {
