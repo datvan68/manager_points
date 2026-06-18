@@ -2,7 +2,7 @@ import { httpClient, handleResponse } from './http-client';
 import { Department } from './department-api';
 import { apiCache } from './api-cache';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')}/api`;
 
 export interface Class {
   _id: string;

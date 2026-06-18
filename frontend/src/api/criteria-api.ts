@@ -2,7 +2,7 @@ import { httpClient, handleResponse } from './http-client';
 import { Category } from './category-api';
 import { apiCache } from './api-cache';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')}/api`;
 
 export interface Criterion {
   _id: string;
@@ -96,4 +96,3 @@ export const criteriaApi = {
     return data;
   }
 };
-

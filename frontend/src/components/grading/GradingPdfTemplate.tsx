@@ -313,9 +313,9 @@ export default function GradingPdfTemplate({
     }, intervalTime);
 
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')}/api`;
 
-      const response = await fetch(`${API_BASE}/summaries-point/export-pdf`, {
+      const response = await fetch(`${API_BASE}/summaries-points/export-pdf`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

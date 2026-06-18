@@ -22,7 +22,19 @@
     reverse_proxy backend:8000
   }
 
-  route /api* {
+  route /api/auth* {
+    reverse_proxy backend:8000
+  }
+
+  route /api/system* {
+    reverse_proxy backend:8000
+  }
+
+  route /api/evaluation-periods* {
+    reverse_proxy backend:8000
+  }
+
+  handle_path /api/* {
     reverse_proxy backend:8000
   }
 
