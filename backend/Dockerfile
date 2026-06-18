@@ -1,10 +1,12 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY package*.json ./
 RUN npm ci
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
@@ -12,9 +14,19 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Run as non-root user
-RUN addgroup -S app && adduser -S app -G app
+RUN apk add --no-cache \
+    ca-certificates \
+    chromium \
+    freetype \
+    harfbuzz \
+    nss \
+    ttf-freefont \
+  && addgroup -S app \
+  && adduser -S app -G app
 
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force

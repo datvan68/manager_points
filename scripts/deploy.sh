@@ -1,27 +1,50 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# Load environment variables
-if [ -f .env.production ]; then
-  export $(grep -v '^#' .env.production | xargs)
-else
-  echo ".env.production not found! Please create it."
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
+ENV_FILE="${ENV_FILE:-.env.production}"
+
+read_env_value() {
+  local key="$1"
+  local line
+  line="$(grep -E "^${key}=" "$ENV_FILE" | tail -n 1 || true)"
+  line="${line#*=}"
+  line="${line%\"}"
+  line="${line#\"}"
+  line="${line%\'}"
+  line="${line#\'}"
+  printf '%s' "$line"
+}
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo "$ENV_FILE not found! Please create it on the production server."
   exit 1
 fi
 
-APP_VERSION=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
-export APP_VERSION
+REGISTRY="${REGISTRY:-$(read_env_value REGISTRY)}"
+NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-$(read_env_value NEXT_PUBLIC_API_URL)}"
+APP_VERSION="${APP_VERSION:-$(read_env_value APP_VERSION)}"
+
+: "${REGISTRY:?REGISTRY must be set in $ENV_FILE}"
+: "${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set in $ENV_FILE}"
+
+if [ -z "${APP_VERSION:-}" ]; then
+  APP_VERSION="$(git rev-parse --short HEAD)"
+fi
+export APP_VERSION REGISTRY NEXT_PUBLIC_API_URL
 
 echo "Building images with version $APP_VERSION..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend frontend
 
-# Build backend
-docker build -t ${REGISTRY}/backend:${APP_VERSION} ./backend
+if [ "${PUSH_IMAGES:-true}" = "true" ]; then
+  echo "Pushing application images..."
+  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" push backend frontend
+fi
 
-# Build frontend with NEXT_PUBLIC_API_URL
-docker build --build-arg NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} -t ${REGISTRY}/frontend:${APP_VERSION} ./frontend
+echo "Pulling the approved application images..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull backend frontend
 
 echo "Deploying..."
-docker compose -f docker-compose.prod.yml --env-file .env.production pull
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
 
 echo "Done!"
