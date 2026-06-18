@@ -46,7 +46,7 @@ import {
 import { isAdminUser } from '../utils/role.util';
 
 @ApiTags('Authentication & RBAC')
-@Controller('api/auth')
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 

@@ -25,7 +25,7 @@ import {
 } from './dto/evaluation-period.dto';
 
 @ApiTags('Evaluation Periods')
-@Controller('api/evaluation-periods')
+@Controller('evaluation-periods')
 export class EvaluationPeriodsController {
   constructor(private readonly service: EvaluationPeriodsService) {}
 

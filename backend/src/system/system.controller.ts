@@ -15,7 +15,7 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-@Controller('api/system')
+@Controller('system')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class SystemController {
   constructor(private readonly systemService: SystemService) {}
