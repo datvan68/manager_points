@@ -10,6 +10,7 @@ import { User } from '../../auth/schemas/user.schema';
 import { Role } from '../../auth/schemas/role.schema';
 import { Class } from '../../classes/schemas/class.schema';
 import { RefreshToken } from '../../auth/schemas/refresh-token.schema';
+import * as bcrypt from 'bcrypt';
 
 const mockStudent = {
   _id: '507f1f77bcf86cd799439011',
@@ -873,6 +874,188 @@ describe('StudentsService', () => {
       expect(mockUser.locked_until).toBeNull();
       expect(mockUser.failed_login_attempts).toBe(0);
       expect(mockUser.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('getDefaultPasswordFromDob', () => {
+    it('should return empty string if dateBir is invalid or missing', () => {
+      expect(service.getDefaultPasswordFromDob(null)).toBe('');
+      expect(service.getDefaultPasswordFromDob(undefined)).toBe('');
+      expect(service.getDefaultPasswordFromDob('invalid-date')).toBe('');
+    });
+
+    it('should calculate password correctly using GMT+7', () => {
+      // 1999-12-31T20:00:00.000Z in UTC is 2000-01-01T03:00:00.000Z in GMT+7
+      const dob1 = new Date('1999-12-31T20:00:00.000Z');
+      expect(service.getDefaultPasswordFromDob(dob1)).toBe('01012000');
+
+      // 2003-05-15T00:00:00.000Z in UTC is 2003-05-15T07:00:00.000Z in GMT+7
+      const dob2 = '2003-05-15T00:00:00.000Z';
+      expect(service.getDefaultPasswordFromDob(dob2)).toBe('15052003');
+    });
+  });
+
+  describe('remediateStalePasswords', () => {
+    let originalRemediationMode: string | undefined;
+
+    beforeEach(() => {
+      originalRemediationMode = process.env.PASSWORD_REMEDIATION_MODE;
+    });
+
+    afterEach(() => {
+      if (originalRemediationMode === undefined) {
+        delete process.env.PASSWORD_REMEDIATION_MODE;
+      } else {
+        process.env.PASSWORD_REMEDIATION_MODE = originalRemediationMode;
+      }
+      jest.restoreAllMocks();
+    });
+
+    it('should do nothing if PASSWORD_REMEDIATION_MODE is "off"', async () => {
+      process.env.PASSWORD_REMEDIATION_MODE = 'off';
+      const findStudentSpy = jest.spyOn(service['studentModel'], 'find');
+      
+      await service['remediateStalePasswords']();
+
+      expect(findStudentSpy).not.toHaveBeenCalled();
+    });
+
+    it('should run in dry-run mode and log affected users without saving them', async () => {
+      process.env.PASSWORD_REMEDIATION_MODE = 'dry-run';
+      
+      const dob = new Date('1999-12-31T20:00:00.000Z'); // correct: 01012000, wrong (UTC): 31121999
+      const mockStudentObj = {
+        student_code: 'SV12345',
+        date_bir: dob,
+        email: 'sv12345@school.edu.vn',
+      };
+      const mockUserObj = {
+        email: 'sv12345@school.edu.vn',
+        pw_hash: 'hashed_wrong_password',
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      jest.spyOn(service['studentModel'], 'find').mockReturnValue({
+        exec: jest.fn().mockResolvedValue([mockStudentObj]),
+      } as any);
+
+      const findUserSpy = jest.spyOn(service['userModel'], 'find').mockReturnValue({
+        exec: jest.fn().mockResolvedValue([mockUserObj]),
+      } as any);
+
+      jest.spyOn(service as any, 'getStudentEmail').mockReturnValue('sv12345@school.edu.vn');
+      
+      const bcryptCompareSpy = jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
+      const loggerLogSpy = jest.spyOn(service['logger'], 'log');
+
+      await service['remediateStalePasswords']();
+
+      expect(findUserSpy).toHaveBeenCalledWith({
+        $or: [
+          { email: { $in: ['sv12345@school.edu.vn'] } },
+          { user_name: { $in: ['SV12345'] } }
+        ]
+      });
+      expect(bcryptCompareSpy).toHaveBeenCalled();
+      expect(mockUserObj.save).not.toHaveBeenCalled();
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[DRY-RUN] Found 1 student accounts with incorrect timezone DOB passwords')
+      );
+    });
+
+    it('should run in apply mode, re-hash, and save the updated users', async () => {
+      process.env.PASSWORD_REMEDIATION_MODE = 'apply';
+
+      const dob = new Date('1999-12-31T20:00:00.000Z'); // correct: 01012000, wrong (UTC): 31121999
+      const mockStudentObj = {
+        student_code: 'SV12345',
+        date_bir: dob,
+        email: 'sv12345@school.edu.vn',
+      };
+      const mockUserObj = {
+        email: 'sv12345@school.edu.vn',
+        pw_hash: 'hashed_wrong_password',
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      jest.spyOn(service['studentModel'], 'find').mockReturnValue({
+        exec: jest.fn().mockResolvedValue([mockStudentObj]),
+      } as any);
+
+      const findUserSpy = jest.spyOn(service['userModel'], 'find').mockReturnValue({
+        exec: jest.fn().mockResolvedValue([mockUserObj]),
+      } as any);
+
+      jest.spyOn(service as any, 'getStudentEmail').mockReturnValue('sv12345@school.edu.vn');
+      
+      jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
+      jest.spyOn(require('bcrypt'), 'hash').mockResolvedValue('new_hashed_correct_password' as never);
+      const loggerLogSpy = jest.spyOn(service['logger'], 'log');
+
+      await service['remediateStalePasswords']();
+
+      expect(findUserSpy).toHaveBeenCalledWith({
+        $or: [
+          { email: { $in: ['sv12345@school.edu.vn'] } },
+          { user_name: { $in: ['SV12345'] } }
+        ]
+      });
+      expect(mockUserObj.pw_hash).toBe('new_hashed_correct_password');
+      expect(mockUserObj.save).toHaveBeenCalled();
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[APPLY] Successfully remediated 1/1 student accounts')
+      );
+    });
+
+    it('should not expose password values or raw secrets in logs during remediation', async () => {
+      process.env.PASSWORD_REMEDIATION_MODE = 'apply';
+
+      const dob = new Date('1999-12-31T20:00:00.000Z'); // correct DOB password: 01012000, wrong: 31121999
+      const mockStudentObj = {
+        student_code: 'SV12345',
+        date_bir: dob,
+        email: 'sv12345@school.edu.vn',
+      };
+      const mockUserObj = {
+        email: 'sv12345@school.edu.vn',
+        pw_hash: 'hashed_wrong_password',
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      jest.spyOn(service['studentModel'], 'find').mockReturnValue({
+        exec: jest.fn().mockResolvedValue([mockStudentObj]),
+      } as any);
+
+      jest.spyOn(service['userModel'], 'find').mockReturnValue({
+        exec: jest.fn().mockResolvedValue([mockUserObj]),
+      } as any);
+
+      jest.spyOn(service as any, 'getStudentEmail').mockReturnValue('sv12345@school.edu.vn');
+      jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
+      jest.spyOn(require('bcrypt'), 'hash').mockResolvedValue('new_hashed_correct_password' as never);
+
+      const loggerLogSpy = jest.spyOn(service['logger'], 'log');
+
+      await service['remediateStalePasswords']();
+
+      // Check all logger.log invocations
+      for (const call of loggerLogSpy.mock.calls) {
+        const logMsg = call[0];
+        
+        // Ensure no passwords, secrets, hashes, unmasked emails, or raw DOB in strings
+        expect(logMsg).not.toContain('01012000');
+        expect(logMsg).not.toContain('31121999');
+        expect(logMsg).not.toContain('hashed_wrong_password');
+        expect(logMsg).not.toContain('new_hashed_correct_password');
+        expect(logMsg).not.toContain('sv12345@school.edu.vn');
+        expect(logMsg).not.toContain(dob.toISOString());
+        
+        // If student code is present, it must be masked (SV12345 -> SV1***45)
+        if (logMsg.includes('SV1')) {
+          expect(logMsg).toContain('SV1***45');
+          expect(logMsg).not.toContain('SV12345');
+        }
+      }
     });
   });
 });

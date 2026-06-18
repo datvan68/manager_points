@@ -38,6 +38,7 @@ import {
   DECLARED_PERMISSION_SEEDS,
   UNGROUPED_PERMISSION_GROUP,
 } from '../permissions.registry';
+import { maskLoginKey } from '../utils/mask.util';
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_DURATION_MINUTES = 15;
@@ -114,7 +115,7 @@ export class AuthService implements OnModuleInit {
         null,
         ip,
         'login_failure',
-        `User not found: ${dto.email}`,
+        `User not found: ${maskLoginKey(dto.email)}`,
       );
       throw new UnauthorizedException(INVALID_LOGIN_MESSAGE);
     }
@@ -124,7 +125,7 @@ export class AuthService implements OnModuleInit {
         user._id,
         ip,
         'login_failure',
-        `Inactive user login attempt: ${dto.email}`,
+        `Inactive user login attempt: ${maskLoginKey(dto.email)}`,
       );
       throw new ForbiddenException('Tài khoản chưa được kích hoạt bởi quản trị viên.');
     }

@@ -1,259 +1,185 @@
-# Production Stability Task Scope
+# Task Scope: Student Login Works Locally but Fails in Production
 
-## Context
+## Problem Statement
 
-The production system is deployed with Docker Compose using `docker-compose.prod.yml`.
-The active production concerns are:
+Student accounts can log in successfully in the local environment, but the same student credentials fail in production with the generic message: "Incorrect account or password."
 
-- Users are being logged out too quickly.
-- Student accounts must continue to log in with student code/MSSV and the original date-of-birth password pattern.
-- VPS memory usage is above 80%.
-- MongoDB production data location must be clearly identified and protected.
+This task is scoped as an investigation and remediation plan for the production student login flow. Do not expose, print, or commit real passwords, password hashes, tokens, or `.env` values while debugging.
 
-This scope is limited to analysis, code/config changes, documentation, and verification steps. Any production deploy, database mutation, volume deletion, restore, secret rotation, or infrastructure change requires explicit human approval before execution.
+## Relevant Code Paths
 
-## Current Findings From Repository Review
-
-### Authentication and Logout Timing
-
-- Backend access tokens are signed with `expiresIn: "15m"` in `backend/src/auth/auth.module.ts`.
-- Frontend refreshes the session every 5 minutes in `frontend/src/providers/auth-provider.tsx`.
-- `frontend/src/api/http-client.ts` also refreshes automatically when a protected API request returns `401`, and it already queues concurrent refresh attempts through `isRefreshing` and `refreshSubscribers`.
-- Refresh tokens are stored as HTTP-only cookies named `refresh_token`.
-- Backend refresh token duration is currently:
-  - Admin: `1 / 6` day, approximately 4 hours.
-  - Non-admin with `remember=true`: 30 days.
-  - Non-admin without remember: 1 day.
-- Login sets a persistent cookie only when `remember=true`; otherwise it uses a browser session cookie.
-- Current repository state: admin login with `remember=true` now sets the refresh cookie to approximately 4 hours, matching the backend admin refresh-token duration. This should still be verified in the deployed production build because the issue report may come from an older deployed revision.
-- Refresh response now derives cookie `maxAge` from the rotated refresh token `expires_at` only when `remember=true`.
-- Previous risk to verify: older code may have allowed admin users with `remember=true` to receive a 30-day browser cookie while the backend token expired after about 4 hours. The current repository no longer shows that mismatch, but production must confirm it is running this version.
-- Policy decision still needed: non-admin users without remember get a browser session cookie while the backend refresh token lasts 1 day. This is acceptable only if "no remember" intentionally means "until browser closes or backend token expires, whichever comes first."
-- `AuthProvider` no longer logs out on every silent refresh exception; it logs out only when the error has status `400`, `401`, or `403`.
-- `loadUserPermissions()` still clears local auth state on `/api/auth/me` `401`, and `/api/students/me` `401` for student users. This is correct for confirmed unauthorized responses, but it should not be triggered by transient network errors.
-- Token rotation includes a 10-second grace period for a just-revoked refresh token when it has a valid `replaced_by` token. Outside that grace path, reuse of a revoked refresh token is treated as a security event and revokes all refresh tokens for that user. This is intentional, but overlapping refresh flows or multiple tabs still need regression coverage.
-- `frontend/src/api/http-client.ts` exposes `synchronizedRefreshToken()` and `AuthProvider` uses it, so periodic refresh and 401-triggered refresh now share the same in-tab refresh promise. This reduces duplicate refresh calls inside one tab, but it does not coordinate refresh calls across different browser tabs.
-
-### Student Login Compatibility
-
-- Student login supports numeric login identifiers by mapping MSSV/student code to the generated student email form.
-- Student user accounts are generated with `user_name = student.student_code`.
-- Student passwords are generated from date of birth using `ddMMyyyy`.
-- Legacy student account sync updates name-based usernames back to `student_code`.
-- Student account activation and password reset flows also use the DOB password pattern.
-- The task must preserve this behavior unless a separate security migration is explicitly approved.
-- Current repository state: `backend/src/auth/test/auth-security.spec.ts` includes focused backend coverage for active student login using MSSV plus `ddMMyyyy` password, and also covers inactive student rejection. These tests should be kept in CI and re-run before production rollout.
-- Remaining review item: add or keep higher-level coverage only if needed for the full HTTP/login-form flow, because the current focused backend test does not prove browser cookie handling or the visible login form behavior.
-
-### MongoDB Production Data Location
-
-- MongoDB service uses the official `mongo:7.0` image.
-- MongoDB is started with `mongod --wiredTigerCacheSizeGB 0.25`, so WiredTiger cache is already capped at about 256 MB in the Compose file.
-- MongoDB data is stored inside the container at `/data/db`.
-- The container path `/data/db` is backed by the Docker named volume `mongo-data` from `docker-compose.prod.yml`.
-- On a typical rootful Linux Docker host, the physical host path is under:
-
-```text
-/var/lib/docker/volumes/<compose-project>_mongo-data/_data
-```
-
-- The exact production host path must be confirmed with Docker inspection, because the Compose project prefix depends on how production is launched.
-
-Safe verification commands for the production server:
-
-```bash
-docker compose -f docker-compose.prod.yml --env-file .env.production ps mongodb
-docker compose -f docker-compose.prod.yml --env-file .env.production exec mongodb mongosh --quiet --eval "db.adminCommand('ping').ok"
-docker volume ls | grep mongo-data
-docker volume inspect <actual_mongo_data_volume_name>
-```
-
-Do not delete or recreate the MongoDB volume unless there is an approved restore plan and a verified backup.
-
-Related documentation exists in `docs/production-mongodb-safety.md`, but it should be reviewed for encoding/readability and kept aligned with this scope. Markdown output for project docs should be English by default unless a Vietnamese operator runbook is explicitly requested.
-
-### VPS Memory Pressure
-
-- Production Compose already defines `deploy.resources` memory limits and reservations:
-  - Caddy: 128 MB limit, 64 MB reservation.
-  - Frontend: 512 MB limit, 256 MB reservation.
-  - Backend: 512 MB limit, 256 MB reservation.
-  - MongoDB: 1024 MB limit, 512 MB reservation.
-  - Redis: 128 MB limit, 64 MB reservation.
-  - Prometheus: 256 MB limit, 128 MB reservation.
-  - Grafana: 256 MB limit, 128 MB reservation.
-- Compose `deploy.resources` is always enforced in Docker Swarm, but may not be enforced by every standalone Docker Compose/runtime combination. Production must verify whether these limits are active with `docker inspect` or `docker stats`.
-- MongoDB WiredTiger is already capped to `0.25` GB in `docker-compose.prod.yml`; the remaining MongoDB memory can still include connections, indexes, journal, filesystem cache behavior, and process overhead.
-- Next.js, NestJS, MongoDB, Redis, Caddy, and optional monitoring services can collectively push a small VPS above 80% memory.
-- Monitoring services are behind the `monitoring` profile, but if enabled they add Prometheus and Grafana memory load.
-- Container logging is capped through the shared `json-file` logging config (`max-size: 10m`, `max-file: 3`), so log growth is less likely to be the main memory issue, but disk usage should still be checked separately.
-- Because Linux may count filesystem cache as used memory, production memory review must distinguish true container/process pressure from reclaimable cache. The first report should include both `free -h` and `docker stats --no-stream`.
-
-## Goals
-
-1. Make normal users and students remain logged in for the expected duration.
-2. Keep admin sessions intentionally shorter than normal users, unless product owner approves otherwise.
-3. Preserve MSSV plus date-of-birth student login compatibility.
-4. Identify the exact production MongoDB volume and document backup-safe handling.
-5. Reduce or control VPS memory pressure without risking production data.
-
-## Non-Goals
-
-- Do not change the student credential format in this task.
-- Do not rotate production secrets in this task unless separately approved.
-- Do not delete Docker volumes, containers, backups, or database files.
-- Do not run database restore/migration commands without human approval.
-- Do not expose MongoDB or Redis ports publicly.
-
-## Proposed Work Plan
-
-### 1. Session Lifetime Audit and Fix
-
-Review and align the following files:
-
-- `backend/src/auth/auth.module.ts`
-- `backend/src/auth/controllers/auth.controller.ts`
-- `backend/src/auth/services/auth.service.ts`
-- `backend/src/auth/services/token.service.ts`
-- `frontend/src/providers/auth-provider.tsx`
 - `frontend/src/api/auth-api.ts`
+  - Builds `API_BASE` from `NEXT_PUBLIC_API_URL`.
+  - Sends login requests to `POST /api/auth/login` with `{ email, password, remember }`.
+- `backend/src/auth/services/auth.service.ts`
+  - `login()` accepts either email or student code.
+  - Numeric student code input is mapped to `<student_code>@school.edu.vn`.
+  - User lookup checks both `email` and `user_name`.
+  - The same generic error is returned when the user is not found or when password comparison fails.
+- `backend/src/students/students.service.ts`
+  - Student login accounts are generated from `student_code`, email fallback, and DOB password format `ddmmyyyy`.
+  - New or legacy student accounts may initially be `inactive`.
+  - Account activation and password reset regenerate the DOB-based password hash.
+- `docker-compose.prod.yml`
+  - Frontend depends on `NEXT_PUBLIC_API_URL`.
+  - Backend depends on `MONGO_URI`.
+  - Mongo initialization depends on `MONGO_DATABASE`, `MONGO_APP_USERNAME`, and `MONGO_APP_PASSWORD`.
 
-Tasks:
+## Current Observations
 
-- Confirm intended session policy:
-  - Access token: short-lived, currently 15 minutes.
-  - Normal user refresh token: 1 day without remember, 30 days with remember.
-  - Admin refresh token: currently 4 hours.
-- Decide the correct admin cookie behavior:
-  - Option A: keep the current repository behavior: `remember=true` for admins creates a persistent cookie with a lifetime matching the 4-hour backend token.
-  - Option B: allow longer admin sessions by changing backend refresh token duration, with explicit approval because it changes security posture.
-- Preserve refresh token rotation and revoked-token reuse detection.
-- Keep refresh cookie rotation aligned with the stored refresh token expiration.
-- Confirm whether access token storage in `sessionStorage` is intentional. Because the access token is not persisted across browser restarts, startup depends on the refresh cookie and stored user data.
-- Review overlap between periodic `AuthProvider` refresh and `httpClient` 401-triggered refresh so two refresh flows do not race each other.
-- Confirm that `synchronizedRefreshToken()` is the only refresh path used by frontend auth/session code. If new code calls `authApi.refreshToken()` directly, it can bypass the in-tab refresh lock.
-- Decide whether cross-tab refresh coordination is required. If users commonly keep multiple tabs open, consider a browser-level coordination mechanism such as `BroadcastChannel`, localStorage locking, or a less aggressive revoked-token reuse policy.
-- Keep frontend silent refresh failure handling less abrupt for transient network/server errors, while still logging out on confirmed `400`, `401`, or `403`.
-- Add clear comments/tests around remember-me behavior.
+- The backend code should allow a student to enter the student code in the login field.
+- Production showing the generic "incorrect account or password" message most likely means one of these cases:
+  - The production user document does not exist for that student code/email.
+  - The production user exists, but `pw_hash` was generated from a different DOB value than expected.
+  - Production frontend is calling the wrong backend API URL.
+  - Production backend is connected to a different Mongo database than expected.
+  - Production data has a legacy or mismatched user record where `user_name`, `email`, `student.user_id`, or `pw_hash` is inconsistent.
+- If the account were simply inactive or manually locked, the backend is expected to return a different forbidden-account message, not the generic incorrect credential message.
+- The current working tree already contains a timezone-oriented student password change in `backend/src/students/students.service.ts`:
+  - Student DOB passwords are now generated through `getDefaultPasswordFromDob()`.
+  - The helper converts dates to GMT+7 before deriving the `ddmmyyyy` password.
+  - `remediateStalePasswords()` attempts to identify or migrate accounts that were hashed with the production UTC-derived DOB password.
+  - Remediation is currently gated by `PASSWORD_REMEDIATION_MODE`, defaulting to `off`; `dry-run` reports affected accounts, while `apply` updates hashes.
+  - `auth.service.ts` now masks login keys in the `User not found` and `Inactive user login attempt` audit messages through `maskLoginKey()`.
+  - New tests have been added for `getDefaultPasswordFromDob()`, `remediateStalePasswords()`, and `maskLoginKey()`.
 
-Acceptance criteria:
+## Review Findings
 
-- A normal non-admin user with remember enabled stays logged in across refresh cycles and browser restarts within the configured lifetime.
-- A normal non-admin user without remember stays logged in during the browser session and can refresh until the backend refresh token expires.
-- An admin session expires according to the configured admin policy, and the cookie lifetime does not imply a longer usable session than the backend token allows.
-- Production response headers confirm admin `remember=true` no longer receives a 30-day refresh cookie unless that policy is explicitly approved.
-- A failed network request to `/api/auth/refresh` does not instantly destroy a valid user session unless the backend confirms unauthorized status.
-- Concurrent tab/API refresh tests do not accidentally revoke all user tokens during normal usage.
+1. The task scope is directionally correct and covers the main production-only failure classes: wrong frontend API target, wrong backend database, missing/legacy user record, stale password hash, and DOB timezone mismatch.
 
-### 2. Student Login Regression Protection
+2. The strongest likely root cause is DOB password generation drift between environments. The existing code history used timezone-sensitive `new Date(...).getDate()/getMonth()/getFullYear()`. If production runs in UTC while local runs in Asia/Saigon, a DOB stored as Vietnam local midnight can produce a different `ddmmyyyy` password in production.
 
-Tasks:
+3. The remediation code is safer than the original draft because it defaults to `off`, supports dry-run, and no longer logs the old or new DOB-derived password values. This should remain a hard requirement.
 
-- Verify that numeric MSSV login still maps to the generated student account.
-- Verify that student account generation still uses:
-  - `user_name = student_code`
-  - generated email fallback based on `student_code`
-  - date-of-birth password format `ddMMyyyy`
-- Verify legacy account sync, activation, and reset password flows keep the same student login contract.
-- Verify that the login form label/copy still allows MSSV, not only email, so the preserved backend behavior remains discoverable to students. Current repository copy uses "Email hoặc mã sinh viên".
-- Keep the existing backend regression tests for MSSV plus DOB login and inactive student rejection. Add HTTP/E2E coverage if the production issue appears only through the deployed login form.
+4. Production use of remediation still needs an explicit operator checklist:
+   - Confirm `PASSWORD_REMEDIATION_MODE=dry-run` first and review only counts/masked identifiers.
+   - Switch to `PASSWORD_REMEDIATION_MODE=apply` only after human approval.
+   - Revert the mode to `off` after the remediation window.
+   - Capture audit evidence without printing passwords, hashes, raw emails, or full student identifiers.
 
-Acceptance criteria:
+5. The remediation now searches users by both student email fallback and `user_name == student_code`, which covers the main legacy lookup paths. It still only fixes accounts whose existing hash matches the UTC-derived wrong DOB password. It will not fix:
+   - Missing user records.
+   - Missing or broken `student.user_id` links unless the email fallback or `user_name` match.
+   - Users with hashes from another legacy algorithm or manual password.
+   - Users whose email is not equal to the student email fallback.
 
-- Existing student users can log in with MSSV and date of birth.
-- Newly created/imported students receive compatible linked login accounts.
-- Reset/reactivation flows preserve MSSV login behavior.
-- Focused backend auth tests for active and inactive student login pass in CI.
+6. The frontend `NEXT_PUBLIC_API_URL` behavior is still a necessary verification step because Next.js public env values are baked into the frontend build. A correct runtime container env does not guarantee the deployed static bundle points to the intended backend unless it was built with the correct value.
 
-### 3. Production Memory Investigation
+7. The backend login logs now mask the login key for the `User not found` and `Inactive user login attempt` branches. The `Wrong password` branch does not include the submitted login key, which is acceptable.
 
-Use read-only production diagnostics first:
+8. The new `maskLoginKey()` helper masks the email local part but leaves the email domain visible. That is usually acceptable for school-domain diagnostics, but if the project treats full email domains as sensitive, the masking policy should be tightened.
 
-```bash
-free -h
-docker stats --no-stream
-docker compose -f docker-compose.prod.yml --env-file .env.production ps
-docker compose -f docker-compose.prod.yml --env-file .env.production logs --tail=100 backend
-docker compose -f docker-compose.prod.yml --env-file .env.production logs --tail=100 frontend
-docker compose -f docker-compose.prod.yml --env-file .env.production logs --tail=100 mongodb
-```
+9. The remediation tests now cover key mode behavior and include a log-safety assertion that remediation logs do not contain computed wrong/correct DOB password values, hashes, raw DOB, or raw email.
 
-Tasks:
+10. The test cleanup for `PASSWORD_REMEDIATION_MODE` now restores the environment precisely by deleting the variable when it was originally unset.
 
-- Identify which container is consuming the most memory.
-- Record VPS total RAM, swap status, and available memory, not only the used percentage.
-- Check whether monitoring profile is running unnecessarily.
-- Confirm whether the configured `deploy.resources` memory limits are actually enforced by the production Docker runtime.
-- Confirm whether Compose is launched through standalone Docker Compose or Swarm, because that changes the reliability of `deploy.resources` enforcement.
-- Check MongoDB memory behavior with the existing `--wiredTigerCacheSizeGB 0.25` setting before changing it.
-- Check backend/frontend for memory leak indicators, repeated errors, or uncontrolled polling.
-- Consider adding Compose resource limits after measurement:
-  - Convert `deploy.resources` to runtime-enforced memory settings if production Compose does not enforce them.
-  - Adjust MongoDB WiredTiger cache only if measurement shows it is still appropriate.
-  - Add Node.js `--max-old-space-size` for backend/frontend if needed.
-  - Temporarily disable monitoring profile if Prometheus/Grafana are not required on a small VPS.
+11. Focused local verification passed with:
+   - `npm test -- students/test/students.service.spec.ts auth/test/mask.util.spec.ts --runInBand`
+   - Result: 2 test suites passed, 59 tests passed.
 
-Acceptance criteria:
+## Production Readiness Verdict
 
-- A before/after memory report exists.
-- The top memory consumers are identified.
-- Recommended production changes are listed by risk level.
-- Any applied config change has rollback instructions.
+The implementation is close to production-ready for the student login issue, but it should not be treated as fully ready to roll out until the production checklist below is completed.
 
-### 4. MongoDB Data Location and Backup Safety
+Production rollout is acceptable only if all of these gates are satisfied:
 
-Tasks:
+- The reviewed commit is the exact code that will be built and deployed.
+- `NEXT_PUBLIC_API_URL` is verified in the built frontend image and points to the intended production backend.
+- Backend `MONGO_URI` is verified to point to the intended production database, with secrets masked.
+- A current MongoDB backup exists and at least one copy is outside the VPS or outside the Docker volume.
+- `PASSWORD_REMEDIATION_MODE` remains `off` for a normal deploy.
+- If remediation is needed, run `dry-run` first and review only counts/masked identifiers.
+- Use `PASSWORD_REMEDIATION_MODE=apply` only in an approved remediation window, then revert it to `off`.
+- Confirm one affected student login through the production frontend after deployment.
+- Monitor backend logs for user-not-found, wrong-password, inactive, and lockout branches without exposing sensitive data.
 
-- Confirm the actual named volume on the VPS using `docker volume inspect`.
-- Document the host mountpoint without exposing credentials.
-- Confirm that MongoDB uses internal Docker networking only.
-- Confirm that backups are stored outside the MongoDB container volume and are not the only copy.
-- Add a short runbook section for checking volume, backup, and restore prerequisites.
-- Ensure backup commands use the correct Compose file and environment file, and that any command output containing credentials is redacted before being pasted into docs or tickets.
+Do not enable automatic production hash mutation during the initial deploy unless the dry-run result has been reviewed and explicitly approved.
 
-Acceptance criteria:
+## Investigation Checklist
 
-- The exact production MongoDB volume name and mountpoint are known.
-- Operators know that production data is in Docker volume `mongo-data` mounted to `/data/db`.
-- No one relies on source repo files for production MongoDB data.
-- A backup exists before any deploy or risky auth/session change.
-- Backup artifacts are stored outside the MongoDB Docker volume and at least one copy exists outside the VPS.
+1. Confirm the production frontend API target.
+   - Verify `NEXT_PUBLIC_API_URL` used at build/runtime points to the intended production backend.
+   - In the browser Network tab, confirm the login request goes to the expected `/api/auth/login` endpoint.
 
-## Risk Notes
+2. Confirm the production backend database target.
+   - Verify `MONGO_URI` points to the intended production database.
+   - Verify `MONGO_DATABASE` used by Mongo initialization matches the database name in `MONGO_URI`.
+   - Do not print the raw URI; only compare host/database names in a masked form.
 
-- Short access tokens are normal; the likely issue is refresh token/cookie behavior or failed refresh handling.
-- The refresh endpoint rotates tokens. Current code has an in-tab refresh promise and a backend 10-second grace path, but cross-tab refresh behavior still needs testing.
-- The current refresh controller preserves `maxAge` on rotated remember-me cookies, and the current login controller aligns admin remember cookies with the 4-hour admin token. Production must verify the deployed revision has this behavior.
-- Student DOB passwords are convenient but weak. Preserve behavior for compatibility in this task, but plan a future migration toward first-login password change or one-time activation.
-- MongoDB volume deletion is destructive. Never run `docker compose down -v` on production unless a full restore plan is approved.
-- Memory fixes should be measurement-driven. Hard memory limits can cause container restarts if set too low.
-- `deploy.resources` may give a false sense of protection if the production runtime does not enforce it. Verify enforcement before assuming memory is capped.
-- Do not publish `.env.production`, raw MongoDB URIs, JWT secrets, cookie values, or backup files in task reports.
+3. Inspect one affected student record in production.
+   - Check `students.student_code`.
+   - Check `students.email` or expected fallback email `<student_code>@school.edu.vn`.
+   - Check `students.date_bir` and the expected default password format `ddmmyyyy`.
+   - Check whether `students.user_id` exists and points to a real user.
 
-## Verification Checklist
+4. Inspect the linked production user record without exposing secrets.
+   - Confirm user exists by `user_name == student_code` or `email == <student_code>@school.edu.vn`.
+   - Confirm `status` is `active`.
+   - Confirm `role` points to the Student role.
+   - Confirm `pw_hash` exists, but do not print it.
+   - Confirm `failed_login_attempts` and `locked_until` are not blocking login.
 
-- [ ] Login as a normal staff/user account without remember.
-- [ ] Login as a normal staff/user account with remember.
-- [ ] Login as a student account using MSSV and DOB password.
-- [ ] Run the focused backend auth tests that cover MSSV/DOB login and admin remember-cookie duration.
-- [ ] Keep sessions active through at least two silent refresh intervals.
-- [ ] Restart browser and verify remember-me behavior.
-- [ ] Verify admin session expiration policy.
-- [ ] Confirm `/api/auth/refresh` sets cookie attributes consistently after rotation.
-- [ ] Confirm admin login with `remember=true` creates a cookie that expires with the configured admin policy, currently about 4 hours in the repository.
-- [ ] Test two tabs or overlapping API requests through access-token expiry to confirm refresh rotation does not force logout in normal use.
-- [ ] Confirm frontend session refresh uses `synchronizedRefreshToken()` and does not contain direct duplicate refresh paths.
-- [ ] Confirm deployed production commit/version matches the reviewed repository behavior.
-- [ ] Confirm MongoDB volume name and mountpoint on the VPS.
-- [ ] Confirm a valid MongoDB backup exists before production changes.
-- [ ] Confirm at least one MongoDB backup copy exists outside the VPS.
-- [ ] Confirm whether Docker enforces `deploy.resources` limits on the production host.
-- [ ] Capture `docker stats --no-stream` before and after memory-related changes.
+5. Differentiate "user not found" vs "wrong password".
+   - Use backend login logs or safe temporary diagnostic logging that records only a masked student code and branch result.
+   - Do not log raw password, password hash, email, token, or full identifiers.
 
-## Deliverables
+6. Validate DOB password generation consistency.
+   - Compare how production stores `date_bir` versus local.
+   - Watch for timezone/date parsing differences from `new Date(student.date_bir)` and local-time `getDate()/getMonth()/getFullYear()`.
+   - Confirm whether the current GMT+7 helper returns the expected `ddmmyyyy` value for real production DOB shapes such as `YYYY-MM-DD`, `YYYY-MM-DDT00:00:00.000Z`, and Vietnam-local-midnight timestamps stored as UTC.
+   - Add or update unit tests for `getDefaultPasswordFromDob()` before relying on the change.
 
-- Code/config patch for session lifetime and refresh behavior, if approved.
-- Regression tests for auth refresh and student login compatibility.
-- Production memory diagnosis report.
-- MongoDB production data location note with exact volume inspect output, redacted where needed.
-- Updated production runbook section if any operational steps change.
+7. Test the admin remediation path.
+   - Use the existing student account activation flow if the user does not exist or is inactive.
+   - Use the existing student password reset flow to regenerate `pw_hash` from DOB.
+   - Retest login with student code and the expected DOB password.
+
+8. Review the automatic remediation implementation before production.
+   - Keep plain-text password values out of logs.
+   - Keep remediation behind the explicit `PASSWORD_REMEDIATION_MODE` gate or move it to an admin action/one-off script if startup-time remediation is not desired.
+   - Use dry-run mode before mutating production hashes.
+   - Ensure the remediation reports only counts and masked identifiers.
+   - Confirm both lookup paths remain covered: email fallback and `user_name == student_code`.
+   - Add an operational rollback/checkpoint note before using `apply` in production.
+
+## Likely Fix Options
+
+- If production user records are missing:
+  - Run or trigger the existing legacy student account sync safely, or activate affected student accounts from the admin UI.
+- If hashes are stale or generated from an unexpected DOB:
+  - Reset affected student account passwords through the existing reset endpoint/action.
+  - Consider normalizing DOB password generation to use a date-only parser instead of timezone-sensitive `new Date(...).getDate()`.
+  - If using automatic remediation, run `PASSWORD_REMEDIATION_MODE=dry-run` first, get approval, then use `apply` only for the approved remediation window.
+- If frontend points to the wrong backend:
+  - Correct `NEXT_PUBLIC_API_URL`, rebuild the frontend image, and redeploy.
+- If backend points to the wrong database:
+  - Correct `MONGO_URI`/database configuration and restart the backend after approval.
+- If legacy user links are inconsistent:
+  - Backfill `student.user_id` and ensure user `user_name` equals `student_code`.
+
+## Required Code Review Items Before Merge
+
+- Ensure no production log prints DOB-derived passwords, raw login credentials, password hashes, tokens, or full emails.
+- Add tests for DOB password generation across timezone-sensitive inputs.
+- Keep tests and documented dry-run behavior for stale password remediation.
+- Confirm `remediateStalePasswords()` stays disabled by default and cannot mutate production data unless `PASSWORD_REMEDIATION_MODE=apply` is explicitly configured.
+- Keep assertions that remediation logs never include `wrongPassword`, `correctPassword`, raw DOB values, raw hashes, or full student identifiers.
+- Keep safe `PASSWORD_REMEDIATION_MODE` restoration in tests; delete it when it was originally unset.
+- Keep remediation matching users by both email fallback and `user_name == student_code`.
+- Confirm existing account activation/reset flows still behave correctly for inactive, locked, missing-link, and missing-user students.
+
+## Acceptance Criteria
+
+- An affected production student can log in with student code and the expected DOB password.
+- The same account works through the production frontend, not only direct API calls.
+- Backend login logs distinguish the resolved cause without exposing sensitive data.
+- The fix path is documented for future imported or legacy students.
+- DOB password generation has regression tests for production and local timezone cases.
+- Any password remediation is approved, auditable, and does not expose the old or new default password in logs.
+- No secrets, raw passwords, password hashes, tokens, or full production `.env` values are committed or shared.
+
+## Safety Notes
+
+- Production changes require human approval before deployment, database mutation, or account bulk updates.
+- Prefer account activation/reset flows already implemented in the backend over direct database writes.
+- When direct production checks are necessary, mask identifiers and never print secret fields.

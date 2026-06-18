@@ -83,6 +83,12 @@ export class StudentsService implements OnModuleInit {
     } catch (syncErr) {
       this.logger.error('Failed to backfill student user_id links:', syncErr);
     }
+
+    try {
+      await this.remediateStalePasswords();
+    } catch (remediateErr) {
+      this.logger.error('Failed to remediate stale student passwords:', remediateErr);
+    }
   }
 
   private normalizeStudentUserId(userId?: string | Types.ObjectId | null) {
@@ -281,11 +287,7 @@ export class StudentsService implements OnModuleInit {
     let successCount = 0;
     for (const student of legacyStudents) {
       try {
-        const dob = new Date(student.date_bir);
-        const day = String(dob.getDate()).padStart(2, '0');
-        const month = String(dob.getMonth() + 1).padStart(2, '0');
-        const year = dob.getFullYear();
-        const plainPassword = `${day}${month}${year}`;
+        const plainPassword = this.getDefaultPasswordFromDob(student.date_bir);
 
         const linkedUser = await this.generateStudentUser(student, plainPassword);
         await this.ensureStudentUserLink(student, linkedUser);
@@ -346,11 +348,7 @@ export class StudentsService implements OnModuleInit {
       const createdStudent = await new this.studentModel(payload).save();
 
       try {
-        const dob = new Date(createdStudent.date_bir);
-        const day = String(dob.getDate()).padStart(2, '0');
-        const month = String(dob.getMonth() + 1).padStart(2, '0');
-        const year = dob.getFullYear();
-        const plainPassword = `${day}${month}${year}`;
+        const plainPassword = this.getDefaultPasswordFromDob(createdStudent.date_bir);
 
         const linkedUser = await this.generateStudentUser(
           createdStudent,
@@ -451,11 +449,7 @@ export class StudentsService implements OnModuleInit {
 
       try {
         for (const student of createdStudents) {
-          const dob = new Date(student.date_bir);
-          const day = String(dob.getDate()).padStart(2, '0');
-          const month = String(dob.getMonth() + 1).padStart(2, '0');
-          const year = dob.getFullYear();
-          const plainPassword = `${day}${month}${year}`;
+          const plainPassword = this.getDefaultPasswordFromDob(student.date_bir);
 
           const linkedUser = await this.generateStudentUser(student, plainPassword);
           await this.ensureStudentUserLink(student, linkedUser);
@@ -919,11 +913,7 @@ export class StudentsService implements OnModuleInit {
     }
 
     const studentEmail = this.getStudentEmail(student);
-    const dob = new Date(student.date_bir);
-    const day = String(dob.getDate()).padStart(2, '0');
-    const month = String(dob.getMonth() + 1).padStart(2, '0');
-    const year = dob.getFullYear();
-    const plainPassword = `${day}${month}${year}`;
+    const plainPassword = this.getDefaultPasswordFromDob(student.date_bir);
 
     // Tìm xem đã có user_id liên kết chưa
     let user: UserDocument | null = null;
@@ -1018,11 +1008,7 @@ export class StudentsService implements OnModuleInit {
     }
 
     // Reset password sang DOB mặc định ddmmyyyy
-    const dob = new Date(student.date_bir);
-    const day = String(dob.getDate()).padStart(2, '0');
-    const month = String(dob.getMonth() + 1).padStart(2, '0');
-    const year = dob.getFullYear();
-    const plainPassword = `${day}${month}${year}`;
+    const plainPassword = this.getDefaultPasswordFromDob(student.date_bir);
 
     const pw_hash = await bcrypt.hash(plainPassword, 12);
     user.pw_hash = pw_hash;
@@ -1138,5 +1124,83 @@ export class StudentsService implements OnModuleInit {
     }
 
     return student as any;
+  }
+
+  getDefaultPasswordFromDob(dateBir: Date | string | null | undefined): string {
+    if (!dateBir) return '';
+    const dob = new Date(dateBir);
+    if (isNaN(dob.getTime())) return '';
+    
+    // Convert to GMT+7 timezone (Vietnam) before extracting components
+    const dobGmt7 = new Date(dob.getTime() + 7 * 60 * 60 * 1000);
+    const day = String(dobGmt7.getUTCDate()).padStart(2, '0');
+    const month = String(dobGmt7.getUTCMonth() + 1).padStart(2, '0');
+    const year = dobGmt7.getUTCFullYear();
+    return `${day}${month}${year}`;
+  }
+
+  private async remediateStalePasswords() {
+    const mode = process.env.PASSWORD_REMEDIATION_MODE || 'off';
+    if (mode === 'off') {
+      this.logger.log('Student password remediation is disabled (PASSWORD_REMEDIATION_MODE is "off").');
+      return;
+    }
+
+    const isDryRun = mode !== 'apply';
+    this.logger.log(`Starting student password remediation in ${isDryRun ? 'DRY-RUN' : 'APPLY'} mode...`);
+
+    const students = await this.studentModel.find().exec();
+    const studentEmails = students.map((student) => this.getStudentEmail(student));
+    const studentCodes = students.map((student) => student.student_code).filter(Boolean);
+    
+    const users = await this.userModel.find({
+      $or: [
+        { email: { $in: studentEmails } },
+        { user_name: { $in: studentCodes } }
+      ]
+    }).exec();
+    let affectedCount = 0;
+    let remediatedCount = 0;
+    const affectedCodes: string[] = [];
+    
+    for (const user of users) {
+      const student = students.find(
+        (s) => this.getStudentEmail(s) === user.email || s.student_code === user.user_name
+      );
+      if (!student || !student.date_bir) continue;
+      
+      const dob = new Date(student.date_bir);
+      const wrongDay = String(dob.getUTCDate()).padStart(2, '0');
+      const wrongMonth = String(dob.getUTCMonth() + 1).padStart(2, '0');
+      const wrongYear = dob.getUTCFullYear();
+      const wrongPassword = `${wrongDay}${wrongMonth}${wrongYear}`;
+      
+      const correctPassword = this.getDefaultPasswordFromDob(student.date_bir);
+      
+      if (wrongPassword === correctPassword) continue;
+      
+      const passwordHash = user.pw_hash || (user as any).password_hash;
+      if (passwordHash) {
+        const isWrongPassword = await bcrypt.compare(wrongPassword, passwordHash);
+        if (isWrongPassword) {
+          affectedCount++;
+          const maskedCode = student.student_code ? `${student.student_code.slice(0, 3)}***${student.student_code.slice(-2)}` : 'unknown';
+          affectedCodes.push(maskedCode);
+
+          if (!isDryRun) {
+            const newHash = await bcrypt.hash(correctPassword, 12);
+            user.pw_hash = newHash;
+            await user.save();
+            remediatedCount++;
+          }
+        }
+      }
+    }
+    
+    if (isDryRun) {
+      this.logger.log(`[DRY-RUN] Found ${affectedCount} student accounts with incorrect timezone DOB passwords. Affected: [${affectedCodes.join(', ')}]. No changes applied.`);
+    } else {
+      this.logger.log(`[APPLY] Successfully remediated ${remediatedCount}/${affectedCount} student accounts. Remediated: [${affectedCodes.join(', ')}].`);
+    }
   }
 }
