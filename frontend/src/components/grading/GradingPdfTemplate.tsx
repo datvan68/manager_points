@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { tokenStorage } from '@/api/auth-api';
+import { summariesPointApi } from '@/api/summaries-point-api';
 
 interface CriteriaItem {
   id: string;
@@ -313,32 +314,17 @@ export default function GradingPdfTemplate({
     }, intervalTime);
 
     try {
-      const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')}/api`;
-
-      const response = await fetch(`${API_BASE}/summaries-points/export-pdf`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          selectedStudents,
-          categories,
-          evaluationCounts,
-          semesterName,
-          className,
-          pdfConfig, // Gửi cấu hình tùy biến lên backend
-        }),
+      const blob = await summariesPointApi.exportPdf({
+        selectedStudents,
+        categories,
+        evaluationCounts,
+        semesterName,
+        className,
+        pdfConfig, // Gửi cấu hình tùy biến lên backend
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Không thể kết xuất PDF từ Server');
-      }
 
       status = 'Đang tải xuống file PDF...';
       updateProgressToast(95, status);
-
-      const blob = await response.blob();
 
       clearInterval(progressInterval);
       updateProgressToast(100, 'Tải xuống hoàn tất!');

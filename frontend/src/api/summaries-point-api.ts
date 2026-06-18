@@ -153,5 +153,27 @@ export const summariesPointApi = {
       body: JSON.stringify({ classId, semesterId }),
     });
     return handleResponse<{ success: boolean; createdCount: number }>(res);
+  },
+
+  async exportPdf(payload: any): Promise<Blob> {
+    const res = await httpClient(`${API_BASE}/summaries-points/export-pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      let message = text || 'Không thể kết xuất PDF từ Server';
+      try {
+        const data = text ? JSON.parse(text) : {};
+        message = data.message || data.error || message;
+      } catch {
+        // Keep plain text message.
+      }
+      throw new Error(message);
+    }
+
+    return res.blob();
   }
 };
