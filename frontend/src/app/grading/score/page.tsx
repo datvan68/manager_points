@@ -90,14 +90,14 @@ interface Category {
 export const calculateCriterionScore = (criterion: Criteria, count: number) => {
   const maxScore = criterion.maxScore ?? 10;
   const minScore = criterion.minScore ?? 0;
-  
+
   if (criterion.pointsPerUnit >= 0) {
-      const rawScore = count * criterion.pointsPerUnit;
-      return Math.max(minScore, Math.min(maxScore, rawScore));
+    const rawScore = count * criterion.pointsPerUnit;
+    return Math.max(minScore, Math.min(maxScore, rawScore));
   } else {
-      const baseScore = maxScore;
-      const deduction = count * Math.abs(criterion.pointsPerUnit);
-      return Math.max(minScore, Math.min(maxScore, baseScore - deduction));
+    const baseScore = maxScore;
+    const deduction = count * Math.abs(criterion.pointsPerUnit);
+    return Math.max(minScore, Math.min(maxScore, baseScore - deduction));
   }
 };
 
@@ -187,7 +187,7 @@ const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
           left: targetScrollLeft,
           behavior: "smooth",
         });
-        
+
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
           isProgrammaticScroll.current = false;
@@ -201,7 +201,7 @@ const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (isProgrammaticScroll.current || isLocked || !canModifyScore) return;
-    
+
     const container = e.currentTarget;
     const scrollLeft = container.scrollLeft;
     const activeIndex = Math.round(scrollLeft / 36);
@@ -213,27 +213,24 @@ const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
   };
 
   return (
-    <div 
-      className={`relative w-[130px] sm:w-[150px] md:w-[162px] h-9 overflow-hidden flex items-center justify-center select-none bg-slate-100/40 border border-slate-200/40 rounded-xl ${
-        isLocked || !canModifyScore ? "opacity-50" : ""
-      }`}
+    <div
+      className={`relative w-[130px] sm:w-[150px] md:w-[162px] h-9 overflow-hidden flex items-center justify-center select-none bg-slate-100/40 border border-slate-200/40 rounded-xl ${isLocked || !canModifyScore ? "opacity-50" : ""
+        }`}
     >
       {/* Highlight Bar ở giữa */}
-      <div 
-        className={`absolute inset-y-1 w-9 border-l border-r rounded-md pointer-events-none z-10 ${
-          hasViolation
-            ? "bg-rose-500/10 border-rose-500/25"
-            : "bg-[#1A73E8]/10 border-[#1A73E8]/25"
-        }`}
+      <div
+        className={`absolute inset-y-1 w-9 border-l border-r rounded-md pointer-events-none z-10 ${hasViolation
+          ? "bg-rose-500/10 border-rose-500/25"
+          : "bg-[#1A73E8]/10 border-[#1A73E8]/25"
+          }`}
       />
 
       {/* Scroll Container */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className={`w-full h-full flex items-center scrollbar-none snap-x snap-mandatory touch-pan-x ${
-          isLocked || !canModifyScore ? "overflow-x-hidden pointer-events-none" : "overflow-x-auto"
-        }`}
+        className={`w-full h-full flex items-center scrollbar-none snap-x snap-mandatory touch-pan-x ${isLocked || !canModifyScore ? "overflow-x-hidden pointer-events-none" : "overflow-x-auto"
+          }`}
         style={{
           scrollSnapType: "x mandatory",
           WebkitOverflowScrolling: "touch",
@@ -260,11 +257,10 @@ const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
                 }
               }}
               disabled={isLocked || !canModifyScore}
-              className={`w-9 h-9 shrink-0 snap-center flex items-center justify-center font-bold tracking-tight transition-all focus:outline-none ${
-                isSelected
-                  ? (hasViolation ? "text-rose-600 font-extrabold" : "text-[#1A73E8] font-extrabold")
-                  : "text-[#64748B]"
-              }`}
+              className={`w-9 h-9 shrink-0 snap-center flex items-center justify-center font-bold tracking-tight transition-all focus:outline-none ${isSelected
+                ? (hasViolation ? "text-rose-600 font-extrabold" : "text-[#1A73E8] font-extrabold")
+                : "text-[#64748B]"
+                }`}
               style={{
                 transform: `scale(${scale})`,
                 opacity: opacity,
@@ -486,11 +482,10 @@ const HistoryCard: React.FC<HistoryCardProps> = ({ rec, index, onDelete }) => {
             {rec.title}
           </h5>
           <span
-            className={`inline-flex items-center gap-1 self-start px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
-              isViolation
-                ? "bg-rose-500/10 text-rose-700 border-rose-500/20"
-                : "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
-            }`}
+            className={`inline-flex items-center gap-1 self-start px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${isViolation
+              ? "bg-rose-500/10 text-rose-700 border-rose-500/20"
+              : "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+              }`}
           >
             {isViolation ? "Vi phạm" : "Khen thưởng"}
           </span>
@@ -498,9 +493,8 @@ const HistoryCard: React.FC<HistoryCardProps> = ({ rec, index, onDelete }) => {
 
         <div className="flex flex-col items-end shrink-0 text-right">
           <span
-            className={`font-extrabold text-[17.5px] leading-none ${
-              isViolation ? "text-rose-600" : "text-emerald-600"
-            }`}
+            className={`font-extrabold text-[17.5px] leading-none ${isViolation ? "text-rose-600" : "text-emerald-600"
+              }`}
           >
             {isViolation ? "" : "+"}
             {rec.points}đ
@@ -521,15 +515,14 @@ const HistoryCard: React.FC<HistoryCardProps> = ({ rec, index, onDelete }) => {
 
           {/* Vai trò người chấm */}
           <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-bold ${
-              rec.role === "admin"
-                ? "bg-purple-500/10 text-purple-700 border-purple-500/20"
-                : rec.role === "teacher"
-                  ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
-                  : rec.role === "supervisor"
-                    ? "bg-amber-500/10 text-amber-700 border-amber-500/20"
-                    : "bg-slate-500/10 text-[#64748B] border-slate-500/20"
-            }`}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-bold ${rec.role === "admin"
+              ? "bg-purple-500/10 text-purple-700 border-purple-500/20"
+              : rec.role === "teacher"
+                ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
+                : rec.role === "supervisor"
+                  ? "bg-amber-500/10 text-amber-700 border-amber-500/20"
+                  : "bg-slate-500/10 text-[#64748B] border-slate-500/20"
+              }`}
           >
             Người chấm: {
               rec.role === "admin"
@@ -567,7 +560,7 @@ const renderGradingStatusBadge = (status: string) => {
   switch (status) {
     case "locked":
       return (
-        <span 
+        <span
           className="bg-emerald-50 text-emerald-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border border-emerald-200 shrink-0 uppercase tracking-wider select-none"
           title="Đã duyệt điểm"
         >
@@ -576,7 +569,7 @@ const renderGradingStatusBadge = (status: string) => {
       );
     case "gv_reviewed":
       return (
-        <span 
+        <span
           className="bg-amber-50 text-amber-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border border-amber-200 shrink-0 uppercase tracking-wider select-none"
           title="Cố vấn học tập đã chấm"
         >
@@ -585,7 +578,7 @@ const renderGradingStatusBadge = (status: string) => {
       );
     case "sv_submitted":
       return (
-        <span 
+        <span
           className="bg-blue-50 text-blue-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border border-blue-200 shrink-0 uppercase tracking-wider select-none"
           title="Sinh viên đã nộp"
         >
@@ -594,7 +587,7 @@ const renderGradingStatusBadge = (status: string) => {
       );
     case "draft":
       return (
-        <span 
+        <span
           className="bg-slate-50 text-slate-600 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border border-slate-200 shrink-0 uppercase tracking-wider select-none"
           title="Bản nháp"
         >
@@ -603,7 +596,7 @@ const renderGradingStatusBadge = (status: string) => {
       );
     default:
       return (
-        <span 
+        <span
           className="bg-rose-50 text-rose-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border border-rose-200 shrink-0 uppercase tracking-wider select-none"
           title="Chưa có bảng điểm rèn luyện trong học kỳ này"
         >
@@ -661,14 +654,23 @@ function GradingScoreContent() {
   // Scroll to Top ref & state
   const mainRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isStudentSliderSticky, setIsStudentSliderSticky] = useState(false);
 
   // Lắng nghe sự kiện scroll trên thẻ <main>
   const handleScroll = () => {
     if (mainRef.current) {
-      if (mainRef.current.scrollTop > 300) {
+      const scrollTop = mainRef.current.scrollTop;
+      if (scrollTop > 300) {
         setShowScrollTop(true);
       } else {
         setShowScrollTop(false);
+      }
+
+      // Update sticky state for student slider
+      if (scrollTop > 150) {
+        setIsStudentSliderSticky(true);
+      } else {
+        setIsStudentSliderSticky(false);
       }
     }
   };
@@ -905,11 +907,11 @@ function GradingScoreContent() {
         const roleScopedClasses =
           currentUserRole === "teacher"
             ? (backendClasses || []).filter((cls) => {
-                const advisorId = getEntityId(
-                  (cls as any)?.advisor_id || cls?.user_id,
-                );
-                return advisorId === currentUserId;
-              })
+              const advisorId = getEntityId(
+                (cls as any)?.advisor_id || cls?.user_id,
+              );
+              return advisorId === currentUserId;
+            })
             : backendClasses || [];
 
         setApiClasses(roleScopedClasses);
@@ -954,7 +956,7 @@ function GradingScoreContent() {
           } else if (currentUserRole === "teacher") {
             return [];
           }
-          
+
           try {
             const res = await summariesPointApi.getSummariesPoints(params);
             return Array.isArray(res) ? res : res?.data || [];
@@ -1286,7 +1288,7 @@ function GradingScoreContent() {
       } catch (error: any) {
         toast.error(
           "Không thể tải chi tiết chấm điểm của sinh viên này: " +
-            error.message,
+          error.message,
         );
       } finally {
         setIsFetching(false);
@@ -1869,10 +1871,10 @@ function GradingScoreContent() {
             prev.map((s) =>
               s._id === targetSummaryId
                 ? {
-                    ...s,
-                    total_score: persistResult.score,
-                    ...(persistResult.grading ? { grading: persistResult.grading } : {})
-                  }
+                  ...s,
+                  total_score: persistResult.score,
+                  ...(persistResult.grading ? { grading: persistResult.grading } : {})
+                }
                 : s
             )
           );
@@ -2069,9 +2071,9 @@ function GradingScoreContent() {
       const summaryId = studentSummaryMap[activeStudentId];
       const [freshDetails, freshPreExistingCounts] = summaryId
         ? await Promise.all([
-            evaluationDetailApi.getEvaluationDetailsBySummary(summaryId),
-            evaluationDetailApi.getPreExistingCounts(summaryId),
-          ])
+          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId),
+          evaluationDetailApi.getPreExistingCounts(summaryId),
+        ])
         : [[], {}];
 
       const freshCounts: Record<string, number> = {};
@@ -2252,30 +2254,29 @@ function GradingScoreContent() {
               (activePeriod ? (
                 shouldShowEvaluationProgress ? (
                   <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-6 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4"
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200/50 pb-4">
-                    <div>
-                      <h3 className="font-sans font-bold text-[#1E293B] text-[15px] flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#1A73E8] animate-pulse" />
-                        Tiến trình kỳ đánh giá rèn luyện
-                      </h3>
-                      <p className="text-[#64748B] text-[12.5px] mt-0.5">
-                        Học kỳ:{" "}
-                        <span className="font-semibold text-[#1E293B]">
-                          {currentSemester?.semester_name || "Chưa rõ"}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-6 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200/50 pb-4">
+                      <div>
+                        <h3 className="font-sans font-bold text-[#1E293B] text-[15px] flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#1A73E8] animate-pulse" />
+                          Tiến trình kỳ đánh giá rèn luyện
+                        </h3>
+                        <p className="text-[#64748B] text-[12.5px] mt-0.5">
+                          Học kỳ:{" "}
+                          <span className="font-semibold text-[#1E293B]">
+                            {currentSemester?.semester_name || "Chưa rõ"}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[12px] text-[#64748B] font-medium">
+                          Giai đoạn hiện tại:
                         </span>
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[12px] text-[#64748B] font-medium">
-                        Giai đoạn hiện tại:
-                      </span>
-                      <span
-                        className={`px-3.5 py-1 rounded-xl text-[11px] font-bold border uppercase tracking-wider ${
-                          activePeriod.status === "sv_phase"
+                        <span
+                          className={`px-3.5 py-1 rounded-xl text-[11px] font-bold border uppercase tracking-wider ${activePeriod.status === "sv_phase"
                             ? "bg-blue-500/10 text-[#1A73E8] border-blue-500/20"
                             : activePeriod.status === "gv_phase"
                               ? "bg-amber-500/10 text-amber-700 border-amber-500/20"
@@ -2284,232 +2285,223 @@ function GradingScoreContent() {
                                 : activePeriod.status === "closed"
                                   ? "bg-rose-500/10 text-rose-700 border-rose-500/20"
                                   : "bg-slate-500/10 text-[#64748B] border-slate-500/20"
-                        }`}
-                      >
-                        {activePeriod.status === "sv_phase"
-                          ? "Sinh viên tự chấm"
-                          : activePeriod.status === "gv_phase"
-                            ? "Cố vấn đánh giá"
-                            : activePeriod.status === "admin_phase"
-                              ? "Hội đồng phê duyệt"
-                              : activePeriod.status === "closed"
-                                ? "Đã đóng"
-                                : "Chưa bắt đầu"}
-                      </span>
-                      {isAdminOrSupervisor && (
-                        <button
-                          type="button"
-                          onClick={() => setIsSemesterModalOpen(true)}
-                          className="w-9 h-9 rounded-xl bg-white/50 hover:bg-[#1A73E8] text-[#64748B] hover:text-white border border-slate-200/70 shadow-sm flex items-center justify-center transition-all cursor-pointer active:scale-95"
-                          title="Cấu hình nhanh học kỳ"
-                          aria-label="Cấu hình nhanh học kỳ"
+                            }`}
                         >
-                          <Settings size={16} />
-                        </button>
-                      )}
+                          {activePeriod.status === "sv_phase"
+                            ? "Sinh viên tự chấm"
+                            : activePeriod.status === "gv_phase"
+                              ? "Cố vấn đánh giá"
+                              : activePeriod.status === "admin_phase"
+                                ? "Hội đồng phê duyệt"
+                                : activePeriod.status === "closed"
+                                  ? "Đã đóng"
+                                  : "Chưa bắt đầu"}
+                        </span>
+                        {isAdminOrSupervisor && (
+                          <button
+                            type="button"
+                            onClick={() => setIsSemesterModalOpen(true)}
+                            className="w-9 h-9 rounded-xl bg-white/50 hover:bg-[#1A73E8] text-[#64748B] hover:text-white border border-slate-200/70 shadow-sm flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                            title="Cấu hình nhanh học kỳ"
+                            aria-label="Cấu hình nhanh học kỳ"
+                          >
+                            <Settings size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Stepper Steps */}
-                  {isAdminOrSupervisor ? (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative mt-2">
-                      {/* Step 1: SV Phase */}
-                      <div className="flex flex-col gap-2 relative">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
-                              activePeriod.status === "sv_phase"
+                    {/* Stepper Steps */}
+                    {isAdminOrSupervisor ? (
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative mt-2">
+                        {/* Step 1: SV Phase */}
+                        <div className="flex flex-col gap-2 relative">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${activePeriod.status === "sv_phase"
                                 ? "bg-[#1A73E8] text-white border-[#1A73E8] ring-4 ring-blue-100 animate-pulse"
                                 : [
-                                      "gv_phase",
-                                      "admin_phase",
-                                      "closed",
-                                    ].includes(activePeriod.status)
+                                  "gv_phase",
+                                  "admin_phase",
+                                  "closed",
+                                ].includes(activePeriod.status)
                                   ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10"
                                   : "bg-white text-slate-400 border-slate-200"
-                            }`}
-                          >
-                            {["gv_phase", "admin_phase", "closed"].includes(
-                              activePeriod.status,
-                            ) ? (
-                              <Check size={14} strokeWidth={3} />
-                            ) : (
-                              "1"
-                            )}
-                          </div>
-                          <div className="flex flex-col">
-                            <span
-                              className={`text-[13.5px] font-bold ${
-                                activePeriod.status === "sv_phase"
+                                }`}
+                            >
+                              {["gv_phase", "admin_phase", "closed"].includes(
+                                activePeriod.status,
+                              ) ? (
+                                <Check size={14} strokeWidth={3} />
+                              ) : (
+                                "1"
+                              )}
+                            </div>
+                            <div className="flex flex-col">
+                              <span
+                                className={`text-[13.5px] font-bold ${activePeriod.status === "sv_phase"
                                   ? "text-[#1A73E8]"
                                   : [
-                                        "gv_phase",
-                                        "admin_phase",
-                                        "closed",
-                                      ].includes(activePeriod.status)
+                                    "gv_phase",
+                                    "admin_phase",
+                                    "closed",
+                                  ].includes(activePeriod.status)
                                     ? "text-emerald-600"
                                     : "text-[#64748B]"
-                              }`}
-                            >
-                              Sinh viên tự chấm
-                            </span>
-                            <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
-                              Hạn: {formatDate(activePeriod.sv_deadline)}
-                            </span>
+                                  }`}
+                              >
+                                Sinh viên tự chấm
+                              </span>
+                              <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                                Hạn: {formatDate(activePeriod.sv_deadline)}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Step 2: GV Phase */}
-                      <div className="flex flex-col gap-2 relative">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
-                              activePeriod.status === "gv_phase"
+                        {/* Step 2: GV Phase */}
+                        <div className="flex flex-col gap-2 relative">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${activePeriod.status === "gv_phase"
                                 ? "bg-amber-500 text-white border-amber-500 ring-4 ring-amber-100 animate-pulse"
                                 : ["admin_phase", "closed"].includes(
-                                      activePeriod.status,
-                                    )
+                                  activePeriod.status,
+                                )
                                   ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10"
                                   : "bg-white text-slate-400 border-slate-200"
-                            }`}
-                          >
-                            {["admin_phase", "closed"].includes(
-                              activePeriod.status,
-                            ) ? (
-                              <Check size={14} strokeWidth={3} />
-                            ) : (
-                              "2"
-                            )}
-                          </div>
-                          <div className="flex flex-col">
-                            <span
-                              className={`text-[13.5px] font-bold ${
-                                activePeriod.status === "gv_phase"
+                                }`}
+                            >
+                              {["admin_phase", "closed"].includes(
+                                activePeriod.status,
+                              ) ? (
+                                <Check size={14} strokeWidth={3} />
+                              ) : (
+                                "2"
+                              )}
+                            </div>
+                            <div className="flex flex-col">
+                              <span
+                                className={`text-[13.5px] font-bold ${activePeriod.status === "gv_phase"
                                   ? "text-amber-600 font-extrabold"
                                   : ["admin_phase", "closed"].includes(
-                                        activePeriod.status,
-                                      )
+                                    activePeriod.status,
+                                  )
                                     ? "text-emerald-600"
                                     : "text-[#64748B]"
-                              }`}
-                            >
-                              Cố vấn đánh giá
-                            </span>
-                            <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
-                              Hạn: {formatDate(activePeriod.gv_deadline)}
-                            </span>
+                                  }`}
+                              >
+                                Cố vấn đánh giá
+                              </span>
+                              <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                                Hạn: {formatDate(activePeriod.gv_deadline)}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Step 3: Admin Phase */}
-                      <div className="flex flex-col gap-2 relative">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
-                              activePeriod.status === "admin_phase"
+                        {/* Step 3: Admin Phase */}
+                        <div className="flex flex-col gap-2 relative">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${activePeriod.status === "admin_phase"
                                 ? "bg-purple-600 text-white border-purple-600 ring-4 ring-purple-100 animate-pulse"
                                 : ["closed"].includes(activePeriod.status)
                                   ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10"
                                   : "bg-white text-slate-400 border-slate-200"
-                            }`}
-                          >
-                            {["closed"].includes(activePeriod.status) ? (
-                              <Check size={14} strokeWidth={3} />
-                            ) : (
-                              "3"
-                            )}
-                          </div>
-                          <div className="flex flex-col">
-                            <span
-                              className={`text-[13.5px] font-bold ${
-                                activePeriod.status === "admin_phase"
+                                }`}
+                            >
+                              {["closed"].includes(activePeriod.status) ? (
+                                <Check size={14} strokeWidth={3} />
+                              ) : (
+                                "3"
+                              )}
+                            </div>
+                            <div className="flex flex-col">
+                              <span
+                                className={`text-[13.5px] font-bold ${activePeriod.status === "admin_phase"
                                   ? "text-purple-600 font-extrabold"
                                   : ["closed"].includes(activePeriod.status)
                                     ? "text-emerald-600"
                                     : "text-[#64748B]"
-                              }`}
-                            >
-                              P.HSSV phê duyệt
-                            </span>
-                            <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
-                              Hạn: {formatDate(activePeriod.admin_deadline)}
-                            </span>
+                                  }`}
+                              >
+                                P.HSSV phê duyệt
+                              </span>
+                              <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                                Hạn: {formatDate(activePeriod.admin_deadline)}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Step 4: Closed */}
-                      <div className="flex flex-col gap-2 relative">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${
-                              activePeriod.status === "closed"
+                        {/* Step 4: Closed */}
+                        <div className="flex flex-col gap-2 relative">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[13px] border-2 transition-all ${activePeriod.status === "closed"
                                 ? "bg-rose-600 text-white border-rose-600 ring-4 ring-rose-100 shadow-sm"
                                 : "bg-white text-slate-400 border-slate-200"
-                            }`}
-                          >
-                            {activePeriod.status === "closed" ? (
-                              <Check size={14} strokeWidth={3} />
-                            ) : (
-                              "4"
-                            )}
-                          </div>
-                          <div className="flex flex-col">
-                            <span
-                              className={`text-[13.5px] font-bold ${
-                                activePeriod.status === "closed"
+                                }`}
+                            >
+                              {activePeriod.status === "closed" ? (
+                                <Check size={14} strokeWidth={3} />
+                              ) : (
+                                "4"
+                              )}
+                            </div>
+                            <div className="flex flex-col">
+                              <span
+                                className={`text-[13.5px] font-bold ${activePeriod.status === "closed"
                                   ? "text-rose-600 font-extrabold"
                                   : "text-[#64748B]"
-                              }`}
-                            >
-                              Khóa điểm
-                            </span>
-                            <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
-                              Đóng cổng đánh giá
-                            </span>
+                                  }`}
+                              >
+                                Khóa điểm
+                              </span>
+                              <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
+                                Đóng cổng đánh giá
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                      <div className="rounded-2xl border border-white/70 bg-white/55 px-4 py-4 shadow-sm">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
-                          Thời hạn của bạn
-                        </span>
-                        <p className="mt-2 text-[16px] font-bold text-[#1E293B]">
-                          {formatDate(roleDeadline)}
-                        </p>
-                        <p className="mt-1 text-[12px] font-medium text-[#64748B]">
-                          {currentUserRole === "student"
-                            ? "Bạn tự chấm trong giai đoạn sinh viên."
-                            : "Bạn chấm điểm trong giai đoạn cố vấn đánh giá."}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-white/70 bg-white/55 px-4 py-4 shadow-sm">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
-                          Quyền thao tác
-                        </span>
-                        <p
-                          className={`mt-2 text-[16px] font-bold ${
-                            canModifyScore
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                        <div className="rounded-2xl border border-white/70 bg-white/55 px-4 py-4 shadow-sm">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
+                            Thời hạn của bạn
+                          </span>
+                          <p className="mt-2 text-[16px] font-bold text-[#1E293B]">
+                            {formatDate(roleDeadline)}
+                          </p>
+                          <p className="mt-1 text-[12px] font-medium text-[#64748B]">
+                            {currentUserRole === "student"
+                              ? "Bạn tự chấm trong giai đoạn sinh viên."
+                              : "Bạn chấm điểm trong giai đoạn cố vấn đánh giá."}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/70 bg-white/55 px-4 py-4 shadow-sm">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
+                            Quyền thao tác
+                          </span>
+                          <p
+                            className={`mt-2 text-[16px] font-bold ${canModifyScore
                               ? "text-emerald-700"
                               : "text-rose-700"
-                          }`}
-                        >
-                          {canModifyScore
-                            ? "Được phép chấm điểm"
-                            : "Chưa được phép chấm điểm"}
-                        </p>
-                        <p className="mt-1 text-[12px] font-medium text-[#64748B]">
-                          {rolePermissionLabel}
-                        </p>
+                              }`}
+                          >
+                            {canModifyScore
+                              ? "Được phép chấm điểm"
+                              : "Chưa được phép chấm điểm"}
+                          </p>
+                          <p className="mt-1 text-[12px] font-medium text-[#64748B]">
+                            {rolePermissionLabel}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </motion.div>
+                    )}
+                  </motion.div>
                 ) : null
               ) : (
                 <motion.div
@@ -2545,49 +2537,56 @@ function GradingScoreContent() {
 
             {/* ================= STUDENT HERO SLIDER ================= */}
             {shouldShowStudentSlider && (
-              <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-300/40 shrink-0 flex flex-col gap-4 relative overflow-hidden">
-                <div className="flex flex-col md:flex-row md:items-center justify-between w-full gap-3">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase shrink-0">
-                      Sinh viên đang chấm điểm
-                    </h3>
-                    <div className="relative flex-1 max-w-[240px]">
-                      <input
-                        type="text"
-                        placeholder="Tìm MSSV hoặc tên..."
-                        value={rosterSearch}
-                        onChange={(e) => setRosterSearch(e.target.value)}
-                        className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/70 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1A73E8]"
-                      />
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <div
+                className={`shrink-0 flex flex-col relative overflow-hidden transition-all duration-300 z-30 ${isStudentSliderSticky
+                  ? "sticky -top-6 -mt-6 -mx-6 md:-mx-8 pt-2 px-6 md:px-8 pb-2 bg-sky-400/20 backdrop-blur-md border-b border-sky-400/50 gap-2 rounded-b-2xl shadow-sm"
+                  : "bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-300/40 gap-4"
+                  }`}
+              >
+                {!isStudentSliderSticky && (
+                  <div className="flex flex-col md:flex-row md:items-center justify-between w-full gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase shrink-0">
+                        Sinh viên đang chấm điểm
+                      </h3>
+                      <div className="relative flex-1 max-w-[240px]">
+                        <input
+                          type="text"
+                          placeholder="Tìm MSSV hoặc tên..."
+                          value={rosterSearch}
+                          onChange={(e) => setRosterSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/70 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1A73E8]"
+                        />
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      {isAdminOrSupervisor && (
+                        <button
+                          onClick={() => setIsDeleteModalOpen(true)}
+                          className="w-8 h-8 rounded-xl bg-rose-50 backdrop-blur-sm border border-rose-100 flex items-center justify-center text-rose-500 hover:bg-rose-100 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
+                          title="Xóa bảng điểm"
+                        >
+                          <Trash2 size={15} strokeWidth={2.5} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => scrollSlider("left")}
+                        className="w-8 h-8 rounded-xl bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
+                        title="Trượt sang trái"
+                      >
+                        <ChevronLeft size={16} strokeWidth={2.5} />
+                      </button>
+                      <button
+                        onClick={() => scrollSlider("right")}
+                        className="w-8 h-8 rounded-xl bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
+                        title="Trượt sang phải"
+                      >
+                        <ChevronRight size={16} strokeWidth={2.5} />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2 items-center">
-                    {isAdminOrSupervisor && (
-                      <button
-                        onClick={() => setIsDeleteModalOpen(true)}
-                        className="w-8 h-8 rounded-xl bg-rose-50 backdrop-blur-sm border border-rose-100 flex items-center justify-center text-rose-500 hover:bg-rose-100 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
-                        title="Xóa bảng điểm"
-                      >
-                        <Trash2 size={15} strokeWidth={2.5} />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => scrollSlider("left")}
-                      className="w-8 h-8 rounded-xl bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
-                      title="Trượt sang trái"
-                    >
-                      <ChevronLeft size={16} strokeWidth={2.5} />
-                    </button>
-                    <button
-                      onClick={() => scrollSlider("right")}
-                      className="w-8 h-8 rounded-xl bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
-                      title="Trượt sang phải"
-                    >
-                      <ChevronRight size={16} strokeWidth={2.5} />
-                    </button>
-                  </div>
-                </div>
+                )}
 
                 <div
                   ref={sliderRef}
@@ -2599,81 +2598,104 @@ function GradingScoreContent() {
                 >
                   {isInitialLoading
                     ? Array.from({ length: 4 }).map((_, idx) => (
-                        <div
-                          key={`skel-hero-${idx}`}
-                          className="w-[256px] h-[83px] bg-white/50 backdrop-blur-sm rounded-2xl border border-white/60 p-3.5 flex items-center gap-3 animate-pulse shrink-0"
-                        >
-                          <Skeleton className="w-12 h-12 rounded-full bg-slate-100 shrink-0 animate-pulse" />
-                          <div className="flex-1 flex flex-col gap-1.5">
-                            <Skeleton className="h-4 w-3/4 bg-slate-100 rounded" />
-                            <Skeleton className="h-3.5 w-1/2 bg-slate-100 rounded" />
-                          </div>
+                      <div
+                        key={`skel-hero-${idx}`}
+                        className={`bg-white/50 backdrop-blur-sm border border-white/60 flex items-center shrink-0 animate-pulse ${
+                          isStudentSliderSticky
+                            ? "w-[120px] h-10 rounded-xl p-2 px-3 gap-2"
+                            : "w-[256px] h-[83px] rounded-2xl p-3.5 gap-3"
+                        }`}
+                      >
+                        <Skeleton className={`rounded-full bg-slate-100 shrink-0 animate-pulse ${isStudentSliderSticky ? "w-6 h-6" : "w-12 h-12"}`} />
+                        <div className={`flex-1 flex ${isStudentSliderSticky ? "flex-row items-center gap-2" : "flex-col gap-1.5"}`}>
+                          <Skeleton className={`${isStudentSliderSticky ? "h-3 w-16" : "h-4 w-3/4"} bg-slate-100 rounded`} />
+                          {!isStudentSliderSticky && <Skeleton className="h-3.5 w-1/2 bg-slate-100 rounded" />}
                         </div>
-                      ))
+                      </div>
+                    ))
                     : filteredStudentsForRoster.length === 0 ? (
-                        <div className="flex-1 py-6 flex flex-col items-center justify-center text-center text-[#64748B] font-medium text-[13.5px] border border-dashed border-slate-300/60 rounded-2xl bg-white/40 select-none">
-                          {selectedClassId 
-                            ? "Không tìm thấy sinh viên nào khớp với bộ lọc."
-                            : "Vui lòng chọn lớp học để xem danh sách sinh viên."}
-                        </div>
-                      ) : filteredStudentsForRoster.map((student, idx) => {
-                        const isActive = student.id === activeStudentId;
-                        const initials = getInitials(student.name);
+                      <div className="flex-1 py-6 flex flex-col items-center justify-center text-center text-[#64748B] font-medium text-[13.5px] border border-dashed border-slate-300/60 rounded-2xl bg-white/40 select-none">
+                        {selectedClassId
+                          ? "Không tìm thấy sinh viên nào khớp với bộ lọc."
+                          : "Vui lòng chọn lớp học để xem danh sách sinh viên."}
+                      </div>
+                    ) : filteredStudentsForRoster.map((student, idx) => {
+                      const isActive = student.id === activeStudentId;
+                      const initials = getInitials(student.name);
 
-                        return (
-                          <motion.div
-                            key={student.id || `student-card-${idx}`}
-                            id={`student-card-${student.id}`}
-                            layout="position"
-                            onClick={() => setActiveStudentId(student.id)}
-                            className={`relative bg-white/55 backdrop-blur-sm border-2 rounded-2xl p-[13px] w-[256px] flex gap-[12px] items-center shrink-0 cursor-pointer transition-all duration-200 select-none shadow-sm ${
-                              isActive
-                                ? "border-[#1A73E8] bg-white/80 shadow-[0px_4px_16px_rgba(26,115,232,0.08)] scale-[1.015]"
-                                : "border-white hover:border-slate-300/40 hover:scale-[1.01]"
-                            }`}
-                          >
-                            {/* Avatar container */}
-                            <div className="relative shrink-0 w-12 h-12 rounded-full">
-                              {student.avatarUrl ? (
-                                <div className="absolute inset-0 rounded-full overflow-hidden border border-white/80 ring-2 ring-white">
-                                  <img
-                                    alt={student.name}
-                                    className="object-cover w-full h-full"
-                                    src={student.avatarUrl}
-                                  />
-                                </div>
-                              ) : (
-                                <div
-                                  className={`absolute inset-0 rounded-full flex items-center justify-center font-bold text-[15px] border border-white/80 ring-2 ring-white ${student.colorTheme?.bg} ${student.colorTheme?.text}`}
-                                >
-                                  {initials}
-                                </div>
-                              )}
-
-                              {/* Active Badge Checkmark */}
-                              {isActive && (
-                                <div className="absolute -bottom-1 -right-1 bg-[#1A73E8] text-white border-2 border-white rounded-lg w-5 h-5 flex items-center justify-center shadow-md">
-                                  <Check size={11} strokeWidth={3} />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Student Info & Realtime Progress */}
-                            <div className="flex-1 min-w-0 flex flex-col">
-                              <h4
-                                className="font-bold text-[#1E293B] text-[14.5px] truncate"
-                                title={student.name}
+                      return (
+                        <motion.div
+                          key={student.id || `student-card-${idx}`}
+                          id={`student-card-${student.id}`}
+                          layout="position"
+                          onClick={() => setActiveStudentId(student.id)}
+                          className={`relative bg-white/55 backdrop-blur-sm border-2 cursor-pointer transition-all duration-200 select-none shadow-sm flex items-center shrink-0 ${
+                            isStudentSliderSticky
+                              ? "rounded-xl p-1.5 px-3 w-fit gap-2 h-9"
+                              : "rounded-2xl p-[13px] w-[256px] gap-[12px]"
+                          } ${
+                            isActive
+                              ? "border-[#1A73E8] bg-white/80 shadow-[0px_4px_16px_rgba(26,115,232,0.08)] scale-[1.015]"
+                              : "border-white hover:border-slate-300/40 hover:scale-[1.01]"
+                          }`}
+                        >
+                          {/* Avatar container */}
+                          <div className={`relative shrink-0 rounded-full transition-all duration-200 ${isStudentSliderSticky ? "w-6 h-6" : "w-12 h-12"}`}>
+                            {student.avatarUrl ? (
+                              <div className="absolute inset-0 rounded-full overflow-hidden border border-white/80 ring-2 ring-white">
+                                <img
+                                  alt={student.name}
+                                  className="object-cover w-full h-full"
+                                  src={student.avatarUrl}
+                                />
+                              </div>
+                            ) : (
+                              <div
+                                className={`absolute inset-0 rounded-full flex items-center justify-center font-bold border border-white/80 ring-2 ring-white transition-all duration-200 ${isStudentSliderSticky ? "text-[10px]" : "text-[15px]"} ${student.colorTheme?.bg} ${student.colorTheme?.text}`}
                               >
-                                {student.name}
-                              </h4>
+                                {initials}
+                              </div>
+                            )}
+
+                            {/* Active Badge Checkmark */}
+                            {isActive && !isStudentSliderSticky && (
+                              <div className="absolute -bottom-1 -right-1 bg-[#1A73E8] text-white border-2 border-white rounded-lg w-5 h-5 flex items-center justify-center shadow-md">
+                                <Check size={11} strokeWidth={3} />
+                              </div>
+                            )}
+                            {isActive && isStudentSliderSticky && (
+                              <div className="absolute -bottom-0.5 -right-0.5 bg-[#1A73E8] text-white border border-white rounded-full w-3 h-3 flex items-center justify-center shadow-md">
+                                <Check size={8} strokeWidth={2} />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Student Info & Realtime Progress */}
+                          <div className={`flex-1 min-w-0 flex ${isStudentSliderSticky ? "flex-row items-center gap-2" : "flex-col"}`}>
+                            <h4
+                              className={`font-bold text-[#1E293B] truncate transition-all duration-200 ${isStudentSliderSticky ? "text-[13px] max-w-[120px]" : "text-[14.5px]"}`}
+                              title={student.name}
+                            >
+                              {student.name}
+                            </h4>
+                            
+                            {!isStudentSliderSticky && (
                               <div className="flex items-center justify-between mt-0.5 w-full min-w-0">
                                 <span className="text-[#64748B] text-[11px] font-medium truncate">
                                   MSSV: {student.id}
                                 </span>
                                 {renderGradingStatusBadge(student.gradingStatus)}
                               </div>
+                            )}
 
-                              {/* Realtime progress bar */}
+                            {/* Realtime progress bar */}
+                            {isStudentSliderSticky ? (
+                              <div className="flex items-center">
+                                <span className="font-bold text-[#1A73E8] text-[11px] tracking-wide shrink-0 bg-blue-50/50 px-1.5 py-0.5 rounded-md border border-blue-100/50">
+                                  {student.score}
+                                </span>
+                              </div>
+                            ) : (
                               <div className="flex gap-2.5 items-center mt-1.5">
                                 <div className="bg-[#EBF2FA] flex-1 h-[5px] rounded-lg overflow-hidden border border-white/20">
                                   <motion.div
@@ -2691,10 +2713,11 @@ function GradingScoreContent() {
                                   {student.score}/100
                                 </span>
                               </div>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
                 </div>
               </div>
             )}
@@ -2708,22 +2731,20 @@ function GradingScoreContent() {
             <div className="flex w-full sm:w-auto bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-1.5 gap-2 self-stretch sm:self-start shrink-0 shadow-sm">
               <button
                 onClick={() => setSubTab("category")}
-                className={`flex-1 sm:flex-none text-center px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-lg cursor-pointer relative whitespace-nowrap ${
-                  subTab === "category"
-                    ? "bg-white text-[#1A73E8] shadow-sm shadow-blue-900/5"
-                    : "text-[#64748B] hover:text-[#1E293B]"
-                }`}
+                className={`flex-1 sm:flex-none text-center px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-lg cursor-pointer relative whitespace-nowrap ${subTab === "category"
+                  ? "bg-white text-[#1A73E8] shadow-sm shadow-blue-900/5"
+                  : "text-[#64748B] hover:text-[#1E293B]"
+                  }`}
               >
                 <span className="hidden sm:inline">Danh mục tiêu chí</span>
                 <span className="inline sm:hidden">Danh mục</span>
               </button>
               <button
                 onClick={() => setSubTab("history")}
-                className={`flex-1 sm:flex-none text-center px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-lg cursor-pointer relative whitespace-nowrap ${
-                  subTab === "history"
-                    ? "bg-white text-[#1A73E8] shadow-sm shadow-blue-900/5"
-                    : "text-[#64748B] hover:text-[#1E293B]"
-                }`}
+                className={`flex-1 sm:flex-none text-center px-6 py-2.5 font-bold text-[13.5px] transition-all rounded-lg cursor-pointer relative whitespace-nowrap ${subTab === "history"
+                  ? "bg-white text-[#1A73E8] shadow-sm shadow-blue-900/5"
+                  : "text-[#64748B] hover:text-[#1E293B]"
+                  }`}
               >
                 <span className="hidden sm:inline">Lịch sử ghi nhận</span>
                 <span className="inline sm:hidden">Lịch sử</span>
@@ -2789,7 +2810,7 @@ function GradingScoreContent() {
                         </div>
 
                         {/* Criteria List Rows */}
-                <div className="flex flex-col w-full gap-3 p-4 bg-white/10">
+                        <div className="flex flex-col w-full gap-3 p-4 bg-white/10">
                           {category.items.map((item) => {
                             const count = studentCounts[item.id] || 0;
                             const hasViolation = item.type === "violation";
@@ -2797,9 +2818,9 @@ function GradingScoreContent() {
                             const isApproved = detail?.status === "locked";
                             const hasTeacherReviewed = Boolean(
                               detail?.gv_reviewed_at ||
-                                detail?.gv_reviewed_by ||
-                                detail?.status === "gv_reviewed" ||
-                                detail?.status === "locked",
+                              detail?.gv_reviewed_by ||
+                              detail?.status === "gv_reviewed" ||
+                              detail?.status === "locked",
                             );
                             const criterionScore = calculateCriterionScore(
                               item,
@@ -2823,11 +2844,10 @@ function GradingScoreContent() {
                             return (
                               <div
                                 key={item.id}
-                                className={`flex flex-col md:flex-row md:items-center justify-between gap-3.5 md:gap-4 p-4.5 md:p-5 w-full rounded-2xl border transition-all duration-200 ${
-                                  hasViolation
-                                    ? "bg-rose-500/5 hover:bg-rose-500/10 border-rose-200/45 shadow-none hover:shadow-[0_4px_12px_rgba(244,63,94,0.03)]"
-                                    : "bg-[#1A73E8]/5 hover:bg-[#1A73E8]/10 border-blue-200/45 shadow-none hover:shadow-[0_4px_12px_rgba(26,115,232,0.03)]"
-                                }`}
+                                className={`flex flex-col md:flex-row md:items-center justify-between gap-3.5 md:gap-4 p-4.5 md:p-5 w-full rounded-2xl border transition-all duration-200 ${hasViolation
+                                  ? "bg-rose-500/5 hover:bg-rose-500/10 border-rose-200/45 shadow-none hover:shadow-[0_4px_12px_rgba(244,63,94,0.03)]"
+                                  : "bg-[#1A73E8]/5 hover:bg-[#1A73E8]/10 border-blue-200/45 shadow-none hover:shadow-[0_4px_12px_rgba(26,115,232,0.03)]"
+                                  }`}
                               >
                                 {/* Left Column: Title, Badges (Desktop & Mobile) */}
                                 <div className="flex-1 min-w-0 flex flex-col gap-2">
@@ -2836,7 +2856,7 @@ function GradingScoreContent() {
                                       <span className={item.name.length > 35 ? "line-clamp-2 overflow-hidden text-ellipsis" : ""}>{item.name}</span>
                                       {item.name.length > 35 && <CriteriaTooltip content={item.name} />}
                                     </h5>
-                                    
+
                                     {/* Mobile-only Realtime Points Display on the right of title */}
                                     <div className="flex flex-col items-end shrink-0 md:hidden">
                                       <span className={`font-bold text-[16px] ${hasViolation ? "text-[#1A73E8]" : "text-emerald-600"}`}>
@@ -2907,16 +2927,15 @@ function GradingScoreContent() {
                                           item.is_locked ||
                                           !canModifyScore
                                         }
-                                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${
-                                          count <= minCount ||
+                                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count <= minCount ||
                                           item.is_locked ||
                                           !canModifyScore
-                                            ? "opacity-30 cursor-not-allowed text-slate-400"
-                                            : "cursor-pointer " +
-                                              (hasViolation
-                                                ? "text-rose-600 hover:bg-rose-50"
-                                                : "text-[#1A73E8] hover:bg-blue-50")
-                                        }`}
+                                          ? "opacity-30 cursor-not-allowed text-slate-400"
+                                          : "cursor-pointer " +
+                                          (hasViolation
+                                            ? "text-rose-600 hover:bg-rose-50"
+                                            : "text-[#1A73E8] hover:bg-blue-50")
+                                          }`}
                                         title={
                                           !canModifyScore
                                             ? "Không có quyền sửa đổi trong giai đoạn này"
@@ -2950,16 +2969,15 @@ function GradingScoreContent() {
                                           item.is_locked ||
                                           !canModifyScore
                                         }
-                                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${
-                                          count >= sliderMax ||
+                                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count >= sliderMax ||
                                           item.is_locked ||
                                           !canModifyScore
-                                            ? "opacity-30 cursor-not-allowed text-slate-400"
-                                            : "cursor-pointer " +
-                                              (hasViolation
-                                                ? "text-rose-600 hover:bg-rose-50"
-                                                : "text-[#1A73E8] hover:bg-blue-50")
-                                        }`}
+                                          ? "opacity-30 cursor-not-allowed text-slate-400"
+                                          : "cursor-pointer " +
+                                          (hasViolation
+                                            ? "text-rose-600 hover:bg-rose-50"
+                                            : "text-[#1A73E8] hover:bg-blue-50")
+                                          }`}
                                         title={
                                           !canModifyScore
                                             ? "Không có quyền sửa đổi trong giai đoạn này"
@@ -2989,11 +3007,10 @@ function GradingScoreContent() {
                                   {/* Desktop-only Realtime Points Display */}
                                   <div className="hidden md:flex flex-col items-end min-w-[75px] shrink-0 justify-center">
                                     <span
-                                      className={`font-bold text-[16px] ${
-                                        hasViolation
-                                          ? "text-[#1A73E8]"
-                                          : "text-emerald-600"
-                                      }`}
+                                      className={`font-bold text-[16px] ${hasViolation
+                                        ? "text-[#1A73E8]"
+                                        : "text-emerald-600"
+                                        }`}
                                     >
                                       {formatScoreLabel(achievedPoints, hasViolation)}
                                     </span>
@@ -3118,11 +3135,10 @@ function GradingScoreContent() {
                           className="flex flex-col min-h-0 w-full gap-5"
                         >
                           <div
-                            className={`flex flex-col gap-4 px-1 pt-4 pb-8 w-full ${
-                              records.length > 6
-                                ? "max-h-[640px] overflow-y-auto custom-scrollbar"
-                                : ""
-                            }`}
+                            className={`flex flex-col gap-4 px-1 pt-4 pb-8 w-full ${records.length > 6
+                              ? "max-h-[640px] overflow-y-auto custom-scrollbar"
+                              : ""
+                              }`}
                           >
                             {paginatedRecords.map((rec, index) => (
                               <HistoryCard
@@ -3297,7 +3313,7 @@ function GradingScoreWithGuard() {
     const validateTaskAccess = async () => {
       try {
         const result = await studentTaskApi.checkTaskAccess(taskId);
-        
+
         if (!result || !result.allowed) {
           throw new Error("Nhiệm vụ không thuộc quyền quản lý của bạn hoặc tiến độ đã bị hủy áp dụng");
         }

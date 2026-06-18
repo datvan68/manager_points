@@ -1,120 +1,124 @@
-# Task Scope: Fix PDF Export Unauthorized On Grading Page
+# Task Scope: Sticky Student Slider On Grading Score Page
 
 ## Target Area
 
-- Page: `/grading`
-- Preview modal: `frontend/src/components/grading/GradingPdfTemplate.tsx`
-- API client: `frontend/src/api/summaries-point-api.ts`
-- Shared auth fetch wrapper: `frontend/src/api/http-client.ts`
-- Backend endpoint: `backend/src/summaries-point/summaries-point.controller.ts`
+- Page: `/grading/score`
+- Main file: `frontend/src/app/grading/score/page.tsx`
+- Section: `STUDENT HERO SLIDER`
+- Related state/behavior:
+  - `shouldShowStudentSlider`
+  - `filteredStudentsForRoster`
+  - `activeStudentId`
+  - `sliderRef`
+  - `scrollSlider()`
+  - drag-to-scroll handlers
 
-## User Report
+## User Request
 
-Modal `Xem truoc ban in PDF` on `/grading` shows:
+Khi cham diem tren trang `/grading/score`, nguoi dung thuong cuon xuong de cham cac danh muc tieu chi. Thanh slider sinh vien hien tai se troi len khoi man hinh, lam kho chuyen nhanh giua cac sinh vien.
 
-```txt
-Loi khi tai PDF: Unauthorized
-```
+Can thay doi:
 
-when using the PDF download/export action.
+1. Khi cuon xuong khu vuc cham diem, thanh slider sinh vien phai co dinh o top.
+2. Doi mau nen cua thanh slider khi dang sticky de de nhan dang va tranh roi mat.
+3. Khong thay doi logic tinh diem, logic chon sinh vien, hoac logic luu/cham diem.
 
 ## Current Finding
 
-- `SummariesPointController` has class-level `@UseGuards(JwtAuthGuard)`.
-- Therefore `POST /api/summaries-points/export-pdf` requires a valid access token.
-- `GradingPdfTemplate.handleDownloadPdf()` currently calls `fetch()` directly.
-- That direct request only sends:
-  - `Content-Type: application/json`
-- It does not send:
-  - `Authorization: Bearer <access_token>`
-  - the shared `httpClient` refresh-token retry behavior
-- Other `summaries-points` requests use `httpClient`, which automatically attaches the token from `tokenStorage.getAccessToken()`.
-- Most likely root cause: PDF export bypasses the authenticated API client, so backend returns `401 Unauthorized`.
+- Student slider dang render truc tiep trong `frontend/src/app/grading/score/page.tsx`.
+- Wrapper hien tai:
+  - `bg-white/45`
+  - `backdrop-blur-md`
+  - `border border-white/70`
+  - `rounded-2xl`
+  - `relative overflow-hidden`
+- Slider nam ben trong scroll container chinh cua page:
+  - main content co `overflow-y-auto custom-scrollbar`
+- Vi slider khong co `sticky`, khi nguoi dung cuon xuong danh muc tieu chi thi slider bien mat khoi viewport.
 
 ## Required Fix
 
-1. Move PDF export request into the authenticated API layer.
-2. Add a method such as `summariesPointApi.exportPdf(payload)` in `frontend/src/api/summaries-point-api.ts`.
-3. The method must call `httpClient()` instead of raw `fetch()`.
-4. Keep `Content-Type: application/json`.
-5. Return a `Blob` when the response is successful.
-6. Preserve refresh-token retry behavior from `httpClient`.
-7. Update `GradingPdfTemplate.handleDownloadPdf()` to call the new API method.
-8. Remove duplicated `API_BASE` construction from the component if the new API method owns the endpoint URL.
-9. Keep backend `JwtAuthGuard`; do not make `export-pdf` public.
-10. Keep the existing downloaded filename behavior:
-    - one student: `phieu_diem_ren_luyen_<studentId>.pdf`
-    - multiple students: `phieu_diem_ren_luyen_hang_loat.pdf`
+1. Bien wrapper cua `STUDENT HERO SLIDER` thanh sticky header trong vung content scroll.
+2. Dung class Tailwind tuong duong:
+   - `sticky`
+   - `top-0` hoac top offset phu hop voi layout thuc te
+   - `z-30` hoac cao hon cac card tieu chi nhung khong de len modal/sidebar
+3. Doi background khi sticky de tach ro voi danh muc tieu chi ben duoi.
+4. Nen uu tien mau nen trung tinh, de doc:
+   - default: `bg-white/45`
+   - sticky: `bg-slate-50/95` hoac `bg-white/95`
+   - border: `border-slate-200/80`
+   - shadow: `shadow-md shadow-slate-200/60`
+5. Giu lai blur neu khong gay nhieu hieu ung thi giac:
+   - `backdrop-blur-md`
+6. Dam bao thanh slider khong che mat noi dung dau tien cua danh muc tieu chi.
+7. Neu sticky gay sat mep qua, them padding/top spacing hop ly cho section ben duoi.
 
-## Error Handling Requirements
+## UI/UX Requirements
 
-1. If response status is `401`, show a clear auth/session message instead of generic `Unauthorized`.
-2. If backend returns JSON error, display `message` or `error`.
-3. If backend returns plain text error, display that text.
-4. If backend returns PDF successfully, parse it with `response.blob()`.
-5. Avoid calling `response.json()` blindly for all error cases because PDF success response is binary.
-6. Keep existing loading/progress toast behavior.
-7. Always clear the progress interval and reset `isDownloading` in `finally`.
+1. Khi nguoi dung cuon danh muc tieu chi, thanh slider sinh vien van nam o top de co the doi sinh vien nhanh.
+2. Mau nen sticky can ro rang hon nen page, khong trong suot qua muc gay roi mat.
+3. Active student card trong slider van giu highlight hien tai.
+4. O tim kiem sinh vien va nut dieu huong trai/phai van click duoc khi sticky.
+5. Drag-to-scroll tren slider van hoat dong.
+6. Empty state va skeleton loading trong slider van hien thi dung.
+7. Tren mobile, slider sticky khong duoc che qua nhieu chieu cao man hinh.
+8. Khong tao overlap voi sidebar, top nav, modal, toast, hoac floating scroll-to-top button.
 
 ## Suggested Implementation Shape
 
-```ts
-async exportPdf(payload: ExportPdfPayload): Promise<Blob> {
-  const res = await httpClient(`${API_BASE}/summaries-points/export-pdf`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+Option toi thieu:
 
-  if (!res.ok) {
-    const text = await res.text();
-    let message = text || 'Khong the ket xuat PDF tu Server';
-    try {
-      const data = text ? JSON.parse(text) : {};
-      message = data.message || data.error || message;
-    } catch {
-      // Keep plain text message.
-    }
-    throw new Error(message);
-  }
-
-  return res.blob();
-}
+```tsx
+{shouldShowStudentSlider && (
+  <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-md border border-slate-200/80 rounded-2xl p-5 shadow-md shadow-slate-200/60 shrink-0 flex flex-col gap-4 overflow-hidden">
+    ...
+  </div>
+)}
 ```
 
-## UI/UX Notes
+Neu can phan biet trang thai sticky that su, co the them state theo `IntersectionObserver` hoac scroll listener noi bo de doi class:
 
-- Modal title `Xem truoc ban in PDF` should remain unchanged.
-- Button `Tai xuong PDF` should keep disabled/loading state while exporting.
-- If token refresh fails, redirect/session-expired behavior should be handled by `httpClient`.
-- Show toast wording friendly to the user, for example:
-  - `Phien dang nhap da het han, vui long dang nhap lai.`
-  - `Khong the xuat PDF, vui long thu lai.`
+```tsx
+const [isStudentSliderSticky, setIsStudentSliderSticky] = useState(false);
+```
+
+Sau do chi ap dung background/shadow dam hon khi `isStudentSliderSticky === true`.
+
+Chi dung cach nay neu CSS sticky thuan khong du de dat yeu cau nhan dien.
 
 ## Safety Rules
 
-- Do not expose PDF export without authentication.
-- Do not put token values into logs, toast, console, or task output.
-- Do not pass tokens through URL query params.
-- Do not change PDF payload shape unless required by backend.
-- Do not change score calculation or selected student data while fixing auth.
-- Do not break browser print action `In / Luu PDF`.
+- Khong thay doi `activeStudentId` flow.
+- Khong thay doi `evaluationCounts`.
+- Khong thay doi `studentSummaryMap`.
+- Khong thay doi API call cham diem, luu diem, copy diem, xoa bang diem.
+- Khong thay doi cong thuc tinh diem tieu chi.
+- Khong thay doi permission theo role.
+- Khong them dependency moi chi de lam sticky UI.
+- Khong hard-code chieu cao tuyet doi neu co the dung responsive spacing.
 
 ## Acceptance Criteria
 
-- Opening `Xem truoc ban in PDF` still works.
-- Clicking `Tai xuong PDF` sends `Authorization: Bearer <token>`.
-- Authenticated user can download PDF successfully.
-- Expired access token is refreshed through existing `httpClient` logic before retrying the PDF request.
-- If the session is invalid, the user sees a session-related message instead of raw `Unauthorized`.
-- Backend endpoint remains protected by `JwtAuthGuard`.
-- Existing preview layout, config panel, and print action still work.
+- Tren `/grading/score`, khi cuon xuong danh muc tieu chi, thanh slider sinh vien van co dinh o top.
+- Slider co mau nen ro hon luc sticky, de phan biet voi noi dung cham diem ben duoi.
+- Nguoi dung co the click sinh vien khac trong slider khi dang o vi tri cuon sau.
+- Search sinh vien trong slider van hoat dong.
+- Nut cuon trai/phai cua slider van hoat dong.
+- Drag-to-scroll slider van hoat dong.
+- Active student card van duoc highlight nhu hien tai.
+- Danh muc tieu chi khong bi che mat boi slider sticky.
+- Layout desktop va mobile khong bi overlap, clipping, hoac layout shift lon.
 
 ## Suggested Verification
 
-- Manual test PDF download with a valid logged-in user.
-- Manual test PDF download after access token expiry but with valid refresh cookie/session.
-- Manual test after logout/session invalidation.
-- Confirm browser Network tab includes `Authorization` header on `POST /api/summaries-points/export-pdf`.
-- Confirm downloaded file opens as a valid PDF.
-- Run relevant frontend checks/tests if available.
+1. Mo `/grading/score`.
+2. Chon lop co nhieu sinh vien va co danh muc tieu chi dai.
+3. Cuon xuong giua/cuoi danh sach tieu chi.
+4. Xac nhan slider sinh vien van co dinh o top.
+5. Xac nhan mau nen slider de nhin, khong gay roi mat voi card tieu chi.
+6. Click doi sinh vien khi dang cuon o giua danh sach.
+7. Search sinh vien tren slider.
+8. Test nut trai/phai va keo ngang slider.
+9. Kiem tra mobile/responsive width.
+10. Chay frontend lint/test neu project co script phu hop.
