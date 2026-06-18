@@ -2839,7 +2839,7 @@ function GradingScoreContent() {
                                     
                                     {/* Mobile-only Realtime Points Display on the right of title */}
                                     <div className="flex flex-col items-end shrink-0 md:hidden">
-                                      <span className={`font-bold text-[16px] ${hasViolation ? "text-rose-600" : "text-emerald-600"}`}>
+                                      <span className={`font-bold text-[16px] ${hasViolation ? "text-[#1A73E8]" : "text-emerald-600"}`}>
                                         {formatScoreLabel(achievedPoints, hasViolation)}
                                       </span>
                                       {item.maxScore !== undefined && (
@@ -2991,7 +2991,7 @@ function GradingScoreContent() {
                                     <span
                                       className={`font-bold text-[16px] ${
                                         hasViolation
-                                          ? "text-rose-600"
+                                          ? "text-[#1A73E8]"
                                           : "text-emerald-600"
                                       }`}
                                     >
