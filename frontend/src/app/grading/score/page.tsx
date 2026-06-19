@@ -77,6 +77,7 @@ interface Criteria {
   maxScore?: number;
   minScore?: number;
   is_locked?: boolean;
+  is_score_counted?: boolean;
 }
 
 interface Category {
@@ -101,10 +102,30 @@ export const calculateCriterionScore = (criterion: Criteria, count: number) => {
   }
 };
 
+export const getCriterionContributionScore = (criterion: Criteria, count: number) => {
+  const rawScore = calculateCriterionScore(criterion, count);
+  if (criterion.type === "violation" && criterion.is_score_counted === false) {
+    const maxScore = criterion.maxScore ?? 10;
+    return rawScore - maxScore;
+  }
+  return rawScore;
+};
+
 const formatScoreLabel = (score?: number | null, isViolation?: boolean) => {
   if (score === null || score === undefined) return "Chưa chấm";
   if (isViolation && score > 0) return `${score}đ`;
   return `${score > 0 ? "+" : ""}${score}đ`;
+};
+
+export const getScoreColorClass = (score: number, criterion: Criteria) => {
+  if (criterion.type === "violation") {
+    if (criterion.is_score_counted === false) {
+      if (score === 0) return "text-emerald-600";
+      return "text-rose-600";
+    }
+    return "text-[#1A73E8]";
+  }
+  return "text-emerald-600";
 };
 
 // Component CriteriaTooltip dùng để hiển thị text dài của tiêu chí
@@ -1057,6 +1078,7 @@ function GradingScoreContent() {
                 maxScore: cri.max_score || 10,
                 minScore: cri.min_score || 0,
                 is_locked: !!cri.is_locked,
+                is_score_counted: cri.is_score_counted !== false
               }));
 
             return {
@@ -1466,7 +1488,7 @@ function GradingScoreContent() {
       let catScore = 0;
       cat.items.forEach((cri) => {
         const count = studentCounts[cri.id] || 0;
-        catScore += calculateCriterionScore(cri, count);
+        catScore += getCriterionContributionScore(cri, count);
       });
 
       const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));
@@ -1707,7 +1729,7 @@ function GradingScoreContent() {
     categories.forEach((cat) => {
       let catScore = 0;
       cat.items.forEach((cri) => {
-        catScore += calculateCriterionScore(cri, freshCounts[cri.id] || 0);
+        catScore += getCriterionContributionScore(cri, freshCounts[cri.id] || 0);
       });
       finalScore += Math.max(0, Math.min(cat.maxPoints, catScore));
     });
@@ -2178,7 +2200,7 @@ function GradingScoreContent() {
       categories.forEach((cat) => {
         let catScore = 0;
         cat.items.forEach((cri) => {
-          catScore += calculateCriterionScore(cri, freshCounts[cri.id] || 0);
+          catScore += getCriterionContributionScore(cri, freshCounts[cri.id] || 0);
         });
         finalScore += Math.max(0, Math.min(cat.maxPoints, catScore));
       });
@@ -2803,7 +2825,7 @@ function GradingScoreContent() {
                     let catScore = 0;
                     category.items.forEach((cri) => {
                       const count = studentCounts[cri.id] || 0;
-                      const criterionScore = calculateCriterionScore(cri, count);
+                      const criterionScore = getCriterionContributionScore(cri, count);
                       catScore += criterionScore;
                     });
                     const clampedCatScore = Math.max(
@@ -2865,7 +2887,7 @@ function GradingScoreContent() {
                               item,
                               count,
                             );
-                            const achievedPoints = criterionScore;
+                            const achievedPoints = getCriterionContributionScore(item, count);
 
                             const studentPreCounts =
                               preExistingCountsState[activeStudentId] || {};
@@ -2898,7 +2920,7 @@ function GradingScoreContent() {
 
                                     {/* Mobile-only Realtime Points Display on the right of title */}
                                     <div className="flex flex-col items-end shrink-0 md:hidden">
-                                      <span className={`font-bold text-[16px] ${hasViolation ? "text-[#1A73E8]" : "text-emerald-600"}`}>
+                                      <span className={`font-bold text-[16px] ${getScoreColorClass(achievedPoints, item)}`}>
                                         {formatScoreLabel(achievedPoints, hasViolation)}
                                       </span>
                                       {item.maxScore !== undefined && (
@@ -3046,10 +3068,7 @@ function GradingScoreContent() {
                                   {/* Desktop-only Realtime Points Display */}
                                   <div className="hidden md:flex flex-col items-end min-w-[75px] shrink-0 justify-center">
                                     <span
-                                      className={`font-bold text-[16px] ${hasViolation
-                                        ? "text-[#1A73E8]"
-                                        : "text-emerald-600"
-                                        }`}
+                                      className={`font-bold text-[16px] ${getScoreColorClass(achievedPoints, item)}`}
                                     >
                                       {formatScoreLabel(achievedPoints, hasViolation)}
                                     </span>

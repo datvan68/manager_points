@@ -34,6 +34,9 @@ export class Criterion {
 
   @Prop({ default: false })
   is_locked: boolean;
+
+  @Prop({ default: true })
+  is_score_counted: boolean;
 }
 
 export const CriterionSchema = SchemaFactory.createForClass(Criterion);

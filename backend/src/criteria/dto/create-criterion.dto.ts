@@ -73,4 +73,14 @@ export class CreateCriterionDto {
   @IsOptional()
   @IsBoolean()
   is_locked?: boolean;
+
+  @ApiProperty({
+    description: 'Xác định điểm kỷ luật có được cộng vào tổng điểm không',
+    example: true,
+    default: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  is_score_counted?: boolean;
 }

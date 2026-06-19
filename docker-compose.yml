@@ -45,9 +45,10 @@ services:
       - ./backend:/app
       - /app/node_modules
     ports:
-      - "8000:8000"
+      - "8001:8001"
     environment:
       - ENV=development
+      - PORT=8001
       - MONGO_URI=mongodb://mongodb:27017/manager-point
       - REDIS_HOST=redis
       - REDIS_PORT=6379

@@ -128,7 +128,8 @@ function CategoriesPage() {
           maxPoints: cri.max_score,
           categoryId: parentCat ? parentCat.category_code : '',
           categoryObjectId: parentCat ? parentCat._id : (typeof cri.category_id === 'object' ? cri.category_id?._id : cri.category_id),
-          is_locked: !!cri.is_locked
+          is_locked: !!cri.is_locked,
+          is_score_counted: cri.is_score_counted !== false
         };
       });
 
@@ -545,7 +546,8 @@ function CategoriesPage() {
         score_per_unit: Number(data.points),
         min_score: Number(data.minPoints),
         max_score: Number(data.maxPoints),
-        is_locked: !!data.is_locked
+        is_locked: !!data.is_locked,
+        is_score_counted: data.type === 'ky_luat' ? !!data.is_score_counted : true
       }).then(() => {
         fetchData();
         toast.success(`Đã cập nhật tiêu chí "${data.name}" thành công!`);
@@ -558,7 +560,8 @@ function CategoriesPage() {
         score_per_unit: Number(data.points),
         min_score: Number(data.minPoints),
         max_score: Number(data.maxPoints),
-        is_locked: !!data.is_locked
+        is_locked: !!data.is_locked,
+        is_score_counted: data.type === 'ky_luat' ? !!data.is_score_counted : true
       }).then(() => {
         fetchData();
         toast.success(`Đã thêm tiêu chí "${data.name}" thành công!`);
@@ -1270,6 +1273,7 @@ function CategoriesPage() {
                                                           {item.is_locked && (
                                                             <Lock size={13} className="text-red-500 shrink-0" strokeWidth={2.5} />
                                                           )}
+
                                                         </div>
                                                         <div className="flex gap-2 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                                           <button onClick={(e) => { e.stopPropagation(); setIsEditingCriteria(true); setSelectedCriteria(item); setTargetCategoryId(cat.id); setIsCriteriaModalOpen(true); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-[#1A73E8] hover:bg-white/70 transition-all duration-150 cursor-pointer" title="Sửa tiêu chí"><Pencil size={14} strokeWidth={2.5} /></button>

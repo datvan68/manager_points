@@ -539,7 +539,8 @@ export class SummariesPointService {
           }
         }
         
-        catInfo.currentScore += criterionScore;
+        const countedScore = cri.criterion_type === 'ky_luat' && cri.is_score_counted === false ? (criterionScore - (cri.max_score || 10)) : criterionScore;
+        catInfo.currentScore += countedScore;
       }
     }
 

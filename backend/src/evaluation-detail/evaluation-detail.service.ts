@@ -743,20 +743,38 @@ export class EvaluationDetailService {
           categoryId: '$category._id',
           maxScore: { $ifNull: ['$category.max_score', 100] },
           score: {
-            $ifNull: [
-              '$details.final_score',
-              {
-                $ifNull: [
-                  '$details.gv_score',
+            $let: {
+              vars: {
+                rawScore: {
+                  $ifNull: [
+                    '$details.final_score',
+                    {
+                      $ifNull: [
+                        '$details.gv_score',
+                        {
+                          $ifNull: [
+                            '$details.sv_score',
+                            { $ifNull: ['$details.system_score', 0] }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              in: {
+                $cond: [
                   {
-                    $ifNull: [
-                      '$details.sv_score',
-                      { $ifNull: ['$details.system_score', 0] }
+                    $and: [
+                      { $eq: ['$criterion.criterion_type', 'ky_luat'] },
+                      { $eq: ['$criterion.is_score_counted', false] }
                     ]
-                  }
+                  },
+                  { $subtract: ['$$rawScore', { $ifNull: ['$criterion.max_score', 10] }] },
+                  '$$rawScore'
                 ]
               }
-            ]
+            }
           }
         }
       },

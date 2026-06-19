@@ -37,7 +37,8 @@ export default function CriteriaModal({
     minPoints: 0,
     maxPoints: 10,
     categoryId: '',
-    is_locked: false
+    is_locked: false,
+    is_score_counted: true
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -52,7 +53,8 @@ export default function CriteriaModal({
           minPoints: initialData.minPoints !== undefined ? initialData.minPoints : 0,
           maxPoints: initialData.maxPoints || 10,
           categoryId: initialData.categoryId || defaultCategoryId || (categories[0]?.id || ''),
-          is_locked: !!initialData.is_locked
+          is_locked: !!initialData.is_locked,
+          is_score_counted: initialData.is_score_counted !== false
         });
       } else {
         setFormData({
@@ -63,7 +65,8 @@ export default function CriteriaModal({
           minPoints: 0,
           maxPoints: 10,
           categoryId: defaultCategoryId || (categories[0]?.id || ''),
-          is_locked: false
+          is_locked: false,
+          is_score_counted: true
         });
       }
       setErrors({});
@@ -274,8 +277,8 @@ export default function CriteriaModal({
                       />
                     </div>
 
-                    {/* Khóa tiêu chí nằm dưới khoảng điểm */}
-                    <div className="flex items-center gap-[8px] mt-[4px] pl-[4px]">
+                    {/* Tùy chọn nâng cao nằm dưới khoảng điểm */}
+                    <div className="flex flex-col gap-[12px] mt-[4px] pl-[4px]">
                       <label className="flex items-center gap-[8px] cursor-pointer select-none group">
                         <input
                           type="checkbox"
@@ -287,6 +290,19 @@ export default function CriteriaModal({
                           Khóa tiêu chí
                         </span>
                       </label>
+                      {formData.type === 'ky_luat' && (
+                        <label className="flex items-center gap-[8px] cursor-pointer select-none group">
+                          <input
+                            type="checkbox"
+                            checked={formData.is_score_counted}
+                            onChange={(e) => setFormData({ ...formData, is_score_counted: e.target.checked })}
+                            className="w-[18px] h-[18px] rounded-[6px] border-[#cbd5e1] text-[#135bec] focus:ring-[#135bec] cursor-pointer transition-colors"
+                          />
+                          <span className="font-semibold text-[#475569] group-hover:text-slate-900 text-[14px] leading-[20px] transition-colors">
+                            Cộng điểm kỷ luật vào tổng điểm
+                          </span>
+                        </label>
+                      )}
                     </div>
                   </div>
 

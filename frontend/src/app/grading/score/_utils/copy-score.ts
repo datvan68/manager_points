@@ -6,6 +6,7 @@ export interface Criterion {
   maxScore?: number;
   minScore?: number;
   is_locked?: boolean;
+  is_score_counted?: boolean;
 }
 
 /**

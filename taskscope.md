@@ -1,252 +1,206 @@
-# Taskscope: Them Nhieu Nguoi Dung Trong Modal `/permissions`
+﻿# Taskscope: Loi "Phien lam viec da ket thuc" khi refresh token
 
 ## 1. Muc tieu
 
-Bo sung chuc nang them nhieu nguoi dung cung luc trong modal **"Them nguoi dung"** tai page `/permissions`.
+Kiem tra va xu ly loi frontend nem `AuthApiError` tai `frontend/src/api/auth-api.ts` khi goi API refresh token:
 
-Chuc nang can ho tro 2 cach dat mat khau:
+```ts
+throw new AuthApiError(
+  data.message || data.error || 'Da xay ra loi',
+  res.status,
+);
+```
 
-- **Dung chung mat khau**: admin nhap 1 mat khau, ap dung cho tat ca user trong dot tao.
-- **Mat khau rieng tung user**: moi dong/user co truong mat khau rieng.
+Thong diep nguoi dung gap: **"Phien lam viec da ket thuc"**.
 
-Sau khi tao, he thong can hien thi ket qua tong hop: so user tao thanh cong, so user that bai, va ly do that bai theo tung user.
+## 2. Ket luan nhanh
 
-## 2. Hien trang da kiem tra
+Dong `throw new AuthApiError(...)` khong phai root cause. Day la diem frontend boc tach response loi tu backend va nem exception.
+
+Root cause truc tiep nam o backend endpoint `POST /api/auth/refresh`: backend tra `401 Unauthorized` voi message **"Phien lam viec da ket thuc"** khi request khong co cookie `refresh_token`.
+
+Kha nang cao nhat: browser khong luu hoac khong gui cookie `refresh_token` trong request refresh do cau hinh hostname/cookie/CORS khong dong nhat.
+
+## 3. Bang chung da kiem tra
 
 ### Frontend
 
-- Page `/permissions` dang dung modal:
-  - `frontend/src/components/modals/UserModal.tsx`
-  - Goi tai `frontend/src/app/permissions/page.tsx`
-- Modal hien tai chi ho tro them/sua **1 nguoi dung**.
-- Khi them moi, `handleUserSave` dang goi:
-  - `authApi.register(user_name, email, password)`
-- Han che hien tai:
-  - `register` la API dang ky tai khoan, khong phai API admin-create user rieng.
-  - Role/status chon tren modal chua duoc dung khi tao moi user.
-  - Khi sua user, luong hien tai chu yeu assign role, chua xu ly day du cac truong trong modal nhu email, status, password.
-  - Da co bulk delete user, nhung chua co bulk create user.
+- `frontend/src/api/auth-api.ts`
+  - `API_BASE` dang fallback ve `http://127.0.0.1:8001`.
+  - `login()` co `credentials: 'include'` de nhan cookie.
+  - `refreshToken()` co `credentials: 'include'` de gui cookie.
+  - `handleResponse()` doc JSON va nem `AuthApiError` khi `res.ok === false`.
+- `frontend/src/api/http-client.ts`
+  - Khi API bat ky tra `401`, client goi `synchronizedRefreshToken()`.
+  - Neu refresh fail voi `400/401/403`, client clear token va redirect `/login`.
+- `frontend/src/providers/auth-provider.tsx`
+  - Khi khong co access token trong `sessionStorage`, provider thu silent refresh.
+  - Silent refresh fail voi `401` se clear token va coi user la chua dang nhap.
 
 ### Backend
 
-- Controller hien co:
-  - `GET /api/auth/users`
-  - `PATCH /api/auth/users/:id`
-  - `DELETE /api/auth/users/:id`
-  - `POST /api/auth/users/bulk-delete`
-- Chua co endpoint tao user noi bo danh cho admin, va chua co endpoint tao nhieu user.
-- `register` hien tai:
-  - Validate username/email/password qua `RegisterDto`.
-  - Luon gan role mac dinh `User` hoac `Student`.
-  - Luon gan status `active`.
-- Schema `User` co cac truong can dung:
-  - `user_name`
-  - `email`
-  - `pw_hash`
-  - `status`
-  - `role`
-  - `phone_number`
-  - `department`
-  - `date_birth`
+- `backend/src/auth/controllers/auth.controller.ts`
+  - Login set cookie `refresh_token` voi:
+    - `httpOnly: true`
+    - `secure: process.env.NODE_ENV === 'production'`
+    - `sameSite: 'strict'`
+    - `path: '/api/auth'`
+  - Refresh doc cookie bang `req.cookies?.['refresh_token']`.
+  - Neu khong co cookie thi nem `UnauthorizedException('Phien lam viec da ket thuc')`.
+- `backend/src/main.ts`
+  - Da bat `cookieParser()`.
+  - Da bat CORS `credentials: true`.
+  - Production yeu cau `FRONTEND_URL` hoac `CORS_ORIGINS`.
 
-## 3. Pham vi can lam
+## 4. Gia thuyet root cause uu tien
 
-### 3.1 Frontend - UI modal
+### 4.1 Hostname khong dong nhat giua frontend va API
 
-Cap nhat `UserModal.tsx` de ho tro 2 mode:
+Frontend fallback API hien tai la `http://127.0.0.1:8001`, nhung nguoi dung thuong mo UI bang `http://localhost:3000`.
 
-- **Them 1 nguoi dung**
-  - Giu trai nghiem hien tai, nhung save can goi API admin-create user moi thay vi public register.
-- **Them nhieu nguoi dung**
-  - Hien bang nhap nhieu dong user.
-  - Moi dong toi thieu gom:
-    - Ten nguoi dung / username
-    - Email
-    - Vai tro
-    - Trang thai
-    - Mat khau, neu khong bat che do dung chung mat khau
-  - Co nut them dong, xoa dong, xoa tat ca dong loi.
-  - Co toggle/segmented control:
-    - `Dung chung mat khau`
-    - `Mat khau rieng tung user`
-  - Khi dung chung mat khau:
-    - Hien 1 o mat khau chung.
-    - An/disable cot mat khau tung dong.
-  - Khi dung mat khau rieng:
-    - Hien cot mat khau tung dong.
-    - Khong bat buoc mat khau chung.
+Cookie dang de `sameSite: 'strict'`. Neu UI dung `localhost` nhung API dung `127.0.0.1`, browser co the xem day la cross-site/cross-origin context va khong gui cookie refresh token trong request `/api/auth/refresh`.
 
-### 3.2 Frontend - API client
+He qua:
 
-Cap nhat `frontend/src/api/auth-api.ts`:
+1. Login co the tra `access_token` thanh cong.
+2. Refresh cookie co the khong duoc luu hoac khong duoc gui lai.
+3. Khi access token mat/het han, frontend goi refresh.
+4. Backend khong thay `refresh_token`.
+5. Backend tra `401 "Phien lam viec da ket thuc"`.
+6. Frontend nem `AuthApiError` tai `auth-api.ts:32`.
 
-- Them `createUser(data, accessToken)`.
-- Them `createUsersBulk(data, accessToken)`.
-- De xuat endpoint:
-  - `POST /api/auth/users`
-  - `POST /api/auth/users/bulk-create`
+### 4.2 Cookie `SameSite=Strict` khong phu hop neu FE/BE khac site trong production
 
-Payload goi y cho bulk:
+Neu production frontend va backend khac domain/subdomain, `sameSite: 'strict'` se rat de lam refresh cookie khong duoc gui. Truong hop can cross-site cookie thi phai thiet ke lai chinh sach cookie, thuong la:
 
-```ts
-{
-  commonPassword?: string;
-  users: Array<{
-    user_name: string;
-    email: string;
-    password?: string;
-    role_id: string;
-    status?: "active" | "inactive" | "locked";
-  }>;
-}
-```
+- `sameSite: 'none'`
+- `secure: true`
+- HTTPS bat buoc
+- CORS origin cu the, khong dung wildcard
 
-Response goi y:
+### 4.3 Session cookie voi "Ghi nho dang nhap" tat
+
+Khi `remember=false`, backend khong set `maxAge` cho cookie. Day la session cookie, se mat khi dong browser/tab tuy hanh vi trinh duyet. Neu user mo lai app sau khi browser session ket thuc, frontend con co user trong `localStorage` nhung khong con refresh cookie, silent refresh se fail.
+
+## 5. Pham vi sua de xuat
+
+### 5.1 Dong nhat API origin o development
+
+Chon mot trong hai huong, uu tien huong A:
+
+- Huong A: dung cung hostname `localhost`
+  - Doi fallback `NEXT_PUBLIC_API_URL` ve `http://localhost:8001` neu UI chay o `http://localhost:3000`.
+  - Dam bao tat ca API client dung chung helper build base URL, tranh file nay `localhost`, file kia `127.0.0.1`.
+- Huong B: dung cung hostname `127.0.0.1`
+  - Mo UI bang `http://127.0.0.1:3000`.
+  - Giu API `http://127.0.0.1:8001`.
+
+### 5.2 Tap trung hoa cau hinh API base URL
+
+Tao helper chung, vi hien nhieu file frontend lap lai fallback:
+
+- `frontend/src/api/auth-api.ts`
+- `frontend/src/providers/auth-provider.tsx`
+- Cac file `frontend/src/api/*-api.ts`
+
+De xuat tao `frontend/src/api/config.ts`:
 
 ```ts
-{
-  total: number;
-  successCount: number;
-  failedCount: number;
-  successes: Array<{
-    index: number;
-    user_id: string;
-    user_name: string;
-    email: string;
-  }>;
-  errors: Array<{
-    index: number;
-    user_name?: string;
-    email?: string;
-    reason: string;
-  }>;
-}
+export const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001').replace(/\/api\/?$/, '');
+export const API_BASE = `${API_ORIGIN}/api`;
 ```
 
-### 3.3 Backend - DTO
+Sau do auth dung `API_ORIGIN`, cac API resource dung `API_BASE`.
 
-Cap nhat `backend/src/auth/dto/auth.dto.ts`:
+### 5.3 Dieu chinh cookie theo moi truong
 
-- Them `CreateUserDto` cho admin tao 1 user.
-- Them `BulkCreateUserItemDto`.
-- Them `BulkCreateUsersDto`.
+Backend nen co helper cau hinh refresh cookie dung cho ca login, refresh va logout.
 
-Validation can co:
+Pham vi can xem:
 
-- `user_name`: required, string, trim, khong rong.
-- `email`: required, email hop le.
-- `password`:
-  - Required trong create single.
-  - Required tung item neu khong co `commonPassword`.
-  - Toi thieu 8 ky tu va nen dung cung policy voi `RegisterDto`.
-- `commonPassword`:
-  - Optional, nhung neu co thi phai dat policy password.
-- `role_id`: required, MongoId hop le.
-- `status`: optional, chi nhan `active`, `inactive`, `locked`.
-- Gioi han so luong bulk, de xuat 1-500 user/request.
+- `backend/src/auth/controllers/auth.controller.ts`
 
-### 3.4 Backend - Controller
+Goi y:
 
-Cap nhat `backend/src/auth/controllers/auth.controller.ts`:
+- Development same-site local: `sameSite: 'lax'` hoac giu `strict` neu dam bao cung hostname.
+- Production cung domain: co the `lax`/`strict` tuy flow.
+- Production cross-site: `sameSite: 'none'`, `secure: true`, bat buoc HTTPS va CORS origin cu the.
 
-- Them endpoint admin-only:
-  - `POST /api/auth/users`
-  - `POST /api/auth/users/bulk-create`
-- Bao ve bang:
-  - `JwtAuthGuard`
-  - `PermissionsGuard`
-  - `@Permissions('ADMIN_FULL')`
+### 5.4 Cai thien error handling cua `auth-api.ts`
 
-### 3.5 Backend - Service
+`handleResponse()` trong `auth-api.ts` dang goi `await res.json()` truc tiep. Neu backend tra body rong/html/text, code co the nem loi parse khac va che mat status that.
 
-Cap nhat `backend/src/auth/services/auth.service.ts`:
+Nen dong bo voi `frontend/src/api/http-client.ts`: doc `res.text()`, parse JSON neu co, fallback message text.
 
-- Them `createUser(dto, ip?)`.
-- Them `createUsersBulk(dto, ip?)`.
-- Khong reuse truc tiep `register` neu lam mat role/status admin chon.
-- Validate truoc khi ghi:
-  - Duplicate `user_name` trong payload.
-  - Duplicate `email` trong payload.
-  - `user_name` da ton tai trong DB.
-  - `email` da ton tai trong DB.
-  - `role_id` ton tai trong DB.
-  - Password hop le theo policy.
-- Hash password bang `passwordService.hashPassword`.
-- Nen xu ly theo batch/chunk nho khi so luong lon, de tranh qua tai CPU khi hash password.
-- Ket qua bulk nen la partial success:
-  - Dong hop le thi tao.
-  - Dong loi thi tra ve `errors[]` co ly do.
-  - Khong lam fail toan bo request chi vi 1 dong loi, tru truong hop payload sai schema nghiem trong.
-- Ghi log admin action neu he thong dang can audit:
-  - `admin_create_user`
-  - `admin_bulk_create_users`
+### 5.5 UX khi refresh het phien
 
-## 4. Validate va UX ket qua
+Neu refresh fail vi thieu cookie/het han:
 
-### Validate tren frontend
-
-- Khong cho submit neu danh sach rong.
-- Bao loi tai dong neu thieu username/email/role/password.
-- Bao loi email sai dinh dang.
-- Bao loi duplicate username/email trong danh sach dang nhap.
-- Bao loi mat khau chung/rieng khong dat do manh.
-
-### Validate tren backend
-
-- Backend la nguon validate cuoi cung, khong phu thuoc frontend.
-- Kiem tra ton tai role.
-- Kiem tra duplicate voi DB bang truy van gom nhom:
-  - `$in` theo danh sach username.
-  - `$in` theo danh sach email lowercase.
-- Email can lowercase/trim truoc khi so sanh va luu.
-
-### Dialog ket qua
-
-Sau khi bulk create:
-
-- Hien modal/toast ket qua:
-  - Tong so user.
-  - So tao thanh cong.
-  - So that bai.
-  - Bang loi gom dong, username/email, ly do.
-- Co nut dong va refresh danh sach user.
-- Nen co nut "Sua cac dong loi" de giu lai nhung dong that bai trong modal.
-
-## 5. Tieu chi nghiem thu
-
-- Admin vao `/permissions`, bam **Them nguoi dung** va co the chon them 1 user hoac them nhieu user.
-- Them nhieu user voi **mat khau chung** tao thanh cong tat ca dong hop le.
-- Them nhieu user voi **mat khau rieng** tao thanh cong tung dong co password hop le.
-- Neu 1 dong trung email/username da ton tai, dong do that bai va hien ly do, cac dong hop le van duoc tao.
-- Neu 2 dong trong cung payload trung email/username, frontend va backend deu bao loi ro rang.
-- Role duoc gan dung theo `role_id` admin chon, khong bi roi ve role mac dinh.
-- Status duoc luu dung theo lua chon.
-- Password duoc hash, khong tra ve `pw_hash` cho frontend.
-- API bulk create chi user co `ADMIN_FULL` moi goi duoc.
-- Sau khi tao xong, danh sach user tren `/permissions` duoc refresh.
+- Clear `access_token` trong `sessionStorage`.
+- Clear user trong `localStorage`.
+- Redirect `/login`.
+- Hien toast ro rang: "Phien dang nhap da het han, vui long dang nhap lai."
+- Khong hien stack trace tu `AuthApiError` cho nguoi dung cuoi.
 
 ## 6. File du kien can sua
 
-- `frontend/src/components/modals/UserModal.tsx`
-- `frontend/src/app/permissions/page.tsx`
+### Bat buoc
+
 - `frontend/src/api/auth-api.ts`
-- `backend/src/auth/dto/auth.dto.ts`
+- `frontend/src/api/http-client.ts`
+- `frontend/src/providers/auth-provider.tsx`
 - `backend/src/auth/controllers/auth.controller.ts`
-- `backend/src/auth/services/auth.service.ts`
-- Co the can bo sung test:
-  - `backend/src/auth/test/auth.service.spec.ts`
-  - `backend/test/auth.e2e-spec.ts`
-  - Test frontend cho modal neu project da co pattern tuong ung.
 
-## 7. Ngoai pham vi
+### Nen sua de tranh lap lai loi
 
-- Import user tu Excel/CSV.
-- Tao ho so sinh vien/giang vien tu dong kem theo user.
-- Gui email kich hoat/reset password sau khi tao user.
-- Phan quyen moi ngoai `ADMIN_FULL`.
+- `frontend/src/api/config.ts` (tao moi)
+- Cac file `frontend/src/api/*-api.ts` dang tu build `API_BASE`
+- `docker-compose.yml`
+- `docker-compose.prod.yml`
+- `README.md` hoac tai lieu setup local
 
-## 8. Ghi chu rui ro
+### Test nen bo sung/cap nhat
 
-- Dang dung `authApi.register` trong page admin la chua dung ngu canh. Nen tach API admin-create user de tranh mat role/status va tranh nham voi luong public register.
-- Can can nhac unique index cho `email` da co, nhung `user_name` hien schema khong unique. Neu nghiep vu yeu cau username duy nhat, service phai check duplicate ro rang nhu hien tai.
-- Hash nhieu password cung luc co the ton CPU; nen gioi han size payload va xu ly chunk/concurrency thap.
+- Backend e2e:
+  - Login phai set cookie `refresh_token`.
+  - Refresh khong co cookie tra `401` voi message dung.
+  - Refresh co cookie hop le tra access token moi va rotate cookie.
+- Frontend unit:
+  - `authApi.refreshToken()` nem error co `status=401` va message backend.
+  - `httpClient()` khi gap 401 chi redirect login sau khi refresh fail.
+  - `handleResponse()` xu ly duoc JSON, text va empty body.
+
+## 7. Cach verify thu cong
+
+1. Mo app bang cung hostname voi API config, vi du:
+   - UI: `http://localhost:3000`
+   - API: `http://localhost:8001`
+2. Dang nhap thanh cong.
+3. Mo DevTools -> Application -> Cookies.
+4. Kiem tra co cookie `refresh_token` o API origin.
+5. Mo Network, goi/cho goi `POST /api/auth/refresh`.
+6. Request phai co header `Cookie: refresh_token=...`.
+7. Response refresh phai la `200` va co `access_token`.
+8. Neu xoa cookie roi refresh, response dung la `401 "Phien lam viec da ket thuc"` va UI redirect login co thong bao than thien.
+
+## 8. Tieu chi nghiem thu
+
+- Khong con gap stack trace `AuthApiError` bat ngo khi access token can refresh trong cung mot phien dang nhap hop le.
+- Refresh token cookie duoc luu sau login va duoc gui trong request `/api/auth/refresh`.
+- API origin dung thong nhat, khong tron `localhost` va `127.0.0.1`.
+- Khi refresh cookie that su mat/het han, UI xu ly nhu het phien: clear token, redirect login, hien thong bao ro rang.
+- Production co cau hinh cookie/CORS phu hop voi domain deploy thuc te.
+- Test backend/frontend lien quan refresh token pass.
+
+## 9. Ngoai pham vi
+
+- Doi co che xac thuc sang luu refresh token trong localStorage.
+- Thay doi policy thoi gian song token ngoai yeu cau fix loi.
+- Thay doi RBAC/permission.
+- Sua cac API nghiep vu khac khong lien quan auth/session.
+
+## 10. Ghi chu an toan
+
+- Khong log gia tri `access_token`, `refresh_token` hoac noi dung cookie.
+- Khong ghi token vao file log/taskscope.
+- Khong thay doi `.env*` trong scope nay; chi cap nhat tai lieu bien moi truong neu can.

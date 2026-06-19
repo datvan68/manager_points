@@ -131,7 +131,10 @@ export async function handleResponse<T>(res: Response): Promise<T> {
   }
 
   if (!res.ok) {
-    throw new ApiError(data.message || data.error || 'Đã xảy ra lỗi', res.status);
+    const message = Array.isArray(data.message)
+      ? data.message.join(', ')
+      : data.message || data.error || 'Đã xảy ra lỗi';
+    throw new ApiError(message, res.status);
   }
   return data as T;
 }

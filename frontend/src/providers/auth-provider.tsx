@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // session validation logic. Using httpClient() here could trigger recursive silent refresh
       // attempts if the token validation itself has expired or failed.
       const res = await fetch(
-        `${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "")}/api/auth/me`,
+        `${(process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001").replace(/\/api\/?$/, "")}/api/auth/me`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isStudent && !studentId) {
           try {
             const studentRes = await fetch(
-              `${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/api\/?$/, "")}/api/students/me`,
+              `${(process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001").replace(/\/api\/?$/, "")}/api/students/me`,
               { headers: { Authorization: `Bearer ${token}` } },
             );
             if (studentRes.ok) {

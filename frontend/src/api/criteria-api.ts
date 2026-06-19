@@ -2,7 +2,7 @@ import { httpClient, handleResponse } from './http-client';
 import { Category } from './category-api';
 import { apiCache } from './api-cache';
 
-const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '')}/api`;
+const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001').replace(/\/api\/?$/, '')}/api`;
 
 export interface Criterion {
   _id: string;
@@ -13,6 +13,7 @@ export interface Criterion {
   min_score: number;
   criterion_type: 'khen_thuong' | 'cong_diem' | 'ky_luat';
   is_locked?: boolean;
+  is_score_counted?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -25,6 +26,7 @@ export interface CreateCriterionDto {
   min_score?: number;
   criterion_type: 'khen_thuong' | 'cong_diem' | 'ky_luat';
   is_locked?: boolean;
+  is_score_counted?: boolean;
 }
 
 export interface UpdateCriterionDto {
@@ -35,6 +37,7 @@ export interface UpdateCriterionDto {
   min_score?: number;
   criterion_type?: 'khen_thuong' | 'cong_diem' | 'ky_luat';
   is_locked?: boolean;
+  is_score_counted?: boolean;
 }
 
 export const criteriaApi = {
@@ -60,6 +63,10 @@ export const criteriaApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
+    if (!res.ok && process.env.NODE_ENV !== 'production') {
+      const errorBody = await res.clone().text();
+      console.error('[criteriaApi.createCriterion] request failed', { dto, status: res.status, body: errorBody });
+    }
     const data = await handleResponse<Criterion>(res);
     apiCache.invalidate(/^criteria/);
     return data;
@@ -71,6 +78,10 @@ export const criteriaApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
+    if (!res.ok && process.env.NODE_ENV !== 'production') {
+      const errorBody = await res.clone().text();
+      console.error('[criteriaApi.updateCriterion] request failed', { id, dto, status: res.status, body: errorBody });
+    }
     const data = await handleResponse<Criterion>(res);
     apiCache.invalidate(/^criteria/);
     return data;

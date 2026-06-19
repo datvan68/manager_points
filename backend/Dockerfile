@@ -39,6 +39,6 @@ RUN mkdir -p /app/storage && chown -R app:app /app/storage
 # Use non-root user
 USER app
 
-EXPOSE 8000
+EXPOSE 8001
 
 CMD ["node", "dist/main"]
