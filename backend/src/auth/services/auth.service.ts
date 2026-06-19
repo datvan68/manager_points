@@ -502,7 +502,7 @@ export class AuthService implements OnModuleInit {
 
     if (dto.phone_number !== undefined) user.phone_number = dto.phone_number;
     if (dto.department !== undefined) user.department = dto.department;
-    if (dto.date_birth !== undefined) user.date_birth = dto.date_birth;
+    if (dto.date_birth !== undefined) user.date_birth = new Date(dto.date_birth);
 
     await user.save();
     return this.getMe(userId);
@@ -608,7 +608,7 @@ export class AuthService implements OnModuleInit {
 
     if (dto.phone_number !== undefined) user.phone_number = dto.phone_number;
     if (dto.department !== undefined) user.department = dto.department;
-    if (dto.date_birth !== undefined) user.date_birth = dto.date_birth;
+    if (dto.date_birth !== undefined) user.date_birth = new Date(dto.date_birth);
 
     if (dto.password) {
       user.pw_hash = await this.passwordService.hashPassword(dto.password);
