@@ -235,7 +235,7 @@ export const SelectContent = React.forwardRef<any, any>(
       }
     }, [open, searchQuery, lazyLoad, filteredChildren.length]);
 
-    React.useEffect(() => {
+    React.useLayoutEffect(() => {
       const updateRect = () => {
         if (triggerRef && triggerRef.current) {
           setRect(triggerRef.current.getBoundingClientRect());
@@ -275,7 +275,7 @@ export const SelectContent = React.forwardRef<any, any>(
       <div
         ref={contentRef}
         className={cn(
-          "fixed z-[9999] w-max max-w-[280px] bg-white/80 backdrop-blur-md rounded-xl shadow-md border border-white/70 p-1 overflow-hidden transition-all duration-200",
+          "fixed z-[9999] w-max max-w-[280px] bg-white/80 backdrop-blur-md rounded-xl shadow-md border border-white/70 p-1 overflow-hidden transition duration-200 ease-out",
           open
             ? "opacity-100 visible scale-100 translate-y-0"
             : "opacity-0 invisible scale-95 pointer-events-none",

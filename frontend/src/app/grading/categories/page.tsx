@@ -46,7 +46,7 @@ function CategoriesPage() {
   ];
 
   // Reusable glass card class per design tokens
-  const glassCardClass = 'bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 p-4';
+  const glassCardClass = 'bg-white/45 backdrop-blur-md border border-white/70 rounded-xl shadow-sm shadow-slate-300/40 p-4';
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
@@ -767,7 +767,7 @@ function CategoriesPage() {
                         <div className="flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-320px)] pr-1 custom-scrollbar">
                           {isInitialLoading ? (
                             Array.from({ length: 4 }).map((_, i) => (
-                              <div key={`skel-cat-${i}`} className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4 animate-pulse">
+                              <div key={`skel-cat-${i}`} className="bg-white/45 backdrop-blur-md border border-white/70 rounded-xl p-4 animate-pulse">
                                 <div className="flex items-center gap-3">
                                   <div className="w-1 h-10 rounded-xl bg-slate-100" />
                                   <div className="flex-1 flex flex-col gap-2">
@@ -911,7 +911,7 @@ function CategoriesPage() {
                             <div className="flex-1 overflow-y-auto px-3 custom-scrollbar py-3">
                               <div className="flex flex-col gap-2.5">
                                   {Array.from({ length: 3 }).map((_, i) => (
-                                      <div key={`skel-cri-${i}`} className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4 flex items-center gap-4 animate-pulse">
+                                      <div key={`skel-cri-${i}`} className="bg-white/45 backdrop-blur-md border border-white/70 rounded-xl p-4 flex items-center gap-4 animate-pulse">
                                     <Skeleton className="w-3.5 h-3.5 rounded-xl bg-slate-100 shrink-0" />
                                     <div className="flex-1 flex flex-col gap-2">
                                       <Skeleton className="h-4 w-3/4 bg-slate-100 rounded-xl" />
@@ -929,7 +929,7 @@ function CategoriesPage() {
                         ) : !activeCat ? (
                           /* Empty state: chưa chọn danh mục */
                           <div className={`${glassCardClass} flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[500px]`}>
-                            <div className="p-5 bg-white/40 border border-white/60 rounded-2xl mb-4">
+                            <div className="p-5 bg-white/40 border border-white/60 rounded-xl mb-4">
                               <PanelLeftClose size={40} strokeWidth={1.5} className="text-slate-300" />
                             </div>
                             <h3 className="text-[16px] font-bold text-slate-700 mb-1">Chọn một danh mục</h3>
@@ -1054,7 +1054,7 @@ function CategoriesPage() {
                                           exit={{ opacity: 0, x: -20 }}
                                           transition={{ delay: itemIdx * 0.02 }}
                                         >
-                                          <div className="group bg-white/55 backdrop-blur-sm border border-white/70 hover:border-white/80 rounded-xl p-4 flex items-center gap-4 transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-md">
+                                          <div className="group bg-white/55 backdrop-blur-sm border border-white/70 hover:border-white/80 rounded-xl p-4 flex items-center gap-4 transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-sm">
                                             {/* Checkbox */}
                                             <input
                                               type="checkbox"
@@ -1125,11 +1125,11 @@ function CategoriesPage() {
                       onDragOver={(e) => handleColumnDragOver(e, 'col-1')}
                       onDragLeave={handleColumnDragLeave}
                       onDrop={(e) => handleColumnDrop(e, 'col-1')}
-                      className={`flex-1 flex flex-col gap-4 p-4 rounded-2xl transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-1' ? 'ring-2 ring-[#1A73E8]/30 bg-white/45 border border-[#1A73E8]/30' : 'bg-white/30 backdrop-blur-md border border-white/60'}`}
+                      className={`flex-1 flex flex-col gap-4 p-4 rounded-xl transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-1' ? 'ring-2 ring-[#1A73E8]/30 bg-white/45 border border-[#1A73E8]/30' : 'bg-white/30 backdrop-blur-md border border-white/60'}`}
                     >
                       {isInitialLoading ? (
                         <>
-                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#60a5fa] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm w-full animate-pulse">
+                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#60a5fa] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-xl shadow-sm w-full animate-pulse">
                             <div className="w-full px-5 py-4 flex flex-col gap-2">
                               <div className="flex items-start justify-between w-full">
                                 <div className="flex flex-col gap-1.5 w-2/3">
@@ -1148,7 +1148,7 @@ function CategoriesPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#34d399] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm w-full animate-pulse">
+                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#34d399] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-xl shadow-sm w-full animate-pulse">
                             <div className="w-full px-5 py-4 flex flex-col gap-2">
                               <div className="flex items-start justify-between w-full">
                                 <div className="flex flex-col gap-1.5 w-2/3">
@@ -1179,7 +1179,7 @@ function CategoriesPage() {
                           const badgeClass = bgBadgeColors[idx % bgBadgeColors.length];
                           return (
                             <motion.div layout="position" key={cat.id} className={`w-full ${draggingCategoryId === cat.id ? 'opacity-40' : ''}`}>
-                              <div draggable onDragStart={(e) => handleCategoryDragStart(e, cat.id)} onDragEnd={handleCategoryDragEnd} onDragOver={(e) => handleDragOver(e, cat.id)} onDragLeave={() => handleDragLeave(cat.id)} onDrop={(e) => handleDrop(e, cat.id)} className={`bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] ${borderClass} border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm transition-all duration-300 w-full cursor-grab active:cursor-grabbing hover:shadow-md ${isOver ? 'ring-2 ring-[#1A73E8] scale-[1.01] bg-white/45' : ''}`}>
+                              <div draggable onDragStart={(e) => handleCategoryDragStart(e, cat.id)} onDragEnd={handleCategoryDragEnd} onDragOver={(e) => handleDragOver(e, cat.id)} onDragLeave={() => handleDragLeave(cat.id)} onDrop={(e) => handleDrop(e, cat.id)} className={`bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] ${borderClass} border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-xl shadow-sm transition-all duration-300 w-full cursor-grab active:cursor-grabbing hover:shadow-sm ${isOver ? 'ring-2 ring-[#1A73E8] scale-[1.01] bg-white/45' : ''}`}>
                                 <div className={`border-[#f1f5f9] ${isExpanded ? 'border-b' : ''} border-solid w-full px-5 py-4 flex flex-col gap-2 cursor-pointer select-none hover:bg-slate-50/40 transition-colors`} onClick={() => toggleCategoryExpand(cat.id)}>
                                   <div className="flex items-start justify-between w-full">
                                     <div className="flex flex-col gap-0.5">
@@ -1241,7 +1241,7 @@ function CategoriesPage() {
                                                 else if (item.type === 'ky_luat') { typeLabel = 'KỶ LUẬT'; typeClass = 'bg-[rgba(255,218,214,0.3)] text-[#ba1a1a] border-[#ffdad6]/20'; pointClass = 'text-[#ba1a1a]'; formattedPoints = `${item.points}đ/lần`; }
                                                 return (
                                                   <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} layout key={item.id} className="w-full">
-                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all duration-150 ease-out hover:scale-[1.01] group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
+                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-sm hover:border-blue-100 transition-all duration-150 ease-out hover:scale-[1.01] group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
                                                       <div className="flex items-center justify-between w-full">
                                                         <div className="flex items-center gap-3">
                                                           <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>
@@ -1297,11 +1297,11 @@ function CategoriesPage() {
                       onDragOver={(e) => handleColumnDragOver(e, 'col-2')}
                       onDragLeave={handleColumnDragLeave}
                       onDrop={(e) => handleColumnDrop(e, 'col-2')}
-                      className={`flex-1 flex flex-col gap-4 p-4 rounded-2xl transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-2' ? 'ring-2 ring-[#1A73E8]/30 bg-white/45 border border-[#1A73E8]/30' : 'bg-white/30 backdrop-blur-md border border-white/60'}`}
+                      className={`flex-1 flex flex-col gap-4 p-4 rounded-xl transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-2' ? 'ring-2 ring-[#1A73E8]/30 bg-white/45 border border-[#1A73E8]/30' : 'bg-white/30 backdrop-blur-md border border-white/60'}`}
                     >
                       {isInitialLoading ? (
                         <>
-                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#fbbf24] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm w-full animate-pulse">
+                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#fbbf24] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-xl shadow-sm w-full animate-pulse">
                             <div className="w-full px-5 py-4 flex flex-col gap-2">
                               <div className="flex items-start justify-between w-full">
                                 <div className="flex flex-col gap-1.5 w-2/3">
@@ -1320,7 +1320,7 @@ function CategoriesPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#c084fc] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm w-full animate-pulse">
+                          <div className="bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] border-[#c084fc] border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-xl shadow-sm w-full animate-pulse">
                             <div className="w-full px-5 py-4 flex flex-col gap-2">
                               <div className="flex items-start justify-between w-full">
                                 <div className="flex flex-col gap-1.5 w-2/3">
@@ -1351,7 +1351,7 @@ function CategoriesPage() {
                           const badgeClass = bgBadgeColors[(idx + 2) % bgBadgeColors.length];
                           return (
                             <motion.div layout="position" key={cat.id} className={`w-full ${draggingCategoryId === cat.id ? 'opacity-40' : ''}`}>
-                              <div draggable onDragStart={(e) => handleCategoryDragStart(e, cat.id)} onDragEnd={handleCategoryDragEnd} onDragOver={(e) => handleDragOver(e, cat.id)} onDragLeave={() => handleDragLeave(cat.id)} onDrop={(e) => handleDrop(e, cat.id)} className={`bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] ${borderClass} border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-2xl shadow-sm transition-all duration-300 w-full cursor-grab active:cursor-grabbing hover:shadow-md ${isOver ? 'ring-2 ring-[#1A73E8] scale-[1.01] bg-white/45' : ''}`}>
+                              <div draggable onDragStart={(e) => handleCategoryDragStart(e, cat.id)} onDragEnd={handleCategoryDragEnd} onDragOver={(e) => handleDragOver(e, cat.id)} onDragLeave={() => handleDragLeave(cat.id)} onDrop={(e) => handleDrop(e, cat.id)} className={`bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] ${borderClass} border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-xl shadow-sm transition-all duration-300 w-full cursor-grab active:cursor-grabbing hover:shadow-sm ${isOver ? 'ring-2 ring-[#1A73E8] scale-[1.01] bg-white/45' : ''}`}>
                                 <div className={`border-[#f1f5f9] ${isExpanded ? 'border-b' : ''} border-solid w-full px-5 py-4 flex flex-col gap-2 cursor-pointer select-none hover:bg-slate-50/40 transition-colors`} onClick={() => toggleCategoryExpand(cat.id)}>
                                   <div className="flex items-start justify-between w-full">
                                     <div className="flex flex-col gap-0.5">
@@ -1413,7 +1413,7 @@ function CategoriesPage() {
                                                 else if (item.type === 'ky_luat') { typeLabel = 'KỶ LUẬT'; typeClass = 'bg-[rgba(255,218,214,0.3)] text-[#ba1a1a] border-[#ffdad6]/20'; pointClass = 'text-[#ba1a1a]'; formattedPoints = `${item.points}đ/lần`; }
                                                 return (
                                                   <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} layout key={item.id} className="w-full">
-                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all duration-150 ease-out hover:scale-[1.01] group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
+                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-sm hover:border-blue-100 transition-all duration-150 ease-out hover:scale-[1.01] group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
                                                       <div className="flex items-center justify-between w-full">
                                                         <div className="flex items-center gap-3">
                                                           <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>
