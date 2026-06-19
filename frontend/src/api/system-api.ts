@@ -1,7 +1,6 @@
 import { httpClient, handleResponse } from './http-client';
 import { tokenStorage } from './auth-api';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001').replace(/\/api\/?$/, '');
+import { API_BASE } from './config';
 
 export interface MessageResponse {
   message: string;
@@ -195,7 +194,7 @@ export const systemApi = {
     if (semesterId) {
       params.append('semesterId', semesterId);
     }
-    const res = await httpClient(`${API_BASE}/api/system/dashboard-metrics?${params.toString()}`);
+    const res = await httpClient(`${API_BASE}/system/dashboard-metrics?${params.toString()}`);
     return handleResponse<any>(res);
   },
 
@@ -216,12 +215,12 @@ export const systemApi = {
         params.append(key, String(value));
       }
     });
-    const res = await httpClient(`${API_BASE}/api/system/login-logs?${params.toString()}`);
+    const res = await httpClient(`${API_BASE}/system/login-logs?${params.toString()}`);
     return handleResponse<PaginatedResponse<LoginLog>>(res);
   },
 
   async getLoginLogsSummary(): Promise<LoginLogsSummary> {
-    const res = await httpClient(`${API_BASE}/api/system/login-logs/summary`);
+    const res = await httpClient(`${API_BASE}/system/login-logs/summary`);
     return handleResponse<LoginLogsSummary>(res);
   },
 
@@ -244,12 +243,12 @@ export const systemApi = {
         params.append(key, String(value));
       }
     });
-    const res = await httpClient(`${API_BASE}/api/system/requests?${params.toString()}`);
+    const res = await httpClient(`${API_BASE}/system/requests?${params.toString()}`);
     return handleResponse<PaginatedResponse<SystemRequest>>(res);
   },
 
   async getRequest(id: string): Promise<SystemRequest> {
-    const res = await httpClient(`${API_BASE}/api/system/requests/${id}`);
+    const res = await httpClient(`${API_BASE}/system/requests/${id}`);
     return handleResponse<SystemRequest>(res);
   },
 
@@ -262,7 +261,7 @@ export const systemApi = {
     related_entity_id?: string;
     metadata?: Record<string, any>;
   }): Promise<SystemRequest> {
-    const res = await httpClient(`${API_BASE}/api/system/requests`, {
+    const res = await httpClient(`${API_BASE}/system/requests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -280,7 +279,7 @@ export const systemApi = {
       metadata?: Record<string, any>;
     },
   ): Promise<SystemRequest> {
-    const res = await httpClient(`${API_BASE}/api/system/requests/${id}`, {
+    const res = await httpClient(`${API_BASE}/system/requests/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -295,7 +294,7 @@ export const systemApi = {
       decision_note: string;
     },
   ): Promise<SystemRequest> {
-    const res = await httpClient(`${API_BASE}/api/system/requests/${id}/status`, {
+    const res = await httpClient(`${API_BASE}/system/requests/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -304,7 +303,7 @@ export const systemApi = {
   },
 
   async deleteRequest(id: string): Promise<MessageResponse> {
-    const res = await httpClient(`${API_BASE}/api/system/requests/${id}`, {
+    const res = await httpClient(`${API_BASE}/system/requests/${id}`, {
       method: 'DELETE',
     });
     return handleResponse<MessageResponse>(res);
@@ -318,19 +317,19 @@ export const systemApi = {
         params.append(key, String(value));
       }
     });
-    const res = await httpClient(`${API_BASE}/api/system/backups?${params.toString()}`);
+    const res = await httpClient(`${API_BASE}/system/backups?${params.toString()}`);
     return handleResponse<PaginatedResponse<BackupJob>>(res);
   },
 
   async createBackup(): Promise<BackupJob> {
-    const res = await httpClient(`${API_BASE}/api/system/backups`, {
+    const res = await httpClient(`${API_BASE}/system/backups`, {
       method: 'POST',
     });
     return handleResponse<BackupJob>(res);
   },
 
   async deleteBackup(id: string): Promise<MessageResponse> {
-    const res = await httpClient(`${API_BASE}/api/system/backups/${id}`, {
+    const res = await httpClient(`${API_BASE}/system/backups/${id}`, {
       method: 'DELETE',
     });
     return handleResponse<MessageResponse>(res);
@@ -343,7 +342,7 @@ export const systemApi = {
     // For FormData, we let the browser set the Content-Type header with the correct boundary
     // httpClient might be setting application/json by default if we don't pass headers properly,
     // assuming httpClient works well with FormData if body is FormData
-    const res = await httpClient(`${API_BASE}/api/system/backups/import/preview`, {
+    const res = await httpClient(`${API_BASE}/system/backups/import/preview`, {
       method: 'POST',
       body: formData,
     });
@@ -356,7 +355,7 @@ export const systemApi = {
     mode: RestoreMode;
     confirmationText: string;
   }): Promise<RestoreJob> {
-    const res = await httpClient(`${API_BASE}/api/system/backups/import/restore`, {
+    const res = await httpClient(`${API_BASE}/system/backups/import/restore`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -371,12 +370,12 @@ export const systemApi = {
         params.append(key, String(value));
       }
     });
-    const res = await httpClient(`${API_BASE}/api/system/backups/restore-jobs?${params.toString()}`);
+    const res = await httpClient(`${API_BASE}/system/backups/restore-jobs?${params.toString()}`);
     return handleResponse<PaginatedResponse<RestoreJob>>(res);
   },
 
   async downloadBackup(id: string, fileName: string, accessToken: string): Promise<void> {
-    const res = await httpClient(`${API_BASE}/api/system/backups/${id}/download`, {
+    const res = await httpClient(`${API_BASE}/system/backups/${id}/download`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
       },
@@ -399,7 +398,7 @@ export const systemApi = {
 
   // ─── PERFORMANCE METRICS ───────────────────────────────────────────────────
   async sendPerformanceMetrics(payload: SystemPerformanceMetricPayload): Promise<void> {
-    const url = `${API_BASE}/api/system/performance/metrics`;
+    const url = `${API_BASE}/system/performance/metrics`;
     const tokenStr = tokenStorage.getAccessToken();
     let headers: HeadersInit = { 'Content-Type': 'application/json' };
     if (tokenStr) {
@@ -427,7 +426,7 @@ export const systemApi = {
         }
       });
     }
-    const res = await httpClient(`${API_BASE}/api/system/performance/summary?${params.toString()}`);
+    const res = await httpClient(`${API_BASE}/system/performance/summary?${params.toString()}`);
     return handleResponse<SystemPerformanceSummary>(res);
   },
 };

@@ -80,7 +80,7 @@ export class AuthController {
     res.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/api/auth',
       maxAge: cookieMaxAge,
     });
@@ -138,7 +138,7 @@ export class AuthController {
     res.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/api/auth',
       maxAge,
     });

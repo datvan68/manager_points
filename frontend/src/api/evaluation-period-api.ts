@@ -1,6 +1,5 @@
 import { httpClient, handleResponse } from './http-client';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001').replace(/\/api\/?$/, '');
+import { API_BASE } from './config';
 
 export interface EvaluationPeriod {
   _id: string;
@@ -32,17 +31,17 @@ export interface UpdateEvaluationPeriodDto {
 
 export const evaluationPeriodApi = {
   async getEvaluationPeriods(): Promise<EvaluationPeriod[]> {
-    const res = await httpClient(`${API_BASE}/api/evaluation-periods`);
+    const res = await httpClient(`${API_BASE}/evaluation-periods`);
     return handleResponse<EvaluationPeriod[]>(res);
   },
 
   async getEvaluationPeriod(id: string): Promise<EvaluationPeriod> {
-    const res = await httpClient(`${API_BASE}/api/evaluation-periods/${id}`);
+    const res = await httpClient(`${API_BASE}/evaluation-periods/${id}`);
     return handleResponse<EvaluationPeriod>(res);
   },
 
   async createEvaluationPeriod(dto: CreateEvaluationPeriodDto): Promise<EvaluationPeriod> {
-    const res = await httpClient(`${API_BASE}/api/evaluation-periods`, {
+    const res = await httpClient(`${API_BASE}/evaluation-periods`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
@@ -51,7 +50,7 @@ export const evaluationPeriodApi = {
   },
 
   async updateEvaluationPeriod(id: string, dto: UpdateEvaluationPeriodDto): Promise<EvaluationPeriod> {
-    const res = await httpClient(`${API_BASE}/api/evaluation-periods/${id}`, {
+    const res = await httpClient(`${API_BASE}/evaluation-periods/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
@@ -60,7 +59,7 @@ export const evaluationPeriodApi = {
   },
 
   async deleteEvaluationPeriod(id: string): Promise<{ message: string }> {
-    const res = await httpClient(`${API_BASE}/api/evaluation-periods/${id}`, {
+    const res = await httpClient(`${API_BASE}/evaluation-periods/${id}`, {
       method: 'DELETE',
     });
     return handleResponse<{ message: string }>(res);

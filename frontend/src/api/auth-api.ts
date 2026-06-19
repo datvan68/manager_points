@@ -1,4 +1,4 @@
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001').replace(/\/api\/?$/, '');
+import { API_BASE } from './config';
 
 export interface LoginResponse {
   access_token: string;
@@ -39,7 +39,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const authApi = {
   async login(email: string, password: string, remember: boolean = false): Promise<LoginResponse> {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
+    const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, remember }),
@@ -49,7 +49,7 @@ export const authApi = {
   },
 
   async register(user_name: string, email: string, password: string): Promise<MessageResponse> {
-    const res = await fetch(`${API_BASE}/api/auth/register`, {
+    const res = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_name, email, password }),
@@ -58,7 +58,7 @@ export const authApi = {
   },
 
   async forgotPassword(email: string): Promise<MessageResponse> {
-    const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+    const res = await fetch(`${API_BASE}/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -67,7 +67,7 @@ export const authApi = {
   },
 
   async resetPassword(token: string, new_password: string): Promise<MessageResponse> {
-    const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, new_password }),
@@ -76,7 +76,7 @@ export const authApi = {
   },
 
   async changePassword(old_password: string, new_password: string, accessToken: string): Promise<MessageResponse> {
-    const res = await fetch(`${API_BASE}/api/auth/change-password`, {
+    const res = await fetch(`${API_BASE}/auth/change-password`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -88,7 +88,7 @@ export const authApi = {
   },
 
   async refreshToken(): Promise<RefreshResponse> {
-    const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include', // Important to send the cookie
@@ -97,7 +97,7 @@ export const authApi = {
   },
 
   async logout(): Promise<MessageResponse> {
-    const res = await fetch(`${API_BASE}/api/auth/logout`, {
+    const res = await fetch(`${API_BASE}/auth/logout`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -106,14 +106,14 @@ export const authApi = {
   
   // RBAC Management
   async getUsers(accessToken: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/api/auth/users`, {
+    const res = await fetch(`${API_BASE}/auth/users`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     return handleResponse<any[]>(res);
   },
 
   async createUser(data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/users`, {
+    const res = await fetch(`${API_BASE}/auth/users`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -125,7 +125,7 @@ export const authApi = {
   },
 
   async createUsersBulk(data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/users/bulk-create`, {
+    const res = await fetch(`${API_BASE}/auth/users/bulk-create`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -137,21 +137,21 @@ export const authApi = {
   },
 
   async getRoles(accessToken: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/api/auth/roles`, {
+    const res = await fetch(`${API_BASE}/auth/roles`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     return handleResponse<any[]>(res);
   },
 
   async getPermissions(accessToken: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/api/auth/permissions`, {
+    const res = await fetch(`${API_BASE}/auth/permissions`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     return handleResponse<any[]>(res);
   },
 
   async updateRole(roleId: string, data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/roles/${roleId}`, {
+    const res = await fetch(`${API_BASE}/auth/roles/${roleId}`, {
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',
@@ -163,7 +163,7 @@ export const authApi = {
   },
 
   async createRole(data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/roles`, {
+    const res = await fetch(`${API_BASE}/auth/roles`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -175,7 +175,7 @@ export const authApi = {
   },
 
   async deleteRole(roleId: string, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/roles/${roleId}`, {
+    const res = await fetch(`${API_BASE}/auth/roles/${roleId}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -183,7 +183,7 @@ export const authApi = {
   },
 
   async createPermission(data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/permissions`, {
+    const res = await fetch(`${API_BASE}/auth/permissions`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -195,7 +195,7 @@ export const authApi = {
   },
 
   async updatePermission(id: string, data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/permissions/${id}`, {
+    const res = await fetch(`${API_BASE}/auth/permissions/${id}`, {
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',
@@ -207,7 +207,7 @@ export const authApi = {
   },
 
   async deletePermission(id: string, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/permissions/${id}`, {
+    const res = await fetch(`${API_BASE}/auth/permissions/${id}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -215,14 +215,14 @@ export const authApi = {
   },
 
   async getPermissionGroups(accessToken: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/api/auth/permission-groups`, {
+    const res = await fetch(`${API_BASE}/auth/permission-groups`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     return handleResponse<any[]>(res);
   },
 
   async createPermissionGroup(data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/permission-groups`, {
+    const res = await fetch(`${API_BASE}/auth/permission-groups`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -234,7 +234,7 @@ export const authApi = {
   },
 
   async updatePermissionGroup(id: string, data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/permission-groups/${id}`, {
+    const res = await fetch(`${API_BASE}/auth/permission-groups/${id}`, {
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',
@@ -246,7 +246,7 @@ export const authApi = {
   },
 
   async deletePermissionGroup(id: string, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/permission-groups/${id}`, {
+    const res = await fetch(`${API_BASE}/auth/permission-groups/${id}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -254,7 +254,7 @@ export const authApi = {
   },
 
   async assignRole(userId: string, roleId: string, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/users/${userId}/role`, {
+    const res = await fetch(`${API_BASE}/auth/users/${userId}/role`, {
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',
@@ -266,7 +266,7 @@ export const authApi = {
   },
 
   async updateUser(userId: string, data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/users/${userId}`, {
+    const res = await fetch(`${API_BASE}/auth/users/${userId}`, {
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',
@@ -278,14 +278,14 @@ export const authApi = {
   },
 
   async getMe(accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/me`, {
+    const res = await fetch(`${API_BASE}/auth/me`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     return handleResponse<any>(res);
   },
 
   async updateMe(data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/me`, {
+    const res = await fetch(`${API_BASE}/auth/me`, {
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',
@@ -297,7 +297,7 @@ export const authApi = {
   },
   
   async deleteUser(userId: string, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/users/${userId}`, {
+    const res = await fetch(`${API_BASE}/auth/users/${userId}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -305,7 +305,7 @@ export const authApi = {
   },
 
   async deleteUsersBulk(userIds: string[], accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/users/bulk-delete`, {
+    const res = await fetch(`${API_BASE}/auth/users/bulk-delete`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -319,7 +319,7 @@ export const authApi = {
   // ─── ROUTE PERMISSION MANAGEMENT ────────────────
 
   async getRoutePermissions(accessToken: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/api/auth/route-permissions`, {
+    const res = await fetch(`${API_BASE}/auth/route-permissions`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     return handleResponse<any[]>(res);
@@ -330,14 +330,14 @@ export const authApi = {
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
     }
-    const res = await fetch(`${API_BASE}/api/auth/route-permissions/all`, {
+    const res = await fetch(`${API_BASE}/auth/route-permissions/all`, {
       headers
     });
     return handleResponse<any[]>(res);
   },
 
   async createRoutePermission(data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/route-permissions`, {
+    const res = await fetch(`${API_BASE}/auth/route-permissions`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -349,7 +349,7 @@ export const authApi = {
   },
 
   async updateRoutePermission(id: string, data: any, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/route-permissions/${id}`, {
+    const res = await fetch(`${API_BASE}/auth/route-permissions/${id}`, {
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',
@@ -361,7 +361,7 @@ export const authApi = {
   },
 
   async deleteRoutePermission(id: string, accessToken: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/auth/route-permissions/${id}`, {
+    const res = await fetch(`${API_BASE}/auth/route-permissions/${id}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -369,7 +369,7 @@ export const authApi = {
   },
 
   async getPagePermissionScopes(accessToken: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/api/auth/page-permission-scopes`, {
+    const res = await fetch(`${API_BASE}/auth/page-permission-scopes`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     return handleResponse<any[]>(res);

@@ -1,6 +1,6 @@
 import { httpClient, handleResponse } from './http-client';
 
-const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001').replace(/\/api\/?$/, '')}/api`;
+import { API_BASE } from './config';
 
 export interface StudentTask {
   id: string;
@@ -258,3 +258,4 @@ export interface TaskProgressOverviewResponse {
     completionRate: number;
   };
 }
+

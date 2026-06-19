@@ -12,6 +12,7 @@ import { tokenStorage, authApi } from "@/api/auth-api";
 import { synchronizedRefreshToken } from "@/api/http-client";
 import { toast } from "sonner";
 import { isStudentRole } from "@/utils/role.util";
+import { API_ORIGIN } from "@/api/config";
 
 interface UserInfo {
   id: string;
@@ -85,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // session validation logic. Using httpClient() here could trigger recursive silent refresh
       // attempts if the token validation itself has expired or failed.
       const res = await fetch(
-        `${(process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001").replace(/\/api\/?$/, "")}/api/auth/me`,
+        `${API_ORIGIN}/api/auth/me`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
@@ -107,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isStudent && !studentId) {
           try {
             const studentRes = await fetch(
-              `${(process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001").replace(/\/api\/?$/, "")}/api/students/me`,
+              `${API_ORIGIN}/api/students/me`,
               { headers: { Authorization: `Bearer ${token}` } },
             );
             if (studentRes.ok) {

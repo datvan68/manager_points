@@ -12,6 +12,72 @@ describe('systemApi', () => {
     vi.clearAllMocks();
   });
 
+  describe('getDashboardMetrics', () => {
+    it('should correctly call httpClient with exact url without duplicated /api/api/', async () => {
+      const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({}) };
+      (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+      (handleResponse as ReturnType<typeof vi.fn>).mockResolvedValue({ metrics: true });
+
+      const res = await systemApi.getDashboardMetrics('sem-123');
+      
+      expect(httpClient).toHaveBeenCalledTimes(1);
+      const [url] = vi.mocked(httpClient).mock.calls[0];
+      
+      expect(url).not.toContain('/api/api/');
+      expect(url).toContain('/api/system/dashboard-metrics');
+      expect(url).toContain('semesterId=sem-123');
+      
+      expect(res.metrics).toBe(true);
+    });
+  });
+
+  describe('getLoginLogs', () => {
+    it('should correctly call httpClient without duplicated /api/api/', async () => {
+      const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({}) };
+      (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+      (handleResponse as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0 });
+
+      await systemApi.getLoginLogs({ page: 1, limit: 10 });
+      
+      const [url] = vi.mocked(httpClient).mock.calls[0];
+      expect(url).not.toContain('/api/api/');
+      expect(url).toContain('/api/system/login-logs');
+      expect(url).toContain('page=1');
+      expect(url).toContain('limit=10');
+    });
+  });
+
+  describe('getBackups', () => {
+    it('should correctly call httpClient without duplicated /api/api/', async () => {
+      const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({}) };
+      (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+      (handleResponse as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0 });
+
+      await systemApi.getBackups({ page: 1, limit: 10 });
+      
+      const [url] = vi.mocked(httpClient).mock.calls[0];
+      expect(url).not.toContain('/api/api/');
+      expect(url).toContain('/api/system/backups');
+      expect(url).toContain('page=1');
+      expect(url).toContain('limit=10');
+    });
+  });
+
+  describe('getPerformanceSummary', () => {
+    it('should correctly call httpClient without duplicated /api/api/', async () => {
+      const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({}) };
+      (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+      (handleResponse as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+      await systemApi.getPerformanceSummary({ route: '/api/test' });
+      
+      const [url] = vi.mocked(httpClient).mock.calls[0];
+      expect(url).not.toContain('/api/api/');
+      expect(url).toContain('/api/system/performance/summary');
+      expect(url).toContain('route=%2Fapi%2Ftest');
+    });
+  });
+
   describe('previewBackupImport', () => {
     it('should correctly call httpClient with FormData and method POST', async () => {
       const mockFile = new File(['dummy content'], 'test.gz', { type: 'application/gzip' });
@@ -25,6 +91,7 @@ describe('systemApi', () => {
       expect(httpClient).toHaveBeenCalledTimes(1);
       const [url, options] = vi.mocked(httpClient).mock.calls[0];
       
+      expect(url).not.toContain('/api/api/');
       expect(url).toContain('/api/system/backups/import/preview');
       expect(options?.method).toBe('POST');
       expect(options?.body).toBeInstanceOf(FormData);
@@ -55,6 +122,7 @@ describe('systemApi', () => {
       expect(httpClient).toHaveBeenCalledTimes(1);
       const [url, options] = vi.mocked(httpClient).mock.calls[0];
       
+      expect(url).not.toContain('/api/api/');
       expect(url).toContain('/api/system/backups/import/restore');
       expect(options?.method).toBe('POST');
       expect(options?.headers).toEqual({ 'Content-Type': 'application/json' });
@@ -76,6 +144,7 @@ describe('systemApi', () => {
       expect(httpClient).toHaveBeenCalledTimes(1);
       const [url] = vi.mocked(httpClient).mock.calls[0];
       
+      expect(url).not.toContain('/api/api/');
       expect(url).toContain('/api/system/backups/restore-jobs');
       expect(url).toContain('page=2');
       expect(url).toContain('limit=10');

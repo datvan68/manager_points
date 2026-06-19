@@ -1,4 +1,5 @@
 import { tokenStorage, authApi, RefreshResponse } from './auth-api';
+import { toast } from 'sonner';
 
 export class ApiError extends Error {
   status: number;
@@ -108,7 +109,12 @@ export async function httpClient(url: string, options: RequestInit = {}): Promis
         onRefreshFailed(error);
         tokenStorage.clearTokens();
         if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', {
+            id: 'session-expired-toast'
+          });
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1500);
         }
         throw error;
       } else {
