@@ -38,6 +38,8 @@ export class AcademicRecordService {
     private readonly summariesPointService: SummariesPointService,
   ) { }
 
+  private importSessions = new Map<string, any>();
+
   private async safeSync(record: any): Promise<void> {
     if (!record) return;
     const studentId = record.student_id ? record.student_id.toString() : '';
@@ -918,12 +920,20 @@ export class AcademicRecordService {
     throw new ForbiddenException('Bạn không có quyền xóa ghi nhận rèn luyện của cấp bậc cao hơn.');
   }
 
-  async importRecords(
-    rows: any[],
-    requester: any,
-    commit: boolean = false,
-  ): Promise<any> {
+  async importPreview(rows: any[], requester: any): Promise<any> {
     const semesterModel = this.academicRecordModel.db.model('Semester');
+
+    // RBAC: Teacher/Advisor chỉ được import ghi nhận cho sinh viên lớp phụ trách
+    let validStudentIds: Set<string> | null = null;
+    if (requester) {
+      const roleName = (requester.roleName || '').toLowerCase();
+      if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
+        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+        const classIds = classes.map(c => c._id);
+        const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
+        validStudentIds = new Set(students.map(s => s._id.toString()));
+      }
+    }
     
     // 1. Thu thập tất cả student_code để query
     const studentCodes = Array.from(new Set(rows.map(r => {
@@ -979,8 +989,13 @@ export class AcademicRecordService {
         continue;
       }
 
+      if (validStudentIds && !validStudentIds.has(foundStudent._id.toString())) {
+        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: 'Không có quyền ghi nhận cho sinh viên này (ngoài lớp phụ trách)' });
+        continue;
+      }
+
       const criterionName = criterionRaw.toString().trim();
-      const foundCriterion = criteriaMap.get(criterionName.toLowerCase());
+      let foundCriterion = criteriaMap.get(criterionName.toLowerCase());
       if (!foundCriterion) {
         errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Không tìm thấy tiêu chí: ${criterionName}` });
         continue;
@@ -1015,13 +1030,16 @@ export class AcademicRecordService {
       if (semesterRaw) {
         const semStr = semesterRaw.toString().trim().toLowerCase();
         const foundSem = semesterMap.get(semStr) || semesters.find((s: any) => s._id.toString() === semStr);
-        if (foundSem) semesterId = foundSem._id.toString();
-      }
-      if (!semesterId && activeSem) {
+        if (foundSem) {
+            semesterId = foundSem._id.toString();
+        } else {
+            errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Không tìm thấy học kỳ: ${semesterRaw}` });
+            continue;
+        }
+      } else if (activeSem) {
         semesterId = activeSem._id.toString();
-      }
-      if (!semesterId) {
-        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: 'Không có học kỳ active' });
+      } else {
+        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: 'Không có học kỳ active để gán mặc định' });
         continue;
       }
 
@@ -1032,12 +1050,12 @@ export class AcademicRecordService {
       }
 
       // duplicate check in file
-      const key = `${studentCode}||${foundCriterion._id.toString()}||${recordedAtIso}`;
-      if (seen.has(key)) {
-        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Bản ghi trùng lặp trong file (trùng với dòng ${seen.get(key)})` });
+      const idempotency_key = `${studentCode}_${foundCriterion._id.toString()}_${recordedAtIso}`;
+      if (seen.has(idempotency_key)) {
+        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Bản ghi trùng lặp trong file (trùng với dòng ${seen.get(idempotency_key)})` });
         continue;
       }
-      seen.set(key, rowNumber);
+      seen.set(idempotency_key, rowNumber);
 
       const pointsEffect = foundCriterion.score_per_unit || 0;
 
@@ -1050,24 +1068,118 @@ export class AcademicRecordService {
         recorded_by: requester ? new Types.ObjectId(requester.userId) : null,
         recorded_at: new Date(recordedAtIso),
         points_effect: pointsEffect,
-        status: status || 'active'
+        status: status || 'active',
+        source: 'import_excel',
+        idempotency_key
       });
     }
 
-    if (errors.length > 0) {
-      return { success: false, errors, count: 0 };
+    const sessionId = Date.now().toString() + Math.random().toString(36).substring(2, 7);
+    this.importSessions.set(sessionId, {
+        id: sessionId,
+        status: 'ready_to_commit',
+        validItems,
+        errors,
+        totalRows: rows.length,
+        progress: 0,
+        processedCount: 0,
+        insertedCount: 0,
+        duplicatedCount: 0,
+        commitErrors: []
+    });
+
+    // Cleanup old sessions
+    if (this.importSessions.size > 100) {
+        const keys = Array.from(this.importSessions.keys());
+        for (let i = 0; i < 50; i++) {
+            this.importSessions.delete(keys[i]);
+        }
     }
 
-    if (commit && validItems.length > 0) {
-      // Perform bulk insert
-      const results = await this.academicRecordModel.insertMany(validItems);
+    return {
+        sessionId,
+        totalRows: rows.length,
+        validCount: validItems.length,
+        errorCount: errors.length,
+        errors
+    };
+  }
+
+  async importCommit(sessionId: string, requester: any): Promise<any> {
+    const session = this.importSessions.get(sessionId);
+    if (!session) {
+      throw new BadRequestException('Session không tồn tại hoặc đã hết hạn');
+    }
+    if (session.status !== 'ready_to_commit') {
+      throw new BadRequestException('Session đang ở trạng thái không hợp lệ: ' + session.status);
+    }
+
+    session.status = 'committing';
+    
+    // Background job
+    this.processImportBatch(sessionId, requester).catch(err => {
+      console.error('Import batch error:', err);
+      session.status = 'failed';
+      session.commitErrors.push({ reason: err.message });
+    });
+
+    return { success: true, message: 'Đã bắt đầu tiến trình import' };
+  }
+
+  private async processImportBatch(sessionId: string, requester: any) {
+    const session = this.importSessions.get(sessionId);
+    if (!session) return;
+
+    const validItems = session.validItems;
+    const batchSize = 200;
+    
+    try {
+      for (let i = 0; i < validItems.length; i += batchSize) {
+        const batch = validItems.slice(i, i + batchSize);
+        const insertOps = batch.map((record: any) => ({
+          insertOne: { document: record }
+        }));
+        
+        let result;
+        try {
+          result = await this.academicRecordModel.bulkWrite(insertOps as any, { ordered: false });
+        } catch (err: any) {
+          if (err.code !== 11000 && !err.message.includes('11000')) {
+            throw err;
+          }
+          result = err.result || err;
+          session.duplicatedCount += err.writeErrors ? err.writeErrors.length : (batch.length - (result.insertedCount || result.nInserted || 0));
+        }
+        
+        session.insertedCount += result?.insertedCount || result?.nInserted || 0;
+        session.processedCount += batch.length;
+        session.progress = validItems.length > 0 ? Math.floor((session.processedCount / validItems.length) * 100) : 100;
+        
+        // Sync điểm sau mỗi batch
+        await this.syncMultipleStudentCriterionScores(batch);
+      }
       
-      // Sync training points for student summaries in bulk
-      this.syncMultipleStudentCriterionScores(validItems).catch((e: any) => console.error('Failed to sync student scores:', e));
-
-      return { success: true, errors: [], count: results.length };
+      session.status = 'completed';
+      session.progress = 100;
+    } catch (err: any) {
+      session.status = 'failed';
+      session.commitErrors.push({ reason: err.message });
     }
+  }
 
-    return { success: true, errors: [], count: validItems.length };
+  getImportProgress(sessionId: string): any {
+    const session = this.importSessions.get(sessionId);
+    if (!session) {
+      throw new NotFoundException('Session không tồn tại');
+    }
+    return {
+      status: session.status,
+      progress: session.progress,
+      processedCount: session.processedCount,
+      insertedCount: session.insertedCount,
+      duplicatedCount: session.duplicatedCount,
+      totalRows: session.totalRows,
+      failedItems: session.commitErrors,
+    };
   }
 }

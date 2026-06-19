@@ -14,6 +14,13 @@ import { AcademicRecordService } from './academic-record.service';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
 import { BulkCreateAcademicRecordDto } from './dto/bulk-create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
+import { 
+  ImportAcademicRecordRequestDto, 
+  ImportAcademicRecordCommitDto,
+  ImportAcademicRecordPreviewResultDto,
+  ImportAcademicRecordCommitResultDto,
+  ImportAcademicRecordProgressDto 
+} from './dto/import-academic-record.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { checkRole } from '../auth/guards/check-role.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -49,19 +56,38 @@ export class AcademicRecordController {
     return this.academicRecordService.bulkCreate(bulkCreateDto, requester);
   }
 
-  @Post('import')
+  @Post('import/preview')
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Validate or commit bulk import of student academic records',
-  })
-  importRecords(
-    @Body() body: { rows: any[]; commit?: boolean },
+  @ApiOperation({ summary: 'Preview and validate bulk import of student academic records' })
+  @ApiBody({ type: ImportAcademicRecordRequestDto })
+  async importPreview(
+    @Body() body: ImportAcademicRecordRequestDto,
     @Request() req: any,
-  ) {
+  ): Promise<ImportAcademicRecordPreviewResultDto> {
     const requester = req.user;
-    const commit = body.commit === true;
-    return this.academicRecordService.importRecords(body.rows, requester, commit);
+    return this.academicRecordService.importPreview(body.rows, requester);
+  }
+
+  @Post('import/commit')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Commit bulk import of student academic records' })
+  @ApiBody({ type: ImportAcademicRecordCommitDto })
+  async importCommit(
+    @Body() body: ImportAcademicRecordCommitDto,
+    @Request() req: any,
+  ): Promise<ImportAcademicRecordCommitResultDto> {
+    const requester = req.user;
+    return this.academicRecordService.importCommit(body.sessionId, requester);
+  }
+
+  @Get('import/:sessionId/progress')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get progress of a bulk import session' })
+  getImportProgress(@Param('sessionId') sessionId: string): ImportAcademicRecordProgressDto {
+    return this.academicRecordService.getImportProgress(sessionId);
   }
 
   @Get()

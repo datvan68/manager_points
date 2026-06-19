@@ -195,17 +195,39 @@ export const academicRecordApi = {
     });
     return handleResponse<AcademicRecord>(res);
   },
-  
-  async importRecords(rows: any[], commit?: boolean): Promise<{ success: boolean; errors: any[]; count: number }> {
+  async previewImportRecords(rows: any[]): Promise<any> {
     const token = tokenStorage.getAccessToken() || '';
-    const res = await fetch(`${API_BASE}/academic-records/import`, {
+    const res = await fetch(`${API_BASE}/academic-records/import/preview`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ rows, commit }),
+      body: JSON.stringify({ rows }),
     });
-    return handleResponse<{ success: boolean; errors: any[]; count: number }>(res);
+    return handleResponse<any>(res);
+  },
+
+  async commitImportRecords(sessionId: string): Promise<any> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/import/commit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ sessionId }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async getImportProgress(sessionId: string): Promise<any> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/import/${sessionId}/progress`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+    });
+    return handleResponse<any>(res);
   }
 };
