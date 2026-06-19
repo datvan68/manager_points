@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Department, DepartmentDocument } from './schemas/department.schema';
@@ -15,6 +19,17 @@ export class DepartmentsService {
     @InjectModel(Class.name)
     private classModel: Model<ClassDocument>,
   ) {}
+
+  private handleDuplicateCodeError(error: any): never {
+    if (error?.code === 11000 && error?.keyPattern?.code) {
+      const duplicateCode = error?.keyValue?.code || 'provided';
+      throw new ConflictException(
+        `Department with code ${duplicateCode} already exists`,
+      );
+    }
+
+    throw error;
+  }
 
   private async getTeacherDepartmentIds(requester?: any) {
     if (!isTeacher(requester) || !requester?.userId) return null;
@@ -36,8 +51,12 @@ export class DepartmentsService {
   }
 
   async create(createDepartmentDto: CreateDepartmentDto): Promise<Department> {
-    const createdDepartment = new this.departmentModel(createDepartmentDto);
-    return createdDepartment.save();
+    try {
+      const createdDepartment = new this.departmentModel(createDepartmentDto);
+      return await createdDepartment.save();
+    } catch (error) {
+      this.handleDuplicateCodeError(error);
+    }
   }
 
   async findAll(requester?: any): Promise<Department[]> {
@@ -69,13 +88,17 @@ export class DepartmentsService {
     id: string,
     updateDepartmentDto: UpdateDepartmentDto,
   ): Promise<Department> {
-    const updatedDepartment = await this.departmentModel
-      .findByIdAndUpdate(id, updateDepartmentDto, { returnDocument: 'after' })
-      .exec();
-    if (!updatedDepartment) {
-      throw new NotFoundException(`Department with ID ${id} not found`);
+    try {
+      const updatedDepartment = await this.departmentModel
+        .findByIdAndUpdate(id, updateDepartmentDto, { returnDocument: 'after' })
+        .exec();
+      if (!updatedDepartment) {
+        throw new NotFoundException(`Department with ID ${id} not found`);
+      }
+      return updatedDepartment;
+    } catch (error) {
+      this.handleDuplicateCodeError(error);
     }
-    return updatedDepartment;
   }
 
   async remove(id: string): Promise<Department> {

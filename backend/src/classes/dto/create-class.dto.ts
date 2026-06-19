@@ -36,6 +36,14 @@ export class CreateClassDto {
   class_course?: string;
 
   @ApiProperty({
+    description: 'Alias cua class_course tu frontend cu',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  class_type?: string;
+
+  @ApiProperty({
     description: 'Cơ sở: PH-CSSĐ, PH-CK...',
     required: false,
   })

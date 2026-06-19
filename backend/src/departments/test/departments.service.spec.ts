@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { DepartmentsService } from '../departments.service';
 import { Department } from '../schemas/department.schema';
 import { Class } from '../../classes/schemas/class.schema';
@@ -76,6 +76,23 @@ describe('DepartmentsService', () => {
       expect(result.name).toEqual(dto.name);
       expect(result.code).toEqual(dto.code);
     });
+
+    it('should throw ConflictException if department code already exists', async () => {
+      const dto = {
+        name: 'Information Technology',
+        code: 'IT',
+      };
+      model.mockImplementationOnce((createDto) => ({
+        ...createDto,
+        save: jest.fn().mockRejectedValue({
+          code: 11000,
+          keyPattern: { code: 1 },
+          keyValue: { code: createDto.code },
+        }),
+      }));
+
+      await expect(service.create(dto)).rejects.toThrow(ConflictException);
+    });
   });
 
   describe('findAll', () => {
@@ -117,6 +134,20 @@ describe('DepartmentsService', () => {
       });
       await expect(service.update('invalid-id', {})).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('should throw ConflictException if updated department code already exists', async () => {
+      model.findByIdAndUpdate.mockReturnValueOnce({
+        exec: jest.fn().mockRejectedValue({
+          code: 11000,
+          keyPattern: { code: 1 },
+          keyValue: { code: 'IT' },
+        }),
+      });
+
+      await expect(service.update('mock-id', { code: 'IT' })).rejects.toThrow(
+        ConflictException,
       );
     });
   });

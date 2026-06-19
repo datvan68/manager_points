@@ -71,6 +71,26 @@ export class AuthService implements OnModuleInit {
     await this.migrateLegacyUserFields();
   }
 
+  private async safeSave(doc: any) {
+    try {
+      await doc.save();
+    } catch (e: any) {
+      if (e.name === 'DocumentNotFoundError' || e.name === 'VersionError') {
+        const updateData: any = {};
+        if (doc.modifiedPaths && typeof doc.modifiedPaths === 'function') {
+          for (const path of doc.modifiedPaths()) {
+            updateData[path] = doc.get(path);
+          }
+          if (Object.keys(updateData).length > 0) {
+            await doc.constructor.updateOne({ _id: doc._id }, { $set: updateData });
+          }
+        }
+      } else {
+        throw e;
+      }
+    }
+  }
+
   // ─── AUTHENTICATION ─────────────────────────────────────────
 
   async register(dto: RegisterDto) {
@@ -144,7 +164,7 @@ export class AuthService implements OnModuleInit {
         user.status = UserStatus.ACTIVE;
         user.failed_login_attempts = 0;
         user.locked_until = null;
-        await user.save();
+        await this.safeSave(user);
       } else {
         throw new ForbiddenException('Tài khoản đã bị khóa bởi quản trị viên.');
       }
@@ -162,13 +182,13 @@ export class AuthService implements OnModuleInit {
         user.locked_until = new Date(
           Date.now() + LOCK_DURATION_MINUTES * 60 * 1000,
         );
-        await user.save();
+        await this.safeSave(user);
         await this.logAction(user._id, ip, 'login_failure', 'Account locked');
         throw new ForbiddenException(
           `Tài khoản đã bị khóa. Thử lại sau ${LOCK_DURATION_MINUTES} phút.`,
         );
       }
-      await user.save();
+      await this.safeSave(user);
       await this.logAction(user._id, ip, 'login_failure', 'Wrong password');
       throw new UnauthorizedException(INVALID_LOGIN_MESSAGE);
     }
@@ -176,7 +196,7 @@ export class AuthService implements OnModuleInit {
     // Success
     user.failed_login_attempts = 0;
     user.locked_until = null;
-    await user.save();
+    await this.safeSave(user);
 
     const role = user.role as any;
     const isAdmin = role?.name === 'Admin';
@@ -1157,7 +1177,18 @@ export class AuthService implements OnModuleInit {
         } else if (userRole) {
           user.role = userRole._id;
         }
-        await user.save();
+        try {
+          await user.save();
+        } catch (error: any) {
+          if (error.name === 'DocumentNotFoundError') {
+            await this.userModel.updateOne(
+              { _id: user._id },
+              { $set: { role: user.role } }
+            );
+          } else {
+            throw error;
+          }
+        }
       }
       console.log(`✅ Successfully migrated ${usersToFix.length} users.`);
     }

@@ -40,6 +40,14 @@ function normalizeClasses(data: any[]): Class[] {
   return data.map(normalizeClass);
 }
 
+function serializeClassPayload(dto: any) {
+  const { class_type, ...payload } = dto || {};
+  if (class_type && !payload.class_course) {
+    payload.class_course = class_type;
+  }
+  return payload;
+}
+
 export const classApi = {
   async getClasses(): Promise<Class[]> {
     return apiCache.get('classes', async () => {
@@ -64,7 +72,7 @@ export const classApi = {
     const res = await httpClient(`${API_BASE}/classes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dto),
+      body: JSON.stringify(serializeClassPayload(dto)),
     });
     const data = await handleResponse<any>(res);
     const normalized = normalizeClass(data);
@@ -76,7 +84,7 @@ export const classApi = {
     const res = await httpClient(`${API_BASE}/classes/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dto),
+      body: JSON.stringify(serializeClassPayload(dto)),
     });
     const data = await handleResponse<any>(res);
     const normalized = normalizeClass(data);

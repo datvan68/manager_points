@@ -1,282 +1,283 @@
-# Task Scope: Import Backup Database va Khoi Phuc Du Lieu
+# Task Scope: Chức năng import lớp
 
-## 1. Muc tieu
+## 1. Mục tiêu
 
-Bo sung chuc nang trong trang `/system`, tab/danh muc sao luu database, cho phep nguoi dung co quyen import tep sao luu database de xem truoc tong quan cac bang/collections va thuc hien khoi phuc du lieu khi da xac nhan.
+Thêm chức năng import danh sách lớp từ file vào hệ thống, giúp quản trị viên tạo nhiều lớp cùng lúc thay vì nhập thủ công từng lớp.
 
-Luong chinh:
+Chức năng phải có bước đọc file, kiểm tra dữ liệu, hiển thị modal preview tổng quan trước khi ghi vào database, sau đó mới cho phép người dùng xác nhận import.
 
-1. Nguoi dung vao `/system` -> tab `backup`.
-2. Bam nut `Import sao luu` va chon file backup.
-3. He thong upload file, kiem tra dinh dang, tao phien preview.
-4. Frontend mo modal tong quan database, hien thi danh sach collections, so ban ghi, kich thuoc uoc tinh, trang thai hop le/canh bao.
-5. Nguoi dung chon collections can khoi phuc va che do restore.
-6. He thong yeu cau xac nhan ro rang truoc khi ghi du lieu.
-7. Backend tao backup an toan truoc restore, sau do chay restore job bat dong bo va cap nhat tien trinh/trang thai.
+## 2. Phạm vi màn hình
 
-## 2. Pham vi hien tai cua du an
+Áp dụng tại khu vực quản lý lớp trong module sinh viên/lớp hiện tại.
 
-Frontend hien co:
+Các thay đổi UI cần có:
 
-- Trang chinh: `frontend/src/app/system/page.tsx`.
-- API client: `frontend/src/api/system-api.ts`.
-- Tab backup hien co danh sach job, tao backup, tai backup, xoa backup.
-- Quyen hien co: `DATABASE_BACKUP_READ`, `DATABASE_BACKUP_CREATE`, `DATABASE_BACKUP_DOWNLOAD`, `DATABASE_BACKUP_DELETE`.
+- Thêm nút `Import lớp` cạnh các thao tác tạo lớp hiện có.
+- Cho phép chọn file `.xlsx`, `.xls` hoặc `.csv`.
+- Sau khi chọn file, mở modal preview danh sách lớp sẽ import.
+- Modal cần hiển thị tổng số dòng đọc được, số dòng hợp lệ, số dòng lỗi, số dòng bị trùng.
+- Trong modal có bảng preview các cột chính: tên lớp, khóa/năm học, khoa/phòng ban, cố vấn học tập, hệ đào tạo, cơ sở, trạng thái kiểm tra.
+- Cho phép người dùng tải file mẫu để nhập đúng định dạng.
+- Chỉ bật nút `Xác nhận import` khi không có lỗi bắt buộc hoặc khi người dùng chọn chế độ bỏ qua dòng lỗi.
 
-Backend hien co:
+## 3. Định dạng dữ liệu import
 
-- Controller: `backend/src/system/system.controller.ts`.
-- Service: `backend/src/system/system.service.ts`.
-- DTO: `backend/src/system/dto/system.dto.ts`.
-- Schema job: `backend/src/system/schemas/database-backup-job.schema.ts`.
-- Backup file dang luu trong `storage/backups`.
-- Co 2 dang backup can ho tro:
-  - `mongodump --archive --gzip`.
-  - Fallback NDJSON gzip do `runMongooseBackupFallback` sinh ra.
+File import cần hỗ trợ các cột sau:
 
-## 3. Chuc nang can them
+| Cột trong file | Field backend | Bắt buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `class_name` hoặc `Tên lớp` | `class_name` | Có | Tên lớp đang unique trong database, không được trùng. |
+| `class_year` hoặc `Khóa/Năm học` | `class_year` | Có | Ví dụ: `2024-2027`, `K24`, `2024`. |
+| `department_code` hoặc `Mã khoa` | `dept_id` | Có | Dùng để tìm department tương ứng. |
+| `advisor_email` hoặc `Email cố vấn` | `advisor_id` | Không | Nếu có thì map sang user cố vấn. |
+| `class_course` hoặc `Hệ đào tạo` | `class_course` | Không | Backend hiện hỗ trợ alias `class_type`. |
+| `headquarters` hoặc `Cơ sở` | `headquarters` | Không | Ví dụ: phân hiệu/cơ sở đang dùng trong hệ thống. |
 
-### 3.1 Frontend `/system` - tab Backup
+Không yêu cầu người dùng nhập trực tiếp `dept_id` hoặc `advisor_id` trong file vì đây là ObjectId nội bộ.
 
-Them UI vao khu vuc backup:
+## 4. Luồng xử lý người dùng
 
-- Nut `Import sao luu` chi hien thi khi co quyen restore/import.
-- Input file an, chi chap nhan dinh dang `.gz`, `.archive`, `.zip` neu backend ho tro.
-- Khi chon file:
-  - Upload file len API preview.
-  - Hien loading state: "Dang phan tich tep sao luu...".
-  - Neu hop le, mo modal tong quan database.
-  - Neu loi, hien toast loi ro rang.
+1. Người dùng bấm `Import lớp`.
+2. Hệ thống mở popup chọn file hoặc mở modal import.
+3. Người dùng tải file lên.
+4. Frontend gửi file lên endpoint preview.
+5. Backend parse file và validate từng dòng.
+6. Frontend hiển thị modal preview tổng thể:
+   - Dòng hợp lệ.
+   - Dòng thiếu dữ liệu bắt buộc.
+   - Dòng trùng `class_name` trong file.
+   - Dòng trùng `class_name` đã tồn tại trong database.
+   - Dòng không tìm thấy khoa theo `department_code`.
+   - Dòng không tìm thấy cố vấn theo `advisor_email`.
+7. Người dùng chọn:
+   - Hủy import.
+   - Sửa file rồi upload lại.
+   - Import các dòng hợp lệ nếu hệ thống cho phép bỏ qua dòng lỗi.
+8. Backend chỉ ghi database sau khi người dùng xác nhận.
+9. Sau khi import thành công, danh sách lớp được refresh và cache lớp bị invalidate.
 
-Modal tong quan database can co:
+## 5. Backend scope
 
-- Header:
-  - Ten file.
-  - Kich thuoc file.
-  - Dinh dang backup phat hien.
-  - Thoi diem backup neu doc duoc metadata.
-  - Checksum/file hash neu backend tra ve.
-- Bang collections:
-  - Ten collection.
-  - So documents trong file backup.
-  - So documents hien tai trong database.
-  - Chenh lech them/xoa/ghi de uoc tinh.
-  - Trang thai: hop le, thieu collection, collection moi, canh bao schema.
-  - Checkbox chon collection can restore.
-- Khu vuc tuy chon restore:
-  - `Restore selected collections`.
-  - Mode mac dinh: `replace_selected_collections`.
-  - Mode tuy chon neu can: `merge_upsert` cho document trung `_id`.
-  - Checkbox bat buoc: "Toi hieu thao tac nay co the ghi de du lieu hien tai".
-  - O nhap xac nhan bat buoc: go `RESTORE`.
-- Footer:
-  - `Huy`.
-  - `Khoi phuc du lieu` disabled neu chua chon collection/chua xac nhan/chua co quyen.
+Thêm API cho import lớp trong module `classes`.
 
-Sau khi submit restore:
+Endpoint đề xuất:
 
-- Goi API restore confirm bang `previewSessionId`.
-- Dong modal hoac chuyen modal sang trang thai job progress.
-- Refresh danh sach backup/restore job.
-- Poll trang thai job 3 giay/lien tuc nhu backup job hien co.
+- `POST /api/classes/import/preview`
+  - Nhận file import.
+  - Parse file.
+  - Validate dữ liệu.
+  - Không ghi database.
+  - Trả về danh sách dòng preview kèm trạng thái.
 
-### 3.2 API client frontend
+- `POST /api/classes/import/confirm`
+  - Nhận payload các dòng đã được preview hợp lệ hoặc nhận `importSessionId`.
+  - Ghi database theo mode đã chọn.
+  - Trả về số lượng tạo thành công, số dòng bỏ qua, danh sách lỗi nếu có.
 
-Mo rong `frontend/src/api/system-api.ts`:
+DTO/kiểu dữ liệu cần có:
 
-- Them type:
-  - `BackupPreviewCollection`.
-  - `BackupImportPreview`.
-  - `RestoreJob`.
-  - `RestoreMode`.
-- Them method:
-  - `previewBackupImport(file: File): Promise<BackupImportPreview>`.
-  - `restoreBackupImport(payload): Promise<RestoreJob>`.
-  - `getRestoreJobs(query): Promise<PaginatedResponse<RestoreJob>>` neu tach job restore rieng.
+- `ImportClassRowDto`
+- `ImportClassPreviewResultDto`
+- `ImportClassConfirmDto`
+- `ImportClassResultDto`
 
-Khong truyen token qua query string. Dung `httpClient`/Authorization header nhu cac API hien tai.
+Service cần xử lý:
 
-### 3.3 Backend endpoints
+- Parse Excel/CSV bằng thư viện ổn định, không tự tách chuỗi thủ công.
+- Chuẩn hóa header tiếng Việt và tiếng Anh.
+- Trim khoảng trắng ở mọi field text.
+- Map `department_code` sang `dept_id`.
+- Map `advisor_email` sang `advisor_id` nếu có.
+- Chuẩn hóa `class_type` về `class_course`.
+- Kiểm tra trùng `class_name` trong file.
+- Kiểm tra trùng `class_name` trong database.
+- Trả lỗi rõ ràng theo từng dòng.
 
-Them endpoints trong `SystemController`:
+## 6. Quyền truy cập
 
-- `POST /api/system/backups/import/preview`
-  - Permission: `DATABASE_BACKUP_RESTORE` hoac `DATABASE_BACKUP_IMPORT`.
-  - Content-Type: `multipart/form-data`.
-  - Upload 1 file backup.
-  - Tra ve preview session va tong quan collections.
+Chỉ người có quyền tạo lớp mới được import lớp.
 
-- `POST /api/system/backups/import/restore`
-  - Permission: `DATABASE_BACKUP_RESTORE`.
-  - Body gom:
-    - `previewSessionId`.
-    - `collections`.
-    - `mode`.
-    - `confirmationText`.
-  - Tao restore job bat dong bo.
-  - Bat buoc kiem tra `confirmationText === "RESTORE"`.
+Đề xuất dùng cùng permission với tạo lớp hiện tại:
 
-- `GET /api/system/backups/restore-jobs`
-  - Permission: `DATABASE_BACKUP_READ` hoac `DATABASE_BACKUP_RESTORE`.
-  - Tra ve lich su restore job va trang thai.
+- Preview import: yêu cầu `CLASS_CREATE`.
+- Confirm import: yêu cầu `CLASS_CREATE`.
 
-### 3.4 Backend service
+Không cho học sinh/sinh viên hoặc tài khoản không có quyền quản lý lớp truy cập endpoint import.
 
-Them service logic:
+## 7. Quy tắc xử lý trùng dữ liệu
 
-- Validate file:
-  - Gioi han kich thuoc upload theo config.
-  - Chi nhan file backup hop le.
-  - Luu file tam trong folder rieng, vi du `storage/backup-imports`.
-  - Kiem tra path traversal bang `path.resolve` va safe prefix nhu logic download/delete backup hien co.
-- Phat hien dinh dang:
-  - Neu la MongoDB archive gzip: xu ly bang `mongorestore` vao temporary database de inspect.
-  - Neu la fallback NDJSON gzip: stream parse tung line, nhan dien header `{ "__collection": "..." }`.
-- Tao preview:
-  - Tinh danh sach collections trong file.
-  - Dem documents moi collection.
-  - Lay document count hien tai cua database hien hanh.
-  - Khong log noi dung document, khong tra sample chua thong tin nhay cam mac dinh.
-  - Neu can sample, chi tra `_id` va keys top-level da mask.
-- Restore:
-  - Khong restore ngay trong request preview.
-  - Truoc khi restore, tu dong tao backup hien trang database va luu job lien ket.
-  - Chi restore collections duoc chon.
-  - Mac dinh `replace_selected_collections`: drop collection duoc chon roi import lai.
-  - Neu `merge_upsert`: upsert theo `_id`, khong xoa document khong co trong file.
-  - Block neu co backup/restore job khac dang `queued` hoac `running`.
-  - Ghi audit log userId, jobId, collections, mode, file hash, ket qua.
-  - Mask URI/secret trong moi error message.
+Mặc định không ghi đè lớp cũ.
 
-### 3.5 Schema/DTO
+Các mode đề xuất:
 
-Co the mo rong schema `DatabaseBackupJob` hoac tao schema moi `DatabaseRestoreJob`.
+- `skip_duplicates`: bỏ qua dòng trùng `class_name`, chỉ tạo dòng mới hợp lệ.
+- `fail_on_duplicates`: nếu có bất kỳ dòng trùng nào thì chặn toàn bộ import.
 
-Khuyen nghi tao schema rieng `DatabaseRestoreJob`:
+Không triển khai mode ghi đè ở phiên bản đầu nếu chưa có yêu cầu rõ ràng, vì lớp có thể đang liên kết với sinh viên, báo cáo, điểm danh và dữ liệu điểm.
 
-- `status`: `queued | running | success | failed`.
-- `requested_by`.
-- `started_at`.
-- `finished_at`.
-- `source_file_name`.
-- `source_file_size`.
-- `source_file_hash`.
-- `preview_session_id`.
-- `mode`.
-- `collections`.
-- `collection_summaries`.
-- `pre_restore_backup_job_id`.
-- `error_message`.
-- timestamps.
+## 8. Modal preview
 
-DTO can them:
+Modal import cần có:
 
-- `CreateBackupImportPreviewDto` neu can metadata di kem upload.
-- `RestoreBackupImportDto`:
-  - `previewSessionId`: string.
-  - `collections`: string[], min 1.
-  - `mode`: enum `replace_selected_collections | merge_upsert`.
-  - `confirmationText`: string.
+- Tên file đã chọn.
+- Tổng số dòng.
+- Badge thống kê: hợp lệ, lỗi, trùng, sẽ import.
+- Bảng preview có phân trang nếu nhiều dòng.
+- Bộ lọc theo trạng thái: tất cả, hợp lệ, lỗi, trùng.
+- Nút tải lại file khác.
+- Nút hủy.
+- Nút xác nhận import.
+- Cảnh báo rõ rằng thao tác import sẽ thêm lớp mới vào database.
 
-## 4. Quyen va bao mat
+Trạng thái từng dòng nên gồm:
 
-Them permission moi:
+- `valid`
+- `missing_required_field`
+- `duplicate_in_file`
+- `duplicate_in_database`
+- `department_not_found`
+- `advisor_not_found`
+- `invalid_format`
 
-- `DATABASE_BACKUP_RESTORE`: duoc import, preview va chay restore.
+## 9. Frontend scope
 
-Neu muon tach nho hon:
+Cần cập nhật hoặc thêm:
 
-- `DATABASE_BACKUP_IMPORT`: chi duoc upload/preview.
-- `DATABASE_BACKUP_RESTORE`: duoc thuc hien restore.
+- API client cho import lớp trong `frontend/src/api/class-api.ts`.
+- Component popup/modal import lớp.
+- Button mở import tại màn hình quản lý lớp.
+- Loading state khi upload/preview/import.
+- Error state khi file sai định dạng hoặc backend trả lỗi.
+- Toast/thông báo kết quả sau import.
+- Refresh danh sách lớp sau import thành công.
+- Invalidate cache `classes` sau khi import.
 
-Yeu cau bao mat bat buoc:
+Frontend không tự quyết định dữ liệu nào được ghi database; backend là nơi validate cuối cùng.
 
-- Khong expose `file_path` ra client.
-- Khong log raw `MONGO_URI`, token, password, noi dung document.
-- File upload phai co gioi han kich thuoc va dinh dang.
-- Tat ca file tam phai nam trong thu muc duoc resolve an toan.
-- Restore la thao tac destructive nen bat buoc:
-  - Permission rieng.
-  - Modal xac nhan.
-  - Chu xac nhan `RESTORE`.
-  - Tao backup truoc restore.
-  - Audit log.
+## 10. Validation
 
-## 5. UX chi tiet
+Validation bắt buộc:
 
-Trang backup nen co cac nut:
+- File không rỗng.
+- File đúng định dạng hỗ trợ.
+- `class_name` không rỗng.
+- `class_year` không rỗng.
+- `department_code` tồn tại trong database.
+- `class_name` không trùng trong file.
+- `class_name` không trùng trong database.
 
-- `Tao sao luu`
-- `Import sao luu`
-- `Lam moi`
+Validation khuyến nghị:
 
-Bang backup hien tai giu nguyen, co the them tab nho trong backup:
+- Giới hạn số dòng mỗi lần import, ví dụ tối đa 500 hoặc 1000 dòng.
+- Kiểm tra độ dài `class_name`.
+- Kiểm tra `advisor_email` đúng định dạng email nếu có.
+- Kiểm tra `class_course` thuộc danh sách cho phép nếu hệ thống đang cố định danh mục.
+- Kiểm tra `headquarters` thuộc danh sách cho phép nếu hệ thống đang cố định danh mục.
 
-- `Ban sao luu`
-- `Lich su khoi phuc`
+## 11. Xử lý lỗi
 
-Modal preview nen uu tien tinh ro rang:
+Backend cần trả lỗi theo từng dòng, không chỉ trả message chung.
 
-- Canh bao mau do/cam khi restore mode co ghi de.
-- Hien tong so collections va tong documents.
-- Hien collections duoc chon va tac dong truoc khi nut restore duoc enable.
-- Neu file backup khong tuong thich, modal chi cho xem loi va khong cho restore.
+Ví dụ response preview:
 
-## 6. Acceptance Criteria
+```json
+{
+  "totalRows": 10,
+  "validRows": 8,
+  "invalidRows": 2,
+  "duplicateRows": 1,
+  "rows": [
+    {
+      "rowNumber": 2,
+      "status": "valid",
+      "data": {
+        "class_name": "CNTT-K24A",
+        "class_year": "2024-2027",
+        "department_code": "CNTT"
+      },
+      "errors": []
+    },
+    {
+      "rowNumber": 3,
+      "status": "department_not_found",
+      "data": {
+        "class_name": "QTKD-K24A",
+        "class_year": "2024-2027",
+        "department_code": "QTKD"
+      },
+      "errors": ["Không tìm thấy khoa có mã QTKD"]
+    }
+  ]
+}
+```
 
-- Nguoi co quyen backup restore thay nut `Import sao luu` trong `/system` -> tab backup.
-- Chon file backup hop le se mo modal tong quan tat ca collections trong file.
-- Modal hien document count trong file va document count hien tai cua tung collection.
-- Khong restore du lieu khi moi upload file; restore chi chay sau khi user xac nhan.
-- Restore job co trang thai `queued/running/success/failed` va frontend co polling.
-- Truoc restore thanh cong/thuc thi, he thong tao backup hien trang database.
-- Neu file sai dinh dang, qua lon, hong gzip/archive, API tra loi ro va khong ghi du lieu.
-- Neu dang co backup/restore job chay, API tu choi job moi bang `409 Conflict`.
-- Tat ca API restore co guard JWT + permission.
-- Khong co path/file system leak trong response.
-- Co unit/e2e test cho preview, validation, permission va restore confirmation.
+## 12. An toàn dữ liệu
 
-## 7. Test Scope
+- Preview không được ghi database.
+- Confirm import phải validate lại dữ liệu trước khi ghi.
+- Không tin hoàn toàn vào dữ liệu preview từ frontend.
+- Không ghi đè lớp đã tồn tại ở bản đầu.
+- Nếu import nhiều dòng, cần dùng `insertMany` có kiểm soát hoặc transaction nếu MongoDB deployment hỗ trợ.
+- Nếu một phần import thất bại, response phải cho biết dòng nào đã tạo, dòng nào lỗi.
+- Không log toàn bộ file import nếu có dữ liệu nhạy cảm.
 
-Backend:
+## 13. Kiểm thử
 
-- Unit test detect format backup.
-- Unit test parse fallback NDJSON gzip.
-- Unit test validate restore DTO.
-- Unit test block restore neu `confirmationText` khong dung.
-- Unit test block concurrent backup/restore job.
-- E2E test:
-  - Khong co quyen -> 403.
-  - Upload file sai dinh dang -> 400.
-  - Upload file hop le -> tra preview collections.
-  - Restore selected collections -> tao job.
+Backend tests:
 
-Frontend:
+- Preview file hợp lệ.
+- Preview file thiếu `class_name`.
+- Preview file thiếu `class_year`.
+- Preview file có `department_code` không tồn tại.
+- Preview file có `class_name` trùng trong file.
+- Preview file có `class_name` trùng database.
+- Confirm import chỉ tạo dòng hợp lệ.
+- Confirm import không ghi đè dữ liệu cũ.
+- Permission: user không có `CLASS_CREATE` bị chặn.
 
-- Test API client multipart upload.
-- Test modal:
-  - Loading state.
-  - Error state.
-  - Collection checkbox.
-  - Restore button disabled/enabled dung dieu kien.
-  - Submit payload dung.
+Frontend tests/manual QA:
 
-## 8. Ngoai pham vi
+- Mở modal import.
+- Upload file mẫu hợp lệ.
+- Upload file sai định dạng.
+- Upload file có lỗi và xem preview.
+- Lọc dòng lỗi trong modal.
+- Confirm import thành công.
+- Danh sách lớp refresh sau import.
+- Cache lớp không còn dữ liệu cũ sau import.
 
-- Khong yeu cau restore truc tiep len production neu chua co human approval.
-- Khong xay dung lich restore tu dong.
-- Khong chinh sua schema nghiep vu cua cac collection.
-- Khong expose noi dung document day du trong modal preview.
-- Khong import file tu URL ben ngoai trong phase nay.
+## 14. Ngoài phạm vi phiên bản đầu
 
-## 9. De xuat thu tu thuc hien
+Không bao gồm:
 
-1. Them permission `DATABASE_BACKUP_RESTORE`.
-2. Them backend DTO/schema restore job.
-3. Them upload preview endpoint va parser cho fallback NDJSON gzip.
-4. Them xu ly MongoDB archive gzip bang temp database.
-5. Them restore endpoint voi auto pre-restore backup va job polling.
-6. Them frontend API client.
-7. Them nut import, modal preview va restore confirm trong `/system`.
-8. Them test backend/frontend.
-9. Chay test va review security.
+- Restore database toàn hệ thống.
+- Ghi đè lớp đã tồn tại.
+- Import sinh viên cùng lúc với lớp.
+- Tự tạo khoa mới nếu `department_code` chưa tồn tại.
+- Tự tạo tài khoản cố vấn nếu `advisor_email` chưa tồn tại.
+- Rollback toàn bộ database ngoài phạm vi import lớp.
+
+## 15. Thứ tự triển khai đề xuất
+
+1. Chốt file mẫu và mapping cột.
+2. Thêm backend parser và preview endpoint.
+3. Thêm backend confirm endpoint.
+4. Thêm unit test cho validate/import.
+5. Thêm API client frontend.
+6. Thêm modal import lớp.
+7. Gắn nút import vào màn hình quản lý lớp.
+8. Kiểm thử bằng file hợp lệ, file lỗi, file trùng.
+9. Bổ sung tài liệu hướng dẫn người dùng tải file mẫu và import.
+
+## 16. Tiêu chí hoàn thành
+
+Feature được xem là hoàn thành khi:
+
+- Người dùng có quyền `CLASS_CREATE` import được danh sách lớp từ file.
+- Người dùng xem được preview trước khi ghi database.
+- Dòng lỗi được hiển thị rõ lý do.
+- Dữ liệu trùng không làm crash backend.
+- Import không tự tạo lại dữ liệu mẫu.
+- Danh sách lớp cập nhật đúng sau khi import.
+- Có test backend cho luồng preview và confirm.
+- Có hướng dẫn/file mẫu cho người dùng.

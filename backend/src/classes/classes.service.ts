@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Class, ClassDocument } from './schemas/class.schema';
@@ -12,14 +12,42 @@ export class ClassesService {
     @InjectModel(Class.name) private classModel: Model<ClassDocument>,
   ) {}
 
+  private normalizeClassPayload<T extends CreateClassDto | UpdateClassDto>(
+    dto: T,
+  ) {
+    const payload: any = { ...dto };
+    if (payload.class_type && !payload.class_course) {
+      payload.class_course = payload.class_type;
+    }
+    delete payload.class_type;
+    return payload;
+  }
+
   private isTeacher(requester?: any) {
     const role = (requester?.roleName || '').toLowerCase();
     return role.includes('teacher') || role.includes('advisor');
   }
 
+  private handleDuplicateClassNameError(error: any): never {
+    if (error?.code === 11000 && error?.keyPattern?.class_name) {
+      const duplicateName = error?.keyValue?.class_name || 'provided';
+      throw new ConflictException(
+        `Tên lớp "${duplicateName}" đã tồn tại trong hệ thống`,
+      );
+    }
+
+    throw error;
+  }
+
   async create(createClassDto: CreateClassDto): Promise<Class> {
-    const newClass = new this.classModel(createClassDto);
-    return newClass.save();
+    try {
+      const newClass = new this.classModel(
+        this.normalizeClassPayload(createClassDto),
+      );
+      return await newClass.save();
+    } catch (error) {
+      this.handleDuplicateClassNameError(error);
+    }
   }
 
   async findAll(requester?: any): Promise<Class[]> {
@@ -69,11 +97,18 @@ export class ClassesService {
   }
 
   async update(id: string, updateClassDto: UpdateClassDto): Promise<Class> {
-    const updatedClass = await this.classModel
-      .findByIdAndUpdate(id, updateClassDto, { returnDocument: 'after' })
-      .populate('dept_id', 'name code')
-      .populate('advisor_id', 'user_name email')
-      .exec();
+    let updatedClass;
+    try {
+      updatedClass = await this.classModel
+        .findByIdAndUpdate(id, this.normalizeClassPayload(updateClassDto), {
+          returnDocument: 'after',
+        })
+        .populate('dept_id', 'name code')
+        .populate('advisor_id', 'user_name email')
+        .exec();
+    } catch (error) {
+      this.handleDuplicateClassNameError(error);
+    }
 
     if (!updatedClass) {
       throw new NotFoundException(`Class with ID ${id} not found`);

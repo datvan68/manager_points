@@ -33,6 +33,8 @@ import { classApi, Class } from "@/api/class-api";
 import { studentApi, Student } from "@/api/student-api";
 import { addNotification } from "@/lib/notifications";
 
+const ENABLE_MOCK_SEED = process.env.NEXT_PUBLIC_ENABLE_MOCK_SEED === "true";
+
 function StudentsPageContent() {
   const router = useRouter();
   const { user } = useAuth();
@@ -85,7 +87,7 @@ function StudentsPageContent() {
   const fetchDepartments = async () => {
     try {
       let fetchedDepts = await departmentApi.getDepartments();
-      if (fetchedDepts.length === 0 && permissions.canCreateDept) {
+      if (ENABLE_MOCK_SEED && fetchedDepts.length === 0 && permissions.canCreateDept) {
         console.log("Database departments is empty. Seeding mock data...");
         const seedDepts = [
           {
@@ -171,7 +173,7 @@ function StudentsPageContent() {
   const fetchClasses = async (currentDepts: Department[]) => {
     try {
       let fetchedClasses = await classApi.getClasses();
-      if (fetchedClasses.length === 0 && currentDepts.length > 0 && permissions.canCreateClass) {
+      if (ENABLE_MOCK_SEED && fetchedClasses.length === 0 && currentDepts.length > 0 && permissions.canCreateClass) {
         console.log("Database classes is empty. Seeding mock classes...");
         const cnttDept =
           currentDepts.find((d) => d.code === "CNTT") || currentDepts[0];

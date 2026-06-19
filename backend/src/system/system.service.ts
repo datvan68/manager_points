@@ -875,7 +875,18 @@ export class SystemService {
 
       restoreJob.status = 'success';
       restoreJob.finished_at = new Date();
-      await restoreJob.save();
+      try {
+        await restoreJob.save();
+      } catch (e: any) {
+        if (e.name === 'DocumentNotFoundError' || e.name === 'VersionError') {
+          await this.restoreJobModel.updateOne(
+            { _id: restoreJob._id },
+            { $set: { status: restoreJob.status, finished_at: restoreJob.finished_at } }
+          );
+        } else {
+          throw e;
+        }
+      }
 
       try { fs.unlinkSync(filePath); } catch(e){}
 
@@ -883,7 +894,18 @@ export class SystemService {
       restoreJob.status = 'failed';
       restoreJob.finished_at = new Date();
       restoreJob.error_message = this.maskUri(err.message);
-      await restoreJob.save();
+      try {
+        await restoreJob.save();
+      } catch (e: any) {
+        if (e.name === 'DocumentNotFoundError' || e.name === 'VersionError') {
+          await this.restoreJobModel.updateOne(
+            { _id: restoreJob._id },
+            { $set: { status: restoreJob.status, finished_at: restoreJob.finished_at, error_message: restoreJob.error_message } }
+          );
+        } else {
+          throw e;
+        }
+      }
     }
   }
 
