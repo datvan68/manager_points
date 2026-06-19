@@ -729,7 +729,12 @@ function GradingScoreContent() {
 
   useEffect(() => {
     if (!isStudentSliderSticky && sliderContainerRef.current) {
-      setSliderExpandedHeight(sliderContainerRef.current.offsetHeight);
+      const timer = setTimeout(() => {
+        if (sliderContainerRef.current) {
+          setSliderExpandedHeight(sliderContainerRef.current.offsetHeight);
+        }
+      }, 350);
+      return () => clearTimeout(timer);
     }
   }, [isStudentSliderSticky, students, rosterSearch, isInitialLoading]);
 
@@ -2756,7 +2761,9 @@ function GradingScoreContent() {
 
             {/* ================= ACTIVE STUDENT RANK CARD ================= */}
             {shouldShowActiveStudentRankCard && activeStudent && (
-              <ActiveStudentRankCard activeStudent={activeStudent} />
+              <div className="mt-2 md:mt-3 relative z-20">
+                <ActiveStudentRankCard activeStudent={activeStudent} />
+              </div>
             )}
 
             {/* ================= NAVIGATION TABS (Danh mục / Lịch sử) ================= */}
