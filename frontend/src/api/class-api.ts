@@ -99,5 +99,26 @@ export const classApi = {
     const data = await handleResponse<Class>(res);
     apiCache.invalidate('classes');
     return data;
+  },
+
+  async previewImport(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await httpClient(`${API_BASE}/classes/import/preview`, {
+      method: 'POST',
+      body: formData,
+    });
+    return handleResponse<any>(res);
+  },
+
+  async confirmImport(dto: any): Promise<any> {
+    const res = await httpClient(`${API_BASE}/classes/import/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dto),
+    });
+    const data = await handleResponse<any>(res);
+    apiCache.invalidate('classes');
+    return data;
   }
 };

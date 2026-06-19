@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### 🚀 Tính năng mới (New Features)
+- **Import danh sách lớp từ file:** Hỗ trợ tính năng import danh sách lớp từ file (Excel, CSV) kèm theo cơ chế xem trước (preview) để kiểm tra tính hợp lệ của dữ liệu trước khi lưu vào hệ thống.
 - **Import Backup Database và Khôi phục dữ liệu:** Cho phép tải lên file sao lưu (định dạng `.gz`, `.archive`, `.zip`), xem trước cấu trúc collections và số lượng bản ghi. Hệ thống hỗ trợ quá trình khôi phục an toàn với cơ chế tự động sao lưu dữ liệu trước khi khôi phục (pre-restore backup) và yêu cầu xác nhận.
 - **Hệ thống xếp hạng sinh viên (Student Ranking Tier):** Ra mắt cơ chế tính toán và cấp "Hạng" (Rank) cho sinh viên dựa trên tổng điểm rèn luyện (Diamond, Gold, Silver, Bronze, Unranked). Hạng chỉ được cấp sau khi bảng điểm đã được chốt (Locked).
 - **Thẻ hiển thị hạng tích cực (Active Student Rank Card):** Bổ sung UI mới (`ActiveStudentRankCard`) trên Frontend để hiển thị cấp bậc của sinh viên một cách trực quan, bao gồm các hiệu ứng thị giác đặc biệt (phát sáng, tia lửa) đối với các hạng cao như Kim cương (Diamond).

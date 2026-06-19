@@ -1,8 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { ClassesService } from '../classes.service';
 import { Class } from '../schemas/class.schema';
+import * as xlsx from 'xlsx';
+
+jest.mock('xlsx', () => ({
+  read: jest.fn(),
+  utils: {
+    sheet_to_json: jest.fn(),
+  },
+}));
 
 const mockClass = {
   _id: 'mock-class-id',
@@ -46,6 +54,24 @@ describe('ClassesService', () => {
               findByIdAndDelete: jest.fn().mockReturnValue({
                 exec: jest.fn().mockResolvedValue(mockClass),
               }),
+              countDocuments: jest.fn().mockResolvedValue(0),
+              findOne: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue(null),
+                populate: jest.fn().mockReturnThis(),
+              }),
+              db: {
+                model: jest.fn().mockReturnValue({
+                  find: jest.fn().mockReturnValue({
+                    exec: jest.fn().mockResolvedValue([]),
+                  }),
+                  countDocuments: jest.fn().mockReturnValue({
+                    exec: jest.fn().mockResolvedValue(0),
+                  }),
+                  findOne: jest.fn().mockReturnValue({
+                    exec: jest.fn().mockResolvedValue(null),
+                  }),
+                }),
+              },
             },
           ),
         },
@@ -193,6 +219,82 @@ describe('ClassesService', () => {
       await expect(service.remove('invalid-id')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('previewImport', () => {
+    it('should correctly preview valid data', async () => {
+      const mockFile = { buffer: Buffer.from('') } as any;
+      (xlsx.read as jest.Mock).mockReturnValue({ SheetNames: ['Sheet1'], Sheets: { Sheet1: {} } });
+      (xlsx.utils.sheet_to_json as jest.Mock).mockReturnValue([
+        {
+          class_name: 'Class B',
+          class_year: '2023',
+          department_code: 'IT',
+          advisor_email: 'gv1@example.com',
+          class_course: 'Đại học',
+        }
+      ]);
+
+      const dbModelMock = model.db.model as jest.Mock;
+      dbModelMock.mockImplementation((name: string) => {
+        if (name === 'Department') return { find: () => ({ exec: jest.fn().mockResolvedValue([{ code: 'IT', _id: 'dept-id' }]) }) };
+        if (name === 'User') return { find: () => ({ exec: jest.fn().mockResolvedValue([{ email: 'gv1@example.com', _id: 'user-id' }]) }) };
+        return { find: () => ({ exec: jest.fn().mockResolvedValue([]) }) };
+      });
+      model.find.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue([]) });
+
+      const result = await service.previewImport(mockFile);
+      expect(result.validRows).toBe(1);
+      expect(result.invalidRows).toBe(0);
+      expect(result.rows[0].status).toBe('valid');
+    });
+
+    it('should flag duplicate class in file', async () => {
+      const mockFile = { buffer: Buffer.from('') } as any;
+      (xlsx.read as jest.Mock).mockReturnValue({ SheetNames: ['Sheet1'], Sheets: { Sheet1: {} } });
+      (xlsx.utils.sheet_to_json as jest.Mock).mockReturnValue([
+        { class_name: 'Class B', class_year: '2023', department_code: 'IT' },
+        { class_name: 'Class B', class_year: '2023', department_code: 'IT' },
+      ]);
+
+      const dbModelMock = model.db.model as jest.Mock;
+      dbModelMock.mockImplementation(() => ({ find: () => ({ exec: jest.fn().mockResolvedValue([]) }) }));
+      model.find.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue([]) });
+
+      const result = await service.previewImport(mockFile);
+      expect(result.rows[1].status).toBe('duplicate_in_file');
+    });
+  });
+
+  describe('confirmImport', () => {
+    it('should successfully import valid rows', async () => {
+      const dbModelMock = model.db.model as jest.Mock;
+      dbModelMock.mockImplementation((name: string) => {
+        if (name === 'Department') return { find: () => ({ exec: jest.fn().mockResolvedValue([{ code: 'IT', _id: 'dept-id' }]) }) };
+        if (name === 'User') return { find: () => ({ exec: jest.fn().mockResolvedValue([]) }) };
+        return { find: () => ({ exec: jest.fn().mockResolvedValue([]) }) };
+      });
+
+      model.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+
+      const dto = {
+        rows: [{ class_name: 'Class B', class_year: '2023', department_code: 'IT' }],
+        mode: 'skip_duplicates' as const,
+      };
+
+      const result = await service.confirmImport(dto);
+      expect(result.success).toBe(1);
+    });
+
+    it('should throw BadRequestException if mode is fail_on_duplicates and duplicates exist', async () => {
+      model.countDocuments.mockResolvedValueOnce(1);
+      const dto = {
+        rows: [{ class_name: 'Class B', class_year: '2023', department_code: 'IT' }],
+        mode: 'fail_on_duplicates' as const,
+      };
+
+      await expect(service.confirmImport(dto)).rejects.toThrow(BadRequestException);
     });
   });
 });

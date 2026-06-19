@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClassesController } from '../classes.controller';
 import { ClassesService } from '../classes.service';
+import { BadRequestException } from '@nestjs/common';
 
 
 const mockClass = {
@@ -18,6 +19,8 @@ const mockClassesService = {
   findOne: jest.fn().mockResolvedValue(mockClass),
   update: jest.fn().mockResolvedValue(mockClass),
   remove: jest.fn().mockResolvedValue(mockClass),
+  previewImport: jest.fn(),
+  confirmImport: jest.fn(),
 };
 
 describe('ClassesController', () => {
@@ -87,6 +90,34 @@ describe('ClassesController', () => {
       const result = await controller.remove('mock-class-id');
       expect(result).toEqual(mockClass);
       expect(service.remove).toHaveBeenCalledWith('mock-class-id');
+    });
+  });
+
+  describe('previewImport', () => {
+    it('should throw BadRequestException if file is not provided', () => {
+      expect(() => controller.previewImport(undefined as any)).toThrow(BadRequestException);
+    });
+
+    it('should call previewImport on service and return result', async () => {
+      const mockFile = { buffer: Buffer.from(''), originalname: 'test.xlsx' } as any;
+      const mockResult = { validRows: 1, invalidRows: 0 };
+      mockClassesService.previewImport.mockResolvedValueOnce(mockResult);
+
+      const result = await controller.previewImport(mockFile);
+      expect(result).toEqual(mockResult);
+      expect(service.previewImport).toHaveBeenCalledWith(mockFile);
+    });
+  });
+
+  describe('confirmImport', () => {
+    it('should call confirmImport on service and return result', async () => {
+      const dto = { rows: [], mode: 'skip_duplicates' } as any;
+      const mockResult = { success: 1, skipped: 0, errors: [] };
+      mockClassesService.confirmImport.mockResolvedValueOnce(mockResult);
+
+      const result = await controller.confirmImport(dto);
+      expect(result).toEqual(mockResult);
+      expect(service.confirmImport).toHaveBeenCalledWith(dto);
     });
   });
 });

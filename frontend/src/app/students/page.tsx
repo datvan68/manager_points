@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import ClassPopup from "@/components/popups/ClassPopup";
 import DepartmentPopup from "@/components/popups/DepartmentPopup";
+import ImportClassPopup from "@/components/popups/ImportClassPopup";
 import ConfirmModal from "@/components/modals/ConfirmModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StudentAvatar } from "@/components/ui/StudentAvatar";
@@ -67,6 +68,7 @@ function StudentsPageContent() {
   const [classSummaries, setClassSummaries] = useState<any[]>([]);
   const [selectedDept, setSelectedDept] = useState<string>("");
   const [isClassPopupOpen, setIsClassPopupOpen] = useState(false);
+  const [isImportClassPopupOpen, setIsImportClassPopupOpen] = useState(false);
   const [isDeptPopupOpen, setIsDeptPopupOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<any>(null);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
@@ -477,19 +479,32 @@ function StudentsPageContent() {
                       containerClassName="flex-1 max-w-none lg:max-w-[231px]"
                     />
                     {permissions.canCreateClass && (
-                      <Button
-                        size="sm"
-                        className="shrink-0 h-10 px-3 text-xs md:text-sm"
-                        onClick={() => {
-                          setEditingClass({ departmentId: selectedDept });
-                          setIsClassPopupOpen(true);
-                        }}
-                      >
-                        <span className="text-[18px] font-bold leading-none -mt-0.5">
-                          +
-                        </span>
-                        <span>Thêm lớp</span>
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 h-10 px-3 text-xs md:text-sm bg-white hover:bg-gray-50 border-gray-200"
+                          onClick={() => setIsImportClassPopupOpen(true)}
+                        >
+                          <span className="text-[18px] font-bold leading-none -mt-0.5 mr-1">
+                            +
+                          </span>
+                          <span>Import lớp</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="shrink-0 h-10 px-3 text-xs md:text-sm"
+                          onClick={() => {
+                            setEditingClass({ departmentId: selectedDept });
+                            setIsClassPopupOpen(true);
+                          }}
+                        >
+                          <span className="text-[18px] font-bold leading-none -mt-0.5">
+                            +
+                          </span>
+                          <span>Thêm lớp</span>
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -871,6 +886,14 @@ function StudentsPageContent() {
         confirmLabel="Xóa lớp"
         cancelLabel="Hủy"
         variant="danger"
+      />
+
+      <ImportClassPopup
+        isOpen={isImportClassPopupOpen}
+        onClose={() => setIsImportClassPopupOpen(false)}
+        onSuccess={() => {
+          fetchDepartments();
+        }}
       />
     </div>
   );
