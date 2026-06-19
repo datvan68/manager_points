@@ -653,8 +653,34 @@ function GradingScoreContent() {
 
   // Scroll to Top ref & state
   const mainRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [isStudentSliderSticky, setIsStudentSliderSticky] = useState(false);
+  const [sliderExpandedHeight, setSliderExpandedHeight] = useState<number | undefined>(undefined);
+  const sliderContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const mainNode = mainRef.current;
+    const sentinelNode = sentinelRef.current;
+    if (!sentinelNode || !mainNode) return;
+    
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsStudentSliderSticky(!entry.isIntersecting);
+      },
+      {
+        root: mainNode,
+        threshold: 0,
+        rootMargin: "-24px 0px 0px 0px", // Bù trừ cho padding của main
+      }
+    );
+
+    observer.observe(sentinelNode);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   // Lắng nghe sự kiện scroll trên thẻ <main>
   const handleScroll = () => {
@@ -664,13 +690,6 @@ function GradingScoreContent() {
         setShowScrollTop(true);
       } else {
         setShowScrollTop(false);
-      }
-
-      // Update sticky state for student slider
-      if (scrollTop > 150) {
-        setIsStudentSliderSticky(true);
-      } else {
-        setIsStudentSliderSticky(false);
       }
     }
   };
@@ -707,6 +726,12 @@ function GradingScoreContent() {
   const [isFetching, setIsFetching] = useState(false);
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isStudentSliderSticky && sliderContainerRef.current) {
+      setSliderExpandedHeight(sliderContainerRef.current.offsetHeight);
+    }
+  }, [isStudentSliderSticky, students, rosterSearch, isInitialLoading]);
 
   // States lưu danh mục & tiêu chí thật từ API
   const [categories, setCategories] =
@@ -2536,13 +2561,19 @@ function GradingScoreContent() {
               ))}
 
             {/* ================= STUDENT HERO SLIDER ================= */}
+            <div ref={sentinelRef} className="w-full h-0 pointer-events-none" aria-hidden="true" />
             {shouldShowStudentSlider && (
               <div
-                className={`shrink-0 flex flex-col relative overflow-hidden transition-all duration-300 z-30 ${isStudentSliderSticky
-                  ? "sticky -top-6 -mt-6 -mx-6 md:-mx-8 pt-2 px-6 md:px-8 pb-2 bg-sky-400/20 backdrop-blur-md border-b border-sky-400/50 gap-2 rounded-b-2xl shadow-sm"
-                  : "bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-300/40 gap-4"
-                  }`}
+                className={`transition-all duration-300 z-30 ${isStudentSliderSticky ? "sticky -top-6 -mt-6 -mx-6 md:-mx-8 pointer-events-none" : "relative"}`}
+                style={{ minHeight: sliderExpandedHeight ? `${sliderExpandedHeight}px` : undefined }}
               >
+                <div
+                  ref={sliderContainerRef}
+                  className={`shrink-0 flex flex-col relative overflow-hidden transition-all duration-300 pointer-events-auto ${isStudentSliderSticky
+                    ? "pt-2 px-6 md:px-8 pb-2 bg-sky-400/20 backdrop-blur-md border-b border-sky-400/50 gap-2 rounded-b-2xl shadow-sm"
+                    : "bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-300/40 gap-4"
+                    }`}
+                >
                 {!isStudentSliderSticky && (
                   <div className="flex flex-col md:flex-row md:items-center justify-between w-full gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -2718,6 +2749,7 @@ function GradingScoreContent() {
                         </motion.div>
                       );
                     })}
+                </div>
                 </div>
               </div>
             )}
