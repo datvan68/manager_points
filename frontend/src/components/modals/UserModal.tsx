@@ -8,6 +8,9 @@ import {
   Save,
   Eye,
   EyeOff,
+  Users,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -26,6 +29,7 @@ interface UserModalProps {
   initialData?: any;
   roles?: any[];
   onSave?: (data: any) => Promise<void>;
+  onBulkSave?: (data: any) => Promise<any>;
 }
 
 export default function UserModal({
@@ -35,11 +39,14 @@ export default function UserModal({
   initialData = null,
   roles = [],
   onSave,
+  onBulkSave,
 }: UserModalProps) {
+  const [mode, setMode] = useState<"single" | "bulk">("single");
   const [isActive, setIsActive] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Single mode state
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -48,8 +55,15 @@ export default function UserModal({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Bulk mode state
+  const [bulkUsers, setBulkUsers] = useState<any[]>([]);
+  const [useCommonPassword, setUseCommonPassword] = useState(false);
+  const [commonPassword, setCommonPassword] = useState("");
+  const [bulkResult, setBulkResult] = useState<any>(null);
+
   useEffect(() => {
     if (isOpen) {
+      setMode("single");
       setFormData({
         username: initialData?.user_name || initialData?.username || "",
         email: initialData?.email || "",
@@ -58,23 +72,30 @@ export default function UserModal({
       });
       setErrors({});
       setIsActive(initialData?.status === "inactive" ? false : true);
-    }
-  }, [isOpen, initialData]);
 
-  // Simulate fetching dynamic data when editing
+      // Reset bulk
+      setBulkUsers([
+        { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "" }
+      ]);
+      setUseCommonPassword(false);
+      setCommonPassword("");
+      setBulkResult(null);
+    }
+  }, [isOpen, initialData, roles]);
+
   useEffect(() => {
     if (isOpen && isEditing) {
       setIsLoading(true);
       const t = setTimeout(() => {
         setIsLoading(false);
-      }, 500); // skeleton loading time
+      }, 500);
       return () => clearTimeout(t);
     } else {
       setIsLoading(false);
     }
   }, [isOpen, isEditing]);
 
-  const handleSave = async () => {
+  const handleSaveSingle = async () => {
     const newErrors: Record<string, string> = {};
     if (!formData.username.trim())
       newErrors.username = "Vui lòng nhập tên người dùng";
@@ -82,6 +103,12 @@ export default function UserModal({
       newErrors.email = "Vui lòng nhập email";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Email không hợp lệ";
+    }
+    if (!isEditing && !formData.password.trim()) {
+      newErrors.password = "Vui lòng nhập mật khẩu";
+    }
+    if (!formData.role) {
+      newErrors.role = "Vui lòng chọn vai trò";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -98,7 +125,7 @@ export default function UserModal({
         toast.success(
           isEditing
             ? "Cập nhật người dùng thành công!"
-            : "Thêm người dùng mới thành công!",
+            : "Thêm người dùng mới thành công!"
         );
         onClose();
       } catch (error: any) {
@@ -107,20 +134,96 @@ export default function UserModal({
         setIsLoading(false);
       }
     } else {
-      toast.success(
-        isEditing
-          ? "Cập nhật người dùng thành công!"
-          : "Thêm người dùng mới thành công!",
-      );
       onClose();
     }
+  };
+
+  const addBulkRow = () => {
+    setBulkUsers([
+      ...bulkUsers,
+      { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "" }
+    ]);
+  };
+
+  const removeBulkRow = (id: string) => {
+    if (bulkUsers.length > 1) {
+      setBulkUsers(bulkUsers.filter((u) => u.id !== id));
+    }
+  };
+
+  const updateBulkRow = (id: string, field: string, value: any) => {
+    setBulkUsers(bulkUsers.map(u => u.id === id ? { ...u, [field]: value } : u));
+  };
+
+  const handleSaveBulk = async () => {
+    // Validate
+    let hasError = false;
+    const validatedUsers = bulkUsers.map((u, idx) => {
+      let rowError = "";
+      if (!u.username.trim()) rowError = "Thiếu username";
+      else if (!u.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.email)) rowError = "Email không hợp lệ";
+      else if (!u.role) rowError = "Thiếu vai trò";
+      else if (!useCommonPassword && !u.password.trim()) rowError = "Thiếu mật khẩu";
+
+      if (rowError) hasError = true;
+      return { ...u, error: rowError };
+    });
+
+    if (useCommonPassword && !commonPassword.trim()) {
+      toast.error("Vui lòng nhập mật khẩu chung!");
+      return;
+    }
+
+    setBulkUsers(validatedUsers);
+
+    if (hasError) {
+      toast.error("Vui lòng kiểm tra lại các dòng bị lỗi!");
+      return;
+    }
+
+    if (onBulkSave) {
+      setIsLoading(true);
+      try {
+        const payload = {
+          commonPassword: useCommonPassword ? commonPassword : undefined,
+          users: bulkUsers.map(u => ({
+            user_name: u.username,
+            email: u.email,
+            password: useCommonPassword ? undefined : u.password,
+            role_id: u.role,
+            status: u.status,
+          }))
+        };
+        const res = await onBulkSave(payload);
+        setBulkResult(res);
+        toast.success(`Tạo thành công ${res.successCount} người dùng`);
+      } catch (error: any) {
+        toast.error("Lỗi khi thêm nhiều người dùng: " + error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleKeepErrors = () => {
+    if (!bulkResult) return;
+    const errorEmails = bulkResult.errors.map((e: any) => e.email?.toLowerCase());
+    const remainingUsers = bulkUsers.filter(u => errorEmails.includes(u.email?.toLowerCase()));
+    
+    // update error messages
+    const mapped = remainingUsers.map(u => {
+      const err = bulkResult.errors.find((e: any) => e.email?.toLowerCase() === u.email.toLowerCase());
+      return { ...u, error: err?.reason || "Lỗi" };
+    });
+    
+    setBulkUsers(mapped.length ? mapped : [{ id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "" }]);
+    setBulkResult(null);
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.2 }}
@@ -129,14 +232,13 @@ export default function UserModal({
             className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
           />
 
-          {/* Modal Container */}
           <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4 font-sans">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="w-full max-w-[760px] bg-gradient-to-br from-[#EBF2FA]/92 to-[#DCE6F1]/92 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-900/5 border border-white/80 pointer-events-auto flex flex-col overflow-hidden max-h-[90vh]"
+              className={`w-full ${mode === "bulk" ? "max-w-[1000px]" : "max-w-[760px]"} bg-gradient-to-br from-[#EBF2FA]/92 to-[#DCE6F1]/92 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-900/5 border border-white/80 pointer-events-auto flex flex-col overflow-hidden max-h-[90vh] transition-all duration-300`}
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/60 bg-white/10 shrink-0">
@@ -145,279 +247,273 @@ export default function UserModal({
                     {isEditing ? "Sửa thông tin người dùng" : "Thêm người dùng"}
                   </h2>
                   <p className="text-[12.5px] font-medium text-[#64748B] mt-0.5">
-                    Cập nhật thông tin chi tiết và quyền hạn.
+                    {mode === "single" ? "Cập nhật thông tin chi tiết và quyền hạn." : "Thêm hàng loạt người dùng vào hệ thống."}
                   </p>
                 </div>
                 <div className="flex items-center gap-5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-[#64748B]">
-                      Trạng thái
-                    </span>
-                    <button
-                      onClick={() => setIsActive(!isActive)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        isActive ? "bg-[#1A73E8]" : "bg-white/50 border border-white/80"
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white transition-transform shadow-xs ${
-                          isActive ? "translate-x-5.5" : "translate-x-0.5"
+                  {mode === "single" && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-[#64748B]">Trạng thái</span>
+                      <button
+                        onClick={() => setIsActive(!isActive)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          isActive ? "bg-[#1A73E8]" : "bg-white/50 border border-white/80"
                         }`}
-                      />
-                    </button>
-                    <span className="text-xs font-bold text-[#1E293B] w-12 ml-0.5">
-                      {isActive ? "Hoạt động" : "Tạm khóa"}
-                    </span>
-                  </div>
-                  <button
-                    onClick={onClose}
-                    className="p-1.5 text-[#64748B] hover:text-[#1E293B] hover:bg-white/60 rounded-xl border border-transparent hover:border-white/50 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
-                  >
+                      >
+                        <span className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white transition-transform shadow-xs ${isActive ? "translate-x-5.5" : "translate-x-0.5"}`} />
+                      </button>
+                      <span className="text-xs font-bold text-[#1E293B] w-12 ml-0.5">
+                        {isActive ? "Hoạt động" : "Tạm khóa"}
+                      </span>
+                    </div>
+                  )}
+                  <button onClick={onClose} className="p-1.5 text-[#64748B] hover:text-[#1E293B] hover:bg-white/60 rounded-xl border border-transparent hover:border-white/50 hover:scale-[1.05] transition-all">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
+              {/* Mode Switcher */}
+              {!isEditing && !bulkResult && (
+                <div className="flex justify-center border-b border-white/60 bg-white/10 p-2">
+                  <div className="flex p-1 bg-white/40 rounded-lg">
+                    <button
+                      onClick={() => setMode("single")}
+                      className={`px-4 py-1.5 rounded-md text-xs font-bold transition-colors flex items-center gap-2 ${mode === "single" ? "bg-white text-[#1A73E8] shadow-sm" : "text-[#64748B] hover:text-[#1E293B]"}`}
+                    >
+                      <User className="w-4 h-4" />
+                      Thêm 1 người dùng
+                    </button>
+                    <button
+                      onClick={() => setMode("bulk")}
+                      className={`px-4 py-1.5 rounded-md text-xs font-bold transition-colors flex items-center gap-2 ${mode === "bulk" ? "bg-white text-[#1A73E8] shadow-sm" : "text-[#64748B] hover:text-[#1E293B]"}`}
+                    >
+                      <Users className="w-4 h-4" />
+                      Thêm nhiều người dùng
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Body */}
               <div className="flex-1 p-6 bg-transparent overflow-y-auto">
-                <div className="flex flex-col md:flex-row gap-8">
-                  {/* Left Column: Avatar */}
-                  <div className="flex flex-col items-center gap-3 w-full md:w-[200px] shrink-0">
-                    {isLoading ? (
-                      <Skeleton className="w-[160px] h-[160px] rounded-full" />
-                    ) : (
-                      <div className="w-[160px] h-[160px] rounded-full bg-white/60 border-2 border-white/90 shadow-sm flex items-center justify-center cursor-pointer hover:bg-white/80 transition-colors group relative overflow-hidden">
-                        <User
-                          className="w-14 h-14 text-slate-400 group-hover:text-slate-500 transition-colors"
-                          strokeWidth={1.5}
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <ImageIcon className="w-6 h-6 text-white" />
+                {bulkResult ? (
+                  <div className="flex flex-col items-center justify-center p-8 text-center space-y-4">
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center bg-blue-100 mb-2">
+                      <Users className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800">Kết quả thêm nhiều người dùng</h3>
+                    <div className="grid grid-cols-3 gap-4 w-full max-w-md my-4">
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div className="text-2xl font-black text-slate-700">{bulkResult.total}</div>
+                        <div className="text-xs font-bold text-slate-500 uppercase">Tổng cộng</div>
+                      </div>
+                      <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                        <div className="text-2xl font-black text-emerald-600">{bulkResult.successCount}</div>
+                        <div className="text-xs font-bold text-emerald-700 uppercase">Thành công</div>
+                      </div>
+                      <div className="bg-rose-50 p-4 rounded-xl border border-rose-200">
+                        <div className="text-2xl font-black text-rose-600">{bulkResult.failedCount}</div>
+                        <div className="text-xs font-bold text-rose-700 uppercase">Thất bại</div>
+                      </div>
+                    </div>
+                    {bulkResult.errors && bulkResult.errors.length > 0 && (
+                      <div className="w-full text-left mt-4 border border-rose-200 rounded-xl overflow-hidden bg-white">
+                        <div className="bg-rose-50 px-4 py-2 font-bold text-rose-800 text-xs flex justify-between items-center">
+                          Danh sách lỗi
+                        </div>
+                        <div className="max-h-40 overflow-y-auto p-2 space-y-2">
+                          {bulkResult.errors.map((err: any, idx: number) => (
+                            <div key={idx} className="text-[11px] p-2 bg-rose-50/50 rounded flex justify-between border border-rose-100">
+                              <span className="font-semibold text-slate-700">{err.email || err.user_name || "Dòng " + (err.index + 1)}</span>
+                              <span className="text-rose-600 font-medium">{err.reason}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
-
-                    <div className="text-center">
-                      {isLoading ? (
-                        <div className="flex flex-col items-center gap-2">
-                          <Skeleton className="w-20 h-4" />
-                          <Skeleton className="w-28 h-8" />
-                        </div>
-                      ) : (
-                        <>
-                          <button className="text-[13.5px] font-bold text-[#1A73E8] hover:text-[#1A73E8]/80 transition-colors mb-0.5">
-                            Tải ảnh lên
-                          </button>
-                          <p className="text-[11px] font-medium text-[#64748B] leading-relaxed max-w-[160px] mx-auto">
-                            Định dạng JPG, PNG, GIF. Tối đa 2MB.
-                          </p>
-                        </>
-                      )}
-                    </div>
                   </div>
-
-                  {/* Right Column: Form */}
-                  <div className="flex-1 flex flex-col gap-6">
-                    {/* Basic Info */}
-                    <div className="flex flex-col gap-4">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <User className="w-4.5 h-4.5 text-[#1A73E8]" />
-                        <h3 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">
-                          Thông tin cơ bản
-                        </h3>
-                      </div>
-
+                ) : mode === "single" ? (
+                  <div className="flex flex-col md:flex-row gap-8">
+                    <div className="flex flex-col items-center gap-3 w-full md:w-[200px] shrink-0">
                       {isLoading ? (
-                        <>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            <Skeleton className="h-[70px] w-full rounded-xl" />
-                            <Skeleton className="h-[70px] w-full rounded-xl" />
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            <Skeleton className="h-[70px] w-full rounded-xl" />
-                            <Skeleton className="h-[70px] w-full rounded-xl" />
-                          </div>
-                        </>
+                        <Skeleton className="w-[160px] h-[160px] rounded-full" />
                       ) : (
-                        <>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-[12.5px] font-semibold text-[#64748B]">
-                                Tên người dùng{" "}
-                                <span className="text-red-500">*</span>
-                              </label>
-                              <input
-                                type="text"
-                                value={formData.username}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    username: e.target.value,
-                                  })
-                                }
-                                placeholder="Nhập tên người dùng"
-                                className={`px-3 py-2 bg-white/50 backdrop-blur-sm border ${
-                                  errors.username 
-                                    ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500" 
-                                    : "border-white/80 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
-                                } rounded-xl text-xs font-semibold text-[#1E293B] focus:outline-none focus:ring-2 transition-all duration-150 ease-out placeholder:text-[#64748B]/60`}
-                              />
-                              {errors.username && (
-                                <span className="text-[11px] text-rose-600 font-medium ml-1">
-                                  {errors.username}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-[12.5px] font-semibold text-[#64748B]">
-                                Email <span className="text-red-500">*</span>
-                              </label>
-                              <input
-                                type="email"
-                                value={formData.email}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    email: e.target.value,
-                                  })
-                                }
-                                placeholder="ví dụ: vana@email.com"
-                                className={`px-3 py-2 bg-white/50 backdrop-blur-sm border ${
-                                  errors.email 
-                                    ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500" 
-                                    : "border-white/80 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
-                                } rounded-xl text-xs font-semibold text-[#1E293B] focus:outline-none focus:ring-2 transition-all duration-150 ease-out placeholder:text-[#64748B]/60`}
-                              />
-                              {errors.email && (
-                                <span className="text-[11px] text-rose-600 font-medium ml-1">
-                                  {errors.email}
-                                </span>
-                              )}
-                            </div>
+                        <div className="w-[160px] h-[160px] rounded-full bg-white/60 border-2 border-white/90 shadow-sm flex items-center justify-center cursor-pointer hover:bg-white/80 transition-colors group relative overflow-hidden">
+                          <User className="w-14 h-14 text-slate-400 group-hover:text-slate-500 transition-colors" strokeWidth={1.5} />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <ImageIcon className="w-6 h-6 text-white" />
                           </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-[12.5px] font-semibold text-[#64748B]">
-                                Trạng thái tài khoản
-                              </label>
-                              <div className="flex items-center gap-3 px-3 py-2 bg-white/50 border border-white/80 rounded-xl select-none">
-                                <div className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-slate-300"}`} />
-                                <span
-                                  className={`text-xs font-bold ${isActive ? "text-emerald-700" : "text-slate-500"}`}
-                                >
-                                  {isActive ? "Hoạt động" : "Tạm khóa"}
-                                </span>
+                        </div>
+                      )}
+                      <div className="text-center">
+                        {isLoading ? (
+                          <div className="flex flex-col items-center gap-2"><Skeleton className="w-20 h-4" /><Skeleton className="w-28 h-8" /></div>
+                        ) : (
+                          <><button className="text-[13.5px] font-bold text-[#1A73E8] hover:text-[#1A73E8]/80 transition-colors mb-0.5">Tải ảnh lên</button><p className="text-[11px] font-medium text-[#64748B] leading-relaxed max-w-[160px] mx-auto">Định dạng JPG, PNG, GIF. Tối đa 2MB.</p></>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-1 flex flex-col gap-6">
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <User className="w-4.5 h-4.5 text-[#1A73E8]" />
+                          <h3 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Thông tin cơ bản</h3>
+                        </div>
+                        {isLoading ? (
+                          <><div className="grid grid-cols-1 md:grid-cols-2 gap-5"><Skeleton className="h-[70px] w-full rounded-xl" /><Skeleton className="h-[70px] w-full rounded-xl" /></div></>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="flex flex-col gap-1.5">
+                                <label className="text-[12.5px] font-semibold text-[#64748B]">Tên người dùng <span className="text-red-500">*</span></label>
+                                <input type="text" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} placeholder="Nhập tên người dùng" className={`px-3 py-2 bg-white/50 backdrop-blur-sm border ${errors.username ? "border-rose-400" : "border-white/80"} rounded-xl text-xs font-semibold text-[#1E293B] focus:outline-none focus:ring-2`} />
+                                {errors.username && <span className="text-[11px] text-rose-600 font-medium ml-1">{errors.username}</span>}
+                              </div>
+                              <div className="flex flex-col gap-1.5">
+                                <label className="text-[12.5px] font-semibold text-[#64748B]">Email <span className="text-red-500">*</span></label>
+                                <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="ví dụ: vana@email.com" className={`px-3 py-2 bg-white/50 backdrop-blur-sm border ${errors.email ? "border-rose-400" : "border-white/80"} rounded-xl text-xs font-semibold text-[#1E293B] focus:outline-none focus:ring-2`} />
+                                {errors.email && <span className="text-[11px] text-rose-600 font-medium ml-1">{errors.email}</span>}
                               </div>
                             </div>
                             <div className="flex flex-col gap-1.5 relative">
-                              <label className="text-[12.5px] font-semibold text-[#64748B]">
-                                Mật khẩu
-                              </label>
+                              <label className="text-[12.5px] font-semibold text-[#64748B]">Mật khẩu {!isEditing && <span className="text-red-500">*</span>}</label>
                               <div className="relative">
-                                <input
-                                  type={showPassword ? "text" : "password"}
-                                  value={formData.password}
-                                  onChange={(e) =>
-                                    setFormData({
-                                      ...formData,
-                                      password: e.target.value,
-                                    })
-                                  }
-                                  placeholder={
-                                    isEditing
-                                      ? "Để trống nếu không đổi"
-                                      : "Nhập mật khẩu"
-                                  }
-                                  className="w-full pl-3 pr-9 py-2 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/60"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setShowPassword(!showPassword)}
-                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                >
-                                  {showPassword ? (
-                                    <EyeOff className="w-4 h-4" />
-                                  ) : (
-                                    <Eye className="w-4 h-4" />
-                                  )}
-                                </button>
+                                <input type={showPassword ? "text" : "password"} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder={isEditing ? "Để trống nếu không đổi" : "Nhập mật khẩu"} className={`w-full pl-3 pr-9 py-2 bg-white/50 backdrop-blur-sm border ${errors.password ? "border-rose-400" : "border-white/80"} rounded-xl text-xs font-semibold text-[#1E293B] focus:outline-none focus:ring-2`} />
+                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"><Eye className="w-4 h-4" /></button>
                               </div>
+                              {errors.password && <span className="text-[11px] text-rose-600 font-medium ml-1">{errors.password}</span>}
                             </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    <div className="h-px bg-white/40" />
-
-                    {/* Roles Configuration */}
-                    <div className="flex flex-col gap-3.5">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <Settings className="w-4.5 h-4.5 text-[#1A73E8]" />
-                        <h3 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">
-                          Cấu hình
-                        </h3>
+                          </>
+                        )}
                       </div>
-
-                      {isLoading ? (
-                        <div className="flex flex-col gap-1.5">
-                          <Skeleton className="h-4.5 w-14" />
-                          <Skeleton className="h-9 w-full rounded-xl" />
-                          <Skeleton className="h-3 w-56 mt-1" />
+                      <div className="h-px bg-white/40" />
+                      <div className="flex flex-col gap-3.5">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <Settings className="w-4.5 h-4.5 text-[#1A73E8]" />
+                          <h3 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Cấu hình</h3>
                         </div>
-                      ) : (
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[12.5px] font-semibold text-[#64748B]">
-                            Vai trò
-                          </label>
-                          <Select
-                            value={formData.role}
-                            onValueChange={(value: string) =>
-                              setFormData({ ...formData, role: value })
-                            }
-                          >
-                            <SelectTrigger className="w-full h-9 px-3 py-1.5 bg-white/50 border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B] transition-all focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50">
-                              <SelectValue placeholder="Chọn vai trò..." />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white/95 backdrop-blur-md border border-white/70 rounded-xl shadow-md shadow-slate-300/30 z-[60]">
-                              {roles.map((role) => (
-                                <SelectItem
-                                  key={role._id}
-                                  value={role._id}
-                                  className="text-xs font-semibold text-[#1E293B] hover:bg-white/60 rounded-lg cursor-pointer"
-                                >
-                                  {role.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-[11px] font-medium text-[#64748B] mt-1">
-                            Gán một vai trò chính cho người dùng này để phân
-                            quyền truy cập.
-                          </p>
-                        </div>
-                      )}
+                        {isLoading ? (
+                          <div className="flex flex-col gap-1.5"><Skeleton className="h-4.5 w-14" /><Skeleton className="h-9 w-full rounded-xl" /></div>
+                        ) : (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[12.5px] font-semibold text-[#64748B]">Vai trò <span className="text-red-500">*</span></label>
+                            <Select value={formData.role} onValueChange={(value: string) => setFormData({ ...formData, role: value })}>
+                              <SelectTrigger className={`w-full h-9 px-3 py-1.5 bg-white/50 border ${errors.role ? "border-rose-400" : "border-white/80"} rounded-xl text-xs font-semibold text-[#1E293B]`}>
+                                <SelectValue placeholder="Chọn vai trò..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white/95 rounded-xl shadow-md z-[60]">
+                                {roles.map((role) => (
+                                  <SelectItem key={role._id} value={role._id} className="text-xs font-semibold text-[#1E293B]">{role.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {errors.role && <span className="text-[11px] text-rose-600 font-medium ml-1">{errors.role}</span>}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-4 bg-white/40 p-4 rounded-xl border border-white/60">
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="useCommonPwd" checked={useCommonPassword} onChange={(e) => setUseCommonPassword(e.target.checked)} className="rounded border-slate-300 text-blue-600" />
+                        <label htmlFor="useCommonPwd" className="text-xs font-bold text-slate-700 cursor-pointer">Dùng chung mật khẩu</label>
+                      </div>
+                      {useCommonPassword && (
+                        <input type="text" value={commonPassword} onChange={(e) => setCommonPassword(e.target.value)} placeholder="Nhập mật khẩu chung" className="px-3 py-1.5 text-xs border border-white/80 rounded-lg bg-white/50" />
+                      )}
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white/50">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100/50 text-slate-600 font-bold border-b border-slate-200">
+                          <tr>
+                            <th className="px-3 py-2">Username</th>
+                            <th className="px-3 py-2">Email</th>
+                            <th className="px-3 py-2">Vai trò</th>
+                            <th className="px-3 py-2">Trạng thái</th>
+                            {!useCommonPassword && <th className="px-3 py-2">Mật khẩu</th>}
+                            <th className="px-3 py-2 w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {bulkUsers.map((u, i) => (
+                            <tr key={u.id} className="hover:bg-white/40">
+                              <td className="px-2 py-2">
+                                <input type="text" value={u.username} onChange={(e) => updateBulkRow(u.id, 'username', e.target.value)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs bg-white/80" placeholder="Username" />
+                                {u.error && u.error.includes("username") && <div className="text-[10px] text-rose-500 mt-0.5">{u.error}</div>}
+                              </td>
+                              <td className="px-2 py-2">
+                                <input type="email" value={u.email} onChange={(e) => updateBulkRow(u.id, 'email', e.target.value)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs bg-white/80" placeholder="Email" />
+                                {u.error && (u.error.includes("Email") || u.error.includes("email")) && <div className="text-[10px] text-rose-500 mt-0.5">{u.error}</div>}
+                              </td>
+                              <td className="px-2 py-2">
+                                <Select value={u.role} onValueChange={(val) => updateBulkRow(u.id, 'role', val)}>
+                                  <SelectTrigger className="w-full h-7 px-2 py-1 text-[11px] border-slate-200 bg-white/80"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {roles.map(r => <SelectItem key={r._id} value={r._id} className="text-[11px]">{r.name}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="px-2 py-2">
+                                <Select value={u.status} onValueChange={(val) => updateBulkRow(u.id, 'status', val)}>
+                                  <SelectTrigger className="w-full h-7 px-2 py-1 text-[11px] border-slate-200 bg-white/80"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="active" className="text-[11px]">Active</SelectItem>
+                                    <SelectItem value="inactive" className="text-[11px]">Inactive</SelectItem>
+                                    <SelectItem value="locked" className="text-[11px]">Locked</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              {!useCommonPassword && (
+                                <td className="px-2 py-2">
+                                  <input type="text" value={u.password} onChange={(e) => updateBulkRow(u.id, 'password', e.target.value)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs bg-white/80" placeholder="Password" />
+                                  {u.error && u.error.includes("mật khẩu") && <div className="text-[10px] text-rose-500 mt-0.5">{u.error}</div>}
+                                </td>
+                              )}
+                              <td className="px-2 py-2 text-center">
+                                <button onClick={() => removeBulkRow(u.id)} disabled={bulkUsers.length === 1} className="p-1 text-slate-400 hover:text-rose-500 disabled:opacity-30"><Trash2 className="w-4 h-4" /></button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="p-2 border-t border-slate-200 bg-slate-50/50">
+                        <button onClick={addBulkRow} className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50 transition-colors">
+                          <Plus className="w-4 h-4" /> Thêm dòng
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer */}
               <div className="flex items-center justify-end gap-2.5 px-6 py-4.5 border-t border-white/40 bg-white/10 shrink-0">
-                <button
-                  onClick={onClose}
-                  className="px-5 py-2 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 hover:bg-white/70 hover:text-[#1E293B] rounded-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-xs"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  onClick={handleSave}
-                  className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#1A73E8]/90 rounded-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-md shadow-[#1A73E8]/10"
-                >
-                  <Save className="w-4.5 h-4.5" strokeWidth={2.5} />
-                  Lưu thông tin
-                </button>
+                {!bulkResult ? (
+                  <>
+                    <button onClick={onClose} className="px-5 py-2 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 hover:bg-white/70 rounded-xl transition-all">
+                      Hủy bỏ
+                    </button>
+                    <button onClick={mode === "single" ? handleSaveSingle : handleSaveBulk} disabled={isLoading} className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#1A73E8]/90 rounded-xl transition-all disabled:opacity-50">
+                      <Save className="w-4.5 h-4.5" strokeWidth={2.5} />
+                      {isLoading ? "Đang lưu..." : mode === "single" ? "Lưu thông tin" : "Lưu hàng loạt"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {bulkResult.errors?.length > 0 && (
+                      <button onClick={handleKeepErrors} className="px-5 py-2 text-xs font-bold text-rose-600 bg-white/50 border border-rose-200 hover:bg-rose-50 rounded-xl transition-all">
+                        Sửa các dòng lỗi
+                      </button>
+                    )}
+                    <button onClick={onClose} className="px-5 py-2 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#1A73E8]/90 rounded-xl transition-all">
+                      Đóng
+                    </button>
+                  </>
+                )}
               </div>
             </motion.div>
           </div>

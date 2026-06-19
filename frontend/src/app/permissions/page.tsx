@@ -666,10 +666,32 @@ function PermissionsPageContent() {
       if (userData.role) {
         await authApi.assignRole(editingUser._id, userData.role, token);
       }
+      // Assuming updateUser is also available to update email/status if needed
+      await authApi.updateUser(editingUser._id, {
+        user_name: userData.username,
+        email: userData.email,
+        status: userData.status,
+        ...(userData.password ? { password: userData.password } : {})
+      }, token);
     } else {
-      await authApi.register(userData.user_name || userData.username, userData.email, userData.password);
+      await authApi.createUser({
+        user_name: userData.username,
+        email: userData.email,
+        password: userData.password,
+        role_id: userData.role,
+        status: userData.status
+      }, token);
     }
     fetchData();
+  };
+
+  const handleBulkUserSave = async (bulkData: any) => {
+    const token = tokenStorage.getAccessToken();
+    if (!token) throw new Error('Hết phiên làm việc');
+    return await authApi.createUsersBulk(bulkData, token).then((res) => {
+      fetchData();
+      return res;
+    });
   };
 
   const handleDeleteUser = (user: any) => {
@@ -2427,6 +2449,7 @@ function PermissionsPageContent() {
         initialData={editingUser}
         roles={roles}
         onSave={handleUserSave}
+        onBulkSave={handleBulkUserSave}
       />
 
       <GroupModal

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { Check, ChevronDown } from "lucide-react"
 import { cn } from "../../lib/utils"
 
@@ -17,6 +18,8 @@ interface SelectContextProps {
   openUp: boolean;
   error?: string;
   onSearchQueryChange?: (query: string) => void;
+  triggerRef: React.RefObject<HTMLDivElement>;
+  contentRef: React.RefObject<HTMLDivElement>;
 }
 
 const SelectContext = React.createContext<SelectContextProps | undefined>(undefined);
@@ -48,11 +51,18 @@ export const Select = ({
   const [selectedLabel, setSelectedLabel] = React.useState("");
   const [openUp, setOpenUp] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+  const contentRef = React.useRef<HTMLDivElement>(null);
 
   // Close dropdown on click outside
   React.useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current && 
+        !containerRef.current.contains(target) &&
+        (!contentRef.current || !contentRef.current.contains(target))
+      ) {
         setOpen(false);
       }
     };
@@ -108,6 +118,8 @@ export const Select = ({
         openUp,
         error,
         onSearchQueryChange,
+        triggerRef,
+        contentRef,
       }}
     >
       <div ref={containerRef} className={cn("flex flex-col gap-1.5 w-full", containerClassName)}>
@@ -117,7 +129,7 @@ export const Select = ({
             {required && <span className="text-red-500">*</span>}
           </label>
         )}
-        <div className={cn("relative w-full", open && "z-50")}>
+        <div className={cn("relative w-full", open && "z-50")} ref={triggerRef}>
           {children}
         </div>
         {error && (
@@ -193,7 +205,7 @@ export const SelectContent = React.forwardRef<any, any>(
     const context = React.useContext(SelectContext);
     if (!context) throw new Error("SelectContent must be used inside Select");
 
-    const { open, searchQuery, openUp } = context;
+    const { open, searchQuery, openUp, triggerRef, contentRef } = context;
 
     // Filter children SelectItem components based on searchQuery
     const filteredChildren = React.useMemo(() => {
@@ -214,6 +226,7 @@ export const SelectContent = React.forwardRef<any, any>(
     }, [filteredChildren]);
 
     const [visibleCount, setVisibleCount] = React.useState(lazyLoad ? 5 : filteredChildren.length);
+    const [rect, setRect] = React.useState<DOMRect | null>(null);
 
     // Reset visible items count when dropdown opens or search query changes
     React.useEffect(() => {
@@ -221,6 +234,25 @@ export const SelectContent = React.forwardRef<any, any>(
         setVisibleCount(lazyLoad ? 5 : filteredChildren.length);
       }
     }, [open, searchQuery, lazyLoad, filteredChildren.length]);
+
+    React.useEffect(() => {
+      const updateRect = () => {
+        if (triggerRef && triggerRef.current) {
+          setRect(triggerRef.current.getBoundingClientRect());
+        }
+      };
+
+      if (open) {
+        updateRect();
+        window.addEventListener("scroll", updateRect, true);
+        window.addEventListener("resize", updateRect);
+      }
+
+      return () => {
+        window.removeEventListener("scroll", updateRect, true);
+        window.removeEventListener("resize", updateRect);
+      };
+    }, [open, triggerRef]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
       const target = e.currentTarget;
@@ -234,16 +266,27 @@ export const SelectContent = React.forwardRef<any, any>(
       }
     };
 
-    return (
+    const [mounted, setMounted] = React.useState(false);
+    React.useEffect(() => {
+      setMounted(true);
+    }, []);
+
+    const content = (
       <div
+        ref={contentRef}
         className={cn(
-          "absolute left-0 z-[100] min-w-full w-max max-w-[280px] bg-white/80 backdrop-blur-md rounded-xl shadow-md border border-white/70 p-1 overflow-hidden transition-all duration-200",
-          openUp ? "bottom-full mb-1.5" : "top-full mt-1.5",
+          "fixed z-[9999] w-max max-w-[280px] bg-white/80 backdrop-blur-md rounded-xl shadow-md border border-white/70 p-1 overflow-hidden transition-all duration-200",
           open
             ? "opacity-100 visible scale-100 translate-y-0"
             : "opacity-0 invisible scale-95 pointer-events-none",
           className
         )}
+        style={{
+          minWidth: rect ? rect.width : 'auto',
+          left: rect ? rect.left : 0,
+          top: rect && !openUp ? rect.bottom + 6 : 'auto',
+          bottom: rect && openUp ? window.innerHeight - rect.top + 6 : 'auto',
+        }}
       >
         <div 
           className={cn(
@@ -262,6 +305,9 @@ export const SelectContent = React.forwardRef<any, any>(
         </div>
       </div>
     );
+
+    if (!mounted) return null;
+    return createPortal(content, document.body);
   }
 );
 SelectContent.displayName = "SelectContent";

@@ -7,7 +7,10 @@ import {
   IsOptional,
   IsMongoId,
   Matches,
+  IsEnum,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -387,7 +390,76 @@ export class UpdateMeDto {
   department?: string;
 
   @ApiProperty({ example: '2000-01-01', required: false })
+  @IsString()
   @IsOptional()
-  date_birth?: Date;
+  date_birth?: string;
 }
 
+export class CreateUserDto {
+  @ApiProperty({ example: 'nguyenvana' })
+  @IsString()
+  @IsNotEmpty({ message: 'Username không được để trống' })
+  user_name: string;
+
+  @ApiProperty({ example: 'user@example.com' })
+  @IsEmail({}, { message: 'Email không đúng định dạng' })
+  @IsNotEmpty({ message: 'Email không được để trống' })
+  email: string;
+
+  @ApiProperty({ example: '12345678' })
+  @IsString()
+  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
+  password: string;
+
+  @ApiProperty({ example: '65f1...' })
+  @IsMongoId({ message: 'role_id không hợp lệ' })
+  @IsNotEmpty({ message: 'role_id không được để trống' })
+  role_id: string;
+
+  @ApiProperty({ example: 'active', enum: ['active', 'inactive', 'locked'], required: false })
+  @IsOptional()
+  @IsEnum(['active', 'inactive', 'locked'])
+  status?: string;
+}
+
+export class BulkCreateUserItemDto {
+  @ApiProperty({ example: 'nguyenvana' })
+  @IsString()
+  @IsNotEmpty({ message: 'Username không được để trống' })
+  user_name: string;
+
+  @ApiProperty({ example: 'user@example.com' })
+  @IsEmail({}, { message: 'Email không đúng định dạng' })
+  @IsNotEmpty({ message: 'Email không được để trống' })
+  email: string;
+
+  @ApiProperty({ example: '12345678', required: false })
+  @IsOptional()
+  @IsString()
+  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
+  password?: string;
+
+  @ApiProperty({ example: '65f1...' })
+  @IsMongoId({ message: 'role_id không hợp lệ' })
+  @IsNotEmpty({ message: 'role_id không được để trống' })
+  role_id: string;
+
+  @ApiProperty({ example: 'active', enum: ['active', 'inactive', 'locked'], required: false })
+  @IsOptional()
+  @IsEnum(['active', 'inactive', 'locked'])
+  status?: string;
+}
+
+export class BulkCreateUsersDto {
+  @ApiProperty({ example: '12345678', required: false })
+  @IsOptional()
+  @IsString()
+  @MinLength(8, { message: 'Mật khẩu chung phải có ít nhất 8 ký tự' })
+  commonPassword?: string;
+
+  @ApiProperty({ type: [BulkCreateUserItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BulkCreateUserItemDto)
+  users: BulkCreateUserItemDto[];
+}

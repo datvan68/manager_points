@@ -112,6 +112,30 @@ export const authApi = {
     return handleResponse<any[]>(res);
   },
 
+  async createUser(data: any, accessToken: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/auth/users`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}` 
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async createUsersBulk(data: any, accessToken: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/auth/users/bulk-create`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}` 
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<any>(res);
+  },
+
   async getRoles(accessToken: string): Promise<any[]> {
     const res = await fetch(`${API_BASE}/api/auth/roles`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },

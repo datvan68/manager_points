@@ -1,283 +1,252 @@
-# Task Scope: Chức năng import lớp
+# Taskscope: Them Nhieu Nguoi Dung Trong Modal `/permissions`
 
-## 1. Mục tiêu
+## 1. Muc tieu
 
-Thêm chức năng import danh sách lớp từ file vào hệ thống, giúp quản trị viên tạo nhiều lớp cùng lúc thay vì nhập thủ công từng lớp.
+Bo sung chuc nang them nhieu nguoi dung cung luc trong modal **"Them nguoi dung"** tai page `/permissions`.
 
-Chức năng phải có bước đọc file, kiểm tra dữ liệu, hiển thị modal preview tổng quan trước khi ghi vào database, sau đó mới cho phép người dùng xác nhận import.
+Chuc nang can ho tro 2 cach dat mat khau:
 
-## 2. Phạm vi màn hình
+- **Dung chung mat khau**: admin nhap 1 mat khau, ap dung cho tat ca user trong dot tao.
+- **Mat khau rieng tung user**: moi dong/user co truong mat khau rieng.
 
-Áp dụng tại khu vực quản lý lớp trong module sinh viên/lớp hiện tại.
+Sau khi tao, he thong can hien thi ket qua tong hop: so user tao thanh cong, so user that bai, va ly do that bai theo tung user.
 
-Các thay đổi UI cần có:
+## 2. Hien trang da kiem tra
 
-- Thêm nút `Import lớp` cạnh các thao tác tạo lớp hiện có.
-- Cho phép chọn file `.xlsx`, `.xls` hoặc `.csv`.
-- Sau khi chọn file, mở modal preview danh sách lớp sẽ import.
-- Modal cần hiển thị tổng số dòng đọc được, số dòng hợp lệ, số dòng lỗi, số dòng bị trùng.
-- Trong modal có bảng preview các cột chính: tên lớp, khóa/năm học, khoa/phòng ban, cố vấn học tập, hệ đào tạo, cơ sở, trạng thái kiểm tra.
-- Cho phép người dùng tải file mẫu để nhập đúng định dạng.
-- Chỉ bật nút `Xác nhận import` khi không có lỗi bắt buộc hoặc khi người dùng chọn chế độ bỏ qua dòng lỗi.
+### Frontend
 
-## 3. Định dạng dữ liệu import
+- Page `/permissions` dang dung modal:
+  - `frontend/src/components/modals/UserModal.tsx`
+  - Goi tai `frontend/src/app/permissions/page.tsx`
+- Modal hien tai chi ho tro them/sua **1 nguoi dung**.
+- Khi them moi, `handleUserSave` dang goi:
+  - `authApi.register(user_name, email, password)`
+- Han che hien tai:
+  - `register` la API dang ky tai khoan, khong phai API admin-create user rieng.
+  - Role/status chon tren modal chua duoc dung khi tao moi user.
+  - Khi sua user, luong hien tai chu yeu assign role, chua xu ly day du cac truong trong modal nhu email, status, password.
+  - Da co bulk delete user, nhung chua co bulk create user.
 
-File import cần hỗ trợ các cột sau:
+### Backend
 
-| Cột trong file | Field backend | Bắt buộc | Ghi chú |
-| --- | --- | --- | --- |
-| `class_name` hoặc `Tên lớp` | `class_name` | Có | Tên lớp đang unique trong database, không được trùng. |
-| `class_year` hoặc `Khóa/Năm học` | `class_year` | Có | Ví dụ: `2024-2027`, `K24`, `2024`. |
-| `department_code` hoặc `Mã khoa` | `dept_id` | Có | Dùng để tìm department tương ứng. |
-| `advisor_email` hoặc `Email cố vấn` | `advisor_id` | Không | Nếu có thì map sang user cố vấn. |
-| `class_course` hoặc `Hệ đào tạo` | `class_course` | Không | Backend hiện hỗ trợ alias `class_type`. |
-| `headquarters` hoặc `Cơ sở` | `headquarters` | Không | Ví dụ: phân hiệu/cơ sở đang dùng trong hệ thống. |
+- Controller hien co:
+  - `GET /api/auth/users`
+  - `PATCH /api/auth/users/:id`
+  - `DELETE /api/auth/users/:id`
+  - `POST /api/auth/users/bulk-delete`
+- Chua co endpoint tao user noi bo danh cho admin, va chua co endpoint tao nhieu user.
+- `register` hien tai:
+  - Validate username/email/password qua `RegisterDto`.
+  - Luon gan role mac dinh `User` hoac `Student`.
+  - Luon gan status `active`.
+- Schema `User` co cac truong can dung:
+  - `user_name`
+  - `email`
+  - `pw_hash`
+  - `status`
+  - `role`
+  - `phone_number`
+  - `department`
+  - `date_birth`
 
-Không yêu cầu người dùng nhập trực tiếp `dept_id` hoặc `advisor_id` trong file vì đây là ObjectId nội bộ.
+## 3. Pham vi can lam
 
-## 4. Luồng xử lý người dùng
+### 3.1 Frontend - UI modal
 
-1. Người dùng bấm `Import lớp`.
-2. Hệ thống mở popup chọn file hoặc mở modal import.
-3. Người dùng tải file lên.
-4. Frontend gửi file lên endpoint preview.
-5. Backend parse file và validate từng dòng.
-6. Frontend hiển thị modal preview tổng thể:
-   - Dòng hợp lệ.
-   - Dòng thiếu dữ liệu bắt buộc.
-   - Dòng trùng `class_name` trong file.
-   - Dòng trùng `class_name` đã tồn tại trong database.
-   - Dòng không tìm thấy khoa theo `department_code`.
-   - Dòng không tìm thấy cố vấn theo `advisor_email`.
-7. Người dùng chọn:
-   - Hủy import.
-   - Sửa file rồi upload lại.
-   - Import các dòng hợp lệ nếu hệ thống cho phép bỏ qua dòng lỗi.
-8. Backend chỉ ghi database sau khi người dùng xác nhận.
-9. Sau khi import thành công, danh sách lớp được refresh và cache lớp bị invalidate.
+Cap nhat `UserModal.tsx` de ho tro 2 mode:
 
-## 5. Backend scope
+- **Them 1 nguoi dung**
+  - Giu trai nghiem hien tai, nhung save can goi API admin-create user moi thay vi public register.
+- **Them nhieu nguoi dung**
+  - Hien bang nhap nhieu dong user.
+  - Moi dong toi thieu gom:
+    - Ten nguoi dung / username
+    - Email
+    - Vai tro
+    - Trang thai
+    - Mat khau, neu khong bat che do dung chung mat khau
+  - Co nut them dong, xoa dong, xoa tat ca dong loi.
+  - Co toggle/segmented control:
+    - `Dung chung mat khau`
+    - `Mat khau rieng tung user`
+  - Khi dung chung mat khau:
+    - Hien 1 o mat khau chung.
+    - An/disable cot mat khau tung dong.
+  - Khi dung mat khau rieng:
+    - Hien cot mat khau tung dong.
+    - Khong bat buoc mat khau chung.
 
-Thêm API cho import lớp trong module `classes`.
+### 3.2 Frontend - API client
 
-Endpoint đề xuất:
+Cap nhat `frontend/src/api/auth-api.ts`:
 
-- `POST /api/classes/import/preview`
-  - Nhận file import.
-  - Parse file.
-  - Validate dữ liệu.
-  - Không ghi database.
-  - Trả về danh sách dòng preview kèm trạng thái.
+- Them `createUser(data, accessToken)`.
+- Them `createUsersBulk(data, accessToken)`.
+- De xuat endpoint:
+  - `POST /api/auth/users`
+  - `POST /api/auth/users/bulk-create`
 
-- `POST /api/classes/import/confirm`
-  - Nhận payload các dòng đã được preview hợp lệ hoặc nhận `importSessionId`.
-  - Ghi database theo mode đã chọn.
-  - Trả về số lượng tạo thành công, số dòng bỏ qua, danh sách lỗi nếu có.
+Payload goi y cho bulk:
 
-DTO/kiểu dữ liệu cần có:
-
-- `ImportClassRowDto`
-- `ImportClassPreviewResultDto`
-- `ImportClassConfirmDto`
-- `ImportClassResultDto`
-
-Service cần xử lý:
-
-- Parse Excel/CSV bằng thư viện ổn định, không tự tách chuỗi thủ công.
-- Chuẩn hóa header tiếng Việt và tiếng Anh.
-- Trim khoảng trắng ở mọi field text.
-- Map `department_code` sang `dept_id`.
-- Map `advisor_email` sang `advisor_id` nếu có.
-- Chuẩn hóa `class_type` về `class_course`.
-- Kiểm tra trùng `class_name` trong file.
-- Kiểm tra trùng `class_name` trong database.
-- Trả lỗi rõ ràng theo từng dòng.
-
-## 6. Quyền truy cập
-
-Chỉ người có quyền tạo lớp mới được import lớp.
-
-Đề xuất dùng cùng permission với tạo lớp hiện tại:
-
-- Preview import: yêu cầu `CLASS_CREATE`.
-- Confirm import: yêu cầu `CLASS_CREATE`.
-
-Không cho học sinh/sinh viên hoặc tài khoản không có quyền quản lý lớp truy cập endpoint import.
-
-## 7. Quy tắc xử lý trùng dữ liệu
-
-Mặc định không ghi đè lớp cũ.
-
-Các mode đề xuất:
-
-- `skip_duplicates`: bỏ qua dòng trùng `class_name`, chỉ tạo dòng mới hợp lệ.
-- `fail_on_duplicates`: nếu có bất kỳ dòng trùng nào thì chặn toàn bộ import.
-
-Không triển khai mode ghi đè ở phiên bản đầu nếu chưa có yêu cầu rõ ràng, vì lớp có thể đang liên kết với sinh viên, báo cáo, điểm danh và dữ liệu điểm.
-
-## 8. Modal preview
-
-Modal import cần có:
-
-- Tên file đã chọn.
-- Tổng số dòng.
-- Badge thống kê: hợp lệ, lỗi, trùng, sẽ import.
-- Bảng preview có phân trang nếu nhiều dòng.
-- Bộ lọc theo trạng thái: tất cả, hợp lệ, lỗi, trùng.
-- Nút tải lại file khác.
-- Nút hủy.
-- Nút xác nhận import.
-- Cảnh báo rõ rằng thao tác import sẽ thêm lớp mới vào database.
-
-Trạng thái từng dòng nên gồm:
-
-- `valid`
-- `missing_required_field`
-- `duplicate_in_file`
-- `duplicate_in_database`
-- `department_not_found`
-- `advisor_not_found`
-- `invalid_format`
-
-## 9. Frontend scope
-
-Cần cập nhật hoặc thêm:
-
-- API client cho import lớp trong `frontend/src/api/class-api.ts`.
-- Component popup/modal import lớp.
-- Button mở import tại màn hình quản lý lớp.
-- Loading state khi upload/preview/import.
-- Error state khi file sai định dạng hoặc backend trả lỗi.
-- Toast/thông báo kết quả sau import.
-- Refresh danh sách lớp sau import thành công.
-- Invalidate cache `classes` sau khi import.
-
-Frontend không tự quyết định dữ liệu nào được ghi database; backend là nơi validate cuối cùng.
-
-## 10. Validation
-
-Validation bắt buộc:
-
-- File không rỗng.
-- File đúng định dạng hỗ trợ.
-- `class_name` không rỗng.
-- `class_year` không rỗng.
-- `department_code` tồn tại trong database.
-- `class_name` không trùng trong file.
-- `class_name` không trùng trong database.
-
-Validation khuyến nghị:
-
-- Giới hạn số dòng mỗi lần import, ví dụ tối đa 500 hoặc 1000 dòng.
-- Kiểm tra độ dài `class_name`.
-- Kiểm tra `advisor_email` đúng định dạng email nếu có.
-- Kiểm tra `class_course` thuộc danh sách cho phép nếu hệ thống đang cố định danh mục.
-- Kiểm tra `headquarters` thuộc danh sách cho phép nếu hệ thống đang cố định danh mục.
-
-## 11. Xử lý lỗi
-
-Backend cần trả lỗi theo từng dòng, không chỉ trả message chung.
-
-Ví dụ response preview:
-
-```json
+```ts
 {
-  "totalRows": 10,
-  "validRows": 8,
-  "invalidRows": 2,
-  "duplicateRows": 1,
-  "rows": [
-    {
-      "rowNumber": 2,
-      "status": "valid",
-      "data": {
-        "class_name": "CNTT-K24A",
-        "class_year": "2024-2027",
-        "department_code": "CNTT"
-      },
-      "errors": []
-    },
-    {
-      "rowNumber": 3,
-      "status": "department_not_found",
-      "data": {
-        "class_name": "QTKD-K24A",
-        "class_year": "2024-2027",
-        "department_code": "QTKD"
-      },
-      "errors": ["Không tìm thấy khoa có mã QTKD"]
-    }
-  ]
+  commonPassword?: string;
+  users: Array<{
+    user_name: string;
+    email: string;
+    password?: string;
+    role_id: string;
+    status?: "active" | "inactive" | "locked";
+  }>;
 }
 ```
 
-## 12. An toàn dữ liệu
+Response goi y:
 
-- Preview không được ghi database.
-- Confirm import phải validate lại dữ liệu trước khi ghi.
-- Không tin hoàn toàn vào dữ liệu preview từ frontend.
-- Không ghi đè lớp đã tồn tại ở bản đầu.
-- Nếu import nhiều dòng, cần dùng `insertMany` có kiểm soát hoặc transaction nếu MongoDB deployment hỗ trợ.
-- Nếu một phần import thất bại, response phải cho biết dòng nào đã tạo, dòng nào lỗi.
-- Không log toàn bộ file import nếu có dữ liệu nhạy cảm.
+```ts
+{
+  total: number;
+  successCount: number;
+  failedCount: number;
+  successes: Array<{
+    index: number;
+    user_id: string;
+    user_name: string;
+    email: string;
+  }>;
+  errors: Array<{
+    index: number;
+    user_name?: string;
+    email?: string;
+    reason: string;
+  }>;
+}
+```
 
-## 13. Kiểm thử
+### 3.3 Backend - DTO
 
-Backend tests:
+Cap nhat `backend/src/auth/dto/auth.dto.ts`:
 
-- Preview file hợp lệ.
-- Preview file thiếu `class_name`.
-- Preview file thiếu `class_year`.
-- Preview file có `department_code` không tồn tại.
-- Preview file có `class_name` trùng trong file.
-- Preview file có `class_name` trùng database.
-- Confirm import chỉ tạo dòng hợp lệ.
-- Confirm import không ghi đè dữ liệu cũ.
-- Permission: user không có `CLASS_CREATE` bị chặn.
+- Them `CreateUserDto` cho admin tao 1 user.
+- Them `BulkCreateUserItemDto`.
+- Them `BulkCreateUsersDto`.
 
-Frontend tests/manual QA:
+Validation can co:
 
-- Mở modal import.
-- Upload file mẫu hợp lệ.
-- Upload file sai định dạng.
-- Upload file có lỗi và xem preview.
-- Lọc dòng lỗi trong modal.
-- Confirm import thành công.
-- Danh sách lớp refresh sau import.
-- Cache lớp không còn dữ liệu cũ sau import.
+- `user_name`: required, string, trim, khong rong.
+- `email`: required, email hop le.
+- `password`:
+  - Required trong create single.
+  - Required tung item neu khong co `commonPassword`.
+  - Toi thieu 8 ky tu va nen dung cung policy voi `RegisterDto`.
+- `commonPassword`:
+  - Optional, nhung neu co thi phai dat policy password.
+- `role_id`: required, MongoId hop le.
+- `status`: optional, chi nhan `active`, `inactive`, `locked`.
+- Gioi han so luong bulk, de xuat 1-500 user/request.
 
-## 14. Ngoài phạm vi phiên bản đầu
+### 3.4 Backend - Controller
 
-Không bao gồm:
+Cap nhat `backend/src/auth/controllers/auth.controller.ts`:
 
-- Restore database toàn hệ thống.
-- Ghi đè lớp đã tồn tại.
-- Import sinh viên cùng lúc với lớp.
-- Tự tạo khoa mới nếu `department_code` chưa tồn tại.
-- Tự tạo tài khoản cố vấn nếu `advisor_email` chưa tồn tại.
-- Rollback toàn bộ database ngoài phạm vi import lớp.
+- Them endpoint admin-only:
+  - `POST /api/auth/users`
+  - `POST /api/auth/users/bulk-create`
+- Bao ve bang:
+  - `JwtAuthGuard`
+  - `PermissionsGuard`
+  - `@Permissions('ADMIN_FULL')`
 
-## 15. Thứ tự triển khai đề xuất
+### 3.5 Backend - Service
 
-1. Chốt file mẫu và mapping cột.
-2. Thêm backend parser và preview endpoint.
-3. Thêm backend confirm endpoint.
-4. Thêm unit test cho validate/import.
-5. Thêm API client frontend.
-6. Thêm modal import lớp.
-7. Gắn nút import vào màn hình quản lý lớp.
-8. Kiểm thử bằng file hợp lệ, file lỗi, file trùng.
-9. Bổ sung tài liệu hướng dẫn người dùng tải file mẫu và import.
+Cap nhat `backend/src/auth/services/auth.service.ts`:
 
-## 16. Tiêu chí hoàn thành
+- Them `createUser(dto, ip?)`.
+- Them `createUsersBulk(dto, ip?)`.
+- Khong reuse truc tiep `register` neu lam mat role/status admin chon.
+- Validate truoc khi ghi:
+  - Duplicate `user_name` trong payload.
+  - Duplicate `email` trong payload.
+  - `user_name` da ton tai trong DB.
+  - `email` da ton tai trong DB.
+  - `role_id` ton tai trong DB.
+  - Password hop le theo policy.
+- Hash password bang `passwordService.hashPassword`.
+- Nen xu ly theo batch/chunk nho khi so luong lon, de tranh qua tai CPU khi hash password.
+- Ket qua bulk nen la partial success:
+  - Dong hop le thi tao.
+  - Dong loi thi tra ve `errors[]` co ly do.
+  - Khong lam fail toan bo request chi vi 1 dong loi, tru truong hop payload sai schema nghiem trong.
+- Ghi log admin action neu he thong dang can audit:
+  - `admin_create_user`
+  - `admin_bulk_create_users`
 
-Feature được xem là hoàn thành khi:
+## 4. Validate va UX ket qua
 
-- Người dùng có quyền `CLASS_CREATE` import được danh sách lớp từ file.
-- Người dùng xem được preview trước khi ghi database.
-- Dòng lỗi được hiển thị rõ lý do.
-- Dữ liệu trùng không làm crash backend.
-- Import không tự tạo lại dữ liệu mẫu.
-- Danh sách lớp cập nhật đúng sau khi import.
-- Có test backend cho luồng preview và confirm.
-- Có hướng dẫn/file mẫu cho người dùng.
+### Validate tren frontend
+
+- Khong cho submit neu danh sach rong.
+- Bao loi tai dong neu thieu username/email/role/password.
+- Bao loi email sai dinh dang.
+- Bao loi duplicate username/email trong danh sach dang nhap.
+- Bao loi mat khau chung/rieng khong dat do manh.
+
+### Validate tren backend
+
+- Backend la nguon validate cuoi cung, khong phu thuoc frontend.
+- Kiem tra ton tai role.
+- Kiem tra duplicate voi DB bang truy van gom nhom:
+  - `$in` theo danh sach username.
+  - `$in` theo danh sach email lowercase.
+- Email can lowercase/trim truoc khi so sanh va luu.
+
+### Dialog ket qua
+
+Sau khi bulk create:
+
+- Hien modal/toast ket qua:
+  - Tong so user.
+  - So tao thanh cong.
+  - So that bai.
+  - Bang loi gom dong, username/email, ly do.
+- Co nut dong va refresh danh sach user.
+- Nen co nut "Sua cac dong loi" de giu lai nhung dong that bai trong modal.
+
+## 5. Tieu chi nghiem thu
+
+- Admin vao `/permissions`, bam **Them nguoi dung** va co the chon them 1 user hoac them nhieu user.
+- Them nhieu user voi **mat khau chung** tao thanh cong tat ca dong hop le.
+- Them nhieu user voi **mat khau rieng** tao thanh cong tung dong co password hop le.
+- Neu 1 dong trung email/username da ton tai, dong do that bai va hien ly do, cac dong hop le van duoc tao.
+- Neu 2 dong trong cung payload trung email/username, frontend va backend deu bao loi ro rang.
+- Role duoc gan dung theo `role_id` admin chon, khong bi roi ve role mac dinh.
+- Status duoc luu dung theo lua chon.
+- Password duoc hash, khong tra ve `pw_hash` cho frontend.
+- API bulk create chi user co `ADMIN_FULL` moi goi duoc.
+- Sau khi tao xong, danh sach user tren `/permissions` duoc refresh.
+
+## 6. File du kien can sua
+
+- `frontend/src/components/modals/UserModal.tsx`
+- `frontend/src/app/permissions/page.tsx`
+- `frontend/src/api/auth-api.ts`
+- `backend/src/auth/dto/auth.dto.ts`
+- `backend/src/auth/controllers/auth.controller.ts`
+- `backend/src/auth/services/auth.service.ts`
+- Co the can bo sung test:
+  - `backend/src/auth/test/auth.service.spec.ts`
+  - `backend/test/auth.e2e-spec.ts`
+  - Test frontend cho modal neu project da co pattern tuong ung.
+
+## 7. Ngoai pham vi
+
+- Import user tu Excel/CSV.
+- Tao ho so sinh vien/giang vien tu dong kem theo user.
+- Gui email kich hoat/reset password sau khi tao user.
+- Phan quyen moi ngoai `ADMIN_FULL`.
+
+## 8. Ghi chu rui ro
+
+- Dang dung `authApi.register` trong page admin la chua dung ngu canh. Nen tach API admin-create user de tranh mat role/status va tranh nham voi luong public register.
+- Can can nhac unique index cho `email` da co, nhung `user_name` hien schema khong unique. Neu nghiep vu yeu cau username duy nhat, service phai check duplicate ro rang nhu hien tai.
+- Hash nhieu password cung luc co the ton CPU; nen gioi han size payload va xu ly chunk/concurrency thap.

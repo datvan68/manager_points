@@ -41,6 +41,8 @@ import {
   UpdateRoutePermissionDto,
   UpdateUserDto,
   UpdateMeDto,
+  CreateUserDto,
+  BulkCreateUsersDto,
 } from '../dto/auth.dto';
 
 import { isAdminUser } from '../utils/role.util';
@@ -317,6 +319,26 @@ export class AuthController {
   @ApiOperation({ summary: 'Get all users (Admin only)' })
   async getUsers() {
     return this.authService.getUsers();
+  }
+
+  @Post('users')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('ADMIN_FULL')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a single user (Admin only)' })
+  async createUser(@Body() dto: CreateUserDto, @Req() req: any) {
+    const ip = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
+    return this.authService.createUser(dto, ip);
+  }
+
+  @Post('users/bulk-create')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('ADMIN_FULL')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create multiple users (Admin only)' })
+  async createUsersBulk(@Body() dto: BulkCreateUsersDto, @Req() req: any) {
+    const ip = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
+    return this.authService.createUsersBulk(dto, ip);
   }
 
   @Patch('users/:id')

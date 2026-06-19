@@ -641,6 +641,159 @@ export class AuthService implements OnModuleInit {
     };
   }
 
+  /**
+   * Tạo một người dùng mới từ giao diện Admin.
+   * @param dto Thông tin người dùng cần tạo.
+   * @param ip Địa chỉ IP của admin thực hiện thao tác để ghi log.
+   * @returns Thông tin người dùng vừa được tạo.
+   */
+  async createUser(dto: any, ip?: string) {
+    const existingUsername = await this.userModel.findOne({
+      user_name: dto.user_name,
+    });
+    if (existingUsername) throw new ConflictException('Username đã tồn tại');
+
+    const existingEmail = await this.userModel.findOne({
+      email: dto.email.toLowerCase(),
+    });
+    if (existingEmail) throw new ConflictException('Email đã được sử dụng');
+
+    const role = await this.roleModel.findById(dto.role_id);
+    if (!role) {
+      throw new BadRequestException('Vai trò không tồn tại');
+    }
+
+    const pw_hash = await this.passwordService.hashPassword(dto.password);
+
+    const newUser = await this.userModel.create({
+      user_name: dto.user_name,
+      email: dto.email.toLowerCase(),
+      pw_hash,
+      status: dto.status || UserStatus.ACTIVE,
+      role: role._id,
+    });
+
+    if (ip) {
+      await this.logAction(
+        newUser._id,
+        ip,
+        'admin_create_user',
+        `User created by admin`,
+      );
+    }
+
+    const result = newUser.toObject() as any;
+    delete result.pw_hash;
+    return { message: 'Người dùng đã được tạo thành công', user: result };
+  }
+
+  /**
+   * Tạo nhiều người dùng cùng lúc (Bulk Create).
+   * @param dto Thông tin chứa danh sách users và mật khẩu dùng chung (nếu có).
+   * @param ip Địa chỉ IP của admin thực hiện thao tác để ghi log.
+   * @returns Báo cáo số lượng thành công, thất bại, và danh sách lỗi.
+   */
+  async createUsersBulk(dto: any, ip?: string) {
+    const { users, commonPassword } = dto;
+    
+    if (!users || users.length === 0) {
+      throw new BadRequestException('Danh sách người dùng không được rỗng');
+    }
+
+    const successes: any[] = [];
+    const errors: any[] = [];
+
+    // Cache roles
+    const rolesCache = new Map<string, Types.ObjectId | null>();
+
+    for (let i = 0; i < users.length; i++) {
+      const u = users[i];
+      try {
+        if (!u.user_name || !u.email || !u.role_id) {
+          throw new BadRequestException('Thiếu trường bắt buộc (user_name, email, role_id)');
+        }
+
+        const password = commonPassword || u.password;
+        if (!password) {
+          throw new BadRequestException('Thiếu mật khẩu');
+        }
+
+        const existingUsername = await this.userModel.findOne({ user_name: u.user_name });
+        if (existingUsername) throw new ConflictException('Username đã tồn tại');
+
+        const existingEmail = await this.userModel.findOne({ email: u.email.toLowerCase() });
+        if (existingEmail) throw new ConflictException('Email đã được sử dụng');
+
+        let roleId = rolesCache.get(u.role_id);
+        if (roleId === undefined) {
+          if (!Types.ObjectId.isValid(u.role_id)) {
+            rolesCache.set(u.role_id, null);
+            roleId = null;
+          } else {
+            const role = await this.roleModel.findById(u.role_id);
+            roleId = role ? role._id as Types.ObjectId : null;
+            rolesCache.set(u.role_id, roleId);
+          }
+        }
+
+        if (!roleId) {
+          throw new BadRequestException('Vai trò không tồn tại');
+        }
+
+        const pw_hash = await this.passwordService.hashPassword(password);
+
+        const newUser = await this.userModel.create({
+          user_name: u.user_name,
+          email: u.email.toLowerCase(),
+          pw_hash,
+          status: u.status || UserStatus.ACTIVE,
+          role: roleId,
+        });
+
+        if (ip) {
+          await this.logAction(
+            newUser._id,
+            ip,
+            'admin_create_user_bulk',
+            `User created in bulk by admin`,
+          );
+        }
+
+        successes.push({
+          index: i,
+          user_id: newUser._id.toString(),
+          user_name: newUser.user_name,
+          email: newUser.email,
+        });
+
+      } catch (err: any) {
+        errors.push({
+          index: i,
+          user_name: u.user_name,
+          email: u.email,
+          reason: err.message || 'Lỗi không xác định',
+        });
+      }
+    }
+
+    if (ip && successes.length > 0) {
+      await this.logAction(
+        null,
+        ip,
+        'admin_bulk_create_users',
+        `Bulk created ${successes.length} users successfully`,
+      );
+    }
+
+    return {
+      total: users.length,
+      successCount: successes.length,
+      failedCount: errors.length,
+      successes,
+      errors,
+    };
+  }
+
   async deleteUser(userId: string) {
     if (!Types.ObjectId.isValid(userId))
       throw new BadRequestException('ID người dùng không hợp lệ');

@@ -283,4 +283,98 @@ describe('AuthService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('createUser', () => {
+    it('should successfully create a single user', async () => {
+      userModel.findOne.mockResolvedValue(null);
+      jest.spyOn((service as any).roleModel, 'findById').mockResolvedValue({ _id: 'mock-role-id' });
+      
+      const createdUser = { ...mockUser, toObject: () => ({ ...mockUser }) };
+      userModel.create.mockResolvedValue(createdUser);
+
+      const dto = {
+        user_name: 'newuser',
+        email: 'new@example.com',
+        role_id: 'role-id',
+        password: 'password123',
+      };
+
+      const result = await service.createUser(dto, '127.0.0.1');
+
+      expect(result).toBeDefined();
+      expect(result.message).toEqual('Người dùng đã được tạo thành công');
+      expect(result.user).toBeDefined();
+      expect(userModel.create).toHaveBeenCalled();
+    });
+
+    it('should throw ConflictException if username already exists', async () => {
+      userModel.findOne.mockResolvedValueOnce({ _id: 'existing' }); // username found
+
+      await expect(
+        service.createUser({ user_name: 'exist', email: 'e@mail.com', password: '1', role_id: '1' }),
+      ).rejects.toThrow('Username đã tồn tại');
+    });
+  });
+
+  describe('createUsersBulk', () => {
+    it('should throw BadRequestException if users array is empty', async () => {
+      await expect(
+        service.createUsersBulk({ users: [] }, '127.0.0.1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should successfully create multiple users and return stats', async () => {
+      userModel.findOne.mockResolvedValue(null);
+      jest.spyOn((service as any).roleModel, 'findById').mockResolvedValue({ _id: '507f1f77bcf86cd799439013' });
+      
+      const createdUser1 = { _id: '1', user_name: 'u1', email: 'u1@e.com' };
+      const createdUser2 = { _id: '2', user_name: 'u2', email: 'u2@e.com' };
+      
+      userModel.create
+        .mockResolvedValueOnce(createdUser1)
+        .mockResolvedValueOnce(createdUser2);
+
+      const dto = {
+        users: [
+          { user_name: 'u1', email: 'u1@e.com', password: 'p1', role_id: '507f1f77bcf86cd799439013' },
+          { user_name: 'u2', email: 'u2@e.com', password: 'p2', role_id: '507f1f77bcf86cd799439013' },
+        ],
+      };
+
+      const result = await service.createUsersBulk(dto, '127.0.0.1');
+
+      expect(result.total).toEqual(2);
+      expect(result.successCount).toEqual(2);
+      expect(result.failedCount).toEqual(0);
+      expect(result.successes.length).toEqual(2);
+    });
+
+    it('should handle errors for individual users in bulk create', async () => {
+      // First user valid, second user duplicate email
+      userModel.findOne
+        .mockResolvedValueOnce(null) // u1 username check
+        .mockResolvedValueOnce(null) // u1 email check
+        .mockResolvedValueOnce(null) // u2 username check
+        .mockResolvedValueOnce({ _id: 'existing' }); // u2 email check returns existing
+
+      jest.spyOn((service as any).roleModel, 'findById').mockResolvedValue({ _id: '507f1f77bcf86cd799439013' });
+
+      const createdUser1 = { _id: '1', user_name: 'u1', email: 'u1@e.com' };
+      userModel.create.mockResolvedValueOnce(createdUser1);
+
+      const dto = {
+        users: [
+          { user_name: 'u1', email: 'u1@e.com', password: 'p1', role_id: '507f1f77bcf86cd799439013' },
+          { user_name: 'u2', email: 'u2@e.com', password: 'p2', role_id: '507f1f77bcf86cd799439013' },
+        ],
+      };
+
+      const result = await service.createUsersBulk(dto, '127.0.0.1');
+
+      expect(result.total).toEqual(2);
+      expect(result.successCount).toEqual(1);
+      expect(result.failedCount).toEqual(1);
+      expect(result.errors[0].reason).toContain('Email đã được sử dụng');
+    });
+  });
 });
