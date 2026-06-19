@@ -103,6 +103,43 @@ export interface BackupJob {
   createdAt: string;
 }
 
+export interface BackupPreviewCollection {
+  name: string;
+  document_count_in_backup: number;
+  document_count_in_db: number;
+  status: 'valid' | 'warning' | string;
+}
+
+export interface BackupImportPreview {
+  previewSessionId: string;
+  fileName: string;
+  fileSize: number;
+  format: string;
+  hash: string;
+  collections: BackupPreviewCollection[];
+}
+
+export interface RestoreJob {
+  _id: string;
+  status: 'queued' | 'running' | 'success' | 'failed';
+  requested_by: {
+    _id: string;
+    user_name: string;
+    email: string;
+  };
+  started_at?: string;
+  finished_at?: string;
+  source_file_name?: string;
+  source_file_size?: number;
+  mode?: string;
+  collections?: string[];
+  collection_summaries?: BackupPreviewCollection[];
+  error_message?: string;
+  createdAt: string;
+}
+
+export type RestoreMode = 'replace_selected_collections' | 'merge_upsert';
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
@@ -297,6 +334,45 @@ export const systemApi = {
       method: 'DELETE',
     });
     return handleResponse<MessageResponse>(res);
+  },
+
+  async previewBackupImport(file: File): Promise<BackupImportPreview> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // For FormData, we let the browser set the Content-Type header with the correct boundary
+    // httpClient might be setting application/json by default if we don't pass headers properly,
+    // assuming httpClient works well with FormData if body is FormData
+    const res = await httpClient(`${API_BASE}/api/system/backups/import/preview`, {
+      method: 'POST',
+      body: formData,
+    });
+    return handleResponse<BackupImportPreview>(res);
+  },
+
+  async restoreBackupImport(payload: {
+    previewSessionId: string;
+    collections: string[];
+    mode: RestoreMode;
+    confirmationText: string;
+  }): Promise<RestoreJob> {
+    const res = await httpClient(`${API_BASE}/api/system/backups/import/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<RestoreJob>(res);
+  },
+
+  async getRestoreJobs(query: { page?: number; limit?: number }): Promise<PaginatedResponse<RestoreJob>> {
+    const params = new URLSearchParams();
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && (value as any) !== '') {
+        params.append(key, String(value));
+      }
+    });
+    const res = await httpClient(`${API_BASE}/api/system/backups/restore-jobs?${params.toString()}`);
+    return handleResponse<PaginatedResponse<RestoreJob>>(res);
   },
 
   async downloadBackup(id: string, fileName: string, accessToken: string): Promise<void> {

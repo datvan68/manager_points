@@ -1,0 +1,86 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { systemApi } from './system-api';
+import { httpClient, handleResponse } from './http-client';
+
+vi.mock('./http-client', () => ({
+  httpClient: vi.fn(),
+  handleResponse: vi.fn()
+}));
+
+describe('systemApi', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('previewBackupImport', () => {
+    it('should correctly call httpClient with FormData and method POST', async () => {
+      const mockFile = new File(['dummy content'], 'test.gz', { type: 'application/gzip' });
+      const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({}) };
+      
+      (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+      (handleResponse as ReturnType<typeof vi.fn>).mockResolvedValue({ previewSessionId: 'sess' });
+
+      const res = await systemApi.previewBackupImport(mockFile);
+      
+      expect(httpClient).toHaveBeenCalledTimes(1);
+      const [url, options] = vi.mocked(httpClient).mock.calls[0];
+      
+      expect(url).toContain('/api/system/backups/import/preview');
+      expect(options?.method).toBe('POST');
+      expect(options?.body).toBeInstanceOf(FormData);
+      
+      const formData = options?.body as FormData;
+      expect(formData.get('file')).toBe(mockFile);
+      
+      expect(handleResponse).toHaveBeenCalledWith(mockResponse);
+      expect(res.previewSessionId).toBe('sess');
+    });
+  });
+
+  describe('restoreBackupImport', () => {
+    it('should correctly call httpClient with JSON payload and method POST', async () => {
+      const mockPayload = {
+        previewSessionId: 'sess-123',
+        collections: ['users'],
+        mode: 'replace_selected_collections' as const,
+        confirmationText: 'RESTORE'
+      };
+      const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({}) };
+      
+      (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+      (handleResponse as ReturnType<typeof vi.fn>).mockResolvedValue({ _id: 'job-123' });
+
+      const res = await systemApi.restoreBackupImport(mockPayload);
+      
+      expect(httpClient).toHaveBeenCalledTimes(1);
+      const [url, options] = vi.mocked(httpClient).mock.calls[0];
+      
+      expect(url).toContain('/api/system/backups/import/restore');
+      expect(options?.method).toBe('POST');
+      expect(options?.headers).toEqual({ 'Content-Type': 'application/json' });
+      expect(JSON.parse(options?.body as string)).toEqual(mockPayload);
+      
+      expect(handleResponse).toHaveBeenCalledWith(mockResponse);
+      expect(res._id).toBe('job-123');
+    });
+  });
+
+  describe('getRestoreJobs', () => {
+    it('should correctly call httpClient with query params', async () => {
+      const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({}) };
+      (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+      (handleResponse as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0 });
+
+      const res = await systemApi.getRestoreJobs({ page: 2, limit: 10 });
+      
+      expect(httpClient).toHaveBeenCalledTimes(1);
+      const [url] = vi.mocked(httpClient).mock.calls[0];
+      
+      expect(url).toContain('/api/system/backups/restore-jobs');
+      expect(url).toContain('page=2');
+      expect(url).toContain('limit=10');
+      
+      expect(res.items).toEqual([]);
+    });
+  });
+});

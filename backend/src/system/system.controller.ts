@@ -1,11 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Req, Res, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { SystemService } from './system.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, MongoIdParamDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto } from './dto/system.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, MongoIdParamDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto } from './dto/system.dto';
 
 export interface AuthenticatedRequest extends Request {
   user: {
@@ -95,6 +96,12 @@ export class SystemController {
     return this.systemService.createBackup(req.user.userId);
   }
 
+  @Get('backups/restore-jobs')
+  @Permissions('DATABASE_BACKUP_READ', 'DATABASE_BACKUP_RESTORE')
+  getRestoreJobs(@Query() query: GetBackupsQueryDto) {
+    return this.systemService.getRestoreJobs(query);
+  }
+
   @Get('backups/:id')
   @Permissions('DATABASE_BACKUP_READ')
   getBackupById(@Param() params: MongoIdParamDto) {
@@ -112,6 +119,31 @@ export class SystemController {
   @Permissions('DATABASE_BACKUP_DELETE')
   deleteBackup(@Param() params: MongoIdParamDto, @Req() req: AuthenticatedRequest) {
     return this.systemService.deleteBackup(params.id, req.user.userId);
+  }
+
+  /**
+   * Upload and preview a backup file for import.
+   * Parses the file to list collections and document counts before actual restoration.
+   */
+  @Post('backups/import/preview')
+  @Permissions('DATABASE_BACKUP_RESTORE')
+  @UseInterceptors(FileInterceptor('file'))
+  async previewBackupImport(@UploadedFile() file: any, @Req() req: AuthenticatedRequest) {
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn file sao lưu để import');
+    }
+    return this.systemService.previewBackupImport(file, req.user.userId);
+  }
+
+  /**
+   * Execute the database restoration process.
+   * Requires confirmation text "RESTORE" and a valid preview session.
+   * Automatically triggers a pre-restore backup for safety.
+   */
+  @Post('backups/import/restore')
+  @Permissions('DATABASE_BACKUP_RESTORE')
+  async restoreBackupImport(@Body() dto: RestoreBackupImportDto, @Req() req: AuthenticatedRequest) {
+    return this.systemService.restoreBackupImport(dto, req.user.userId);
   }
 
   // ─── PERFORMANCE METRICS ───────────────────────────────────────────────────

@@ -36,6 +36,12 @@ manager-point/
 
 *(Đang cập nhật hướng dẫn cài đặt...)*
 
+### Tính năng Import Backup Database (Bản nháp)
+Hệ thống hỗ trợ nhập (import) các bản sao lưu cơ sở dữ liệu (`.gz`, `.archive`, `.zip`) thông qua giao diện quản trị.
+Quy trình nhập dữ liệu bao gồm hai bước để đảm bảo an toàn:
+1. **Preview (Xem trước):** Phân tích file tải lên để hiển thị danh sách các collections và số lượng bản ghi có trong bản sao lưu.
+2. **Restore (Khôi phục):** Xác nhận khôi phục dữ liệu (yêu cầu gõ chữ `RESTORE`). Hệ thống sẽ tự động tạo một bản sao lưu (pre-restore backup) trước khi tiến hành ghi đè dữ liệu.
+
 ## 🛠 Công nghệ sử dụng (Tech Stack)
 
 - **AI Framework**: MCP (Model Context Protocol)

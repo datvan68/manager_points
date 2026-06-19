@@ -42,6 +42,7 @@ describe('System Module (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api');
     app.useGlobalPipes(new ValidationPipe());
 
     userModel = moduleFixture.get<Model<any>>(getModelToken(User.name));
@@ -68,6 +69,11 @@ describe('System Module (e2e)', () => {
       createBackupPerm = await permissionModel.create({ name: 'Create Database Backup', code: 'DATABASE_BACKUP_CREATE' });
     }
 
+    let restoreBackupPerm = await permissionModel.findOne({ code: 'DATABASE_BACKUP_RESTORE' });
+    if (!restoreBackupPerm) {
+      restoreBackupPerm = await permissionModel.create({ name: 'Restore Database Backup', code: 'DATABASE_BACKUP_RESTORE' });
+    }
+
     // 2. Tạo Roles
     auditViewerRole = await roleModel.create({
       name: 'E2E Audit Viewer',
@@ -78,7 +84,7 @@ describe('System Module (e2e)', () => {
     backupOperatorRole = await roleModel.create({
       name: 'E2E Backup Operator',
       role_code: 'E2E_BACKUP_OPERATOR',
-      permissions: [readBackupPerm._id, createBackupPerm._id],
+      permissions: [readBackupPerm._id, createBackupPerm._id, restoreBackupPerm._id],
     });
 
     guestRole = await roleModel.create({
@@ -189,6 +195,74 @@ describe('System Module (e2e)', () => {
         .delete(`/api/system/backups/${testBackupJobId}`)
         .set('Authorization', `Bearer ${backupToken}`) // chỉ có read/create, không có delete
         .expect(403);
+    });
+  });
+
+  describe('GET /api/system/backups/restore-jobs', () => {
+    it('Nên trả về 200 (không bị lỗi 404) khi user có quyền DATABASE_BACKUP_READ/RESTORE', () => {
+      return request(app.getHttpServer())
+        .get('/api/system/backups/restore-jobs')
+        .set('Authorization', `Bearer ${backupToken}`)
+        .expect(200)
+        .then((res) => {
+          expect(res.body).toBeDefined();
+        });
+    });
+  });
+
+  describe('POST /api/system/backups/import/preview', () => {
+    it('Nên trả về 403 khi user thiếu quyền DATABASE_BACKUP_RESTORE hoặc DATABASE_BACKUP_IMPORT', () => {
+      return request(app.getHttpServer())
+        .post('/api/system/backups/import/preview')
+        .set('Authorization', `Bearer ${auditToken}`)
+        .expect(403);
+    });
+
+    it('Nên trả về 400 khi upload file sai định dạng (không phải .gz, .archive, .zip)', () => {
+      return request(app.getHttpServer())
+        .post('/api/system/backups/import/preview')
+        .set('Authorization', `Bearer ${backupToken}`)
+        .attach('file', Buffer.from('dummy content'), 'test.txt')
+        .expect(400);
+    });
+    
+    // Note: To test a valid upload -> preview, we need to bypass or mock the actual parsing, 
+    // or provide a tiny valid .gz payload if the backend tries to parse it. 
+    // Since this is e2e, if we pass a valid extension but invalid content, the backend might throw 400 'File không hợp lệ' during parsing.
+    it('Nên trả về 400 khi upload file hợp lệ phần mở rộng nhưng dữ liệu hỏng', () => {
+      return request(app.getHttpServer())
+        .post('/api/system/backups/import/preview')
+        .set('Authorization', `Bearer ${backupToken}`)
+        .attach('file', Buffer.from('bad data'), 'test.gz')
+        .expect(400);
+    });
+  });
+
+  describe('POST /api/system/backups/import/restore', () => {
+    it('Nên trả về 403 khi user thiếu quyền DATABASE_BACKUP_RESTORE', () => {
+      return request(app.getHttpServer())
+        .post('/api/system/backups/import/restore')
+        .set('Authorization', `Bearer ${auditToken}`)
+        .send({
+          previewSessionId: 'some-session-id',
+          collections: ['users'],
+          mode: 'replace_selected_collections',
+          confirmationText: 'RESTORE',
+        })
+        .expect(403);
+    });
+
+    it('Nên trả về 400 khi thiếu trường confirmationText hoặc giá trị không phải RESTORE', () => {
+      return request(app.getHttpServer())
+        .post('/api/system/backups/import/restore')
+        .set('Authorization', `Bearer ${backupToken}`)
+        .send({
+          previewSessionId: 'some-session-id',
+          collections: ['users'],
+          mode: 'replace_selected_collections',
+          confirmationText: 'WRONG',
+        })
+        .expect(400);
     });
   });
 });

@@ -299,3 +299,20 @@ export class GetPerformanceMetricsQueryDto {
   @IsString()
   route?: string;
 }
+
+export class RestoreBackupImportDto {
+  @IsString()
+  @IsNotEmpty()
+  previewSessionId: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  collections: string[];
+
+  @IsEnum(['replace_selected_collections', 'merge_upsert'])
+  mode: string;
+
+  @IsString()
+  @IsNotEmpty()
+  confirmationText: string;
+}

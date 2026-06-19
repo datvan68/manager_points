@@ -4,14 +4,16 @@ import { Model, Types, Connection } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import { SystemRequest, SystemRequestDocument } from './schemas/system-request.schema';
 import { DatabaseBackupJob, DatabaseBackupJobDocument } from './schemas/database-backup-job.schema';
+import { DatabaseRestoreJob, DatabaseRestoreJobDocument } from './schemas/database-restore-job.schema';
 import { LoginLog, LoginLogDocument } from '../auth/schemas/login-log.schema';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { SystemPerformanceMetric, SystemPerformanceMetricDocument } from './schemas/system-performance-metric.schema';
-import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto } from './dto/system.dto';
+import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto } from './dto/system.dto';
 import { getRequesterRoleName, isStudent, isTeacher, isSupervisor, isAdmin, isAdminUser } from '../auth/utils/role.util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
+import * as crypto from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { Readable } from 'stream';
@@ -75,6 +77,7 @@ export class SystemService {
   constructor(
     @InjectModel(SystemRequest.name) private systemRequestModel: Model<SystemRequestDocument>,
     @InjectModel(DatabaseBackupJob.name) private backupJobModel: Model<DatabaseBackupJobDocument>,
+    @InjectModel(DatabaseRestoreJob.name) private restoreJobModel: Model<DatabaseRestoreJobDocument>,
     @InjectModel(LoginLog.name) private loginLogModel: Model<LoginLogDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(SystemPerformanceMetric.name) private performanceMetricModel: Model<SystemPerformanceMetricDocument>,
@@ -84,7 +87,13 @@ export class SystemService {
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
     }
+    this.importDir = path.resolve(process.cwd(), 'storage', 'backup-imports');
+    if (!fs.existsSync(this.importDir)) {
+      fs.mkdirSync(this.importDir, { recursive: true });
+    }
   }
+
+  private readonly importDir: string;
 
   private toObjectId(id: string): Types.ObjectId {
     if (!id || !Types.ObjectId.isValid(id)) {
@@ -438,6 +447,10 @@ export class SystemService {
     const mongoUri = this.configService.get<string>('MONGO_URI');
 
     try {
+      if (!mongoUri) {
+        throw new Error('Cấu hình MONGO_URI bị thiếu');
+      }
+
       if (!this.connection.db) {
         throw new Error('Kết nối cơ sở dữ liệu chưa sẵn sàng');
       }
@@ -521,7 +534,9 @@ export class SystemService {
     const absoluteFilePath = path.resolve(job.file_path);
     const absoluteBackupDir = path.resolve(this.backupDir);
     const safePrefix = absoluteBackupDir.endsWith(path.sep) ? absoluteBackupDir : absoluteBackupDir + path.sep;
-    if (!absoluteFilePath.startsWith(safePrefix)) {
+    const relative = path.relative(safePrefix, absoluteFilePath);
+    const isSafe = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+    if (!isSafe) {
       throw new ForbiddenException('Truy cập tệp tin ngoài thư mục sao lưu bị từ chối');
     }
 
@@ -550,7 +565,9 @@ export class SystemService {
       const absoluteFilePath = path.resolve(job.file_path);
       const absoluteBackupDir = path.resolve(this.backupDir);
       const safePrefix = absoluteBackupDir.endsWith(path.sep) ? absoluteBackupDir : absoluteBackupDir + path.sep;
-      if (!absoluteFilePath.startsWith(safePrefix)) {
+      const relative = path.relative(safePrefix, absoluteFilePath);
+      const isSafe = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+      if (!isSafe) {
         throw new ForbiddenException('Truy cập tệp tin ngoài thư mục sao lưu bị từ chối');
       }
 
@@ -568,6 +585,333 @@ export class SystemService {
     await this.backupJobModel.deleteOne({ _id: id }).exec();
     this.logger.log(`AUDIT: User ${userId} deleted backup ${id}. File path: ${job.file_path}. File exists: ${fileExists}. File deleted: ${fileDeleted}`);
     return { message: 'Xóa bản sao lưu thành công' };
+  }
+
+  async getRestoreJobs(query: GetBackupsQueryDto) {
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.restoreJobModel.find()
+        .populate('requested_by', 'user_name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.restoreJobModel.countDocuments().exec()
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+    return { items, total, page, limit, totalPages };
+  }
+
+  /**
+   * Processes the uploaded backup file, saves it temporarily, and analyzes its content.
+   * Supports both mongodump archives and custom NDJSON gzip formats.
+   * Creates a DatabaseRestoreJob in 'queued' state.
+   */
+  async previewBackupImport(file: any, userId: string) {
+    if (!file.originalname.match(/\.(gz|archive|zip)$/)) {
+      throw new BadRequestException('Chỉ chấp nhận file .gz, .archive, .zip');
+    }
+
+    const previewSessionId = crypto.randomBytes(16).toString('hex');
+    const sanitizedFileName = path.basename(file.originalname);
+    const tempFileName = `import_${previewSessionId}_${sanitizedFileName}`;
+    const filePath = path.resolve(this.importDir, tempFileName);
+
+    const safePrefix = this.importDir.endsWith(path.sep) ? this.importDir : this.importDir + path.sep;
+    const relative = path.relative(safePrefix, filePath);
+    const isSafe = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+    if (!isSafe) {
+      throw new BadRequestException('Tên file không hợp lệ');
+    }
+
+    fs.writeFileSync(filePath, file.buffer);
+
+    // Calculate hash
+    const hash = crypto.createHash('sha256').update(file.buffer).digest('hex');
+
+    // Parse logic
+    const collectionMap = new Map<string, number>();
+    let isArchive = false;
+
+    try {
+      try {
+        await execFileAsync('mongorestore', ['--archive', '--dryRun', filePath]);
+        isArchive = true;
+      } catch (err) {
+        isArchive = false;
+      }
+
+      if (!isArchive) {
+        const gzip = fs.createReadStream(filePath).pipe(zlib.createGunzip());
+        let currentCollection = 'unknown';
+
+        for await (const chunk of gzip) {
+          const lines = chunk.toString().split('\n');
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const doc = JSON.parse(line);
+              if (doc.__collection) {
+                currentCollection = doc.__collection;
+                if (!collectionMap.has(currentCollection)) {
+                  collectionMap.set(currentCollection, 0);
+                }
+              } else if (currentCollection !== 'unknown') {
+                collectionMap.set(currentCollection, (collectionMap.get(currentCollection) || 0) + 1);
+              }
+            } catch (e) {}
+          }
+        }
+      } else {
+        collectionMap.set('Archive Content (Full Restore Available)', 1);
+      }
+
+      if (collectionMap.size === 0) {
+        throw new Error('Không tìm thấy dữ liệu hợp lệ trong file');
+      }
+
+      const summaries = [];
+      for (const [name, countInBackup] of collectionMap.entries()) {
+        let countInDb = 0;
+        try {
+          if (!name.startsWith('Archive')) {
+            const dbCollection = this.connection.collection(name);
+            countInDb = await dbCollection.countDocuments();
+          }
+        } catch (e) { }
+
+        summaries.push({
+          name,
+          document_count_in_backup: countInBackup,
+          document_count_in_db: countInDb,
+          status: countInDb > 0 ? 'warning' : 'valid'
+        });
+      }
+
+      const restoreJob = await this.restoreJobModel.create({
+        status: 'queued',
+        requested_by: this.toObjectId(userId),
+        source_file_name: file.originalname,
+        source_file_size: file.size,
+        source_file_hash: hash,
+        preview_session_id: previewSessionId,
+        collection_summaries: summaries
+      });
+
+      return {
+        previewSessionId,
+        fileName: file.originalname,
+        fileSize: file.size,
+        format: isArchive ? 'mongodump_archive' : 'ndjson_gzip',
+        hash,
+        collections: summaries
+      };
+    } catch (err) {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      throw new BadRequestException('File không hợp lệ: ' + this.maskUri(err.message));
+    }
+  }
+
+  /**
+   * Starts the background restoration process from a previewed backup file.
+   * Validates state, locks other backup/restore jobs, and queues a pre-restore backup
+   * before actually restoring the data.
+   */
+  async restoreBackupImport(dto: RestoreBackupImportDto, userId: string) {
+    if (dto.confirmationText !== 'RESTORE') {
+      throw new BadRequestException('Vui lòng gõ chữ RESTORE để xác nhận');
+    }
+
+    const job = await this.restoreJobModel.findOne({ preview_session_id: dto.previewSessionId }).exec();
+    if (!job) {
+      throw new NotFoundException('Phiên import không tồn tại hoặc đã hết hạn');
+    }
+
+    if (job.status !== 'queued') {
+      throw new ConflictException('Tiến trình khôi phục đã được chạy');
+    }
+
+    const activeBackupJob = await this.backupJobModel.findOne({
+      status: { $in: ['queued', 'running'] }
+    }).exec();
+    const activeRestoreJob = await this.restoreJobModel.findOne({
+      status: { $in: ['running'] }
+    }).exec();
+
+    if (activeBackupJob || activeRestoreJob) {
+      throw new ConflictException('Hiện tại đang có tiến trình backup/restore khác đang chạy.');
+    }
+
+    job.collections = dto.collections;
+    job.mode = dto.mode;
+    job.status = 'running';
+    job.started_at = new Date();
+    job.requested_by = this.toObjectId(userId);
+    await job.save();
+
+    this.logger.log(`AUDIT: User ${userId} started restore job ${job._id}`);
+
+    // Auto backup pre-restore
+    const preBackupJob = await this.backupJobModel.create({
+      status: 'queued',
+      requested_by: this.toObjectId(userId),
+    });
+    job.pre_restore_backup_job_id = preBackupJob._id as Types.ObjectId;
+    await job.save();
+
+    // Run actual backup and then restore
+    this.runBackupAndRestoreAsync(job._id.toString(), preBackupJob._id.toString()).catch((err) => {
+      this.logger.error(`Error running restore job ${job._id}:`, err);
+    });
+
+    return job;
+  }
+
+  private async runBackupAndRestoreAsync(restoreJobId: string, preBackupJobId: string) {
+    const restoreJob = await this.restoreJobModel.findById(restoreJobId).exec();
+    if (!restoreJob) return;
+
+    try {
+      // 1. Run backup
+      await this.runBackupAsync(preBackupJobId);
+      const preBackupJob = await this.backupJobModel.findById(preBackupJobId).exec();
+      if (preBackupJob?.status !== 'success') {
+        throw new Error('Auto pre-restore backup failed: ' + preBackupJob?.error_message);
+      }
+
+      // 2. Run restore
+      const sanitizedFileName = path.basename(restoreJob.source_file_name);
+      const filePath = path.resolve(this.importDir, `import_${restoreJob.preview_session_id}_${sanitizedFileName}`);
+      const safePrefix = this.importDir.endsWith(path.sep) ? this.importDir : this.importDir + path.sep;
+      const relative = path.relative(safePrefix, filePath);
+      const isSafe = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+      if (!isSafe) {
+        throw new Error('Tên file không hợp lệ');
+      }
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error('Không tìm thấy file backup để khôi phục');
+      }
+
+      const mongoUri = this.configService.get<string>('MONGO_URI');
+      if (!mongoUri) {
+        throw new Error('Cấu hình MONGO_URI bị thiếu, không thể khôi phục dữ liệu');
+      }
+      
+      let isArchive = false;
+      try {
+        await execFileAsync('mongorestore', ['--archive', '--dryRun', filePath]);
+        isArchive = true;
+      } catch(e) {}
+
+      if (isArchive) {
+        // mongorestore
+        const args = [`--uri=${mongoUri}`, `--archive=${filePath}`, '--gzip'];
+        
+        let dbName = '';
+        const match = mongoUri.match(/\/([^/?]+)(\?|$)/);
+        if (match && match[1]) {
+          dbName = match[1];
+        }
+
+        if (restoreJob.mode === 'replace_selected_collections') {
+          args.push('--drop');
+        }
+        if (restoreJob.collections && restoreJob.collections.length > 0) {
+          if (dbName) {
+            args.push('--nsFrom=*.*');
+            args.push(`--nsTo=${dbName}.*`);
+          }
+          for (const col of restoreJob.collections) {
+            args.push(`--nsInclude=*.${col}`);
+          }
+        }
+        await execFileAsync('mongorestore', args);
+      } else {
+        // ndjson fallback
+        const gzip = fs.createReadStream(filePath).pipe(zlib.createGunzip());
+        let currentCollection = 'unknown';
+
+        let buffer = [];
+        for await (const chunk of gzip) {
+          const lines = chunk.toString().split('\n');
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const doc = JSON.parse(line);
+              if (doc.__collection) {
+                if (doc.__collection !== currentCollection) {
+                  if (currentCollection !== 'unknown' && buffer.length > 0) {
+                    await this.insertDocsSafe(currentCollection, buffer, restoreJob.mode);
+                  }
+                  buffer = [];
+                  currentCollection = doc.__collection;
+                }
+                
+                if (restoreJob.collections.includes(currentCollection) && restoreJob.mode === 'replace_selected_collections') {
+                  try {
+                    await this.connection.db?.dropCollection(currentCollection);
+                  } catch(e) {}
+                }
+              } else if (currentCollection !== 'unknown' && restoreJob.collections.includes(currentCollection)) {
+                buffer.push(doc);
+                if (buffer.length >= 500) {
+                  await this.insertDocsSafe(currentCollection, buffer, restoreJob.mode);
+                  buffer = [];
+                }
+              }
+            } catch (e) {}
+          }
+        }
+        if (buffer.length > 0) {
+          await this.insertDocsSafe(currentCollection, buffer, restoreJob.mode);
+        }
+      }
+
+      restoreJob.status = 'success';
+      restoreJob.finished_at = new Date();
+      await restoreJob.save();
+
+      try { fs.unlinkSync(filePath); } catch(e){}
+
+    } catch (err) {
+      restoreJob.status = 'failed';
+      restoreJob.finished_at = new Date();
+      restoreJob.error_message = this.maskUri(err.message);
+      await restoreJob.save();
+    }
+  }
+
+  private async insertDocsSafe(collectionName: string, docs: any[], mode: string) {
+    if (docs.length === 0) return;
+    const dbColl = this.connection.collection(collectionName);
+    
+    try {
+      if (mode === 'merge_upsert') {
+        const operations = docs.map(doc => {
+          let id = doc._id;
+          if (id && id.$oid) id = new Types.ObjectId(id.$oid);
+          // if we cannot convert, just use string id
+          return {
+            updateOne: {
+              filter: { _id: id },
+              update: { $set: doc },
+              upsert: true
+            }
+          };
+        });
+        await dbColl.bulkWrite(operations);
+      } else {
+        await dbColl.insertMany(docs);
+      }
+    } catch(err) {
+      this.logger.error(`Error inserting docs into ${collectionName}: ${err.message}`);
+    }
   }
 
   // ─── PERFORMANCE METRICS ───────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import { RouteGuard } from "@/components/guards/RouteGuard";
 import { useAuth } from "@/providers/auth-provider";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
-import { systemApi, LoginLog, LoginLogsSummary, SystemRequest, BackupJob, SystemPerformanceSummary } from "@/api/system-api";
+import { systemApi, LoginLog, LoginLogsSummary, SystemRequest, BackupJob, SystemPerformanceSummary, BackupImportPreview, RestoreJob, RestoreMode } from "@/api/system-api";
 import { authApi } from "@/api/auth-api";
 import { systemPerformance } from "@/lib/performance/system-performance";
 import { tokenStorage } from "@/api/auth-api";
@@ -35,7 +35,8 @@ import {
   Lock,
   Unlock,
   AlertCircle,
-  Activity
+  Activity,
+  Database
 } from "lucide-react";
 
 export default function SystemAdminPage() {
@@ -59,6 +60,7 @@ export default function SystemAdminPage() {
         "DATABASE_BACKUP_CREATE",
         "DATABASE_BACKUP_DOWNLOAD",
         "DATABASE_BACKUP_DELETE",
+        "DATABASE_BACKUP_RESTORE",
       ]}
       useDynamicMapping={true}
       failClosed={true}
@@ -79,6 +81,7 @@ function SystemAdminDashboard() {
   const canCreateBackup = hasPermission("DATABASE_BACKUP_CREATE");
   const canDownloadBackup = hasPermission("DATABASE_BACKUP_DOWNLOAD");
   const canDeleteBackup = hasPermission("DATABASE_BACKUP_DELETE");
+  const canRestoreBackup = hasPermission("DATABASE_BACKUP_RESTORE");
   const canReadPerformance = hasPermission("SYSTEM_PERFORMANCE_READ");
 
   const [activeTab, setActiveTab] = useState<"logs" | "requests" | "backup" | "performance">("logs");
@@ -143,6 +146,16 @@ function SystemAdminDashboard() {
   const [isConfirmBackupOpen, setIsConfirmBackupOpen] = useState(false);
   const [isConfirmDeleteBackupOpen, setIsConfirmDeleteBackupOpen] = useState(false);
   const [backupToDelete, setBackupToDelete] = useState<string | null>(null);
+
+  const [restoreJobs, setRestoreJobs] = useState<RestoreJob[]>([]);
+  const [restoreJobsLoading, setRestoreJobsLoading] = useState(false);
+  const [importPreview, setImportPreview] = useState<BackupImportPreview | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImportLoading, setIsImportLoading] = useState(false);
+  const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
+  const [restoreMode, setRestoreMode] = useState<RestoreMode>("replace_selected_collections");
+  const [confirmText, setConfirmText] = useState("");
+  const [restoreChecked, setRestoreChecked] = useState(false);
 
   // --- Tab 4: Performance States ---
   const [performanceSummary, setPerformanceSummary] = useState<SystemPerformanceSummary | null>(null);
@@ -479,6 +492,88 @@ function SystemAdminDashboard() {
       toast.error("Tải file sao lưu thất bại: " + err.message);
     }
   };
+  // ---------------------------------------------------------------------------
+  // EFFECT: Fetch Restore Jobs
+  // ---------------------------------------------------------------------------
+  const fetchRestoreJobs = async () => {
+    if (!canRestoreBackup) return;
+    try {
+      setRestoreJobsLoading(true);
+      const res = await systemApi.getRestoreJobs({ page: 1, limit: 10 });
+      setRestoreJobs(res.items);
+    } catch (err: any) {
+      console.error("Lỗi tải danh sách khôi phục:", err);
+    } finally {
+      setRestoreJobsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "backup" && canRestoreBackup) {
+      fetchRestoreJobs();
+    }
+  }, [activeTab, canRestoreBackup]);
+
+  // Restore Jobs polling when a restore is running
+  const isRestoreRunning = restoreJobs.some(job => job.status === 'running' || job.status === 'queued');
+  useEffect(() => {
+    if (activeTab !== "backup" || !isRestoreRunning || !canRestoreBackup) return;
+
+    const interval = setInterval(() => {
+      fetchRestoreJobs();
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [activeTab, isRestoreRunning, canRestoreBackup]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    
+    setIsImportLoading(true);
+    setImportPreview(null);
+    setSelectedCollections([]);
+    
+    try {
+      const preview = await systemApi.previewBackupImport(file);
+      setImportPreview(preview);
+      setSelectedCollections(preview.collections.map((c: any) => c.name));
+      setIsImportModalOpen(true);
+    } catch (err: any) {
+      toast.error("Lỗi xem trước file sao lưu: " + err.message);
+    } finally {
+      setIsImportLoading(false);
+      if (e.target) e.target.value = ''; // reset input
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!importPreview || !canRestoreBackup) return;
+    if (confirmText !== "RESTORE") {
+      toast.error("Vui lòng nhập chính xác chữ RESTORE");
+      return;
+    }
+    
+    try {
+      setIsImportLoading(true);
+      await systemApi.restoreBackupImport({
+        previewSessionId: importPreview.previewSessionId,
+        collections: selectedCollections,
+        mode: restoreMode,
+        confirmationText: confirmText,
+      });
+      toast.success("Tiến trình khôi phục dữ liệu đã được khởi chạy.");
+      setIsImportModalOpen(false);
+      setImportPreview(null);
+      setConfirmText("");
+      setRestoreChecked(false);
+      fetchRestoreJobs();
+    } catch (err: any) {
+      toast.error("Lỗi khôi phục dữ liệu: " + err.message);
+    } finally {
+      setIsImportLoading(false);
+    }
+  };
 
   // Helpers
   const fetchPerformance = async () => {
@@ -697,6 +792,47 @@ function SystemAdminDashboard() {
           )}
         </div>
       )
+    }
+  ];
+
+  const restoreJobsColumns: ResponsiveColumn<RestoreJob>[] = [
+    {
+      key: "source_file_name",
+      header: "Tên file khôi phục",
+      priority: "primary",
+      render: (_, job) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-[#1E293B]">
+            {job.source_file_name ?? "Chờ khởi tạo..."}
+          </span>
+          <span className="text-[10px] text-[#64748B]">
+            {new Date(job.createdAt).toLocaleString()}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: "mode",
+      header: "Chế độ",
+      priority: "secondary",
+      render: (val) => <span className="font-semibold text-[#64748B]">{val === 'merge_upsert' ? 'Merge & Upsert' : 'Replace Selected'}</span>
+    },
+    {
+      key: "requested_by",
+      header: "Yêu cầu bởi",
+      priority: "metadata",
+      render: (_, job) => <span className="text-[#64748B]">{job.requested_by?.user_name ?? "System"}</span>
+    },
+    {
+      key: "status",
+      header: "Trạng thái",
+      priority: "metadata",
+      render: (_, job) => {
+        if (job.status === "running") return <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px] animate-pulse flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
+        if (job.status === "success") return <span className="bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Success</span>;
+        if (job.status === "failed") return <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]" title={job.error_message}>Failed</span>;
+        return <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Queued</span>;
+      }
     }
   ];
 
@@ -1137,6 +1273,40 @@ function SystemAdminDashboard() {
                     )}
                   </button>
                 </div>
+
+                {/* Import Restore Card */}
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 flex flex-col justify-between h-fit space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-bold text-[#1E293B]">Khôi phục dữ liệu (Import)</h3>
+                    <p className="text-xs text-[#64748B] leading-relaxed">
+                      Tải lên tập tin sao lưu (.gz hoặc .ndjson) để khôi phục dữ liệu. Hệ thống sẽ phân tích tập tin và yêu cầu xác nhận trước khi tiến hành.
+                    </p>
+                  </div>
+                  
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      accept=".gz,.ndjson" 
+                      onChange={handleFileChange} 
+                      disabled={isImportLoading || isBackupRunning || !canRestoreBackup}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <button
+                      disabled={isImportLoading || isBackupRunning || !canRestoreBackup}
+                      className={`w-full py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all duration-150 ease-out ${
+                        isImportLoading || isBackupRunning || !canRestoreBackup
+                          ? "bg-white/20 text-[#64748B] border border-white/40"
+                          : "bg-white text-[#1A73E8] hover:bg-blue-50 border border-blue-500/30"
+                      }`}
+                    >
+                      {isImportLoading ? (
+                        <><RefreshCw size={14} className="animate-spin" /> Đang xử lý file...</>
+                      ) : (
+                        <><Server size={14} /> Import file sao lưu</>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Backup Jobs List */}
@@ -1179,6 +1349,23 @@ function SystemAdminDashboard() {
                       </div>
                     ) : null
                   }
+                />
+              </div>
+
+              {/* Restore Jobs List */}
+              <div className="lg:col-span-3 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+                <h2 className="text-sm font-bold text-[#1E293B]">Lịch sử khôi phục dữ liệu</h2>
+
+                <ResponsiveDataView
+                  data={restoreJobs}
+                  columns={restoreJobsColumns}
+                  isLoading={restoreJobsLoading}
+                  emptyState={
+                    <div className="text-center py-8 text-[#64748B] text-xs font-semibold">
+                      Chưa có tiến trình khôi phục nào được thực hiện.
+                    </div>
+                  }
+                  keyExtractor={(job) => job._id}
                 />
               </div>
             </>
@@ -1635,8 +1822,144 @@ function SystemAdminDashboard() {
         cancelLabel="Hủy bỏ"
         variant="danger"
       />
+      {/* --------------------------------------------------------------------- */}
+      {/* MODAL: PREVIEW & RESTORE BACKUP */}
+      {/* --------------------------------------------------------------------- */}
+      {isImportModalOpen && importPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div 
+            onClick={() => !isImportLoading && setIsImportModalOpen(false)} 
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          />
+          <div className="relative w-full max-w-2xl bg-white/95 backdrop-blur-md border border-white/60 shadow-2xl rounded-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto scale-in duration-200 text-[#1E293B]">
+            <div className="flex items-center justify-between border-b border-white/30 pb-3">
+              <div className="flex items-center gap-3 text-indigo-600">
+                <Database size={24} className="shrink-0" />
+                <h3 className="text-base font-bold text-[#1E293B]">Khôi phục dữ liệu: Xem trước</h3>
+              </div>
+              <button 
+                onClick={() => !isImportLoading && setIsImportModalOpen(false)}
+                className="p-1 text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl transition-all duration-150"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* File Info */}
+            <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div><span className="font-semibold text-slate-500">Tên file:</span> {importPreview.fileName}</div>
+              <div><span className="font-semibold text-slate-500">Dung lượng:</span> {formatBytes(importPreview.fileSize)}</div>
+              <div><span className="font-semibold text-slate-500">Định dạng:</span> {importPreview.format}</div>
+              <div><span className="font-semibold text-slate-500">Bộ sưu tập:</span> {importPreview.collections.length} collection(s)</div>
+            </div>
+
+            {/* Warning */}
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex gap-3 text-rose-800">
+              <AlertTriangle size={20} className="shrink-0 text-rose-600 mt-0.5" />
+              <div className="text-xs leading-relaxed">
+                <p className="font-bold uppercase tracking-wider">Cảnh báo: Hành động nguy hiểm</p>
+                <p className="mt-1">
+                  Việc khôi phục dữ liệu sẽ ghi đè lên dữ liệu hiện tại của hệ thống. 
+                  Hệ thống sẽ tự động tạo một bản sao lưu toàn bộ trước khi bắt đầu để đảm bảo an toàn.
+                </p>
+              </div>
+            </div>
+
+            {/* Mode selection */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Chế độ khôi phục</label>
+              <div className="flex gap-4 text-sm">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="restoreMode" value="replace_selected_collections" checked={restoreMode === 'replace_selected_collections'} onChange={(e) => setRestoreMode(e.target.value as RestoreMode)} className="accent-indigo-600" />
+                  Ghi đè (Replace)
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="restoreMode" value="merge_upsert" checked={restoreMode === 'merge_upsert'} onChange={(e) => setRestoreMode(e.target.value as RestoreMode)} className="accent-indigo-600" />
+                  Hợp nhất (Merge & Upsert)
+                </label>
+              </div>
+            </div>
+
+            {/* Collections list */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider block">Các collections tìm thấy trong bản sao lưu</label>
+              <div className="max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+                {importPreview.collections.map((col: any) => (
+                  <div key={col.name} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <label className="flex items-center gap-3 cursor-pointer flex-1">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedCollections.includes(col.name)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedCollections(prev => [...prev, col.name]);
+                          else setSelectedCollections(prev => prev.filter(c => c !== col.name));
+                        }}
+                        className="accent-indigo-600 rounded"
+                      />
+                      <span className="font-medium text-sm text-slate-700">{col.name}</span>
+                    </label>
+                    <div className="text-xs text-slate-500 flex gap-4 text-right">
+                      <span>Trong backup: <b className="text-slate-700">{col.document_count_in_backup}</b> docs</span>
+                      <span>Trong DB hiện tại: <b className="text-slate-700">{col.document_count_in_db}</b> docs</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-500">* Chỉ những collection được chọn mới được khôi phục.</p>
+            </div>
+
+            {/* Confirmation */}
+            <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={restoreChecked} 
+                  onChange={(e) => setRestoreChecked(e.target.checked)}
+                  className="accent-rose-600"
+                />
+                <span className="font-medium text-rose-700">Tôi hiểu rủi ro và xác nhận khôi phục các collection đã chọn.</span>
+              </label>
+              
+              {restoreChecked && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                  <label className="text-xs text-slate-600 block mb-1">
+                    Vui lòng gõ chữ <b className="text-rose-600">RESTORE</b> để xác nhận.
+                  </label>
+                  <input 
+                    type="text" 
+                    value={confirmText}
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    placeholder="RESTORE"
+                    className="w-full px-3 py-2 text-sm border border-rose-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                disabled={isImportLoading}
+                onClick={() => setIsImportModalOpen(false)}
+                className="px-4 py-2 hover:bg-slate-100 rounded-xl font-semibold text-slate-600 transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                disabled={isImportLoading || !restoreChecked || confirmText !== "RESTORE" || selectedCollections.length === 0}
+                onClick={handleRestore}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 text-white rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"
+              >
+                {isImportLoading ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
+                Tiến hành khôi phục
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
         </main>
       </div>
     </div>
   );
 }
+

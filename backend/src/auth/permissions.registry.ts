@@ -306,6 +306,12 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     description: '⚠️ QUYỀN HẠN NHẠY CẢM: Cho phép xóa vĩnh viễn tệp sao lưu dữ liệu trên server, không thể khôi phục.',
   },
   {
+    code: 'DATABASE_BACKUP_RESTORE',
+    name: 'Khôi phục backup database',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: '⚠️ QUYỀN HẠN CỰC KỲ NGUY HIỂM: Cho phép import, xem trước và thực hiện khôi phục ghi đè dữ liệu từ bản sao lưu.',
+  },
+  {
     code: 'SYSTEM_PERFORMANCE_READ',
     name: 'Xem hiệu năng hệ thống',
     module: SYSTEM_OPERATIONS_GROUP.name,
