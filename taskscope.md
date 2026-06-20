@@ -1,206 +1,205 @@
-﻿# Task Scope: Sua popup xem day du noi dung danh muc/tieu chi tren /grading/categories
+# Task Scope: Khắc phục lỗi phiên làm việc kết thúc sớm
 
-## Muc tieu
+## Bối cảnh
 
-Dieu chinh tinh nang mo popup/dialog de xem day du noi dung cua danh muc va tieu chi tren trang `/grading/categories`, tranh tinh trang popup nam sat vien man hinh/container lam mat chu o dau dong nhu anh user gui.
+Ứng dụng vẫn gặp tình trạng tự logout / báo `Phiên làm việc đã kết thúc` dù thời gian đăng nhập còn ngắn. Log thường gặp:
 
-Yeu cau mong muon:
-
-1. Nguoi dung bam icon xem day du noi dung cua danh muc/tieu chi thi noi dung hien ro, khong bi cat trai/phai.
-2. Popup/dialog co khoang cach an toan voi viewport va container cha.
-3. Van giu duoc trai nghiem gon nhe: chi hien icon xem day du khi ten/noi dung bi rut gon.
-
-## Hien trang lien quan
-
-File can kiem tra chinh:
-
-- `frontend/src/app/grading/categories/page.tsx`
-
-File co pattern tooltip dang gay loi tuong tu can doi chieu/tai su dung:
-
-- `frontend/src/app/grading/score/page.tsx`
-
-Trong `/grading/categories`, cac vi tri dang truncate ten danh muc/tieu chi:
-
-- Master list category: `h4` co `truncate` va `title={cat.name}`.
-- Master-detail header: `h2` co `truncate` va `title={activeCat.name}`.
-- Master-detail criteria row: `h4` co `truncate` va `title={item.name}`.
-- Kanban category card cot 1/cot 2: `h3` rut gon khi `cat.name.length > 100`.
-- Kanban criteria card cot 1/cot 2: `h4` rut gon khi `item.name.length > 50`.
-
-Trong `/grading/score`, dang co component `CriteriaTooltip`:
-
-```tsx
-<div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-3 ...">
+```text
+[browser] Silent refresh failed (attempt 1/2): AuthApiError: Phiên làm việc đã kết thúc
+at handleResponse (src/api/auth-api.ts)
+at AuthProvider interval attemptRefresh (src/providers/auth-provider.tsx)
 ```
 
-Component nay hien label `Noi dung day du:` va can giua theo icon. Khi icon nam gan vien trai/phai hoac trong vung cha co `overflow-hidden`, popup rong co dinh `w-64` de bi cat noi dung.
+Điểm quan trọng: lỗi không xuất phát từ dòng `throw new AuthApiError(...)` ở frontend. Dòng đó chỉ ném lỗi vì backend trả HTTP 401/403. Root cause cần xử lý là vì sao request `POST /api/auth/refresh` không refresh được session.
 
-## Root Cause
+## Kết luận hiện tại
 
-Nguyen nhan chinh cua loi trong anh:
+Khả năng cao nhất: trình duyệt không gửi được cookie `refresh_token` khi silent refresh.
 
-- Popup dung `position: absolute` ben trong trigger wrapper.
-- Can popup bang `left-1/2 -translate-x-1/2` ma khong co collision detection.
-- Popup co width co dinh `w-64`, khong gioi han theo `viewport` nho.
-- Mot so container cha tren `/grading/categories` co `overflow-hidden`, vi du card/khung noi dung, nen popup co the bi clip.
-- Text trong popup chua co chinh sach wrap manh nhu `break-words`, `whitespace-normal`, `max-w-[calc(100vw-...)]`.
+Các dấu hiệu trong repo:
 
-## Pham vi can sua
+- Frontend gọi refresh bằng `fetch(..., credentials: 'include')` trong `frontend/src/api/auth-api.ts`, đúng hướng.
+- Backend đọc cookie ở `backend/src/auth/controllers/auth.controller.ts`:
+  `req.cookies?.refresh_token`. Nếu không có cookie thì trả `UnauthorizedException('Phiên làm việc đã kết thúc')`.
+- Backend đã đổi cookie local sang `secure=false`, `sameSite='lax'` khi không phải production hoặc `AUTH_COOKIE_SECURE=false`.
+- Nhưng cấu hình dev hiện có nguy cơ lệch host:
+  - `frontend/.env.local`: `NEXT_PUBLIC_API_URL=http://127.0.0.1:8001`
+  - `backend/.env`: `FRONTEND_URL=http://localhost:3000`
+- Trên local HTTP, cookie `SameSite=Lax` chỉ ổn khi frontend và backend cùng site. `localhost` và `127.0.0.1` là khác site, nên trình duyệt có thể không gửi `refresh_token` trong request fetch/XHR.
 
-### 1. Tao component xem day du noi dung dung chung
+## Mục tiêu sửa
 
-De xuat tao component nho trong `frontend/src/app/grading/categories/page.tsx` hoac tach ra file rieng neu muon dung lai cho `/grading/score`:
+Không để người dùng bị logout sớm khi refresh token còn hạn hợp lệ.
 
-- Ten goi y: `FullContentTooltip`, `FullContentPopover`, hoac `FullContentDialog`.
-- Props toi thieu:
-  - `content: string`
-  - `label?: string`
-  - `className?: string`
+Sau khi hoàn thành:
 
-Component can:
+- Login phải set được cookie `refresh_token`.
+- Refresh request phải gửi kèm cookie `refresh_token`.
+- Access token hết hạn 15 phút vẫn tự refresh được bằng refresh token.
+- Lỗi mạng/server tạm thời không được xóa session ngay.
+- Multi-tab không làm token rotation bị xem là token reuse bất hợp lệ.
+- Test phản ánh đúng khác biệt giữa local HTTP và production HTTPS.
 
-- Dung icon `Info` tu `lucide-react` neu chua import.
-- Dong khi click ra ngoai hoac bam lai icon.
-- Stop propagation de khong trigger expand/drag/click card category.
-- Chi render khi `content` dai hon nguong rut gon.
+## Phạm vi cần thực hiện
 
-Nguong goi y:
+### 1. Chuẩn hóa URL local/dev
 
-- Category name: `content.length > 35` o header/list nho, hoac `> 100` neu dang cat bang logic hien co.
-- Criteria name: `content.length > 50`.
+Cần thống nhất host giữa frontend và backend trong môi trường local.
 
-### 2. Chon cach hien thi khong bi cat vien
+Khuyến nghị dùng một trong hai cặp sau, không trộn lẫn:
 
-Phuong an uu tien: dung Radix `Popover` da co san trong project.
-
-File co san:
-
-- `frontend/src/components/ui/popover.tsx`
-
-De xuat:
-
-```tsx
-<Popover>
-  <PopoverTrigger asChild>
-    <button type="button">...</button>
-  </PopoverTrigger>
-  <PopoverContent
-    side="bottom"
-    align="start"
-    sideOffset={8}
-    collisionPadding={16}
-    className="z-[100] w-[min(20rem,calc(100vw-2rem))] p-3 rounded-xl bg-slate-900/95 text-white border border-white/10 shadow-xl"
-  >
-    ...
-  </PopoverContent>
-</Popover>
+```env
+# Option A - khuyến nghị
+FRONTEND_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:8001
+AUTH_COOKIE_SECURE=false
 ```
 
-Ly do:
+hoặc:
 
-- Radix Popover tu tinh va flip/shift khi gan canh viewport.
-- `collisionPadding={16}` giu popup cach vien man hinh.
-- Portal giup tranh bi container cha `overflow-hidden` cat.
-
-Neu khong muon dung Popover, phuong an thay the la render popup bang fixed overlay/dialog:
-
-- Desktop: `position: fixed`, tinh `left/top` theo `getBoundingClientRect()` va clamp trong viewport.
-- Mobile: hien dialog center hoac bottom sheet nho de noi dung khong bi cat.
-
-### 3. Sua layout/text trong popup
-
-Popup can co style bao ve text dai:
-
-```tsx
-className="max-w-[calc(100vw-2rem)] whitespace-normal break-words leading-relaxed"
+```env
+# Option B
+FRONTEND_URL=http://127.0.0.1:3000
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8001
+AUTH_COOKIE_SECURE=false
 ```
 
-Noi dung nen co:
+Việc cần làm:
 
-- Tieu de: `Noi dung day du:` hoac `Noi dung danh muc:` / `Noi dung tieu chi:` neu muon ro hon.
-- Body: text day du, khong truncate.
-- `max-h-[50vh] overflow-y-auto custom-scrollbar` neu noi dung qua dai.
+- Cập nhật `.env.local` phía frontend và `.env` phía backend theo cùng host.
+- Restart cả backend và frontend.
+- Xóa cookie cũ trong browser cho cả `localhost` và `127.0.0.1`.
+- Đăng nhập lại để backend set cookie mới.
 
-Can tranh:
+### 2. Backend cookie policy
 
-- `whitespace-nowrap` trong body popup.
-- Popup nam ben trong container co `overflow-hidden` neu khong dung Portal.
-- Width co dinh duy nhat `w-64` tren mobile.
+File chính: `backend/src/auth/controllers/auth.controller.ts`
 
-### 4. Gan vao cac vi tri bi rut gon tren `/grading/categories`
+Yêu cầu:
 
-Can them icon xem day du tai cac vi tri sau:
+- Giữ helper cookie dùng chung cho login, refresh, logout.
+- Local HTTP:
+  - `secure: false`
+  - `sameSite: 'lax'`
+  - `httpOnly: true`
+  - `path: '/api/auth'`
+- Production HTTPS:
+  - `secure: true`
+  - `sameSite: 'none'`
+  - `httpOnly: true`
+  - `path: '/api/auth'`
+- Cho phép override bằng `AUTH_COOKIE_SECURE=true|false`.
+- Không set `domain=localhost`; để host-only cookie.
+- `clearCookie` phải dùng cùng `path`, `secure`, `sameSite` với lúc set cookie.
 
-1. Master list category card:
-   - Gan sau ten `cat.name` trong block `h4`.
-   - Neu ten qua dai, hien icon canh ten.
+Cần kiểm tra thêm:
 
-2. Master-detail category header:
-   - Gan sau `activeCat.name`.
-   - Dam bao icon khong lam header bi tran, dung wrapper `flex items-center min-w-0`.
+- Nếu deploy sau reverse proxy HTTPS, backend đã có `trust proxy`; vẫn cần đảm bảo `FRONTEND_URL`/`CORS_ORIGINS` đúng origin thật.
+- CORS production không được dùng wildcard khi `credentials: true`.
 
-3. Master-detail criteria row:
-   - Gan sau `item.name`.
-   - Button icon phai `shrink-0` de khong bi mat khi hang hep.
+### 3. Frontend refresh flow
 
-4. Kanban category card cot 1 va cot 2:
-   - Gan sau ten danh muc trong `h3`.
-   - `onClick` cua icon can `stopPropagation()` de khong toggle expand.
+Files chính:
 
-5. Kanban criteria card cot 1 va cot 2:
-   - Gan sau ten tieu chi trong `h4`.
-   - `onMouseDown/onDragStart` nen `stopPropagation()` neu card co draggable.
+- `frontend/src/api/auth-api.ts`
+- `frontend/src/api/http-client.ts`
+- `frontend/src/providers/auth-provider.tsx`
 
-### 5. Can nhac dong bo voi `/grading/score`
+Yêu cầu:
 
-Anh user gui khop voi `CriteriaTooltip` hien co trong `frontend/src/app/grading/score/page.tsx`.
+- Tất cả request refresh/login/logout phải có `credentials: 'include'`.
+- Khi `auth/me` hoặc `students/me` trả 401, thử `synchronizedRefreshToken()` một lần trước khi clear session.
+- Trong `loadUserPermissions`, case `students/me` 401 hiện đang clear token ngay. Cần đổi thành:
+  1. thử refresh access token,
+  2. gọi lại `students/me`,
+  3. chỉ clear session nếu refresh trả 400/401/403 thật sự.
+- Interval silent refresh không nên `logout()` ngay khi lỗi không phải auth failure, ví dụ timeout, network error, server 500.
+- Khi refresh fail do tab khác timeout hoặc `REFRESH_FAILED`, tab hiện tại nên thử tự acquire lock/refresh lại trước khi kết luận session hết hạn.
+- Chỉ broadcast `TOKEN_CLEARED` khi refresh bị backend xác nhận 400/401/403, không broadcast khi lỗi mạng/timeout.
 
-Trong scope nay, uu tien sua `/grading/categories`. Tuy nhien nen ghi chu de tranh duplicate bug:
+### 4. Token rotation và multi-tab
 
-- Neu tao component dung chung, co the thay `CriteriaTooltip` trong `/grading/score` bang component moi.
-- Neu chua sua `/grading/score`, it nhat can tranh copy lai pattern `absolute left-1/2 -translate-x-1/2 w-64` sang `/grading/categories`.
+Files chính:
 
-## Ngoai pham vi
+- `frontend/src/api/http-client.ts`
+- `backend/src/auth/services/token.service.ts`
 
-- Khong thay doi API/backend.
-- Khong thay doi schema category/criteria.
-- Khong thay doi logic tinh diem, validate diem, drag/drop.
-- Khong thay doi noi dung data hien co.
-- Khong can redesign lai toan bo card danh muc/tieu chi.
+Hiện backend có grace period 60 giây cho refresh token đã bị rotate. Cần giữ hoặc test rõ hành vi này.
+
+Yêu cầu:
+
+- Nếu hai tab refresh gần đồng thời, tab thứ hai không làm toàn bộ token user bị revoke nhầm.
+- `synchronizedRefreshToken()` cần đảm bảo tab chờ không logout chỉ vì bỏ lỡ BroadcastChannel event.
+- Nếu timeout chờ tab khác, thử tự refresh một lần rồi mới fail.
+
+### 5. Test cần bổ sung/cập nhật
+
+Backend:
+
+- Cập nhật test cookie trong `backend/test/auth.e2e-spec.ts` và `backend/src/auth/test/auth-security.spec.ts`.
+- Không còn assert cứng rằng cookie luôn `Secure` và `SameSite=None` trong mọi môi trường.
+- Thêm test cho:
+  - local/dev: `AUTH_COOKIE_SECURE=false` -> không `Secure`, `SameSite=Lax`.
+  - production/secure: `AUTH_COOKIE_SECURE=true` hoặc `NODE_ENV=production` -> có `Secure`, `SameSite=None`.
+  - `refresh` không có cookie -> 401 `Phiên làm việc đã kết thúc`.
+  - `refresh` có cookie hợp lệ -> 200 và set cookie rotation mới.
+  - refresh token đã rotate trong grace period -> vẫn trả token mới hợp lệ.
+
+Frontend:
+
+- Unit test hoặc integration test cho `synchronizedRefreshToken()`:
+  - một tab refresh thành công, tab khác nhận token mới.
+  - tab chờ timeout thì tự retry refresh thay vì logout ngay.
+  - network error không clear local session.
+  - auth failure 401 mới clear session.
+- Test `AuthProvider.loadUserPermissions` với `students/me` 401: phải refresh trước khi clear session.
+
+### 6. Checklist debug bằng browser
+
+Sau khi sửa cấu hình và code, kiểm tra trong DevTools:
+
+1. Login request `POST /api/auth/login`
+   - Response có `Set-Cookie: refresh_token=...`.
+   - Cookie không bị browser block.
+   - Local HTTP cùng host: cookie nên là `HttpOnly; SameSite=Lax; Path=/api/auth` và không có `Secure`.
+
+2. Application tab -> Cookies
+   - Cookie nằm ở đúng host API đang gọi, ví dụ `localhost`, không lẫn `127.0.0.1`.
+
+3. Refresh request `POST /api/auth/refresh`
+   - Request Headers có `Cookie: refresh_token=...`.
+   - Response 200 và trả `access_token`.
+   - Response set lại cookie refresh token mới.
+
+4. Backend log
+   - Không còn log `[Auth/Refresh] Missing refresh_token cookie` sau khi login lại.
+   - Nếu còn log này, kiểm tra lại host, SameSite, Secure, path, CORS credentials.
 
 ## Acceptance Criteria
 
-- Tren `/grading/categories`, ten danh muc dai co icon xem day du va bam vao se hien day du noi dung.
-- Ten tieu chi dai co icon xem day du va bam vao se hien day du noi dung.
-- Popup/dialog khong bi cat chu khi icon nam gan vien trai, vien phai, tren mobile hoac trong card co `overflow-hidden`.
-- Noi dung trong popup wrap dung, khong tran ngang, khong mat chu dau dong.
-- Click icon khong lam card category bi expand/collapse ngoai y muon.
-- Click icon tren criteria card khong kich hoat drag/drop ngoai y muon.
-- Click ra ngoai hoac bam lai icon dong popup.
-- Keyboard/focus co the thao tac co ban: button co `aria-label`, focus ring khong bi mat.
+- Đăng nhập xong chờ quá thời gian access token 15 phút vẫn không bị logout nếu refresh token còn hạn.
+- User thường không tick remember vẫn giữ session khoảng 24 giờ.
+- User tick remember giữ session khoảng 30 ngày.
+- Admin giữ session khoảng 4 giờ theo logic hiện tại.
+- Refresh hoạt động khi mở nhiều tab cùng lúc.
+- Lỗi mạng/backend 500 không tự xóa user khỏi localStorage/sessionStorage.
+- Chỉ logout khi backend xác nhận refresh token không hợp lệ, hết hạn, bị revoke, user bị khóa/inactive, hoặc người dùng chủ động logout.
+- Backend build pass.
+- Frontend lint/test liên quan pass.
+- Không còn log silent refresh failed lặp lại trong trường hợp cookie hợp lệ.
 
-## Kiem thu de xuat
+## Thứ tự triển khai đề xuất
 
-1. Chay kiem tra frontend:
+1. Chuẩn hóa `.env` local về cùng host, restart app, xóa cookie cũ, test lại refresh bằng DevTools.
+2. Sửa frontend để không clear session ngay ở `students/me` 401 và cross-tab timeout.
+3. Cập nhật backend tests theo cookie policy mới.
+4. Bổ sung frontend tests cho refresh flow và AuthProvider.
+5. Chạy build/test backend + frontend.
+6. Test thủ công: login, chờ access token hết hạn, refresh, multi-tab, logout.
 
-```bash
-npm run lint
-npm run build
-```
+## Ghi chú rủi ro
 
-2. Kiem tra thu cong tren `/grading/categories`:
-
-- Tao/sua danh muc co ten rat dai, hon 100 ky tu.
-- Tao/sua tieu chi co ten rat dai, hon 100 ky tu.
-- Mo popup xem day du o card gan vien trai man hinh.
-- Mo popup xem day du o card gan vien phai man hinh.
-- Kiem tra ca Master-detail va Kanban.
-- Kiem tra desktop va mobile width nho.
-- Dam bao popup khong bi crop, khong tran ngang, noi dung doc duoc day du.
-- Dam bao click icon khong toggle expand category va khong bat dau drag card.
-
-3. Neu refactor dung chung voi `/grading/score`:
-
-- Kiem tra lai popup `Noi dung day du:` tren `/grading/score` tai danh muc/tieu chi nam gan vien trai/phai.
-- Dam bao tooltip cu khong con bi cat nhu anh user gui.
+- Không tăng `JWT_EXPIRE` để che lỗi. Access token 15 phút là hợp lý; lỗi nằm ở refresh flow/cookie/session handling.
+- Không lưu refresh token vào localStorage vì tăng rủi ro XSS. Tiếp tục dùng HttpOnly cookie.
+- Không dùng `SameSite=None` trên local HTTP trừ khi chạy HTTPS, vì trình duyệt yêu cầu `Secure` cho `SameSite=None`.
+- Không clear toàn bộ session chỉ vì lỗi network hoặc timeout chờ tab khác.

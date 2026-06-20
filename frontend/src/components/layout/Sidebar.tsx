@@ -374,7 +374,7 @@ const Sidebar = () => {
       </div>
 
       {/* Mobile Bottom Navigation Bar (Hidden on desktop) */}
-      <div className="md:hidden fixed bottom-3 left-4 right-4 h-[52px] bg-white/40 backdrop-blur-lg border border-white/50 rounded-full flex items-center justify-around z-40 px-2 shadow-[0_8px_32px_rgba(0,0,0,0.08)] ring-1 ring-white/20">
+      <div className="md:hidden fixed bottom-3 left-4 right-4 h-[60px] bg-white/40 backdrop-blur-lg border border-white/50 rounded-[20px] flex items-center justify-around z-40 px-1 shadow-[0_8px_32px_rgba(0,0,0,0.08)] ring-1 ring-white/20">
         {isSidebarLoading ? (
           Array.from({ length: 5 }).map((_, index) => (
             <div key={index} className="w-9 h-9 bg-white/40 border border-white/50 rounded-full animate-pulse shrink-0" />
@@ -389,16 +389,21 @@ const Sidebar = () => {
                 <Link
                   key={index}
                   href={targetHref}
-                  className="flex flex-col items-center justify-center flex-1 py-1 transition-all duration-150 ease-out cursor-pointer"
+                  className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
                 >
                   <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out ${
+                    className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${
                       isActive
-                        ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] scale-[1.08] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
+                        ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
                         : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
                     }`}
                   >
-                    <item.icon size={18} />
+                    <item.icon size={18} className="mb-0.5" />
+                    <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${
+                      isActive ? "font-bold" : "font-medium"
+                    }`}>
+                      {item.label}
+                    </span>
                   </div>
                 </Link>
               );
@@ -407,16 +412,21 @@ const Sidebar = () => {
             {/* Notifications Link */}
             <Link
               href="/notifications"
-              className="flex flex-col items-center justify-center flex-1 py-1 transition-all duration-150 ease-out cursor-pointer"
+              className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
             >
               <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out ${
+                className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${
                   pathname === "/notifications" || pathname.startsWith("/notifications")
-                    ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] scale-[1.08] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
+                    ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
                     : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
                 }`}
               >
-                <Bell size={18} />
+                <Bell size={18} className="mb-0.5" />
+                <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${
+                  pathname === "/notifications" || pathname.startsWith("/notifications") ? "font-bold" : "font-medium"
+                }`}>
+                  Thông báo
+                </span>
               </div>
             </Link>
 
@@ -424,23 +434,28 @@ const Sidebar = () => {
             <button
               onClick={handleProfileClick}
               disabled={isResolvingProfile}
-              className="flex flex-col items-center justify-center flex-1 py-1 transition-all duration-150 ease-out cursor-pointer"
+              className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
             >
               <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out ${
+                className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${
                   pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none")
-                    ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] scale-[1.08] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
+                    ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
                     : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
                 } ${isResolvingProfile ? "opacity-50" : ""}`}
               >
                 {isResolvingProfile ? (
-                  <svg className="animate-spin h-4.5 w-4.5 text-[#1A73E8]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-4.5 w-4.5 mb-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 ) : (
-                  <User size={18} />
+                  <User size={18} className="mb-0.5" />
                 )}
+                <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${
+                  pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none") ? "font-bold" : "font-medium"
+                }`}>
+                  Hồ sơ
+                </span>
               </div>
             </button>
           </>
