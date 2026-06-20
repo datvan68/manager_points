@@ -21,6 +21,7 @@ import Action from '@/components/ui/Action';
 import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 import { authApi, tokenStorage } from '../../api/auth-api';
 import { systemApi } from '../../api/system-api';
+import { classApi } from '../../api/class-api';
 import { synchronizedRefreshToken } from '../../api/http-client';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
@@ -58,6 +59,7 @@ function PermissionsPageContent() {
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
+  const [classes, setClasses] = useState<any[]>([]);
 
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
@@ -388,13 +390,14 @@ function PermissionsPageContent() {
 
     setIsDataLoading(true);
     try {
-      const [u, r, p, g, rp, pps] = await Promise.all([
+      const [u, r, p, g, rp, pps, cls] = await Promise.all([
         authApi.getUsers(token),
         authApi.getRoles(token),
         authApi.getPermissions(token),
         authApi.getPermissionGroups(token),
         authApi.getRoutePermissions(token).catch(() => []),
-        authApi.getPagePermissionScopes(token).catch(() => [])
+        authApi.getPagePermissionScopes(token).catch(() => []),
+        classApi.getClasses().catch(() => [])
       ]);
 
       setUsers(u);
@@ -402,6 +405,7 @@ function PermissionsPageContent() {
       setAllPermissions(p);
       setRoutePermissions(rp);
       setPagePermissionScopes(pps);
+      setClasses(cls);
 
       // Groups from API
       const apiGroups = g.map((group: any, idx: number) => ({
@@ -2448,6 +2452,7 @@ function PermissionsPageContent() {
         isEditing={isEditingUser}
         initialData={editingUser}
         roles={roles}
+        classes={classes}
         onSave={handleUserSave}
         onBulkSave={handleBulkUserSave}
       />

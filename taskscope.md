@@ -1,247 +1,157 @@
-# Task Scope: Khắc phục lỗi chọn option nhưng điểm hiển thị thành điểm tối đa
+# Taskscope: Bổ sung chọn "GVCN lớp" khi thêm nhiều người dùng
 
-## Bối cảnh
+## Mục tiêu
 
-Ở màn hình chấm điểm, tiêu chí dạng `single_option` có danh sách lựa chọn riêng, ví dụ:
+Bổ sung trong modal **Thêm người dùng > Thêm nhiều người dùng** một select mới tên **GVCN lớp**, nằm bên trái cột **Trạng thái**, để admin chọn lớp cần gán GVCN cho từng tài khoản được tạo hàng loạt.
 
-```text
-Lớp phó (8đ)
-```
+Khi lưu hàng loạt, nếu một dòng có chọn GVCN lớp thì backend phải tạo user thành công và cập nhật lớp tương ứng với `advisor_id = user._id`.
 
-Nhưng sau khi chọn option, UI vẫn hiển thị điểm mục này là `+10đ` hoặc bằng điểm tối đa của tiêu chí. Điều đúng phải là: chọn option nào thì điểm realtime, điểm lưu, điểm tổng và lịch sử phải theo đúng `option.score` của option đó.
+## Hiện trạng đã kiểm tra
 
-## Kết luận kiểm tra hiện tại
+- Modal bulk nằm tại `frontend/src/components/modals/UserModal.tsx`.
+- Bảng bulk hiện có các cột: `Username`, `Email`, `Vai trò`, `Trạng thái`, `Mật khẩu`.
+- Payload bulk hiện chỉ gửi:
+  - `user_name`
+  - `email`
+  - `password`
+  - `role_id`
+  - `status`
+- Trang gọi modal là `frontend/src/app/permissions/page.tsx`, hàm `handleBulkUserSave` gọi `authApi.createUsersBulk`.
+- API frontend `authApi.createUsersBulk` gọi `POST /auth/users/bulk-create`.
+- Backend DTO `BulkCreateUserItemDto` trong `backend/src/auth/dto/auth.dto.ts` chưa có field lớp/GVCN.
+- Backend `AuthService.createUsersBulk` trong `backend/src/auth/services/auth.service.ts` chỉ tạo user, chưa cập nhật `classes.advisor_id`.
+- Schema lớp có field `advisor_id` tại `backend/src/classes/schemas/class.schema.ts`.
+- API lấy danh sách lớp đã có: `classApi.getClasses()` gọi `GET /classes`.
 
-Root cause có khả năng cao nằm ở frontend `frontend/src/app/grading/score/page.tsx`.
+## Phạm vi thay đổi
 
-Các đoạn đã thấy:
+### 1. Frontend: nạp danh sách lớp cho modal
 
-- `handleOptionSet()` lưu `selectedOptionsState[studentId][criterionId] = optionId`, đồng thời set `evaluationCounts[criterionId] = 1`.
-- `calculateRealtimeScore()` đã có nhánh `single_option` và dùng `option.score`, đây là hướng đúng.
-- Nhưng phần render UI lại tính:
-  - `criterionScore = calculateCriterionScore(item, count)`
-  - `achievedPoints = getCriterionContributionScore(item, count)`
-- Với `single_option`, `count` thường là `1`, nên `getCriterionContributionScore()` vẫn tính theo `pointsPerUnit/maxScore`. Nếu `pointsPerUnit` hoặc `maxScore` là 10 thì UI sẽ hiển thị `+10đ` dù option đang chọn là `8đ`.
-- Sau khi lưu, `persistStudentScore()` fetch lại `freshDetails`, nhưng khi tính `finalScore` lại tiếp tục dùng `getCriterionContributionScore(cri, freshCounts[cri.id] || 0)` cho mọi tiêu chí. Với `single_option`, `freshCounts` là `1`, nên tổng điểm có thể bị tính lại sai theo điểm tối đa thay vì `selected_option_score`.
+File: `frontend/src/app/permissions/page.tsx`
 
-Backend `backend/src/evaluation-detail/evaluation-detail.service.ts` hiện đã xử lý đúng hướng cho `single_option`:
+- Import `classApi` và type `Class` từ `frontend/src/api/class-api.ts`.
+- Thêm state `classes`.
+- Trong `fetchData`, gọi thêm `classApi.getClasses()`.
+- Truyền `classes={classes}` vào `UserModal`.
 
-- Khi tạo/cập nhật detail, nếu `selected_option_id` hợp lệ thì:
-  - `system_score = option.score`
-  - `selected_option_id = option.id`
-  - `selected_option_label = option.label`
-  - `selected_option_score = option.score`
-  - `current_count = 1`
+Lưu ý hiệu năng:
 
-Vì vậy phạm vi sửa chính nên tập trung vào frontend display/recalculate sau khi save, và chỉ bổ sung backend test nếu phát hiện endpoint trả dữ liệu thiếu.
+- Có thể gọi song song trong `Promise.all`.
+- Nếu tải lớp lỗi thì fallback `[]` và toast/log phù hợp, không làm hỏng toàn bộ trang phân quyền.
 
-## Mục tiêu sửa
+### 2. Frontend: thêm cột “GVCN lớp” trong bulk modal
 
-Sau khi sửa:
+File: `frontend/src/components/modals/UserModal.tsx`
 
-- Option `Lớp phó (8đ)` phải hiển thị `+8đ`, không hiển thị `+10đ`.
-- Mọi option khác phải hiển thị đúng `option.score`.
-- Tổng điểm realtime phải đổi ngay khi đổi option.
-- Sau khi bấm lưu và reload lại trang, điểm vẫn giữ đúng theo option đã chọn.
-- `summary.total_score`, `EvaluationDetail.system_score`, `selected_option_score`, `sv_score/gv_score` phải thống nhất.
+- Mở rộng props:
+  - `classes?: Class[]`
+- Mỗi dòng `bulkUsers` thêm field:
+  - `advisorClassId: ""`
+- Thêm cột **GVCN lớp** nằm giữa **Vai trò** và **Trạng thái**.
+- Select hiển thị:
+  - Option mặc định: `Không gán`
+  - Danh sách lớp: ưu tiên label `class_name`, có thể kèm khoa hoặc GVCN hiện tại nếu dữ liệu có sẵn.
+- Khi thêm dòng mới hoặc reset modal, khởi tạo `advisorClassId: ""`.
+- Khi bấm “Sửa các dòng lỗi”, giữ lại `advisorClassId` của dòng lỗi để người dùng sửa tiếp.
+- Khi submit, payload mỗi user cần gửi thêm:
+  - `advisor_class_id: u.advisorClassId || undefined`
 
-## Phạm vi cần thực hiện
+Khuyến nghị UI:
 
-### 1. Tạo helper tính điểm thống nhất cho tiêu chí
+- Vì thêm một cột mới, tăng nhẹ width modal bulk hoặc dùng `min-w` cho bảng và `overflow-x-auto` để tránh vỡ layout trên màn hình hẹp.
+- Nếu vai trò đã chọn không phải `Teacher` thì có thể disable select hoặc tự clear `advisorClassId`. Nếu chưa chắc mapping role, ít nhất hiển thị cảnh báo/validation khi chọn lớp cho role không phải Teacher.
 
-File chính:
+### 3. Backend DTO: nhận class id trong bulk create
 
-```text
-frontend/src/app/grading/score/page.tsx
-```
+File: `backend/src/auth/dto/auth.dto.ts`
 
-Cần tách một helper dùng chung, ví dụ:
-
-```ts
-const getCriterionScoreForState = (
-  criterion: Criteria,
-  count: number,
-  selectedOptionId?: string | null,
-) => {
-  if (criterion.scoring_mode === "single_option") {
-    const option = criterion.options?.find((opt) => opt.id === selectedOptionId);
-    if (!option) {
-      return criterion.type === "violation" ? criterion.maxScore ?? 10 : 0;
-    }
-
-    if (criterion.type === "violation" && criterion.is_score_counted === false) {
-      return option.score - (criterion.maxScore ?? 10);
-    }
-
-    return option.score;
-  }
-
-  return getCriterionContributionScore(criterion, count);
-};
-```
-
-Lưu ý:
-
-- Không dùng `count` để tính điểm option, vì `count = 1` chỉ biểu thị đã chọn một option.
-- `count` vẫn cần giữ để backend biết trạng thái chọn/bỏ chọn, nhưng không được xem là số lần nhân điểm.
-- Cần thống nhất cách xử lý `violation + is_score_counted === false` giữa realtime, save và hiển thị.
-
-### 2. Sửa điểm hiển thị trên giao diện
-
-Trong render danh sách tiêu chí, thay các dòng đang tính:
+Trong `BulkCreateUserItemDto`, thêm field optional:
 
 ```ts
-const criterionScore = calculateCriterionScore(item, count);
-const achievedPoints = getCriterionContributionScore(item, count);
+@ApiProperty({ example: '65f1...', required: false })
+@IsOptional()
+@IsMongoId({ message: 'advisor_class_id không hợp lệ' })
+advisor_class_id?: string;
 ```
 
-bằng logic có xét option:
+Không bắt buộc field này để không phá luồng thêm user hàng loạt hiện tại.
 
-```ts
-const selectedOptionId = selectedOptionsState[activeStudentId]?.[item.id] || null;
-const achievedPoints = getCriterionScoreForState(item, count, selectedOptionId);
-const criterionScore = achievedPoints;
-```
+### 4. Backend service: tạo user và gán GVCN lớp
 
-Các vị trí cần kiểm tra:
+File: `backend/src/auth/services/auth.service.ts`
 
-- Điểm realtime mobile cạnh tên tiêu chí.
-- Điểm realtime desktop `"Điểm mục này"`.
-- Badge `"Đạt"` khi tiêu chí đã duyệt/chốt.
-- Điểm danh mục đang tính realtime ở phần `categories.map`.
+Cần bổ sung khả năng cập nhật lớp sau khi tạo user:
 
-### 3. Sửa tính tổng điểm sau khi lưu
+- Inject model `Class` vào `AuthService`.
+- Import `Class` schema nếu cần.
+- Trong `createUsersBulk`:
+  - Nếu `u.advisor_class_id` có giá trị, validate ObjectId.
+  - Kiểm tra lớp tồn tại.
+  - Nên kiểm tra role của user là Teacher trước khi cho gán GVCN.
+  - Sau khi `userModel.create` thành công, cập nhật lớp:
+    - `classModel.findByIdAndUpdate(u.advisor_class_id, { advisor_id: newUser._id })`
+  - Trả thêm thông tin `advisor_class_id` trong `successes` để frontend biết dòng nào đã gán lớp.
 
-Trong `persistStudentScore()`, sau khi lấy `freshDetails`, cần build thêm map option:
+Điểm cần quyết định rõ:
 
-```ts
-const freshSelectedOptions: Record<string, string> = {};
+- Nếu lớp đã có `advisor_id`, có cho phép ghi đè không?
+- Khuyến nghị an toàn: không tự ghi đè. Nếu lớp đã có GVCN khác, dòng đó trả lỗi: `Lớp đã có GVCN`.
+- Nếu muốn cho phép ghi đè, cần hiển thị rõ trên UI label lớp đang có GVCN hiện tại.
 
-freshDetails.forEach((detail) => {
-  if (detail.selected_option_id) {
-    freshSelectedOptions[criId] = detail.selected_option_id;
-  }
-});
-```
+### 5. Backend module: đăng ký Class model cho Auth module
 
-Sau đó khi tính `finalScore`, dùng helper mới:
+File cần kiểm tra: `backend/src/auth/auth.module.ts`
 
-```ts
-catScore += getCriterionScoreForState(
-  cri,
-  freshCounts[cri.id] || 0,
-  freshSelectedOptions[cri.id] || null,
-);
-```
+- Nếu `Class` model chưa được đăng ký trong `MongooseModule.forFeature`, bổ sung:
+  - `{ name: Class.name, schema: ClassSchema }`
 
-Không dùng `getCriterionContributionScore(cri, freshCounts[cri.id] || 0)` cho `single_option`.
-
-### 4. Sửa tính tổng điểm sau khi xóa lịch sử/chỉnh lại detail
-
-Trong `handleDeleteHistoryRecord()` cũng có đoạn tính lại tổng điểm từ `freshCounts`. Cần áp dụng cùng helper mới và map `selected_option_id` từ `freshDetails`.
-
-Nếu detail option bị xóa hoặc bỏ chọn:
-
-- `selected_option_id = null`
-- `selected_option_score = null`
-- `current_count = 0`
-- UI quay về `0đ` hoặc trạng thái chưa chọn, không rơi về `maxScore`.
-
-### 5. Sửa load dữ liệu ban đầu và đổi sinh viên
-
-Hiện khi load details đã có:
-
-```ts
-optionsMap[criId] = detail.selected_option_id;
-```
-
-Cần đảm bảo:
-
-- `setSelectedOptionsState()` luôn được gọi với `optionsMap` sau khi load active student.
-- Khi đổi sinh viên, option đã lưu phải được bind vào dropdown.
-- Điểm hiển thị sau load phải tính từ `selectedOptionsState` hoặc từ `evaluationDetailsMap[criId].selected_option_id` trong lúc state option chưa kịp set.
-
-Khuyến nghị fallback hiển thị:
-
-```ts
-const selectedOptionId =
-  selectedOptionsState[activeStudentId]?.[item.id] ||
-  detail?.selected_option_id ||
-  null;
-```
-
-### 6. Sửa copy điểm nếu có copy tiêu chí option
-
-Luồng sao chép điểm hiện truyền `counts` vào `persistStudentScore()`, nhưng option nằm trong `selectedOptionsState`.
-
-Cần kiểm tra case:
-
-- Copy từ sinh viên A có option `Lớp phó (8đ)` sang sinh viên B.
-- B phải nhận đúng `selected_option_id`, `selected_option_label`, `selected_option_score`.
-- Nếu hiện tại chỉ copy `count = 1` mà không copy option id, kết quả sẽ không đủ dữ liệu để lưu đúng option.
-
-Nếu chưa hỗ trợ copy option, cần ghi rõ behavior: hoặc không copy tiêu chí `single_option`, hoặc copy cả selected option.
-
-### 7. Backend validation cần giữ
-
-Files liên quan:
-
-```text
-backend/src/evaluation-detail/evaluation-detail.service.ts
-backend/src/evaluation-detail/test/evaluation-detail.service.spec.ts
-```
-
-Yêu cầu:
-
-- Không cho frontend tự gửi score tùy ý nếu `selected_option_id` không tồn tại.
-- `selected_option_id` phải được validate theo `criterion.options`.
-- `system_score` phải luôn bằng `option.score`.
-- Khi update option từ `opt1` sang `opt2`, `system_score` và `selected_option_score` phải đổi theo `opt2`.
-
-Backend hiện có vẻ đã làm phần này, nhưng cần test regression để khóa hành vi.
-
-## Test cần bổ sung/cập nhật
+## Validation đề xuất
 
 Frontend:
 
-- Test helper mới:
-  - reward `single_option`, option 8 điểm, `count = 1` -> trả `8`.
-  - reward `single_option`, option 10 điểm -> trả `10`.
-  - reward `single_option`, chưa chọn option -> trả `0`.
-  - count mode vẫn dùng `pointsPerUnit/maxScore` như cũ.
-  - violation `is_score_counted=false` giữ đúng logic trừ điểm nếu nghiệp vụ yêu cầu.
-- Test render: chọn option 8 điểm thì text `"Điểm mục này"` hiển thị `+8đ`.
-- Test save/recalculate: sau khi `freshDetails` có `selected_option_score = 8`, `summary.total_score` không bị tính thành 10.
+- `username`, `email`, `role`, `password` giữ validation hiện tại.
+- `advisorClassId` optional.
+- Nếu chọn GVCN lớp nhưng role không phải Teacher:
+  - Chặn submit dòng đó với lỗi: `Chỉ tài khoản Teacher mới được gán GVCN lớp`.
 
 Backend:
 
-- Bổ sung hoặc giữ test trong `evaluation-detail.service.spec.ts`:
-  - create `single_option` với `opt1.score = 8` -> `system_score = 8`.
-  - update sang `opt2.score = 10` -> `system_score = 10`.
-  - option không tồn tại -> `BadRequestException`.
+- `advisor_class_id` phải là MongoId hợp lệ nếu có.
+- Lớp phải tồn tại.
+- Role phải là Teacher hoặc có `role_code === 'TEACHER'`.
+- Không ghi đè GVCN lớp đã có nếu chưa có yêu cầu xác nhận rõ ràng.
 
-## Acceptance Criteria
+## Acceptance criteria
 
-- Chọn `Lớp phó (8đ)` thì UI hiển thị `+8đ`.
-- Không còn trường hợp dropdown chọn option 8đ nhưng điểm chính bên phải vẫn hiện `+10đ`.
-- Badge `"Tối đa 10đ"` có thể vẫn hiển thị để mô tả trần tiêu chí, nhưng điểm chính phải là điểm option.
-- Tổng điểm danh mục và tổng điểm sinh viên cập nhật đúng ngay sau khi chọn option.
-- Bấm lưu, reload trang, đổi sinh viên rồi quay lại vẫn giữ đúng option và điểm.
-- API detail lưu đúng `selected_option_id`, `selected_option_label`, `selected_option_score`, `system_score`.
-- Không làm thay đổi cách tính của tiêu chí dạng `count`.
+- Modal bulk hiển thị cột **GVCN lớp** bên trái **Trạng thái**.
+- Select GVCN lớp hiển thị được danh sách lớp từ API `/classes`.
+- Có thể tạo nhiều user mà không chọn lớp như hiện tại.
+- Khi chọn lớp cho một dòng Teacher và lưu thành công, document lớp được cập nhật `advisor_id` bằng `_id` user vừa tạo.
+- Dòng lỗi trả về vẫn hiển thị được trong màn hình kết quả bulk.
+- Dòng lỗi khi bấm “Sửa các dòng lỗi” vẫn giữ lại lựa chọn lớp để sửa tiếp.
+- Không phát sinh lỗi layout khi bật/tắt “Dùng chung mật khẩu”.
+- Không làm ảnh hưởng luồng thêm 1 người dùng.
 
-## Thứ tự triển khai đề xuất
+## Test cần chạy
 
-1. Tạo helper tính điểm thống nhất cho `count` và `single_option`.
-2. Thay toàn bộ điểm hiển thị realtime dùng helper mới.
-3. Thay phần tính `finalScore` sau save và sau delete history dùng helper mới.
-4. Đảm bảo load/switch student fallback từ `detail.selected_option_id`.
-5. Kiểm tra copy score với tiêu chí option.
-6. Bổ sung test frontend helper/render và backend service nếu thiếu.
-7. Test thủ công case `Lớp phó (8đ)` trên giao diện.
+Backend:
 
-## Ghi chú rủi ro
+```bash
+npm test -- --runInBand --testPathPatterns=auth.service.spec.ts
+```
 
-- Không sửa bằng cách đổi `maxScore` của tiêu chí thành điểm option, vì `maxScore` là trần của tiêu chí, không phải điểm của từng option.
-- Không dùng `current_count = 1` để suy ra điểm option.
-- Không tin score do frontend gửi nếu backend đã có `criterion.options`; backend phải là nguồn xác thực cuối cùng cho option hợp lệ.
+Frontend:
+
+```bash
+npm test -- --runInBand
+```
+
+Kiểm thử thủ công:
+
+- Vào `/permissions`.
+- Mở modal **Thêm người dùng**.
+- Chọn tab **Thêm nhiều người dùng**.
+- Kiểm tra cột **GVCN lớp** nằm đúng vị trí.
+- Tạo một Teacher có chọn lớp.
+- Vào quản lý lớp hoặc gọi API `/classes`, xác nhận lớp đó có `advisor_id` là user vừa tạo.
+- Thử tạo user không chọn lớp để chắc luồng cũ vẫn chạy.

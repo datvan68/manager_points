@@ -11,6 +11,7 @@ import { AuthController } from './controllers/auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User, UserSchema } from './schemas/user.schema';
 import { Student, StudentSchema } from '../students/schemas/student.schema';
+import { Class, ClassSchema } from '../classes/schemas/class.schema';
 import {
   RefreshToken,
   RefreshTokenSchema,
@@ -53,6 +54,7 @@ import {
       { name: PermissionGroup.name, schema: PermissionGroupSchema },
       { name: RoutePermission.name, schema: RoutePermissionSchema },
       { name: Student.name, schema: StudentSchema },
+      { name: Class.name, schema: ClassSchema },
     ]),
   ],
   controllers: [AuthController],

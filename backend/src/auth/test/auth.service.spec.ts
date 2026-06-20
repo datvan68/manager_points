@@ -9,6 +9,7 @@ import { Permission } from '../schemas/permission.schema';
 import { PermissionGroup } from '../schemas/permission-group.schema';
 import { RoutePermission } from '../schemas/route-permission.schema';
 import { Student } from '../../students/schemas/student.schema';
+import { Class } from '../../classes/schemas/class.schema';
 import { TokenService } from '../services/token.service';
 import { PasswordService } from '../services/password.service';
 import { RbacService } from '../services/rbac.service';
@@ -109,6 +110,10 @@ describe('AuthService', () => {
               exec: jest.fn().mockResolvedValue(null),
             }),
           },
+        },
+        {
+          provide: getModelToken(Class.name),
+          useValue: {},
         },
         {
           provide: TokenService,

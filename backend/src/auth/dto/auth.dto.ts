@@ -448,6 +448,11 @@ export class BulkCreateUserItemDto {
   @IsOptional()
   @IsEnum(['active', 'inactive', 'locked'])
   status?: string;
+
+  @ApiProperty({ example: '65f1...', required: false })
+  @IsOptional()
+  @IsMongoId({ message: 'advisor_class_id không hợp lệ' })
+  advisor_class_id?: string;
 }
 
 export class BulkCreateUsersDto {

@@ -28,6 +28,7 @@ interface UserModalProps {
   isEditing?: boolean;
   initialData?: any;
   roles?: any[];
+  classes?: any[];
   onSave?: (data: any) => Promise<void>;
   onBulkSave?: (data: any) => Promise<any>;
 }
@@ -38,6 +39,7 @@ export default function UserModal({
   isEditing = false,
   initialData = null,
   roles = [],
+  classes = [],
   onSave,
   onBulkSave,
 }: UserModalProps) {
@@ -75,7 +77,7 @@ export default function UserModal({
 
       // Reset bulk
       setBulkUsers([
-        { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "" }
+        { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassId: "" }
       ]);
       setUseCommonPassword(false);
       setCommonPassword("");
@@ -141,7 +143,7 @@ export default function UserModal({
   const addBulkRow = () => {
     setBulkUsers([
       ...bulkUsers,
-      { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "" }
+      { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassId: "" }
     ]);
   };
 
@@ -192,6 +194,7 @@ export default function UserModal({
             password: useCommonPassword ? undefined : u.password,
             role_id: u.role,
             status: u.status,
+            advisor_class_id: u.advisorClassId || undefined,
           }))
         };
         const res = await onBulkSave(payload);
@@ -216,7 +219,7 @@ export default function UserModal({
       return { ...u, error: err?.reason || "Lỗi" };
     });
     
-    setBulkUsers(mapped.length ? mapped : [{ id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "" }]);
+    setBulkUsers(mapped.length ? mapped : [{ id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassId: "" }]);
     setBulkResult(null);
   };
 
@@ -434,6 +437,7 @@ export default function UserModal({
                             <th className="px-3 py-2">Email</th>
                             <th className="px-3 py-2">Vai trò</th>
                             <th className="px-3 py-2">Trạng thái</th>
+                            <th className="px-3 py-2">GVCN lớp</th>
                             {!useCommonPassword && <th className="px-3 py-2">Mật khẩu</th>}
                             <th className="px-3 py-2 w-10"></th>
                           </tr>
@@ -464,6 +468,15 @@ export default function UserModal({
                                     <SelectItem value="active" className="text-[11px]">Active</SelectItem>
                                     <SelectItem value="inactive" className="text-[11px]">Inactive</SelectItem>
                                     <SelectItem value="locked" className="text-[11px]">Locked</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="px-2 py-2">
+                                <Select value={u.advisorClassId} onValueChange={(val) => updateBulkRow(u.id, 'advisorClassId', val === 'none' ? '' : val)}>
+                                  <SelectTrigger className="w-full h-7 px-2 py-1 text-[11px] border-slate-200 bg-white/80"><SelectValue placeholder="Không" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none" className="text-[11px] italic text-slate-500">Không gán</SelectItem>
+                                    {classes?.map(c => <SelectItem key={c._id || c.id} value={c._id || c.id} className="text-[11px]">{c.class_name || c.name}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
                               </td>

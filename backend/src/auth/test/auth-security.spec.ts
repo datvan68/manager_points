@@ -19,6 +19,7 @@ import { LoginLog } from '../schemas/login-log.schema';
 import { Role } from '../schemas/role.schema';
 import { Permission } from '../schemas/permission.schema';
 import { Student } from '../../students/schemas/student.schema';
+import { Class } from '../../classes/schemas/class.schema';
 import { PermissionGroup } from '../schemas/permission-group.schema';
 import { RoutePermission } from '../schemas/route-permission.schema';
 import { AuthController } from '../controllers/auth.controller';
@@ -336,6 +337,10 @@ describe('Auth Security (Student Account Policies)', () => {
                 exec: jest.fn().mockResolvedValue(null),
               }),
             },
+          },
+          {
+            provide: getModelToken(Class.name),
+            useValue: {},
           },
           {
             provide: TokenService,

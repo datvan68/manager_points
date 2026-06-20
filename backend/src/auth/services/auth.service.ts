@@ -10,6 +10,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User, UserDocument, UserStatus } from '../schemas/user.schema';
 import { Student } from '../../students/schemas/student.schema';
+import { Class } from '../../classes/schemas/class.schema';
 import { LoginLog, LoginLogDocument } from '../schemas/login-log.schema';
 import { Role, RoleDocument } from '../schemas/role.schema';
 import { Permission, PermissionDocument } from '../schemas/permission.schema';
@@ -57,6 +58,7 @@ export class AuthService implements OnModuleInit {
     @InjectModel(RoutePermission.name)
     private routePermissionModel: Model<RoutePermissionDocument>,
     @InjectModel(Student.name) private studentModel: Model<any>,
+    @InjectModel(Class.name) private classModel: Model<any>,
     private tokenService: TokenService,
     private passwordService: PasswordService,
     private rbacService: RbacService,
@@ -749,6 +751,25 @@ export class AuthService implements OnModuleInit {
           status: u.status || UserStatus.ACTIVE,
           role: roleId,
         });
+
+        if (u.advisor_class_id) {
+          const roleObj = await this.roleModel.findById(roleId);
+          if (roleObj && roleObj.role_code === 'TEACHER') {
+            const classObj = await this.classModel.findById(u.advisor_class_id);
+            if (!classObj) {
+              await this.userModel.deleteOne({ _id: newUser._id });
+              throw new BadRequestException('Lớp không tồn tại');
+            }
+            if (classObj.advisor_id) {
+              await this.userModel.deleteOne({ _id: newUser._id });
+              throw new BadRequestException('Lớp đã có GVCN');
+            }
+            await this.classModel.updateOne({ _id: classObj._id }, { advisor_id: newUser._id });
+          } else {
+             await this.userModel.deleteOne({ _id: newUser._id });
+             throw new BadRequestException('Chỉ người dùng có vai trò Giảng viên mới được gán làm GVCN');
+          }
+        }
 
         if (ip) {
           await this.logAction(
