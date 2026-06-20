@@ -360,7 +360,7 @@ export class RbacService {
     }
 
     const updated = await this.routePermissionModel
-      .findByIdAndUpdate(id, { $set: dto }, { new: true })
+      .findByIdAndUpdate(id, { $set: dto }, { returnDocument: 'after' })
       .populate('permissions');
     if (!updated)
       throw new BadRequestException('Route permission không tồn tại');

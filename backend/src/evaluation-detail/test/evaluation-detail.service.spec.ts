@@ -182,7 +182,7 @@ describe('EvaluationDetailService', () => {
           criterion_name: 'Test Criterion Option',
           scoring_mode: 'single_option',
           options: [
-            { id: 'opt1', label: 'Option 1', score: 15 },
+            { id: 'opt1', label: 'Option 1', score: 8 },
           ],
         }),
       } as any);
@@ -202,7 +202,7 @@ describe('EvaluationDetailService', () => {
 
       const result = await service.create(dto, { userId: 'admin1', roleName: 'admin' });
 
-      expect(result.system_score).toBe(15);
+      expect(result.system_score).toBe(8);
       expect(result.current_count).toBe(1);
       expect(result.selected_option_id).toBe('opt1');
     });
@@ -228,7 +228,7 @@ describe('EvaluationDetailService', () => {
           criterion_name: 'Test Criterion Option',
           scoring_mode: 'single_option',
           options: [
-            { id: 'opt1', label: 'Option 1', score: 15 },
+            { id: 'opt1', label: 'Option 1', score: 8 },
           ],
         }),
       } as any);
@@ -378,7 +378,7 @@ describe('EvaluationDetailService', () => {
             _id: detailId,
             criterion_id: criterionId,
             current_count: 1,
-            system_score: 15,
+            system_score: 8,
             selected_option_id: 'opt1',
             status: 'draft',
           },
@@ -396,8 +396,8 @@ describe('EvaluationDetailService', () => {
           _id: criterionId,
           scoring_mode: 'single_option',
           options: [
-            { id: 'opt1', label: 'Option 1', score: 15 },
-            { id: 'opt2', label: 'Option 2', score: 25 },
+            { id: 'opt1', label: 'Option 1', score: 8 },
+            { id: 'opt2', label: 'Option 2', score: 10 },
           ],
         }),
       } as any);
@@ -409,7 +409,7 @@ describe('EvaluationDetailService', () => {
             {
               ...mockSummary.details[0],
               current_count: 1,
-              system_score: 25,
+              system_score: 10,
               selected_option_id: 'opt2',
             },
           ],
@@ -417,7 +417,7 @@ describe('EvaluationDetailService', () => {
             id: jest.fn().mockReturnValue({
               ...mockSummary.details[0],
               current_count: 1,
-              system_score: 25,
+              system_score: 10,
               selected_option_id: 'opt2',
             }),
           }
@@ -433,7 +433,7 @@ describe('EvaluationDetailService', () => {
 
       // Mock aggregation for recomputeTotalScore
       mockSummaryPointModel.aggregate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ totalScore: 25 }]),
+        exec: jest.fn().mockResolvedValue([{ totalScore: 10 }]),
       } as any);
       mockSummaryPointModel.updateOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue({}),
@@ -447,8 +447,55 @@ describe('EvaluationDetailService', () => {
         { userId: 'admin1', roleName: 'admin' },
       );
 
-      expect(result.system_score).toBe(25);
+      expect(result.system_score).toBe(10);
       expect(result.selected_option_id).toBe('opt2');
+    });
+
+    it('should throw BadRequestException if update provides invalid option for single_option', async () => {
+      const detailId = new Types.ObjectId();
+      const criterionId = new Types.ObjectId();
+      const summaryId = new Types.ObjectId();
+
+      const mockSummary = {
+        _id: summaryId,
+        student_id: new Types.ObjectId(),
+        semester_id: new Types.ObjectId(),
+        status: 'draft',
+        details: [
+          {
+            _id: detailId,
+            criterion_id: criterionId,
+            current_count: 1,
+            system_score: 8,
+            selected_option_id: 'opt1',
+            status: 'draft',
+          },
+        ],
+      };
+
+      mockSummaryPointModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      } as any);
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+
+      mockCriterionModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'single_option',
+          options: [
+            { id: 'opt1', label: 'Option 1', score: 8 },
+            { id: 'opt2', label: 'Option 2', score: 10 },
+          ],
+        }),
+      } as any);
+
+      await expect(
+        service.update(
+          detailId.toString(),
+          { selected_option_id: 'opt-invalid' } as any,
+          { userId: 'admin1', roleName: 'admin' }
+        )
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

@@ -91,9 +91,19 @@ interface Category {
   items: Criteria[];
 }
 
-export const calculateCriterionScore = (criterion: Criteria, count: number) => {
+export const calculateCriterionScore = (criterion: Criteria, count: number, selectedOptionId?: string | null) => {
   const maxScore = criterion.maxScore ?? 10;
   const minScore = criterion.minScore ?? 0;
+
+  if (criterion.scoring_mode === 'single_option') {
+    if (selectedOptionId) {
+      const option = criterion.options?.find(opt => opt.id === selectedOptionId);
+      if (option) {
+        return Math.max(minScore, Math.min(maxScore, option.score));
+      }
+    }
+    return (criterion.type === "violation" && criterion.is_score_counted === false) ? maxScore : 0;
+  }
 
   if (criterion.pointsPerUnit >= 0) {
     const rawScore = count * criterion.pointsPerUnit;
@@ -105,8 +115,8 @@ export const calculateCriterionScore = (criterion: Criteria, count: number) => {
   }
 };
 
-export const getCriterionContributionScore = (criterion: Criteria, count: number) => {
-  const rawScore = calculateCriterionScore(criterion, count);
+export const getCriterionContributionScore = (criterion: Criteria, count: number, selectedOptionId?: string | null) => {
+  const rawScore = calculateCriterionScore(criterion, count, selectedOptionId);
   if (criterion.type === "violation" && criterion.is_score_counted === false) {
     const maxScore = criterion.maxScore ?? 10;
     return rawScore - maxScore;
@@ -1508,22 +1518,30 @@ function GradingScoreContent() {
 
     setSelectedOptionsState((prev) => {
       const studentOptions = prev[activeStudentId] ? { ...prev[activeStudentId] } : {};
+      
+      if (optionId === "none") {
+        delete studentOptions[criteriaId];
+      } else {
+        studentOptions[criteriaId] = optionId;
+      }
+
       const updatedOptions = {
         ...prev,
-        [activeStudentId]: {
-          ...studentOptions,
-          [criteriaId]: optionId,
-        },
+        [activeStudentId]: studentOptions,
       };
 
       setEvaluationCounts((prevCounts) => {
         const studentCounts = prevCounts[activeStudentId] ? { ...prevCounts[activeStudentId] } : {};
+        
+        if (optionId === "none") {
+          studentCounts[criteriaId] = 0;
+        } else {
+          studentCounts[criteriaId] = optionId ? 1 : 0;
+        }
+
         const updatedCounts = {
           ...prevCounts,
-          [activeStudentId]: {
-            ...studentCounts,
-            [criteriaId]: optionId ? 1 : 0,
-          },
+          [activeStudentId]: studentCounts,
         };
         calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId], updatedOptions[activeStudentId]);
         return updatedCounts;
@@ -1546,21 +1564,8 @@ function GradingScoreContent() {
       let catScore = 0;
       cat.items.forEach((cri) => {
         const count = studentCounts[cri.id] || 0;
-        let scoreForCri = 0;
-        if (cri.scoring_mode === 'single_option') {
-          const selectedOptionId = options[cri.id];
-          const option = cri.options?.find(o => o.id === selectedOptionId);
-          if (option) {
-            scoreForCri = option.score;
-            if (cri.type === 'violation' && cri.is_score_counted === false) {
-               scoreForCri -= (cri.maxScore || 10);
-            }
-          } else {
-            scoreForCri = cri.type === 'violation' ? (cri.maxScore || 10) : 0;
-          }
-        } else {
-          scoreForCri = getCriterionContributionScore(cri, count);
-        }
+        const selectedOptionId = options[cri.id];
+        const scoreForCri = getCriterionContributionScore(cri, count, selectedOptionId);
         catScore += scoreForCri;
       });
 
@@ -1664,15 +1669,7 @@ function GradingScoreContent() {
         if (existingDetail) {
           // Nếu số lần khác nhau (có thay đổi)
           if (isCountChanged || isOptionChanged) {
-            let calculatedScore = 0;
-            if (cri.scoring_mode === 'single_option') {
-              calculatedScore = optionObj ? optionObj.score : 0;
-              if (cri.type === 'violation' && cri.is_score_counted === false) {
-                calculatedScore -= (cri.maxScore || 10);
-              }
-            } else {
-              calculatedScore = calculateCriterionScore(cri, count);
-            }
+            const calculatedScore = calculateCriterionScore(cri, count, selectedOptionId);
 
             const updatedHistory = [...(existingDetail.log || [])];
             updatedHistory.push({
@@ -1725,15 +1722,7 @@ function GradingScoreContent() {
         } else {
           // Nếu chưa có và count > 0 (hoặc có selectedOptionId), ta tiến hành tạo mới
           if (count > 0 || selectedOptionId) {
-            let calculatedScore = 0;
-            if (cri.scoring_mode === 'single_option') {
-              calculatedScore = optionObj ? optionObj.score : 0;
-              if (cri.type === 'violation' && cri.is_score_counted === false) {
-                calculatedScore -= (cri.maxScore || 10);
-              }
-            } else {
-              calculatedScore = calculateCriterionScore(cri, count);
-            }
+            const calculatedScore = calculateCriterionScore(cri, count, selectedOptionId);
 
             const scorePayload: any = {};
             if (userRole === "student") {
@@ -1829,7 +1818,8 @@ function GradingScoreContent() {
     categories.forEach((cat) => {
       let catScore = 0;
       cat.items.forEach((cri) => {
-        catScore += getCriterionContributionScore(cri, freshCounts[cri.id] || 0);
+        const selectedOptionId = selectedOptionsState[studentId]?.[cri.id] || null;
+        catScore += getCriterionContributionScore(cri, freshCounts[cri.id] || 0, selectedOptionId);
       });
       finalScore += Math.max(0, Math.min(cat.maxPoints, catScore));
     });
@@ -2300,7 +2290,8 @@ function GradingScoreContent() {
       categories.forEach((cat) => {
         let catScore = 0;
         cat.items.forEach((cri) => {
-          catScore += getCriterionContributionScore(cri, freshCounts[cri.id] || 0);
+          const selectedOptionId = selectedOptionsState[activeStudentId]?.[cri.id] || null;
+          catScore += getCriterionContributionScore(cri, freshCounts[cri.id] || 0, selectedOptionId);
         });
         finalScore += Math.max(0, Math.min(cat.maxPoints, catScore));
       });
@@ -2927,7 +2918,8 @@ function GradingScoreContent() {
                     let catScore = 0;
                     category.items.forEach((cri) => {
                       const count = studentCounts[cri.id] || 0;
-                      const criterionScore = getCriterionContributionScore(cri, count);
+                      const selectedOptionId = selectedOptionsState[activeStudentId]?.[cri.id] || null;
+                      const criterionScore = getCriterionContributionScore(cri, count, selectedOptionId);
                       catScore += criterionScore;
                     });
                     const clampedCatScore = Math.max(
@@ -2985,11 +2977,13 @@ function GradingScoreContent() {
                               detail?.status === "gv_reviewed" ||
                               detail?.status === "locked",
                             );
+                            const selectedOptionId = selectedOptionsState[activeStudentId]?.[item.id] || null;
                             const criterionScore = calculateCriterionScore(
                               item,
                               count,
+                              selectedOptionId
                             );
-                            const achievedPoints = getCriterionContributionScore(item, count);
+                            const achievedPoints = getCriterionContributionScore(item, count, selectedOptionId);
 
                             const studentPreCounts =
                               preExistingCountsState[activeStudentId] || {};
@@ -3091,6 +3085,7 @@ function GradingScoreContent() {
                                             <SelectValue placeholder="-- Chọn tùy chọn --" />
                                           </SelectTrigger>
                                           <SelectContent>
+                                            <SelectItem value="none">-- Không chọn --</SelectItem>
                                             {item.options?.map((opt) => (
                                               <SelectItem key={opt.id} value={opt.id}>
                                                 {opt.label} ({opt.score}đ)

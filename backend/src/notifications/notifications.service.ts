@@ -292,7 +292,7 @@ export class NotificationsService {
     }
 
     const updated = await this.notificationModel
-      .findByIdAndUpdate(id, { $set: updateDto }, { new: true })
+      .findByIdAndUpdate(id, { $set: updateDto }, { returnDocument: 'after' })
       .exec();
 
     if (!updated) {
@@ -343,7 +343,7 @@ export class NotificationsService {
         .findByIdAndUpdate(
           id,
           { $addToSet: { readByUserIds: new Types.ObjectId(currentUserId) } },
-          { new: true },
+          { returnDocument: 'after' },
         )
         .exec();
       if (!updated) {
@@ -416,7 +416,7 @@ export class NotificationsService {
       .findByIdAndUpdate(
         id,
         { $set: { deletedAt: new Date() } },
-        { new: true },
+        { returnDocument: 'after' },
       )
       .exec();
 

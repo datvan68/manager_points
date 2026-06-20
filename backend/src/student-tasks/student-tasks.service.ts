@@ -606,7 +606,7 @@ export class StudentTasksService {
     payload.updatedBy = new Types.ObjectId(updaterId);
 
     const updatedTask = await this.studentTaskModel
-      .findByIdAndUpdate(id, { $set: payload }, { new: true })
+      .findByIdAndUpdate(id, { $set: payload }, { returnDocument: 'after' })
       .exec();
 
     if (!updatedTask) {

@@ -872,7 +872,7 @@ describe('SummariesPointService', () => {
         status: 'draft',
         total_score: 0,
         grading: '',
-        details: [], // No detail
+        details: [{ criterion_id: 'some-other-cri' }], // Has some detail so it doesn't return early
         save: jest.fn().mockResolvedValue(true),
       };
 

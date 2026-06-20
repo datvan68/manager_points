@@ -418,7 +418,7 @@ export class EvaluationDetailService {
         }
       } else {
         countVal = 0;
-        systemScore = 0;
+        systemScore = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
       }
     } else {
       systemScore = countVal * criterion.score_per_unit;
@@ -463,7 +463,7 @@ export class EvaluationDetailService {
     await this.summaryPointModel.findByIdAndUpdate(
       summary_id,
       { $push: { details: newDetail } },
-      { new: true }
+      { returnDocument: 'after' }
     ).exec();
 
     return newDetail;
@@ -675,7 +675,7 @@ export class EvaluationDetailService {
           throw new BadRequestException('Option không hợp lệ');
         }
       } else {
-        detail.system_score = 0;
+        detail.system_score = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
         detail.selected_option_id = null;
         detail.selected_option_label = null;
         detail.selected_option_score = null;

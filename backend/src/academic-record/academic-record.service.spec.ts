@@ -106,8 +106,8 @@ describe('AcademicRecordService - Import Flow', () => {
       });
 
       const rows = [
-        { 'Ma SV': 'SV_IN', 'Tieu chi': 'C1', 'Ngay ghi nhan': '2023-01-01' },
-        { 'Ma SV': 'SV_OUT', 'Tieu chi': 'C1', 'Ngay ghi nhan': '2023-01-01' }, // Expected error: Không có quyền ghi nhận
+        { 'Ma SV': 'SV_IN', 'Tieu chi': 'Criteria 1', 'Ngay ghi nhan': '2023-01-01' },
+        { 'Ma SV': 'SV_OUT', 'Tieu chi': 'Criteria 1', 'Ngay ghi nhan': '2023-01-01' }, // Expected error: Không có quyền ghi nhận
       ];
 
       const result = await service.importPreview(rows, requester);
@@ -134,8 +134,8 @@ describe('AcademicRecordService - Import Flow', () => {
         });
 
         const rows = [
-            { 'Ma SV': 'SV1', 'Tieu chi': 'C1', 'Ngay ghi nhan': '2023-01-01' },
-            { 'Ma SV': 'SV1', 'Tieu chi': 'C1', 'Ngay ghi nhan': '2023-01-01' }, // Duplicate
+            { 'Ma SV': 'SV1', 'Tieu chi': 'Criteria 1', 'Ngay ghi nhan': '2023-01-01' },
+            { 'Ma SV': 'SV1', 'Tieu chi': 'Criteria 1', 'Ngay ghi nhan': '2023-01-01' }, // Duplicate
         ];
 
         const result = await service.importPreview(rows, null);
