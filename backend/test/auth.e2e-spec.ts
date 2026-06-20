@@ -190,8 +190,8 @@ describe('Auth (e2e)', () => {
           const cookies = res.headers['set-cookie'] || [];
           const refreshTokenCookie = cookies.find((cookie: string) => cookie.includes('refresh_token='));
           expect(refreshTokenCookie).toBeDefined();
-          expect(refreshTokenCookie).toContain('SameSite=None');
-          expect(refreshTokenCookie).toContain('Secure');
+          expect(refreshTokenCookie).toContain('HttpOnly');
+          expect(refreshTokenCookie).toContain('Path=/api/auth');
         });
     });
 
@@ -221,8 +221,8 @@ describe('Auth (e2e)', () => {
           const refreshTokenCookie = cookies.find((cookie: string) => cookie.startsWith('refresh_token='));
           expect(refreshTokenCookie).toBeDefined();
           expect(refreshTokenCookie).toContain('Max-Age=14400');
-          expect(refreshTokenCookie).toContain('SameSite=None');
-          expect(refreshTokenCookie).toContain('Secure');
+          expect(refreshTokenCookie).toContain('HttpOnly');
+          expect(refreshTokenCookie).toContain('Path=/api/auth');
         });
     });
 
@@ -240,8 +240,8 @@ describe('Auth (e2e)', () => {
           const refreshTokenCookie = cookies.find((cookie: string) => cookie.startsWith('refresh_token='));
           expect(refreshTokenCookie).toBeDefined();
           expect(refreshTokenCookie).toContain('Max-Age=2592000');
-          expect(refreshTokenCookie).toContain('SameSite=None');
-          expect(refreshTokenCookie).toContain('Secure');
+          expect(refreshTokenCookie).toContain('HttpOnly');
+          expect(refreshTokenCookie).toContain('Path=/api/auth');
         });
     });
   });
@@ -278,8 +278,48 @@ describe('Auth (e2e)', () => {
       const newRefreshTokenCookie = newCookies.find((cookie: string) => cookie.startsWith('refresh_token='));
       expect(newRefreshTokenCookie).toBeDefined();
       expect(newRefreshTokenCookie).not.toBe(refreshTokenCookie);
-      expect(newRefreshTokenCookie).toContain('SameSite=None');
-      expect(newRefreshTokenCookie).toContain('Secure');
+      expect(newRefreshTokenCookie).toContain('HttpOnly');
+      expect(newRefreshTokenCookie).toContain('Path=/api/auth');
+    });
+
+    it('Gửi request POST /api/auth/refresh không có cookie -> mong đợi 401 Phiên làm việc đã kết thúc', async () => {
+      const refreshRes = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .expect(401);
+
+      expect(refreshRes.body.message).toBe('Phiên làm việc đã kết thúc');
+    });
+
+    it('Refresh token đã rotate trong grace period -> vẫn trả token mới hợp lệ', async () => {
+      // 1. Đăng nhập
+      const loginRes = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({
+          email: '20230005',
+          password: '15082003',
+        })
+        .expect(200);
+
+      const rawCookie = loginRes.headers['set-cookie']?.find((c: string) => c.startsWith('refresh_token='))?.split(';')[0];
+
+      // 2. Refresh lần 1
+      const refresh1Res = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', [rawCookie!])
+        .expect(200);
+
+      const rawCookie2 = refresh1Res.headers['set-cookie']?.find((c: string) => c.startsWith('refresh_token='))?.split(';')[0];
+      
+      // 3. Refresh lần 2 với cookie cũ (grace period)
+      const refresh2Res = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', [rawCookie!])
+        .expect(200);
+
+      expect(refresh2Res.body.access_token).toBeDefined();
+      const rawCookie3 = refresh2Res.headers['set-cookie']?.find((c: string) => c.startsWith('refresh_token='))?.split(';')[0];
+      expect(rawCookie3).toBeDefined();
+      expect(rawCookie3).not.toBe(rawCookie2);
     });
   });
 });

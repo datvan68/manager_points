@@ -147,14 +147,9 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const token = req.cookies?.[REFRESH_COOKIE_NAME];
-    const origin = req.headers.origin || req.headers.referer || 'unknown';
     
-    console.log(`[Auth/Refresh] Request from origin: ${origin}, route: ${req.path}`);
     if (!token) {
-      console.warn(`[Auth/Refresh] Missing refresh_token cookie`);
       throw new UnauthorizedException('Phiên làm việc đã kết thúc');
-    } else {
-      console.log(`[Auth/Refresh] Received refresh_token cookie: ***REDACTED***`);
     }
 
     const result = await this.authService.refreshToken(token);

@@ -116,6 +116,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               studentId = studentData._id;
               classId = typeof studentData.class_id === "object" ? studentData.class_id?._id : studentData.class_id;
             } else if (studentRes.status === 401) {
+              if (!isRetry) {
+                try {
+                  const result = await synchronizedRefreshToken();
+                  tokenStorage.setAccessToken(result.access_token);
+                  return loadUserPermissions(result.access_token, true);
+                } catch (refreshErr) {
+                  // Let it fall through to clear
+                }
+              }
               tokenStorage.clearTokens();
               setUser(null);
               setPermissions([]);

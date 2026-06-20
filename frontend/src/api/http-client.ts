@@ -90,12 +90,12 @@ function releaseLock() {
   }
 }
 
-export async function synchronizedRefreshToken(): Promise<RefreshResponse> {
+export async function synchronizedRefreshToken(forceSelf = false): Promise<RefreshResponse> {
   if (refreshPromise) {
     return refreshPromise;
   }
   
-  if (typeof window !== 'undefined' && !acquireLock()) {
+  if (typeof window !== 'undefined' && !forceSelf && !acquireLock()) {
     return new Promise((resolve, reject) => {
       let timeoutId: NodeJS.Timeout;
       const listener = (event: MessageEvent) => {
@@ -110,16 +110,15 @@ export async function synchronizedRefreshToken(): Promise<RefreshResponse> {
         } else if (event.data.type === 'REFRESH_FAILED') {
           clearTimeout(timeoutId);
           authChannel?.removeEventListener('message', listener);
-          reject(new Error('Other tab failed to refresh'));
+          resolve(synchronizedRefreshToken(true));
         }
       };
       authChannel?.addEventListener('message', listener);
       timeoutId = setTimeout(() => {
         authChannel?.removeEventListener('message', listener);
         // Timeout waiting for other tab to finish refresh.
-        // It's possible we missed the event, but we can't be sure.
-        // Rejecting here will cause the caller to either retry or fail cleanly.
-        reject(new Error('Cross-tab refresh timeout'));
+        // Try to refresh ourselves.
+        resolve(synchronizedRefreshToken(true));
       }, 5000);
     });
   }

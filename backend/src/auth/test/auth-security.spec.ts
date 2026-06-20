@@ -765,8 +765,8 @@ describe('Auth Security (Student Account Policies)', () => {
         'mock-refresh',
         expect.objectContaining({
           maxAge: 4 * 60 * 60 * 1000,
-          sameSite: 'none',
-          secure: true,
+          httpOnly: true,
+          path: '/api/auth',
         }),
       );
     });
@@ -804,10 +804,49 @@ describe('Auth Security (Student Account Policies)', () => {
         'mock-refresh',
         expect.objectContaining({
           maxAge: 30 * 24 * 60 * 60 * 1000,
-          sameSite: 'none',
-          secure: true,
+          httpOnly: true,
+          path: '/api/auth',
         }),
       );
+    });
+
+    describe('Environment dependent cookie settings', () => {
+      const originalEnv = process.env;
+
+      beforeEach(() => {
+        jest.resetModules();
+        process.env = { ...originalEnv };
+      });
+
+      afterAll(() => {
+        process.env = originalEnv;
+      });
+
+      it('should set secure=false and sameSite=lax when AUTH_COOKIE_SECURE=false', async () => {
+        process.env.AUTH_COOKIE_SECURE = 'false';
+        const mockRes = { cookie: jest.fn() } as any;
+        const mockReq = { ip: '127.0.0.1' };
+        authService.login.mockResolvedValue({ access_token: 'ac', refresh_token: 'rf', user: { id: 'u', role: 'User' } });
+        await authController.login({ email: 'user@school.edu.vn', password: 'password', remember: true }, mockReq, mockRes);
+
+        expect(mockRes.cookie).toHaveBeenCalledWith('refresh_token', 'rf', expect.objectContaining({
+          secure: false,
+          sameSite: 'lax',
+        }));
+      });
+
+      it('should set secure=true and sameSite=none when AUTH_COOKIE_SECURE=true', async () => {
+        process.env.AUTH_COOKIE_SECURE = 'true';
+        const mockRes = { cookie: jest.fn() } as any;
+        const mockReq = { ip: '127.0.0.1' };
+        authService.login.mockResolvedValue({ access_token: 'ac', refresh_token: 'rf', user: { id: 'u', role: 'User' } });
+        await authController.login({ email: 'user@school.edu.vn', password: 'password', remember: true }, mockReq, mockRes);
+
+        expect(mockRes.cookie).toHaveBeenCalledWith('refresh_token', 'rf', expect.objectContaining({
+          secure: true,
+          sameSite: 'none',
+        }));
+      });
     });
   });
 });
