@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - **Thẻ hiển thị hạng tích cực (Active Student Rank Card):** Bổ sung UI mới (`ActiveStudentRankCard`) trên Frontend để hiển thị cấp bậc của sinh viên một cách trực quan, bao gồm các hiệu ứng thị giác đặc biệt (phát sáng, tia lửa) đối với các hạng cao như Kim cương (Diamond).
 
 ### ⚡ Nâng cấp & Cải thiện (Improvements)
+- **Tối ưu hiển thị danh sách sinh viên (Infinite Scroll):** Áp dụng kỹ thuật Infinite Scroll kết hợp `IntersectionObserver` cho danh sách sinh viên trên thiết bị di động và máy tính bảng, giúp tăng cường hiệu năng và cải thiện trải nghiệm người dùng, đồng thời giữ nguyên phân trang truyền thống trên Desktop.
 - **Cập nhật luồng tạo User từ Admin:** Tách biệt API tạo user bởi Admin (hỗ trợ tạo 1 hoặc nhiều user, chấp nhận lỗi từng phần `partial success`) khỏi luồng tự đăng ký (`register`). Bổ sung lưu log audit (`admin_create_user`, `admin_bulk_create_users`) và tối ưu cache `role_id` tăng hiệu năng truy vấn.
 - **Cải tiến giao diện UserModal:** Nâng cấp modal để hỗ trợ chế độ tạo "1 người dùng" và "nhiều người dùng" thông qua data grid, có validate trực tiếp trên form và tự động làm mới danh sách user sau khi thực hiện.
 - **Tối ưu tra cứu bảng điểm rèn luyện:** Áp dụng cơ chế đánh chỉ mục bảng băm (O(1) lookup) cho danh sách bảng điểm để cải thiện hiệu năng khi ánh xạ (mapping) dữ liệu giữa danh sách sinh viên và bảng điểm.

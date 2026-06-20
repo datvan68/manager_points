@@ -91,6 +91,21 @@ function ClassStudentsPageContent() {
     const [isLoading, setIsLoading] = useState(true);
     const [isDataLoading, setIsDataLoading] = useState(false);
 
+    const [hasMoreStudents, setHasMoreStudents] = useState(true);
+    const [isLoadingMoreStudents, setIsLoadingMoreStudents] = useState(false);
+    const [loadMoreError, setLoadMoreError] = useState('');
+    const studentsObserverTargetRef = React.useRef<HTMLDivElement | null>(null);
+    const mobileScrollRootRef = React.useRef<HTMLDivElement | null>(null);
+    const loadingMoreRef = React.useRef(false);
+
+    const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+    useEffect(() => {
+        const checkIsMobile = () => setIsMobileOrTablet(window.innerWidth < 1024);
+        checkIsMobile();
+        window.addEventListener('resize', checkIsMobile);
+        return () => window.removeEventListener('resize', checkIsMobile);
+    }, []);
+
     // States cho Drawer sinh viên lấy từ API
     const [drawerStudent, setDrawerStudent] = useState<Student | null>(null);
     const [isDrawerLoading, setIsDrawerLoading] = useState(false);
@@ -123,8 +138,12 @@ function ClassStudentsPageContent() {
     };
 
     // Tải danh sách sinh viên thực tế theo lớp học
-    const fetchStudents = async () => {
-        setIsDataLoading(true);
+    const loadStudentsData = async (pageToFetch = 1, append = false) => {
+        if (!append) {
+             setIsDataLoading(true);
+        } else {
+             setIsLoadingMoreStudents(true);
+        }
         try {
             const semesters = await semesterApi.getSemesters();
             const activeSemester = semesters.find(s => s.status === 'active');
@@ -132,7 +151,7 @@ function ClassStudentsPageContent() {
 
             const apiParams = {
                 classId,
-                page: currentPage,
+                page: pageToFetch,
                 limit: itemsPerPage,
                 search: debouncedSearchTerm.trim() || undefined,
                 status: mapTabToStatus(activeTab)
@@ -163,23 +182,55 @@ function ClassStudentsPageContent() {
                 summariesData = summariesRes?.data || [];
             }
 
-            const map = new Map<string, any>();
-            summariesData.forEach((item: any) => {
-                const studentId = typeof item.student_id === 'object' ? item.student_id?._id : item.student_id;
-                if (studentId) {
-                    map.set(studentId, item);
-                }
+            setSummaryMap(prevMap => {
+                const newMap = new Map<string, any>(append ? prevMap : undefined);
+                summariesData.forEach((item: any) => {
+                    const studentId = typeof item.student_id === 'object' ? item.student_id?._id : item.student_id;
+                    if (studentId) {
+                        newMap.set(studentId, item);
+                    }
+                });
+                return newMap;
             });
 
-            setStudentsList(studentsData);
+            if (append) {
+                setStudentsList(prev => {
+                    const existingIds = new Set(prev.map(s => s._id));
+                    const newStudents = studentsData.filter(s => !existingIds.has(s._id));
+                    return [...prev, ...newStudents];
+                });
+            } else {
+                setStudentsList(studentsData);
+            }
+            
             setTotalStudents(total);
-            setSummaryMap(map);
+            
+            if (studentsRes && 'meta' in studentsRes && studentsRes.meta?.totalPages !== undefined) {
+                 setHasMoreStudents(pageToFetch < studentsRes.meta.totalPages);
+            } else {
+                 setHasMoreStudents(studentsData.length >= itemsPerPage);
+            }
+            setLoadMoreError('');
         } catch (err: any) {
             console.error('Lỗi khi tải danh sách sinh viên và điểm rèn luyện:', err);
-            toast.error('Không thể tải danh sách sinh viên hoặc điểm rèn luyện từ server');
+            if (append) {
+                setLoadMoreError('Lỗi khi tải thêm dữ liệu');
+            } else {
+                toast.error('Không thể tải danh sách sinh viên hoặc điểm rèn luyện từ server');
+            }
         } finally {
             setIsDataLoading(false);
+            setIsLoadingMoreStudents(false);
             setIsLoading(false);
+            loadingMoreRef.current = false;
+        }
+    };
+
+    const fetchStudents = () => {
+        if (currentPage === 1) {
+            loadStudentsData(1, false);
+        } else {
+            setCurrentPage(1);
         }
     };
 
@@ -193,8 +244,34 @@ function ClassStudentsPageContent() {
 
     // Lắng nghe thay đổi của các filter/phân trang để fetch lại
     useEffect(() => {
-        fetchStudents();
+        const isAppend = isMobileOrTablet && currentPage > 1 && loadingMoreRef.current;
+        loadStudentsData(currentPage, isAppend);
     }, [classId, currentPage, itemsPerPage, activeTab, debouncedSearchTerm]);
+
+    // Infinite scroll observer
+    useEffect(() => {
+        if (!isMobileOrTablet || !hasMoreStudents) return;
+        if (isLoading || isDataLoading || isLoadingMoreStudents) return;
+
+        const root = mobileScrollRootRef.current;
+        const target = studentsObserverTargetRef.current;
+        if (!root || !target) return;
+
+        const observer = new IntersectionObserver(([entry]) => {
+            if (!entry?.isIntersecting) return;
+            if (loadingMoreRef.current) return;
+
+            loadingMoreRef.current = true;
+            setCurrentPage(prev => prev + 1);
+        }, {
+            root,
+            rootMargin: '400px 0px',
+            threshold: 0,
+        });
+
+        observer.observe(target);
+        return () => observer.disconnect();
+    }, [isMobileOrTablet, hasMoreStudents, isLoading, isDataLoading, isLoadingMoreStudents]);
 
     // Tự động tải thông tin chi tiết sinh viên từ API khi mở Drawer
     useEffect(() => {
@@ -225,7 +302,14 @@ function ClassStudentsPageContent() {
     // Reset về trang 1 khi tìm kiếm, lọc hoặc đổi số lượng phần tử mỗi trang
     useEffect(() => {
         setCurrentPage(1);
-    }, [debouncedSearchTerm, activeTab, itemsPerPage]);
+        if (isMobileOrTablet) {
+            setStudentsList([]);
+        }
+        setHasMoreStudents(true);
+        setLoadMoreError('');
+        loadingMoreRef.current = false;
+        setSelectedStudentIds([]);
+    }, [debouncedSearchTerm, activeTab, itemsPerPage, classId]);
 
     // Định dạng ngày sinh YYYY-MM-DD sang DD/MM/YYYY
     const formatDob = (dobString?: string) => {
@@ -669,7 +753,24 @@ function ClassStudentsPageContent() {
                             <ResponsiveDataView
                                 data={paginatedStudents}
                                 columns={studentsColumns}
-                                isLoading={isLoading || isDataLoading}
+                                isLoading={isLoading || (isDataLoading && !isLoadingMoreStudents)}
+                                mobileScrollRef={mobileScrollRootRef}
+                                mobileFooter={isMobileOrTablet && paginatedStudents.length > 0 ? (
+                                    <div ref={studentsObserverTargetRef} className="py-4 text-center text-xs text-slate-500">
+                                        {loadMoreError ? (
+                                            <div className="flex flex-col items-center gap-2">
+                                                <span className="text-red-500">{loadMoreError}</span>
+                                                <button onClick={() => { setLoadMoreError(''); loadStudentsData(currentPage, true); }} className="px-3 py-1 bg-white border border-slate-200 rounded-lg">Thử lại</button>
+                                            </div>
+                                        ) : isLoadingMoreStudents ? (
+                                            <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Đang tải thêm sinh viên...</span>
+                                        ) : hasMoreStudents ? (
+                                            'Kéo xuống để tải thêm'
+                                        ) : (
+                                            'Đã tải hết sinh viên'
+                                        )}
+                                    </div>
+                                ) : null}
                                 emptyState={
                                     <div className="text-center py-12 text-gray-400 text-sm font-semibold">
                                         Không tìm thấy sinh viên nào trong lớp này.
@@ -696,7 +797,7 @@ function ClassStudentsPageContent() {
                                 }}
                                 onRowClick={(student) => setOpenDrawerId(student._id)}
                                 hidePaginationOnMobile={true}
-                                pagination={
+                                pagination={!isMobileOrTablet ? (
                                     <CustomPagination
                                         currentPage={currentPage}
                                         pageSize={itemsPerPage}
@@ -707,7 +808,7 @@ function ClassStudentsPageContent() {
                                         isLoading={isDataLoading}
                                         className="shadow-none border-none rounded-none bg-transparent"
                                     />
-                                }
+                                ) : null}
                             />
                         </div>
                     </motion.div>
