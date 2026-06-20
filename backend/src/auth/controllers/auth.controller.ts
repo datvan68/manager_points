@@ -13,7 +13,7 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { Response, Request } from 'express';
+import type { CookieOptions, Response, Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -47,6 +47,27 @@ import {
 
 import { isAdminUser } from '../utils/role.util';
 
+const REFRESH_COOKIE_NAME = 'refresh_token';
+const REFRESH_COOKIE_PATH = '/api/auth';
+
+function getRefreshCookieOptions(maxAge?: number): CookieOptions {
+  const secureEnv = process.env.AUTH_COOKIE_SECURE;
+  const secure =
+    secureEnv === 'true'
+      ? true
+      : secureEnv === 'false'
+        ? false
+        : process.env.NODE_ENV === 'production';
+
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: secure ? 'none' : 'lax',
+    path: REFRESH_COOKIE_PATH,
+    ...(typeof maxAge === 'number' ? { maxAge } : {}),
+  };
+}
+
 @ApiTags('Authentication & RBAC')
 @Controller('auth')
 export class AuthController {
@@ -79,13 +100,11 @@ export class AuthController {
         ? 30 * 24 * 60 * 60 * 1000 // 30 days for user with remember
         : 24 * 60 * 60 * 1000; // 24 hours for user without remember
 
-    res.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/api/auth',
-      maxAge: cookieMaxAge,
-    });
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      result.refresh_token,
+      getRefreshCookieOptions(cookieMaxAge),
+    );
 
     // Don't send RT back in body for security
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -127,7 +146,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const token = req.cookies?.['refresh_token'];
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
     const origin = req.headers.origin || req.headers.referer || 'unknown';
     
     console.log(`[Auth/Refresh] Request from origin: ${origin}, route: ${req.path}`);
@@ -143,13 +162,11 @@ export class AuthController {
     const maxAge = Math.max(0, new Date(result.expires_at).getTime() - Date.now());
 
     // Rotate Cookie
-    res.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/api/auth',
-      maxAge,
-    });
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      result.refresh_token,
+      getRefreshCookieOptions(maxAge),
+    );
 
     return { access_token: result.access_token };
   }
@@ -158,17 +175,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout and clear session' })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const token = req.cookies?.['refresh_token'];
+    const token = req.cookies?.[REFRESH_COOKIE_NAME];
     const rawIp = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
     const ip = Array.isArray(rawIp) ? rawIp[0] : rawIp;
     if (token) {
       await this.authService.revokeToken(token, ip);
     }
-    res.clearCookie('refresh_token', {
-      path: '/api/auth',
-      secure: true,
-      sameSite: 'none',
-    });
+    res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
     return { message: 'Logged out successfully' };
   }
 
@@ -488,3 +501,4 @@ export class AuthController {
     return this.authService.deleteRoutePermission(id);
   }
 }
+
