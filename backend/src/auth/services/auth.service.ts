@@ -480,6 +480,11 @@ export class AuthService implements OnModuleInit {
         permissions: role.permissions || [],
       } : null,
       permissions,
+      advisor_classes: (await this.classModel.find({ advisor_id: user._id }).exec()).map(c => ({
+        _id: c._id,
+        class_name: c.class_name,
+        class_year: c.class_year
+      })),
     };
   }
 
@@ -628,6 +633,33 @@ export class AuthService implements OnModuleInit {
 
     await user.save();
 
+    if (dto.advisor_class_ids !== undefined) {
+      const roleObj = user.role ? await this.roleModel.findById(user.role) : null;
+      const isTeacher = roleObj && (roleObj.role_code === 'TEACHER' || !!roleObj.name.match(/Teacher|Giảng viên|GVCN/i));
+      
+      if (dto.advisor_class_ids.length > 0 && !isTeacher) {
+        throw new BadRequestException('Chỉ người dùng có vai trò Giảng viên/GVCN mới được gán làm GVCN');
+      }
+
+      if (isTeacher && dto.advisor_class_ids.length > 0) {
+        for (const classId of dto.advisor_class_ids) {
+          const classObj = await this.classModel.findById(classId);
+          if (!classObj) throw new BadRequestException('Lớp không tồn tại');
+          if (classObj.advisor_id && classObj.advisor_id.toString() !== user._id.toString()) {
+            throw new BadRequestException(`Lớp đã có GVCN khác`);
+          }
+        }
+      }
+
+      await this.classModel.updateMany({ advisor_id: user._id }, { $unset: { advisor_id: "" } });
+
+      if (isTeacher && dto.advisor_class_ids.length > 0) {
+        for (const classId of dto.advisor_class_ids) {
+          await this.classModel.updateOne({ _id: classId }, { advisor_id: user._id });
+        }
+      }
+    }
+
     if (shouldRevokeTokens) {
       await this.tokenService.revokeAllUserTokens(user._id.toString());
     }
@@ -674,6 +706,28 @@ export class AuthService implements OnModuleInit {
       status: dto.status || UserStatus.ACTIVE,
       role: role._id,
     });
+
+    if (dto.advisor_class_ids && dto.advisor_class_ids.length > 0) {
+      const isTeacher = role.role_code === 'TEACHER' || !!role.name.match(/Teacher|Giảng viên|GVCN/i);
+      if (!isTeacher) {
+         await this.userModel.deleteOne({ _id: newUser._id });
+         throw new BadRequestException('Chỉ người dùng có vai trò Giảng viên/GVCN mới được gán làm GVCN');
+      }
+      for (const classId of dto.advisor_class_ids) {
+        const classObj = await this.classModel.findById(classId);
+        if (!classObj) {
+           await this.userModel.deleteOne({ _id: newUser._id });
+           throw new BadRequestException('Lớp không tồn tại');
+        }
+        if (classObj.advisor_id) {
+           await this.userModel.deleteOne({ _id: newUser._id });
+           throw new BadRequestException('Lớp đã có GVCN');
+        }
+      }
+      for (const classId of dto.advisor_class_ids) {
+        await this.classModel.updateOne({ _id: classId }, { advisor_id: newUser._id });
+      }
+    }
 
     if (ip) {
       await this.logAction(
@@ -752,19 +806,25 @@ export class AuthService implements OnModuleInit {
           role: roleId,
         });
 
-        if (u.advisor_class_id) {
+        const classIds = u.advisor_class_ids && u.advisor_class_ids.length > 0 ? u.advisor_class_ids : (u.advisor_class_id ? [u.advisor_class_id] : []);
+        if (classIds.length > 0) {
           const roleObj = await this.roleModel.findById(roleId);
-          if (roleObj && roleObj.role_code === 'TEACHER') {
-            const classObj = await this.classModel.findById(u.advisor_class_id);
-            if (!classObj) {
-              await this.userModel.deleteOne({ _id: newUser._id });
-              throw new BadRequestException('Lớp không tồn tại');
+          const isTeacher = roleObj && (roleObj.role_code === 'TEACHER' || !!roleObj.name.match(/Teacher|Giảng viên|GVCN/i));
+          if (isTeacher) {
+            for (const classId of classIds) {
+              const classObj = await this.classModel.findById(classId);
+              if (!classObj) {
+                await this.userModel.deleteOne({ _id: newUser._id });
+                throw new BadRequestException('Lớp không tồn tại');
+              }
+              if (classObj.advisor_id) {
+                await this.userModel.deleteOne({ _id: newUser._id });
+                throw new BadRequestException('Lớp đã có GVCN');
+              }
             }
-            if (classObj.advisor_id) {
-              await this.userModel.deleteOne({ _id: newUser._id });
-              throw new BadRequestException('Lớp đã có GVCN');
+            for (const classId of classIds) {
+              await this.classModel.updateOne({ _id: classId }, { advisor_id: newUser._id });
             }
-            await this.classModel.updateOne({ _id: classObj._id }, { advisor_id: newUser._id });
           } else {
              await this.userModel.deleteOne({ _id: newUser._id });
              throw new BadRequestException('Chỉ người dùng có vai trò Giảng viên mới được gán làm GVCN');

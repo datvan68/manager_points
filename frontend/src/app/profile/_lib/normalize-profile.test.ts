@@ -43,6 +43,7 @@ describe("normalizeProfile", () => {
           { name: "Write Users", code: "write:users" },
         ],
       },
+      advisor_classes: [],
     });
   });
 
@@ -123,6 +124,7 @@ describe("normalizeProfile", () => {
         code: "USER",
         permissions: [],
       },
+      advisor_classes: [],
     };
 
     expect(normalizeProfile(null)).toEqual(defaultProfile);

@@ -39,6 +39,48 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import ConfirmModal from "@/components/modals/ConfirmModal";
+import { classApi } from "../../../api/class-api";
+import { ChevronDown } from "lucide-react";
+
+const MultiClassSelect = ({ selectedIds, onChange, classes, disabled, placeholder = "Không gán", className }: { selectedIds: string[], onChange: (ids: string[]) => void, classes: any[], disabled?: boolean, placeholder?: string, className?: string }) => {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" disabled={disabled} className={`relative flex items-center justify-between transition-all text-left ${className || 'h-10 w-full rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm px-3 py-2 text-xs'} ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/60 focus:ring-2 focus:ring-[#1A73E8]/30'}`}>
+          <span className="truncate text-slate-700 font-medium">
+            {selectedIds.length > 0
+              ? `${selectedIds.length} lớp đã chọn`
+              : placeholder}
+          </span>
+          <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-1 text-slate-500" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[220px] p-1.5 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 z-[9999]" align="start">
+        <div className="max-h-[180px] overflow-y-auto space-y-0.5 scrollbar-hover">
+          {classes?.length === 0 ? (
+            <div className="py-2 text-center text-[11px] text-slate-400">Không có lớp nào</div>
+          ) : (
+            classes?.map(cls => (
+              <label key={cls._id || cls.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={selectedIds.includes(cls._id || cls.id)} 
+                  onChange={(e) => {
+                    const id = cls._id || cls.id;
+                    if (e.target.checked) onChange([...selectedIds, id]);
+                    else onChange(selectedIds.filter(i => i !== id));
+                  }}
+                  className="w-3.5 h-3.5 text-[#1A73E8] rounded border-slate-300"
+                />
+                <span className="text-xs text-slate-700 font-medium">{cls.class_name || cls.name}</span>
+              </label>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const getUserDisplayName = (user: any) =>
   user?.student_profile?.full_name || user?.display_name || user?.user_name || user?.username || 'Unknown user';
@@ -60,6 +102,7 @@ export default function UserDetailPage() {
   // States phục vụ quản lý vai trò và quyền hạn động (Role & Permissions Management)
   const [rolesList, setRolesList] = useState<any[]>([]);
   const [allPermissionsList, setAllPermissionsList] = useState<any[]>([]);
+  const [classesList, setClassesList] = useState<any[]>([]);
   const [selectedNewRole, setSelectedNewRole] = useState<string>("");
   const [isRoleConfirmOpen, setIsRoleConfirmOpen] = useState(false);
   const [isAssigningRole, setIsAssigningRole] = useState(false);
@@ -67,10 +110,11 @@ export default function UserDetailPage() {
   const [editValues, setEditValues] = useState({
     username: "",
     email: "",
-    phone: "0912 345 678",
-    staffId: "GV-2023-089",
-    dob: "15/08/1985",
-    department: "Khoa Công nghệ thông tin",
+    phone: "",
+    staffId: "",
+    dob: "",
+    department: "",
+    advisorClassIds: [] as string[],
   });
 
   const parseDate = (dateStr: string): Date | null => {
@@ -104,26 +148,39 @@ export default function UserDetailPage() {
 
     try {
       // Tải song song thông tin người dùng, toàn bộ danh sách vai trò khả dụng và toàn bộ quyền hạn của hệ thống
-      const [users, rolesData, permissionsData] = await Promise.all([
+      const [users, rolesData, permissionsData, classesData] = await Promise.all([
         authApi.getUsers(token),
         authApi.getRoles(token).catch(() => []),
-        authApi.getPermissions(token).catch(() => [])
+        authApi.getPermissions(token).catch(() => []),
+        classApi.getClasses().catch(() => [])
       ]);
 
       setRolesList(rolesData);
       setAllPermissionsList(permissionsData);
+      setClassesList(classesData);
 
       const foundUser = users.find((u) => u._id === id || u.id === id);
 
       if (foundUser) {
         setUser(foundUser);
+        
+        const userId = foundUser._id || foundUser.id;
+        const userClassIds = classesData
+          .filter((c: any) => {
+            if (!c.advisor_id) return false;
+            const advId = typeof c.advisor_id === 'object' ? (c.advisor_id._id || c.advisor_id.id) : c.advisor_id;
+            return advId === userId;
+          })
+          .map((c: any) => c._id || c.id);
+
         setEditValues({
           username: foundUser.student_profile?.full_name || foundUser.user_name || foundUser.username || "",
           email: foundUser.email || "",
-          phone: foundUser.phone_number || foundUser.phone || "0912 345 678",
-          staffId: foundUser.staffId || "GV-2023-089",
-          dob: foundUser.date_birth ? formatDateStr(new Date(foundUser.date_birth)) : (foundUser.dob || "15/08/1985"),
-          department: foundUser.department || "Khoa Công nghệ thông tin",
+          phone: foundUser.phone_number || foundUser.phone || "",
+          staffId: foundUser.staffId || "",
+          dob: foundUser.date_birth ? formatDateStr(new Date(foundUser.date_birth)) : (foundUser.dob || ""),
+          department: foundUser.department || "",
+          advisorClassIds: userClassIds,
         });
       } else {
         toast.error("Không tìm thấy người dùng");
@@ -403,13 +460,23 @@ export default function UserDetailPage() {
                           onClick={() => {
                             setIsEditing(false);
                             // Restore original values
+                            const userId = user?._id || user?.id;
+                            const userClassIds = classesList
+                              .filter((c: any) => {
+                                if (!c.advisor_id) return false;
+                                const advId = typeof c.advisor_id === 'object' ? (c.advisor_id._id || c.advisor_id.id) : c.advisor_id;
+                                return advId === userId;
+                              })
+                              .map((c: any) => c._id || c.id);
+
                             setEditValues({
                               username: user?.student_profile?.full_name || user?.user_name || user?.username || "",
                               email: user?.email || "",
-                              phone: user?.phone_number || user?.phone || "0912 345 678",
-                              staffId: user?.staffId || "GV-2023-089",
-                              dob: user?.date_birth ? formatDateStr(new Date(user.date_birth)) : (user?.dob || "15/08/1985"),
-                              department: user?.department || "Khoa Công nghệ thông tin",
+                              phone: user?.phone_number || user?.phone || "",
+                              staffId: user?.staffId || "",
+                              dob: user?.date_birth ? formatDateStr(new Date(user.date_birth)) : (user?.dob || ""),
+                              department: user?.department || "",
+                              advisorClassIds: userClassIds,
                             });
                           }}
                           disabled={isSaving}
@@ -427,15 +494,23 @@ export default function UserDetailPage() {
 
                             try {
                               setIsSaving(true);
+                              const isTeacher = user?.role?.name?.match(/Teacher|Giảng viên|GVCN/i);
+                              const updatePayload: any = {
+                                user_name: user?.student_profile ? user.user_name : editValues.username,
+                                email: editValues.email,
+                                phone_number: editValues.phone,
+                                date_birth: parseDate(editValues.dob) || undefined,
+                              };
+
+                              if (isTeacher) {
+                                updatePayload.advisor_class_ids = editValues.advisorClassIds;
+                              } else {
+                                updatePayload.department = editValues.department;
+                              }
+
                               const response = await authApi.updateUser(
                                 id,
-                                {
-                                  user_name: user?.student_profile ? user.user_name : editValues.username,
-                                  email: editValues.email,
-                                  phone_number: editValues.phone,
-                                  department: editValues.department,
-                                  date_birth: parseDate(editValues.dob) || undefined,
-                                },
+                                updatePayload,
                                 token
                               );
 
@@ -555,45 +630,73 @@ export default function UserDetailPage() {
                         className="h-9 text-xs py-1.5 placeholder:text-slate-400/70 shadow-sm"
                       />
                     )}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-[#64748B] tracking-wider px-1">
-                        Khoa / Phòng ban
-                      </label>
-                      {isEditing ? (
-                        <Select
-                          value={editValues.department}
-                          onValueChange={(val: string) =>
-                            setEditValues({ ...editValues, department: val })
-                          }
-                          disabled={isSaving}
-                        >
-                          <SelectTrigger className="h-9 bg-white/50 border border-white/80 rounded-xl text-xs text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all duration-150 ease-out">
-                            <SelectValue placeholder="Chọn khoa / phòng ban" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white/95 backdrop-blur-md border border-white/70 rounded-xl shadow-md">
-                            <SelectItem value="Khoa Công nghệ thông tin" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
-                              Khoa Công nghệ thông tin
-                            </SelectItem>
-                            <SelectItem value="Khoa Điện - Điện tử" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
-                              Khoa Điện - Điện tử
-                            </SelectItem>
-                            <SelectItem value="Khoa Kinh tế quốc tế" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
-                              Khoa Kinh tế quốc tế
-                            </SelectItem>
-                            <SelectItem value="Khoa Cơ khí chế tạo" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
-                              Khoa Cơ khí chế tạo
-                            </SelectItem>
-                            <SelectItem value="Khoa Ngoại ngữ" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
-                              Khoa Ngoại ngữ
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <div className="flex items-center justify-between h-9 px-3 bg-white/30 border border-white/60 rounded-xl text-xs text-[#1E293B] shadow-sm">
-                          <span>{editValues.department}</span>
-                        </div>
-                      )}
-                    </div>
+                    {user?.role?.name?.match(new RegExp('Teacher|Giảng viên|GVCN', 'i')) ? (
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-[#64748B] tracking-wider px-1">
+                          GVCN lớp
+                        </label>
+                        {isEditing ? (
+                          <MultiClassSelect
+                            selectedIds={editValues.advisorClassIds}
+                            onChange={(ids) => setEditValues({ ...editValues, advisorClassIds: ids })}
+                            classes={classesList}
+                            disabled={isSaving}
+                            className="w-full min-h-9 px-3 py-1.5 bg-white/50 border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B]"
+                          />
+                        ) : (
+                          <div className="flex items-center h-auto min-h-9 px-3 py-2 bg-white/30 border border-white/60 rounded-xl text-xs text-[#1E293B] shadow-sm flex-wrap gap-1.5">
+                            {editValues.advisorClassIds && editValues.advisorClassIds.length > 0 ? (
+                              editValues.advisorClassIds.map(clsId => {
+                                const cls = classesList.find(c => (c._id || c.id) === clsId);
+                                return <span key={clsId} className="bg-white/60 px-2 py-0.5 rounded-md border border-white/80 font-medium">{cls?.class_name || cls?.name || clsId}</span>;
+                              })
+                            ) : (
+                              <span className="text-slate-400 italic">Chưa gán lớp</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-[#64748B] tracking-wider px-1">
+                          Khoa / Phòng ban
+                        </label>
+                        {isEditing ? (
+                          <Select
+                            value={editValues.department}
+                            onValueChange={(val: string) =>
+                              setEditValues({ ...editValues, department: val })
+                            }
+                            disabled={isSaving}
+                          >
+                            <SelectTrigger className="h-9 bg-white/50 border border-white/80 rounded-xl text-xs text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all duration-150 ease-out">
+                              <SelectValue placeholder="Chọn khoa / phòng ban" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white/95 backdrop-blur-md border border-white/70 rounded-xl shadow-md">
+                              <SelectItem value="Khoa Công nghệ thông tin" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
+                                Khoa Công nghệ thông tin
+                              </SelectItem>
+                              <SelectItem value="Khoa Điện - Điện tử" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
+                                Khoa Điện - Điện tử
+                              </SelectItem>
+                              <SelectItem value="Khoa Kinh tế quốc tế" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
+                                Khoa Kinh tế quốc tế
+                              </SelectItem>
+                              <SelectItem value="Khoa Cơ khí chế tạo" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
+                                Khoa Cơ khí chế tạo
+                              </SelectItem>
+                              <SelectItem value="Khoa Ngoại ngữ" className="font-medium text-xs text-slate-700 focus:bg-slate-50 rounded-lg">
+                                Khoa Ngoại ngữ
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="flex items-center justify-between h-9 px-3 bg-white/30 border border-white/60 rounded-xl text-xs text-[#1E293B] shadow-sm">
+                            <span>{editValues.department}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>

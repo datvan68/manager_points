@@ -11,7 +11,7 @@ describe('authApi', () => {
 
   describe('login', () => {
     it('should correctly call fetch with exact url without duplicated /api/api/', async () => {
-      const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({ access_token: '123' }) };
+      const mockResponse = { ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ access_token: '123' })) };
       mockFetch.mockResolvedValue(mockResponse);
 
       const res = await authApi.login('test@example.com', 'password');
@@ -28,7 +28,7 @@ describe('authApi', () => {
 
   describe('getUsers', () => {
     it('should correctly call fetch without duplicated /api/api/', async () => {
-      const mockResponse = { ok: true, json: vi.fn().mockResolvedValue([]) };
+      const mockResponse = { ok: true, text: vi.fn().mockResolvedValue(JSON.stringify([])) };
       mockFetch.mockResolvedValue(mockResponse);
 
       await authApi.getUsers('token');

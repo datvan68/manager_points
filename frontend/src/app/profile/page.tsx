@@ -115,7 +115,7 @@ export default function ProfilePage() {
         username: data.user_name,
         phone: data.phone_number,
         dob: data.date_birth ? formatProfileDate(data.date_birth) : "",
-        department: data.department || "Khoa Công nghệ thông tin",
+        department: data.department || "",
       });
 
       const isStudent = isStudentRole(data);
@@ -157,7 +157,6 @@ export default function ProfilePage() {
       const updateData: any = {
         user_name: editValues.username.trim(),
         phone_number: editValues.phone.trim(),
-        department: editValues.department,
         date_birth: parseDate(editValues.dob) || undefined,
       };
 
@@ -415,7 +414,7 @@ export default function ProfilePage() {
                               username: profile?.user_name || "",
                               phone: profile?.phone_number || "",
                               dob: profile?.date_birth ? formatProfileDate(profile.date_birth) : "",
-                              department: profile?.department || "Khoa Công nghệ thông tin",
+                              department: profile?.department || "",
                             });
                           }}
                           disabled={isSaving}
@@ -531,42 +530,23 @@ export default function ProfilePage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <label className="text-[13px] px-1 font-bold text-[#1E293B]">
-                          Khoa / Phòng ban
+                          GVCN lớp
                         </label>
-                        {isEditing ? (
-                          <Select
-                            value={editValues.department}
-                            onValueChange={(val: string) =>
-                              setEditValues({ ...editValues, department: val })
-                            }
-                            disabled={isSaving}
-                          >
-                            <SelectTrigger className="disabled:opacity-50">
-                              <SelectValue placeholder="Chọn khoa / phòng ban" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Khoa Công nghệ thông tin">
-                                Khoa Công nghệ thông tin
-                              </SelectItem>
-                              <SelectItem value="Khoa Điện - Điện tử">
-                                Khoa Điện - Điện tử
-                              </SelectItem>
-                              <SelectItem value="Khoa Kinh tế quốc tế">
-                                Khoa Kinh tế quốc tế
-                              </SelectItem>
-                              <SelectItem value="Khoa Cơ khí chế tạo">
-                                Khoa Cơ khí chế tạo
-                              </SelectItem>
-                              <SelectItem value="Khoa Ngoại ngữ">
-                                Khoa Ngoại ngữ
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <div className="flex items-center justify-between h-10 px-3 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-sm text-[#1E293B]">
-                            <span>{editValues.department || "Chưa cập nhật"}</span>
-                          </div>
-                        )}
+                        <div className="flex flex-col justify-center min-h-10 px-3 py-2 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-sm text-[#1E293B]">
+                          {!profile?.roleName.match(/Teacher|Giảng viên|GVCN/i) ? (
+                            <span className="text-slate-400 italic text-xs">Không áp dụng</span>
+                          ) : profile?.advisor_classes && profile.advisor_classes.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {profile.advisor_classes.map((c: any) => (
+                                <span key={c._id} className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                  {c.class_name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-500 italic text-xs">Không phụ trách lớp nào</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

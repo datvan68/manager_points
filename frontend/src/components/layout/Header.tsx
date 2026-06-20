@@ -30,8 +30,6 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isResolvingProfile, setIsResolvingProfile] = useState(false);
-    const [isHidden, setIsHidden] = useState(false);
-    const lastScrollY = useRef(0);
     
     const profileRef = useRef<HTMLDivElement>(null);
     const notificationRef = useRef<HTMLDivElement>(null);
@@ -194,51 +192,9 @@ const Header = ({ customMappings = {} }: HeaderProps) => {
         };
     }, []);
 
-    // Ẩn Header khi cuộn xuống trên mobile/tablet
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-
-        const handleScroll = (e: Event) => {
-            if (window.innerWidth >= 1024) {
-                if (isHidden) setIsHidden(false);
-                return;
-            }
-
-            const target = e.target as HTMLElement;
-            // Chỉ bắt scroll trên thẻ main hoặc các container cuộn chính
-            if (target.tagName !== 'MAIN' && !(typeof target.className === 'string' && target.className.includes('overflow-y-auto'))) return;
-            if (target.clientHeight < 300) return;
-
-            const currentScrollY = target.scrollTop;
-            if (Math.abs(currentScrollY - lastScrollY.current) < 10) return;
-
-            if (currentScrollY > 60 && currentScrollY > lastScrollY.current) {
-                setIsHidden(true);
-            } else if (currentScrollY < lastScrollY.current) {
-                setIsHidden(false);
-            }
-            lastScrollY.current = currentScrollY;
-        };
-
-        window.addEventListener('scroll', handleScroll, true);
-        
-        const handleResize = () => {
-            if (window.innerWidth >= 1024) {
-                setIsHidden(false);
-            }
-        };
-        window.addEventListener('resize', handleResize);
-
-        return () => {
-            window.removeEventListener('scroll', handleScroll, true);
-            window.removeEventListener('resize', handleResize);
-        };
-    }, [isHidden]);
-
-
   return (
     <>
-      <header className={`h-16 shrink-0 bg-white/45 backdrop-blur-md border-b border-white/70 flex items-center justify-between px-4 relative z-50 shadow-sm shadow-slate-200/20 transition-all duration-300 ${isHidden ? '-mt-16 lg:mt-0' : 'mt-0'}`}>
+      <header className="h-16 shrink-0 bg-white/45 backdrop-blur-md border-b border-white/70 flex items-center justify-between px-4 relative z-50 shadow-sm shadow-slate-200/20 mt-0">
         {/* Left: Logo + System Name (mobile/tablet) OR Breadcrumbs (desktop) */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Logo & System Name (Chỉ hiển thị trên mobile/tablet: lg:hidden) */}

@@ -371,6 +371,12 @@ export class UpdateUserDto {
   @IsOptional()
   @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
   password?: string;
+
+  @ApiProperty({ example: ['65f1...'], required: false })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  advisor_class_ids?: string[];
 }
 
 export class UpdateMeDto {
@@ -420,6 +426,12 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(['active', 'inactive', 'locked'])
   status?: string;
+
+  @ApiProperty({ example: ['65f1...'], required: false })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  advisor_class_ids?: string[];
 }
 
 export class BulkCreateUserItemDto {
@@ -453,6 +465,12 @@ export class BulkCreateUserItemDto {
   @IsOptional()
   @IsMongoId({ message: 'advisor_class_id không hợp lệ' })
   advisor_class_id?: string;
+
+  @ApiProperty({ example: ['65f1...'], required: false })
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true, message: 'advisor_class_ids không hợp lệ' })
+  advisor_class_ids?: string[];
 }
 
 export class BulkCreateUsersDto {

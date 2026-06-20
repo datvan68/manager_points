@@ -56,7 +56,8 @@ function PermissionsPageContent() {
   const [filterStatuses, setFilterStatuses] = useState<string[]>(['Tất cả']);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isStatusSelectOpen, setIsStatusSelectOpen] = useState(false);
-  const [isDataLoading, setIsDataLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [classes, setClasses] = useState<any[]>([]);
@@ -359,7 +360,7 @@ function PermissionsPageContent() {
         if (!token) return;
         
         try {
-          setIsDataLoading(true);
+          setIsRefreshing(true);
           const res = await authApi.deleteUsersBulk(selectedUserIds, token);
           toast.success(res.message || 'Đã xóa các tài khoản thành công!');
           setSelectedUserIds([]); // Reset selection
@@ -367,7 +368,7 @@ function PermissionsPageContent() {
         } catch (error: any) {
           toast.error(error.message || 'Xóa tài khoản hàng loạt thất bại');
         } finally {
-          setIsDataLoading(false);
+          setIsRefreshing(false);
           setIsDeleteModalOpen(false);
         }
       }
@@ -378,7 +379,7 @@ function PermissionsPageContent() {
   const router = useRouter();
   const { user: authUser, isLoading: isAuthLoading, logout } = useAuth();
 
-  const fetchData = async () => {
+  const fetchData = async (options?: { silent?: boolean }) => {
     // Wait for auth to be determined
     if (isAuthLoading) return;
 
@@ -388,7 +389,14 @@ function PermissionsPageContent() {
       return;
     }
 
-    setIsDataLoading(true);
+    if (!options?.silent) {
+      if (users.length === 0 && roles.length === 0) {
+        setIsInitialLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+    }
+    
     try {
       const [u, r, p, g, rp, pps, cls] = await Promise.all([
         authApi.getUsers(token),
@@ -478,15 +486,18 @@ function PermissionsPageContent() {
         toast.error('Lỗi khi tải dữ liệu: ' + (error.message || 'Hết phiên làm việc'));
       }
     } finally {
-      setIsDataLoading(false);
+      if (!options?.silent) {
+        setIsInitialLoading(false);
+        setIsRefreshing(false);
+      }
     }
   };
 
   React.useEffect(() => {
-    if (!isAuthLoading) {
+    if (!isAuthLoading && authUser?.id) {
       fetchData();
     }
-  }, [isAuthLoading, authUser]);
+  }, [isAuthLoading, authUser?.id]);
 
   // Auto-switch preview active tab based on selected user/role permissions
   React.useEffect(() => {
@@ -693,7 +704,7 @@ function PermissionsPageContent() {
     const token = tokenStorage.getAccessToken();
     if (!token) throw new Error('Hết phiên làm việc');
     return await authApi.createUsersBulk(bulkData, token).then((res) => {
-      fetchData();
+      fetchData({ silent: true });
       return res;
     });
   };
@@ -828,7 +839,8 @@ function PermissionsPageContent() {
   };
 
   const handleOpenEditModal = (user: any) => {
-    setEditingUser(user);
+    const advisorClasses = classes.filter(c => c.advisor_id === user._id || c.advisor_id?._id === user._id).map(c => c._id);
+    setEditingUser({ ...user, advisor_class_ids: advisorClasses });
     setIsModalOpen(true);
   };
 
@@ -1054,6 +1066,19 @@ function PermissionsPageContent() {
           onTabChange={(id) => setActiveTab(id)}
         />
         <main className="flex-1 p-5 overflow-hidden flex flex-col bg-transparent relative">
+          <AnimatePresence>
+            {isRefreshing && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-full shadow-md border border-white/90 text-xs font-bold text-[#1A73E8]"
+              >
+                <div className="w-3.5 h-3.5 border-2 border-[#1A73E8] border-t-transparent rounded-full animate-spin"></div>
+                Đang làm mới dữ liệu...
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Content Area */}
           <div className="flex-1 flex flex-col min-h-0 bg-white/45 backdrop-blur-md rounded-2xl shadow-sm shadow-slate-300/40 border border-white/70 overflow-hidden">
@@ -1207,7 +1232,7 @@ function PermissionsPageContent() {
                 <ResponsiveDataView
                   data={paginatedUsers}
                   columns={userColumns}
-                  isLoading={isDataLoading}
+                  isLoading={isInitialLoading}
                   keyExtractor={(u) => u._id || u.id}
                   selection={{
                     selectedKeys: selectedUserIds,
@@ -1223,7 +1248,7 @@ function PermissionsPageContent() {
                       onPageChange={setUserCurrentPage}
                       onPageSizeChange={setUserPageSize}
                       label="người"
-                      isLoading={isDataLoading}
+                      isLoading={isInitialLoading}
                     />
                   }
                 />
@@ -1255,7 +1280,7 @@ function PermissionsPageContent() {
                     </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-                    {isDataLoading ? (
+                    {isInitialLoading ? (
                       Array.from({ length: 4 }).map((_, i) => (
                         <Skeleton key={i} className="w-full h-24 rounded-xl" />
                       ))
@@ -1356,7 +1381,7 @@ function PermissionsPageContent() {
                       <ResponsiveDataView
                         data={permissionsByGroup[selectedGroup] || []}
                         columns={permissionColumns}
-                        isLoading={isRightPanelLoading || isDataLoading}
+                        isLoading={isRightPanelLoading || isInitialLoading}
                         keyExtractor={(perm) => `${selectedGroup}-${perm.code}`}
                         pagination={
                           <CustomPagination
@@ -1399,7 +1424,7 @@ function PermissionsPageContent() {
                     </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-                    {isDataLoading ? (
+                    {isInitialLoading ? (
                       Array.from({ length: 4 }).map((_, i) => (
                         <Skeleton key={i} className="w-full h-24 rounded-xl" />
                       ))
@@ -1498,7 +1523,7 @@ function PermissionsPageContent() {
                   {/* Matrix Content Area */}
                   <div className="flex-1 overflow-y-auto p-5 bg-transparent">
                     <div className="max-w-5xl mx-auto space-y-5">
-                      {isDataLoading ? (
+                      {isInitialLoading ? (
                         Array.from({ length: 3 }).map((_, i) => (
                           <Skeleton key={i} className="w-full h-40 rounded-2xl" />
                         ))
@@ -1653,7 +1678,7 @@ function PermissionsPageContent() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
-                        {isDataLoading ? (
+                        {isInitialLoading ? (
                           Array.from({ length: 5 }).map((_, idx) => (
                             <tr key={`sk-${idx}`}>
                               {Array.from({ length: 7 }).map((_, ci) => (

@@ -20,6 +20,7 @@ export interface NormalizedProfile {
   roleName: string;
   roleCode: string;
   role: Role;
+  advisor_classes?: any[];
 }
 
 export function normalizeProfile(rawData: any): NormalizedProfile {
@@ -39,6 +40,7 @@ export function normalizeProfile(rawData: any): NormalizedProfile {
         code: "USER",
         permissions: [],
       },
+      advisor_classes: [],
     };
   }
 
@@ -85,5 +87,6 @@ export function normalizeProfile(rawData: any): NormalizedProfile {
       code: roleCode,
       permissions,
     },
+    advisor_classes: Array.isArray(rawData.advisor_classes) ? rawData.advisor_classes : [],
   };
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -11,6 +11,8 @@ import {
   Users,
   Plus,
   Trash2,
+  ChevronDown,
+  Check
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -21,6 +23,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+const MultiClassSelect = ({ selectedIds, onChange, classes, disabled, placeholder = "Không gán", className }: { selectedIds: string[], onChange: (ids: string[]) => void, classes: any[], disabled?: boolean, placeholder?: string, className?: string }) => {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" disabled={disabled} className={`relative flex items-center justify-between transition-all text-left ${className || 'h-10 w-full rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm px-3 py-2 text-xs'} ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/60 focus:ring-2 focus:ring-[#1A73E8]/30'}`}>
+          <span className="truncate text-slate-700 font-medium">
+            {selectedIds.length > 0
+              ? `${selectedIds.length} lớp đã chọn`
+              : placeholder}
+          </span>
+          <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-1 text-slate-500" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[220px] p-1.5 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 z-[9999]" align="start">
+        <div className="max-h-[180px] overflow-y-auto space-y-0.5 scrollbar-hover">
+          {classes?.length === 0 ? (
+            <div className="py-2 text-center text-[11px] text-slate-400">Không có lớp nào</div>
+          ) : (
+            classes?.map(cls => (
+              <label key={cls._id || cls.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={selectedIds.includes(cls._id || cls.id)} 
+                  onChange={(e) => {
+                    const id = cls._id || cls.id;
+                    if (e.target.checked) onChange([...selectedIds, id]);
+                    else onChange(selectedIds.filter(i => i !== id));
+                  }}
+                  className="w-3.5 h-3.5 text-[#1A73E8] rounded border-slate-300"
+                />
+                <span className="text-xs text-slate-700 font-medium">{cls.class_name || cls.name}</span>
+              </label>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 interface UserModalProps {
   isOpen: boolean;
@@ -54,6 +97,7 @@ export default function UserModal({
     email: "",
     role: "",
     password: "",
+    advisorClassIds: [] as string[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -62,27 +106,45 @@ export default function UserModal({
   const [useCommonPassword, setUseCommonPassword] = useState(false);
   const [commonPassword, setCommonPassword] = useState("");
   const [bulkResult, setBulkResult] = useState<any>(null);
+  
+  const prevIsOpen = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpen.current) {
       setMode("single");
+      let userClassIds: string[] = [];
+      if (initialData) {
+        const userId = initialData._id || initialData.id;
+        if (userId && classes) {
+          userClassIds = classes
+            .filter((c: any) => {
+              if (!c.advisor_id) return false;
+              const advId = typeof c.advisor_id === 'object' ? (c.advisor_id._id || c.advisor_id.id) : c.advisor_id;
+              return advId === userId;
+            })
+            .map((c: any) => c._id || c.id);
+        }
+      }
+
       setFormData({
         username: initialData?.user_name || initialData?.username || "",
         email: initialData?.email || "",
         role: initialData?.role?._id || initialData?.role || "",
         password: "",
+        advisorClassIds: userClassIds,
       });
       setErrors({});
       setIsActive(initialData?.status === "inactive" ? false : true);
 
       // Reset bulk
       setBulkUsers([
-        { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassId: "" }
+        { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassIds: [] }
       ]);
       setUseCommonPassword(false);
       setCommonPassword("");
       setBulkResult(null);
     }
+    prevIsOpen.current = isOpen;
   }, [isOpen, initialData, roles]);
 
   useEffect(() => {
@@ -123,7 +185,7 @@ export default function UserModal({
     if (onSave) {
       setIsLoading(true);
       try {
-        await onSave({ ...formData, status: isActive ? "active" : "inactive" });
+        await onSave({ ...formData, advisor_class_ids: formData.advisorClassIds, status: isActive ? "active" : "inactive" });
         toast.success(
           isEditing
             ? "Cập nhật người dùng thành công!"
@@ -143,7 +205,7 @@ export default function UserModal({
   const addBulkRow = () => {
     setBulkUsers([
       ...bulkUsers,
-      { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassId: "" }
+      { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassIds: [] }
     ]);
   };
 
@@ -194,7 +256,7 @@ export default function UserModal({
             password: useCommonPassword ? undefined : u.password,
             role_id: u.role,
             status: u.status,
-            advisor_class_id: u.advisorClassId || undefined,
+            advisor_class_ids: u.advisorClassIds || [],
           }))
         };
         const res = await onBulkSave(payload);
@@ -219,7 +281,7 @@ export default function UserModal({
       return { ...u, error: err?.reason || "Lỗi" };
     });
     
-    setBulkUsers(mapped.length ? mapped : [{ id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassId: "" }]);
+    setBulkUsers(mapped.length ? mapped : [{ id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassIds: [] }]);
     setBulkResult(null);
   };
 
@@ -231,7 +293,7 @@ export default function UserModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.2 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={isLoading ? undefined : onClose}
             className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
           />
 
@@ -270,7 +332,7 @@ export default function UserModal({
                       </span>
                     </div>
                   )}
-                  <button onClick={onClose} className="p-1.5 text-[#64748B] hover:text-[#1E293B] hover:bg-white/60 rounded-xl border border-transparent hover:border-white/50 hover:scale-[1.05] transition-all">
+                  <button onClick={isLoading ? undefined : onClose} disabled={isLoading} className={`p-1.5 rounded-xl border border-transparent transition-all ${isLoading ? 'text-slate-300 cursor-not-allowed' : 'text-[#64748B] hover:text-[#1E293B] hover:bg-white/60 hover:border-white/50 hover:scale-[1.05]'}`}>
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -399,19 +461,34 @@ export default function UserModal({
                         {isLoading ? (
                           <div className="flex flex-col gap-1.5"><Skeleton className="h-4.5 w-14" /><Skeleton className="h-9 w-full rounded-xl" /></div>
                         ) : (
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-[12.5px] font-semibold text-[#64748B]">Vai trò <span className="text-red-500">*</span></label>
-                            <Select value={formData.role} onValueChange={(value: string) => setFormData({ ...formData, role: value })}>
-                              <SelectTrigger className={`w-full h-9 px-3 py-1.5 bg-white/50 border ${errors.role ? "border-rose-400" : "border-white/80"} rounded-xl text-xs font-semibold text-[#1E293B]`}>
-                                <SelectValue placeholder="Chọn vai trò..." />
-                              </SelectTrigger>
-                              <SelectContent className="bg-white/95 rounded-xl shadow-md z-[60]">
-                                {roles.map((role) => (
-                                  <SelectItem key={role._id} value={role._id} className="text-xs font-semibold text-[#1E293B]">{role.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {errors.role && <span className="text-[11px] text-rose-600 font-medium ml-1">{errors.role}</span>}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[12.5px] font-semibold text-[#64748B]">Vai trò <span className="text-red-500">*</span></label>
+                              <Select value={formData.role} onValueChange={(value: string) => {
+                                const isTeacher = roles.find(r => r._id === value)?.name?.match(/Teacher|Giảng viên|GVCN/i);
+                                setFormData({ ...formData, role: value, advisorClassIds: isTeacher ? formData.advisorClassIds : [] });
+                              }}>
+                                <SelectTrigger className={`w-full h-9 px-3 py-1.5 bg-white/50 border ${errors.role ? "border-rose-400" : "border-white/80"} rounded-xl text-xs font-semibold text-[#1E293B]`}>
+                                  <SelectValue placeholder="Chọn vai trò..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white/95 rounded-xl shadow-md z-[60]">
+                                  {roles.map((role) => (
+                                    <SelectItem key={role._id} value={role._id} className="text-xs font-semibold text-[#1E293B]">{role.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {errors.role && <span className="text-[11px] text-rose-600 font-medium ml-1">{errors.role}</span>}
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[12.5px] font-semibold text-[#64748B]">GVCN lớp</label>
+                              <MultiClassSelect 
+                                selectedIds={formData.advisorClassIds} 
+                                onChange={(ids) => setFormData({ ...formData, advisorClassIds: ids })} 
+                                classes={classes} 
+                                disabled={!roles.find(r => r._id === formData.role)?.name?.match(/Teacher|Giảng viên|GVCN/i)} 
+                                className="w-full h-9 px-3 py-1.5 bg-white/50 border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B]"
+                              />
+                            </div>
                           </div>
                         )}
                       </div>
@@ -436,8 +513,8 @@ export default function UserModal({
                             <th className="px-3 py-2">Username</th>
                             <th className="px-3 py-2">Email</th>
                             <th className="px-3 py-2">Vai trò</th>
+                            <th className="px-3 py-2 min-w-[120px]">GVCN lớp</th>
                             <th className="px-3 py-2">Trạng thái</th>
-                            <th className="px-3 py-2">GVCN lớp</th>
                             {!useCommonPassword && <th className="px-3 py-2">Mật khẩu</th>}
                             <th className="px-3 py-2 w-10"></th>
                           </tr>
@@ -454,12 +531,25 @@ export default function UserModal({
                                 {u.error && (u.error.includes("Email") || u.error.includes("email")) && <div className="text-[10px] text-rose-500 mt-0.5">{u.error}</div>}
                               </td>
                               <td className="px-2 py-2">
-                                <Select value={u.role} onValueChange={(val) => updateBulkRow(u.id, 'role', val)}>
+                                <Select value={u.role} onValueChange={(val) => {
+                                  const isTeacher = roles.find(r => r._id === val)?.name?.match(/Teacher|Giảng viên|GVCN/i);
+                                  updateBulkRow(u.id, 'role', val);
+                                  if (!isTeacher) updateBulkRow(u.id, 'advisorClassIds', []);
+                                }}>
                                   <SelectTrigger className="w-full h-7 px-2 py-1 text-[11px] border-slate-200 bg-white/80"><SelectValue /></SelectTrigger>
                                   <SelectContent>
                                     {roles.map(r => <SelectItem key={r._id} value={r._id} className="text-[11px]">{r.name}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
+                              </td>
+                              <td className="px-2 py-2">
+                                <MultiClassSelect
+                                  selectedIds={u.advisorClassIds || []}
+                                  onChange={(ids) => updateBulkRow(u.id, 'advisorClassIds', ids)}
+                                  classes={classes}
+                                  disabled={!roles.find(r => r._id === u.role)?.name?.match(/Teacher|Giảng viên|GVCN/i)}
+                                  className="h-7 w-full rounded border border-slate-200 bg-white/80 px-2 py-1 text-[11px]"
+                                />
                               </td>
                               <td className="px-2 py-2">
                                 <Select value={u.status} onValueChange={(val) => updateBulkRow(u.id, 'status', val)}>
@@ -468,15 +558,6 @@ export default function UserModal({
                                     <SelectItem value="active" className="text-[11px]">Active</SelectItem>
                                     <SelectItem value="inactive" className="text-[11px]">Inactive</SelectItem>
                                     <SelectItem value="locked" className="text-[11px]">Locked</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="px-2 py-2">
-                                <Select value={u.advisorClassId} onValueChange={(val) => updateBulkRow(u.id, 'advisorClassId', val === 'none' ? '' : val)}>
-                                  <SelectTrigger className="w-full h-7 px-2 py-1 text-[11px] border-slate-200 bg-white/80"><SelectValue placeholder="Không" /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none" className="text-[11px] italic text-slate-500">Không gán</SelectItem>
-                                    {classes?.map(c => <SelectItem key={c._id || c.id} value={c._id || c.id} className="text-[11px]">{c.class_name || c.name}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
                               </td>
@@ -507,7 +588,7 @@ export default function UserModal({
               <div className="flex items-center justify-end gap-2.5 px-6 py-4.5 border-t border-white/40 bg-white/10 shrink-0">
                 {!bulkResult ? (
                   <>
-                    <button onClick={onClose} className="px-5 py-2 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 hover:bg-white/70 rounded-xl transition-all">
+                    <button onClick={isLoading ? undefined : onClose} disabled={isLoading} className="px-5 py-2 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 hover:bg-white/70 rounded-xl transition-all disabled:opacity-50">
                       Hủy bỏ
                     </button>
                     <button onClick={mode === "single" ? handleSaveSingle : handleSaveBulk} disabled={isLoading} className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#1A73E8]/90 rounded-xl transition-all disabled:opacity-50">
