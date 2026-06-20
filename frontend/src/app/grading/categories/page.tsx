@@ -325,32 +325,6 @@ function CategoriesPage() {
 
         const targetCat = categories.find(cat => cat.id === targetCatId);
         if (targetCat) {
-          // Lấy danh sách tiêu chí hiện có trong danh mục đích
-          const targetCriteria = criteria.filter(c => c.categoryId === targetCatId);
-          
-          if (draggedItem.type !== 'ky_luat') {
-            const currentPlusTotal = targetCriteria
-              .filter(c => c.type !== 'ky_luat')
-              .reduce((sum, c) => sum + (c.maxPoints || 0), 0);
-            const newPlusTotal = currentPlusTotal + (draggedItem.maxPoints || 0);
-            
-            if (newPlusTotal > targetCat.maxPoints) {
-              toast.error(`Không thể chuyển! Tổng điểm tối đa tiêu chí cộng (${newPlusTotal}đ) vượt quá giới hạn danh mục "${targetCat.name}" (${targetCat.maxPoints}đ)`);
-              setDragOverCategoryId(null);
-              return;
-            }
-          } else {
-            const currentMinusTotal = targetCriteria
-              .filter(c => c.type === 'ky_luat')
-              .reduce((sum, c) => sum + (c.maxPoints || 0), 0);
-            const newMinusTotal = currentMinusTotal + (draggedItem.maxPoints || 0);
-            
-            if (newMinusTotal > targetCat.maxPoints) {
-              toast.error(`Không thể chuyển! Tổng điểm trừ tối đa tiêu chí trừ (${newMinusTotal}đ) vượt quá giới hạn danh mục "${targetCat.name}" (${targetCat.maxPoints}đ)`);
-              setDragOverCategoryId(null);
-              return;
-            }
-          }
 
           setCriteria(prev =>
             prev.map(item =>
@@ -463,28 +437,7 @@ function CategoriesPage() {
   // Thêm/Sửa danh mục
   const handleSaveCategory = (data: any) => {
     if (isEditing && selectedCategory) {
-      // Lấy danh sách tiêu chí hiện có trong danh mục này
-      const catCriteria = criteria.filter(c => c.categoryId === selectedCategory.id);
-      
-      const currentPlusTotal = catCriteria
-        .filter(c => c.type !== 'ky_luat')
-        .reduce((sum, c) => sum + (c.maxPoints || 0), 0);
-        
-      const currentMinusTotal = catCriteria
-        .filter(c => c.type === 'ky_luat')
-        .reduce((sum, c) => sum + (c.maxPoints || 0), 0);
-        
       const newMaxScore = Number(data.maxPoints);
-      
-      if (currentPlusTotal > newMaxScore) {
-        toast.error(`Không thể cập nhật! Điểm tối đa danh mục mới (${newMaxScore}đ) nhỏ hơn tổng điểm tối đa các tiêu chí cộng hiện tại (${currentPlusTotal}đ)`);
-        return;
-      }
-      
-      if (currentMinusTotal > newMaxScore) {
-        toast.error(`Không thể cập nhật! Điểm tối đa danh mục mới (${newMaxScore}đ) nhỏ hơn tổng điểm trừ tối đa các tiêu chí trừ hiện tại (${currentMinusTotal}đ)`);
-        return;
-      }
 
       categoryApi.updateCategory(selectedCategory._id, {
         category_code: data.id,
@@ -583,7 +536,10 @@ function CategoriesPage() {
     }
   };
 
-  // Helper render bảng thống kê
+  const getCategoryCriteriaTotalMaxPoints = (categoryId: string) =>
+    criteria
+      .filter((item) => item.categoryId === categoryId)
+      .reduce((sum, item) => sum + Number(item.maxPoints || 0), 0);
   const renderStatsRow = (isMobile: boolean) => (
     <div className={`grid ${isMobile ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-4'} gap-3 w-full`}>
       {/* Tổng số danh mục */}
@@ -745,6 +701,8 @@ function CategoriesPage() {
                 {viewMode === 'master-detail' && (() => {
                   const activeCat = categories.find(c => c.id === selectedCategoryId);
                   const activeCriteria = activeCat ? criteria.filter(c => c.categoryId === activeCat.id) : [];
+                  const activeCriteriaTotalMaxPoints = activeCat ? getCategoryCriteriaTotalMaxPoints(activeCat.id) : 0;
+                  const isActiveCriteriaTotalOverMax = activeCat ? activeCriteriaTotalMaxPoints > Number(activeCat.maxPoints || 0) : false;
                   const borderColors = ['#60a5fa', '#34d399', '#fbbf24', '#c084fc'];
                   const bgBadgeColors = ['bg-[#d8e2ff] text-[#005bbf]', 'bg-[#96f8a1]/30 text-[#006d2b]', 'bg-[rgba(249,171,0,0.1)] text-[#f9ab00]', 'bg-[#f3e5f5] text-[#7b2cbf]'];
 
@@ -799,6 +757,8 @@ function CategoriesPage() {
                               return cat.name.toLowerCase().includes(term) || cat.id.toLowerCase().includes(term);
                             }).map((cat, idx) => {
                               const catCriteriaCount = criteria.filter(c => c.categoryId === cat.id).length;
+                              const criteriaTotalMaxPoints = getCategoryCriteriaTotalMaxPoints(cat.id);
+                              const isCriteriaTotalOverMax = criteriaTotalMaxPoints > Number(cat.maxPoints || 0);
                               const isActive = selectedCategoryId === cat.id;
                               const borderColor = borderColors[idx % borderColors.length];
                               const badgeClass = bgBadgeColors[idx % bgBadgeColors.length];
@@ -846,14 +806,18 @@ function CategoriesPage() {
                                       <h4 className="font-bold text-slate-800 text-[13.5px] leading-[18px] mt-1.5 truncate" title={cat.name}>
                                         {cat.name.length > 100 ? cat.name.slice(0, 100) + '...' : cat.name}
                                       </h4>
-                                      <div className="flex gap-3 items-center text-[10.5px] text-slate-500 font-medium mt-2">
-                                        <div className="flex gap-1 items-center">
+                                      <div className="flex flex-wrap gap-x-3 gap-y-1 items-center text-[10.5px] text-slate-500 font-medium mt-2">
+                                        <div className={`flex gap-1 items-center ${isCriteriaTotalOverMax ? 'text-red-600' : ''}`}>
                                           <span>Điểm tối đa:</span>
-                                          <span className="font-bold text-blue-600 bg-blue-50/60 px-1.5 py-0.5 rounded text-[10px]">{cat.maxPoints}</span>
+                                          <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${isCriteriaTotalOverMax ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50/60'}`}>{cat.maxPoints}</span>
                                         </div>
                                         <div className="flex gap-1 items-center">
                                           <span>Tiêu chí:</span>
                                           <span className="font-bold text-blue-600 bg-blue-50/60 px-1.5 py-0.5 rounded text-[10px]">{String(catCriteriaCount).padStart(2, '0')}</span>
+                                        </div>
+                                        <div className="flex gap-1 items-center">
+                                          <span>Tổng điểm tiêu chí:</span>
+                                          <span className="font-bold text-blue-600 bg-blue-50/60 px-1.5 py-0.5 rounded text-[10px]">{criteriaTotalMaxPoints}</span>
                                         </div>
                                       </div>
                                     </div>
@@ -969,16 +933,20 @@ function CategoriesPage() {
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-4 text-[11px] text-slate-500 font-medium pl-[18px]">
-                                <div className="flex gap-1 items-center">
-                                  <span>Điểm tối đa:</span>
-                                  <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[11px]">{activeCat.maxPoints}</span>
-                                </div>
-                                <div className="flex gap-1 items-center">
-                                  <span>Tổng tiêu chí:</span>
-                                  <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[11px]">{String(activeCriteria.length).padStart(2, '0')}</span>
-                                </div>
-                              </div>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 items-center text-[11px] text-slate-500 font-medium pl-[18px] mt-2">
+                                        <div className={`flex gap-1 items-center ${isActiveCriteriaTotalOverMax ? 'text-red-600' : ''}`}>
+                                          <span>Điểm tối đa:</span>
+                                          <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${isActiveCriteriaTotalOverMax ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'}`}>{activeCat.maxPoints}</span>
+                                        </div>
+                                        <div className="flex gap-1 items-center">
+                                          <span>Tổng tiêu chí:</span>
+                                          <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[11px]">{String(activeCriteria.length).padStart(2, '0')}</span>
+                                        </div>
+                                        <div className="flex gap-1 items-center">
+                                          <span>Tổng điểm tiêu chí:</span>
+                                          <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[11px]">{activeCriteriaTotalMaxPoints}</span>
+                                        </div>
+                                      </div>
                             </div>
 
                             {/* Toolbar */}
@@ -1176,6 +1144,8 @@ function CategoriesPage() {
                           const catCriteria = criteria.filter(c => c.categoryId === cat.id);
                           const isOver = dragOverCategoryId === cat.id;
                           const isExpanded = !!expandedCategories[cat.id];
+                          const criteriaTotalMaxPoints = getCategoryCriteriaTotalMaxPoints(cat.id);
+                          const isCriteriaTotalOverMax = criteriaTotalMaxPoints > Number(cat.maxPoints || 0);
                           const borderColors = ['border-[#60a5fa]', 'border-[#34d399]', 'border-[#fbbf24]', 'border-[#c084fc]'];
                           const bgBadgeColors = ['bg-[#d8e2ff] text-[#005bbf]', 'bg-[#96f8a1]/30 text-[#006d2b]', 'bg-[rgba(249,171,0,0.1)] text-[#f9ab00]', 'bg-[#f3e5f5] text-[#7b2cbf]'];
                           const borderClass = borderColors[idx % borderColors.length];
@@ -1197,9 +1167,10 @@ function CategoriesPage() {
                                       <button onClick={(e) => { e.stopPropagation(); toggleCategoryExpand(cat.id); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-slate-700 hover:bg-white/60 transition-all cursor-pointer ml-0.5" title={isExpanded ? "Thu gọn" : "Mở rộng"}><motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}><ChevronDown size={15} strokeWidth={2.5} /></motion.div></button>
                                     </div>
                                   </div>
-                                    <div className="flex gap-4 items-center text-[11px] text-slate-500 font-medium tracking-wide">
-                                    <div className="flex gap-1 items-center"><span>Điểm tối đa:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-xl">{cat.maxPoints}</span></div>
+                                    <div className="flex flex-wrap gap-x-4 gap-y-1 items-center text-[11px] text-slate-500 font-medium tracking-wide">
+                                    <div className={`flex gap-1 items-center ${isCriteriaTotalOverMax ? 'text-red-600' : ''}`}><span>Điểm tối đa:</span><span className={`font-bold px-1.5 py-0.5 rounded-xl ${isCriteriaTotalOverMax ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50/50'}`}>{cat.maxPoints}</span></div>
                                     <div className="flex gap-1 items-center"><span>Số tiêu chí:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-xl">{String(catCriteria.length).padStart(2, '0')}</span></div>
+                                    <div className="flex gap-1 items-center"><span>Tổng điểm tiêu chí:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-xl">{criteriaTotalMaxPoints}</span></div>
                                   </div>
                                 </div>
                                 <AnimatePresence initial={false}>
@@ -1349,6 +1320,8 @@ function CategoriesPage() {
                           const catCriteria = criteria.filter(c => c.categoryId === cat.id);
                           const isOver = dragOverCategoryId === cat.id;
                           const isExpanded = !!expandedCategories[cat.id];
+                          const criteriaTotalMaxPoints = getCategoryCriteriaTotalMaxPoints(cat.id);
+                          const isCriteriaTotalOverMax = criteriaTotalMaxPoints > Number(cat.maxPoints || 0);
                           const borderColors = ['border-[#60a5fa]', 'border-[#34d399]', 'border-[#fbbf24]', 'border-[#c084fc]'];
                           const bgBadgeColors = ['bg-[#d8e2ff] text-[#005bbf]', 'bg-[#96f8a1]/30 text-[#006d2b]', 'bg-[rgba(249,171,0,0.1)] text-[#f9ab00]', 'bg-[#f3e5f5] text-[#7b2cbf]'];
                           const borderClass = borderColors[(idx + 2) % borderColors.length];
@@ -1370,9 +1343,10 @@ function CategoriesPage() {
                                       <button onClick={(e) => { e.stopPropagation(); toggleCategoryExpand(cat.id); }} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/40 border border-white/70 text-slate-500 hover:text-slate-700 hover:bg-white/60 transition-all cursor-pointer ml-0.5" title={isExpanded ? "Thu gọn" : "Mở rộng"}><motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}><ChevronDown size={15} strokeWidth={2.5} /></motion.div></button>
                                     </div>
                                   </div>
-                                    <div className="flex gap-4 items-center text-[11px] text-slate-500 font-medium tracking-wide">
-                                    <div className="flex gap-1 items-center"><span>Điểm tối đa:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-xl">{cat.maxPoints}</span></div>
+                                    <div className="flex flex-wrap gap-x-4 gap-y-1 items-center text-[11px] text-slate-500 font-medium tracking-wide">
+                                    <div className={`flex gap-1 items-center ${isCriteriaTotalOverMax ? 'text-red-600' : ''}`}><span>Điểm tối đa:</span><span className={`font-bold px-1.5 py-0.5 rounded-xl ${isCriteriaTotalOverMax ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50/50'}`}>{cat.maxPoints}</span></div>
                                     <div className="flex gap-1 items-center"><span>Số tiêu chí:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-xl">{String(catCriteria.length).padStart(2, '0')}</span></div>
+                                    <div className="flex gap-1 items-center"><span>Tổng điểm tiêu chí:</span><span className="font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-xl">{criteriaTotalMaxPoints}</span></div>
                                   </div>
                                 </div>
                                 <AnimatePresence initial={false}>

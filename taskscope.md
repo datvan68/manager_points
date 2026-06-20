@@ -1,152 +1,202 @@
-﻿# Task Scope: Xu ly warning duplicate schema index cho Notification.deletedAt
+﻿# Task Scope: Cap nhat hien thi tong diem tieu chi tren /grading/categories
 
 ## Muc tieu
 
-Xu ly warning khi backend khoi dong:
+Cap nhat trang `/grading/categories` theo yeu cau:
 
-```text
-Warning: mongoose: Duplicate schema index on {"deletedAt":1} for model "Notification"
-```
-
-Dam bao schema `Notification` chi khai bao mot index duy nhat cho `deletedAt`, khong lam thay doi hanh vi soft delete va cac query notification hien tai.
+1. Bo validate chan khi tong diem toi da cac tieu chi vuot qua diem toi da cua danh muc.
+2. Tren UI dang co `Diem toi da` va `So tieu chi`, bo sung them item `Tong diem tieu chi`.
+3. Khi `Tong diem tieu chi` vuot qua `Diem toi da` cua danh muc, text `Diem toi da: ...` chuyen sang mau do de canh bao.
 
 ## Hien trang lien quan
 
-File chinh can kiem tra:
+File frontend chinh:
 
-- `backend/src/notifications/schemas/notification.schema.ts`
+- `frontend/src/app/grading/categories/page.tsx`
+- `frontend/src/components/grading/CriteriaModal.tsx`
 
-Trong schema hien tai, field `deletedAt` dang duoc khai bao index hai lan:
+File API/backend lien quan de doi chieu:
 
-```ts
-@Prop({ type: Date, default: null, index: true })
-deletedAt?: Date | null;
-```
+- `frontend/src/api/criteria-api.ts`
+- `backend/src/criteria/criteria.service.ts`
+- `backend/src/criteria/dto/create-criterion.dto.ts`
+- `backend/src/criteria/schemas/criterion.schema.ts`
+- `backend/src/categories/schemas/category.schema.ts`
 
-va:
+Du lieu hien tai:
 
-```ts
-NotificationSchema.index({ deletedAt: 1 });
-```
+- Category frontend map `cat.maxPoints` tu backend `category.max_score`.
+- Criteria frontend map `item.maxPoints` tu backend `criterion.max_score`.
+- Criteria duoc gan danh muc qua `categoryId`.
 
-Mongoose canh bao vi hai khai bao nay cung tao index don truong `{ deletedAt: 1 }` cho model `Notification`.
+## Root Cause / Diem can dieu chinh
 
-## Root Cause
+Hien tai trang dang chan mot so thao tac khi tong `maxPoints` cua criteria trong danh muc vuot qua `cat.maxPoints`.
 
-`index: true` tren `@Prop({ deletedAt })` tu dong dang ky single-field index `{ deletedAt: 1 }`.
+### 1. Validate trong modal them/sua tieu chi
 
-Dong `NotificationSchema.index({ deletedAt: 1 })` o cuoi file dang dang ky lai cung mot index, tao duplicate schema index warning.
+Trong `frontend/src/components/grading/CriteriaModal.tsx`, ham `handleSave` dang co doan validate tong diem:
 
-Day la warning o tang schema/index declaration, khong phai loi data hay loi query runtime.
+- Tinh tong criteria cung danh muc.
+- Tach nhom `ky_luat` va nhom khong phai `ky_luat`.
+- Neu tong `maxPoints` cua nhom vuot `parentCat.maxPoints` thi set `newErrors.maxPoints` va khong cho save.
+
+Can bo logic chan nay theo yeu cau moi.
+
+Van giu cac validate co ban:
+
+- Ten tieu chi bat buoc.
+- Danh muc bat buoc.
+- `minPoints <= maxPoints`.
+- `points <= maxPoints`.
+
+### 2. Validate khi keo tha tieu chi sang danh muc khac
+
+Trong `frontend/src/app/grading/categories/page.tsx`, ham `handleDrop` dang chan drop neu tong diem criteria cua danh muc dich vuot `targetCat.maxPoints`.
+
+Can bo logic chan nay de nguoi dung van co the chuyen tieu chi sang danh muc, ke ca khi tong diem tieu chi vuot diem toi da danh muc.
+
+Van giu cac hanh vi sau:
+
+- Khong lam gi neu drop vao chinh danh muc hien tai.
+- Cap nhat `categoryId` va `categoryObjectId` tren state.
+- Goi `criteriaApi.updateCriterion(...)` de luu danh muc moi.
+- Hien toast thanh cong/that bai nhu hien tai.
 
 ## Pham vi can sua
 
-### 1. Chuan hoa khai bao index
+### 1. Them helper tinh tong diem tieu chi
 
-Chi giu mot nguon khai bao index cho `deletedAt`.
+Tao helper dung lai trong `frontend/src/app/grading/categories/page.tsx`, vi hien tai co nhieu noi render thong tin category.
 
-Khuyen nghi:
-
-```ts
-@Prop({ type: Date, default: null })
-deletedAt?: Date | null;
-```
-
-va giu:
+De xuat:
 
 ```ts
-NotificationSchema.index({ deletedAt: 1 });
+const getCategoryCriteriaTotalMaxPoints = (categoryId: string) =>
+  criteria
+    .filter((item) => item.categoryId === categoryId)
+    .reduce((sum, item) => sum + Number(item.maxPoints || 0), 0);
 ```
 
-Ly do:
+Neu can toi uu re-render, co the dung `useMemo` tao map theo `categoryId`, nhung khong bat buoc neu so luong criteria nho.
 
-- Cac index phuc hop cua `NotificationSchema` dang duoc khai bao tap trung bang `NotificationSchema.index(...)`.
-- Cach nay giup nhin danh sach index cua collection o mot vi tri ro rang hon.
-- Khong lam thay doi y nghia cua field `deletedAt`.
+Quy uoc tinh trong scope nay:
 
-Phuong an thay the chap nhan duoc:
+- `Tong diem tieu chi` = tong `maxPoints` cua tat ca criteria trong danh muc.
+- Khong chan theo loai `khen_thuong`, `cong_diem`, `ky_luat`.
+- Khong loai tru criteria `is_score_counted === false` tru khi product co yeu cau rieng sau nay.
 
-- Giu `index: true` tren `@Prop({ deletedAt })`.
-- Xoa dong `NotificationSchema.index({ deletedAt: 1 })`.
+### 2. Cap nhat card category o che do Kanban
 
-Khong nen giu ca hai.
+Trong `frontend/src/app/grading/categories/page.tsx`, card category dang render o hai cot:
 
-### 2. Kiem tra cac index lien quan
+- Cot 1 quanh block map `categories.filter(cat => cat.columnId === 'col-1' || !cat.columnId)`.
+- Cot 2 quanh block map `categories.filter(cat => cat.columnId === 'col-2')`.
 
-Kiem tra lai cac index trong `NotificationSchema`:
+Moi card hien dang co:
+
+```tsx
+Diem toi da: {cat.maxPoints}
+So tieu chi: {catCriteria.length}
+```
+
+Can bo sung:
+
+```tsx
+Tong diem tieu chi: {criteriaTotalMaxPoints}
+```
+
+Dong info can wrap tot tren man hinh nho:
+
+- Dung `flex flex-wrap gap-x-4 gap-y-1` hoac layout tuong duong.
+- Khong de text bi chen, tran, hoac lam nut action bi lech.
+
+### 3. Doi mau `Diem toi da` khi vuot tong diem
+
+Neu:
 
 ```ts
-NotificationSchema.index({ recipientUserId: 1, readByUserIds: 1, createdAt: -1 });
-NotificationSchema.index({ type: 1, createdAt: -1 });
-NotificationSchema.index({ deletedAt: 1 });
+criteriaTotalMaxPoints > Number(cat.maxPoints || 0)
 ```
 
-Dam bao khong co index nao khac trung hoan toan voi index duoc tao tu `@Prop({ index: true })`.
+thi item `Diem toi da` can chuyen sang mau do.
 
-Luu y: cac field `type`, `readByUserIds`, `recipientUserId`, `targetRole` dang co `index: true`. Warning hien tai chi ro duplicate tren `{ deletedAt: 1 }`, nhung nen tranh them duplicate tuong tu khi bo sung index moi.
+De xuat class:
 
-### 3. Khong thay doi logic soft delete
-
-Khong thay doi cac query/filter hien tai trong:
-
-- `backend/src/notifications/notifications.service.ts`
-
-Cac filter nhu sau van phai giu nguyen:
-
-```ts
-{ deletedAt: null }
+```tsx
+const isCriteriaTotalOverMax = criteriaTotalMaxPoints > Number(cat.maxPoints || 0);
 ```
 
-Va thao tac xoa mem van set:
+Khi `isCriteriaTotalOverMax === true`:
 
-```ts
-{ $set: { deletedAt: new Date() } }
+- Label `Diem toi da:` doi sang text do, vi user yeu cau text nay chuyen mau do.
+- Gia tri `{cat.maxPoints}` cung nen doi sang nen/text do de canh bao ro hon.
+
+Vi du style:
+
+```tsx
+isCriteriaTotalOverMax
+  ? 'text-red-600 bg-red-50'
+  : 'text-blue-600 bg-blue-50/50'
 ```
 
-### 4. Kiem tra database index hien huu
+Khong can chan save/drop; day chi la canh bao UI.
 
-Can phan biet hai truong hop:
+### 4. Cap nhat che do Master-detail
 
-- Warning schema duplicate: sua code schema la het warning khi khoi dong.
-- Database da co index duplicate/du thua voi ten khac: co the can review index tren MongoDB rieng.
+Trang co che do `master-detail`, header danh muc dang hien:
 
-Trong scope nay chi xu ly duplicate schema declaration. Khong drop index database neu chua co yeu cau ro rang va chua co approval.
-
-## Acceptance Criteria
-
-- Backend khoi dong khong con warning:
-  `Duplicate schema index on {"deletedAt":1} for model "Notification"`.
-- Model `Notification` van co index `{ deletedAt: 1 }`.
-- Cac API notification van loc ban ghi chua xoa bang `deletedAt: null`.
-- Soft delete notification van cap nhat `deletedAt` nhu truoc.
-- Khong thay doi contract API, DTO, response shape, hay frontend.
-
-## Kiem thu de xuat
-
-1. Chay unit test lien quan:
-
-```bash
-npm test -- notifications
+```tsx
+Diem toi da: {activeCat.maxPoints}
+Tong tieu chi: {activeCriteria.length}
 ```
 
-2. Khoi dong backend va quan sat log startup:
+Can bo sung `Tong diem tieu chi` va ap dung cung logic doi mau `Diem toi da` khi tong diem tieu chi vuot `activeCat.maxPoints`.
 
-```bash
-npm run start:dev
-```
+### 5. Cap nhat skeleton neu can
 
-3. Kiem tra nhanh cac flow:
+Skeleton card category hien chi co 2 placeholder info item.
 
-- Tao notification moi.
-- Lay danh sach notification.
-- Soft delete notification.
-- Lay danh sach sau khi xoa de dam bao item da xoa khong con hien thi.
-
-4. Neu co moi truong MongoDB local/staging, kiem tra index thuc te cua collection `notifications` de dam bao van co index cho `deletedAt`.
+Co the them placeholder thu 3 de loading state gan voi UI moi, nhung khong bat buoc neu skeleton van khong gay layout shift lon.
 
 ## Ngoai pham vi
 
-- Khong drop index tren MongoDB production.
-- Khong thay doi cau truc collection `notifications`.
-- Khong doi logic phan quyen notification.
-- Khong toi uu lai toan bo query/index notification neu khong co warning hoac yeu cau rieng.
+- Khong thay doi schema MongoDB.
+- Khong thay doi API contract cua `categories` hoac `criteria`.
+- Khong thay doi cach tinh diem ren luyen tai `/grading/score`.
+- Khong tu dong dieu chinh `max_score` cua category.
+- Khong drop/modify data hien co trong database.
+- Khong them validate backend moi cho tong diem criteria.
+
+## Acceptance Criteria
+
+- Them/sua criteria thanh cong ngay ca khi tong `maxPoints` criteria trong category vuot `cat.maxPoints`.
+- Keo tha criteria sang category khac thanh cong ngay ca khi category dich bi vuot tong diem.
+- Moi category card o Kanban hien du 3 item:
+  - `Diem toi da`
+  - `So tieu chi`
+  - `Tong diem tieu chi`
+- Header category o Master-detail cung hien `Tong diem tieu chi`.
+- Khi `Tong diem tieu chi > Diem toi da`, item `Diem toi da` chuyen sang mau do.
+- Khi `Tong diem tieu chi <= Diem toi da`, item `Diem toi da` giu style binh thuong.
+- UI khong bi tran, khong che nut sua/xoa/expand tren desktop va mobile.
+
+## Kiem thu de xuat
+
+1. Chay lint/build frontend:
+
+```bash
+npm run lint
+npm run build
+```
+
+2. Kiem tra flow tren `/grading/categories`:
+
+- Tao danh muc co `Diem toi da = 10`.
+- Them 2 criteria moi, moi criteria co `maxPoints = 10`.
+- Dam bao modal khong bao loi tong diem vuot max va van save duoc.
+- Dam bao card hien `Tong diem tieu chi: 20`.
+- Dam bao text `Diem toi da: 10` chuyen mau do.
+- Giam/xoa criteria de tong diem ve `<= 10`, dam bao `Diem toi da` tro lai mau binh thuong.
+- Keo criteria tu danh muc khac vao danh muc dang vuot max, dam bao khong bi chan.
+- Lap lai tren ca Kanban va Master-detail.
