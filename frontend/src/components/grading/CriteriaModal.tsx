@@ -159,19 +159,19 @@ export default function CriteriaModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: 'spring', damping: 25, stiffness: 380 }}
-              className="w-full max-w-[546px] bg-white rounded-[16px] shadow-[0px_25px_50px_-12px_rgba(0,0,0,0.25)] pointer-events-auto flex flex-col overflow-hidden max-h-[95vh]"
+              className="w-full max-w-[480px] bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] border border-white/80 rounded-2xl shadow-xl shadow-slate-300/40 pointer-events-auto flex flex-col overflow-hidden max-h-[95vh] font-sans"
             >
               {/* Header theo thiết kế Figma */}
-              <div className="border-b border-slate-100 flex items-start justify-between px-[24px] pb-[25px] pt-[24px] shrink-0 relative">
-                <div className="flex gap-[16px] items-start">
-                  <div className="bg-[#eff6ff] flex items-center justify-center rounded-[12px] shrink-0 w-[48px] h-[48px] text-[#135bec]">
-                    <BarChart3 size={24} strokeWidth={2.5} />
+              <div className="border-b border-white/50 bg-white/40 flex items-center justify-between px-[20px] py-[16px] shrink-0 relative">
+                <div className="flex gap-[12px] items-center">
+                  <div className="bg-[#eff6ff] flex items-center justify-center rounded-[10px] shrink-0 w-[36px] h-[36px] text-[#135bec]">
+                    <BarChart3 size={18} strokeWidth={2.5} />
                   </div>
-                  <div className="flex flex-col gap-[4px] items-start w-[371px]">
-                    <h2 className="font-bold text-[#0f172a] text-[20px] leading-[28px]">
+                  <div className="flex flex-col gap-[2px] items-start">
+                    <h2 className="font-semibold text-[#0f172a] text-[18px] leading-[24px]">
                       {isEditing ? 'Cập nhật tiêu chí' : 'Thêm tiêu chí mới'}
                     </h2>
-                    <p className="font-normal text-[#64748b] text-[14px] leading-[20px]">
+                    <p className="font-normal text-[#64748b] text-[13px] leading-[18px]">
                       Vui lòng điền thông tin chi tiết cho tiêu chí đánh giá mới.
                     </p>
                   </div>
@@ -185,11 +185,11 @@ export default function CriteriaModal({
               </div>
 
               {/* Body Form theo thiết kế Figma */}
-              <div className="flex-1 overflow-y-auto p-[32px] space-y-[20px]">
+              <div className="flex-1 overflow-y-auto px-[20px] py-[20px] space-y-[16px]">
                 {/* Phân loại danh mục */}
                 <div className="flex flex-col gap-[8px] items-start w-full">
                   <div className="pl-[4px]">
-                    <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
+                    <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
                       Phân loại danh mục <span className="text-[#ef4444]">*</span>
                     </label>
                   </div>
@@ -198,7 +198,7 @@ export default function CriteriaModal({
                     onValueChange={(val: string) => setFormData({ ...formData, categoryId: val })}
                     error={errors.categoryId}
                   >
-                    <SelectTrigger className={`w-full px-[16px] py-[12px] h-[48px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[16px] font-normal text-[#0f172a] focus-within:ring-4 focus-within:ring-blue-100/50 ${errors.categoryId ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : ''
+                    <SelectTrigger className={`w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:ring-2 focus-within:ring-[#1A73E8]/30 ${errors.categoryId ? 'border-rose-400 ring-2 ring-rose-100' : ''
                       }`}>
                       <SelectValue placeholder="Chọn danh mục" />
                     </SelectTrigger>
@@ -220,6 +220,7 @@ export default function CriteriaModal({
                   placeholder="Nhập tên chi tiết cho tiêu chí này..."
                   multiline
                   rows={3}
+                  className="text-[13px] min-h-[60px]"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
@@ -227,7 +228,7 @@ export default function CriteriaModal({
                 {/* Loại điểm */}
                 <div className="flex flex-col gap-[8px] items-start w-full">
                   <div className="pl-[4px]">
-                    <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
+                    <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
                       Loại điểm <span className="text-[#ef4444]">*</span>
                     </label>
                   </div>
@@ -235,7 +236,7 @@ export default function CriteriaModal({
                     value={formData.type}
                     onValueChange={(val: string) => setFormData({ ...formData, type: val as any })}
                   >
-                    <SelectTrigger className="w-full px-[16px] py-[12px] h-[48px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[16px] font-normal text-[#0f172a] focus-within:ring-4 focus-within:ring-blue-100/50">
+                    <SelectTrigger className="w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:ring-2 focus-within:ring-[#1A73E8]/30">
                       <SelectValue placeholder="Chọn loại điểm" />
                     </SelectTrigger>
                     <SelectContent>
@@ -247,11 +248,11 @@ export default function CriteriaModal({
                 </div>
 
                 {/* Grid 2 cột: Khoảng điểm & Bước nhảy điểm */}
-                <div className="grid grid-cols-2 gap-[24px] w-full items-start">
+                <div className="grid grid-cols-2 gap-[16px] w-full items-start">
                   {/* Khoảng điểm */}
                   <div className="flex flex-col gap-[8px] items-start w-full">
                     <div className="pl-[4px]">
-                      <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
+                      <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
                         Khoảng điểm
                       </label>
                     </div>
@@ -262,17 +263,17 @@ export default function CriteriaModal({
                         placeholder="Min"
                         value={formData.minPoints}
                         onChange={(e) => setFormData({ ...formData, minPoints: Number(e.target.value) })}
-                        className={`w-full h-[48px] text-center bg-[#f8fafc] border rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${errors.minPoints ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : 'border-[rgba(0,0,0,0.05)]'
+                        className={`w-full h-[36px] text-center bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${errors.minPoints ? 'border-rose-400 ring-2 ring-rose-100' : 'border-white/70'
                           }`}
                       />
-                      <span className="text-[#94a3b8] text-[16px] font-normal select-none">−</span>
+                      <span className="text-[#94a3b8] text-[14px] font-normal select-none">−</span>
                       <input
                         type="number"
                         min={0}
                         placeholder="Max"
                         value={formData.maxPoints}
                         onChange={(e) => setFormData({ ...formData, maxPoints: Number(e.target.value) })}
-                        className={`w-full h-[48px] text-center bg-[#f8fafc] border rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${errors.minPoints || errors.maxPoints ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : 'border-[rgba(0,0,0,0.05)]'
+                        className={`w-full h-[36px] text-center bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${errors.minPoints || errors.maxPoints ? 'border-rose-400 ring-2 ring-rose-100' : 'border-white/70'
                           }`}
                       />
                     </div>
@@ -284,10 +285,10 @@ export default function CriteriaModal({
                           type="checkbox"
                           checked={formData.is_locked}
                           onChange={(e) => setFormData({ ...formData, is_locked: e.target.checked })}
-                          className="w-[18px] h-[18px] rounded-[6px] border-[#cbd5e1] text-[#135bec] focus:ring-[#135bec] cursor-pointer transition-colors"
+                          className="w-[16px] h-[16px] rounded-[4px] border-[#cbd5e1] text-[#135bec] focus:ring-[#135bec] cursor-pointer transition-colors"
                         />
                         <span className="font-semibold text-[#475569] group-hover:text-slate-900 text-[14px] leading-[20px] transition-colors">
-                          Khóa tiêu chí
+                          <span className="text-[13px]">Khóa tiêu chí</span>
                         </span>
                       </label>
                       {formData.type === 'ky_luat' && (
@@ -296,10 +297,10 @@ export default function CriteriaModal({
                             type="checkbox"
                             checked={formData.is_score_counted}
                             onChange={(e) => setFormData({ ...formData, is_score_counted: e.target.checked })}
-                            className="w-[18px] h-[18px] rounded-[6px] border-[#cbd5e1] text-[#135bec] focus:ring-[#135bec] cursor-pointer transition-colors"
+                            className="w-[16px] h-[16px] rounded-[4px] border-[#cbd5e1] text-[#135bec] focus:ring-[#135bec] cursor-pointer transition-colors"
                           />
                           <span className="font-semibold text-[#475569] group-hover:text-slate-900 text-[14px] leading-[20px] transition-colors">
-                            Cộng điểm kỷ luật vào tổng điểm
+                            <span className="text-[13px]">Cộng điểm kỷ luật vào tổng điểm</span>
                           </span>
                         </label>
                       )}
@@ -309,7 +310,7 @@ export default function CriteriaModal({
                   {/* Bước nhảy điểm */}
                   <div className="flex flex-col gap-[8px] items-start w-full">
                     <div className="pl-[4px]">
-                      <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
+                      <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
                         Bước nhảy điểm
                       </label>
                     </div>
@@ -320,7 +321,7 @@ export default function CriteriaModal({
                       placeholder="Ví dụ: 0.5 hoặc 1"
                       value={formData.points}
                       onChange={(e) => setFormData({ ...formData, points: Number(e.target.value) })}
-                      className={`w-full px-[16px] py-[12px] h-[48px] bg-[#f8fafc] border rounded-[12px] text-[16px] font-normal text-[#0f172a] placeholder:text-[#94a3b8] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50 ${errors.points ? 'border-rose-300 ring-2 ring-rose-100 bg-white' : 'border-[rgba(0,0,0,0.05)]'
+                      className={`w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${errors.points ? 'border-rose-400 ring-2 ring-rose-100' : 'border-white/70'
                         }`}
                     />
                     {errors.points && (
@@ -333,16 +334,16 @@ export default function CriteriaModal({
               </div>
 
               {/* Footer theo thiết kế Figma */}
-              <div className="flex gap-[16px] items-center justify-end pb-[24px] pt-[8px] px-[24px] shrink-0 border-t border-slate-50">
+              <div className="flex gap-[10px] items-center justify-end px-[20px] py-[16px] shrink-0 border-t border-white/50 bg-white/30">
                 <button
                   onClick={onClose}
-                  className="px-[32px] py-[12px] text-[#475569] hover:text-slate-900 font-semibold text-[14px] rounded-[16px] hover:bg-slate-50 transition-colors duration-200"
+                  className="px-3 py-1.5 text-[#475569] hover:text-slate-900 font-semibold text-[13px] rounded-xl hover:bg-white/60 transition-colors duration-200"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   onClick={handleSave}
-                  className="bg-[#135bec] hover:bg-blue-700 text-white px-[20px] py-[10px] rounded-[8px] flex items-center justify-center gap-2 font-semibold text-[14px] transition-all shadow-[0px_10px_15px_-3px_rgba(19,91,236,0.3),0px_4px_6px_-4px_rgba(19,91,236,0.3)] hover:shadow-[0px_12px_20px_-3px_rgba(19,91,236,0.4)] active:scale-95 duration-200"
+                  className="bg-[#1A73E8] hover:bg-[#155FC0] text-white px-3 py-1.5 rounded-xl flex items-center justify-center gap-2 font-semibold text-[13px] transition-all shadow-sm active:scale-95 duration-150"
                 >
                   <Save size={16} strokeWidth={2.5} />
                   Lưu tiêu chí

@@ -813,7 +813,7 @@ function CategoriesPage() {
                                 >
                                   <div
                                     onClick={() => setSelectedCategoryId(cat.id)}
-                                    className={`group relative bg-white/45 backdrop-blur-md border border-white/70 rounded-xl p-4 transition-all duration-150 ease-out cursor-pointer flex items-start gap-3 hover:scale-[1.01] ${isActive ? 'shadow-sm ring-1 ring-[#1A73E8]/8 bg-white/70' : 'hover:shadow-sm'}`}
+                                    className={`group relative bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-4 transition-all duration-150 ease-out cursor-pointer flex items-start gap-3 hover:scale-[1.01] ${isActive ? 'shadow-sm shadow-slate-300/40 ring-1 ring-[#1A73E8]/8 bg-white/60' : 'hover:shadow-sm hover:shadow-slate-300/40'}`}
                                   >
                                     {/* Color indicator */}
                                       <div
@@ -1057,7 +1057,7 @@ function CategoriesPage() {
                                           exit={{ opacity: 0, x: -20 }}
                                           transition={{ delay: itemIdx * 0.02 }}
                                         >
-                                          <div className="group bg-white/55 backdrop-blur-sm border border-white/70 hover:border-white/80 rounded-xl p-4 flex items-center gap-4 transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-sm">
+                                          <div className="group bg-white/50 backdrop-blur-sm border border-white/80 hover:border-white/100 rounded-xl px-3 py-3 flex items-center gap-4 transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/60 hover:shadow-sm shadow-sm shadow-slate-300/20">
                                             {/* Checkbox */}
                                             <input
                                               type="checkbox"
@@ -1128,7 +1128,7 @@ function CategoriesPage() {
                       onDragOver={(e) => handleColumnDragOver(e, 'col-1')}
                       onDragLeave={handleColumnDragLeave}
                       onDrop={(e) => handleColumnDrop(e, 'col-1')}
-                      className={`flex-1 flex flex-col gap-4 p-4 rounded-xl transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-1' ? 'ring-2 ring-[#1A73E8]/30 bg-white/45 border border-[#1A73E8]/30' : 'bg-white/30 backdrop-blur-md border border-white/60'}`}
+                      className={`flex-1 flex flex-col gap-4 p-4 rounded-2xl transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-1' ? 'ring-2 ring-[#1A73E8]/30 bg-white/45 border border-[#1A73E8]/30' : 'bg-white/30 backdrop-blur-md border border-white/60'}`}
                     >
                       {isInitialLoading ? (
                         <>
@@ -1182,8 +1182,8 @@ function CategoriesPage() {
                           const badgeClass = bgBadgeColors[idx % bgBadgeColors.length];
                           return (
                             <motion.div layout="position" key={cat.id} className={`w-full ${draggingCategoryId === cat.id ? 'opacity-40' : ''}`}>
-                              <div draggable onDragStart={(e) => handleCategoryDragStart(e, cat.id)} onDragEnd={handleCategoryDragEnd} onDragOver={(e) => handleDragOver(e, cat.id)} onDragLeave={() => handleDragLeave(cat.id)} onDrop={(e) => handleDrop(e, cat.id)} className={`bg-white/55 backdrop-blur-md border border-white/75 border-t-[3px] ${borderClass} border-solid flex flex-col items-start overflow-hidden pt-1 relative rounded-xl shadow-sm transition-all duration-300 w-full cursor-grab active:cursor-grabbing hover:shadow-sm ${isOver ? 'ring-2 ring-[#1A73E8] scale-[1.01] bg-white/45' : ''}`}>
-                                <div className={`border-[#f1f5f9] ${isExpanded ? 'border-b' : ''} border-solid w-full px-5 py-4 flex flex-col gap-2 cursor-pointer select-none hover:bg-slate-50/40 transition-colors`} onClick={() => toggleCategoryExpand(cat.id)}>
+                              <div draggable onDragStart={(e) => handleCategoryDragStart(e, cat.id)} onDragEnd={handleCategoryDragEnd} onDragOver={(e) => handleDragOver(e, cat.id)} onDragLeave={() => handleDragLeave(cat.id)} onDrop={(e) => handleDrop(e, cat.id)} className={`bg-white/40 backdrop-blur-md border border-white/70 flex flex-col items-start overflow-hidden relative rounded-xl shadow-sm shadow-slate-300/40 transition-all duration-150 w-full cursor-grab active:cursor-grabbing hover:shadow-md ${isOver ? 'ring-2 ring-[#1A73E8] scale-[1.01] bg-white/50' : 'hover:scale-[1.01]'}`}>
+                                <div className={`border-white/40 ${isExpanded ? 'border-b' : ''} border-solid w-full px-4 py-4 flex flex-col gap-2 cursor-pointer select-none hover:bg-white/50 transition-colors`} onClick={() => toggleCategoryExpand(cat.id)}>
                                   <div className="flex items-start justify-between w-full">
                                     <div className="flex flex-col gap-0.5">
                                       <span className={`px-2 py-0.5 rounded-xl text-[10px] font-bold tracking-wider uppercase inline-block w-fit ${badgeClass}`}>{cat.id}</span>
@@ -1244,7 +1244,7 @@ function CategoriesPage() {
                                                 else if (item.type === 'ky_luat') { typeLabel = 'KỶ LUẬT'; typeClass = 'bg-[rgba(255,218,214,0.3)] text-[#ba1a1a] border-[#ffdad6]/20'; pointClass = 'text-[#ba1a1a]'; formattedPoints = `${item.points}đ/lần`; }
                                                 return (
                                                   <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} layout key={item.id} className="w-full">
-                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/55 backdrop-blur-sm border border-white/70 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-sm hover:border-blue-100 transition-all duration-150 ease-out hover:scale-[1.01] group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
+                                                    <div draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragEnd={handleDragEnd} className="bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl px-3 py-3 flex flex-col gap-3 shadow-sm shadow-slate-300/20 hover:bg-white/60 hover:shadow-sm hover:border-white/100 transition-all duration-150 ease-out hover:scale-[1.01] group cursor-grab active:cursor-grabbing relative overflow-hidden w-full">
                                                       <div className="flex items-center justify-between w-full">
                                                         <div className="flex items-center gap-3">
                                                           <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>
@@ -1301,7 +1301,7 @@ function CategoriesPage() {
                       onDragOver={(e) => handleColumnDragOver(e, 'col-2')}
                       onDragLeave={handleColumnDragLeave}
                       onDrop={(e) => handleColumnDrop(e, 'col-2')}
-                      className={`flex-1 flex flex-col gap-4 p-4 rounded-xl transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-2' ? 'ring-2 ring-[#1A73E8]/30 bg-white/45 border border-[#1A73E8]/30' : 'bg-white/30 backdrop-blur-md border border-white/60'}`}
+                      className={`flex-1 flex flex-col gap-4 p-4 rounded-2xl transition-all duration-300 min-h-[500px] w-full ${dragOverColumnId === 'col-2' ? 'ring-2 ring-[#1A73E8]/30 bg-white/45 border border-[#1A73E8]/30' : 'bg-white/30 backdrop-blur-md border border-white/60'}`}
                     >
                       {isInitialLoading ? (
                         <>

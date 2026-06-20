@@ -101,19 +101,19 @@ export default function CategoryModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: 'spring', damping: 25, stiffness: 380 }}
-              className="w-full max-w-[546px] bg-white rounded-[24px] shadow-[0px_25px_60px_-15px_rgba(0,0,0,0.15)] pointer-events-auto flex flex-col overflow-hidden max-h-[95vh] font-sans"
+              className="w-full max-w-[480px] bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] border border-white/80 rounded-2xl shadow-xl shadow-slate-300/40 pointer-events-auto flex flex-col overflow-hidden max-h-[95vh] font-sans"
             >
               {/* Header theo thiết kế Figma */}
-              <div className="flex h-[80px] items-center justify-between px-[32px] py-[16px] shrink-0 border-b border-slate-100 relative">
+              <div className="flex items-center justify-between px-[20px] py-[16px] shrink-0 border-b border-white/50 relative bg-white/40">
                 <div className="flex gap-[12px] items-center">
-                  <div className="bg-[rgba(19,127,236,0.1)] flex items-center justify-center rounded-[12px] shrink-0 w-[40px] h-[40px] text-[#135bec]">
-                    <Shapes size={20} strokeWidth={2.5} />
+                  <div className="bg-[rgba(19,127,236,0.1)] flex items-center justify-center rounded-[10px] shrink-0 w-[36px] h-[36px] text-[#135bec]">
+                    <Shapes size={18} strokeWidth={2.5} />
                   </div>
-                  <div className="flex flex-col gap-[4px] items-start">
-                    <h2 className="font-semibold text-[#0f172a] text-[24px] tracking-[-0.6px] leading-[32px]">
+                  <div className="flex flex-col gap-[2px] items-start">
+                    <h2 className="font-semibold text-[#0f172a] text-[18px] leading-[24px]">
                       {isEditing ? 'Cập nhật danh mục' : 'Thêm danh mục mới'}
                     </h2>
-                    <p className="font-normal text-[#64748b] text-[14px] leading-[20px]">
+                    <p className="font-normal text-[#64748b] text-[13px] leading-[18px]">
                       Thiết lập các nhóm điểm đánh giá hệ thống.
                     </p>
                   </div>
@@ -127,13 +127,14 @@ export default function CategoryModal({
               </div>
 
               {/* Body theo thiết kế Figma */}
-              <div className="flex-1 overflow-y-auto px-[32px] py-[24px] space-y-[24px]">
+              <div className="flex-1 overflow-y-auto px-[20px] py-[20px] space-y-[16px]">
                 {/* Mã danh mục */}
                 <Input
                   label="Mã danh mục"
                   required
                   error={errors.id}
                   placeholder="Nhập ký tự la mã"
+                  className="h-[36px] text-[13px]"
                   value={formData.id}
                   onChange={(e) => setFormData({ ...formData, id: e.target.value.toUpperCase() })}
                 />
@@ -146,22 +147,23 @@ export default function CategoryModal({
                   placeholder="Nhập tên chi tiết cho danh mục này..."
                   multiline
                   rows={3}
+                  className="text-[13px] min-h-[60px]"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
 
                 {/* Grid 2 cột: Điểm tối đa & Thứ tự sắp xếp */}
-                <div className="grid grid-cols-2 gap-[24px] w-full">
+                <div className="grid grid-cols-2 gap-[16px] w-full">
                   {/* Điểm tối đa */}
                   <div className="flex flex-col gap-[8px] items-start w-full">
                     <div className="pl-[4px]">
-                      <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
+                      <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
                         Điểm tối đa
                       </label>
                     </div>
                     <div className="relative w-full">
-                      <div className="absolute left-[12px] top-1/2 -translate-y-1/2 text-[#94a3b8]">
-                        <TrendingUp size={16} strokeWidth={2.5} />
+                      <div className="absolute left-[10px] top-1/2 -translate-y-1/2 text-[#94a3b8]">
+                        <TrendingUp size={14} strokeWidth={2.5} />
                       </div>
                       <input
                         type="number"
@@ -169,7 +171,7 @@ export default function CategoryModal({
                         max={1000}
                         value={formData.maxPoints}
                         onChange={(e) => setFormData({ ...formData, maxPoints: Number(e.target.value) })}
-                        className="w-full pl-[40px] pr-[16px] py-[12px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[14px] font-medium text-[#0f172a] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50"
+                        className="w-full pl-[32px] pr-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30"
                       />
                     </div>
                   </div>
@@ -177,13 +179,13 @@ export default function CategoryModal({
                   {/* Thứ tự sắp xếp */}
                   <div className="flex flex-col gap-[8px] items-start w-full">
                     <div className="pl-[4px]">
-                      <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
+                      <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
                         Thứ tự sắp xếp
                       </label>
                     </div>
                     <div className="relative w-full">
-                      <div className="absolute left-[12px] top-1/2 -translate-y-1/2 text-[#94a3b8]">
-                        <ListOrdered size={16} strokeWidth={2.5} />
+                      <div className="absolute left-[10px] top-1/2 -translate-y-1/2 text-[#94a3b8]">
+                        <ListOrdered size={14} strokeWidth={2.5} />
                       </div>
                       <input
                         type="number"
@@ -191,7 +193,7 @@ export default function CategoryModal({
                         max={100}
                         value={formData.sort_order}
                         onChange={(e) => setFormData({ ...formData, sort_order: Number(e.target.value) })}
-                        className="w-full pl-[40px] pr-[16px] py-[12px] bg-[#f8fafc] border border-[rgba(0,0,0,0.05)] rounded-[12px] text-[14px] font-medium text-[#0f172a] transition-all outline-none focus:bg-white focus:ring-4 focus:ring-blue-100/50"
+                        className="w-full pl-[32px] pr-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30"
                       />
                     </div>
                   </div>
@@ -199,16 +201,16 @@ export default function CategoryModal({
               </div>
 
               {/* Footer theo thiết kế Figma */}
-              <div className="flex gap-[12.01px] items-center justify-end p-[32px] shrink-0 border-t border-slate-50">
+              <div className="flex gap-[10px] items-center justify-end px-[20px] py-[16px] shrink-0 border-t border-white/50 bg-white/30">
                 <button
                   onClick={onClose}
-                  className="px-[24px] py-[12px] text-[#475569] hover:text-slate-900 font-semibold text-[16px] rounded-[16px] hover:bg-slate-50 transition-colors duration-200"
+                  className="px-3 py-1.5 text-[#475569] hover:text-slate-900 font-semibold text-[13px] rounded-xl hover:bg-white/60 transition-colors duration-200"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   onClick={handleSave}
-                  className="bg-[#135bec] hover:bg-blue-700 text-white px-[20px] py-[10px] rounded-[8px] flex items-center justify-center gap-2 font-semibold text-[14px] transition-all shadow-[0px_10px_15px_-3px_rgba(19,91,236,0.3),0px_4px_6px_-4px_rgba(19,91,236,0.3)] hover:shadow-[0px_12px_20px_-3px_rgba(19,91,236,0.4)] active:scale-95 duration-200"
+                  className="bg-[#1A73E8] hover:bg-[#155FC0] text-white px-3 py-1.5 rounded-xl flex items-center justify-center gap-2 font-semibold text-[13px] transition-all shadow-sm active:scale-95 duration-150"
                 >
                   <Save size={16} strokeWidth={2.5} />
                   Lưu danh mục
