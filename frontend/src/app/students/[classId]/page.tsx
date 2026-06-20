@@ -695,6 +695,7 @@ function ClassStudentsPageContent() {
                                     allSelected: paginatedStudents.length > 0 && selectedStudentIds.length === paginatedStudents.length
                                 }}
                                 onRowClick={(student) => setOpenDrawerId(student._id)}
+                                hidePaginationOnMobile={true}
                                 pagination={
                                     <CustomPagination
                                         currentPage={currentPage}
@@ -742,7 +743,7 @@ function ClassStudentsPageContent() {
                 open={openDrawerId !== null}
                 onOpenChange={(isOpen) => setOpenDrawerId(isOpen ? openDrawerId : null)}
             >
-                <DrawerContent className="w-[448px] h-full bg-white/80 backdrop-blur-xl border-l border-white/80 outline-none flex flex-col items-stretch overflow-hidden">
+                <DrawerContent className="w-full sm:w-[448px] h-full bg-white/80 backdrop-blur-xl border-l border-white/80 outline-none flex flex-col items-stretch overflow-hidden">
                     <div className="flex justify-between items-center p-6 border-b border-white/60 bg-transparent shrink-0">
                         <div className="flex items-center gap-3">
                             <DrawerTitle className="text-lg font-semibold text-[#1E293B]">Thông tin sinh viên</DrawerTitle>

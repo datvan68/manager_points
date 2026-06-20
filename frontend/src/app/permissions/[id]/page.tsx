@@ -32,6 +32,7 @@ import {
   GraduationCap,
   LayoutGrid,
   Calendar as CalendarIcon,
+  Search,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { authApi, tokenStorage } from "../../../api/auth-api";
@@ -43,6 +44,13 @@ import { classApi } from "../../../api/class-api";
 import { ChevronDown } from "lucide-react";
 
 const MultiClassSelect = ({ selectedIds, onChange, classes, disabled, placeholder = "Không gán", className }: { selectedIds: string[], onChange: (ids: string[]) => void, classes: any[], disabled?: boolean, placeholder?: string, className?: string }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredClasses = classes?.filter(cls => {
+    const name = cls.class_name || cls.name || '';
+    return name.toLowerCase().includes(searchQuery.toLowerCase());
+  }) || [];
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -56,11 +64,23 @@ const MultiClassSelect = ({ selectedIds, onChange, classes, disabled, placeholde
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[220px] p-1.5 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 z-[9999]" align="start">
+        <div className="px-1.5 pb-1.5 pt-0.5">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Tìm lớp..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 w-full rounded-md border border-slate-200 bg-white/50 pl-7 pr-2 text-xs focus:border-[#1A73E8] focus:outline-none focus:ring-1 focus:ring-[#1A73E8]"
+            />
+          </div>
+        </div>
         <div className="max-h-[180px] overflow-y-auto space-y-0.5 scrollbar-hover">
-          {classes?.length === 0 ? (
+          {filteredClasses.length === 0 ? (
             <div className="py-2 text-center text-[11px] text-slate-400">Không có lớp nào</div>
           ) : (
-            classes?.map(cls => (
+            filteredClasses.map(cls => (
               <label key={cls._id || cls.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer">
                 <input 
                   type="checkbox" 
