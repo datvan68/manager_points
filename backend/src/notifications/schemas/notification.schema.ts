@@ -46,7 +46,7 @@ export class Notification {
   @Prop({ type: Object, default: {} })
   metadata?: Record<string, any>;
 
-  @Prop({ type: Date, default: null, index: true })
+  @Prop({ type: Date, default: null })
   deletedAt?: Date | null;
 }
 
