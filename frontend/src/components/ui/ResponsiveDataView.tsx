@@ -43,6 +43,10 @@ interface ResponsiveDataViewProps<T> {
   tableClassName?: string;
   rowClassName?: string | ((row: T) => string);
   cardClassName?: string;
+  
+  // Mobile infinite scroll support
+  mobileFooter?: React.ReactNode;
+  mobileScrollRef?: React.Ref<HTMLDivElement>;
 }
 
 export default function ResponsiveDataView<T>({
@@ -59,7 +63,9 @@ export default function ResponsiveDataView<T>({
   tableClassName = '',
   rowClassName = '',
   cardClassName = '',
-  hidePaginationOnMobile = false
+  hidePaginationOnMobile = false,
+  mobileFooter,
+  mobileScrollRef
 }: ResponsiveDataViewProps<T>) {
   
   const getBreakpointClass = (bp: 'sm' | 'md' | 'lg' | 'xl') => {
@@ -156,7 +162,7 @@ export default function ResponsiveDataView<T>({
   return (
     <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
       {/* 1. Cards View (Mobile/Tablet) */}
-      <div className={`${bpClasses.cards} flex-1 overflow-y-auto p-4`}>
+      <div ref={mobileScrollRef} className={`${bpClasses.cards} flex-1 overflow-y-auto p-4`}>
         {isLoading ? (
           // Skeleton Cards
           <div className="flex flex-col gap-3">
@@ -188,6 +194,7 @@ export default function ResponsiveDataView<T>({
             ))}
           </div>
         )}
+        {mobileFooter}
       </div>
 
       {/* 2. Table View (Desktop) */}

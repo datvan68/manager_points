@@ -1,214 +1,267 @@
-# Taskscope: Ổn định trang /permissions và bổ sung GVCN lớp cho user
+# Taskscope: Review infinite scroll `/grading` trên mobile/tablet
 
-## Mục tiêu
+## 1. Kết luận review
 
-Khắc phục 4 vấn đề trên màn hình `/permissions` và hồ sơ user:
+Implementation hiện tại đã đi đúng hướng cho yêu cầu chuyển danh sách summaries của `/grading` sang infinite scroll trên mobile/tablet:
 
-- Trang `/permissions` bị nháy/reset khi tải lại dữ liệu.
-- Modal **Thêm người dùng > Thêm nhiều người dùng** báo thành công nhưng người dùng chưa kịp xem/kiểm tra kết quả.
-- Thêm/sửa thông tin người dùng cần có select **GVCN lớp**, cho phép gán 1 user làm GVCN của 2 lớp trở lên.
-- Tab **Thông tin cá nhân** của user đổi trường **Khoa / Phòng ban** thành **GVCN lớp** và hiển thị danh sách lớp user đang chủ nhiệm.
+- Mobile/tablet không còn truyền pagination xuống UI, desktop vẫn dùng `CustomPagination`.
+- API summaries đã dùng `page` và `limit` thật, không còn tải toàn bộ bằng `limit=9999`.
+- Khi load thêm, dữ liệu mới được append và có lọc trùng theo `_id`.
+- Card mobile đã thu gọn theo nhóm thông tin chính: họ tên, mã sinh viên, tổng điểm, xếp loại và hành động.
+- Sentinel đã được đưa vào `ResponsiveDataView` qua `mobileFooter`, nằm trong vùng scroll card mobile.
+- `IntersectionObserver` đã dùng `root: mobileScrollRootRef.current` và `rootMargin: '400px 0px'`, phù hợp hơn so với observer theo viewport.
 
-## Hiện trạng đã kiểm tra
+Tuy nhiên chưa nên xem là hoàn tất tuyệt đối. Cần harden thêm để tránh load trùng, skip page, hoặc sai trạng thái khi đổi filter, resize desktop/mobile, restore session page cũ.
 
-- Trang chính: `frontend/src/app/permissions/page.tsx`.
-- Modal user: `frontend/src/components/modals/UserModal.tsx`.
-- API frontend user: `frontend/src/api/auth-api.ts`.
-- API frontend lớp: `frontend/src/api/class-api.ts`.
-- Backend bulk create user: `backend/src/auth/services/auth.service.ts`.
-- DTO user: `backend/src/auth/dto/auth.dto.ts`.
-- Schema lớp có field `advisor_id`: `backend/src/classes/schemas/class.schema.ts`.
-- Trang profile hiện tại vẫn dùng field `department` trong `frontend/src/app/profile/page.tsx` và `frontend/src/app/profile/_lib/normalize-profile.ts`.
+## 2. Review findings
 
-Một phần GVCN lớp đã tồn tại trong code hiện tại:
+### P1 - Cần chặn trigger trùng trong khoảng giữa observer callback và fetch effect
 
-- `permissions/page.tsx` đã có state `classes`, gọi `classApi.getClasses()` và truyền `classes` vào `UserModal`.
-- `UserModal.tsx` đã có `advisorClassId` trong bulk row và gửi `advisor_class_id`.
-- Backend DTO đã có `advisor_class_id`.
-- `AuthService.createUsersBulk` đã cập nhật `class.advisor_id` nếu có `advisor_class_id`.
+File: `frontend/src/app/grading/page.tsx`
 
-Nhưng các điểm trên chưa đáp ứng hết yêu cầu mới:
+Vị trí liên quan:
 
-- Trong bulk modal, header hiện đang theo thứ tự `Vai trò`, `Trạng thái`, `GVCN lớp`; yêu cầu là **GVCN lớp nằm bên trái Trạng thái**.
-- Bulk modal đang chọn 1 lớp cho mỗi dòng, nhưng yêu cầu thêm/sửa user cần cho phép **2 lớp trở lên**.
-- Single add/edit user chưa có select **GVCN lớp**.
-- Profile vẫn hiển thị và lưu `department`, chưa hiển thị danh sách lớp GVCN.
-- Sau bulk create, `handleBulkUserSave` gọi `fetchData()`, có thể làm bảng/loading nháy lại trong khi modal kết quả đang hiển thị.
-- `fetchData` của `/permissions` phụ thuộc `[isAuthLoading, authUser]`; nếu object `authUser` thay đổi sau refresh/checkAuth, trang có thể fetch lại, bật `isDataLoading` và làm UI nháy/reset.
+- `frontend/src/app/grading/page.tsx:729` tạo `IntersectionObserver`.
+- `frontend/src/app/grading/page.tsx:731` kiểm tra `hasMore`, `isFetching`, `isLoadingMore` rồi `setCurrentPage(prev => prev + 1)`.
+- `frontend/src/app/grading/page.tsx:661` `fetchSummaries` mới set `isLoadingMore(true)` sau khi effect fetch chạy.
 
-## Phạm vi thay đổi
+Rủi ro: observer có thể fire nhiều lần trong cùng một khoảng ngắn khi sentinel vẫn intersecting, trong khi `isLoadingMore` chưa kịp chuyển sang `true`. Điều này có thể làm `currentPage` tăng nhiều lần, request trùng hoặc skip page.
 
-### 1. Ổn định trang `/permissions`, tránh nháy/reset
+Scope cần sửa:
 
-File: `frontend/src/app/permissions/page.tsx`
+- Thêm ref khóa request, ví dụ `loadingMoreRef` hoặc `requestedPageRef`.
+- Set khóa ngay trong observer callback trước khi `setCurrentPage`.
+- Release khóa trong `finally` của `fetchSummaries`.
+- Có thể unobserve tạm sentinel khi bắt đầu load và observe lại sau khi load xong.
 
-- Tách trạng thái loading lần đầu và refresh nền:
-  - `isInitialLoading`: chỉ dùng cho lần load đầu.
-  - `isRefreshing`: dùng khi reload dữ liệu sau thao tác thêm/sửa/xóa.
-- Không để refresh nền thay toàn bộ bảng bằng skeleton nếu đã có dữ liệu cũ; nên giữ dữ liệu cũ và chỉ hiển thị indicator nhỏ.
-- Đổi effect load dữ liệu để tránh fetch lại do reference `authUser` thay đổi:
-  - Có thể dùng dependency ổn định như `isAuthLoading` và `authUser?.id`.
-  - Hoặc dùng `useCallback` cho `fetchData` với dependency tối thiểu.
-- Khi `fetchData` chạy, không reset các state UI không cần thiết:
-  - `activeTab`
-  - `userCurrentPage`
-  - `selectedUserIds`
-  - `selectedGroup`
-  - filter/search hiện tại
-- Sau CRUD, reload dữ liệu theo cách nền, không làm route/page quay về trang đầu nếu không cần.
+Gợi ý logic:
 
-Acceptance:
+```tsx
+const loadingMoreRef = React.useRef(false);
 
-- Đang ở `/permissions`, chuyển trang user page 2/3 hoặc chọn tab khác không bị tự động reset khi auth refresh hoặc reload data.
-- Khi thêm/sửa/xóa user, bảng cập nhật dữ liệu nhưng trang không nhảy về skeleton toàn màn hình.
+// Trong observer callback
+if (!entry?.isIntersecting || !hasMore || isFetching || isLoadingMore || loadingMoreRef.current) return;
+loadingMoreRef.current = true;
+setCurrentPage(prev => prev + 1);
 
-### 2. Giữ modal kết quả bulk create để user xem
-
-File: `frontend/src/components/modals/UserModal.tsx`
-
-- Sau khi bulk create thành công, modal phải giữ màn hình **Kết quả thêm nhiều người dùng** cho đến khi user bấm **Đóng**.
-- Nút đóng overlay và phím/hành động đóng nên bị chặn trong lúc đang lưu để tránh đóng modal ngoài ý muốn.
-- Không gọi `onClose()` tự động sau bulk success.
-- Nếu parent reload data, không được làm `UserModal` reset `bulkResult`.
-- Nên tách `onBulkSave` thành 2 việc:
-  - Submit bulk và trả kết quả ngay cho modal hiển thị.
-  - Parent refresh danh sách user ở nền sau khi modal đã có `bulkResult`.
-
-File: `frontend/src/app/permissions/page.tsx`
-
-- `handleBulkUserSave` nên trả kết quả API về modal trước, sau đó refresh data không chặn UI.
-- Nếu cần dùng `fetchData`, truyền option để refresh nền và không bật loading skeleton lớn.
-
-Acceptance:
-
-- Sau bulk create thành công/thành công một phần, modal không tự động tắt.
-- User xem được tổng số, thành công, thất bại, danh sách lỗi.
-- Nút **Sửa các dòng lỗi** giữ lại dữ liệu dòng lỗi, bao gồm các lớp GVCN đã chọn.
-
-### 3. Thêm/sửa user có select `GVCN lớp`, hỗ trợ nhiều lớp
-
-File: `frontend/src/components/modals/UserModal.tsx`
-
-- Single mode thêm/sửa user cần thêm field **GVCN lớp** trong phần cấu hình.
-- Field này là multi-select hoặc combobox multi-select, không phải select 1 giá trị.
-- Mỗi user có thể chọn 0, 1 hoặc nhiều lớp.
-- Nếu role không phải Teacher/Giảng viên/GVCN:
-  - Disable field GVCN lớp hoặc clear giá trị và hiển thị nhắc nhở ngắn.
-- Khi edit user:
-  - Cần map các lớp đang có `advisor_id` là user hiện tại thành giá trị mặc định.
-  - Việc submit phải gửi danh sách class ids.
-- Bulk mode:
-  - Chuyển field `advisorClassId` thành `advisorClassIds: string[]` nếu yêu cầu bulk cũng cần gán nhiều lớp cho từng user.
-  - Đặt cột **GVCN lớp** đúng vị trí: sau **Vai trò**, trước **Trạng thái**.
-  - UI cần có min-width/overflow-x-auto để không vỡ layout khi thêm cột multi-select.
-
-File: `frontend/src/app/permissions/page.tsx`
-
-- Khi mở edit modal, cần truyền dữ liệu lớp hiện tại của user:
-  - Dùng danh sách `classes` đã load.
-  - Lọc lớp có `advisor_id` trùng `_id` user.
-  - Truyền vào `initialData.advisor_class_ids` hoặc prop riêng.
-
-Acceptance:
-
-- Thêm 1 user có thể chọn nhiều lớp GVCN.
-- Sửa user có thể xem, thêm, bỏ bớt nhiều lớp GVCN.
-- Bulk modal hiển thị cột **GVCN lớp** bên trái **Trạng thái**.
-- Chọn 2 lớp trở lên cho cùng một user không bị mất giá trị khi submit.
-
-### 4. Backend hỗ trợ gán/bỏ gán nhiều lớp GVCN
-
-File: `backend/src/auth/dto/auth.dto.ts`
-
-- Bổ sung DTO cho single create/update user:
-  - `advisor_class_ids?: string[]`
-- Bulk DTO cần hỗ trợ:
-  - `advisor_class_ids?: string[]`
-- Có thể giữ `advisor_class_id` tạm thời để backward compatible, nhưng service nên normalize về mảng ids.
-
-File: `backend/src/auth/services/auth.service.ts`
-
-- Single create/update user:
-  - Sau khi lưu user, đồng bộ các lớp GVCN theo danh sách `advisor_class_ids`.
-  - Lớp được chọn thì set `advisor_id = user._id`.
-  - Lớp đang do user làm GVCN nhưng không còn trong danh sách thì unset `advisor_id`.
-- Bulk create:
-  - Hỗ trợ gán nhiều lớp cho mỗi user.
-  - Nếu một lớp đã có GVCN khác, không tự ghi đè; trả lỗi rõ `Lớp đã có GVCN`.
-  - Nếu tạo user thành công nhưng gán lớp lỗi, cần rollback user hoặc xử lý theo transaction để tránh tạo user lỗi nửa chừng.
-- Nên dùng transaction MongoDB nếu dự án đang chạy replica set; nếu không, cần có cleanup rõ ràng khi gán lớp thất bại.
-- Kiểm tra role user phải là Teacher/Giảng viên/GVCN trước khi cho gán lớp.
-
-Acceptance:
-
-- API create/update user nhận danh sách lớp GVCN và đồng bộ đúng `classes.advisor_id`.
-- Một user có thể làm GVCN nhiều lớp.
-- Một lớp không bị ghi đè GVCN hiện có nếu chưa có xác nhận.
-- Bulk create trả về lỗi theo từng dòng, không làm hỏng các dòng hợp lệ.
-
-### 5. Profile đổi `Khoa / Phòng ban` thành `GVCN lớp`
-
-File: `frontend/src/app/profile/page.tsx`
-
-- Đổi label **Khoa / Phòng ban** thành **GVCN lớp**.
-- Không dùng select hard-code danh sách khoa.
-- Hiển thị danh sách lớp mà user đang làm GVCN:
-  - Lấy từ API profile nếu backend trả về.
-  - Hoặc gọi `classApi.getClasses()` và lọc `advisor_id` trùng user hiện tại.
-- Nếu user không phải Teacher/GVCN:
-  - Hiển thị `Không phụ trách lớp nào` hoặc ẩn field tùy thiết kế.
-- Nếu cho phép sửa profile:
-  - Không nên để user tự gán lớp GVCN trong trang profile nếu đây là quyền admin.
-  - Việc gán GVCN nên thực hiện ở `/permissions` hoặc màn hình quản lý lớp.
-
-File: `frontend/src/app/profile/_lib/normalize-profile.ts`
-
-- Bổ sung field normalized:
-  - `advisor_classes?: Class[]`
-  - hoặc `advisor_class_names?: string[]`
-- Giảm phụ thuộc vào `department` cho phần hiển thị profile.
-
-Backend nếu cần:
-
-- `GET /auth/me` nên trả thêm danh sách lớp GVCN của user:
-  - `_id`
-  - `class_name`
-  - `class_year`
-  - `dept_id.name`
-- `UpdateMeDto` không nên tiếp tục cập nhật `department` nếu trường này không còn dùng trong UI.
-
-Acceptance:
-
-- Profile hiển thị **GVCN lớp** thay cho **Khoa / Phòng ban**.
-- Teacher/GVCN thấy được 1 hoặc nhiều lớp đang chủ nhiệm.
-- User không phụ trách lớp nào thấy thông báo rỗng rõ ràng.
-- Không còn danh sách khoa hard-code trong profile cho field này.
-
-## Test cần chạy
-
-Frontend:
-
-```bash
-npm test -- --runInBand
+// Trong finally của fetchSummaries
+loadingMoreRef.current = false;
 ```
 
-Backend:
+Acceptance:
 
-```bash
-npm test -- --runInBand --testPathPatterns=auth.service.spec.ts
+- Scroll nhanh gần cuối không tạo nhiều request cùng một page.
+- Không bị nhảy từ page 1 sang page 3/4 khi sentinel vẫn nằm trong rootMargin.
+
+### P1 - Cần verify lại khi filter mới nhưng `currentPage` đang lớn hơn 1
+
+File: `frontend/src/app/grading/page.tsx`
+
+Vị trí liên quan:
+
+- `frontend/src/app/grading/page.tsx:757` restore `grading_page` từ sessionStorage.
+- `frontend/src/app/grading/page.tsx:766` set `currentPage` theo page đã lưu.
+- `frontend/src/app/grading/page.tsx:908` reset `currentPage(1)` khi xác nhận filter.
+- `frontend/src/app/grading/page.tsx:913` đến `frontend/src/app/grading/page.tsx:915` apply semester/department/class.
+
+Hiện tại khi user xác nhận filter mới thì đã reset về page 1, hướng này đúng. Nhưng cần kiểm tra kỹ case restore session trên mobile/tablet: nếu session lưu `currentPage = 3`, component có thể fetch page 3 như load more khi danh sách hiện tại chưa có page 1 và page 2.
+
+Scope cần sửa:
+
+- Trên mobile/tablet, khi khôi phục session hoặc khi chuyển từ desktop sang mobile, nên reset page về 1, hoặc load tuần tự từ page 1 đến page đã lưu nếu thật sự muốn restore vị trí cũ.
+- Khuyến nghị đơn giản: mobile/tablet luôn bắt đầu từ page 1 sau refresh/restore, tránh danh sách bị thiếu đầu trang.
+
+Acceptance:
+
+- Reload trang trên mobile không hiển thị danh sách bắt đầu từ page 2/3.
+- Infinite scroll append đúng thứ tự từ page 1, 2, 3...
+
+### P2 - Effect fetch đang bỏ dependency `isMobileOrTablet`
+
+File: `frontend/src/app/grading/page.tsx`
+
+Vị trí liên quan:
+
+- `frontend/src/app/grading/page.tsx:714` effect fetch summaries.
+- `frontend/src/app/grading/page.tsx:716` tính `isLoadMore = isMobileOrTablet && currentPage > 1`.
+- `frontend/src/app/grading/page.tsx:719` disable exhaustive deps.
+- Dependency array không có `isMobileOrTablet`.
+
+Rủi ro: khi resize từ desktop sang tablet/mobile hoặc ngược lại, effect không fetch lại theo mode mới. Desktop đang ở page 3 rồi chuyển sang mobile có thể hiển thị một page đơn lẻ như danh sách infinite scroll.
+
+Scope cần sửa:
+
+- Thêm logic riêng khi breakpoint đổi:
+  - Desktop -> mobile/tablet: reset `currentPage` về 1, clear list, `hasMore(true)`.
+  - Mobile/tablet -> desktop: giữ hoặc reset page theo UX desktop, nhưng không append.
+- Sau khi có effect riêng cho breakpoint, có thể giữ dependency fetch tối giản để tránh loop.
+
+Acceptance:
+
+- Resize giữa desktop và mobile không làm danh sách bị thiếu, bị duplicate hoặc dùng sai mode replace/append.
+
+### P2 - `ResponsiveDataView` render `mobileFooter` cả khi loading/empty
+
+File: `frontend/src/components/ui/ResponsiveDataView.tsx`
+
+Vị trí liên quan:
+
+- `frontend/src/components/ui/ResponsiveDataView.tsx:165` vùng scroll mobile.
+- `frontend/src/components/ui/ResponsiveDataView.tsx:188` empty state.
+- `frontend/src/components/ui/ResponsiveDataView.tsx:197` render `{mobileFooter}`.
+
+Hiện tại footer vẫn render sau loading hoặc empty state nếu parent truyền vào. Với `/grading`, parent đang check `hasMore`, `appliedClass`; nhưng vẫn nên chặt hơn để tránh sentinel xuất hiện trong lúc skeleton/empty và tự trigger load không mong muốn.
+
+Scope cần sửa:
+
+- Parent chỉ truyền `mobileFooter` khi `!isInitialLoading && filteredStudents.length > 0 && hasMore`.
+- Hoặc trong `ResponsiveDataView`, bổ sung prop rõ hơn như `mobileEndSlot` và render theo điều kiện data đã có.
+
+Acceptance:
+
+- Không trigger load more khi danh sách đang skeleton hoặc empty.
+
+### P2 - Thiếu trạng thái lỗi/retry cho load thêm
+
+File: `frontend/src/app/grading/page.tsx`
+
+Vị trí liên quan:
+
+- `frontend/src/app/grading/page.tsx:696` catch chỉ `console.error`.
+- `frontend/src/app/grading/page.tsx:1427` footer chỉ hiện spinner khi `isLoadingMore`.
+
+Rủi ro: nếu request load thêm fail, user không biết và không có nút thử lại. Sentinel có thể tiếp tục trigger lặp nếu vẫn intersecting.
+
+Scope cần sửa:
+
+- Thêm `loadMoreError` state.
+- Khi load more fail, hiển thị message ngắn và nút `Thử lại` trong `mobileFooter`.
+- Khi retry, gọi lại page hiện tại hoặc không tăng page trước khi request thành công.
+
+Acceptance:
+
+- Mất mạng/API lỗi khi load thêm có feedback rõ.
+- User có thể retry mà không duplicate data.
+
+## 3. Phạm vi sửa đề xuất
+
+### 3.1. Giữ kiến trúc hiện tại
+
+Tiếp tục dùng:
+
+- `ResponsiveDataView` nhận `mobileScrollRef` để expose scroll container.
+- `ResponsiveDataView` nhận `mobileFooter` để render sentinel trong đúng vùng scroll.
+- `/grading/page.tsx` quản lý `IntersectionObserver`, paging state và append data.
+
+Không cần đổi sang thư viện virtual/infinite list ở bước này, vì yêu cầu hiện tại là tối ưu load và mobile card. Nếu danh sách mỗi lớp rất lớn, cân nhắc virtualization sau.
+
+### 3.2. Bổ sung request guard
+
+Thêm:
+
+- `const loadingMoreRef = React.useRef(false);`
+- `const lastRequestedPageRef = React.useRef(1);` nếu cần chống request lặp cùng page.
+- Reset các ref này khi đổi filter hoặc reset về page 1.
+
+### 3.3. Chuẩn hóa reset state khi đổi filter
+
+Khi confirm filter:
+
+- Clear danh sách cũ trước khi apply filter mới.
+- Reset `currentPage` về 1.
+- Reset `hasMore` về `true`.
+- Reset `isLoadingMore` về `false`.
+- Reset `loadMoreError` nếu có.
+- Reset `loadingMoreRef.current = false`.
+- Reset cache pre-count nếu cache chỉ thuộc page/list hiện tại.
+
+### 3.4. Xử lý breakpoint desktop/mobile
+
+Thêm effect theo `isMobileOrTablet`:
+
+- Nếu vào mobile/tablet: reset `currentPage` về 1 và reload page 1 để đảm bảo list infinite bắt đầu đúng.
+- Nếu về desktop: dùng pagination desktop, không append, không render sentinel.
+
+### 3.5. Tối ưu observer
+
+Observer nên có guard đủ điều kiện:
+
+```tsx
+useEffect(() => {
+  if (!isMobileOrTablet || !appliedClass || !appliedSemester || !hasMore) return;
+  if (isFetching || isLoadingMore) return;
+
+  const target = observerTarget.current;
+  const root = mobileScrollRootRef.current;
+  if (!target || !root) return;
+
+  const observer = new IntersectionObserver(([entry]) => {
+    if (!entry?.isIntersecting) return;
+    if (loadingMoreRef.current) return;
+
+    loadingMoreRef.current = true;
+    setCurrentPage(prev => prev + 1);
+  }, {
+    root,
+    rootMargin: '400px 0px',
+    threshold: 0,
+  });
+
+  observer.observe(target);
+  return () => observer.disconnect();
+}, [isMobileOrTablet, appliedClass, appliedSemester, hasMore, isFetching, isLoadingMore]);
 ```
 
-Kiểm thử thủ công:
+## 4. Acceptance criteria cập nhật
 
-- Vào `/permissions`, chuyển sang page khác trong bảng user, thực hiện refresh data và xác nhận không reset trang.
-- Thêm nhiều user, xác nhận modal kết quả không tự động đóng.
-- Tạo/sửa một Teacher và gán 2 lớp trở lên.
-- Kiểm tra API `/classes` để xác nhận các lớp có `advisor_id` đúng user.
-- Mở `/profile` bằng tài khoản Teacher/GVCN và xác nhận field **GVCN lớp** hiển thị danh sách lớp đúng.
+- Trên desktop: `/grading` vẫn dùng pagination, đổi page/page size hoạt động như cũ.
+- Trên mobile/tablet: chỉ tải page đầu tiên ban đầu, sau đó tự load thêm khi scroll gần cuối.
+- `rootMargin` khoảng `300px` đến `500px`; hiện tại `400px 0px` là hợp lý.
+- Scroll nhanh không tạo request trùng, không skip page.
+- Đổi lớp/học kỳ/khoa reset về page 1 và không append dữ liệu của filter cũ.
+- Reload trang trên mobile không bắt đầu từ page đã restore ở desktop nếu trước đó lưu page lớn hơn 1.
+- Khi hết dữ liệu, sentinel không tiếp tục gọi API.
+- Khi API load thêm lỗi, có feedback và retry.
+- Card mobile/tablet tiếp tục chỉ tập trung vào: họ tên, điểm, xếp loại, hành động admin; không đưa lại các cột desktop không cần thiết.
 
-## Lưu ý rủi ro
+## 5. Test plan
 
-- Nếu current code đã có một phần `advisor_class_id`, cần refactor cẩn thận để không phá luồng bulk create hiện tại.
-- Multi-select lớp cần tránh gửi string rỗng; nên gửi mảng ids hợp lệ.
-- Cần tránh fetch waterfall trên `/permissions`; các API độc lập nên gọi song song bằng `Promise.all`.
-- Không nên ghi đè GVCN lớp đã có sẵn nếu chưa có UI xác nhận.
+### Manual desktop
+
+1. Mở `/grading` ở viewport >= 1024px.
+2. Chọn khoa, lớp, học kỳ và xác nhận.
+3. Kiểm tra request summaries dùng `page=currentPage`, `limit=pageSize`.
+4. Đổi page và page size, xác nhận table replace data, không append.
+
+### Manual mobile/tablet
+
+1. Mở `/grading` ở viewport < 1024px.
+2. Xác nhận request đầu tiên là `page=1`, `limit=pageSize`.
+3. Scroll gần cuối danh sách, trước khi chạm đáy phải tự gọi page tiếp theo.
+4. Scroll nhanh nhiều lần, xác nhận không có request trùng/skip page.
+5. Đổi filter, xác nhận danh sách cũ bị clear và page mới bắt đầu từ 1.
+6. Reload trang sau khi đã load tới page 3, xác nhận mobile không bắt đầu bằng page 3 đơn lẻ.
+7. Giả lập API load more lỗi, xác nhận có thông báo và retry được.
+
+### Code checks
+
+- Chạy lint/typecheck frontend nếu project có script tương ứng.
+- Chạy test liên quan nếu có.
+- Kiểm tra Network tab để xác nhận số request và thứ tự page.
+
+## 6. Trạng thái hiện tại
+
+Đã đúng phần cốt lõi:
+
+- Sentinel đã nằm trong scroll container mobile.
+- Observer đã dùng root là scroll container thay vì viewport.
+- API đã chuyển về phân trang thật.
+- Mobile card đã gọn hơn.
+
+Cần bổ sung trước khi chốt production:
+
+1. Request guard bằng ref để chống trigger trùng.
+2. Reset/restore page riêng cho mobile infinite scroll.
+3. Xử lý breakpoint desktop/mobile rõ ràng.
+4. Không render sentinel khi loading/empty.
+5. Error/retry state cho load more.

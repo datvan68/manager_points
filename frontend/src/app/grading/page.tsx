@@ -132,6 +132,10 @@ function GradingPage() {
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
 
   const [selectedSemester, setSelectedSemester] = useState<string>('');
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerTarget = React.useRef<HTMLDivElement>(null);
+  const mobileScrollRootRef = React.useRef<HTMLDivElement>(null);
   // States cho Khoa, Lớp và Học kì tải từ API
   const [apiDepartments, setApiDepartments] = useState<any[]>([]);
   const [apiClasses, setApiClasses] = useState<any[]>([]);
@@ -654,21 +658,33 @@ function GradingPage() {
     }
   }, [isPrintModalOpen]);
 
-  const fetchSummaries = async (pageToFetch: number = currentPage) => {
+  const fetchSummaries = async (pageToFetch: number = currentPage, isLoadMore: boolean = false) => {
     if (!appliedClass || !appliedSemester) return;
     try {
-      setIsFetching(true);
-      const limitToUse = isMobileOrTablet ? 9999 : pageSize;
-      const pageToUse = isMobileOrTablet ? 1 : pageToFetch;
+      if (isLoadMore) {
+        setIsLoadingMore(true);
+      } else {
+        setIsFetching(true);
+      }
       const res = await summariesPointApi.getSummariesPoints({
-        page: pageToUse,
-        limit: limitToUse,
+        page: pageToFetch,
+        limit: pageSize,
         semesterId: appliedSemester,
         classId: appliedClass,
       });
       const data = res.data || [];
-      setApiSummariesPoints(data);
+      
+      if (isLoadMore && isMobileOrTablet) {
+        setApiSummariesPoints(prev => {
+          const newItems = data.filter((item: any) => !prev.some(p => p._id === item._id));
+          return [...prev, ...newItems];
+        });
+      } else {
+        setApiSummariesPoints(data);
+      }
+      
       setTotalItems(res.meta?.total || 0);
+      setHasMore(res.meta?.totalPages ? pageToFetch < res.meta.totalPages : data.length > 0);
 
       const summaryIds = data.map((s: any) => s._id);
       if (summaryIds.length > 0) {
@@ -681,6 +697,9 @@ function GradingPage() {
       console.error('Error fetching summaries:', e);
     } finally {
       setIsFetching(false);
+      if (isLoadMore) {
+        setIsLoadingMore(false);
+      }
     }
   };
 
@@ -694,9 +713,35 @@ function GradingPage() {
 
   useEffect(() => {
     if (isStateRestored && appliedClass && appliedSemester) {
-      fetchSummaries(currentPage);
+      const isLoadMore = isMobileOrTablet && currentPage > 1;
+      fetchSummaries(currentPage, isLoadMore);
     }
-  }, [currentPage, pageSize, appliedClass, appliedSemester, isStateRestored, isMobileOrTablet]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize, appliedClass, appliedSemester, isStateRestored]);
+
+  useEffect(() => {
+    if (!isMobileOrTablet || !appliedClass || !appliedSemester) return;
+
+    const target = observerTarget.current;
+    const root = mobileScrollRootRef.current;
+    if (!target || !root) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isFetching && !isLoadingMore) {
+          setCurrentPage(prev => prev + 1);
+        }
+      },
+      { root: root, rootMargin: '400px 0px', threshold: 0 }
+    );
+
+    observer.observe(target);
+
+    return () => {
+      observer.unobserve(target);
+      observer.disconnect();
+    };
+  }, [isMobileOrTablet, appliedClass, appliedSemester, hasMore, isFetching, isLoadingMore]);
 
 
   // Effect 1: Khôi phục trạng thái từ sessionStorage khi mount
@@ -860,6 +905,11 @@ function GradingPage() {
       // Load lại dữ liệu và áp dụng bộ lọc
       await fetchData();
 
+      setCurrentPage(1);
+      setHasMore(true);
+      setIsLoadingMore(false);
+      setApiSummariesPoints([]);
+      setPreExistingCountsCache({});
       setAppliedSemester(selectedSemester);
       setAppliedDepartment(selectedDepartment);
       setAppliedClass(selectedClass);
@@ -1092,6 +1142,59 @@ function GradingPage() {
     }
   ];
 
+  const renderMobileCard = (student: any, index: number) => {
+    const isChecked = selectedStudentIds.includes(student.id);
+    
+    return (
+      <div 
+        key={student.id}
+        className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4 shadow-sm flex flex-col gap-3 transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/60"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <input
+              type="checkbox"
+              checked={isChecked}
+              onChange={(e) => {
+                setSelectedStudentIds(prev => 
+                  e.target.checked ? [...prev, student.id] : prev.filter(id => id !== student.id)
+                );
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="font-bold text-sm text-[#1E293B] truncate">
+                {columns.find(c => c.key === 'name')?.render?.(student.name, student)}
+              </div>
+              <div className="text-xs text-[#64748B] mt-0.5 truncate">
+                {student.id}
+              </div>
+            </div>
+          </div>
+          <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1.5 justify-end">
+             {columns.find(c => c.key === 'actions')?.render?.(null, student)}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 pt-3 border-t border-white/40 text-xs">
+          <div className="flex justify-between items-center gap-2">
+            <span className="text-[#64748B] font-semibold shrink-0">Tổng điểm:</span>
+            <span className="text-slate-800 font-bold text-right truncate max-w-[200px]">
+              {columns.find(c => c.key === 'score')?.render?.(student.score, student)}
+            </span>
+          </div>
+          <div className="flex justify-between items-center gap-2">
+            <span className="text-[#64748B] font-semibold shrink-0">Xếp loại:</span>
+            <span className="text-slate-800 font-bold text-right truncate max-w-[200px]">
+              {columns.find(c => c.key === 'grading')?.render?.(student.grading, student)}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <style>{`
@@ -1291,7 +1394,7 @@ function GradingPage() {
                   isLoading={isInitialLoading}
                   keyExtractor={(std) => std.id}
                   breakpoint="lg"
-                  hidePaginationOnMobile={true}
+                  renderCard={renderMobileCard}
                   selection={{
                     selectedKeys: selectedStudentIds,
                     onSelectRow: (id, checked) => {
@@ -1318,26 +1421,44 @@ function GradingPage() {
                     },
                     allSelected: filteredStudents.length > 0 && filteredStudents.every(std => selectedStudentIds.includes(std.id))
                   }}
+                  mobileScrollRef={mobileScrollRootRef}
+                  mobileFooter={
+                    isMobileOrTablet && appliedClass && hasMore ? (
+                      <div ref={observerTarget} className="w-full py-4 flex justify-center min-h-[40px]">
+                        {isLoadingMore && (
+                          <div className="flex items-center gap-2 text-slate-500">
+                            <svg className="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span className="text-sm font-medium">Đang tải thêm...</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : null
+                  }
                   pagination={
-                    <CustomPagination
-                      currentPage={currentPage}
-                      pageSize={pageSize}
-                      totalItems={totalItems}
-                      onPageChange={(page) => {
-                        setIsFetching(true);
-                        setTimeout(() => {
-                          setCurrentPage(page);
-                          setIsFetching(false);
-                        }, 400);
-                      }}
-                      label="sinh viên"
-                      isLoading={isFetching}
-                      pageSizeOptions={[5, 10, 20, 50, 100]}
-                      onPageSizeChange={(size) => {
-                        setPageSize(size);
-                        setCurrentPage(1);
-                      }}
-                    />
+                    !isMobileOrTablet ? (
+                      <CustomPagination
+                        currentPage={currentPage}
+                        pageSize={pageSize}
+                        totalItems={totalItems}
+                        onPageChange={(page) => {
+                          setIsFetching(true);
+                          setTimeout(() => {
+                            setCurrentPage(page);
+                            setIsFetching(false);
+                          }, 400);
+                        }}
+                        label="sinh viên"
+                        isLoading={isFetching}
+                        pageSizeOptions={[5, 10, 20, 50, 100]}
+                        onPageSizeChange={(size) => {
+                          setPageSize(size);
+                          setCurrentPage(1);
+                        }}
+                      />
+                    ) : undefined
                   }
                 />
               )}
