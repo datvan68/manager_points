@@ -4,6 +4,12 @@ import { apiCache } from './api-cache';
 
 import { API_BASE } from './config';
 
+export interface OptionItem {
+  id: string;
+  label: string;
+  score: number;
+}
+
 export interface Criterion {
   _id: string;
   category_id: string | Category;
@@ -14,6 +20,8 @@ export interface Criterion {
   criterion_type: 'khen_thuong' | 'cong_diem' | 'ky_luat';
   is_locked?: boolean;
   is_score_counted?: boolean;
+  scoring_mode?: 'count' | 'single_option';
+  options?: OptionItem[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -27,6 +35,8 @@ export interface CreateCriterionDto {
   criterion_type: 'khen_thuong' | 'cong_diem' | 'ky_luat';
   is_locked?: boolean;
   is_score_counted?: boolean;
+  scoring_mode?: 'count' | 'single_option';
+  options?: OptionItem[];
 }
 
 export interface UpdateCriterionDto {
@@ -38,6 +48,8 @@ export interface UpdateCriterionDto {
   criterion_type?: 'khen_thuong' | 'cong_diem' | 'ky_luat';
   is_locked?: boolean;
   is_score_counted?: boolean;
+  scoring_mode?: 'count' | 'single_option';
+  options?: OptionItem[];
 }
 
 export const criteriaApi = {
@@ -107,4 +119,3 @@ export const criteriaApi = {
     return data;
   }
 };
-

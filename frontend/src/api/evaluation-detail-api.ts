@@ -22,6 +22,9 @@ export interface EvaluationDetail {
   log: EvaluationLog[];
   current_count: number;
   status: string;
+  selected_option_id?: string | null;
+  selected_option_label?: string | null;
+  selected_option_score?: number | null;
   system_score?: number | null;
   sv_score?: number | null;
   sv_submitted_at?: string | null;
@@ -42,6 +45,9 @@ export interface CreateEvaluationDetailDto {
   current_count?: number;
   log?: EvaluationLog[];
   status?: string;
+  selected_option_id?: string | null;
+  selected_option_label?: string | null;
+  selected_option_score?: number | null;
   system_score?: number | null;
   sv_score?: number | null;
   sv_submitted_at?: string | Date | null;
@@ -57,6 +63,9 @@ export interface UpdateEvaluationDetailDto {
   current_count?: number;
   log?: EvaluationLog[];
   status?: string;
+  selected_option_id?: string | null;
+  selected_option_label?: string | null;
+  selected_option_score?: number | null;
   system_score?: number | null;
   sv_score?: number | null;
   sv_submitted_at?: string | Date | null;

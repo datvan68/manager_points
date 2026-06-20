@@ -18,6 +18,15 @@ export class EvaluationDetail {
   @Prop({ type: Number, required: true, min: 0, default: 0 })
   current_count: number;
 
+  @Prop({ type: String, default: null })
+  selected_option_id?: string | null;
+
+  @Prop({ type: String, default: null })
+  selected_option_label?: string | null;
+
+  @Prop({ type: Number, default: null })
+  selected_option_score?: number | null;
+
   // Computed: clamp(current_count × score_per_unit, min_score, max_score)
   @Prop({ type: Number, default: null })
   system_score?: number | null;

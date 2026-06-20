@@ -38,7 +38,9 @@ export default function CriteriaModal({
     maxPoints: 10,
     categoryId: '',
     is_locked: false,
-    is_score_counted: true
+    is_score_counted: true,
+    scoring_mode: 'count' as 'count' | 'single_option',
+    options: [] as { id: string; label: string; score: number }[]
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -54,7 +56,9 @@ export default function CriteriaModal({
           maxPoints: initialData.maxPoints || 10,
           categoryId: initialData.categoryId || defaultCategoryId || (categories[0]?.id || ''),
           is_locked: !!initialData.is_locked,
-          is_score_counted: initialData.is_score_counted !== false
+          is_score_counted: initialData.is_score_counted !== false,
+          scoring_mode: initialData.scoring_mode || 'count',
+          options: initialData.options || []
         });
       } else {
         setFormData({
@@ -66,7 +70,9 @@ export default function CriteriaModal({
           maxPoints: 10,
           categoryId: defaultCategoryId || (categories[0]?.id || ''),
           is_locked: false,
-          is_score_counted: true
+          is_score_counted: true,
+          scoring_mode: 'count',
+          options: []
         });
       }
       setErrors({});
@@ -78,27 +84,33 @@ export default function CriteriaModal({
     if (!formData.name.trim()) newErrors.name = 'Vui lòng nhập tên tiêu chí';
     if (!formData.categoryId) newErrors.categoryId = 'Vui lòng chọn danh mục';
 
-    if (formData.minPoints > formData.maxPoints) {
-      newErrors.minPoints = 'Điểm tối thiểu không được lớn hơn điểm tối đa';
+    if (formData.scoring_mode === 'single_option') {
+      if (formData.options.length === 0) {
+        newErrors.options = 'Vui lòng thêm ít nhất 1 lựa chọn';
+      } else {
+        for (let i = 0; i < formData.options.length; i++) {
+          if (!formData.options[i].label.trim()) {
+            newErrors.options = 'Nhãn lựa chọn không được để trống';
+            break;
+          }
+        }
+      }
+    } else {
+      if (formData.minPoints > formData.maxPoints) {
+        newErrors.minPoints = 'Điểm tối thiểu không được lớn hơn điểm tối đa';
+      }
+      if (formData.points > formData.maxPoints) {
+        newErrors.points = 'Bước nhảy điểm không được lớn hơn điểm tối đa';
+      }
     }
-
-    if (formData.points > formData.maxPoints) {
-      newErrors.points = 'Bước nhảy điểm không được lớn hơn điểm tối đa';
-    }
-
-
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      if (newErrors.minPoints) {
-        toast.error(newErrors.minPoints);
-      } else if (newErrors.maxPoints) {
-        toast.error(newErrors.maxPoints);
-      } else if (newErrors.points) {
-        toast.error(newErrors.points);
-      } else {
-        toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
-      }
+      if (newErrors.options) toast.error(newErrors.options);
+      else if (newErrors.minPoints) toast.error(newErrors.minPoints);
+      else if (newErrors.maxPoints) toast.error(newErrors.maxPoints);
+      else if (newErrors.points) toast.error(newErrors.points);
+      else toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
       return;
     }
 
@@ -136,7 +148,7 @@ export default function CriteriaModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: 'spring', damping: 25, stiffness: 380 }}
-              className="w-full max-w-[480px] bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] border border-white/80 rounded-2xl shadow-xl shadow-slate-300/40 pointer-events-auto flex flex-col overflow-hidden max-h-[95vh] font-sans"
+              className={`w-full transition-all duration-300 ${formData.scoring_mode === 'single_option' ? 'max-w-[800px]' : 'max-w-[480px]'} bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] border border-white/80 rounded-2xl shadow-xl shadow-slate-300/40 pointer-events-auto flex flex-col overflow-hidden max-h-[95vh] font-sans`}
             >
               {/* Header theo thiết kế Figma */}
               <div className="border-b border-white/50 bg-white/40 flex items-center justify-between px-[20px] py-[16px] shrink-0 relative">
@@ -162,8 +174,10 @@ export default function CriteriaModal({
               </div>
 
               {/* Body Form theo thiết kế Figma */}
-              <div className="flex-1 overflow-y-auto px-[20px] py-[20px] space-y-[16px]">
-                {/* Phân loại danh mục */}
+              <div className={`flex-1 overflow-y-auto px-[20px] py-[20px] ${formData.scoring_mode === 'single_option' ? 'grid grid-cols-2 gap-[24px] items-start' : 'flex flex-col'}`}>
+                {/* Cột trái: Thông tin cơ bản */}
+                <div className="flex flex-col space-y-[16px] w-full">
+                  {/* Phân loại danh mục */}
                 <div className="flex flex-col gap-[8px] items-start w-full">
                   <div className="pl-[4px]">
                     <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
@@ -220,6 +234,27 @@ export default function CriteriaModal({
                       <SelectItem value="khen_thuong">Khen thưởng</SelectItem>
                       <SelectItem value="cong_diem">Cộng điểm</SelectItem>
                       <SelectItem value="ky_luat">Kỷ luật</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Hình thức chấm điểm */}
+                <div className="flex flex-col gap-[8px] items-start w-full">
+                  <div className="pl-[4px]">
+                    <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
+                      Hình thức chấm điểm <span className="text-[#ef4444]">*</span>
+                    </label>
+                  </div>
+                  <Select
+                    value={formData.scoring_mode}
+                    onValueChange={(val: 'count' | 'single_option') => setFormData({ ...formData, scoring_mode: val })}
+                  >
+                    <SelectTrigger className="w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:ring-2 focus-within:ring-[#1A73E8]/30">
+                      <SelectValue placeholder="Chọn hình thức" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="count">Đếm số lần (Cộng dồn)</SelectItem>
+                      <SelectItem value="single_option">Chọn 1 tùy chọn (Option)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -298,8 +333,8 @@ export default function CriteriaModal({
                       placeholder="Ví dụ: 0.5 hoặc 1"
                       value={formData.points}
                       onChange={(e) => setFormData({ ...formData, points: Number(e.target.value) })}
-                      className={`w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${errors.points ? 'border-rose-400 ring-2 ring-rose-100' : 'border-white/70'
-                        }`}
+                      disabled={formData.scoring_mode === 'single_option'}
+                      className={`w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${errors.points ? 'border-rose-400 ring-2 ring-rose-100' : 'border-white/70'} ${formData.scoring_mode === 'single_option' ? 'opacity-50' : ''}`}
                     />
                     {errors.points && (
                       <p className="text-[12px] font-medium text-red-500 mt-1 pl-[4px]">
@@ -308,6 +343,74 @@ export default function CriteriaModal({
                     )}
                   </div>
                 </div>
+                </div>
+
+                {/* Quản lý danh sách tùy chọn (chỉ hiện khi scoring_mode === 'single_option') */}
+                {formData.scoring_mode === 'single_option' && (
+                  <div className="flex flex-col gap-3 w-full p-4 bg-white/40 border border-white/70 rounded-xl shadow-sm h-full">
+                    <div className="flex justify-between items-center pb-2 border-b border-white/50">
+                      <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
+                        Danh sách tùy chọn
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          options: [...prev.options, { id: 'opt_' + Date.now() + Math.random().toString(36).substr(2, 5), label: '', score: formData.maxPoints }]
+                        }))}
+                        className="text-[12px] font-bold text-white bg-[#1A73E8] hover:bg-[#155FC0] px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                      >
+                        + Thêm tùy chọn
+                      </button>
+                    </div>
+                    {errors.options && <p className="text-[13px] text-red-500 font-medium bg-red-50 p-2 rounded-lg">{errors.options}</p>}
+                    <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar flex-1 max-h-[400px] pr-1">
+                      {formData.options.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                          <p className="text-[13px] italic mb-2">Chưa có tùy chọn nào</p>
+                          <p className="text-[11px]">Bấm "+ Thêm tùy chọn" để bắt đầu</p>
+                        </div>
+                      )}
+                      {formData.options.map((opt, idx) => (
+                        <div key={opt.id} className="flex items-center gap-2 bg-white/50 p-2 rounded-xl border border-white/60">
+                          <input
+                            type="text"
+                            placeholder="Nhãn (VD: Cán bộ lớp)"
+                            value={opt.label}
+                            onChange={(e) => {
+                              const newOpts = [...formData.options];
+                              newOpts[idx].label = e.target.value;
+                              setFormData({ ...formData, options: newOpts });
+                            }}
+                            className="flex-1 h-[36px] px-3 bg-white/80 border border-slate-200 rounded-lg text-[13px] focus:ring-2 focus:ring-[#1A73E8]/30 outline-none transition-all"
+                          />
+                          <input
+                            type="number"
+                            placeholder="Điểm"
+                            value={opt.score}
+                            onChange={(e) => {
+                              const newOpts = [...formData.options];
+                              newOpts[idx].score = Number(e.target.value);
+                              setFormData({ ...formData, options: newOpts });
+                            }}
+                            className="w-[80px] h-[36px] px-2 text-center bg-white/80 border border-slate-200 rounded-lg text-[13px] focus:ring-2 focus:ring-[#1A73E8]/30 outline-none transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newOpts = [...formData.options];
+                              newOpts.splice(idx, 1);
+                              setFormData({ ...formData, options: newOpts });
+                            }}
+                            className="w-[36px] h-[36px] flex items-center justify-center text-rose-500 hover:bg-rose-100 hover:text-rose-600 rounded-lg transition-colors"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer theo thiết kế Figma */}

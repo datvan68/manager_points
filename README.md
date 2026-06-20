@@ -42,6 +42,9 @@ Quy trình nhập dữ liệu bao gồm hai bước để đảm bảo an toàn:
 1. **Preview (Xem trước):** Phân tích file tải lên để hiển thị danh sách các collections và số lượng bản ghi có trong bản sao lưu.
 2. **Restore (Khôi phục):** Xác nhận khôi phục dữ liệu (yêu cầu gõ chữ `RESTORE`). Hệ thống sẽ tự động tạo một bản sao lưu (pre-restore backup) trước khi tiến hành ghi đè dữ liệu.
 
+### Tiêu chí chấm điểm dạng Option (Chọn 1)
+Cho phép quản trị viên cấu hình tiêu chí với danh sách các lựa chọn (ví dụ: Lớp trưởng, Lớp phó,...). Người chấm điểm chỉ được chọn một tùy chọn duy nhất thay vì nhập số lần. Chi tiết cấu hình và kiến trúc xem thêm tại [Tài liệu Single Option](./docs/single_option_feature.md).
+
 ## 🛠 Công nghệ sử dụng (Tech Stack)
 
 - **AI Framework**: MCP (Model Context Protocol)

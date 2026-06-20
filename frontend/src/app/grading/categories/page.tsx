@@ -123,7 +123,7 @@ function CategoriesPage() {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   // States cho chế độ xem: 'kanban' (mặc định) hoặc 'master-detail' (layout 4/6 mới)
-  const [viewMode, setViewMode] = useState<'kanban' | 'master-detail'>('kanban');
+  const [viewMode, setViewMode] = useState<'kanban' | 'master-detail'>('master-detail');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
 
@@ -169,12 +169,18 @@ function CategoriesPage() {
           categoryId: parentCat ? parentCat.category_code : '',
           categoryObjectId: parentCat ? parentCat._id : (typeof cri.category_id === 'object' ? cri.category_id?._id : cri.category_id),
           is_locked: !!cri.is_locked,
-          is_score_counted: cri.is_score_counted !== false
+          is_score_counted: cri.is_score_counted !== false,
+          scoring_mode: cri.scoring_mode || 'count',
+          options: cri.options || []
         };
       });
 
       setCategories(mappedCats);
       setCriteria(mappedCris);
+
+      if (mappedCats.length > 0) {
+        setSelectedCategoryId(prev => prev || mappedCats[0].id);
+      }
 
       // Cập nhật trạng thái thu gọn mặc định cho các categories mới (giữ lại trạng thái cũ nếu đã có)
       setExpandedCategories(prev => {
@@ -540,7 +546,12 @@ function CategoriesPage() {
         min_score: Number(data.minPoints),
         max_score: Number(data.maxPoints),
         is_locked: !!data.is_locked,
-        is_score_counted: data.type === 'ky_luat' ? !!data.is_score_counted : true
+        is_score_counted: data.type === 'ky_luat' ? !!data.is_score_counted : true,
+        scoring_mode: data.scoring_mode,
+        options: data.options?.map((opt: any) => {
+          const { _id, ...rest } = opt;
+          return rest;
+        })
       }).then(() => {
         fetchData();
         toast.success(`Đã cập nhật tiêu chí "${data.name}" thành công!`);
@@ -554,7 +565,12 @@ function CategoriesPage() {
         min_score: Number(data.minPoints),
         max_score: Number(data.maxPoints),
         is_locked: !!data.is_locked,
-        is_score_counted: data.type === 'ky_luat' ? !!data.is_score_counted : true
+        is_score_counted: data.type === 'ky_luat' ? !!data.is_score_counted : true,
+        scoring_mode: data.scoring_mode,
+        options: data.options?.map((opt: any) => {
+          const { _id, ...rest } = opt;
+          return rest;
+        })
       }).then(() => {
         fetchData();
         toast.success(`Đã thêm tiêu chí "${data.name}" thành công!`);

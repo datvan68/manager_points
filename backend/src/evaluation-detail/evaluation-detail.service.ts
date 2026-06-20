@@ -397,7 +397,37 @@ export class EvaluationDetailService {
       throw new ConflictException(`EvaluationDetail for Criterion ${criterion_id} already exists on this SummaryPoint`);
     }
 
-    const countVal = current_count || 0;
+    let countVal = current_count || 0;
+    let systemScore = 0;
+
+    const rawRest = rest as any;
+    let optId = rawRest.selected_option_id;
+    let optLabel = null;
+    let optScore = null;
+
+    if (criterion.scoring_mode === 'single_option') {
+      if (optId) {
+        const option = criterion.options?.find((o) => o.id === optId);
+        if (option) {
+          systemScore = option.score;
+          optLabel = option.label;
+          optScore = option.score;
+          countVal = 1;
+        } else {
+          throw new BadRequestException('Option không hợp lệ');
+        }
+      } else {
+        countVal = 0;
+        systemScore = 0;
+      }
+    } else {
+      systemScore = countVal * criterion.score_per_unit;
+      if (criterion.score_per_unit >= 0) {
+        systemScore = Math.max(criterion.min_score, Math.min(criterion.max_score, systemScore));
+      } else {
+        systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
+      }
+    }
 
     // Sync academic records first
     const firstLog = rest.log && rest.log.length > 0 ? rest.log[0] : null;
@@ -409,19 +439,14 @@ export class EvaluationDetailService {
       requester || { userId: createdByUserId },
     );
 
-    // Compute system score
-    let systemScore = countVal * criterion.score_per_unit;
-    if (criterion.score_per_unit >= 0) {
-      systemScore = Math.max(criterion.min_score, Math.min(criterion.max_score, systemScore));
-    } else {
-      systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
-    }
-
     const newDetail: any = {
       _id: new Types.ObjectId(),
       criterion_id: new Types.ObjectId(criterion_id),
       current_count: countVal,
       system_score: systemScore,
+      selected_option_id: optId || null,
+      selected_option_label: optLabel,
+      selected_option_score: optScore,
       sv_score: rest.sv_score !== undefined ? rest.sv_score : null,
       sv_submitted_at: rest.sv_submitted_at || null,
       gv_score: rest.gv_score !== undefined ? rest.gv_score : null,
@@ -635,7 +660,41 @@ export class EvaluationDetailService {
       throw new NotFoundException(`Criterion with ID ${detail.criterion_id} not found`);
     }
 
-    if (updateEvaluationDetailDto.current_count !== undefined) {
+    const setObj: any = {};
+
+    if (criterion.scoring_mode === 'single_option' && rawDto.selected_option_id !== undefined) {
+      if (rawDto.selected_option_id) {
+        const option = criterion.options?.find((o) => o.id === rawDto.selected_option_id);
+        if (option) {
+          detail.system_score = option.score;
+          detail.selected_option_id = option.id;
+          detail.selected_option_label = option.label;
+          detail.selected_option_score = option.score;
+          detail.current_count = 1;
+        } else {
+          throw new BadRequestException('Option không hợp lệ');
+        }
+      } else {
+        detail.system_score = 0;
+        detail.selected_option_id = null;
+        detail.selected_option_label = null;
+        detail.selected_option_score = null;
+        detail.current_count = 0;
+      }
+
+      const lastLog = updateEvaluationDetailDto.log && updateEvaluationDetailDto.log.length > 0
+        ? updateEvaluationDetailDto.log[updateEvaluationDetailDto.log.length - 1]
+        : null;
+      const fallbackUserId = lastLog?.updated_by || updateEvaluationDetailDto.gv_reviewed_by;
+      const effectiveRequester = requester || { userId: fallbackUserId };
+      await this.syncAcademicRecords(summary, criterion, detail.current_count, effectiveRequester);
+
+      setObj['details.$.current_count'] = detail.current_count;
+      setObj['details.$.system_score'] = detail.system_score;
+      setObj['details.$.selected_option_id'] = detail.selected_option_id;
+      setObj['details.$.selected_option_label'] = detail.selected_option_label;
+      setObj['details.$.selected_option_score'] = detail.selected_option_score;
+    } else if (updateEvaluationDetailDto.current_count !== undefined && criterion.scoring_mode !== 'single_option') {
       let newCount = updateEvaluationDetailDto.current_count;
 
       const lastLog = updateEvaluationDetailDto.log && updateEvaluationDetailDto.log.length > 0
@@ -669,11 +728,7 @@ export class EvaluationDetailService {
         systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
       }
       detail.system_score = systemScore;
-    }
-
-    const setObj: any = {};
-    
-    if (updateEvaluationDetailDto.current_count !== undefined) {
+      
       setObj['details.$.current_count'] = detail.current_count;
       setObj['details.$.system_score'] = detail.system_score;
     }

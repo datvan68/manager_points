@@ -5,8 +5,36 @@ import {
   IsEnum,
   IsOptional,
   IsBoolean,
+  ValidateNested,
+  IsArray,
+  ValidateIf,
+  ArrayNotEmpty,
+  ArrayUnique,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+
+export class OptionDto {
+  @ApiProperty({ description: 'MongoDB subdocument ID (được thêm tự động)', required: false })
+  @IsOptional()
+  @IsString()
+  _id?: string;
+
+  @ApiProperty({ description: 'ID của tùy chọn' })
+  @IsNotEmpty()
+  @IsString()
+  id: string;
+
+  @ApiProperty({ description: 'Nhãn hiển thị của tùy chọn' })
+  @IsNotEmpty()
+  @IsString()
+  label: string;
+
+  @ApiProperty({ description: 'Điểm của tùy chọn' })
+  @IsNotEmpty()
+  @IsNumber()
+  score: number;
+}
 
 export class CreateCriterionDto {
   @ApiProperty({
@@ -83,4 +111,27 @@ export class CreateCriterionDto {
   @IsOptional()
   @IsBoolean()
   is_score_counted?: boolean;
+
+  @ApiProperty({
+    description: 'Chế độ chấm điểm: tính lượt (count) hoặc chọn 1 (single_option)',
+    enum: ['count', 'single_option'],
+    default: 'count',
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(['count', 'single_option'])
+  scoring_mode?: string;
+
+  @ApiProperty({
+    description: 'Danh sách các tùy chọn (bắt buộc nếu scoring_mode là single_option)',
+    type: [OptionDto],
+    required: false,
+  })
+  @ValidateIf(o => o.scoring_mode === 'single_option')
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayUnique((o: OptionDto) => o.id)
+  @ValidateNested({ each: true })
+  @Type(() => OptionDto)
+  options?: OptionDto[];
 }

@@ -35,6 +35,7 @@ import { CustomPagination } from "@/components/ui/pagination";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { summariesPointApi } from "@/api/summaries-point-api";
 import { criteriaApi } from "@/api/criteria-api";
 import { categoryApi } from "@/api/category-api";
@@ -78,6 +79,8 @@ interface Criteria {
   minScore?: number;
   is_locked?: boolean;
   is_score_counted?: boolean;
+  scoring_mode?: 'count' | 'single_option';
+  options?: { id: string; label: string; score: number }[];
 }
 
 interface Category {
@@ -797,6 +800,10 @@ function GradingScoreContent() {
     Record<string, Record<string, number>>
   >({});
 
+  const [selectedOptionsState, setSelectedOptionsState] = useState<
+    Record<string, Record<string, string>>
+  >({});
+
   // State lưu lại giá trị gốc có sẵn (pre-existing) — { studentId: { criterionId: { original_count, current_count } } }
   const [preExistingCountsState, setPreExistingCountsState] = useState<
     Record<
@@ -1072,7 +1079,9 @@ function GradingScoreContent() {
                 maxScore: cri.max_score || 10,
                 minScore: cri.min_score || 0,
                 is_locked: !!cri.is_locked,
-                is_score_counted: cri.is_score_counted !== false
+                is_score_counted: cri.is_score_counted !== false,
+                scoring_mode: cri.scoring_mode || 'count',
+                options: cri.options || []
               }));
 
             return {
@@ -1140,6 +1149,7 @@ function GradingScoreContent() {
               evaluationDetailApi.getPreExistingCounts(activeSummaryId),
             ]);
             const counts: Record<string, number> = {};
+            const optionsMap: Record<string, string> = {};
             const detailsMap: Record<string, any> = {};
             const activeHistory: any[] = [];
 
@@ -1153,6 +1163,9 @@ function GradingScoreContent() {
                   : null;
               const criId = cri?._id || detail.criterion_id;
               counts[criId] = detail.current_count || 0;
+              if (detail.selected_option_id) {
+                optionsMap[criId] = detail.selected_option_id;
+              }
               detailsMap[criId] = detail;
               evaluatedCriteriaIds.add(criId);
 
@@ -1216,6 +1229,10 @@ function GradingScoreContent() {
               ...prev,
               [targetActiveId]: counts,
             }));
+            setSelectedOptionsState((prev) => ({
+              ...prev,
+              [targetActiveId]: optionsMap,
+            }));
 
             // Sắp xếp lịch sử mới nhất lên trước
             setHistoryRecords(activeHistory.reverse());
@@ -1255,6 +1272,7 @@ function GradingScoreContent() {
           evaluationDetailApi.getPreExistingCounts(summaryId),
         ]);
         const counts: Record<string, number> = {};
+        const optionsMap: Record<string, string> = {};
         const detailsMap: Record<string, any> = {};
         const activeHistory: any[] = [];
 
@@ -1268,6 +1286,9 @@ function GradingScoreContent() {
               : null;
           const criId = cri?._id || detail.criterion_id;
           counts[criId] = detail.current_count || 0;
+          if (detail.selected_option_id) {
+            optionsMap[criId] = detail.selected_option_id;
+          }
           detailsMap[criId] = detail;
           evaluatedCriteriaIds.add(criId);
 
@@ -1328,6 +1349,10 @@ function GradingScoreContent() {
         setEvaluationCounts((prev) => ({
           ...prev,
           [activeStudentId]: counts,
+        }));
+        setSelectedOptionsState((prev) => ({
+          ...prev,
+          [activeStudentId]: optionsMap,
         }));
 
         setHistoryRecords(activeHistory.reverse());
@@ -1465,9 +1490,46 @@ function GradingScoreContent() {
       };
 
       // Tự động tính toán lại điểm số realtime của sinh viên này
-      calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId]);
+      calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId], selectedOptionsState[activeStudentId] || {});
 
       return updatedCounts;
+    });
+  };
+
+  const handleOptionSet = (criteriaId: string, optionId: string) => {
+    if (!activeStudentId) return;
+
+    const summaryId = studentSummaryMap[activeStudentId];
+    if (taskId && summaryId) {
+      markStarted(summaryId, { studentId: activeStudentId }).catch((err) => {
+        toast.warning("Không thể tự động đồng bộ trạng thái nhiệm vụ sang 'Đang làm'!");
+      });
+    }
+
+    setSelectedOptionsState((prev) => {
+      const studentOptions = prev[activeStudentId] ? { ...prev[activeStudentId] } : {};
+      const updatedOptions = {
+        ...prev,
+        [activeStudentId]: {
+          ...studentOptions,
+          [criteriaId]: optionId,
+        },
+      };
+
+      setEvaluationCounts((prevCounts) => {
+        const studentCounts = prevCounts[activeStudentId] ? { ...prevCounts[activeStudentId] } : {};
+        const updatedCounts = {
+          ...prevCounts,
+          [activeStudentId]: {
+            ...studentCounts,
+            [criteriaId]: optionId ? 1 : 0,
+          },
+        };
+        calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId], updatedOptions[activeStudentId]);
+        return updatedCounts;
+      });
+
+      return updatedOptions;
     });
   };
 
@@ -1475,14 +1537,31 @@ function GradingScoreContent() {
   const calculateRealtimeScore = (
     studentId: string,
     studentCounts: Record<string, number>,
+    studentOptions?: Record<string, string>
   ) => {
     let finalScore = 0; // Thay đổi bắt đầu từ 0đ thực tế
+    const options = studentOptions || selectedOptionsState[studentId] || {};
 
     categories.forEach((cat) => {
       let catScore = 0;
       cat.items.forEach((cri) => {
         const count = studentCounts[cri.id] || 0;
-        catScore += getCriterionContributionScore(cri, count);
+        let scoreForCri = 0;
+        if (cri.scoring_mode === 'single_option') {
+          const selectedOptionId = options[cri.id];
+          const option = cri.options?.find(o => o.id === selectedOptionId);
+          if (option) {
+            scoreForCri = option.score;
+            if (cri.type === 'violation' && cri.is_score_counted === false) {
+               scoreForCri -= (cri.maxScore || 10);
+            }
+          } else {
+            scoreForCri = cri.type === 'violation' ? (cri.maxScore || 10) : 0;
+          }
+        } else {
+          scoreForCri = getCriterionContributionScore(cri, count);
+        }
+        catScore += scoreForCri;
       });
 
       const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));
@@ -1567,6 +1646,9 @@ function GradingScoreContent() {
         }
 
         const count = counts[cri.id] || 0;
+        const selectedOptionId = selectedOptionsState[studentId]?.[cri.id] || null;
+        const optionObj = cri.scoring_mode === 'single_option' && selectedOptionId ? cri.options?.find(o => o.id === selectedOptionId) : null;
+        
         // Tìm xem tiêu chí này đã có EvaluationDetail cũ chưa
         const existingDetail = (oldDetails || []).find((d) => {
           const detailCriId =
@@ -1576,11 +1658,21 @@ function GradingScoreContent() {
           return detailCriId === cri.id;
         });
 
+        const isCountChanged = existingDetail?.current_count !== count;
+        const isOptionChanged = cri.scoring_mode === 'single_option' && existingDetail?.selected_option_id !== selectedOptionId;
+
         if (existingDetail) {
           // Nếu số lần khác nhau (có thay đổi)
-          if (existingDetail.current_count !== count) {
-            // Tính điểm tương ứng dựa trên count và pointsPerUnit
-            const calculatedScore = calculateCriterionScore(cri, count);
+          if (isCountChanged || isOptionChanged) {
+            let calculatedScore = 0;
+            if (cri.scoring_mode === 'single_option') {
+              calculatedScore = optionObj ? optionObj.score : 0;
+              if (cri.type === 'violation' && cri.is_score_counted === false) {
+                calculatedScore -= (cri.maxScore || 10);
+              }
+            } else {
+              calculatedScore = calculateCriterionScore(cri, count);
+            }
 
             const updatedHistory = [...(existingDetail.log || [])];
             updatedHistory.push({
@@ -1590,7 +1682,7 @@ function GradingScoreContent() {
               score_after: calculatedScore,
               count,
               updated_by: currentUser?.id,
-              reason: reason,
+              reason: optionObj ? `${reason} (Đã chọn: ${optionObj.label})`.trim() : reason,
             });
 
             // Lọc sạch lịch sử để khớp chính xác DTO ở Backend
@@ -1623,14 +1715,25 @@ function GradingScoreContent() {
                 current_count: count,
                 log: cleanLog,
                 status: detailStatus,
+                selected_option_id: selectedOptionId,
+                selected_option_label: optionObj ? optionObj.label : null,
+                selected_option_score: optionObj ? optionObj.score : null,
                 ...scorePayload,
               })
             );
           }
         } else {
-          // Nếu chưa có và count > 0, ta tiến hành tạo mới
-          if (count > 0) {
-            const calculatedScore = calculateCriterionScore(cri, count);
+          // Nếu chưa có và count > 0 (hoặc có selectedOptionId), ta tiến hành tạo mới
+          if (count > 0 || selectedOptionId) {
+            let calculatedScore = 0;
+            if (cri.scoring_mode === 'single_option') {
+              calculatedScore = optionObj ? optionObj.score : 0;
+              if (cri.type === 'violation' && cri.is_score_counted === false) {
+                calculatedScore -= (cri.maxScore || 10);
+              }
+            } else {
+              calculatedScore = calculateCriterionScore(cri, count);
+            }
 
             const scorePayload: any = {};
             if (userRole === "student") {
@@ -1655,10 +1758,13 @@ function GradingScoreContent() {
                     score_after: calculatedScore,
                     count,
                     updated_by: currentUser?.id,
-                    reason: reason,
+                    reason: optionObj ? `${reason} (Đã chọn: ${optionObj.label})`.trim() : reason,
                   },
                 ],
                 status: detailStatus,
+                selected_option_id: selectedOptionId,
+                selected_option_label: optionObj ? optionObj.label : null,
+                selected_option_score: optionObj ? optionObj.score : null,
                 ...scorePayload,
               })
             );
@@ -2969,86 +3075,116 @@ function GradingScoreContent() {
                                 <div className="flex flex-col md:flex-row md:items-center justify-end gap-3 md:gap-6 shrink-0 pt-2 md:pt-0 border-t border-slate-100/80 md:border-t-0 mt-1 md:mt-0 w-full md:w-auto">
                                   {/* Cupertino Horizontal Wheel Picker & Points Per Unit underneath */}
                                   <div className="flex flex-col items-end w-full md:w-auto mt-1 md:mt-0 gap-1 shrink-0">
-                                    <div
-                                      className={`bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-xl py-1 px-2 flex gap-2 items-center shadow-sm ${item.is_locked || !canModifyScore ? "opacity-60 bg-slate-100/50" : ""}`}
-                                    >
-                                      {/* Nút giảm */}
-                                      <button
-                                        onClick={() =>
-                                          !item.is_locked &&
-                                          canModifyScore &&
-                                          handleCountChange(item.id, -1)
-                                        }
-                                        disabled={
-                                          count <= minCount ||
-                                          item.is_locked ||
-                                          !canModifyScore
-                                        }
-                                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count <= minCount ||
-                                          item.is_locked ||
-                                          !canModifyScore
-                                          ? "opacity-30 cursor-not-allowed text-slate-400"
-                                          : "cursor-pointer " +
-                                          (hasViolation
-                                            ? "text-rose-600 hover:bg-rose-50"
-                                            : "text-[#1A73E8] hover:bg-blue-50")
-                                          }`}
-                                        title={
-                                          !canModifyScore
-                                            ? "Không có quyền sửa đổi trong giai đoạn này"
-                                            : item.is_locked
-                                              ? "Tiêu chí đã bị khóa"
-                                              : "Giảm số lần"
-                                        }
+                                    {item.scoring_mode === 'single_option' ? (
+                                      <div className="w-full md:w-[220px]">
+                                        <Select
+                                          value={selectedOptionsState[activeStudentId]?.[item.id] || ""}
+                                          onValueChange={(val: string) => handleOptionSet(item.id, val)}
+                                        >
+                                          <SelectTrigger
+                                            className={`w-full h-[40px] text-[13px] font-medium text-[#1E293B] ${
+                                              item.is_locked || !canModifyScore
+                                                ? "opacity-60 bg-slate-100/50 cursor-not-allowed pointer-events-none"
+                                                : "cursor-pointer hover:bg-white/80"
+                                            }`}
+                                          >
+                                            <SelectValue placeholder="-- Chọn tùy chọn --" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {item.options?.map((opt) => (
+                                              <SelectItem key={opt.id} value={opt.id}>
+                                                {opt.label} ({opt.score}đ)
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    ) : (
+                                      <div
+                                        className={`bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-xl py-1 px-2 flex gap-2 items-center shadow-sm ${item.is_locked || !canModifyScore ? "opacity-60 bg-slate-100/50" : ""}`}
                                       >
-                                        <Minus size={11} strokeWidth={3} />
-                                      </button>
+                                        {/* Nút giảm */}
+                                        <button
+                                          onClick={() =>
+                                            !item.is_locked &&
+                                            canModifyScore &&
+                                            handleCountChange(item.id, -1)
+                                          }
+                                          disabled={
+                                            count <= minCount ||
+                                            item.is_locked ||
+                                            !canModifyScore
+                                          }
+                                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count <= minCount ||
+                                            item.is_locked ||
+                                            !canModifyScore
+                                            ? "opacity-30 cursor-not-allowed text-slate-400"
+                                            : "cursor-pointer " +
+                                            (hasViolation
+                                              ? "text-rose-600 hover:bg-rose-50"
+                                              : "text-[#1A73E8] hover:bg-blue-50")
+                                            }`}
+                                          title={
+                                            !canModifyScore
+                                              ? "Không có quyền sửa đổi trong giai đoạn này"
+                                              : item.is_locked
+                                                ? "Tiêu chí đã bị khóa"
+                                                : "Giảm số lần"
+                                          }
+                                        >
+                                          <Minus size={11} strokeWidth={3} />
+                                        </button>
 
-                                      <CupertinoHorizontalPicker
-                                        count={count}
-                                        minCount={minCount}
-                                        maxCount={sliderMax}
-                                        onChange={(val) => handleCountSet(item.id, val)}
-                                        isLocked={item.is_locked || false}
-                                        canModifyScore={canModifyScore}
-                                        hasViolation={hasViolation}
-                                      />
+                                        <CupertinoHorizontalPicker
+                                          count={count}
+                                          minCount={minCount}
+                                          maxCount={sliderMax}
+                                          onChange={(val) => handleCountSet(item.id, val)}
+                                          isLocked={item.is_locked || false}
+                                          canModifyScore={canModifyScore}
+                                          hasViolation={hasViolation}
+                                        />
 
-                                      {/* Nút tăng */}
-                                      <button
-                                        onClick={() =>
-                                          !item.is_locked &&
-                                          canModifyScore &&
-                                          handleCountChange(item.id, 1)
-                                        }
-                                        disabled={
-                                          count >= sliderMax ||
-                                          item.is_locked ||
-                                          !canModifyScore
-                                        }
-                                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count >= sliderMax ||
-                                          item.is_locked ||
-                                          !canModifyScore
-                                          ? "opacity-30 cursor-not-allowed text-slate-400"
-                                          : "cursor-pointer " +
-                                          (hasViolation
-                                            ? "text-rose-600 hover:bg-rose-50"
-                                            : "text-[#1A73E8] hover:bg-blue-50")
-                                          }`}
-                                        title={
-                                          !canModifyScore
-                                            ? "Không có quyền sửa đổi trong giai đoạn này"
-                                            : item.is_locked
-                                              ? "Tiêu chí đã bị khóa"
-                                              : "Tăng số lần"
-                                        }
-                                      >
-                                        <Plus size={11} strokeWidth={3} />
-                                      </button>
-                                    </div>
+                                        {/* Nút tăng */}
+                                        <button
+                                          onClick={() =>
+                                            !item.is_locked &&
+                                            canModifyScore &&
+                                            handleCountChange(item.id, 1)
+                                          }
+                                          disabled={
+                                            count >= sliderMax ||
+                                            item.is_locked ||
+                                            !canModifyScore
+                                          }
+                                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count >= sliderMax ||
+                                            item.is_locked ||
+                                            !canModifyScore
+                                            ? "opacity-30 cursor-not-allowed text-slate-400"
+                                            : "cursor-pointer " +
+                                            (hasViolation
+                                              ? "text-rose-600 hover:bg-rose-50"
+                                              : "text-[#1A73E8] hover:bg-blue-50")
+                                            }`}
+                                          title={
+                                            !canModifyScore
+                                              ? "Không có quyền sửa đổi trong giai đoạn này"
+                                              : item.is_locked
+                                                ? "Tiêu chí đã bị khóa"
+                                                : "Tăng số lần"
+                                          }
+                                        >
+                                          <Plus size={11} strokeWidth={3} />
+                                        </button>
+                                      </div>
+                                    )}
 
                                     {/* Đơn giá nằm dưới Picker */}
-                                    {hasViolation ? (
+                                    {item.scoring_mode === 'single_option' ? (
+                                      <span className="text-[#64748B] text-[10px] font-bold tracking-wide pr-3 select-none">
+                                        Chọn 1 tùy chọn
+                                      </span>
+                                    ) : hasViolation ? (
                                       <div className="flex flex-col items-end pr-3 select-none">
                                         <span className="text-rose-600 text-[10px] font-bold tracking-wide">
                                           Trừ {Math.abs(item.pointsPerUnit)}đ/lần vi phạm

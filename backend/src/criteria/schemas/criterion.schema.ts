@@ -37,6 +37,23 @@ export class Criterion {
 
   @Prop({ default: true })
   is_score_counted: boolean;
+
+  @Prop({
+    required: true,
+    enum: ['count', 'single_option'],
+    default: 'count',
+  })
+  scoring_mode: string;
+
+  @Prop({
+    type: [{
+      id: { type: String, required: true },
+      label: { type: String, required: true },
+      score: { type: Number, required: true }
+    }],
+    default: [],
+  })
+  options: { id: string; label: string; score: number }[];
 }
 
 export const CriterionSchema = SchemaFactory.createForClass(Criterion);
