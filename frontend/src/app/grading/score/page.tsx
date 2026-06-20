@@ -34,7 +34,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CustomPagination } from "@/components/ui/pagination";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { summariesPointApi } from "@/api/summaries-point-api";
 import { criteriaApi } from "@/api/criteria-api";
 import { categoryApi } from "@/api/category-api";
@@ -130,42 +130,28 @@ export const getScoreColorClass = (score: number, criterion: Criteria) => {
 
 // Component CriteriaTooltip dùng để hiển thị text dài của tiêu chí
 const CriteriaTooltip = ({ content }: { content: string }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-
-  // Click ra ngoài để đóng tooltip
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (tooltipRef.current && !tooltipRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen]);
-
   return (
-    <div ref={tooltipRef} className="relative inline-flex items-center ml-1 z-20">
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="text-slate-400 hover:text-[#1A73E8] transition-colors focus:outline-none p-0.5"
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="text-slate-400 hover:text-[#1A73E8] transition-colors focus:outline-none p-0.5 relative z-20 ml-1 inline-flex items-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Info size={14} className="shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="center"
+        sideOffset={8}
+        collisionPadding={16}
+        className="z-[100] w-[min(16rem,calc(100vw-2rem))] p-3 rounded-xl bg-slate-900/95 backdrop-blur-md text-white text-xs shadow-xl border border-white/10"
       >
-        <Info size={14} className="shrink-0" />
-      </button>
-      {isOpen && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-3 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-xl shadow-xl border border-white/10 z-50 text-left">
-          <div className="font-semibold mb-1 text-white/90">Nội dung đầy đủ:</div>
-          <div className="leading-relaxed text-slate-300 font-medium">{content}</div>
-          {/* Mũi tên chỉ lên trên */}
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-900/95" />
-        </div>
-      )}
-    </div>
+        <div className="font-semibold mb-1 text-white/90">Nội dung đầy đủ:</div>
+        <div className="leading-relaxed text-slate-300 font-medium">{content}</div>
+      </PopoverContent>
+    </Popover>
   );
 };
 

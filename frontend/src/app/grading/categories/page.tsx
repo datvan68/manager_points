@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   Lock,
   ChevronLeft,
+  Info,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,9 +27,48 @@ import { toast } from 'sonner';
 import { categoryApi } from '../../../api/category-api';
 import { criteriaApi } from '../../../api/criteria-api';
 import { tokenStorage } from '@/api/auth-api';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 
 import { RouteGuard } from '@/components/guards/RouteGuard';
+
+const FullContentPopover = ({ content, label = 'Nội dung đầy đủ:', threshold = 50, className = '' }: { content: string, label?: string, threshold?: number, className?: string }) => {
+  if (!content || content.length <= threshold) {
+    return <span className={className}>{content}</span>;
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-1 min-w-0 max-w-full ${className}`}>
+      <span className="truncate min-w-0" title={content}>{content.slice(0, threshold)}...</span>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button 
+            type="button" 
+            className="shrink-0 text-slate-400 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full inline-flex align-middle"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onDragStart={(e) => e.stopPropagation()}
+            title="Xem đầy đủ"
+          >
+            <Info size={16} />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent 
+          side="bottom" 
+          align="start" 
+          sideOffset={8} 
+          collisionPadding={16} 
+          className="z-[100] w-[min(20rem,calc(100vw-2rem))] p-3 rounded-xl bg-slate-900 text-white border border-slate-700 shadow-xl"
+        >
+          <div className="flex flex-col gap-1.5 max-h-[50vh] overflow-y-auto custom-scrollbar">
+            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">{label}</span>
+            <span className="text-[13px] leading-relaxed whitespace-normal break-words">{content}</span>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </span>
+  );
+};
 
 
 function CategoriesPage() {
@@ -803,8 +843,8 @@ function CategoriesPage() {
                                           </button>
                                         </div>
                                       </div>
-                                      <h4 className="font-bold text-slate-800 text-[13.5px] leading-[18px] mt-1.5 truncate" title={cat.name}>
-                                        {cat.name.length > 100 ? cat.name.slice(0, 100) + '...' : cat.name}
+                                      <h4 className="font-bold text-slate-800 text-[13.5px] leading-[18px] mt-1.5 flex items-center min-w-0">
+                                        <FullContentPopover content={cat.name} label="Nội dung danh mục:" threshold={100} className="truncate" />
                                       </h4>
                                       <div className="flex flex-wrap gap-x-3 gap-y-1 items-center text-[10.5px] text-slate-500 font-medium mt-2">
                                         <div className={`flex gap-1 items-center ${isCriteriaTotalOverMax ? 'text-red-600' : ''}`}>
@@ -927,8 +967,8 @@ function CategoriesPage() {
                                     <span className={`px-2 py-0.5 rounded-xl text-[9px] font-bold tracking-wider uppercase shrink-0 ${bgBadgeColors[categories.findIndex(c => c.id === activeCat.id) % bgBadgeColors.length]}`}>
                                       {activeCat.id}
                                     </span>
-                                    <h2 className="font-bold text-slate-800 text-[15px] sm:text-[16px] leading-[22px] truncate max-w-[150px] sm:max-w-md lg:max-w-none" title={activeCat.name}>
-                                      {activeCat.name}
+                                    <h2 className="font-bold text-slate-800 text-[15px] sm:text-[16px] leading-[22px] flex items-center min-w-0 max-w-[150px] sm:max-w-md lg:max-w-none">
+                                      <FullContentPopover content={activeCat.name} label="Nội dung danh mục:" threshold={100} className="truncate" />
                                     </h2>
                                   </div>
                                 </div>
@@ -1036,8 +1076,8 @@ function CategoriesPage() {
 
                                             {/* Info */}
                                             <div className="flex-1 min-w-0">
-                                              <h4 className="font-bold text-slate-800 text-[13px] truncate" title={item.name}>
-                                                {item.name.length > 50 ? item.name.slice(0, 50) + '...' : item.name}
+                                              <h4 className="font-bold text-slate-800 text-[13px] flex items-center min-w-0">
+                                                <FullContentPopover content={item.name} label="Nội dung tiêu chí:" threshold={50} className="truncate" />
                                               </h4>
                                               <div className="flex items-center gap-2 mt-1.5">
                                                 <span className={`px-2 py-0.5 rounded-xl text-[8px] font-extrabold uppercase border tracking-wider ${typeClass}`}>
@@ -1157,8 +1197,8 @@ function CategoriesPage() {
                                   <div className="flex items-start justify-between w-full">
                                     <div className="flex flex-col gap-0.5">
                                       <span className={`px-2 py-0.5 rounded-xl text-[10px] font-bold tracking-wider uppercase inline-block w-fit ${badgeClass}`}>{cat.id}</span>
-                                      <h3 className="font-bold text-slate-800 text-[15px] leading-[20px] mt-1" title={cat.name}>
-                                        {cat.name.length > 100 ? cat.name.slice(0, 100) + '...' : cat.name}
+                                      <h3 className="font-bold text-slate-800 text-[15px] leading-[20px] mt-1 flex items-center min-w-0">
+                                        <FullContentPopover content={cat.name} label="Nội dung danh mục:" threshold={100} className="truncate" />
                                       </h3>
                                     </div>
                                     <div className="flex gap-1 items-center">
@@ -1220,8 +1260,8 @@ function CategoriesPage() {
                                                         <div className="flex items-center gap-3">
                                                           <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>
                                                           <div className="flex flex-col gap-1">
-                                                            <h4 className="font-bold text-slate-800 text-[13px]" title={item.name}>
-                                                              {item.name.length > 50 ? item.name.slice(0, 50) + '...' : item.name}
+                                                            <h4 className="font-bold text-slate-800 text-[13px] leading-[18px] group-hover:text-[#1A73E8] transition-colors flex items-center min-w-0">
+                                                              <FullContentPopover content={item.name} label="Nội dung tiêu chí:" threshold={50} className="truncate" />
                                                             </h4>
                                                             <span className={`px-2 py-0.5 rounded-xl text-[8px] font-extrabold uppercase border tracking-wider w-fit ${typeClass}`}>{typeLabel}</span>
                                                           </div>
@@ -1333,8 +1373,8 @@ function CategoriesPage() {
                                   <div className="flex items-start justify-between w-full">
                                     <div className="flex flex-col gap-0.5">
                                       <span className={`px-2 py-0.5 rounded-xl text-[10px] font-bold tracking-wider uppercase inline-block w-fit ${badgeClass}`}>{cat.id}</span>
-                                      <h3 className="font-bold text-slate-800 text-[15px] leading-[20px] mt-1" title={cat.name}>
-                                        {cat.name.length > 100 ? cat.name.slice(0, 100) + '...' : cat.name}
+                                      <h3 className="font-bold text-slate-800 text-[15px] leading-[20px] mt-1 flex items-center min-w-0">
+                                        <FullContentPopover content={cat.name} label="Nội dung danh mục:" threshold={100} className="truncate" />
                                       </h3>
                                     </div>
                                     <div className="flex gap-1 items-center">
@@ -1396,8 +1436,8 @@ function CategoriesPage() {
                                                         <div className="flex items-center gap-3">
                                                           <div className="text-slate-300 group-hover:text-slate-400 transition-colors shrink-0"><GripVertical size={16} /></div>
                                                           <div className="flex flex-col gap-1">
-                                                            <h4 className="font-bold text-slate-800 text-[13px]" title={item.name}>
-                                                              {item.name.length > 50 ? item.name.slice(0, 50) + '...' : item.name}
+                                                            <h4 className="font-bold text-slate-800 text-[13px] flex items-center min-w-0">
+                                                              <FullContentPopover content={item.name} label="Nội dung tiêu chí:" threshold={50} className="truncate" />
                                                             </h4>
                                                             <span className={`px-2 py-0.5 rounded-xl text-[8px] font-extrabold uppercase border tracking-wider w-fit ${typeClass}`}>{typeLabel}</span>
                                                           </div>

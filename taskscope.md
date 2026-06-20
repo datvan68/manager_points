@@ -1,202 +1,206 @@
-﻿# Task Scope: Cap nhat hien thi tong diem tieu chi tren /grading/categories
+﻿# Task Scope: Sua popup xem day du noi dung danh muc/tieu chi tren /grading/categories
 
 ## Muc tieu
 
-Cap nhat trang `/grading/categories` theo yeu cau:
+Dieu chinh tinh nang mo popup/dialog de xem day du noi dung cua danh muc va tieu chi tren trang `/grading/categories`, tranh tinh trang popup nam sat vien man hinh/container lam mat chu o dau dong nhu anh user gui.
 
-1. Bo validate chan khi tong diem toi da cac tieu chi vuot qua diem toi da cua danh muc.
-2. Tren UI dang co `Diem toi da` va `So tieu chi`, bo sung them item `Tong diem tieu chi`.
-3. Khi `Tong diem tieu chi` vuot qua `Diem toi da` cua danh muc, text `Diem toi da: ...` chuyen sang mau do de canh bao.
+Yeu cau mong muon:
+
+1. Nguoi dung bam icon xem day du noi dung cua danh muc/tieu chi thi noi dung hien ro, khong bi cat trai/phai.
+2. Popup/dialog co khoang cach an toan voi viewport va container cha.
+3. Van giu duoc trai nghiem gon nhe: chi hien icon xem day du khi ten/noi dung bi rut gon.
 
 ## Hien trang lien quan
 
-File frontend chinh:
+File can kiem tra chinh:
 
 - `frontend/src/app/grading/categories/page.tsx`
-- `frontend/src/components/grading/CriteriaModal.tsx`
 
-File API/backend lien quan de doi chieu:
+File co pattern tooltip dang gay loi tuong tu can doi chieu/tai su dung:
 
-- `frontend/src/api/criteria-api.ts`
-- `backend/src/criteria/criteria.service.ts`
-- `backend/src/criteria/dto/create-criterion.dto.ts`
-- `backend/src/criteria/schemas/criterion.schema.ts`
-- `backend/src/categories/schemas/category.schema.ts`
+- `frontend/src/app/grading/score/page.tsx`
 
-Du lieu hien tai:
+Trong `/grading/categories`, cac vi tri dang truncate ten danh muc/tieu chi:
 
-- Category frontend map `cat.maxPoints` tu backend `category.max_score`.
-- Criteria frontend map `item.maxPoints` tu backend `criterion.max_score`.
-- Criteria duoc gan danh muc qua `categoryId`.
+- Master list category: `h4` co `truncate` va `title={cat.name}`.
+- Master-detail header: `h2` co `truncate` va `title={activeCat.name}`.
+- Master-detail criteria row: `h4` co `truncate` va `title={item.name}`.
+- Kanban category card cot 1/cot 2: `h3` rut gon khi `cat.name.length > 100`.
+- Kanban criteria card cot 1/cot 2: `h4` rut gon khi `item.name.length > 50`.
 
-## Root Cause / Diem can dieu chinh
+Trong `/grading/score`, dang co component `CriteriaTooltip`:
 
-Hien tai trang dang chan mot so thao tac khi tong `maxPoints` cua criteria trong danh muc vuot qua `cat.maxPoints`.
+```tsx
+<div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-3 ...">
+```
 
-### 1. Validate trong modal them/sua tieu chi
+Component nay hien label `Noi dung day du:` va can giua theo icon. Khi icon nam gan vien trai/phai hoac trong vung cha co `overflow-hidden`, popup rong co dinh `w-64` de bi cat noi dung.
 
-Trong `frontend/src/components/grading/CriteriaModal.tsx`, ham `handleSave` dang co doan validate tong diem:
+## Root Cause
 
-- Tinh tong criteria cung danh muc.
-- Tach nhom `ky_luat` va nhom khong phai `ky_luat`.
-- Neu tong `maxPoints` cua nhom vuot `parentCat.maxPoints` thi set `newErrors.maxPoints` va khong cho save.
+Nguyen nhan chinh cua loi trong anh:
 
-Can bo logic chan nay theo yeu cau moi.
-
-Van giu cac validate co ban:
-
-- Ten tieu chi bat buoc.
-- Danh muc bat buoc.
-- `minPoints <= maxPoints`.
-- `points <= maxPoints`.
-
-### 2. Validate khi keo tha tieu chi sang danh muc khac
-
-Trong `frontend/src/app/grading/categories/page.tsx`, ham `handleDrop` dang chan drop neu tong diem criteria cua danh muc dich vuot `targetCat.maxPoints`.
-
-Can bo logic chan nay de nguoi dung van co the chuyen tieu chi sang danh muc, ke ca khi tong diem tieu chi vuot diem toi da danh muc.
-
-Van giu cac hanh vi sau:
-
-- Khong lam gi neu drop vao chinh danh muc hien tai.
-- Cap nhat `categoryId` va `categoryObjectId` tren state.
-- Goi `criteriaApi.updateCriterion(...)` de luu danh muc moi.
-- Hien toast thanh cong/that bai nhu hien tai.
+- Popup dung `position: absolute` ben trong trigger wrapper.
+- Can popup bang `left-1/2 -translate-x-1/2` ma khong co collision detection.
+- Popup co width co dinh `w-64`, khong gioi han theo `viewport` nho.
+- Mot so container cha tren `/grading/categories` co `overflow-hidden`, vi du card/khung noi dung, nen popup co the bi clip.
+- Text trong popup chua co chinh sach wrap manh nhu `break-words`, `whitespace-normal`, `max-w-[calc(100vw-...)]`.
 
 ## Pham vi can sua
 
-### 1. Them helper tinh tong diem tieu chi
+### 1. Tao component xem day du noi dung dung chung
 
-Tao helper dung lai trong `frontend/src/app/grading/categories/page.tsx`, vi hien tai co nhieu noi render thong tin category.
+De xuat tao component nho trong `frontend/src/app/grading/categories/page.tsx` hoac tach ra file rieng neu muon dung lai cho `/grading/score`:
+
+- Ten goi y: `FullContentTooltip`, `FullContentPopover`, hoac `FullContentDialog`.
+- Props toi thieu:
+  - `content: string`
+  - `label?: string`
+  - `className?: string`
+
+Component can:
+
+- Dung icon `Info` tu `lucide-react` neu chua import.
+- Dong khi click ra ngoai hoac bam lai icon.
+- Stop propagation de khong trigger expand/drag/click card category.
+- Chi render khi `content` dai hon nguong rut gon.
+
+Nguong goi y:
+
+- Category name: `content.length > 35` o header/list nho, hoac `> 100` neu dang cat bang logic hien co.
+- Criteria name: `content.length > 50`.
+
+### 2. Chon cach hien thi khong bi cat vien
+
+Phuong an uu tien: dung Radix `Popover` da co san trong project.
+
+File co san:
+
+- `frontend/src/components/ui/popover.tsx`
 
 De xuat:
 
-```ts
-const getCategoryCriteriaTotalMaxPoints = (categoryId: string) =>
-  criteria
-    .filter((item) => item.categoryId === categoryId)
-    .reduce((sum, item) => sum + Number(item.maxPoints || 0), 0);
+```tsx
+<Popover>
+  <PopoverTrigger asChild>
+    <button type="button">...</button>
+  </PopoverTrigger>
+  <PopoverContent
+    side="bottom"
+    align="start"
+    sideOffset={8}
+    collisionPadding={16}
+    className="z-[100] w-[min(20rem,calc(100vw-2rem))] p-3 rounded-xl bg-slate-900/95 text-white border border-white/10 shadow-xl"
+  >
+    ...
+  </PopoverContent>
+</Popover>
 ```
 
-Neu can toi uu re-render, co the dung `useMemo` tao map theo `categoryId`, nhung khong bat buoc neu so luong criteria nho.
+Ly do:
 
-Quy uoc tinh trong scope nay:
+- Radix Popover tu tinh va flip/shift khi gan canh viewport.
+- `collisionPadding={16}` giu popup cach vien man hinh.
+- Portal giup tranh bi container cha `overflow-hidden` cat.
 
-- `Tong diem tieu chi` = tong `maxPoints` cua tat ca criteria trong danh muc.
-- Khong chan theo loai `khen_thuong`, `cong_diem`, `ky_luat`.
-- Khong loai tru criteria `is_score_counted === false` tru khi product co yeu cau rieng sau nay.
+Neu khong muon dung Popover, phuong an thay the la render popup bang fixed overlay/dialog:
 
-### 2. Cap nhat card category o che do Kanban
+- Desktop: `position: fixed`, tinh `left/top` theo `getBoundingClientRect()` va clamp trong viewport.
+- Mobile: hien dialog center hoac bottom sheet nho de noi dung khong bi cat.
 
-Trong `frontend/src/app/grading/categories/page.tsx`, card category dang render o hai cot:
+### 3. Sua layout/text trong popup
 
-- Cot 1 quanh block map `categories.filter(cat => cat.columnId === 'col-1' || !cat.columnId)`.
-- Cot 2 quanh block map `categories.filter(cat => cat.columnId === 'col-2')`.
-
-Moi card hien dang co:
+Popup can co style bao ve text dai:
 
 ```tsx
-Diem toi da: {cat.maxPoints}
-So tieu chi: {catCriteria.length}
+className="max-w-[calc(100vw-2rem)] whitespace-normal break-words leading-relaxed"
 ```
 
-Can bo sung:
+Noi dung nen co:
 
-```tsx
-Tong diem tieu chi: {criteriaTotalMaxPoints}
-```
+- Tieu de: `Noi dung day du:` hoac `Noi dung danh muc:` / `Noi dung tieu chi:` neu muon ro hon.
+- Body: text day du, khong truncate.
+- `max-h-[50vh] overflow-y-auto custom-scrollbar` neu noi dung qua dai.
 
-Dong info can wrap tot tren man hinh nho:
+Can tranh:
 
-- Dung `flex flex-wrap gap-x-4 gap-y-1` hoac layout tuong duong.
-- Khong de text bi chen, tran, hoac lam nut action bi lech.
+- `whitespace-nowrap` trong body popup.
+- Popup nam ben trong container co `overflow-hidden` neu khong dung Portal.
+- Width co dinh duy nhat `w-64` tren mobile.
 
-### 3. Doi mau `Diem toi da` khi vuot tong diem
+### 4. Gan vao cac vi tri bi rut gon tren `/grading/categories`
 
-Neu:
+Can them icon xem day du tai cac vi tri sau:
 
-```ts
-criteriaTotalMaxPoints > Number(cat.maxPoints || 0)
-```
+1. Master list category card:
+   - Gan sau ten `cat.name` trong block `h4`.
+   - Neu ten qua dai, hien icon canh ten.
 
-thi item `Diem toi da` can chuyen sang mau do.
+2. Master-detail category header:
+   - Gan sau `activeCat.name`.
+   - Dam bao icon khong lam header bi tran, dung wrapper `flex items-center min-w-0`.
 
-De xuat class:
+3. Master-detail criteria row:
+   - Gan sau `item.name`.
+   - Button icon phai `shrink-0` de khong bi mat khi hang hep.
 
-```tsx
-const isCriteriaTotalOverMax = criteriaTotalMaxPoints > Number(cat.maxPoints || 0);
-```
+4. Kanban category card cot 1 va cot 2:
+   - Gan sau ten danh muc trong `h3`.
+   - `onClick` cua icon can `stopPropagation()` de khong toggle expand.
 
-Khi `isCriteriaTotalOverMax === true`:
+5. Kanban criteria card cot 1 va cot 2:
+   - Gan sau ten tieu chi trong `h4`.
+   - `onMouseDown/onDragStart` nen `stopPropagation()` neu card co draggable.
 
-- Label `Diem toi da:` doi sang text do, vi user yeu cau text nay chuyen mau do.
-- Gia tri `{cat.maxPoints}` cung nen doi sang nen/text do de canh bao ro hon.
+### 5. Can nhac dong bo voi `/grading/score`
 
-Vi du style:
+Anh user gui khop voi `CriteriaTooltip` hien co trong `frontend/src/app/grading/score/page.tsx`.
 
-```tsx
-isCriteriaTotalOverMax
-  ? 'text-red-600 bg-red-50'
-  : 'text-blue-600 bg-blue-50/50'
-```
+Trong scope nay, uu tien sua `/grading/categories`. Tuy nhien nen ghi chu de tranh duplicate bug:
 
-Khong can chan save/drop; day chi la canh bao UI.
-
-### 4. Cap nhat che do Master-detail
-
-Trang co che do `master-detail`, header danh muc dang hien:
-
-```tsx
-Diem toi da: {activeCat.maxPoints}
-Tong tieu chi: {activeCriteria.length}
-```
-
-Can bo sung `Tong diem tieu chi` va ap dung cung logic doi mau `Diem toi da` khi tong diem tieu chi vuot `activeCat.maxPoints`.
-
-### 5. Cap nhat skeleton neu can
-
-Skeleton card category hien chi co 2 placeholder info item.
-
-Co the them placeholder thu 3 de loading state gan voi UI moi, nhung khong bat buoc neu skeleton van khong gay layout shift lon.
+- Neu tao component dung chung, co the thay `CriteriaTooltip` trong `/grading/score` bang component moi.
+- Neu chua sua `/grading/score`, it nhat can tranh copy lai pattern `absolute left-1/2 -translate-x-1/2 w-64` sang `/grading/categories`.
 
 ## Ngoai pham vi
 
-- Khong thay doi schema MongoDB.
-- Khong thay doi API contract cua `categories` hoac `criteria`.
-- Khong thay doi cach tinh diem ren luyen tai `/grading/score`.
-- Khong tu dong dieu chinh `max_score` cua category.
-- Khong drop/modify data hien co trong database.
-- Khong them validate backend moi cho tong diem criteria.
+- Khong thay doi API/backend.
+- Khong thay doi schema category/criteria.
+- Khong thay doi logic tinh diem, validate diem, drag/drop.
+- Khong thay doi noi dung data hien co.
+- Khong can redesign lai toan bo card danh muc/tieu chi.
 
 ## Acceptance Criteria
 
-- Them/sua criteria thanh cong ngay ca khi tong `maxPoints` criteria trong category vuot `cat.maxPoints`.
-- Keo tha criteria sang category khac thanh cong ngay ca khi category dich bi vuot tong diem.
-- Moi category card o Kanban hien du 3 item:
-  - `Diem toi da`
-  - `So tieu chi`
-  - `Tong diem tieu chi`
-- Header category o Master-detail cung hien `Tong diem tieu chi`.
-- Khi `Tong diem tieu chi > Diem toi da`, item `Diem toi da` chuyen sang mau do.
-- Khi `Tong diem tieu chi <= Diem toi da`, item `Diem toi da` giu style binh thuong.
-- UI khong bi tran, khong che nut sua/xoa/expand tren desktop va mobile.
+- Tren `/grading/categories`, ten danh muc dai co icon xem day du va bam vao se hien day du noi dung.
+- Ten tieu chi dai co icon xem day du va bam vao se hien day du noi dung.
+- Popup/dialog khong bi cat chu khi icon nam gan vien trai, vien phai, tren mobile hoac trong card co `overflow-hidden`.
+- Noi dung trong popup wrap dung, khong tran ngang, khong mat chu dau dong.
+- Click icon khong lam card category bi expand/collapse ngoai y muon.
+- Click icon tren criteria card khong kich hoat drag/drop ngoai y muon.
+- Click ra ngoai hoac bam lai icon dong popup.
+- Keyboard/focus co the thao tac co ban: button co `aria-label`, focus ring khong bi mat.
 
 ## Kiem thu de xuat
 
-1. Chay lint/build frontend:
+1. Chay kiem tra frontend:
 
 ```bash
 npm run lint
 npm run build
 ```
 
-2. Kiem tra flow tren `/grading/categories`:
+2. Kiem tra thu cong tren `/grading/categories`:
 
-- Tao danh muc co `Diem toi da = 10`.
-- Them 2 criteria moi, moi criteria co `maxPoints = 10`.
-- Dam bao modal khong bao loi tong diem vuot max va van save duoc.
-- Dam bao card hien `Tong diem tieu chi: 20`.
-- Dam bao text `Diem toi da: 10` chuyen mau do.
-- Giam/xoa criteria de tong diem ve `<= 10`, dam bao `Diem toi da` tro lai mau binh thuong.
-- Keo criteria tu danh muc khac vao danh muc dang vuot max, dam bao khong bi chan.
-- Lap lai tren ca Kanban va Master-detail.
+- Tao/sua danh muc co ten rat dai, hon 100 ky tu.
+- Tao/sua tieu chi co ten rat dai, hon 100 ky tu.
+- Mo popup xem day du o card gan vien trai man hinh.
+- Mo popup xem day du o card gan vien phai man hinh.
+- Kiem tra ca Master-detail va Kanban.
+- Kiem tra desktop va mobile width nho.
+- Dam bao popup khong bi crop, khong tran ngang, noi dung doc duoc day du.
+- Dam bao click icon khong toggle expand category va khong bat dau drag card.
+
+3. Neu refactor dung chung voi `/grading/score`:
+
+- Kiem tra lai popup `Noi dung day du:` tren `/grading/score` tai danh muc/tieu chi nam gan vien trai/phai.
+- Dam bao tooltip cu khong con bi cat nhu anh user gui.
