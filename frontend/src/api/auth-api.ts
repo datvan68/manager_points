@@ -27,12 +27,19 @@ class AuthApiError extends Error {
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text || 'Đã xảy ra lỗi' };
+  }
+
   if (!res.ok) {
-    throw new AuthApiError(
-      data.message || data.error || 'Đã xảy ra lỗi',
-      res.status,
-    );
+    const message = Array.isArray(data.message)
+      ? data.message.join(', ')
+      : data.message || data.error || 'Đã xảy ra lỗi';
+    throw new AuthApiError(message, res.status);
   }
   return data as T;
 }
@@ -88,11 +95,13 @@ export const authApi = {
   },
 
   async refreshToken(): Promise<RefreshResponse> {
+    console.log(`[AuthApi/Refresh] Requesting ${API_BASE}/auth/refresh`);
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include', // Important to send the cookie
     });
+    console.log(`[AuthApi/Refresh] Response status: ${res.status}`);
     return handleResponse<RefreshResponse>(res);
   },
 

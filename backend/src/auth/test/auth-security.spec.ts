@@ -765,6 +765,8 @@ describe('Auth Security (Student Account Policies)', () => {
         'mock-refresh',
         expect.objectContaining({
           maxAge: 4 * 60 * 60 * 1000,
+          sameSite: 'none',
+          secure: true,
         }),
       );
     });
@@ -802,6 +804,8 @@ describe('Auth Security (Student Account Policies)', () => {
         'mock-refresh',
         expect.objectContaining({
           maxAge: 30 * 24 * 60 * 60 * 1000,
+          sameSite: 'none',
+          secure: true,
         }),
       );
     });

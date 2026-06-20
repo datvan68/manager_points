@@ -37,14 +37,110 @@ function onRefreshFailed(error: Error) {
 }
 
 let refreshPromise: Promise<RefreshResponse> | null = null;
+const authChannel = typeof window !== 'undefined' ? new BroadcastChannel('auth_sync_channel') : null;
+
+if (authChannel) {
+  authChannel.onmessage = (event) => {
+    if (event.data.type === 'TOKEN_REFRESHED') {
+      tokenStorage.setAccessToken(event.data.token);
+      onRefreshed(event.data.token);
+    } else if (event.data.type === 'TOKEN_CLEARED') {
+      tokenStorage.clearTokens();
+    }
+  };
+}
+
+const LOCK_KEY = 'auth_refresh_lock';
+const LOCK_TTL = 10000;
+const TAB_ID = typeof window !== 'undefined' ? Math.random().toString(36).substring(2, 15) : 'ssr';
+
+function acquireLock(): boolean {
+  if (typeof window === 'undefined') return true;
+  const lockRaw = localStorage.getItem(LOCK_KEY);
+  const now = Date.now();
+  if (!lockRaw) {
+    localStorage.setItem(LOCK_KEY, JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
+    return true;
+  }
+  try {
+    const lock = JSON.parse(lockRaw);
+    if (lock.ownerId === TAB_ID) return true;
+    if (now - lock.timestamp > LOCK_TTL) {
+      localStorage.setItem(LOCK_KEY, JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
+      return true;
+    }
+    return false;
+  } catch (e) {
+    localStorage.setItem(LOCK_KEY, JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
+    return true;
+  }
+}
+
+function releaseLock() {
+  if (typeof window === 'undefined') return;
+  const lockRaw = localStorage.getItem(LOCK_KEY);
+  if (!lockRaw) return;
+  try {
+    const lock = JSON.parse(lockRaw);
+    if (lock.ownerId === TAB_ID) {
+      localStorage.removeItem(LOCK_KEY);
+    }
+  } catch (e) {
+    localStorage.removeItem(LOCK_KEY);
+  }
+}
 
 export async function synchronizedRefreshToken(): Promise<RefreshResponse> {
   if (refreshPromise) {
     return refreshPromise;
   }
   
-  refreshPromise = authApi.refreshToken().finally(() => {
+  if (typeof window !== 'undefined' && !acquireLock()) {
+    return new Promise((resolve, reject) => {
+      let timeoutId: NodeJS.Timeout;
+      const listener = (event: MessageEvent) => {
+        if (event.data.type === 'TOKEN_REFRESHED') {
+          clearTimeout(timeoutId);
+          authChannel?.removeEventListener('message', listener);
+          resolve({ access_token: event.data.token });
+        } else if (event.data.type === 'TOKEN_CLEARED') {
+          clearTimeout(timeoutId);
+          authChannel?.removeEventListener('message', listener);
+          reject(new ApiError('Refresh failed in another tab', 401));
+        } else if (event.data.type === 'REFRESH_FAILED') {
+          clearTimeout(timeoutId);
+          authChannel?.removeEventListener('message', listener);
+          reject(new Error('Other tab failed to refresh'));
+        }
+      };
+      authChannel?.addEventListener('message', listener);
+      timeoutId = setTimeout(() => {
+        authChannel?.removeEventListener('message', listener);
+        // Timeout waiting for other tab to finish refresh.
+        // It's possible we missed the event, but we can't be sure.
+        // Rejecting here will cause the caller to either retry or fail cleanly.
+        reject(new Error('Cross-tab refresh timeout'));
+      }, 5000);
+    });
+  }
+  
+  if (authChannel) {
+    authChannel.postMessage({ type: 'REFRESH_STARTED', ownerId: TAB_ID });
+  }
+
+  refreshPromise = authApi.refreshToken().then((result) => {
+    if (authChannel) {
+      authChannel.postMessage({ type: 'TOKEN_REFRESHED', token: result.access_token });
+    }
+    return result;
+  }).catch((err) => {
+    if (authChannel) {
+      authChannel.postMessage({ type: 'REFRESH_FAILED', error: err.message });
+    }
+    throw err;
+  }).finally(() => {
     refreshPromise = null;
+    releaseLock();
   });
   
   return refreshPromise;
@@ -108,6 +204,9 @@ export async function httpClient(url: string, options: RequestInit = {}): Promis
         const error = new ApiError('Phiên đăng nhập đã hết hạn', 401);
         onRefreshFailed(error);
         tokenStorage.clearTokens();
+        if (authChannel) {
+          authChannel.postMessage({ type: 'TOKEN_CLEARED' });
+        }
         if (typeof window !== 'undefined') {
           toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', {
             id: 'session-expired-toast'

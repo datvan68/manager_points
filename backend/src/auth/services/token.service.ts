@@ -42,7 +42,7 @@ export class TokenService {
     }
 
     if (storedToken.is_revoked) {
-      const gracePeriodMs = 10000; // 10s grace period
+      const gracePeriodMs = 60000; // 60s grace period
       const timeSinceRevocation = Date.now() - new Date(storedToken.updatedAt).getTime();
       
       if (timeSinceRevocation < gracePeriodMs && storedToken.replaced_by) {

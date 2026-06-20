@@ -74,13 +74,15 @@ export class AuthController {
 
     const isAdmin = result.user.role === 'Admin';
     const cookieMaxAge = isAdmin
-      ? (dto.remember ? 4 * 60 * 60 * 1000 : undefined)
-      : (dto.remember ? 30 * 24 * 60 * 60 * 1000 : undefined);
+      ? 4 * 60 * 60 * 1000 // 4 hours for admin
+      : dto.remember
+        ? 30 * 24 * 60 * 60 * 1000 // 30 days for user with remember
+        : 24 * 60 * 60 * 1000; // 24 hours for user without remember
 
     res.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       path: '/api/auth',
       maxAge: cookieMaxAge,
     });
@@ -126,19 +128,25 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const token = req.cookies?.['refresh_token'];
-    if (!token) throw new UnauthorizedException('Phiên làm việc đã kết thúc');
+    const origin = req.headers.origin || req.headers.referer || 'unknown';
+    
+    console.log(`[Auth/Refresh] Request from origin: ${origin}, route: ${req.path}`);
+    if (!token) {
+      console.warn(`[Auth/Refresh] Missing refresh_token cookie`);
+      throw new UnauthorizedException('Phiên làm việc đã kết thúc');
+    } else {
+      console.log(`[Auth/Refresh] Received refresh_token cookie: ***REDACTED***`);
+    }
 
     const result = await this.authService.refreshToken(token);
 
-    const maxAge = result.remember
-      ? Math.max(0, new Date(result.expires_at).getTime() - Date.now())
-      : undefined;
+    const maxAge = Math.max(0, new Date(result.expires_at).getTime() - Date.now());
 
     // Rotate Cookie
     res.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       path: '/api/auth',
       maxAge,
     });
@@ -156,7 +164,11 @@ export class AuthController {
     if (token) {
       await this.authService.revokeToken(token, ip);
     }
-    res.clearCookie('refresh_token', { path: '/api/auth' });
+    res.clearCookie('refresh_token', {
+      path: '/api/auth',
+      secure: true,
+      sameSite: 'none',
+    });
     return { message: 'Logged out successfully' };
   }
 

@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user, permissions],
   );
 
-  const loadUserPermissions = async (token: string) => {
+  const loadUserPermissions = async (token: string, isRetry = false) => {
     try {
       // Note: We use raw fetch() here instead of httpClient() because this is the primary
       // session validation logic. Using httpClient() here could trigger recursive silent refresh
@@ -141,6 +141,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(updatedUser);
         }
       } else if (res.status === 401) {
+        if (!isRetry) {
+          try {
+            const result = await synchronizedRefreshToken();
+            tokenStorage.setAccessToken(result.access_token);
+            return loadUserPermissions(result.access_token, true);
+          } catch (refreshErr) {
+            // let it clear session
+          }
+        }
         tokenStorage.clearTokens();
         setUser(null);
         setPermissions([]);
@@ -209,22 +218,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    const interval = setInterval(async () => {
-      try {
-        const result = await synchronizedRefreshToken();
-        tokenStorage.setAccessToken(result.access_token);
-        loadUserPermissions(result.access_token);
-      } catch (err: any) {
-        console.error("Silent refresh failed:", err);
-        const isAuthFailure = 
-          err && 
-          typeof err.status === 'number' && 
-          [400, 401, 403].includes(err.status);
+    const interval = setInterval(() => {
+      const attemptRefresh = async (retryCount = 0) => {
+        try {
+          const result = await synchronizedRefreshToken();
+          tokenStorage.setAccessToken(result.access_token);
+          loadUserPermissions(result.access_token);
+        } catch (err: any) {
+          console.error(`Silent refresh failed (attempt ${retryCount + 1}):`, err);
           
-        if (isAuthFailure) {
-          logout();
+          if (retryCount === 0) {
+            setTimeout(() => attemptRefresh(1), 2000); // Retry after 2 seconds
+            return;
+          }
+          
+          const isAuthFailure = 
+            err && 
+            typeof err.status === 'number' && 
+            [400, 401, 403].includes(err.status);
+            
+          if (isAuthFailure) {
+            logout();
+          }
         }
-      }
+      };
+      
+      attemptRefresh();
     }, 5 * 60 * 1000); // 5 phút
 
     return () => clearInterval(interval);

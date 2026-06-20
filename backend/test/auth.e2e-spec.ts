@@ -188,8 +188,10 @@ describe('Auth (e2e)', () => {
           expect(res.body.access_token).toBeDefined();
 
           const cookies = res.headers['set-cookie'] || [];
-          const hasRefreshToken = cookies.some((cookie: string) => cookie.includes('refresh_token='));
-          expect(hasRefreshToken).toBe(true);
+          const refreshTokenCookie = cookies.find((cookie: string) => cookie.includes('refresh_token='));
+          expect(refreshTokenCookie).toBeDefined();
+          expect(refreshTokenCookie).toContain('SameSite=None');
+          expect(refreshTokenCookie).toContain('Secure');
         });
     });
 
@@ -219,6 +221,8 @@ describe('Auth (e2e)', () => {
           const refreshTokenCookie = cookies.find((cookie: string) => cookie.startsWith('refresh_token='));
           expect(refreshTokenCookie).toBeDefined();
           expect(refreshTokenCookie).toContain('Max-Age=14400');
+          expect(refreshTokenCookie).toContain('SameSite=None');
+          expect(refreshTokenCookie).toContain('Secure');
         });
     });
 
@@ -236,6 +240,8 @@ describe('Auth (e2e)', () => {
           const refreshTokenCookie = cookies.find((cookie: string) => cookie.startsWith('refresh_token='));
           expect(refreshTokenCookie).toBeDefined();
           expect(refreshTokenCookie).toContain('Max-Age=2592000');
+          expect(refreshTokenCookie).toContain('SameSite=None');
+          expect(refreshTokenCookie).toContain('Secure');
         });
     });
   });
@@ -272,6 +278,8 @@ describe('Auth (e2e)', () => {
       const newRefreshTokenCookie = newCookies.find((cookie: string) => cookie.startsWith('refresh_token='));
       expect(newRefreshTokenCookie).toBeDefined();
       expect(newRefreshTokenCookie).not.toBe(refreshTokenCookie);
+      expect(newRefreshTokenCookie).toContain('SameSite=None');
+      expect(newRefreshTokenCookie).toContain('Secure');
     });
   });
 });
