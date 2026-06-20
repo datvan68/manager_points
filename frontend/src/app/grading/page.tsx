@@ -1521,7 +1521,15 @@ function GradingPage() {
 
       {/* Dialog for Advanced Filters (Mobile/Tablet Only) */}
       <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] sm:w-full max-w-[400px] rounded-2xl bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] border border-white/80 shadow-2xl p-5 z-[100] font-sans">
+        <DialogContent 
+          className="w-[calc(100%-2rem)] sm:w-full max-w-[400px] rounded-2xl bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] border border-white/80 shadow-2xl p-5 z-[100] font-sans"
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('.z-\\[9999\\]') || target.closest('[role="listbox"]')) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader className="mb-4 text-left">
             <DialogTitle className="text-base font-bold text-[#1E293B]">Bộ lọc nâng cao</DialogTitle>
           </DialogHeader>

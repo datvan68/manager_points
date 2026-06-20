@@ -64,19 +64,28 @@ const MultiClassSelect = ({ selectedIds, onChange, classes, disabled, placeholde
             <div className="py-2 text-center text-[11px] text-slate-400">Không có lớp nào</div>
           ) : (
             filteredClasses.map(cls => (
-              <label key={cls._id || cls.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer">
+              <div 
+                key={cls._id || cls.id} 
+                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const id = cls._id || cls.id;
+                  if (selectedIds.includes(id)) {
+                    onChange(selectedIds.filter(i => i !== id));
+                  } else {
+                    onChange([...selectedIds, id]);
+                  }
+                }}
+              >
                 <input 
                   type="checkbox" 
                   checked={selectedIds.includes(cls._id || cls.id)} 
-                  onChange={(e) => {
-                    const id = cls._id || cls.id;
-                    if (e.target.checked) onChange([...selectedIds, id]);
-                    else onChange(selectedIds.filter(i => i !== id));
-                  }}
+                  readOnly
                   className="w-3.5 h-3.5 text-[#1A73E8] rounded border-slate-300"
                 />
                 <span className="text-xs text-slate-700 font-medium">{cls.class_name || cls.name}</span>
-              </label>
+              </div>
             ))
           )}
         </div>
@@ -503,7 +512,7 @@ export default function UserModal({
                               <label className="text-[12.5px] font-semibold text-[#64748B]">GVCN lớp</label>
                               <MultiClassSelect 
                                 selectedIds={formData.advisorClassIds} 
-                                onChange={(ids) => setFormData({ ...formData, advisorClassIds: ids })} 
+                                onChange={(ids) => setFormData(prev => ({ ...prev, advisorClassIds: ids }))} 
                                 classes={classes} 
                                 disabled={!roles.find(r => r._id === formData.role)?.name?.match(/Teacher|Giảng viên|GVCN/i)} 
                                 className="w-full h-9 px-3 py-1.5 bg-white/50 border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B]"
