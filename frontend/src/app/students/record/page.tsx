@@ -290,8 +290,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     };
     fetchClasses();
 
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
+    setIsLoading(false);
   }, []);
 
   // Fetch student academic records
@@ -3376,9 +3375,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 pageSize={itemsPerPage}
                 totalItems={totalRecords}
                 onPageChange={(page) => {
-                  setIsLoading(true);
                   setCurrentPage(page);
-                  setTimeout(() => setIsLoading(false), 300);
                 }}
                 onPageSizeChange={setItemsPerPage}
                 label="ghi nhận"
@@ -3950,9 +3947,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 pageSize={classItemsPerPage}
                 totalItems={totalClassReports}
                 onPageChange={(page) => {
-                  setIsClassLoading(true);
                   setClassCurrentPage(page);
-                  setTimeout(() => setIsClassLoading(false), 300);
                 }}
                 onPageSizeChange={setClassItemsPerPage}
                 label="báo cáo lớp"

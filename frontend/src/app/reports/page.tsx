@@ -218,7 +218,6 @@ export default function ReportsPage() {
 
     setIsRefreshing(true);
     setIsTabLoading(prev => ({ ...prev, [tab]: true }));
-    setIsLoading(true);
 
     try {
       if (tab === 'overview') {
@@ -482,7 +481,10 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (user) {
-      loadTabSpecificData(activeTab, true);
+      const timer = setTimeout(() => {
+        loadTabSpecificData(activeTab, true);
+      }, 50);
+      return () => clearTimeout(timer);
     }
   }, [
     user,
@@ -503,11 +505,21 @@ export default function ReportsPage() {
     notificationPage,
     notificationLimit,
     logPage,
-    logLimit
+    logLimit,
+    filters.semesterId,
+    filters.evaluationPeriodId,
+    filters.departmentId,
+    filters.classId,
+    filters.startDate,
+    filters.endDate,
+    filters.searchQuery,
+    filters.status
   ]);
 
+  const prevFiltersRef = React.useRef(filters);
   useEffect(() => {
-    if (user) {
+    if (user && JSON.stringify(prevFiltersRef.current) !== JSON.stringify(filters)) {
+      prevFiltersRef.current = filters;
       setStudentPage(1);
       setRecordPage(1);
       setAttendancePage(1);
@@ -527,18 +539,9 @@ export default function ReportsPage() {
         task: false,
         system: false
       });
-      loadTabSpecificData(activeTab, true);
+      setIsLoading(true);
     }
-  }, [
-    filters.semesterId,
-    filters.evaluationPeriodId,
-    filters.departmentId,
-    filters.classId,
-    filters.startDate,
-    filters.endDate,
-    filters.searchQuery,
-    filters.status
-  ]);
+  }, [filters, user]);
 
   const handleRefresh = () => {
     loadTabSpecificData(activeTab, true).then(() => {
@@ -785,7 +788,7 @@ export default function ReportsPage() {
   };
 
   // Process data based on active filters
-  const processed = processReportsData(dataset, filters);
+  const processed = React.useMemo(() => processReportsData(dataset, filters), [dataset, filters]);
 
   // Filter out attention students (Rèn luyện yếu, vắng nhiều hoặc có kỷ luật)
   const getAttentionStudents = () => {
@@ -1242,7 +1245,7 @@ export default function ReportsPage() {
             {activeTab === 'student' && (
               <StudentReportTab
                 data={processed.tables.students}
-                isLoading={isLoading}
+                isLoading={isTabLoading['student']}
                 onExport={() => handleExportSingleTab('student')}
                 serverSide={true}
                 totalItems={studentTotal}
@@ -1257,7 +1260,7 @@ export default function ReportsPage() {
               <ScoreReportTab
                 data={processed.tables.scores}
                 scoreDetailsData={processed.tables.scoreDetails}
-                isLoading={isLoading}
+                isLoading={isTabLoading['score']}
                 onExport={() => handleExportSingleTab('score')}
                 onExportDetails={() => handleExportSingleTab('scoreDetails')}
                 serverSide={true}
@@ -1278,7 +1281,7 @@ export default function ReportsPage() {
             {activeTab === 'record' && (
               <AcademicRecordReportTab
                 data={processed.tables.records}
-                isLoading={isLoading}
+                isLoading={isTabLoading['record']}
                 onExport={() => handleExportSingleTab('record')}
                 serverSide={true}
                 totalItems={recordTotal}
@@ -1292,7 +1295,7 @@ export default function ReportsPage() {
             {activeTab === 'attendance' && (
               <AttendanceReportTab
                 data={processed.tables.attendance}
-                isLoading={isLoading}
+                isLoading={isTabLoading['attendance']}
                 onExport={() => handleExportSingleTab('attendance')}
                 serverSide={true}
                 totalItems={attendanceTotal}
@@ -1307,7 +1310,7 @@ export default function ReportsPage() {
               <TaskReportTab
                 data={processed.tables.tasks}
                 taskProgressData={processed.tables.taskProgress}
-                isLoading={isLoading}
+                isLoading={isTabLoading['task']}
                 onExport={() => handleExportSingleTab('task')}
                 onExportProgress={() => handleExportSingleTab('taskProgress')}
                 serverSide={true}
@@ -1331,7 +1334,7 @@ export default function ReportsPage() {
                 onExportNotifications={() => handleExportSingleTab('notifications')}
                 logsData={processed.tables.system}
                 onExportLogs={() => handleExportSingleTab('system')}
-                isLoading={isLoading}
+                isLoading={isTabLoading['system']}
                 showLogs={isAdminUser(user) || hasPermission('SYSTEM_ADMIN') || hasPermission('LOGIN_LOG_READ')}
                 serverSide={true}
                 notificationTotalItems={notificationTotal}
