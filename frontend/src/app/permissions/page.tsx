@@ -709,14 +709,11 @@ function PermissionsPageContent() {
     if (!token) throw new Error('Hết phiên làm việc');
 
     if (isEditingUser) {
-      if (userData.role) {
-        await authApi.assignRole(editingUser._id, userData.role, token);
-      }
-      // Assuming updateUser is also available to update email/status if needed
       await authApi.updateUser(editingUser._id, {
         user_name: userData.username,
         email: userData.email,
         status: userData.status,
+        role_id: userData.role,
         advisor_class_ids: userData.advisor_class_ids || [],
         ...(userData.password ? { password: userData.password } : {})
       }, token);

@@ -1,4 +1,5 @@
 import { API_BASE } from './config';
+import { apiCache } from './api-cache';
 
 export interface LoginResponse {
   access_token: string;
@@ -130,7 +131,9 @@ export const authApi = {
       },
       body: JSON.stringify(data),
     });
-    return handleResponse<any>(res);
+    const result = await handleResponse<any>(res);
+    apiCache.invalidate('classes');
+    return result;
   },
 
   async createUsersBulk(data: any, accessToken: string): Promise<any> {
@@ -142,7 +145,9 @@ export const authApi = {
       },
       body: JSON.stringify(data),
     });
-    return handleResponse<any>(res);
+    const result = await handleResponse<any>(res);
+    apiCache.invalidate('classes');
+    return result;
   },
 
   async getRoles(accessToken: string): Promise<any[]> {
@@ -283,7 +288,9 @@ export const authApi = {
       },
       body: JSON.stringify(data),
     });
-    return handleResponse<any>(res);
+    const result = await handleResponse<any>(res);
+    apiCache.invalidate('classes');
+    return result;
   },
 
   async getMe(accessToken: string): Promise<any> {
@@ -310,7 +317,9 @@ export const authApi = {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${accessToken}` },
     });
-    return handleResponse<any>(res);
+    const result = await handleResponse<any>(res);
+    apiCache.invalidate('classes');
+    return result;
   },
 
   async deleteUsersBulk(userIds: string[], accessToken: string): Promise<any> {
@@ -322,7 +331,9 @@ export const authApi = {
       },
       body: JSON.stringify({ userIds }),
     });
-    return handleResponse<any>(res);
+    const result = await handleResponse<any>(res);
+    apiCache.invalidate('classes');
+    return result;
   },
 
   // ─── ROUTE PERMISSION MANAGEMENT ────────────────
