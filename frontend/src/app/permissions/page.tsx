@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import logoNsg from '../../assets/cropped-logo-nsg.png';
 import Sidebar from '../../components/layout/Sidebar';
@@ -56,6 +56,37 @@ function PermissionsPageContent() {
   const [filterStatuses, setFilterStatuses] = useState<string[]>(['Tất cả']);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isStatusSelectOpen, setIsStatusSelectOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (filterRef.current && !filterRef.current.contains(target)) {
+        // Check if the click is inside a Select dropdown portal
+        let isInsideSelectPortal = false;
+        let current: HTMLElement | null = target;
+        while (current) {
+          if (current.getAttribute && current.getAttribute('data-select-content') === 'true') {
+            isInsideSelectPortal = true;
+            break;
+          }
+          current = current.parentElement;
+        }
+
+        if (!isInsideSelectPortal) {
+          setIsFilterOpen(false);
+          setIsStatusSelectOpen(false);
+        }
+      }
+    }
+
+    if (isFilterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isFilterOpen]);
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1099,7 +1130,7 @@ function PermissionsPageContent() {
                         className="pl-8.5 pr-3 py-1.5 text-xs font-semibold text-[#1E293B] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 w-60 transition-all duration-150 ease-out placeholder:text-[#64748B]/70"
                       />
                     </div>
-                    <div className="relative">
+                    <div className="relative" ref={filterRef}>
                       <button
                         onClick={() => setIsFilterOpen(!isFilterOpen)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] shadow-sm select-none ${

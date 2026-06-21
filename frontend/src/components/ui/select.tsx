@@ -274,6 +274,7 @@ export const SelectContent = React.forwardRef<any, any>(
     const content = (
       <div
         ref={contentRef}
+        data-select-content="true"
         className={cn(
           "fixed z-[9999] w-max max-w-[280px] bg-white/80 backdrop-blur-md rounded-xl shadow-md border border-white/70 p-1 overflow-hidden transition duration-200 ease-out",
           open
