@@ -18,6 +18,10 @@ export class UpdateNotificationDto {
   routeUrl?: string;
 
   @IsOptional()
+  @IsEnum(['all', 'student', 'teacher', 'supervisor'])
+  targetRole?: 'all' | 'student' | 'teacher' | 'supervisor';
+
+  @IsOptional()
   @IsObject()
   metadata?: Record<string, any>;
 }

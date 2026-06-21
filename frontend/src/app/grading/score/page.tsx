@@ -2794,26 +2794,24 @@ function GradingScoreContent() {
                         <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase shrink-0">
                           Sinh viên đang chấm điểm
                         </h3>
-                        {currentUserRole !== "student" && (
-                          <div className="relative w-full md:w-[220px]">
-                            <Select
-                              value={selectedClassId || undefined}
-                              onValueChange={handleClassChange}
-                              disabled={isRosterLoading || apiClasses.length === 0}
-                            >
-                              <SelectTrigger className="h-8 bg-white/70 border-slate-200 text-xs font-semibold">
-                                <SelectValue placeholder={isRosterLoading ? "Đang tải..." : "Chọn lớp"} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {apiClasses.map((cls) => (
-                                  <SelectItem key={cls._id} value={cls._id}>
-                                    {cls.class_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
+                        <div className="relative w-full md:w-[220px]">
+                          <Select
+                            value={selectedClassId || undefined}
+                            onValueChange={handleClassChange}
+                            disabled={isRosterLoading || apiClasses.length === 0}
+                          >
+                            <SelectTrigger className="h-8 bg-white/70 border-slate-200 text-xs font-semibold">
+                              <SelectValue placeholder={isRosterLoading ? "Đang tải..." : "Chọn lớp"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {apiClasses.map((cls) => (
+                                <SelectItem key={cls._id} value={cls._id}>
+                                  {cls.class_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="relative flex-1 max-w-[240px]">
                           <input
                             type="text"

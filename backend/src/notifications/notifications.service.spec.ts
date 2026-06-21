@@ -137,8 +137,25 @@ describe('NotificationsService', () => {
 
   describe('update', () => {
     it('should update and return updated notification for privileged user', async () => {
-      const result = await service.update(mockNotificationId, { title: 'Updated Title' }, mockUserId, 'Admin');
+      const updateData = { title: 'Updated Title' };
+      const result = await service.update(mockNotificationId, updateData, mockUserId, 'Admin');
       expect(result).toBeDefined();
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+        mockNotificationId,
+        { $set: updateData },
+        { returnDocument: 'after' }
+      );
+    });
+
+    it('should update and return updated notification with targetRole for privileged user', async () => {
+      const updateData = { title: 'Updated Title', targetRole: 'student' as const };
+      const result = await service.update(mockNotificationId, updateData, mockUserId, 'Admin');
+      expect(result).toBeDefined();
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+        mockNotificationId,
+        { $set: updateData },
+        { returnDocument: 'after' }
+      );
     });
 
     it('should throw ForbiddenException if user is not privileged', async () => {
