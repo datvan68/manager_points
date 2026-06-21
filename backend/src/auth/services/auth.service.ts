@@ -1119,7 +1119,16 @@ export class AuthService implements OnModuleInit {
     for (const r of roles) {
       await this.roleModel.findOneAndUpdate(
         { role_code: r.role_code },
-        { $set: r },
+        {
+          $set: {
+            name: r.name,
+            role_code: r.role_code,
+            description: r.description,
+          },
+          $setOnInsert: {
+            permissions: r.permissions,
+          },
+        },
         { upsert: true },
       ).exec();
     }
@@ -1180,7 +1189,16 @@ export class AuthService implements OnModuleInit {
       const validPerms = g.permissions.filter((p) => !!p);
       await this.permissionGroupModel.findOneAndUpdate(
         { code: g.code },
-        { $set: { ...g, permissions: validPerms } },
+        {
+          $set: {
+            code: g.code,
+            name: g.name,
+            description: g.description,
+          },
+          $setOnInsert: {
+            permissions: validPerms,
+          },
+        },
         { upsert: true },
       ).exec();
     }
@@ -1251,7 +1269,19 @@ export class AuthService implements OnModuleInit {
       if (validPerms.length > 0) {
         await this.routePermissionModel.findOneAndUpdate(
           { route_path: mapping.route_path },
-          { $set: { ...mapping, permissions: validPerms } },
+          {
+            $set: {
+              route_path: mapping.route_path,
+              route_name: mapping.route_name,
+              description: mapping.description,
+              check_type: mapping.check_type,
+              is_active: mapping.is_active,
+              type: mapping.type,
+            },
+            $setOnInsert: {
+              permissions: validPerms,
+            },
+          },
           { upsert: true },
         ).exec();
       }

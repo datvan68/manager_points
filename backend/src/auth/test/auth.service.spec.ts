@@ -382,4 +382,41 @@ describe('AuthService', () => {
       expect(result.errors[0].reason).toContain('Email đã được sử dụng');
     });
   });
+
+  describe('seedRbac (RBAC Seeding regression)', () => {
+    it('should use $setOnInsert for permissions to avoid overwriting custom permissions of existing roles', async () => {
+      const roleModel = (service as any).roleModel;
+      const permissionModel = (service as any).permissionModel;
+      const permissionGroupModel = (service as any).permissionGroupModel;
+
+      permissionModel.deleteMany = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionModel.find = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
+      permissionModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({ _id: 'mock-perm-id' }) });
+
+      permissionGroupModel.deleteOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionGroupModel.deleteMany = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionGroupModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionGroupModel.find = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
+
+      const routePermissionModel = (service as any).routePermissionModel;
+      routePermissionModel.deleteOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+
+      roleModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+
+      await (service as any).seedRbac();
+
+      expect(roleModel.findOneAndUpdate).toHaveBeenCalled();
+      
+      const calls = roleModel.findOneAndUpdate.mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      calls.forEach(call => {
+        const updateQuery = call[1];
+        expect(updateQuery.$setOnInsert).toBeDefined();
+        expect(updateQuery.$setOnInsert.permissions).toBeDefined();
+        if (updateQuery.$set) {
+          expect(updateQuery.$set.permissions).toBeUndefined();
+        }
+      });
+    });
+  });
 });
