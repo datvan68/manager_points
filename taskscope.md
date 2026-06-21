@@ -1,109 +1,269 @@
-# Taskscope: Quyền của vai trò bị reset sau build/restart
+# Taskscope: Them select chon lop trong slider `/grading/score`
 
-## Vấn đề
+## Muc tieu
 
-Khi set quyền hạn cho một vai trò trên trang `/permissions` và dữ liệu đã được lưu vào database, sau khi build/chạy lại hệ thống thì các quyền đã set biến mất, chỉ còn lại các quyền mặc định.
+Trang `/grading/score` hien co slider "Sinh vien dang cham diem" de teacher/admin/supervisor chon nhanh sinh vien dang cham. Can bo sung mot select chon lop ngay tren khu vuc slider de nguoi dung co quyen teacher/admin/supervisor co the chon lop truc tiep tai trang nay, sau do danh sach sinh vien trong slider duoc reload theo lop vua chon.
 
-## Kết luận kiểm tra
+Text hien thi tren UI phai dung tieng Viet co dau, vi du:
 
-Nguyên nhân nằm ở backend, trong `AuthService.onModuleInit()`:
-
-- `backend/src/auth/services/auth.service.ts:67` gọi `migrateLegacyRoleCodes()`.
-- `backend/src/auth/services/auth.service.ts:69` gọi `seedDeclaredPermissions()`.
-- `backend/src/auth/services/auth.service.ts:70` gọi `seedRbac()` mỗi lần module auth khởi động.
-- `seedRbac()` tạo danh sách role mặc định tại `backend/src/auth/services/auth.service.ts:1038`.
-- Mỗi role mặc định có trường `permissions`.
-- Vòng lặp tại `backend/src/auth/services/auth.service.ts:1119` đang dùng:
-
-```ts
-await this.roleModel.findOneAndUpdate(
-  { role_code: r.role_code },
-  { $set: r },
-  { upsert: true },
-).exec();
+```text
+Chon lop
+Tat ca lop / Ten lop
+Dang tai danh sach sinh vien...
+Vui long chon lop hoc de xem danh sach sinh vien.
 ```
 
-Vì `$set: r` bao gồm `permissions`, nên mỗi lần backend start lại, database sẽ bị ghi đè `role.permissions` về cấu hình seed mặc định. Đây là lý do quyền đã chỉnh trên UI vẫn lưu được, nhưng sau build/restart lại quay về mặc định.
+## Hien trang kiem tra
 
-## Phạm vi ảnh hưởng
+File chinh:
 
-Các role mặc định bị ảnh hưởng:
+- `frontend/src/app/grading/score/page.tsx`
 
-- `ADMIN`
-- `TEACHER`
-- `SUPERVISOR`
-- `STUDENT`
-- `SECURITY_ADMIN`
-- `SYSTEM_OPERATOR`
-- `AUDIT_VIEWER`
-- `BACKUP_OPERATOR`
+Cac diem lien quan hien tai:
 
-Các role tự tạo không trùng `role_code` trên sẽ không bị vòng seed role mặc định ghi đè.
+- `frontend/src/app/grading/score/page.tsx:38` da import `Select`, `SelectContent`, `SelectItem`, `SelectTrigger`, `SelectValue`.
+- `frontend/src/app/grading/score/page.tsx:44` da import `classApi`.
+- `frontend/src/app/grading/score/page.tsx:729` co state `students`.
+- `frontend/src/app/grading/score/page.tsx:774` co state `selectedSemesterId`.
+- `frontend/src/app/grading/score/page.tsx:775` co state `selectedClassId`.
+- `frontend/src/app/grading/score/page.tsx:851` lay `currentUser` tu `tokenStorage.getUser()`.
+- `frontend/src/app/grading/score/page.tsx:862` co `currentUserRole = getRoleKey(currentUser?.role)`.
+- `frontend/src/app/grading/score/page.tsx:863` co `isAdminOrSupervisor`.
+- `frontend/src/app/grading/score/page.tsx:873` co `shouldShowStudentSlider = currentUserRole !== "student"`.
+- `frontend/src/app/grading/score/page.tsx:960` load classes bang `classApi.getClasses()`.
+- `frontend/src/app/grading/score/page.tsx:969` dang scope class cho teacher theo `advisor_id`/`user_id`.
+- `frontend/src/app/grading/score/page.tsx:983` doc `grading_appliedClass` tu `sessionStorage`.
+- `frontend/src/app/grading/score/page.tsx:997` set `selectedClassId(effectiveClassId)`.
+- `frontend/src/app/grading/score/page.tsx:1002` co local helper `fetchAllSummaries(sem, clsId, resolvedStudentId)`.
+- `frontend/src/app/grading/score/page.tsx:1050` lay roster bang `studentApi.getStudents({ classId: effectiveClassId })`.
+- `frontend/src/app/grading/score/page.tsx:1064` lay summaries bang `summariesPointApi.getSummariesPoints({ semesterId, classId, page: 1, limit: 1000 })`.
+- `frontend/src/app/grading/score/page.tsx:1117` map roster voi summaries bang `mapRosterWithSummaries`.
+- `frontend/src/app/grading/score/page.tsx:1120` build `studentSummaryMap`.
+- `frontend/src/app/grading/score/page.tsx:1382` effect tu dong scroll slider toi active student.
+- `frontend/src/app/grading/score/page.tsx:2684` bat dau block `STUDENT HERO SLIDER`.
+- `frontend/src/app/grading/score/page.tsx:2695` header slider hien title, search, nut xoa, nut trai/phai.
+- `frontend/src/app/grading/score/page.tsx:2740` `sliderRef` render danh sach card sinh vien.
 
-## File liên quan
+Hien tai `/grading/score` chi doc lop da ap dung tu `sessionStorage` hoac auto chon lop dau tien cho teacher. Admin/supervisor neu chua co `grading_appliedClass` co the khong co cach doi lop truc tiep trong slider cua trang cham diem.
 
-- `backend/src/auth/services/auth.service.ts`
-  - `onModuleInit()`
-  - `seedRbac()`
-  - khối seed roles mặc định
-- `backend/src/auth/services/rbac.service.ts`
-  - `updateRole()` đang lưu permissions đúng vào DB
-- `backend/src/auth/schemas/role.schema.ts`
-  - trường `permissions`
-- `frontend/src/app/permissions/page.tsx`
-  - UI gọi API cập nhật role
-- `frontend/src/api/auth-api.ts`
-  - client API cho role/permission
+## Pham vi chinh sua de xuat
 
-## Nguyên tắc sửa
+Chi chinh trong:
 
-Seed RBAC phải idempotent:
+- `frontend/src/app/grading/score/page.tsx`
 
-- Được phép tạo role mặc định khi role chưa tồn tại.
-- Được phép cập nhật metadata an toàn như `name`, `description` nếu muốn giữ migration metadata.
-- Không được ghi đè `permissions` của role đã tồn tại, vì đây là cấu hình người dùng đã chỉnh trên UI.
-- Chỉ set `permissions` mặc định bằng `$setOnInsert` khi insert role mới.
+Khong can doi backend API, khong can doi schema database, khong can sua `/grading` list page neu khong can thiet.
 
-## Hướng sửa đề xuất
+### 1. Them select lop trong header slider
 
-Thay logic upsert role mặc định trong `seedRbac()` từ `$set: r` sang tách riêng metadata và default permissions:
+Them select vao header cua `STUDENT HERO SLIDER`, gan voi `selectedClassId`.
 
-```ts
-for (const r of roles) {
-  await this.roleModel.findOneAndUpdate(
-    { role_code: r.role_code },
-    {
-      $set: {
-        name: r.name,
-        role_code: r.role_code,
-        description: r.description,
-      },
-      $setOnInsert: {
-        permissions: r.permissions,
-      },
-    },
-    { upsert: true },
-  ).exec();
-}
+Vi tri de xuat:
+
+- Trong block `!isStudentSliderSticky`.
+- Nam gan search input, theo layout responsive:
+  - desktop: title -> class select -> search
+  - mobile/tablet: title tren dong dau, select va search wrap xuong dong duoi neu thieu rong
+
+Goi y UI:
+
+```tsx
+<div className="relative w-full md:w-[220px]">
+  <Select
+    value={selectedClassId || undefined}
+    onValueChange={handleClassChange}
+    disabled={isRosterLoading || apiClasses.length === 0}
+  >
+    <SelectTrigger className="h-8 bg-white/70 border-slate-200 text-xs font-semibold">
+      <SelectValue placeholder="Chon lop" />
+    </SelectTrigger>
+    <SelectContent>
+      {apiClasses.map((cls) => (
+        <SelectItem key={cls._id} value={cls._id}>
+          {cls.class_name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
 ```
 
-Nếu muốn tuyệt đối không đổi tên/mô tả role đã tồn tại, có thể đưa cả `name`, `description` vào `$setOnInsert`. Tuy nhiên phương án trên vẫn cho phép migrate metadata role mặc định mà không làm mất quyền đã cấu hình.
+Text tren UI khi implement phai co dau:
 
-## Cần cân nhắc thêm
+- placeholder: `Chọn lớp`
+- loading label neu can: `Đang tải...`
 
-`seedRbac()` hiện cũng đang `$set` lại:
+### 2. Role duoc thay doi lop
 
-- permission groups tại `backend/src/auth/services/auth.service.ts:1179`
-- route permissions tại `backend/src/auth/services/auth.service.ts:1249`
+Select chi hien cho non-student:
 
-Nếu UI cũng cho phép chỉnh permission group hoặc route mapping, hai phần này có nguy cơ reset tương tự sau restart. Nên áp dụng cùng nguyên tắc:
+- `teacher`
+- `admin`
+- `supervisor`
 
-- default data chỉ set khi insert mới
-- không ghi đè cấu hình runtime đã chỉnh trong DB
+Student khong hien select vi trang student chi cham diem cua chinh minh.
 
-## Tiêu chí hoàn thành
+Danh sach option dung `apiClasses` da duoc scope san:
 
-- Sau khi cập nhật role permissions trên `/permissions`, restart/build lại backend không làm mất permissions đã lưu.
-- Role mặc định vẫn được tạo đúng khi database rỗng.
-- Permissions mới từ registry vẫn được tạo/bổ sung bình thường.
-- Có regression test backend: existing role có custom permissions không bị `seedRbac()` ghi đè sau khi seed chạy lại.
+- teacher: chi thay cac lop minh la advisor theo logic hien co `advisor_id || user_id`.
+- admin/supervisor: thay tat ca lop backend tra ve.
+
+Khong duoc cho teacher chon lop ngoai scope bang cach bypass UI. Neu handler nhan classId khong nam trong `apiClasses`, bo qua va toast loi ngan gon.
+
+### 3. Tach helper reload roster/summaries theo lop
+
+Nen tach logic dang nam trong `loadRealData` thanh helper dung lai khi doi lop, vi hien tai doan load roster/summaries/map active student dang bi lap logic trong initial load.
+
+Goi y helper:
+
+```tsx
+const loadClassRosterAndSummaries = React.useCallback(
+  async (classId: string, semesterId: string, options?: { preferStudentId?: string }) => {
+    // fetch roster
+    // fetch summaries
+    // filter period_id null
+    // map roster with summaries
+    // build studentSummaryMap
+    // set students, summaries, summaryMap
+    // set active student
+  },
+  [currentUserRole, studentIdParam]
+);
+```
+
+Yeu cau trong helper:
+
+- Goi `studentApi.getStudents({ classId })`.
+- Goi `summariesPointApi.getSummariesPoints({ semesterId, classId, page: 1, limit: 1000 })`.
+- Chi giu summaries hoc ky tong hop: `!sum.period_id || sum.period_id === null`.
+- Map bang helper hien co `mapRosterWithSummaries(filteredStudents, summariesData, colors)`.
+- Build `studentSummaryMap` bang `buildSummaryIndex` va `findSummaryForStudent`.
+- Khi co `studentIdParam` va sinh vien do nam trong lop hien tai, co the active sinh vien do trong initial load.
+- Khi user doi lop bang select, nen active sinh vien dau tien cua lop moi, khong giu `studentIdParam` cu neu no khong thuoc lop moi.
+
+### 4. Handler khi chon lop
+
+Them handler `handleClassChange(classId: string)`.
+
+Flow de xuat:
+
+1. Neu classId rong, trung voi `selectedClassId`, hoac khong nam trong `apiClasses`, dung lai.
+2. Set `selectedClassId(classId)`.
+3. Luu `sessionStorage.setItem("grading_appliedClass", classId)` de dong bo voi logic hien co.
+4. Reset UI phu thuoc lop cu:
+   - `setRosterSearch("")`
+   - `setActiveStudentId("")`
+   - `setStudents([])`
+   - `setApiSummariesPoints([])`
+   - `setStudentSummaryMap({})`
+   - `setEvaluationDetailsMap({})`
+   - `setEvaluationCounts({})`
+   - `setSelectedOptionsState({})`
+   - `setPreExistingCountsState({})`
+   - `setHistoryRecords([])`
+5. Bat state loading rieng cho roster, vi `isFetching` dang dung cho detail active student va `isInitialLoading` dang dung cho lan load dau.
+6. Goi helper reload roster/summaries voi `selectedSemesterId` va classId.
+7. Neu loi, toast: `Không thể tải danh sách sinh viên của lớp đã chọn.`
+
+Goi y state moi:
+
+```tsx
+const [isRosterLoading, setIsRosterLoading] = useState(false);
+```
+
+Slider skeleton nen hien khi:
+
+```tsx
+isInitialLoading || isRosterLoading
+```
+
+### 5. Khong lam stale detail cua lop cu
+
+Effect load detail theo `activeStudentId` hien phu thuoc vao:
+
+```tsx
+[activeStudentId, studentSummaryMap, categories, isInitialLoading]
+```
+
+Sau khi doi lop, can dam bao:
+
+- Khong render lich su ghi nhan cua sinh vien lop cu trong luc roster lop moi dang tai.
+- Khong giu `evaluationCounts`, `selectedOptionsState`, `preExistingCountsState` cua lop cu neu active student moi chua load xong.
+- Nut luu diem khong thao tac vao summary cu khi dang doi lop.
+- `activeStudentId` chi duoc set sau khi `studentSummaryMap` cua lop moi da duoc build.
+
+Neu can, disable nut save/copy/delete khi `isRosterLoading`.
+
+### 6. Empty/loading state trong slider
+
+Khi dang reload lop:
+
+```text
+Đang tải danh sách sinh viên...
+```
+
+Khi lop da chon nhung khong co sinh vien:
+
+```text
+Lớp này chưa có sinh viên.
+```
+
+Khi chua chon lop:
+
+```text
+Vui lòng chọn lớp học để xem danh sách sinh viên.
+```
+
+Khi search khong co ket qua:
+
+```text
+Không tìm thấy sinh viên nào khớp với bộ lọc.
+```
+
+Co the tiep tuc dung block empty hien co o `frontend/src/app/grading/score/page.tsx:2765`, nhung can phan biet `isRosterLoading`, `selectedClassId`, va `students.length`.
+
+### 7. Khong thay doi ngoai pham vi
+
+Khong lam cac viec sau trong task nay:
+
+- Khong doi backend endpoint.
+- Khong doi co che tinh diem, luu diem, approve/lock summary.
+- Khong doi logic deadline/giai doan cham diem.
+- Khong doi `mapRosterWithSummaries`, `summary-matching` neu khong bat buoc.
+- Khong hien select cho student role.
+- Khong auto initialize summary cho lop moi. Neu lop chua co summary, giu behavior hien co: card sinh vien co trang thai `no_summary` va cac hanh dong cham diem phu thuoc `studentSummaryMap`.
+
+## Acceptance criteria
+
+- Teacher/admin/supervisor thay select chon lop trong slider cua `/grading/score`.
+- Student khong thay select chon lop.
+- Teacher chi thay va chon duoc cac lop minh phu trach.
+- Admin/supervisor thay va chon duoc cac lop duoc backend tra ve.
+- Khi chon lop moi, slider hien loading/skeleton trong luc tai roster.
+- Sau khi tai xong, slider hien danh sach sinh vien cua dung lop moi.
+- `activeStudentId` duoc reset sang sinh vien dau tien cua lop moi, hoac rong neu lop khong co sinh vien.
+- Search trong slider duoc reset khi doi lop.
+- History, counts, selected options, pre-existing counts va details khong con hien du lieu sinh vien/lop cu sau khi doi lop.
+- `studentSummaryMap` va `apiSummariesPoints` duoc build lai theo `selectedSemesterId + selectedClassId`.
+- `sessionStorage.grading_appliedClass` duoc cap nhat theo lop vua chon.
+- Nut trai/phai slider van hoat dong nhu hien tai.
+- Sticky slider va auto-scroll toi active student khong bi loi.
+- Khong co request API lap vo han khi doi lop.
+- Khong phat sinh loi TypeScript/lint tu cac state/helper moi.
+
+## Test plan
+
+1. Dang nhap teacher co it nhat 2 lop phu trach.
+2. Mo `/grading/score`, xac nhan select hien va option chi gom lop cua teacher.
+3. Chon lop khac, xac nhan slider reload va danh sach sinh vien doi theo lop.
+4. Chon mot sinh vien, xac nhan detail/category/history load theo sinh vien moi.
+5. Search sinh vien trong lop A, doi sang lop B, xac nhan search bi reset.
+6. Dang nhap admin/supervisor, xac nhan select hien nhieu lop va co the doi lop bat ky trong danh sach.
+7. Dang nhap student, xac nhan khong hien select lop va flow tu cham diem khong doi.
+8. Chon lop khong co sinh vien, xac nhan empty state hien dung.
+9. Chon lop co sinh vien nhung chua co summary, xac nhan card hien nhung nut luu diem bi disable theo logic hien co.
+10. Reload trang sau khi chon lop moi, xac nhan trang doc lai `grading_appliedClass` va load dung lop.
+
+## Trang thai
+
+Day la taskscope de agent trien khai. Chua chinh code implementation.

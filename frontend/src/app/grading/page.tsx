@@ -755,6 +755,7 @@ function GradingPage() {
       const savedAppliedSem = sessionStorage.getItem('grading_appliedSem') || '';
       const savedSearch = sessionStorage.getItem('grading_search') || '';
       const savedPage = sessionStorage.getItem('grading_page') || '1';
+      const isMobile = window.innerWidth < 1024;
 
       setSelectedDepartment(savedDept);
       setSelectedClass(savedClass);
@@ -763,7 +764,7 @@ function GradingPage() {
       setAppliedClass(savedAppliedClass);
       setAppliedSemester(savedAppliedSem);
       setSearchTerm(savedSearch);
-      setCurrentPage(Number(savedPage));
+      setCurrentPage(isMobile ? 1 : Number(savedPage));
     }
     setIsStateRestored(true);
   }, []);
@@ -1423,18 +1424,28 @@ function GradingPage() {
                   }}
                   mobileScrollRef={mobileScrollRootRef}
                   mobileFooter={
-                    isMobileOrTablet && appliedClass && hasMore ? (
-                      <div ref={observerTarget} className="w-full py-4 flex justify-center min-h-[40px]">
-                        {isLoadingMore && (
-                          <div className="flex items-center gap-2 text-slate-500">
-                            <svg className="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            <span className="text-sm font-medium">Đang tải thêm...</span>
-                          </div>
-                        )}
-                      </div>
+                    isMobileOrTablet && appliedClass && appliedSemester && filteredStudents.length > 0 && !isInitialLoading && !isFetching ? (
+                      hasMore ? (
+                        <div ref={observerTarget} className="w-full py-4 flex justify-center min-h-[40px]">
+                          {isLoadingMore && (
+                            <div className="flex items-center gap-2 text-slate-500">
+                              <svg className="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span className="text-sm font-medium">Đang tải thêm...</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div
+                          className="w-full py-4 flex justify-center min-h-[40px] text-xs font-semibold text-slate-400"
+                          role="status"
+                          aria-live="polite"
+                        >
+                          Đã tải hết
+                        </div>
+                      )
                     ) : null
                   }
                   pagination={
@@ -1687,7 +1698,7 @@ function GradingPage() {
                 >
                   <SelectValue placeholder="-- Chọn học kỳ --" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent disablePortal>
                   <SelectItem value="">-- Chọn học kỳ --</SelectItem>
                   {apiSemesters.map(sem => (
                     <SelectItem key={sem._id} value={sem._id}>{sem.semester_name}</SelectItem>
@@ -1709,7 +1720,7 @@ function GradingPage() {
                 <SelectTrigger className="h-9 bg-white/60 border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none w-full">
                   <SelectValue placeholder="-- Chọn khoa --" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent disablePortal>
                   <SelectItem value="">-- Chọn khoa --</SelectItem>
                   {visibleDepartments.map(dept => (
                     <SelectItem key={dept._id} value={dept._id}>{dept.name}</SelectItem>
@@ -1732,7 +1743,7 @@ function GradingPage() {
                 >
                   <SelectValue placeholder={selectedDepartment ? "Chọn lớp" : "Chọn khoa trước"} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent disablePortal>
                   <SelectItem value="">-- Không chọn --</SelectItem>
                   {classesForSelectedDepartment.map(cls => (
                     <SelectItem key={cls._id} value={cls._id}>{cls.class_name}</SelectItem>

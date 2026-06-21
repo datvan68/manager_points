@@ -11,7 +11,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { tokenStorage, authApi } from "@/api/auth-api";
 import { synchronizedRefreshToken } from "@/api/http-client";
 import { toast } from "sonner";
-import { isStudentRole } from "@/utils/role.util";
+import { isStudentRole, isTeacherRole } from "@/utils/role.util";
 import { API_ORIGIN } from "@/api/config";
 
 interface UserInfo {
@@ -266,7 +266,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         router.push("/login");
       } else if (user && isPublicRoute) {
-        if (isStudentRole(user)) {
+        if (isStudentRole(user) || isTeacherRole(user)) {
           router.push("/students/tasks");
         } else {
           router.push("/");

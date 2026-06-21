@@ -745,6 +745,7 @@ function GradingScoreContent() {
   const [activeStudentId, setActiveStudentId] = useState<string>("");
   const [subTab, setSubTab] = useState<"category" | "history">("category");
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isRosterLoading, setIsRosterLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -895,7 +896,7 @@ function GradingScoreContent() {
 
   // Kiểm tra quyền chấm điểm theo vai trò và trạng thái kỳ đánh giá
   const canModifyScore = (() => {
-    if (isInitialLoading || isFetching) return false;
+    if (isInitialLoading || isFetching || isRosterLoading) return false;
 
     if (!isSemesterActive) return false;
 
@@ -939,6 +940,102 @@ function GradingScoreContent() {
       : currentUserRole === "student"
         ? "Hiện tại bạn chưa được phép tự chấm điểm."
         : "Hiện tại bạn chưa được phép chấm điểm.";
+
+  const loadClassRosterAndSummaries = React.useCallback(
+    async (classId: string, semesterId: string, options?: { preferStudentId?: string }) => {
+      try {
+        setIsRosterLoading(true);
+
+        const colors = [
+          { bg: "bg-[#dbe3f1]", text: "text-[#141c26]" },
+          { bg: "bg-[#96f8a1]", text: "text-[#002108]" },
+          { bg: "bg-[#ffdad6]", text: "text-[#ba1a1a]" },
+          { bg: "bg-[#f3e5f5]", text: "text-[#7b2cbf]" },
+          { bg: "bg-[#fff4e5]", text: "text-[#b78103]" },
+        ];
+
+        let filteredStudents: Student[] = [];
+        if (classId) {
+          try {
+            const rosterResult = await studentApi.getStudents({ classId });
+            filteredStudents = Array.isArray(rosterResult) ? rosterResult : rosterResult?.data || [];
+          } catch (err) {
+            console.error("Failed to fetch class roster:", err);
+          }
+        }
+
+        let summariesData: any[] = [];
+        try {
+          const res = await summariesPointApi.getSummariesPoints({
+            semesterId,
+            classId,
+            page: 1,
+            limit: 1000,
+          });
+          const raw = Array.isArray(res) ? res : res?.data || [];
+          summariesData = raw.filter((sum: any) => !sum.period_id || sum.period_id === null);
+        } catch (err) {
+          console.error("Failed to fetch summaries points:", err);
+        }
+
+        setApiSummariesPoints(summariesData);
+
+        const mappedStudents = mapRosterWithSummaries(filteredStudents, summariesData, colors);
+        setStudents(mappedStudents);
+
+        const summaryIndex = buildSummaryIndex(summariesData);
+        const summaryMap: Record<string, string> = {};
+        filteredStudents.forEach((student) => {
+          const studentId = student.student_code || student._id || "";
+          if (studentId) {
+            const summary = findSummaryForStudent(student, summaryIndex);
+            if (summary && summary._id) {
+              summaryMap[studentId] = summary._id;
+            }
+          }
+        });
+        setStudentSummaryMap(summaryMap);
+
+        let targetActiveId = "";
+        const preferStudentId = options?.preferStudentId || studentIdParam;
+        if (preferStudentId && mappedStudents.some((s) => s.id === preferStudentId)) {
+          targetActiveId = preferStudentId;
+        } else if (mappedStudents.length > 0) {
+          targetActiveId = mappedStudents[0].id;
+        }
+        
+        setActiveStudentId(targetActiveId || "");
+
+      } catch (err: any) {
+        console.error("Error in loadClassRosterAndSummaries:", err);
+        toast.error("Không thể tải danh sách sinh viên của lớp đã chọn.");
+      } finally {
+        setIsRosterLoading(false);
+      }
+    },
+    [studentIdParam]
+  );
+
+  const handleClassChange = (classId: string) => {
+    if (!classId || classId === selectedClassId || !apiClasses.some((c) => c._id === classId)) {
+      return;
+    }
+    setSelectedClassId(classId);
+    sessionStorage.setItem("grading_appliedClass", classId);
+
+    setRosterSearch("");
+    setActiveStudentId("");
+    setStudents([]);
+    setApiSummariesPoints([]);
+    setStudentSummaryMap({});
+    setEvaluationDetailsMap({});
+    setEvaluationCounts({});
+    setSelectedOptionsState({});
+    setPreExistingCountsState({});
+    setHistoryRecords([]);
+
+    loadClassRosterAndSummaries(classId, selectedSemesterId);
+  };
 
   // Khởi tạo dữ liệu thực tế từ các API
   useEffect(() => {
@@ -2692,22 +2789,42 @@ function GradingScoreContent() {
                     }`}
                 >
                 {!isStudentSliderSticky && (
-                  <div className="flex flex-col md:flex-row md:items-center justify-between w-full gap-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase shrink-0">
-                        Sinh viên đang chấm điểm
-                      </h3>
-                      <div className="relative flex-1 max-w-[240px]">
-                        <input
-                          type="text"
-                          placeholder="Tìm MSSV hoặc tên..."
-                          value={rosterSearch}
-                          onChange={(e) => setRosterSearch(e.target.value)}
-                          className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/70 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1A73E8]"
-                        />
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    <div className="flex flex-col md:flex-row md:items-center justify-between w-full gap-3">
+                      <div className="flex flex-col md:flex-row md:items-center gap-3 flex-1 min-w-0">
+                        <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase shrink-0">
+                          Sinh viên đang chấm điểm
+                        </h3>
+                        {currentUserRole !== "student" && (
+                          <div className="relative w-full md:w-[220px]">
+                            <Select
+                              value={selectedClassId || undefined}
+                              onValueChange={handleClassChange}
+                              disabled={isRosterLoading || apiClasses.length === 0}
+                            >
+                              <SelectTrigger className="h-8 bg-white/70 border-slate-200 text-xs font-semibold">
+                                <SelectValue placeholder={isRosterLoading ? "Đang tải..." : "Chọn lớp"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {apiClasses.map((cls) => (
+                                  <SelectItem key={cls._id} value={cls._id}>
+                                    {cls.class_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        <div className="relative flex-1 max-w-[240px]">
+                          <input
+                            type="text"
+                            placeholder="Tìm MSSV hoặc tên..."
+                            value={rosterSearch}
+                            onChange={(e) => setRosterSearch(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/70 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1A73E8]"
+                          />
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        </div>
                       </div>
-                    </div>
                     <div className="flex gap-2 items-center">
                       {isAdminOrSupervisor && (
                         <button
@@ -2744,7 +2861,7 @@ function GradingScoreContent() {
                   onMouseMove={handleSliderMouseMove}
                   className="flex gap-4 overflow-x-auto pl-1 pr-10 py-2.5 custom-scrollbar scroll-smooth cursor-grab select-none"
                 >
-                  {isInitialLoading
+                  {isInitialLoading || isRosterLoading
                     ? Array.from({ length: 4 }).map((_, idx) => (
                       <div
                         key={`skel-hero-${idx}`}
@@ -2763,9 +2880,11 @@ function GradingScoreContent() {
                     ))
                     : filteredStudentsForRoster.length === 0 ? (
                       <div className="flex-1 py-6 flex flex-col items-center justify-center text-center text-[#64748B] font-medium text-[13.5px] border border-dashed border-slate-300/60 rounded-2xl bg-white/40 select-none">
-                        {selectedClassId
-                          ? "Không tìm thấy sinh viên nào khớp với bộ lọc."
-                          : "Vui lòng chọn lớp học để xem danh sách sinh viên."}
+                        {!selectedClassId
+                          ? "Vui lòng chọn lớp học để xem danh sách sinh viên."
+                          : students.length === 0 
+                            ? "Lớp này chưa có sinh viên."
+                            : "Không tìm thấy sinh viên nào khớp với bộ lọc."}
                       </div>
                     ) : filteredStudentsForRoster.map((student, idx) => {
                       const isActive = student.id === activeStudentId;
@@ -3110,7 +3229,7 @@ function GradingScoreContent() {
                                             item.is_locked ||
                                             !canModifyScore
                                           }
-                                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count <= minCount ||
+                                          className={`w-8 h-8 md:w-7 md:h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count <= minCount ||
                                             item.is_locked ||
                                             !canModifyScore
                                             ? "opacity-30 cursor-not-allowed text-slate-400"
@@ -3127,7 +3246,7 @@ function GradingScoreContent() {
                                                 : "Giảm số lần"
                                           }
                                         >
-                                          <Minus size={11} strokeWidth={3} />
+                                          <Minus className="w-[15px] h-[15px] md:w-[11px] md:h-[11px]" strokeWidth={3} />
                                         </button>
 
                                         <CupertinoHorizontalPicker
@@ -3152,7 +3271,7 @@ function GradingScoreContent() {
                                             item.is_locked ||
                                             !canModifyScore
                                           }
-                                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count >= sliderMax ||
+                                          className={`w-8 h-8 md:w-7 md:h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count >= sliderMax ||
                                             item.is_locked ||
                                             !canModifyScore
                                             ? "opacity-30 cursor-not-allowed text-slate-400"
@@ -3169,7 +3288,7 @@ function GradingScoreContent() {
                                                 : "Tăng số lần"
                                           }
                                         >
-                                          <Plus size={11} strokeWidth={3} />
+                                          <Plus className="w-[15px] h-[15px] md:w-[11px] md:h-[11px]" strokeWidth={3} />
                                         </button>
                                       </div>
                                     )}

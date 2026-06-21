@@ -201,7 +201,7 @@ SelectTrigger.displayName = "SelectTrigger";
 
 
 export const SelectContent = React.forwardRef<any, any>(
-  ({ className, children, position = "popper", lazyLoad = false, onLoadMore, ...props }, ref) => {
+  ({ className, children, position = "popper", lazyLoad = false, onLoadMore, disablePortal = false, ...props }, ref) => {
     const context = React.useContext(SelectContext);
     if (!context) throw new Error("SelectContent must be used inside Select");
 
@@ -276,18 +276,28 @@ export const SelectContent = React.forwardRef<any, any>(
         ref={contentRef}
         data-select-content="true"
         className={cn(
-          "fixed z-[9999] w-max max-w-[280px] bg-white/80 backdrop-blur-md rounded-xl shadow-md border border-white/70 p-1 overflow-hidden transition duration-200 ease-out",
+          disablePortal ? "absolute" : "fixed",
+          "z-[9999] w-max max-w-[280px] bg-white/80 backdrop-blur-md rounded-xl shadow-md border border-white/70 p-1 overflow-hidden transition duration-200 ease-out",
           open
             ? "opacity-100 visible scale-100 translate-y-0 pointer-events-auto"
             : "opacity-0 invisible scale-95 pointer-events-none",
           className
         )}
-        style={{
-          minWidth: rect ? rect.width : 'auto',
-          left: rect ? rect.left : 0,
-          top: rect && !openUp ? rect.bottom + 6 : 'auto',
-          bottom: rect && openUp ? window.innerHeight - rect.top + 6 : 'auto',
-        }}
+        style={
+          disablePortal
+            ? {
+                minWidth: rect ? rect.width : 'auto',
+                left: 0,
+                top: !openUp ? 'calc(100% + 6px)' : 'auto',
+                bottom: openUp ? 'calc(100% + 6px)' : 'auto',
+              }
+            : {
+                minWidth: rect ? rect.width : 'auto',
+                left: rect ? rect.left : 0,
+                top: rect && !openUp ? rect.bottom + 6 : 'auto',
+                bottom: rect && openUp ? window.innerHeight - rect.top + 6 : 'auto',
+              }
+        }
       >
         <div 
           className={cn(
@@ -308,7 +318,7 @@ export const SelectContent = React.forwardRef<any, any>(
     );
 
     if (!mounted) return null;
-    return createPortal(content, document.body);
+    return disablePortal ? content : createPortal(content, document.body);
   }
 );
 SelectContent.displayName = "SelectContent";
