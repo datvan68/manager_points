@@ -52,7 +52,7 @@ ENV/
 # Project specific
 logs/
 *.log
-outputs/
+output/
 .agents/scratch/
 .agents/logs/
 .agents/**/reports/*.html
