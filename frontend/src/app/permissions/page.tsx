@@ -686,6 +686,7 @@ function PermissionsPageContent() {
         user_name: userData.username,
         email: userData.email,
         status: userData.status,
+        advisor_class_ids: userData.advisor_class_ids || [],
         ...(userData.password ? { password: userData.password } : {})
       }, token);
     } else {
@@ -694,7 +695,8 @@ function PermissionsPageContent() {
         email: userData.email,
         password: userData.password,
         role_id: userData.role,
-        status: userData.status
+        status: userData.status,
+        advisor_class_ids: userData.advisor_class_ids || []
       }, token);
     }
     fetchData();

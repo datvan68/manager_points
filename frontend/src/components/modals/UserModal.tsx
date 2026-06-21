@@ -26,6 +26,10 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
+export const isTeacherRole = (role: any) =>
+  role?.role_code === "TEACHER" || /Teacher|Giáo viên|Giảng viên|GVCN/i.test(role?.name || "");
+
+
 const MultiClassSelect = ({ selectedIds, onChange, classes, disabled, placeholder = "Không gán", className }: { selectedIds: string[], onChange: (ids: string[]) => void, classes: any[], disabled?: boolean, placeholder?: string, className?: string }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -143,15 +147,21 @@ export default function UserModal({
       setMode("single");
       let userClassIds: string[] = [];
       if (initialData) {
-        const userId = initialData._id || initialData.id;
-        if (userId && classes) {
-          userClassIds = classes
-            .filter((c: any) => {
-              if (!c.advisor_id) return false;
-              const advId = typeof c.advisor_id === 'object' ? (c.advisor_id._id || c.advisor_id.id) : c.advisor_id;
-              return advId === userId;
-            })
-            .map((c: any) => c._id || c.id);
+        if (Array.isArray(initialData.advisor_class_ids)) {
+          userClassIds = initialData.advisor_class_ids
+            .map((c: any) => typeof c === "string" ? c : c?._id || c?.id)
+            .filter(Boolean);
+        } else {
+          const userId = initialData._id || initialData.id;
+          if (userId && classes) {
+            userClassIds = classes
+              .filter((c: any) => {
+                if (!c.advisor_id) return false;
+                const advId = typeof c.advisor_id === 'object' ? (c.advisor_id._id || c.advisor_id.id) : c.advisor_id;
+                return advId === userId;
+              })
+              .map((c: any) => c._id || c.id);
+          }
         }
       }
 
@@ -494,7 +504,7 @@ export default function UserModal({
                             <div className="flex flex-col gap-1.5">
                               <label className="text-[12.5px] font-semibold text-[#64748B]">Vai trò <span className="text-red-500">*</span></label>
                               <Select value={formData.role} onValueChange={(value: string) => {
-                                const isTeacher = roles.find(r => r._id === value)?.name?.match(/Teacher|Giảng viên|GVCN/i);
+                                const isTeacher = isTeacherRole(roles.find(r => r._id === value));
                                 setFormData({ ...formData, role: value, advisorClassIds: isTeacher ? formData.advisorClassIds : [] });
                               }}>
                                 <SelectTrigger className={`w-full h-9 px-3 py-1.5 bg-white/50 border ${errors.role ? "border-rose-400" : "border-white/80"} rounded-xl text-xs font-semibold text-[#1E293B]`}>
@@ -514,7 +524,7 @@ export default function UserModal({
                                 selectedIds={formData.advisorClassIds} 
                                 onChange={(ids) => setFormData(prev => ({ ...prev, advisorClassIds: ids }))} 
                                 classes={classes} 
-                                disabled={!roles.find(r => r._id === formData.role)?.name?.match(/Teacher|Giảng viên|GVCN/i)} 
+                                disabled={!isTeacherRole(roles.find(r => r._id === formData.role))} 
                                 className="w-full h-9 px-3 py-1.5 bg-white/50 border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B]"
                               />
                             </div>
@@ -561,7 +571,7 @@ export default function UserModal({
                               </td>
                               <td className="px-2 py-2">
                                 <Select value={u.role} onValueChange={(val) => {
-                                  const isTeacher = roles.find(r => r._id === val)?.name?.match(/Teacher|Giảng viên|GVCN/i);
+                                  const isTeacher = isTeacherRole(roles.find(r => r._id === val));
                                   updateBulkRow(u.id, 'role', val);
                                   if (!isTeacher) updateBulkRow(u.id, 'advisorClassIds', []);
                                 }}>
@@ -576,7 +586,7 @@ export default function UserModal({
                                   selectedIds={u.advisorClassIds || []}
                                   onChange={(ids) => updateBulkRow(u.id, 'advisorClassIds', ids)}
                                   classes={classes}
-                                  disabled={!roles.find(r => r._id === u.role)?.name?.match(/Teacher|Giảng viên|GVCN/i)}
+                                  disabled={!isTeacherRole(roles.find(r => r._id === u.role))}
                                   className="h-7 w-full rounded border border-slate-200 bg-white/80 px-2 py-1 text-[11px]"
                                 />
                               </td>
