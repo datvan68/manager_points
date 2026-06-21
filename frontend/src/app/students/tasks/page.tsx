@@ -9,6 +9,7 @@ import { RouteGuard, usePermission } from '@/components/guards/RouteGuard';
 import { useAuth } from '@/providers/auth-provider';
 import StudentTasksTab from '@/components/students/tasks/StudentTasksTab';
 import StudentTaskProgressTab from '@/components/students/tasks/StudentTaskProgressTab';
+import { isTeacherRole } from '@/utils/role.util';
 
 function StudentTasksPageContent() {
   const router = useRouter();
@@ -104,7 +105,7 @@ export default function StudentTasksPage() {
   const { user } = useAuth();
   const userRole = String(user?.role || '').toLowerCase();
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
-  const bypassGuard = isStudent;
+  const bypassGuard = isStudent || isTeacherRole(user);
 
   return (
     <Suspense

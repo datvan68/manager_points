@@ -1,173 +1,130 @@
-# Taskscope: Sua loi build TypeScript trong /grading/score khi them select lop
+# Taskscope: Dam bao teacher dang nhap luon vao /students/tasks
 
-## Pipeline
+## 1. Pipeline
 
-- `pipeline_id`: `bug_fix`
+- `pipeline_id`: `feature_development`
 - `agent_id`: `orchestrator`
-- Pham vi: frontend Next.js, trang `frontend/src/app/grading/score/page.tsx`
+- `muc tieu`: Kiem tra va dieu chinh luong sau dang nhap de tai khoan teacher luon mo trang `/students/tasks` dau tien, ke ca khi chua co nhiem vu nao duoc tao.
 
-## Muc tieu
+## 2. Ket qua kiem tra hien tai
 
-Sua loi build:
+### 2.1. Duong login truc tiep
 
-```text
-./src/app/grading/score/page.tsx:2797:26
-Type error: This comparison appears to be unintentional because the types '"teacher" | "admin" | "supervisor"' and '"student"' have no overlap.
-```
+File: `frontend/src/app/(auth)/login/page.tsx`
 
-Sau khi sua, `next build`/TypeScript type check phai pass va select chon lop trong slider van hien cho teacher/admin/supervisor.
-
-## Hien trang
-
-File lien quan:
-
-- `frontend/src/app/grading/score/page.tsx`
-
-Context code:
-
-- `getRoleKey(currentUser?.role)` tra ve union:
-  - `"admin"`
-  - `"supervisor"`
-  - `"teacher"`
-  - `"student"`
-- `shouldShowStudentSlider` dang duoc khai bao:
-
-```ts
-const shouldShowStudentSlider = currentUserRole !== "student";
-```
-
-- JSX slider dang render theo guard:
+- Line 56-57 hien dang xu ly:
 
 ```tsx
-{shouldShowStudentSlider && (
-  ...
-  {currentUserRole !== "student" && (
-    <Select ... />
-  )}
-)}
+if (isStudentRole(result.user) || isTeacherRole(result.user)) {
+  router.push('/students/tasks');
+}
 ```
 
-## Root cause
+Ket luan: Neu `result.user` duoc nhan dien dung la teacher, sau khi submit login thanh cong frontend se dieu huong den `/students/tasks`.
 
-Trong block:
+### 2.2. Duong da authenticated nhung dang o public route
+
+File: `frontend/src/providers/auth-provider.tsx`
+
+- `AuthProvider` cung co logic redirect user dang authenticated o public route ve `/students/tasks` neu la student hoac teacher.
+
+Ket luan: Teacher da dang nhap ma mo lai `/login` cung se bi day ve `/students/tasks`.
+
+### 2.3. Trang `/students/tasks` khi chua co task
+
+File: `frontend/src/components/students/tasks/StudentTasksTab.tsx`
+
+- Line 700 render danh sach khi `tasks.length > 0`.
+- Line 871 render empty state: `Khong tim thay nhiem vu nao.`
+
+Ket luan: So luong task bang 0 khong lam redirect di trang khac. Trang van o `/students/tasks` va hien empty state.
+
+## 3. Rui ro can dieu chinh
+
+File: `frontend/src/app/students/tasks/page.tsx`
+
+- Line 107 chi bypass `RouteGuard` cho student:
 
 ```tsx
-{shouldShowStudentSlider && (...)}
+const bypassGuard = isStudent;
 ```
 
-TypeScript suy luan `shouldShowStudentSlider === true` dong nghia `currentUserRole !== "student"`.
-
-Vi vay ben trong block nay, type cua `currentUserRole` da bi narrow thanh:
-
-```ts
-"teacher" | "admin" | "supervisor"
-```
-
-Khi code tiep tuc so sanh:
+- Line 120-122 boc teacher/admin/supervisor bang:
 
 ```tsx
-currentUserRole !== "student"
+<RouteGuard anyPermission={["STUDENT_PAGE", "READ_STUDENT_TASK"]}>
+  <StudentTasksPageContent />
+</RouteGuard>
 ```
 
-TypeScript bao loi vi union hien tai khong con gia tri `"student"` nua. Day la check bi trung lap, khong phai loi nghiep vu.
+File: `frontend/src/components/guards/RouteGuard.tsx`
 
-## Scope sua de xuat
+- Line 206 check `anyPermission`.
+- Line 233 redirect ve `fallbackPath || '/'` neu khong co quyen.
 
-### 1. Sua JSX tai header slider
+Ket luan: Ve logic login, teacher da duoc day sang `/students/tasks`. Tuy nhien teacher co the khong o lai duoc trang nay neu tai khoan teacher thieu ca 2 quyen `STUDENT_PAGE` va `READ_STUDENT_TASK`, vi `RouteGuard` se redirect ve `/`.
 
-Trong `frontend/src/app/grading/score/page.tsx`, tai khu vuc `STUDENT HERO SLIDER`, bo guard trung lap:
+## 4. Pham vi dieu chinh de dam bao yeu cau
+
+### 4.1. Frontend route entry
+
+File can sua: `frontend/src/app/students/tasks/page.tsx`
+
+Muc tieu:
+
+- Cho teacher bypass guard giong student, hoac cap fallback/permission logic rieng de teacher luon duoc vao `/students/tasks`.
+- De xuat ngan gon:
 
 ```tsx
-{currentUserRole !== "student" && (
-  <div className="relative w-full md:w-[220px]">
-    <Select ... />
-  </div>
-)}
+const isTeacher = isTeacherRole(user);
+const bypassGuard = isStudent || isTeacher;
 ```
 
-Thanh render truc tiep select trong block da duoc guard boi `shouldShowStudentSlider`:
+Can import/reuse `isTeacherRole` tu `@/utils/role.util` thay vi tu check chuoi thu cong.
+
+### 4.2. Login redirect
+
+File can kiem tra: `frontend/src/app/(auth)/login/page.tsx`
+
+Muc tieu:
+
+- Giu nguyen logic hien co:
 
 ```tsx
-<div className="relative w-full md:w-[220px]">
-  <Select ... />
-</div>
+if (isStudentRole(result.user) || isTeacherRole(result.user)) {
+  router.push('/students/tasks');
+}
 ```
 
-Ly do: ca slider chi render khi user khong phai student, nen select lop van chi hien cho teacher/admin/supervisor.
+- Khong phu thuoc vao API danh sach task.
 
-### 2. Khong doi logic role neu khong can
+### 4.3. AuthProvider redirect
 
-Khong nen sua bang cach ep type/cast nhu:
+File can kiem tra: `frontend/src/providers/auth-provider.tsx`
 
-```ts
-(currentUserRole as string) !== "student"
-```
+Muc tieu:
 
-hoac mo rong type gia tao. Cach nay chi che loi type, khong giai quyet check thua.
+- Giu dong bo voi login page: teacher/student o public route luon ve `/students/tasks`.
+- Khong them API check task count vao auth flow.
 
-### 3. Kiem tra cac guard tuong tu
+## 5. Acceptance Criteria
 
-Can review them cac vi tri trong cung file co pattern:
+- Teacher login thanh cong luon vao `/students/tasks` dau tien.
+- Khi database chua co task nao, teacher van o `/students/tasks` va thay empty state, khong bi redirect ve `/`.
+- Student van vao `/students/tasks` nhu hien tai.
+- Admin/supervisor khong bi thay doi luong login hien tai neu khong nam trong yeu cau.
+- Khong them fetch task count vao login/auth provider.
+- Khong dung workaround kieu delay/timer redirect.
 
-```tsx
-{shouldShowStudentSlider && (... currentUserRole !== "student" ...)}
-```
+## 6. Test Plan
 
-hoac cac block da narrow role nhung van so sanh lai voi role da bi loai tru.
-
-Vi tri can chu y theo search hien tai:
-
-- `frontend/src/app/grading/score/page.tsx:2797`
-- `frontend/src/app/grading/score/page.tsx:3353` neu nam trong block da narrow tuong tu
-
-Chi sua nhung cho gay type error hoac thuc su trung guard, tranh refactor lan sang logic khac.
-
-## Acceptance Criteria
-
-- Build/type check khong con loi tai `page.tsx:2797`.
-- Select chon lop van hien trong slider cho:
-  - teacher
-  - admin
-  - supervisor
-- Student khong thay slider/select lop nhu logic hien tai.
-- Khong thay doi API call, state load roster, sessionStorage `grading_appliedClass`, hay behavior chon lop.
-- Khong them cast `as any`/`as string` chi de ne TypeScript.
-
-## Test Plan
-
-1. Chay type check/build frontend:
+1. Login bang tai khoan teacher co day du permission: ky vong vao `/students/tasks`.
+2. Login bang tai khoan teacher thieu `STUDENT_PAGE` va `READ_STUDENT_TASK`: ky vong van o `/students/tasks` sau dieu chinh.
+3. Xoa/khong tao task nao, reload `/students/tasks`: ky vong hien empty state `Khong tim thay nhiem vu nao.`
+4. Login bang student: ky vong van vao `/students/tasks`.
+5. Chay build/typecheck frontend:
 
 ```bash
 cd frontend
 npm run build
 ```
-
-2. Test UI thu cong:
-
-- Dang nhap teacher/admin/supervisor.
-- Vao `/grading/score`.
-- Xac nhan slider sinh vien hien thi.
-- Xac nhan select lop hien thi, chon lop load dung roster.
-- Dang nhap student.
-- Xac nhan slider/select lop khong hien thi theo behavior hien tai.
-
-## Rui ro
-
-- Neu con guard role trung lap o vi tri khac, build co the tiep tuc fail o line tiep theo sau khi sua line 2797.
-- Neu `shouldShowStudentSlider` sau nay duoc doi thanh dieu kien khac khong lien quan role, select lop can co boolean rieng nhu `canUseClassSelector`.
-
-## Ghi chu implement
-
-Huong sua goi y tot hon neu muon ro nghia ve sau:
-
-```ts
-const canUseClassSelector = shouldShowStudentSlider;
-```
-
-Sau do JSX dung:
-
-```tsx
-{canUseClassSelector && <ClassSelect />}
-```
-
-Tuy nhien voi scope fix build hien tai, cach gon nhat la bo check `currentUserRole !== "student"` ben trong block slider da duoc guard.
