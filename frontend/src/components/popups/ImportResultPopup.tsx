@@ -16,12 +16,13 @@ export interface ImportValidationError {
 
 interface ImportResultPopupProps {
   isOpen: boolean;
-  onClose: () => void;
   successCount: number;
+  duplicatedCount: number;
   errors: ImportValidationError[];
+  onClose: () => void;
 }
 
-export default function ImportResultPopup({ isOpen, onClose, successCount, errors }: ImportResultPopupProps) {
+export default function ImportResultPopup({ isOpen, onClose, successCount, duplicatedCount, errors }: ImportResultPopupProps) {
 
   // Export only the error records into a new Excel file for user correction
   const handleDownloadErrorReport = async () => {
@@ -121,7 +122,7 @@ export default function ImportResultPopup({ isOpen, onClose, successCount, error
         <div className="flex flex-col gap-6 items-start overflow-y-auto p-8 w-full max-h-[60vh] custom-scrollbar">
 
           {/* Section 1: Summary Statistics (Bento Style Cards) */}
-          <div className="grid grid-cols-2 gap-4 w-full shrink-0">
+          <div className="grid grid-cols-3 gap-4 w-full shrink-0">
 
             {/* Success Card */}
             <div className="bg-emerald-500/10 border border-emerald-500/20 flex items-center p-4 rounded-xl shadow-sm w-full">
@@ -135,6 +136,26 @@ export default function ImportResultPopup({ isOpen, onClose, successCount, error
                 <div className="flex gap-1 items-baseline leading-none">
                   <span className="font-mono font-black text-emerald-600 text-3xl">
                     {successCount.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-[#64748B] font-semibold ml-1">
+                    bản ghi
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Duplicated Card */}
+            <div className="bg-amber-500/10 border border-amber-500/20 flex items-center p-4 rounded-xl shadow-sm w-full">
+              <div className="bg-amber-500/20 flex items-center justify-center rounded-full shrink-0 w-10 h-10 text-amber-600">
+                <FileWarning className="w-5 h-5" />
+              </div>
+              <div className="pl-3 flex flex-col items-start justify-center">
+                <span className="text-[11px] text-amber-800 tracking-wide uppercase font-bold leading-normal mb-1">
+                  TRÙNG LẶP
+                </span>
+                <div className="flex gap-1 items-baseline leading-none">
+                  <span className="font-mono font-black text-amber-600 text-3xl">
+                    {duplicatedCount.toLocaleString()}
                   </span>
                   <span className="text-[10px] text-[#64748B] font-semibold ml-1">
                     bản ghi

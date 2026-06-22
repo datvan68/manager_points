@@ -16,6 +16,8 @@ describe('AcademicRecordService - Import Flow', () => {
   const mockAcademicRecordModel = {
     db: { model: jest.fn() },
     bulkWrite: jest.fn(),
+    find: jest.fn(),
+    countDocuments: jest.fn(),
   };
 
   const mockSummaryPointModel = {};
@@ -144,6 +146,44 @@ describe('AcademicRecordService - Import Flow', () => {
         expect(result.errorCount).toBe(1);
         expect(result.errors[0].reason).toContain('Bản ghi trùng lặp trong file');
     });
+
+    it('should validate correctly for valid new row', async () => {
+        const studentId = new Types.ObjectId();
+        mockStudentModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1' }])
+        });
+        mockCriterionModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Criteria 1', criterion_code: 'C1' }])
+        });
+        mockSemesterModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
+        });
+
+        const rows = [
+            { 'Ma SV': 'SV1', 'Tieu chi': 'Criteria 1', 'Ngay ghi nhan': '2023-01-01', 'Trang thai': 'active' },
+        ];
+
+        const result = await service.importPreview(rows, null);
+
+        expect(result.validCount).toBe(1);
+        expect(result.errorCount).toBe(0);
+    });
+
+    it('should report error for missing required fields', async () => {
+      const rows = [
+        { 'Ma SV': '', 'Tieu chi': '', 'Ngay ghi nhan': '' }, // Missing all
+        { 'Ma SV': 'SV1', 'Tieu chi': '', 'Ngay ghi nhan': '2023-01-01' }, // Missing criteria
+      ];
+
+      const result = await service.importPreview(rows, null);
+
+      expect(result.validCount).toBe(0);
+      expect(result.errorCount).toBe(2);
+      expect(result.errors[0].reason).toMatch(/Thiếu Mã SV|Thiếu Tiêu chí|Thiếu Ngày/i);
+    });
   });
 
   describe('importCommit', () => {
@@ -216,6 +256,75 @@ describe('AcademicRecordService - Import Flow', () => {
         expect(session.duplicatedCount).toBe(1);
         expect(session.processedCount).toBe(2);
       });
+
+      it('should commit successfully with insertedCount matching validCount', async () => {
+        const sessionId = 'test_session_batch_success';
+        const validItems = [
+            { student_id: new Types.ObjectId(), criterion_id: new Types.ObjectId() }
+        ];
+        
+        (service as any).importSessions.set(sessionId, {
+            id: sessionId,
+            status: 'committing',
+            validItems,
+            errors: [],
+            totalRows: 1,
+            progress: 0,
+            processedCount: 0,
+            insertedCount: 0,
+            duplicatedCount: 0,
+            commitErrors: []
+        });
+
+        mockAcademicRecordModel.bulkWrite.mockResolvedValue({
+            insertedCount: 1
+        });
+
+        jest.spyOn(service, 'syncMultipleStudentCriterionScores').mockResolvedValue(undefined);
+
+        await (service as any).processImportBatch(sessionId, null);
+
+        const session = (service as any).importSessions.get(sessionId);
+        expect(session.status).toBe('completed');
+        expect(session.insertedCount).toBe(1);
+        expect(session.duplicatedCount).toBe(0);
+        expect(session.commitErrors.length).toBe(0);
+      });
+
+      it('should handle all rows duplicated with insertedCount = 0', async () => {
+        const sessionId = 'test_session_batch_all_dup';
+        const validItems = [
+            { student_id: new Types.ObjectId(), criterion_id: new Types.ObjectId() }
+        ];
+        
+        (service as any).importSessions.set(sessionId, {
+            id: sessionId,
+            status: 'committing',
+            validItems,
+            errors: [],
+            totalRows: 1,
+            progress: 0,
+            processedCount: 0,
+            insertedCount: 0,
+            duplicatedCount: 0,
+            commitErrors: []
+        });
+
+        mockAcademicRecordModel.bulkWrite.mockRejectedValue({
+            code: 11000,
+            writeErrors: [{ index: 0 }],
+            result: { nInserted: 0, insertedCount: 0 }
+        });
+
+        jest.spyOn(service, 'syncMultipleStudentCriterionScores').mockResolvedValue(undefined);
+
+        await (service as any).processImportBatch(sessionId, null);
+
+        const session = (service as any).importSessions.get(sessionId);
+        expect(session.status).toBe('completed');
+        expect(session.insertedCount).toBe(0);
+        expect(session.duplicatedCount).toBe(1);
+      });
   });
 
   describe('getImportProgress', () => {
@@ -243,5 +352,37 @@ describe('AcademicRecordService - Import Flow', () => {
               duplicatedCount: 1
           });
       });
+  });
+  describe('findAll date filters', () => {
+    it('should apply startDate and endDate filters with correct time boundaries', async () => {
+      const mockExec = jest.fn().mockResolvedValue([]);
+      const mockQueryObj = {
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: mockExec,
+      };
+      mockAcademicRecordModel.find.mockReturnValue(mockQueryObj);
+      mockAcademicRecordModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) });
+
+      await service.findAll({
+        startDate: '2023-10-01',
+        endDate: '2023-10-31',
+      });
+
+      expect(mockAcademicRecordModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          $and: expect.arrayContaining([
+            {
+              $or: [
+                { recorded_at: { $gte: new Date('2023-10-01T00:00:00.000Z'), $lte: new Date('2023-10-31T23:59:59.999Z') } },
+                { date_record: { $gte: new Date('2023-10-01T00:00:00.000Z'), $lte: new Date('2023-10-31T23:59:59.999Z') } }
+              ]
+            }
+          ])
+        })
+      );
+    });
   });
 });

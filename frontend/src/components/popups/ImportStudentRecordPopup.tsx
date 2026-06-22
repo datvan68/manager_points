@@ -27,7 +27,7 @@ export default function ImportStudentRecordPopup({ isOpen, onClose, onSuccess }:
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const [showResultPopup, setShowResultPopup] = useState(false);
-  const [importStats, setImportStats] = useState<{ successCount: number; errors: ImportValidationError[] }>({ successCount: 0, errors: [] });
+  const [importStats, setImportStats] = useState<{ successCount: number; duplicatedCount: number; errors: ImportValidationError[] }>({ successCount: 0, duplicatedCount: 0, errors: [] });
 
   const handleDownloadTemplate = async () => {
     try {
@@ -155,11 +155,16 @@ export default function ImportStudentRecordPopup({ isOpen, onClose, onSuccess }:
           
           setImportStats({
             successCount: progressRes.insertedCount || 0,
+            duplicatedCount: progressRes.duplicatedCount || 0,
             errors: mappedErrors
           });
           
           if (progressRes.status === 'completed') {
-            toast.success(`Import hoàn tất! Thành công: ${progressRes.insertedCount} bản ghi.`);
+            if ((progressRes.insertedCount || 0) === 0 && (progressRes.duplicatedCount || 0) > 0) {
+              toast.success(`Import hoàn tất: Không có bản ghi mới, tất cả đã tồn tại.`);
+            } else {
+              toast.success(`Import hoàn tất! Thành công: ${progressRes.insertedCount || 0} bản ghi.`);
+            }
           } else {
             toast.error('Import thất bại hoặc có lỗi xảy ra.');
           }
@@ -419,6 +424,7 @@ export default function ImportStudentRecordPopup({ isOpen, onClose, onSuccess }:
         if (importStats.successCount > 0 && onSuccess) onSuccess(); 
       }} 
       successCount={importStats.successCount} 
+      duplicatedCount={importStats.duplicatedCount}
       errors={importStats.errors} 
     />
     </>

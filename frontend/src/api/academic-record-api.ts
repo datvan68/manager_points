@@ -68,6 +68,9 @@ export const academicRecordApi = {
     classId?: string;
     semesterId?: string;
     studentId?: string;
+    startDate?: string;
+    endDate?: string;
+    creator?: string;
   }): Promise<AcademicRecord[] | { data: AcademicRecord[]; meta: any }> {
     const token = tokenStorage.getAccessToken() || '';
     const queryParts: string[] = [];

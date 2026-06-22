@@ -21,6 +21,18 @@ import { Class } from '../classes/schemas/class.schema';
 import { getRequesterRoleName, isStudent, isTeacher } from '../auth/utils/role.util';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
 
+export interface AcademicRecordFindAllQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  classId?: string;
+  semesterId?: string;
+  studentId?: string;
+  startDate?: string;
+  endDate?: string;
+  creator?: string;
+}
+
 @Injectable()
 export class AcademicRecordService {
   constructor(
@@ -391,14 +403,7 @@ export class AcademicRecordService {
   }
 
   async findAll(
-    query?: {
-      page?: number;
-      limit?: number;
-      search?: string;
-      classId?: string;
-      semesterId?: string;
-      studentId?: string;
-    },
+    query?: AcademicRecordFindAllQuery,
     requester?: any,
   ): Promise<any> {
     let page: number | undefined;
@@ -492,10 +497,32 @@ export class AcademicRecordService {
 
     // Apply search filter
     if (search) {
-      filter.$or = [
-        { record_title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
-      ];
+      if (!filter.$and) filter.$and = [];
+      filter.$and.push({
+        $or: [
+          { record_title: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } }
+        ]
+      });
+    }
+
+    const startDate = query?.startDate;
+    const endDate = query?.endDate;
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) {
+        dateFilter.$gte = new Date(`${startDate}T00:00:00.000Z`);
+      }
+      if (endDate) {
+        dateFilter.$lte = new Date(`${endDate}T23:59:59.999Z`);
+      }
+      if (!filter.$and) filter.$and = [];
+      filter.$and.push({
+        $or: [
+          { recorded_at: dateFilter },
+          { date_record: dateFilter }
+        ]
+      });
     }
 
     if (isPaginationRequested) {
@@ -510,6 +537,7 @@ export class AcademicRecordService {
           .populate('semester_id')
           .populate('daily_report_id')
           .populate({ path: 'recorded_by', populate: { path: 'role' } })
+          .sort({ recorded_at: -1, createdAt: -1 })
           .skip((p - 1) * l)
           .limit(l)
           .exec(),
@@ -533,6 +561,7 @@ export class AcademicRecordService {
         .populate('semester_id')
         .populate('daily_report_id')
         .populate({ path: 'recorded_by', populate: { path: 'role' } })
+        .sort({ recorded_at: -1, createdAt: -1 })
         .exec();
     }
   }
@@ -1180,6 +1209,9 @@ export class AcademicRecordService {
       duplicatedCount: session.duplicatedCount,
       totalRows: session.totalRows,
       failedItems: session.commitErrors,
+      acceptedCount: session.validItems ? session.validItems.length : 0,
+      failedCount: session.commitErrors ? session.commitErrors.length : 0,
+      skippedCount: session.duplicatedCount,
     };
   }
 }

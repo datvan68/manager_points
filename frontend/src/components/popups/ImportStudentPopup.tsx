@@ -23,9 +23,10 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [showResultPopup, setShowResultPopup] = useState(false);
-  const [importStats, setImportStats] = useState<{ successCount: number; errors: ImportValidationError[] }>({
+  const [importStats, setImportStats] = useState<{ successCount: number; duplicatedCount: number; errors: ImportValidationError[] }>({
     successCount: 0,
-    errors: []
+    duplicatedCount: 0,
+    errors: [],
   });
 
   // 1. Generate and Download dynamic Excel Template file
@@ -308,7 +309,7 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
             successImportCount = result.length;
           }
 
-          setImportStats({ successCount: successImportCount, errors });
+          setImportStats({ successCount: successImportCount, duplicatedCount: 0, errors });
           setShowResultPopup(true); // Open the detailed Import Result Popup
           onClose(); // Close the Import dialog itself
         } else {
@@ -507,6 +508,7 @@ export default function ImportStudentPopup({ isOpen, onClose, classId, onSuccess
         if (onSuccess) onSuccess();
       }}
       successCount={importStats.successCount}
+      duplicatedCount={importStats.duplicatedCount}
       errors={importStats.errors}
     />
     </>

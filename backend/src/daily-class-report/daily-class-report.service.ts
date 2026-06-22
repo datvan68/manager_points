@@ -107,10 +107,10 @@ export class DailyClassReportService {
     if (startDate || endDate) {
       filter.report_date = {};
       if (startDate) {
-        filter.report_date.$gte = new Date(startDate);
+        filter.report_date.$gte = new Date(`${startDate}T00:00:00.000Z`);
       }
       if (endDate) {
-        filter.report_date.$lte = new Date(endDate);
+        filter.report_date.$lte = new Date(`${endDate}T23:59:59.999Z`);
       }
     }
 

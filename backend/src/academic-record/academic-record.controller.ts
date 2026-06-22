@@ -102,6 +102,9 @@ export class AcademicRecordController {
     @Query('classId') classId?: string,
     @Query('semesterId') semesterId?: string,
     @Query('studentId') studentId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('creator') creator?: string,
   ) {
     const requester = req.user;
     return this.academicRecordService.findAll(
@@ -112,6 +115,9 @@ export class AcademicRecordController {
         classId,
         semesterId,
         studentId,
+        startDate,
+        endDate,
+        creator,
       },
       requester,
     );

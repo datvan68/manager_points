@@ -167,7 +167,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     start: Date;
     end: Date;
   } | null>(null);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isCalendarDesktopOpen, setIsCalendarDesktopOpen] = useState(false);
+  const [isCalendarMobileOpen, setIsCalendarMobileOpen] = useState(false);
   const [isSelectingHistory, setIsSelectingHistory] = useState(false);
   const [selectedHistoryItems, setSelectedHistoryItems] = useState<number[]>(
     [],
@@ -225,7 +226,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     start: Date;
     end: Date;
   } | null>(null);
-  const [isClassDateCalendarOpen, setIsClassDateCalendarOpen] = useState(false);
+  const [isClassDateCalendarDesktopOpen, setIsClassDateCalendarDesktopOpen] = useState(false);
+  const [isClassDateCalendarMobileOpen, setIsClassDateCalendarMobileOpen] = useState(false);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [editingReport, setEditingReport] = useState<DailyClassReport | null>(
     null,
@@ -253,8 +255,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     "all" | "student" | "teacher" | "admin" | "supervisor"
   >("all");
 
-  // Reset page index on search filters or page size changes
   useEffect(() => {
+    // Current page reset is handled directly in the event handlers or we can leave it here, 
+    // but we don't need this useEffect to reset page.
+    // However, if we keep it, it will reset page to 1 when filters change.
+    // The main fetch effects below will handle fetching.
     setCurrentPage(1);
   }, [searchTerm, selectedClassIdForStudent, creatorFilter, itemsPerPage, filterDateRange]);
 
@@ -316,6 +321,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           limit: itemsPerPage,
           search: searchTerm || undefined,
           classId: selectedClassIdForStudent === "all" ? undefined : selectedClassIdForStudent,
+          startDate: filterDateRange?.start ? format(filterDateRange.start, "yyyy-MM-dd") : undefined,
+          endDate: filterDateRange?.end ? format(filterDateRange.end, "yyyy-MM-dd") : undefined,
         });
         if (res && 'data' in res) {
           records = res.data;
@@ -534,10 +541,14 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   useEffect(() => {
     if (activeSubTab === "student") {
       fetchAcademicRecords();
-    } else if (activeSubTab === "class") {
+    }
+  }, [activeSubTab, currentPage, itemsPerPage, searchTerm, selectedClassIdForStudent, filterDateRange, creatorFilter]);
+
+  useEffect(() => {
+    if (activeSubTab === "class") {
       fetchClassReports();
     }
-  }, [activeSubTab]);
+  }, [activeSubTab, classCurrentPage, classItemsPerPage, classSearchTerm, selectedClassId, selectedReportDateRange]);
 
   // Map academicRecords to dummy format for UI compatibility
   const mappedRecords = academicRecords.map((r) => {
@@ -615,115 +626,18 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   // Student filtering
   const filteredRecords = mappedRecords.filter((record) => {
-    const matchesSearch =
-      record.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.studentId.includes(searchTerm);
-
-    let matchesDate = true;
-    if (filterDateRange && filterDateRange.start && filterDateRange.end) {
-      try {
-        const parts = record.date.split("/");
-        if (parts.length === 3) {
-          const rDate = new Date(
-            parseInt(parts[2]),
-            parseInt(parts[1]) - 1,
-            parseInt(parts[0]),
-          ).getTime();
-          const sDate = new Date(
-            filterDateRange.start.getFullYear(),
-            filterDateRange.start.getMonth(),
-            filterDateRange.start.getDate(),
-          ).getTime();
-          const eDate = new Date(
-            filterDateRange.end.getFullYear(),
-            filterDateRange.end.getMonth(),
-            filterDateRange.end.getDate(),
-          ).getTime();
-          matchesDate = rDate >= sDate && rDate <= eDate;
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    let matchesClass = true;
-    if (selectedClassIdForStudent !== "all") {
-      const foundClass = classes.find(
-        (c) => c._id === selectedClassIdForStudent,
-      );
-      if (foundClass) {
-        matchesClass = record.className === foundClass.class_name;
-      } else {
-        matchesClass = record.className === selectedClassIdForStudent;
-      }
-    }
-
     const matchesCreator =
       creatorFilter === "all" ||
       getCreatorRoleKey(record.original) === creatorFilter;
 
-    return matchesSearch && matchesDate && matchesClass && matchesCreator;
+    return matchesCreator;
   });
 
   const totalPages = Math.ceil(totalRecords / itemsPerPage);
   const paginatedRecords = filteredRecords;
 
-  // Class filtering
-  const filteredClassReports = classReports.filter((report) => {
-    const classObj =
-      typeof report.class_id === "object" ? report.class_id : null;
-    const classIdStr = classObj ? classObj._id : report.class_id;
-    const classNameStr = classObj ? classObj.class_name : "";
-
-    let finalClassName = classNameStr;
-    if (!finalClassName && classes.length > 0) {
-      const found = classes.find((c) => c._id === classIdStr);
-      if (found) finalClassName = found.class_name;
-    }
-
-    const matchesClass =
-      selectedClassId === "all" || classIdStr === selectedClassId;
-
-    let matchesDate = true;
-    if (
-      selectedReportDateRange &&
-      selectedReportDateRange.start &&
-      selectedReportDateRange.end
-    ) {
-      try {
-        const parts = report.report_date.split("/");
-        if (parts.length === 3) {
-          const rDate = new Date(
-            parseInt(parts[2]),
-            parseInt(parts[1]) - 1,
-            parseInt(parts[0]),
-          ).getTime();
-          const sDate = new Date(
-            selectedReportDateRange.start.getFullYear(),
-            selectedReportDateRange.start.getMonth(),
-            selectedReportDateRange.start.getDate(),
-          ).getTime();
-          const eDate = new Date(
-            selectedReportDateRange.end.getFullYear(),
-            selectedReportDateRange.end.getMonth(),
-            selectedReportDateRange.end.getDate(),
-          ).getTime();
-          matchesDate = rDate >= sDate && rDate <= eDate;
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    const matchesSearch =
-      report.teacher_name
-        .toLowerCase()
-        .includes(classSearchTerm.toLowerCase()) ||
-      finalClassName.toLowerCase().includes(classSearchTerm.toLowerCase()) ||
-      report.class_note.toLowerCase().includes(classSearchTerm.toLowerCase());
-
-    return matchesClass && matchesDate && matchesSearch;
-  });
+  // Class filtering (handled entirely by backend)
+  const filteredClassReports = classReports;
 
   const totalClassPages = Math.ceil(totalClassReports / classItemsPerPage);
   const paginatedClassReports = filteredClassReports;
@@ -1616,7 +1530,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 </div>
 
                 <div className="flex items-center gap-2.5">
-                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                  <Popover open={isCalendarDesktopOpen} onOpenChange={setIsCalendarDesktopOpen}>
                     <PopoverTrigger asChild>
                       <button
                         className={`flex items-center gap-2 px-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap ${filterDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
@@ -1645,9 +1559,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                         }
                         onCancel={() => {
                           setFilterDateRange(null);
-                          setIsCalendarOpen(false);
+                          setIsCalendarDesktopOpen(false);
                         }}
-                        onConfirm={() => setIsCalendarOpen(false)}
+                        onConfirm={() => setIsCalendarDesktopOpen(false)}
                       />
                     </PopoverContent>
                   </Popover>
@@ -1728,7 +1642,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   <div className="flex items-center gap-2 w-full justify-between">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {/* Popover / Calendar for mobile */}
-                      <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                      <Popover open={isCalendarMobileOpen} onOpenChange={setIsCalendarMobileOpen}>
                         <PopoverTrigger asChild>
                           <button
                             className={`flex items-center justify-center p-2 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shrink-0 ${filterDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
@@ -1753,9 +1667,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             }
                             onCancel={() => {
                               setFilterDateRange(null);
-                              setIsCalendarOpen(false);
+                              setIsCalendarMobileOpen(false);
                             }}
-                            onConfirm={() => setIsCalendarOpen(false)}
+                            onConfirm={() => setIsCalendarMobileOpen(false)}
                           />
                         </PopoverContent>
                       </Popover>
@@ -1836,8 +1750,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
                 <div className="flex items-center gap-2.5">
                   <Popover
-                    open={isClassDateCalendarOpen}
-                    onOpenChange={setIsClassDateCalendarOpen}
+                    open={isClassDateCalendarDesktopOpen}
+                    onOpenChange={setIsClassDateCalendarDesktopOpen}
                   >
                     <PopoverTrigger asChild>
                       <button
@@ -1867,9 +1781,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                         }
                         onCancel={() => {
                           setSelectedReportDateRange(null);
-                          setIsClassDateCalendarOpen(false);
+                          setIsClassDateCalendarDesktopOpen(false);
                         }}
-                        onConfirm={() => setIsClassDateCalendarOpen(false)}
+                        onConfirm={() => setIsClassDateCalendarDesktopOpen(false)}
                       />
                     </PopoverContent>
                   </Popover>
@@ -1949,8 +1863,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {/* Calendar Popover for mobile */}
                       <Popover
-                        open={isClassDateCalendarOpen}
-                        onOpenChange={setIsClassDateCalendarOpen}
+                        open={isClassDateCalendarMobileOpen}
+                        onOpenChange={setIsClassDateCalendarMobileOpen}
                       >
                         <PopoverTrigger asChild>
                           <button
@@ -1976,9 +1890,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             }
                             onCancel={() => {
                               setSelectedReportDateRange(null);
-                              setIsClassDateCalendarOpen(false);
+                              setIsClassDateCalendarMobileOpen(false);
                             }}
-                            onConfirm={() => setIsClassDateCalendarOpen(false)}
+                            onConfirm={() => setIsClassDateCalendarMobileOpen(false)}
                           />
                         </PopoverContent>
                       </Popover>
@@ -3377,7 +3291,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 onPageChange={(page) => {
                   setCurrentPage(page);
                 }}
-                onPageSizeChange={setItemsPerPage}
+                onPageSizeChange={(size) => {
+                  setItemsPerPage(size);
+                  setCurrentPage(1);
+                }}
                 label="ghi nhận"
                 isLoading={isLoading}
               />
@@ -3949,7 +3866,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 onPageChange={(page) => {
                   setClassCurrentPage(page);
                 }}
-                onPageSizeChange={setClassItemsPerPage}
+                onPageSizeChange={(size) => {
+                  setClassItemsPerPage(size);
+                  setClassCurrentPage(1);
+                }}
                 label="báo cáo lớp"
                 isLoading={isClassLoading}
               />
@@ -4079,13 +3999,19 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       <ImportStudentRecordPopup
         isOpen={isImportRecordPopupOpen}
         onClose={() => setIsImportRecordPopupOpen(false)}
-        onSuccess={fetchAcademicRecords}
+        onSuccess={() => {
+          setCurrentPage(1);
+          fetchAcademicRecords();
+        }}
       />
       {/* Import Class Record Popup */}
       <ImportClassRecordPopup
         isOpen={isImportClassRecordPopupOpen}
         onClose={() => setIsImportClassRecordPopupOpen(false)}
-        onSuccess={fetchClassReports}
+        onSuccess={() => {
+          setClassCurrentPage(1);
+          fetchClassReports();
+        }}
       />
 
       {/* Modal thông báo lỗi từ backend */}
