@@ -677,9 +677,19 @@ export class SummariesPointService {
     const buffer = await generatePl03Excel(summaries, classObj, semesterObj, departmentObj);
 
     // Sanitize filename
-    const safeClassName = (classObj.class_name || 'Lop').replace(/[^a-zA-Z0-9]/g, '_');
-    const safeSemesterName = (semesterObj.semester_name || 'HocKy').replace(/[^a-zA-Z0-9]/g, '_');
-    const filename = `PL03_Tong_hop_RL_${safeClassName}_${safeSemesterName}.xlsx`;
+    const normalizeFilenamePart = (value: string, fallback: string) => {
+      const normalized = (value || fallback)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      return normalized || fallback;
+    };
+    const safeClassName = normalizeFilenamePart(classObj.class_name, 'LOP');
+    const filename = `PL03-TONGHOPRL-${safeClassName}.xlsx`;
 
     return { buffer, filename };
   }

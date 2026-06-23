@@ -376,9 +376,19 @@ function GradingPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const className = currentClassName ? currentClassName.replace(/[^a-zA-Z0-9]/g, '_') : 'Lop';
-      const semesterName = currentSemesterName ? currentSemesterName.replace(/[^a-zA-Z0-9]/g, '_') : 'HocKy';
-      a.download = `PL03_Tong_hop_RL_${className}_${semesterName}.xlsx`;
+      const normalizeFilenamePart = (value: string, fallback: string) => {
+        const normalized = (value || fallback)
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/đ/g, 'd')
+          .replace(/Đ/g, 'D')
+          .toUpperCase()
+          .replace(/[^A-Z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        return normalized || fallback;
+      };
+      const safeClassName = normalizeFilenamePart(currentClassName, 'LOP');
+      a.download = `PL03-TONGHOPRL-${safeClassName}.xlsx`;
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
@@ -695,8 +705,10 @@ function GradingPage() {
     }
   }, [isPrintModalOpen]);
 
-  const fetchSummaries = async (pageToFetch: number = currentPage, isLoadMore: boolean = false) => {
-    if (!appliedClass || !appliedSemester) return;
+  const fetchSummaries = async (pageToFetch: number = currentPage, isLoadMore: boolean = false, overrideClassId?: string, overrideSemesterId?: string) => {
+    const classToFetch = overrideClassId || appliedClass;
+    const semToFetch = overrideSemesterId || appliedSemester;
+    if (!classToFetch || !semToFetch) return;
     try {
       if (isLoadMore) {
         setIsLoadingMore(true);
@@ -706,8 +718,8 @@ function GradingPage() {
       const res = await summariesPointApi.getSummariesPoints({
         page: pageToFetch,
         limit: pageSize,
-        semesterId: appliedSemester,
-        classId: appliedClass,
+        semesterId: semToFetch,
+        classId: classToFetch,
       });
       const data = res.data || [];
       
@@ -951,6 +963,8 @@ function GradingPage() {
       setAppliedSemester(selectedSemester);
       setAppliedDepartment(selectedDepartment);
       setAppliedClass(selectedClass);
+
+      await fetchSummaries(1, false, selectedClass, selectedSemester);
 
       toast.success('Đã cập nhật danh sách sinh viên theo bộ lọc!');
     } catch (error: any) {
@@ -1367,11 +1381,11 @@ function GradingPage() {
               <Button
                 onClick={handleConfirmFilter}
                 disabled={!selectedClass || isTableLoading}
-                className={`rounded-xl h-9 transition-all duration-150 ease-out hover:scale-[1.01] ${!selectedClass ? "opacity-50 cursor-not-allowed bg-slate-300 hover:bg-slate-300 text-slate-500 relative" : isTableLoading ? "opacity-80 cursor-not-allowed relative" : "relative bg-[#1A73E8] hover:bg-[#155dfc] text-white"}`}
+                className="relative h-9 rounded-xl border border-blue-500/40 bg-blue-500/15 backdrop-blur-md text-blue-700 font-medium shadow-sm shadow-blue-500/20 transition-all duration-150 ease-out hover:bg-blue-500/25 hover:border-blue-500/60 hover:shadow-md hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {isTableLoading && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
@@ -1382,12 +1396,12 @@ function GradingPage() {
               <Button
                 onClick={handleExportSummaryExcel}
                 disabled={!appliedSemester || !appliedClass || isExportingExcel || isTableLoading}
-                className={`rounded-xl h-9 transition-all duration-150 ease-out hover:scale-[1.01] flex items-center gap-2 ${(!appliedSemester || !appliedClass || isExportingExcel || isTableLoading) ? "opacity-50 cursor-not-allowed bg-emerald-300 hover:bg-emerald-300 text-white relative" : "relative bg-emerald-600 hover:bg-emerald-500 text-white"}`}
+                className="relative h-9 rounded-xl border border-emerald-500/40 bg-emerald-500/15 backdrop-blur-md text-emerald-700 font-medium shadow-sm shadow-emerald-500/20 transition-all duration-150 ease-out hover:bg-emerald-500/25 hover:border-emerald-500/60 hover:shadow-md hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
                 title="Xuất Excel theo lớp và học kỳ đã xác nhận"
               >
                 {isExportingExcel ? (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-4 w-4 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>

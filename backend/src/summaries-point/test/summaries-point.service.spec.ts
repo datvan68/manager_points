@@ -791,7 +791,7 @@ describe('SummariesPointService', () => {
       const dto = { semesterId: validSemId, classId: validClassId, mode: 'all_filtered' as const };
       const result = await service.generateSummaryExcel(dto, { userId: 'u1', roleName: 'Admin' });
 
-      expect(result.filename).toContain('PL03_Tong_hop_RL_Lop_1_HK1.xlsx');
+      expect(result.filename).toContain('PL03-TONGHOPRL-LOP-1.xlsx');
       expect(result.buffer).toBeInstanceOf(Buffer);
     });
 
@@ -814,7 +814,7 @@ describe('SummariesPointService', () => {
       const dto = { semesterId: validSemId, classId: validClassId, studentIds: [validStu1, validStu2], mode: 'selected' as const };
       const result = await service.generateSummaryExcel(dto, { userId: 'u1', roleName: 'Teacher' });
 
-      expect(result.filename).toContain('PL03_Tong_hop_RL_Lop_1_HK1.xlsx');
+      expect(result.filename).toContain('PL03-TONGHOPRL-LOP-1.xlsx');
       expect(result.buffer).toBeInstanceOf(Buffer);
       expect(mockStudentModel.find).toHaveBeenCalledWith({
         class_id: expect.any(Types.ObjectId),
