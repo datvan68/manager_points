@@ -81,6 +81,26 @@ interface GhiNhanTabProps {
   setActiveSubTab: (tab: "class" | "student") => void;
 }
 
+const NEW_BADGE_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+const getCreatedTime = (value?: string) => {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
+const getRecordSortTime = (record: any) => {
+  return getCreatedTime(record?.createdAt) || getCreatedTime(record?.updatedAt) || getCreatedTime(record?.recorded_at) || 0;
+};
+
+const getClassReportSortTime = (report: any) => {
+  return getCreatedTime(report?.createdAt) || getCreatedTime(report?.updatedAt) || getCreatedTime(report?.report_date) || 0;
+};
+
+const isNewWithinWindow = (createdAt?: string) =>
+  getCreatedTime(createdAt) > 0 &&
+  Date.now() - getCreatedTime(createdAt) <= NEW_BADGE_WINDOW_MS;
+
 function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -634,14 +654,22 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     return matchesCreator;
   });
 
+  const sortedRecords = [...filteredRecords].sort(
+    (a, b) => getRecordSortTime(b.original) - getRecordSortTime(a.original),
+  );
+
   const totalPages = Math.ceil(totalRecords / itemsPerPage);
-  const paginatedRecords = filteredRecords;
+  const paginatedRecords = sortedRecords;
 
   // Class filtering (handled entirely by backend)
   const filteredClassReports = classReports;
 
+  const sortedClassReports = [...filteredClassReports].sort(
+    (a, b) => getClassReportSortTime(b) - getClassReportSortTime(a),
+  );
+
   const totalClassPages = Math.ceil(totalClassReports / classItemsPerPage);
-  const paginatedClassReports = filteredClassReports;
+  const paginatedClassReports = sortedClassReports;
 
   // Student list toggle selects
   const toggleSelectAll = () => {
@@ -2114,12 +2142,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                               <h3 className="text-sm font-bold text-[#1E293B] leading-snug">
                                 {record.fullName}
                               </h3>
-                              {record.original?.createdAt &&
-                                new Date().getTime() -
-                                  new Date(
-                                    record.original.createdAt,
-                                  ).getTime() <
-                                  24 * 60 * 60 * 1000 && (
+                              {isNewWithinWindow(record.original?.createdAt) && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
                                     New
                                   </span>
@@ -2725,12 +2748,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             <td className="px-5 py-4 text-sm font-bold text-[#1E293B]">
                               <div className="flex items-center gap-2">
                                 <span>{record.fullName}</span>
-                                {record.original?.createdAt &&
-                                  new Date().getTime() -
-                                    new Date(
-                                      record.original.createdAt,
-                                    ).getTime() <
-                                    24 * 60 * 60 * 1000 && (
+                                {isNewWithinWindow(record.original?.createdAt) && (
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
                                       New
                                     </span>
@@ -3493,10 +3511,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                   <span className="text-sm font-bold text-[#1E293B]">
                                     {className}
                                   </span>
-                                  {report.createdAt &&
-                                    new Date().getTime() -
-                                      new Date(report.createdAt).getTime() <
-                                      24 * 60 * 60 * 1000 && (
+                                  {isNewWithinWindow(report.createdAt) && (
                                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
                                         New
                                       </span>
@@ -3734,10 +3749,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-2">
                                   <span>{className}</span>
-                                  {report.createdAt &&
-                                    new Date().getTime() -
-                                      new Date(report.createdAt).getTime() <
-                                      24 * 60 * 60 * 1000 && (
+                                  {isNewWithinWindow(report.createdAt) && (
                                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
                                         New
                                       </span>
