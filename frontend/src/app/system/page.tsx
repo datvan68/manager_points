@@ -13,6 +13,16 @@ import { toast } from "sonner";
 import ConfirmModal from "@/components/modals/ConfirmModal";
 import ResponsiveDataView, { ResponsiveColumn } from "@/components/ui/ResponsiveDataView";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { CustomCalendar } from "@/components/calendar/CustomCalendar";
+import { format } from "date-fns";
+import {
   Shield,
   History,
   Server,
@@ -36,7 +46,8 @@ import {
   Unlock,
   AlertCircle,
   Activity,
-  Database
+  Database,
+  Calendar
 } from "lucide-react";
 
 export default function SystemAdminPage() {
@@ -105,7 +116,9 @@ function SystemAdminDashboard() {
   const [logsLoading, setLogsLoading] = useState(true);
   const [logsPage, setLogsPage] = useState(1);
   const [logsTotalPages, setLogsTotalPages] = useState(1);
-  const [logsFilterAction, setLogsFilterAction] = useState("");
+  const [logsFilterAction, setLogsFilterAction] = useState("all");
+  const [logsSelectedDate, setLogsSelectedDate] = useState<Date | null>(new Date());
+  const [isLogsCalendarOpen, setIsLogsCalendarOpen] = useState(false);
   const [logsSearch, setLogsSearch] = useState("");
   const [logsSearchInput, setLogsSearchInput] = useState("");
   const [realtimeEnabled, setRealtimeEnabled] = useState(true);
@@ -164,15 +177,33 @@ function SystemAdminDashboard() {
   // ---------------------------------------------------------------------------
   // EFFECT: Fetch Login Logs & Summary
   // ---------------------------------------------------------------------------
+  const getDayRange = (date: Date | null) => {
+    if (!date) return {};
+
+    const from = new Date(date);
+    from.setHours(0, 0, 0, 0);
+
+    const to = new Date(date);
+    to.setHours(23, 59, 59, 999);
+
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+    };
+  };
+
   const fetchLogs = async (page = 1, showLoading = true) => {
     if (!canReadLogs) return;
     try {
       if (showLoading) setLogsLoading(true);
+      const { from, to } = getDayRange(logsSelectedDate);
       const res = await systemPerformance.trackApi('login-logs', () => systemApi.getLoginLogs({
         page,
         limit: 20,
-        action: logsFilterAction || undefined,
+        action: logsFilterAction !== "all" ? logsFilterAction : undefined,
         search: logsSearch || undefined,
+        from,
+        to,
       }));
       setLogs(res.items);
       setLogsTotalPages(res.totalPages);
@@ -187,7 +218,8 @@ function SystemAdminDashboard() {
   const fetchLogsSummary = async () => {
     if (!canReadLogs) return;
     try {
-      const summary = await systemPerformance.trackApi('login-logs/summary', () => systemApi.getLoginLogsSummary());
+      const { from, to } = getDayRange(logsSelectedDate);
+      const summary = await systemPerformance.trackApi('login-logs/summary', () => systemApi.getLoginLogsSummary({ from, to }));
       setLogsSummary(summary);
     } catch (err: any) {
       console.error("Failed to load logs summary", err);
@@ -256,7 +288,7 @@ function SystemAdminDashboard() {
       }
       setSseStatus("disconnected");
     };
-  }, [activeTab, realtimeEnabled, logsPage, logsFilterAction, logsSearch, canReadLogs]);
+  }, [activeTab, realtimeEnabled, logsPage, logsFilterAction, logsSearch, logsSelectedDate ? format(logsSelectedDate, "yyyy-MM-dd") : "", canReadLogs]);
 
   // Handle Search for logs with debounce or click
   const handleLogsSearchSubmit = (e: React.FormEvent) => {
@@ -951,7 +983,9 @@ function SystemAdminDashboard() {
               {/* KPI Dashboard */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
-                  <span className="text-xs font-semibold text-[#64748B]">Đăng nhập hôm nay</span>
+                  <span className="text-xs font-semibold text-[#64748B]">
+                    {logsSelectedDate ? format(logsSelectedDate, "dd/MM/yyyy") === format(new Date(), "dd/MM/yyyy") ? "Đăng nhập hôm nay" : `Đăng nhập ngày ${format(logsSelectedDate, "dd/MM/yyyy")}` : "Đăng nhập hôm nay"}
+                  </span>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-2xl font-bold text-[#1E293B]">
                       {logsSummary?.today.total ?? 0}
@@ -1001,8 +1035,8 @@ function SystemAdminDashboard() {
 
               {/* Table list */}
               <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="flex items-center gap-2 shrink-0">
                     <h2 className="text-sm font-bold text-[#1E293B]">Nhật ký hoạt động đăng nhập</h2>
                     {/* Realtime Polling Indicator */}
                     <div className="flex items-center gap-1.5 ml-2 bg-slate-200/50 backdrop-blur-sm border border-white/40 px-2 py-0.5 rounded-xl">
@@ -1016,37 +1050,84 @@ function SystemAdminDashboard() {
                   </div>
 
                   {/* Toolbar */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <form onSubmit={handleLogsSearchSubmit} className="relative flex items-center">
+                  <div className="flex w-full flex-wrap items-center gap-3 xl:w-auto xl:flex-nowrap xl:justify-end">
+                    <form onSubmit={handleLogsSearchSubmit} className="relative flex w-full items-center sm:w-60 xl:w-60">
                       <input
                         type="text"
                         placeholder="Tìm IP, User..."
                         value={logsSearchInput}
                         onChange={(e) => setLogsSearchInput(e.target.value)}
-                        className="pl-8 pr-3 py-1.5 w-48 text-xs bg-white/50 backdrop-blur-sm border border-white/80 focus:border-[#1A73E8] rounded-xl focus:outline-none transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 text-[#1E293B]"
+                        className="pl-8 pr-3 py-1.5 w-full h-9 text-xs bg-white/50 backdrop-blur-sm border border-white/80 focus:border-[#1A73E8] rounded-xl focus:outline-none transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 text-[#1E293B]"
                       />
                       <Search size={14} className="absolute left-2.5 text-[#64748B]" />
                     </form>
 
-                    <select
+                    <Select
                       value={logsFilterAction}
-                      onChange={(e) => {
-                        setLogsFilterAction(e.target.value);
+                      onValueChange={(value) => {
+                        setLogsFilterAction(value);
                         setLogsPage(1);
                       }}
-                      className="px-3 py-1.5 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
                     >
-                      <option value="">Tất cả hoạt động</option>
-                      <option value="login_success">Đăng nhập thành công</option>
-                      <option value="login_failure">Đăng nhập thất bại</option>
-                      <option value="logout">Đăng xuất</option>
-                      <option value="password_change">Đổi mật khẩu</option>
-                      <option value="password_reset">Reset mật khẩu</option>
-                    </select>
+                      <SelectTrigger className="h-9 w-full sm:w-[220px] xl:w-[220px] shrink-0 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl">
+                        <SelectValue placeholder="Tất cả hoạt động" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white/95 backdrop-blur-md border border-slate-100/60 shadow-xl rounded-xl z-[100]">
+                        <SelectItem value="all">Tất cả hoạt động</SelectItem>
+                        <SelectItem value="login_success">Đăng nhập thành công</SelectItem>
+                        <SelectItem value="login_failure">Đăng nhập thất bại</SelectItem>
+                        <SelectItem value="logout">Đăng xuất</SelectItem>
+                        <SelectItem value="password_change">Đổi mật khẩu</SelectItem>
+                        <SelectItem value="password_reset">Reset mật khẩu</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Popover open={isLogsCalendarOpen} onOpenChange={setIsLogsCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="h-9 w-full min-w-[128px] px-3 sm:w-auto text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[#1E293B] flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Calendar size={14} className="text-[#64748B]" />
+                            <span>{logsSelectedDate ? format(logsSelectedDate, "dd/MM/yyyy") : "Tất cả ngày"}</span>
+                          </div>
+                          {logsSelectedDate && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setLogsSelectedDate(null);
+                                setLogsPage(1);
+                              }}
+                              className="p-0.5 hover:bg-slate-200/50 rounded-full transition-colors flex items-center justify-center"
+                            >
+                              <X size={12} className="text-[#64748B]" />
+                            </span>
+                          )}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden" align="end">
+                        <CustomCalendar
+                          startDate={logsSelectedDate}
+                          endDate={null}
+                          onRangeSelect={(start) => {
+                            if (start) {
+                              setLogsSelectedDate(start);
+                              setLogsPage(1);
+                            }
+                          }}
+                          onCancel={() => setIsLogsCalendarOpen(false)}
+                          onConfirm={() => setIsLogsCalendarOpen(false)}
+                        />
+                      </PopoverContent>
+                    </Popover>
 
                     <button
                       onClick={() => setRealtimeEnabled(!realtimeEnabled)}
-                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-150 ease-out hover:scale-[1.01] ${
+                      className={`h-9 shrink-0 whitespace-nowrap flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-150 ease-out hover:scale-[1.01] ${
                         realtimeEnabled 
                           ? "bg-blue-500/10 text-[#1A73E8] border-blue-500/20" 
                           : "bg-white/50 text-[#64748B] border-white/80"
@@ -1113,10 +1194,10 @@ function SystemAdminDashboard() {
             </div>
           ) : (
             <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <h2 className="text-sm font-bold text-[#1E293B]">Danh sách yêu cầu vận hành hệ thống</h2>
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <h2 className="text-sm font-bold text-[#1E293B] shrink-0">Danh sách yêu cầu vận hành hệ thống</h2>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex flex-wrap items-center lg:justify-end gap-3 w-full lg:w-auto">
                   <form onSubmit={handleRequestsSearchSubmit} className="relative flex items-center">
                     <input
                       type="text"

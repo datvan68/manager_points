@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, MongoIdParamDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto } from './dto/system.dto';
+import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, MongoIdParamDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto } from './dto/system.dto';
 
 export interface AuthenticatedRequest extends Request {
   user: {
@@ -40,8 +40,8 @@ export class SystemController {
 
   @Get('login-logs/summary')
   @Permissions('LOGIN_LOG_READ')
-  getLoginLogsSummary() {
-    return this.systemService.getLoginLogsSummary();
+  getLoginLogsSummary(@Query() query: GetLoginLogsSummaryQueryDto) {
+    return this.systemService.getLoginLogsSummary(query);
   }
 
   // ─── SYSTEM REQUESTS ─────────────────────────────────────────────────────────

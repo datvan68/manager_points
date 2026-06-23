@@ -219,8 +219,12 @@ export const systemApi = {
     return handleResponse<PaginatedResponse<LoginLog>>(res);
   },
 
-  async getLoginLogsSummary(): Promise<LoginLogsSummary> {
-    const res = await httpClient(`${API_BASE}/system/login-logs/summary`);
+  async getLoginLogsSummary(query?: { from?: string; to?: string }): Promise<LoginLogsSummary> {
+    const params = new URLSearchParams();
+    if (query?.from) params.append("from", query.from);
+    if (query?.to) params.append("to", query.to);
+    const qs = params.toString();
+    const res = await httpClient(`${API_BASE}/system/login-logs/summary${qs ? `?${qs}` : ""}`);
     return handleResponse<LoginLogsSummary>(res);
   },
 

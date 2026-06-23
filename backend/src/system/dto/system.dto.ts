@@ -45,6 +45,16 @@ export class GetLoginLogsQueryDto {
   search?: string;
 }
 
+export class GetLoginLogsSummaryQueryDto {
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+}
+
 export class CreateSystemRequestDto {
   @IsString()
   @IsNotEmpty({ message: 'Tiêu đề không được để trống' })

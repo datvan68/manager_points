@@ -223,6 +223,65 @@ describe('SystemService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('getLoginLogs', () => {
+    it('should filter by action, from, and to', async () => {
+      loginLogModel.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ action: 'login_success' }]),
+      });
+      loginLogModel.countDocuments.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(1),
+      });
+
+      const result = await service.getLoginLogs({
+        action: 'login_success',
+        from: '2023-01-01',
+        to: '2023-01-31',
+      });
+
+      expect(result.items.length).toBe(1);
+      expect(result.total).toBe(1);
+      expect(loginLogModel.find).toHaveBeenCalledWith({
+        action: 'login_success',
+        login_time: {
+          $gte: new Date('2023-01-01'),
+          $lte: new Date('2023-01-31'),
+        },
+      });
+    });
+
+    it('should filter by search using text matching or userIds', async () => {
+      userModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(mockUserId) }]),
+      });
+      loginLogModel.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+      loginLogModel.countDocuments.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(0),
+      });
+
+      await service.getLoginLogs({ search: 'test' });
+      
+      expect(userModel.find).toHaveBeenCalled();
+      expect(loginLogModel.find).toHaveBeenCalledWith(expect.objectContaining({
+        $or: [
+          { ip_address: { $regex: 'test', $options: 'i' } },
+          { details: { $regex: 'test', $options: 'i' } },
+          { user_id: { $in: [new Types.ObjectId(mockUserId)] } },
+        ],
+      }));
+    });
+  });
+
   describe('getLoginLogsSummary', () => {
     it('should aggregate today and 7-day stats', async () => {
       const result = await service.getLoginLogsSummary();
@@ -230,6 +289,49 @@ describe('SystemService', () => {
       expect(result.today).toBeDefined();
       expect(result.today.login_success).toBe(5);
       expect(result.today.login_failure).toBe(1);
+    });
+
+    it('should query with custom from and to date range', async () => {
+      const fromDate = '2023-10-01T00:00:00.000Z';
+      const toDate = '2023-10-31T23:59:59.000Z';
+      await service.getLoginLogsSummary({ from: fromDate, to: toDate });
+      
+      expect(loginLogModel.aggregate).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          {
+            $match: {
+              login_time: {
+                $gte: new Date(fromDate),
+                $lte: new Date(toDate),
+              },
+            },
+          },
+        ])
+      );
+    });
+  });
+
+  describe('getRequests', () => {
+    it('should filter by from and to dates', async () => {
+      requestModel.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+      requestModel.countDocuments.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(0),
+      });
+
+      await service.getRequests({ from: '2023-01-01', to: '2023-01-31' });
+
+      expect(requestModel.find).toHaveBeenCalledWith(expect.objectContaining({
+        createdAt: {
+          $gte: new Date('2023-01-01'),
+          $lte: new Date('2023-01-31'),
+        },
+      }));
     });
   });
 

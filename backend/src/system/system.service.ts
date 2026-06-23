@@ -8,7 +8,7 @@ import { DatabaseRestoreJob, DatabaseRestoreJobDocument } from './schemas/databa
 import { LoginLog, LoginLogDocument } from '../auth/schemas/login-log.schema';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { SystemPerformanceMetric, SystemPerformanceMetricDocument } from './schemas/system-performance-metric.schema';
-import { GetLoginLogsQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto } from './dto/system.dto';
+import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto } from './dto/system.dto';
 import { getRequesterRoleName, isStudent, isTeacher, isSupervisor, isAdmin, isAdminUser } from '../auth/utils/role.util';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -173,9 +173,15 @@ export class SystemService {
     return { items, total, page, limit, totalPages };
   }
 
-  async getLoginLogsSummary() {
+  async getLoginLogsSummary(query?: GetLoginLogsSummaryQueryDto) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
+
+    const selectedFrom = query?.from ? new Date(query.from) : todayStart;
+    const selectedTo = query?.to ? new Date(query.to) : undefined;
+
+    const selectedMatch: any = { login_time: { $gte: selectedFrom } };
+    if (selectedTo) selectedMatch.login_time.$lte = selectedTo;
 
     const sevenDaysStart = new Date();
     sevenDaysStart.setDate(sevenDaysStart.getDate() - 7);
@@ -183,7 +189,7 @@ export class SystemService {
 
     const [todayStats, sevenDaysStats] = await Promise.all([
       this.loginLogModel.aggregate([
-        { $match: { login_time: { $gte: todayStart } } },
+        { $match: selectedMatch },
         { $group: { _id: '$action', count: { $sum: 1 } } }
       ]),
       this.loginLogModel.aggregate([
