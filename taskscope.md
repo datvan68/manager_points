@@ -1,130 +1,171 @@
-﻿# Taskscope - Sửa lỗi type-check reset password
+﻿# Taskscope - Điều chỉnh sticky student slider trang /grading/score
 
-## 1. Bối cảnh lỗi
+## 1. Bối cảnh
 
-Build frontend đang fail tại:
+Trang `/grading/score` có thanh danh sách sinh viên chuyển sang trạng thái sticky khi cuộn xuống. Theo ảnh kiểm tra, các card sinh viên trong sticky bar đang bị cắt tên bằng dấu `...`, ví dụ `Nguyễn Hoàn...`, `Trần Nguyễn ...`, làm người dùng khó xác định đúng sinh viên khi chấm điểm.
 
-```text
-./src/app/(auth)/reset-password/page.tsx:92:21
-Type error: Property 'resetPassword' does not exist on type 'authApi'
+Vùng sticky cũng đang có khoảng trống phía dưới hơi dày, đặc biệt khi thanh cuộn ngang xuất hiện gần đáy, khiến tổng chiều cao thanh nhìn chưa cân đối.
+
+Khu vực code liên quan chính nằm trong:
+
+- `frontend/src/app/grading/score/page.tsx`
+- Component `StudentSliderCard`
+- Block render `STUDENT HERO SLIDER`
+- Cấu hình `studentVirtualizer`
+
+## 2. Nguyên nhân quan sát được
+
+Trong `StudentSliderCard`, trạng thái sticky đang giới hạn kích thước card và tên:
+
+```tsx
+isStudentSliderSticky
+  ? "rounded-xl p-1.5 px-3 gap-2 h-9 w-max max-w-[200px]"
+  : "rounded-2xl p-[13px] w-[256px] gap-[12px]"
 ```
 
-Nguyên nhân trực tiếp: trang `frontend/src/app/(auth)/reset-password/page.tsx` vẫn gọi `authApi.resetPassword(token, data.password)`, nhưng object `authApi` trong `frontend/src/api/auth-api.ts` hiện không khai báo method `resetPassword`.
+Tên sinh viên ở sticky bị ép max width và truncate:
 
-Trong code hiện tại đã có 2 luồng đặt lại mật khẩu:
-
-- Legacy link token: backend còn endpoint `POST /auth/reset-password`, DTO nhận `{ token, new_password }`.
-- OTP flow mới: frontend `/forgot-password` đang dùng `requestPasswordReset`, `verifyPasswordResetOtp`, `completePasswordReset`; backend có các endpoint `/auth/password-reset/request`, `/verify`, `/complete`.
-
-## 2. Mục tiêu
-
-Sửa lỗi type-check để Next.js build thành công, đồng thời giữ hành vi đặt lại mật khẩu nhất quán với luồng hiện tại.
-
-Ưu tiên phạm vi nhỏ:
-
-- Không đổi logic backend nếu endpoint legacy vẫn còn hoạt động.
-- Không phá luồng OTP hiện có tại `/forgot-password`.
-- Không đổi schema/database.
-- Không can thiệp các thay đổi ngoài auth.
-
-## 3. Phạm vi xử lý đề xuất
-
-### 3.1. Frontend API client
-
-File: `frontend/src/api/auth-api.ts`
-
-Thêm lại method legacy:
-
-```ts
-async resetPassword(token: string, newPassword: string): Promise<MessageResponse> {
-  const res = await fetch(`${API_BASE}/auth/reset-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, new_password: newPassword }),
-  });
-  return handleResponse<MessageResponse>(res);
-}
+```tsx
+isStudentSliderSticky ? "text-[13px] max-w-[120px]" : "text-[14.5px]"
 ```
 
-Lý do: trang `/reset-password?token=...` đang là form cho link token, trong khi DTO backend `ResetPasswordDto` yêu cầu field `new_password`, không phải `password` hay `newPassword`.
+Container sticky hiện có padding đáy và slider inner padding tương đối dày:
 
-### 3.2. Trang reset password legacy
-
-File: `frontend/src/app/(auth)/reset-password/page.tsx`
-
-Giữ lời gọi:
-
-```ts
-await authApi.resetPassword(token, data.password);
+```tsx
+"pt-2 px-6 md:px-8 pb-2 ... gap-2"
+"flex gap-4 overflow-x-auto pl-1 pr-10 py-2.5 ..."
 ```
 
-Không cần đổi sang `completePasswordReset`, vì method đó dành cho OTP flow và nhận `resetToken`, `newPassword`, `confirmPassword`.
+Virtualizer đang ước lượng item sticky là `200`, nên nếu tăng chiều rộng card để hiện đủ tên thì cần cập nhật estimate để scroll ngang và vị trí absolute không bị lệch:
 
-Nên rà thêm validation password ở trang này:
+```tsx
+estimateSize: () => isStudentSliderSticky ? 200 : 272
+```
 
-- Hiện UI chỉ yêu cầu tối thiểu 8 ký tự.
-- Backend yêu cầu ít nhất 1 chữ thường, 1 chữ hoa, 1 số, 1 ký tự đặc biệt.
-- Scope nên đồng bộ rule frontend với backend để tránh submit rồi mới báo lỗi từ API.
+## 3. Mục tiêu
 
-### 3.3. Điều hướng quên mật khẩu
+Điều chỉnh sticky student slider để:
 
-File: `frontend/src/app/(auth)/forgot-password/page.tsx`
+- Hiển thị đầy đủ tên sinh viên trong sticky bar, không tự cắt bằng `...`.
+- Giữ thanh sticky gọn, dễ scan, không làm card quá cao.
+- Giảm padding bottom để phần trên/dưới cân xứng hơn so với ảnh hiện tại.
+- Không ảnh hưởng trạng thái expanded của student slider khi chưa sticky.
+- Không thay đổi logic chấm điểm, load dữ liệu, filter, chọn lớp, chọn sinh viên.
 
-Không sửa nếu luồng OTP hiện đã hoạt động.
+## 4. Phạm vi xử lý đề xuất
 
-Chỉ kiểm tra các link điều hướng:
+### 4.1. Chỉnh card sticky hiển thị đầy đủ tên
 
-- Link "Quên mật khẩu" từ login nên đi tới `/forgot-password`.
-- `/reset-password?token=...` chỉ dùng cho email reset link legacy, nếu hệ thống vẫn gửi link.
+File: `frontend/src/app/grading/score/page.tsx`
 
-### 3.4. Backend
+Trong `StudentSliderCard`, chỉ chỉnh nhánh `isStudentSliderSticky`:
 
-Các file tham chiếu:
+- Bỏ `max-w-[200px]` ở card sticky hoặc tăng lên theo width phù hợp.
+- Bỏ `max-w-[120px]` và `truncate` ở tên khi sticky.
+- Dùng `whitespace-nowrap` để tên nằm một dòng và để card tự nở theo tên.
+- Giữ `title={student.name}` như hiện tại để vẫn có tooltip native khi hover.
 
-- `backend/src/auth/controllers/auth.controller.ts`
-- `backend/src/auth/dto/auth.dto.ts`
-- `backend/src/auth/services/password.service.ts`
-- `backend/src/auth/services/auth.service.ts`
+Gợi ý class:
 
-Không cần sửa backend cho lỗi type-check này nếu `POST /auth/reset-password` vẫn tồn tại.
+```tsx
+isStudentSliderSticky
+  ? "rounded-xl p-1.5 px-3 gap-2 h-9 w-max min-w-[220px] max-w-none"
+  : "rounded-2xl p-[13px] w-[256px] gap-[12px]"
+```
 
-Chỉ cần xác nhận:
+Với `h4`:
 
-- Controller có `@Post('reset-password')`.
-- DTO `ResetPasswordDto` nhận `token` và `new_password`.
-- Service reset password vẫn xử lý token legacy đúng cách.
+```tsx
+isStudentSliderSticky
+  ? "text-[13px] whitespace-nowrap"
+  : "text-[14.5px] truncate"
+```
 
-## 4. Ngoài phạm vi
+Lưu ý: Nếu muốn giữ card không quá dài với tên bất thường, có thể dùng `max-w-[280px]`, nhưng yêu cầu hiện tại là hiển thị đầy đủ tên nên ưu tiên không truncate.
 
-- Không thay thế luồng OTP bằng legacy link token.
-- Không xóa endpoint `POST /auth/reset-password` trong task này.
-- Không đổi giao diện toàn bộ auth.
-- Không sửa các lỗi build khác nếu phát sinh ngoài nhóm file auth nêu trên; ghi nhận riêng nếu có.
+### 4.2. Cập nhật virtualizer cho width mới
 
-## 5. Test/Verify
+Trong cấu hình `studentVirtualizer`, cập nhật estimate của sticky item tương ứng với card mới:
 
-Chạy trong `frontend`:
+```tsx
+estimateSize: () => isStudentSliderSticky ? 240 : 272
+```
+
+Nếu chọn `min-w-[240px]` hoặc width khác, estimate nên khớp với tổng chiều rộng trung bình của card + spacing để tránh scrollToIndex lệch khi chuyển sticky.
+
+Sau khi đổi width, kiểm tra lại:
+
+- Auto scroll tới sinh viên active vẫn căn giữa hợp lý.
+- Kéo ngang không bị giật.
+- Không bị overlap giữa các card do virtual item absolute positioning.
+
+### 4.3. Giảm padding bottom của sticky bar
+
+Trong block `STUDENT HERO SLIDER`, chỉnh nhánh sticky của container:
+
+```tsx
+? "pt-2 px-6 md:px-8 pb-1 bg-sky-400/20 backdrop-blur-md border-b border-sky-400/50 gap-1 rounded-b-2xl shadow-sm"
+```
+
+Trong div `sliderRef`, giảm vertical padding khi sticky. Có thể tách class theo trạng thái thay vì dùng cố định `py-2.5`:
+
+```tsx
+className={`flex gap-4 overflow-x-auto pl-1 pr-10 custom-scrollbar scroll-smooth cursor-grab select-none ${
+  isStudentSliderSticky ? "pt-1.5 pb-1" : "py-2.5"
+}`}
+```
+
+Nếu sau khi giảm padding đáy thanh vẫn còn cao, giảm thêm virtual list height sticky:
+
+```tsx
+height: isStudentSliderSticky ? "40px" : "109px"
+```
+
+Đồng bộ skeleton sticky nếu cần:
+
+```tsx
+isStudentSliderSticky ? "min-w-[220px] h-9 rounded-xl p-1.5 px-3 gap-2" : ...
+```
+
+## 5. Ngoài phạm vi
+
+- Không đổi API, schema, dữ liệu điểm, trạng thái chấm điểm.
+- Không đổi logic `filteredStudentsForRoster`, `activeStudentId`, `studentSummaryMap`.
+- Không redesign toàn bộ trang `/grading/score`.
+- Không thay đổi layout expanded của slider khi chưa sticky, trừ khi cần đồng bộ class không ảnh hưởng visual.
+- Không sửa các lỗi TypeScript/build khác nếu phát sinh ngoài khu vực sticky slider.
+
+## 6. Test/Verify
+
+Chạy kiểm tra frontend:
 
 ```bash
+cd frontend
 npm run build
 ```
 
-Nếu muốn kiểm tra nhanh hơn trước khi build:
+Nếu build mất thời gian, có thể kiểm tra nhanh bằng:
 
 ```bash
+cd frontend
 npx tsc --noEmit
 ```
 
-Kịch bản thủ công:
+Kịch bản kiểm tra thủ công:
 
-1. Mở `/reset-password?token=dummy-token`.
-2. Nhập mật khẩu không đủ rule, frontend phải báo lỗi trước khi gọi API.
-3. Nhập mật khẩu hợp lệ, request gửi tới `POST /auth/reset-password` với body `{ token, new_password }`.
-4. Mở `/forgot-password`, chạy qua các bước OTP để đảm bảo không bị ảnh hưởng.
+1. Mở `/grading/score` với tài khoản có quyền xem danh sách sinh viên.
+2. Chọn lớp có nhiều sinh viên và tên dài như `Nguyễn Hoàn...`, `Trần Nguyễn...`.
+3. Cuộn xuống để thanh sinh viên chuyển sang sticky.
+4. Xác nhận tên sinh viên hiển thị đầy đủ, không còn `...`.
+5. Kiểm tra sticky bar không quá cao, padding bottom cân với padding top.
+6. Kéo ngang danh sách và chọn sinh viên bất kỳ, active state vẫn đúng.
+7. Kiểm tra responsive ở desktop hẹp và mobile/tablet nếu trang hỗ trợ.
 
-## 6. Tiêu chí hoàn thành
+## 7. Tiêu chí hoàn thành
 
-- Next.js không còn lỗi `Property 'resetPassword' does not exist on type authApi`.
-- `authApi.resetPassword` có type rõ ràng và payload đúng với `ResetPasswordDto`.
-- `/forgot-password` OTP flow vẫn dùng `completePasswordReset` như hiện tại.
-- `npm run build` frontend đi qua bước type-check hoặc lỗi còn lại không liên quan tới auth reset password.
+- Sticky bar trên `/grading/score` hiển thị đầy đủ tên sinh viên trong card.
+- Không còn ellipsis ở tên sinh viên trong trạng thái sticky.
+- Khoảng padding bottom của sticky bar được giảm và nhìn cân đối hơn ảnh hiện tại.
+- Slider ngang vẫn scroll mượt, không overlap, không lệch vị trí khi active student thay đổi.
+- Trạng thái expanded của student slider không bị ảnh hưởng.
+- Build/type-check frontend không phát sinh lỗi do thay đổi class/render sticky slider.

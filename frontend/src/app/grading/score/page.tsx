@@ -83,7 +83,7 @@ const StudentSliderCard = React.memo(({
         onClick={() => onClick(student.id)}
         className={`relative bg-white/55 backdrop-blur-sm border-2 cursor-pointer transition-[background-color,border-color,box-shadow,transform] duration-200 select-none shadow-sm flex items-center shrink-0 ${
           isStudentSliderSticky
-            ? "rounded-xl p-1.5 px-3 gap-2 h-9 w-max max-w-[200px]"
+            ? "rounded-xl p-1.5 px-3 gap-2 h-9 w-max min-w-[220px] max-w-none"
             : "rounded-2xl p-[13px] w-[256px] gap-[12px]"
         } ${
           isActive
@@ -125,7 +125,7 @@ const StudentSliderCard = React.memo(({
         {/* Student Info & Realtime Progress */}
         <div className={`flex-1 min-w-0 flex ${isStudentSliderSticky ? "flex-row items-center gap-2" : "flex-col"}`}>
           <h4
-            className={`font-bold text-[#1E293B] truncate transition-all duration-200 ${isStudentSliderSticky ? "text-[13px] max-w-[120px]" : "text-[14.5px]"}`}
+            className={`font-bold text-[#1E293B] transition-all duration-200 ${isStudentSliderSticky ? "text-[13px] whitespace-nowrap" : "text-[14.5px] truncate"}`}
             title={student.name}
           >
             {student.name}
@@ -1560,7 +1560,7 @@ function GradingScoreContent() {
     horizontal: true,
     count: filteredStudentsForRoster.length,
     getScrollElement: () => sliderRef.current,
-    estimateSize: () => isStudentSliderSticky ? 200 : 272,
+    estimateSize: () => isStudentSliderSticky ? 240 : 272,
     overscan: 5,
   });
 
@@ -2821,7 +2821,7 @@ function GradingScoreContent() {
                 <div
                   ref={sliderContainerRef}
                   className={`shrink-0 flex flex-col relative overflow-hidden transition-[background-color,border-color,box-shadow,padding] duration-300 pointer-events-auto ${isStudentSliderSticky
-                    ? "pt-2 px-6 md:px-8 pb-2 bg-sky-400/20 backdrop-blur-md border-b border-sky-400/50 gap-2 rounded-b-2xl shadow-sm"
+                    ? "pt-2 px-6 md:px-8 pb-1 bg-sky-400/20 backdrop-blur-md border-b border-sky-400/50 gap-1 rounded-b-2xl shadow-sm"
                     : "bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-300/40 gap-4"
                     }`}
                 >
@@ -2894,7 +2894,7 @@ function GradingScoreContent() {
                   onMouseUp={handleSliderMouseUpOrLeave}
                   onMouseLeave={handleSliderMouseUpOrLeave}
                   onMouseMove={handleSliderMouseMove}
-                  className="flex gap-4 overflow-x-auto pl-1 pr-10 py-2.5 custom-scrollbar scroll-smooth cursor-grab select-none"
+                  className={`flex gap-4 overflow-x-auto pl-1 pr-10 custom-scrollbar scroll-smooth cursor-grab select-none ${isStudentSliderSticky ? "pt-1.5 pb-1" : "py-2.5"}`}
                 >
                   {isInitialLoading || isRosterLoading
                     ? Array.from({ length: 4 }).map((_, idx) => (
@@ -2902,7 +2902,7 @@ function GradingScoreContent() {
                         key={`skel-hero-${idx}`}
                         className={`bg-white/50 backdrop-blur-sm border border-white/60 flex items-center shrink-0 animate-pulse ${
                           isStudentSliderSticky
-                            ? "w-[120px] h-10 rounded-xl p-2 px-3 gap-2"
+                            ? "min-w-[220px] h-9 rounded-xl p-1.5 px-3 gap-2"
                             : "w-[256px] h-[83px] rounded-2xl p-3.5 gap-3"
                         }`}
                       >
@@ -2924,7 +2924,7 @@ function GradingScoreContent() {
                     ) : (
                       <div
                         style={{
-                          height: isStudentSliderSticky ? "44px" : "109px",
+                          height: isStudentSliderSticky ? "40px" : "109px",
                           width: `${studentVirtualizer.getTotalSize()}px`,
                           position: "relative",
                         }}
