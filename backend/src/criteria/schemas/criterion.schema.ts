@@ -13,6 +13,9 @@ export class Criterion {
   })
   category_id: MongooseSchema.Types.ObjectId;
 
+  @Prop({ trim: true })
+  criterion_code: string;
+
   @Prop({ required: true })
   criterion_name: string;
 
@@ -57,3 +60,8 @@ export class Criterion {
 }
 
 export const CriterionSchema = SchemaFactory.createForClass(Criterion);
+
+CriterionSchema.index(
+  { criterion_code: 1 },
+  { unique: true, partialFilterExpression: { criterion_code: { $type: 'string' } } },
+);

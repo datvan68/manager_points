@@ -32,8 +32,8 @@ export default function ImportStudentRecordPopup({ isOpen, onClose, onSuccess }:
   const handleDownloadTemplate = async () => {
     try {
       const XLSX = await import('xlsx');
-      const headers = [['Ma SV', 'Tieu chi', 'Ngay ghi nhan', 'Ghi chu', 'Hoc ky', 'Trang thai']];
-      const sample = [ ['SV202601', 'Vắng có phép', '15/05/2026', 'Ghi chú mẫu', '', 'active'] ];
+      const headers = [['Ma SV', 'Ma tieu chi', 'Ngay ghi nhan', 'Ghi chu', 'Hoc ky', 'Trang thai']];
+      const sample = [ ['SV202601', 'I.A', '15/05/2026', 'Ghi chú mẫu', '', 'active'] ];
       const ws = XLSX.utils.aoa_to_sheet([...headers, ...sample]);
       ws['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 18 }, { wch: 30 }, { wch: 20 }, { wch: 12 }];
       const wb = XLSX.utils.book_new();
@@ -219,7 +219,7 @@ export default function ImportStudentRecordPopup({ isOpen, onClose, onSuccess }:
             <h3 className="text-xs font-bold text-[#1E293B] tracking-wider uppercase">BƯỚC 1: TẢI FILE MẪU</h3>
           </div>
           <div className="ml-8">
-            <p className="text-xs text-[#64748B] mb-2.5">Tải tệp mẫu để đảm bảo dữ liệu đúng định dạng.</p>
+            <p className="text-xs text-[#64748B] mb-2.5">Tải tệp mẫu để đảm bảo dữ liệu đúng định dạng. Lưu ý: Import sẽ sử dụng <strong>Mã tiêu chí</strong> để gán ghi nhận thay vì Tên tiêu chí.</p>
             <button 
               onClick={handleDownloadTemplate}
               className="flex items-center gap-2 px-3.5 py-1.5 bg-white/50 backdrop-blur-sm border border-slate-200 text-[#1E293B] rounded-xl hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.01] text-xs font-semibold shadow-sm"

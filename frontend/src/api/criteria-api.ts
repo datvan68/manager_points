@@ -13,6 +13,7 @@ export interface OptionItem {
 export interface Criterion {
   _id: string;
   category_id: string | Category;
+  criterion_code?: string;
   criterion_name: string;
   score_per_unit: number;
   max_score: number;
@@ -28,6 +29,7 @@ export interface Criterion {
 
 export interface CreateCriterionDto {
   category_id: string;
+  criterion_code: string;
   criterion_name: string;
   score_per_unit?: number;
   max_score?: number;
@@ -41,6 +43,7 @@ export interface CreateCriterionDto {
 
 export interface UpdateCriterionDto {
   category_id?: string;
+  criterion_code?: string;
   criterion_name?: string;
   score_per_unit?: number;
   max_score?: number;
@@ -62,6 +65,11 @@ export const criteriaApi = {
       const res = await httpClient(url);
       return handleResponse<Criterion[]>(res);
     });
+  },
+
+  async suggestCriterionCode(categoryId: string): Promise<{ suggestedCode: string }> {
+    const res = await httpClient(`${API_BASE}/criteria/suggest-code?category_id=${encodeURIComponent(categoryId)}`);
+    return handleResponse<{ suggestedCode: string }>(res);
   },
 
   async getCriterion(id: string): Promise<Criterion> {

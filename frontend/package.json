@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ext .ts,.tsx --no-eslintrc --parser @typescript-eslint/parser",
+    "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest"
   },

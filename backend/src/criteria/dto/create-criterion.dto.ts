@@ -46,6 +46,14 @@ export class CreateCriterionDto {
   category_id: string;
 
   @ApiProperty({
+    description: 'Mã tiêu chí',
+    example: 'I.A',
+  })
+  @IsNotEmpty()
+  @IsString()
+  criterion_code: string;
+
+  @ApiProperty({
     description: 'Tên chi tiết tiêu chí',
     example: 'Đi học đúng giờ',
   })

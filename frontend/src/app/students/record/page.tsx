@@ -612,6 +612,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           : r.record_title;
         return raw ? raw.replace(/\s*\(.*?\)\s*$/, "") : "N/A";
       })(),
+      criterionCode: foundCriterion ? foundCriterion.criterion_code || '' : '',
       date: r.recorded_at
         ? format(new Date(r.recorded_at), "dd/MM/yyyy")
         : r.date_record
@@ -906,6 +907,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         "Họ và tên": r.fullName,
         Lớp: r.className,
         "Loại ghi nhận": r.recordType,
+        "Mã tiêu chí": r.criterionCode,
         "Tiêu chí": r.criteria || "Chưa có",
         "Ngày ghi nhận": r.date,
         "Tính điểm": r.points,

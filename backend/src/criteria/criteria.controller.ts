@@ -8,6 +8,7 @@ import {
   Delete,
   Query,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { CriteriaService } from './criteria.service';
 import { CreateCriterionDto } from './dto/create-criterion.dto';
@@ -56,6 +57,23 @@ export class CriteriaController {
       return this.criteriaService.findByCategoryId(categoryId);
     }
     return this.criteriaService.findAll();
+  }
+
+  @Get('suggest-code')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Gợi ý mã tiêu chí tiếp theo cho danh mục' })
+  @ApiQuery({
+    name: 'category_id',
+    required: true,
+    description: 'ID danh mục để gợi ý mã tiêu chí',
+  })
+  @ApiResponse({ status: 200, description: 'Gợi ý thành công' })
+  suggestCode(@Query('category_id') categoryId: string) {
+    if (!categoryId || categoryId === 'undefined' || categoryId === 'null') {
+      throw new BadRequestException('categoryId bị thiếu hoặc không hợp lệ');
+    }
+    return this.criteriaService.suggestCode(categoryId);
   }
 
   @Get(':id')

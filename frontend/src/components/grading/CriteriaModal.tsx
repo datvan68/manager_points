@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, BarChart3, ChevronDown } from 'lucide-react';
+import { X, Save, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
+import { criteriaApi } from '../../api/criteria-api';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { Input } from '../ui/Input';
 
@@ -15,7 +16,7 @@ interface CriteriaModalProps {
   initialData?: any;
   categories: any[];
   criteria?: any[];
-  onSave?: (data: any) => void;
+  onSave?: (data: any) => void | Promise<void>;
   defaultCategoryId?: string;
 }
 
@@ -31,6 +32,7 @@ export default function CriteriaModal({
 }: CriteriaModalProps) {
   const [formData, setFormData] = useState({
     id: '',
+    code: '',
     name: '',
     type: 'cong_diem' as 'khen_thuong' | 'cong_diem' | 'ky_luat',
     points: 1,
@@ -43,44 +45,90 @@ export default function CriteriaModal({
     options: [] as { id: string; label: string; score: number }[]
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSuggestedCode, setIsSuggestedCode] = useState(false);
+  const [isSuggestingCode, setIsSuggestingCode] = useState(false);
+  const [suggestCodeError, setSuggestCodeError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
+      let isCodeEmpty = false;
+      let initialCatId = '';
+
       if (isEditing && initialData) {
-        setFormData({
+        initialCatId = initialData.categoryId || defaultCategoryId || (categories[0]?.id || '');
+        const currentCode = initialData.code || initialData.criterion_code || '';
+        if (!currentCode) isCodeEmpty = true;
+
+        setFormData(prev => ({
+          ...prev,
           id: initialData.id || '',
+          code: currentCode,
           name: initialData.name || '',
           type: initialData.type || 'cong_diem',
           points: Math.abs(initialData.points || 1), // Lưu dạng số dương trong form, dấu do type quyết định
           minPoints: initialData.minPoints !== undefined ? initialData.minPoints : 0,
           maxPoints: initialData.maxPoints || 10,
-          categoryId: initialData.categoryId || defaultCategoryId || (categories[0]?.id || ''),
+          categoryId: initialCatId,
           is_locked: !!initialData.is_locked,
           is_score_counted: initialData.is_score_counted !== false,
           scoring_mode: initialData.scoring_mode || 'count',
           options: initialData.options || []
-        });
+        }));
       } else {
-        setFormData({
+        initialCatId = defaultCategoryId || (categories[0]?.id || '');
+        isCodeEmpty = true;
+
+        // Initialize form data only once per modal open
+        setFormData(prev => ({
           id: '',
+          code: '',
           name: '',
           type: 'cong_diem',
           points: 1,
           minPoints: 0,
           maxPoints: 10,
-          categoryId: defaultCategoryId || (categories[0]?.id || ''),
+          categoryId: initialCatId,
           is_locked: false,
           is_score_counted: true,
           scoring_mode: 'count',
           options: []
-        });
+        }));
       }
       setErrors({});
-    }
-  }, [isOpen, isEditing, initialData, defaultCategoryId, categories]);
 
-  const handleSave = () => {
+      const isValidId = (id: any) => id && typeof id === 'string' && id.trim().length > 0 && id !== 'undefined' && id !== 'null';
+
+      let active = true;
+      if (isCodeEmpty && isValidId(initialCatId)) {
+        const catObjectId = categories.find(c => c.id === initialCatId || c._id === initialCatId)?._id || initialCatId;
+        if (isValidId(catObjectId)) {
+          setIsSuggestingCode(true);
+          setSuggestCodeError('');
+          criteriaApi.suggestCriterionCode(catObjectId).then(res => {
+            if (!active) return;
+            const suggestedCode = res.suggestedCode || '';
+            setFormData(prev => ({ ...prev, code: suggestedCode }));
+            setIsSuggestedCode(true);
+          }).catch((err) => {
+            if (!active) return;
+            setSuggestCodeError('Không lấy được mã gợi ý, vui lòng nhập thủ công');
+            setIsSuggestedCode(false);
+          }).finally(() => {
+            if (active) setIsSuggestingCode(false);
+          });
+        } else {
+          setIsSuggestedCode(false);
+        }
+      } else {
+        setIsSuggestedCode(false);
+      }
+      return () => { active = false; };
+    }
+  }, [isOpen, defaultCategoryId, isEditing, initialData?.id, categories.length]); // Tách dependency để lấy data mới khi có categories
+
+  const handleSave = async () => {
     const newErrors: Record<string, string> = {};
+    if (!formData.code.trim()) newErrors.code = 'Vui lòng nhập mã tiêu chí';
     if (!formData.name.trim()) newErrors.name = 'Vui lòng nhập tên tiêu chí';
     if (!formData.categoryId) newErrors.categoryId = 'Vui lòng chọn danh mục';
 
@@ -117,15 +165,20 @@ export default function CriteriaModal({
     // Đảm bảo điểm số Kỷ luật lưu dạng âm, còn lại là dương
     const signedPoints = formData.type === 'ky_luat' ? -Math.abs(formData.points) : Math.abs(formData.points);
 
-    if (onSave) {
-      onSave({
-        ...formData,
-        points: signedPoints,
-        id: formData.id || `CRI_${Date.now()}` // Tự sinh ID nếu là tạo mới
-      });
+    try {
+      if (onSave) {
+        await onSave({
+          ...formData,
+          criterion_code: formData.code.trim(),
+          points: signedPoints,
+          id: formData.id || `CRI_${Date.now()}` // Tự sinh ID nếu là tạo mới
+        });
+      }
+      toast.success(isEditing ? 'Cập nhật tiêu chí thành công' : 'Thêm tiêu chí mới thành công');
+      onClose();
+    } catch (error: any) {
+      toast.error(error.message || 'Có lỗi xảy ra khi lưu tiêu chí');
     }
-    toast.success(isEditing ? 'Cập nhật tiêu chí thành công' : 'Thêm tiêu chí mới thành công');
-    onClose();
   };
 
   return (
@@ -186,7 +239,28 @@ export default function CriteriaModal({
                   </div>
                   <Select
                     value={formData.categoryId}
-                    onValueChange={(val: string) => setFormData({ ...formData, categoryId: val })}
+                    onValueChange={(val: string) => {
+                      setFormData(prev => ({ ...prev, categoryId: val }));
+                      const isValidId = (id: any) => id && typeof id === 'string' && id.trim().length > 0 && id !== 'undefined' && id !== 'null';
+
+                      if ((!formData.code || isSuggestedCode) && isValidId(val)) {
+                        const catObjectId = categories.find(c => c.id === val || c._id === val)?._id || val;
+                        if (isValidId(catObjectId)) {
+                          setIsSuggestingCode(true);
+                          setSuggestCodeError('');
+                          criteriaApi.suggestCriterionCode(catObjectId).then(res => {
+                            const suggestedCode = res.suggestedCode || '';
+                            setFormData(prev => ({ ...prev, code: suggestedCode, categoryId: val }));
+                            setIsSuggestedCode(true);
+                          }).catch((err) => {
+                            setSuggestCodeError('Không lấy được mã gợi ý, vui lòng nhập thủ công');
+                            setIsSuggestedCode(false);
+                          }).finally(() => {
+                            setIsSuggestingCode(false);
+                          });
+                        }
+                      }
+                    }}
                     error={errors.categoryId}
                   >
                     <SelectTrigger className={`w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:ring-2 focus-within:ring-[#1A73E8]/30 ${errors.categoryId ? 'border-rose-400 ring-2 ring-rose-100' : ''
@@ -201,6 +275,51 @@ export default function CriteriaModal({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Mã tiêu chí */}
+                <div className="flex flex-col gap-[8px] items-start w-full">
+                  <div className="flex justify-between items-center w-full pl-[4px]">
+                    <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
+                      Mã tiêu chí <span className="text-[#ef4444]">*</span>
+                    </label>
+                    {isSuggestedCode && !isSuggestingCode && (
+                      <span className="flex items-center gap-1 text-[12px] font-medium text-[#059669]">
+                        ✅ Gợi ý tự động
+                      </span>
+                    )}
+                    {isSuggestingCode && (
+                      <span className="flex items-center gap-1 text-[12px] font-medium text-[#64748b]">
+                        Đang lấy gợi ý...
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative w-full flex flex-col gap-1">
+                    <div className="relative w-full">
+                      <Input
+                        required
+                        error={errors.code}
+                        placeholder="Ví dụ: I.A"
+                        className={`text-[13px] ${isSuggestedCode ? 'pr-8 font-medium text-[#059669]' : ''}`}
+                        value={formData.code}
+                        onChange={(e) => {
+                          setFormData({ ...formData, code: e.target.value });
+                          setIsSuggestedCode(false);
+                          setSuggestCodeError('');
+                        }}
+                      />
+                      {isSuggestedCode && !isSuggestingCode && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[14px] pointer-events-none select-none" title="Mã được gợi ý tự động">
+                          ✅
+                        </div>
+                      )}
+                    </div>
+                    {suggestCodeError && (
+                      <p className="text-[12px] font-medium text-rose-500 pl-[4px]">
+                        {suggestCodeError}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Tên tiêu chí */}

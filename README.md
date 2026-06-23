@@ -45,6 +45,9 @@ Quy trình nhập dữ liệu bao gồm hai bước để đảm bảo an toàn:
 ### Tiêu chí chấm điểm dạng Option (Chọn 1)
 Cho phép quản trị viên cấu hình tiêu chí với danh sách các lựa chọn (ví dụ: Lớp trưởng, Lớp phó,...). Người chấm điểm chỉ được chọn một tùy chọn duy nhất thay vì nhập số lần. Chi tiết cấu hình và kiến trúc xem thêm tại [Tài liệu Single Option](./docs/single_option_feature.md).
 
+### Import Ghi nhận HSSV từ Excel
+Tính năng Import Ghi nhận HSSV cho phép gán nhanh các ghi nhận dựa trên **Mã tiêu chí** do Admin tự định nghĩa, tránh nhầm lẫn do trùng tên hoặc sai khác nội dung. Hỗ trợ preview và báo lỗi chi tiết khi không tìm thấy mã tiêu chí hợp lệ. Chi tiết cách dùng xem tại [Tài liệu Import Ghi nhận HSSV](./docs/import_hssv_record.md).
+
 ## 🛠 Công nghệ sử dụng (Tech Stack)
 
 - **AI Framework**: MCP (Model Context Protocol)

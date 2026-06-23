@@ -182,7 +182,104 @@ describe('AcademicRecordService - Import Flow', () => {
 
       expect(result.validCount).toBe(0);
       expect(result.errorCount).toBe(2);
-      expect(result.errors[0].reason).toMatch(/Thiếu Mã SV|Thiếu Tiêu chí|Thiếu Ngày/i);
+      expect(result.errors[0].reason).toMatch(/Thiếu Mã SV|Thiếu Tiêu chí|Thiếu Mã tiêu chí/i);
+    });
+
+    it('should resolve correctly using criterion_code (Ma tieu chi)', async () => {
+        const studentId = new Types.ObjectId();
+        mockStudentModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' }])
+        });
+        mockCriterionModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Test Name', criterion_code: 'I.A' }])
+        });
+        mockSemesterModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
+        });
+
+        const rows = [
+            { 'Ma SV': 'SV1', 'Ma tieu chi': 'I.A', 'Ngay ghi nhan': '2023-01-01', 'Trang thai': 'active' },
+        ];
+
+        const result = await service.importPreview(rows, null);
+        expect(result.validCount).toBe(1);
+        expect(result.errorCount).toBe(0);
+    });
+
+    it('should resolve using criterion_code even if criterion_name is not provided or different', async () => {
+        const studentId = new Types.ObjectId();
+        mockStudentModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' }])
+        });
+        mockCriterionModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Criteria Actual', criterion_code: 'C.1' }])
+        });
+        mockSemesterModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
+        });
+
+        const rows = [
+            { 'Ma SV': 'SV1', 'Ma tieu chi': '  c.1  ', 'Tieu chi': 'Criteria Wrong', 'Ngay ghi nhan': '2023-01-01', 'Trang thai': 'active' },
+        ];
+
+        const result = await service.importPreview(rows, null);
+        expect(result.validCount).toBe(1);
+        expect(result.errorCount).toBe(0);
+    });
+
+    it('should report error when criterion_code is not found', async () => {
+        const studentId = new Types.ObjectId();
+        mockStudentModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' }])
+        });
+        mockCriterionModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Test Name', criterion_code: 'I.A' }])
+        });
+        mockSemesterModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
+        });
+
+        const rows = [
+            { 'Ma SV': 'SV1', 'Ma tieu chi': 'INVALID', 'Ngay ghi nhan': '2023-01-01', 'Trang thai': 'active' },
+        ];
+
+        const result = await service.importPreview(rows, null);
+        expect(result.validCount).toBe(0);
+        expect(result.errorCount).toBe(1);
+        expect(result.errors[0].reason).toContain('Không tìm thấy tiêu chí theo mã: INVALID');
+    });
+
+    it('should fallback to criterion_name (Tieu chi) if Ma tieu chi is not provided', async () => {
+        const studentId = new Types.ObjectId();
+        mockStudentModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' }])
+        });
+        mockCriterionModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Test Name', criterion_code: 'I.A' }])
+        });
+        mockSemesterModel.find.mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
+        });
+
+        const rows = [
+            { 'Ma SV': 'SV1', 'Tieu chi': 'Test Name', 'Ngay ghi nhan': '2023-01-01', 'Trang thai': 'active' },
+        ];
+
+        const result = await service.importPreview(rows, null);
+        expect(result.validCount).toBe(1);
+        expect(result.errorCount).toBe(0);
     });
   });
 

@@ -977,6 +977,10 @@ export class AcademicRecordService {
     // 3. Query all criteria and semesters (dung lượng nhỏ)
     const criteria = await this.criterionModel.find().lean().exec();
     const criteriaMap = new Map(criteria.map(c => [(c.criterion_name || '').toString().trim().toLowerCase(), c]));
+    const criteriaCodeMap = new Map(criteria.map(c => {
+      const code = c.criterion_code ? c.criterion_code.toString().trim().toLowerCase() : '';
+      return [code, c] as [string, any];
+    }).filter(entry => entry[0] !== ''));
 
     const semesters = await semesterModel.find().lean().exec();
     const semesterMap = new Map(semesters.map((s: any) => [(s.semester_name || s.name || '').toString().trim().toLowerCase(), s]));
@@ -990,6 +994,7 @@ export class AcademicRecordService {
       const row = rows[i];
       const rowNumber = i + 2;
       const studentCodeRaw = row['Ma SV'] || row['Mã SV'] || row['Mã sinh viên'] || row['student_code'];
+      const criterionCodeRaw = row['Ma tieu chi'] || row['Mã tiêu chí'] || row['criterion_code'];
       const criterionRaw = row['Tieu chi'] || row['Tiêu chí'] || row['criterion'] || row['Tieu chi (*)'];
       const dateRaw = row['Ngay ghi nhan'] || row['Ngày ghi nhận'] || row['recorded_at'] || row['Ngay'];
       const noteRaw = row['Ghi chu'] || row['Ghi chú'] || row['note'];
@@ -1002,8 +1007,8 @@ export class AcademicRecordService {
         continue;
       }
 
-      if (!criterionRaw) {
-        errors.push({ row: rowNumber, studentCode, reason: 'Thiếu Tiêu chí' });
+      if (!criterionCodeRaw && !criterionRaw) {
+        errors.push({ row: rowNumber, studentCode, reason: 'Thiếu Mã tiêu chí hoặc Tiêu chí' });
         continue;
       }
 
@@ -1023,11 +1028,21 @@ export class AcademicRecordService {
         continue;
       }
 
-      const criterionName = criterionRaw.toString().trim();
-      let foundCriterion = criteriaMap.get(criterionName.toLowerCase());
-      if (!foundCriterion) {
-        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Không tìm thấy tiêu chí: ${criterionName}` });
-        continue;
+      let foundCriterion: any = null;
+      if (criterionCodeRaw) {
+        const criterionCode = criterionCodeRaw.toString().trim().toLowerCase();
+        foundCriterion = criteriaCodeMap.get(criterionCode);
+        if (!foundCriterion) {
+          errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Không tìm thấy tiêu chí theo mã: ${criterionCodeRaw.toString().trim()}` });
+          continue;
+        }
+      } else {
+        const criterionName = criterionRaw.toString().trim();
+        foundCriterion = criteriaMap.get(criterionName.toLowerCase());
+        if (!foundCriterion) {
+          errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Không tìm thấy tiêu chí: ${criterionName}` });
+          continue;
+        }
       }
 
       // Parse date

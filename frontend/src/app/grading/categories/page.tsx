@@ -161,6 +161,7 @@ function CategoriesPage() {
         return {
           id: cri._id,
           _id: cri._id,
+          code: cri.criterion_code,
           name: cri.criterion_name,
           type: cri.criterion_type,
           points: cri.score_per_unit,
@@ -533,13 +534,14 @@ function CategoriesPage() {
   };
 
   // Thêm/Sửa tiêu chí
-  const handleSaveCriteria = (data: any) => {
+  const handleSaveCriteria = async (data: any) => {
     const parentCat = categories.find(cat => cat.id === data.categoryId);
     const categoryObjectId = parentCat?._id || data.categoryId;
 
     if (isEditingCriteria && selectedCriteria) {
-      criteriaApi.updateCriterion(selectedCriteria._id, {
+      await criteriaApi.updateCriterion(selectedCriteria._id, {
         category_id: categoryObjectId,
+        criterion_code: data.criterion_code,
         criterion_name: data.name,
         criterion_type: data.type,
         score_per_unit: Number(data.points),
@@ -552,13 +554,12 @@ function CategoriesPage() {
           const { _id, ...rest } = opt;
           return rest;
         })
-      }).then(() => {
-        fetchData();
-        toast.success(`Đã cập nhật tiêu chí "${data.name}" thành công!`);
-      }).catch(err => toast.error('Lỗi khi cập nhật tiêu chí: ' + err.message));
+      });
+      await fetchData();
     } else {
-      criteriaApi.createCriterion({
+      await criteriaApi.createCriterion({
         category_id: categoryObjectId,
+        criterion_code: data.criterion_code,
         criterion_name: data.name,
         criterion_type: data.type,
         score_per_unit: Number(data.points),
@@ -571,10 +572,8 @@ function CategoriesPage() {
           const { _id, ...rest } = opt;
           return rest;
         })
-      }).then(() => {
-        fetchData();
-        toast.success(`Đã thêm tiêu chí "${data.name}" thành công!`);
-      }).catch(err => toast.error('Lỗi khi thêm tiêu chí: ' + err.message));
+      });
+      await fetchData();
     }
   };
 

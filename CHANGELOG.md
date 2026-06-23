@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### 🚀 Tính năng mới (New Features)
+- **Import Ghi nhận HSSV theo mã tiêu chí:** Cập nhật cơ chế import từ Excel để ưu tiên tra cứu theo mã tiêu chí (do Admin tự định nghĩa) thay vì tên tiêu chí. Điều này giúp tránh sai sót do trùng lặp hoặc nhập liệu sai tên. Hỗ trợ hiển thị lỗi rõ ràng khi không tìm thấy tiêu chí theo mã.
 - **Tiêu chí chấm điểm dạng Single Option (Chọn 1):** Bổ sung hình thức chấm điểm mới cho phép quản trị viên thiết lập các lựa chọn (options) cố định cho một tiêu chí. Người chấm chỉ được phép chọn 1 lựa chọn duy nhất, và điểm số tự động tính theo lựa chọn đó thay vì theo số lượng nhân hệ số.
 - **Thêm tính năng tạo nhiều người dùng (Bulk Create):** Hỗ trợ thêm nhiều người dùng cùng một lúc thông qua bảng nhập liệu trong modal "Thêm người dùng" tại trang `/permissions`. Tích hợp tuỳ chọn đặt **mật khẩu dùng chung** hoặc **mật khẩu riêng**, đồng thời hiển thị kết quả chi tiết (thành công/thất bại) sau khi xử lý.
 - **Import danh sách lớp từ file:** Hỗ trợ tính năng import danh sách lớp từ file (Excel, CSV) kèm theo cơ chế xem trước (preview) để kiểm tra tính hợp lệ của dữ liệu trước khi lưu vào hệ thống.
