@@ -86,7 +86,7 @@ const Sidebar = () => {
     hoverTimeoutRef.current = setTimeout(() => {
       setIsHovered(false);
       globalIsHovered = false;
-    }, 1000); // 400ms delay tránh giật mắt khi vô tình di chuột ra ngoài
+    }, 5000); // 400ms delay tránh giật mắt khi vô tình di chuột ra ngoài
   };
 
   const handleCompactClick = () => {
@@ -155,11 +155,11 @@ const Sidebar = () => {
     if (isStudent) {
       try {
         const student = await studentApi.getMyStudent();
-        const classId = typeof student.class_id === 'object' 
-          ? (student.class_id as any)?._id 
+        const classId = typeof student.class_id === 'object'
+          ? (student.class_id as any)?._id
           : student.class_id;
         const studentId = student._id;
-        
+
         if (classId && studentId) {
           router.push(`/students/${classId}/${studentId}`);
         } else {
@@ -194,7 +194,7 @@ const Sidebar = () => {
     (async () => {
       const isStudentUser = isStudentRole(user);
       const isTeacherUser = isTeacherRole(user);
-      
+
       try {
         const token = typeof window !== 'undefined' ? (sessionStorage.getItem('access_token') || '') : '';
         const mappings = await fetchSidebarMappings(token);
@@ -392,16 +392,14 @@ const Sidebar = () => {
                   className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
                 >
                   <div
-                    className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${
-                      isActive
+                    className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${isActive
                         ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
                         : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
-                    }`}
+                      }`}
                   >
                     <item.icon size={18} className="mb-0.5" />
-                    <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${
-                      isActive ? "font-bold" : "font-medium"
-                    }`}>
+                    <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${isActive ? "font-bold" : "font-medium"
+                      }`}>
                       {item.label}
                     </span>
                   </div>
@@ -415,16 +413,14 @@ const Sidebar = () => {
               className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
             >
               <div
-                className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${
-                  pathname === "/notifications" || pathname.startsWith("/notifications")
+                className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${pathname === "/notifications" || pathname.startsWith("/notifications")
                     ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
                     : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
-                }`}
+                  }`}
               >
                 <Bell size={18} className="mb-0.5" />
-                <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${
-                  pathname === "/notifications" || pathname.startsWith("/notifications") ? "font-bold" : "font-medium"
-                }`}>
+                <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${pathname === "/notifications" || pathname.startsWith("/notifications") ? "font-bold" : "font-medium"
+                  }`}>
                   Thông báo
                 </span>
               </div>
@@ -437,11 +433,10 @@ const Sidebar = () => {
               className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
             >
               <div
-                className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${
-                  pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none")
+                className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none")
                     ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
                     : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
-                } ${isResolvingProfile ? "opacity-50" : ""}`}
+                  } ${isResolvingProfile ? "opacity-50" : ""}`}
               >
                 {isResolvingProfile ? (
                   <svg className="animate-spin h-4.5 w-4.5 mb-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -451,9 +446,8 @@ const Sidebar = () => {
                 ) : (
                   <User size={18} className="mb-0.5" />
                 )}
-                <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${
-                  pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none") ? "font-bold" : "font-medium"
-                }`}>
+                <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none") ? "font-bold" : "font-medium"
+                  }`}>
                   Hồ sơ
                 </span>
               </div>

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Sidebar from "@/components/layout/Sidebar";
@@ -87,6 +87,19 @@ function StudentsPageContent() {
   const [isCaoDangExpanded, setIsCaoDangExpanded] = useState(true);
   const [isTrungCapExpanded, setIsTrungCapExpanded] = useState(true);
   const [isMobileViewClasses, setIsMobileViewClasses] = useState(() => searchParams.get("view") === "classes");
+
+  const classListScrollRef = useRef<HTMLDivElement | null>(null);
+  const hasRestoredClassListScrollRef = useRef(false);
+
+  const getClassListScrollKey = () =>
+    `students:class-list-scroll:${selectedDept}:${searchTerm || "all"}`;
+
+  const scrollClassListToTop = () => {
+    classListScrollRef.current?.scrollTo({ top: 0 });
+    hasRestoredClassListScrollRef.current = true;
+  };
+
+
 
   const updateStudentsListUrl = (next: {
     deptId?: string;
@@ -261,6 +274,13 @@ function StudentsPageContent() {
   }, [selectedDept]);
 
   const handleClassClick = (classId: string) => {
+    if (typeof window !== "undefined" && classListScrollRef.current) {
+      sessionStorage.setItem(
+        getClassListScrollKey(),
+        String(classListScrollRef.current.scrollTop)
+      );
+    }
+
     const params = new URLSearchParams();
     if (selectedDept) params.set("deptId", selectedDept);
     if (searchTerm) params.set("classSearch", searchTerm);
@@ -268,7 +288,7 @@ function StudentsPageContent() {
     if (isMobileViewClasses) params.set("view", "classes");
 
     const query = params.toString();
-    router.push(query ? `/students/${classId}?${query}` : `/students/${classId}`);
+    router.push(query ? `/students/${classId}?${query}` : `/students/${classId}`, { scroll: false });
   };
 
   const currentDeptName =
@@ -328,6 +348,26 @@ function StudentsPageContent() {
   const trungCapClasses = filteredClasses.filter(
     (cls) => cls.class_type === "Trung cấp",
   );
+
+  useEffect(() => {
+    if (isLoading || isDataLoading) return;
+    if (!selectedDept) return;
+    if (hasRestoredClassListScrollRef.current) return;
+
+    const root = classListScrollRef.current;
+    if (!root) return;
+
+    const saved = sessionStorage.getItem(getClassListScrollKey());
+    if (!saved) return;
+
+    const scrollTop = Number(saved);
+    if (!Number.isFinite(scrollTop)) return;
+
+    requestAnimationFrame(() => {
+      root.scrollTop = scrollTop;
+      hasRestoredClassListScrollRef.current = true;
+    });
+  }, [isLoading, isDataLoading, selectedDept, searchTerm, filteredClasses.length]);
 
   return (
     <div className="flex bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] h-screen overflow-hidden font-sans">
@@ -399,6 +439,7 @@ function StudentsPageContent() {
                       onClick={() => {
                         setSelectedDept(dept._id);
                         setIsMobileViewClasses(true);
+                        scrollClassListToTop();
                         updateStudentsListUrl({ deptId: dept._id, view: "classes" });
                       }}
                       className={`w-full p-3 rounded-xl border text-left transition-all duration-150 ease-out shrink-0 group flex flex-col cursor-pointer ${
@@ -508,7 +549,10 @@ function StudentsPageContent() {
                     <Research
                       placeholder="Tìm tên lớp..."
                       value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        scrollClassListToTop();
+                      }}
                       containerClassName="flex-1 max-w-none lg:max-w-[231px]"
                     />
                     {permissions.canCreateClass && (
@@ -544,7 +588,10 @@ function StudentsPageContent() {
               </div>
 
               {/* Class cards container */}
-              <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 bg-transparent scrollbar-hover">
+              <div
+                ref={classListScrollRef}
+                className="flex-1 overflow-y-auto px-4 md:px-8 py-4 bg-transparent scrollbar-hover"
+              >
                 <div className="flex flex-col gap-4 w-full">
                   {isLoading || isDataLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -578,9 +625,10 @@ function StudentsPageContent() {
                             <div className="flex-1 h-px bg-[#f3f4f6] ml-4" />
                           </div>
                           <button
-                            onClick={() =>
-                              setIsCaoDangExpanded(!isCaoDangExpanded)
-                            }
+                            onClick={() => {
+                              setIsCaoDangExpanded(!isCaoDangExpanded);
+                              scrollClassListToTop();
+                            }}
                             className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-650 transition-colors"
                           >
                             <ChevronDown
@@ -731,9 +779,10 @@ function StudentsPageContent() {
                             <div className="flex-1 h-px bg-[#f3f4f6] ml-4" />
                           </div>
                           <button
-                            onClick={() =>
-                              setIsTrungCapExpanded(!isTrungCapExpanded)
-                            }
+                            onClick={() => {
+                              setIsTrungCapExpanded(!isTrungCapExpanded);
+                              scrollClassListToTop();
+                            }}
                             className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-650 transition-colors"
                           >
                             <ChevronDown
