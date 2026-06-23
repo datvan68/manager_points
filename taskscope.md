@@ -1,171 +1,286 @@
-﻿# Task Scope: Sắp xếp dữ liệu mới lên đầu và hiện nhãn New trong 6 giờ tại `/students/record`
+﻿# Task Scope: Giữ trạng thái trang `/students` khi vào chi tiết lớp rồi quay lại
 
 ## 1. Mục tiêu
 
-Điều chỉnh page `frontend/src/app/students/record/page.tsx` để hai bảng trên màn hình ghi nhận/tình hình luôn ưu tiên bản ghi mới nhất lên đầu danh sách, đồng thời nhãn `New` chỉ hiển thị trong 6 giờ đầu sau khi bản ghi được tạo.
+Sửa luồng từ trang `/students` chọn khoa/lớp, vào chi tiết lớp `/students/[classId]`, sau đó quay lại để trang danh sách vẫn giữ đúng trạng thái người dùng đang xem thay vì reset về khoa đầu tiên mặc định.
 
-Phạm vi áp dụng:
+Trạng thái cần giữ:
 
-- Bảng `Ghi nhận HSSV` trong tab `student`.
-- Bảng `Tình hình lớp học` trong tab `class`.
-- Cả 3 cách hiển thị hiện có: mobile card, desktop card và desktop table.
+- Khoa đang active (`selectedDept`).
+- Từ khóa tìm kiếm lớp (`searchTerm`) nếu người dùng đã nhập.
+- Từ khóa tìm kiếm khoa (`deptSearchTerm`) nếu người dùng đã nhập.
+- Trạng thái mobile đang xem danh sách lớp (`isMobileViewClasses`) khi quay lại trên mobile.
+- Trạng thái mở/đóng nhóm hệ Cao đẳng và Trung cấp nếu cần giữ trải nghiệm nhất quán.
 
 ## 2. Hiện trạng đã kiểm tra
 
-- Page đang fetch `academicRecords` bằng `academicRecordApi.getAcademicRecords(...)`, sau đó map sang `mappedRecords`.
-- Page đang fetch `classReports` bằng `dailyClassReportApi.getDailyClassReports(...)`, sau đó dùng trực tiếp làm `paginatedClassReports`.
-- UI đang hiện badge `New` dựa trên `createdAt < 24 * 60 * 60 * 1000`.
-- Lịch sử trong drawer của sinh viên có sort theo `createdAt` giảm dần, nhưng hai danh sách chính phụ thuộc nhiều vào thứ tự backend trả về.
-- Cần giữ nguyên filter, search, phân trang, permission xoá, layout table/card hiện tại.
+Các file liên quan:
 
-## 3. Yêu cầu chức năng
+- `frontend/src/app/students/page.tsx`
+- `frontend/src/app/students/[classId]/page.tsx`
 
-### 3.1. Sắp xếp dữ liệu mới lên đầu
+Luồng hiện tại:
 
-Thêm helper dùng chung trong `GhiNhanTab`:
+- `/students` lưu khoa đang chọn bằng local state:
 
 ```ts
-const getCreatedTime = (value?: string) => {
-  if (!value) return 0;
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? 0 : time;
+const [selectedDept, setSelectedDept] = useState<string>("");
+```
+
+- Khi load danh sách khoa, nếu `selectedDept` trống thì tự chọn khoa đầu tiên:
+
+```ts
+setSelectedDept((prev) => {
+  if (prev && fetchedDepts.some((d) => d._id === prev)) {
+    return prev;
+  }
+  return fetchedDepts[0]._id;
+});
+```
+
+- Khi click vào lớp, page chỉ điều hướng theo `classId`:
+
+```ts
+const handleClassClick = (classId: string) => {
+  router.push(`/students/${classId}`);
 };
 ```
 
-Sắp xếp giảm dần theo thời điểm tạo:
+- Nút quay lại trong chi tiết lớp điều hướng thẳng về `/students`:
 
-- `academicRecords`: ưu tiên `createdAt`, fallback `updatedAt`, sau đó fallback `recorded_at` nếu cần.
-- `classReports`: ưu tiên `createdAt`, fallback `updatedAt`, sau đó fallback `report_date` nếu cần.
-
-Việc sắp xếp nên đặt ở tầng dữ liệu hiển thị, vì page hiện tại có nhiều đường render dùng chung `paginatedRecords` và `paginatedClassReports`:
-
-- Với ghi nhận HSSV: sort sau khi map/filter, trước khi gán `paginatedRecords`.
-- Với tình hình lớp học: sort `filteredClassReports` trước khi gán `paginatedClassReports`.
-
-Cần đảm bảo item mới tạo/import xong nằm ở đầu trang hiện tại sau khi refetch.
-
-### 3.2. Badge `New` chỉ tồn tại trong 6 giờ
-
-Thêm hằng số dùng chung:
-
-```ts
-const NEW_BADGE_WINDOW_MS = 6 * 60 * 60 * 1000;
+```tsx
+onClick={() => router.push('/students')}
 ```
 
-Thêm helper:
+Vì route `/students` bị mount lại và URL không chứa context khoa đang chọn, `selectedDept` trở lại `""`, sau đó `fetchDepartments()` chọn khoa đầu tiên. Đây là nguyên nhân khiến người dùng back lại bị mất trạng thái cũ.
+
+## 3. Yêu cầu chức năng
+
+### 3.1. Giữ khoa đang active khi quay lại từ chi tiết lớp
+
+Khi người dùng click lớp từ `/students`, URL chi tiết lớp cần mang theo context khoa hiện tại, ví dụ:
 
 ```ts
-const isNewWithinWindow = (createdAt?: string) =>
-  getCreatedTime(createdAt) > 0 &&
-  Date.now() - getCreatedTime(createdAt) <= NEW_BADGE_WINDOW_MS;
+router.push(`/students/${classId}?deptId=${selectedDept}`);
 ```
 
-Thay tất cả điều kiện hiện tại đang dùng `24 * 60 * 60 * 1000` trong hai bảng thành helper trên.
+Khi người dùng bấm nút quay lại ở `/students/[classId]`, cần quay về:
 
-Vị trí cần cập nhật:
+```ts
+router.push(`/students?deptId=${deptId}`);
+```
 
-- Badge `New` của ghi nhận HSSV trong desktop card.
-- Badge `New` của ghi nhận HSSV trong desktop table.
-- Badge `New` của tình hình lớp học trong desktop card.
-- Badge `New` của tình hình lớp học trong desktop table.
-- Nếu mobile card cần hiển thị `New`, thêm cùng logic 6 giờ và không làm vỡ layout.
+Khi `/students` mount, đọc `deptId` từ query string và ưu tiên dùng giá trị này nếu tồn tại trong danh sách khoa.
 
-### 3.3. Không làm thay đổi nghiệp vụ khác
+### 3.2. Không reset về khoa đầu tiên nếu URL đã có state hợp lệ
 
-- Không đổi API endpoint.
-- Không đổi filter theo lớp, ngày, search, người tạo.
-- Không đổi permission xoá/chọn nhiều.
-- Không đổi import/export.
-- Không đổi logic tính điểm, sĩ số, thống kê.
+Trong `fetchDepartments()`, logic auto select khoa đầu tiên cần đổi theo thứ tự ưu tiên:
+
+1. `deptId` trên URL nếu hợp lệ.
+2. `selectedDept` hiện tại nếu còn tồn tại trong danh sách khoa.
+3. Khoa đầu tiên nếu không có state nào hợp lệ.
+
+Nếu `deptId` không tồn tại hoặc khoa đã bị xóa, fallback về khoa đầu tiên như hiện tại.
+
+### 3.3. Đồng bộ URL khi người dùng đổi khoa
+
+Khi click một khoa ở danh sách trái:
+
+- Cập nhật `selectedDept`.
+- Cập nhật URL `/students?deptId=<deptId>` bằng `router.replace` để không tạo lịch sử dư thừa.
+- Trên mobile vẫn bật `setIsMobileViewClasses(true)`.
+
+Không nên dùng `router.push` mỗi lần đổi khoa, vì người dùng bấm browser back sẽ phải đi qua từng khoa đã click.
+
+### 3.4. Giữ thêm filter tìm kiếm nếu cần
+
+Nếu muốn giữ đầy đủ trạng thái cũ, query string nên hỗ trợ:
+
+- `deptId`: khoa đang active.
+- `classSearch`: search lớp.
+- `deptSearch`: search khoa.
+- `view=classes`: đang ở panel danh sách lớp trên mobile.
+- `caoDang=1|0`, `trungCap=1|0`: trạng thái mở/đóng từng nhóm nếu cần.
+
+Tối thiểu bắt buộc cho bug này là `deptId`. Các field còn lại có thể làm cùng lúc nếu không làm tăng độ phức tạp quá nhiều.
 
 ## 4. Chi tiết kỹ thuật đề xuất
 
-Trong `frontend/src/app/students/record/page.tsx`:
+Trong `frontend/src/app/students/page.tsx`:
 
-1. Thêm `NEW_BADGE_WINDOW_MS`, `getCreatedTime`, `getRecordSortTime`, `getClassReportSortTime`, `isNewWithinWindow`.
-2. Tạo `sortedRecords` từ `filteredRecords`:
-
-```ts
-const sortedRecords = [...filteredRecords].sort(
-  (a, b) => getRecordSortTime(b.original) - getRecordSortTime(a.original),
-);
-
-const paginatedRecords = sortedRecords;
-```
-
-3. Tạo `sortedClassReports` từ `filteredClassReports`:
+1. Import thêm `useSearchParams` từ `next/navigation`.
 
 ```ts
-const sortedClassReports = [...filteredClassReports].sort(
-  (a, b) => getClassReportSortTime(b) - getClassReportSortTime(a),
-);
-
-const paginatedClassReports = sortedClassReports;
+import { useRouter, useSearchParams } from "next/navigation";
 ```
 
-4. Thay các block badge `New` lặp lại bằng:
+2. Đọc query params:
+
+```ts
+const searchParams = useSearchParams();
+const deptIdFromUrl = searchParams.get("deptId");
+```
+
+3. Khởi tạo state từ URL cho các filter cần giữ:
+
+```ts
+const [selectedDept, setSelectedDept] = useState<string>(() => deptIdFromUrl || "");
+const [searchTerm, setSearchTerm] = useState(() => searchParams.get("classSearch") || "");
+const [deptSearchTerm, setDeptSearchTerm] = useState(() => searchParams.get("deptSearch") || "");
+```
+
+4. Tạo helper cập nhật URL:
+
+```ts
+const updateStudentsListUrl = (next: {
+  deptId?: string;
+  classSearch?: string;
+  deptSearch?: string;
+  view?: string;
+}) => {
+  const params = new URLSearchParams(searchParams.toString());
+
+  Object.entries(next).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+    else params.delete(key);
+  });
+
+  const query = params.toString();
+  router.replace(query ? `/students?${query}` : "/students", { scroll: false });
+};
+```
+
+5. Khi chọn khoa:
 
 ```tsx
-{isNewWithinWindow(record.original?.createdAt) && (
-  <span className="...">New</span>
-)}
+onClick={() => {
+  setSelectedDept(dept._id);
+  setIsMobileViewClasses(true);
+  updateStudentsListUrl({ deptId: dept._id, view: "classes" });
+}}
 ```
 
-Và với tình hình lớp:
+6. Khi click lớp:
+
+```ts
+const handleClassClick = (classId: string) => {
+  const params = new URLSearchParams();
+  if (selectedDept) params.set("deptId", selectedDept);
+  if (searchTerm) params.set("classSearch", searchTerm);
+  if (deptSearchTerm) params.set("deptSearch", deptSearchTerm);
+  if (isMobileViewClasses) params.set("view", "classes");
+
+  const query = params.toString();
+  router.push(query ? `/students/${classId}?${query}` : `/students/${classId}`);
+};
+```
+
+7. Trong `fetchDepartments()`, ưu tiên `deptIdFromUrl`:
+
+```ts
+const urlDeptIsValid =
+  deptIdFromUrl && fetchedDepts.some((dept) => dept._id === deptIdFromUrl);
+
+setSelectedDept((prev) => {
+  if (urlDeptIsValid) return deptIdFromUrl;
+  if (prev && fetchedDepts.some((dept) => dept._id === prev)) return prev;
+  return fetchedDepts[0]._id;
+});
+```
+
+8. Vì page đang dùng `useSearchParams`, đảm bảo component client được bọc `Suspense` đúng như pattern hiện tại nếu Next build yêu cầu.
+
+Trong `frontend/src/app/students/[classId]/page.tsx`:
+
+1. Import thêm `useSearchParams`.
+
+```ts
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
+```
+
+2. Đọc query cũ:
+
+```ts
+const searchParams = useSearchParams();
+```
+
+3. Tạo helper back URL:
+
+```ts
+const getStudentsBackUrl = () => {
+  const params = new URLSearchParams(searchParams.toString());
+  const query = params.toString();
+  return query ? `/students?${query}` : "/students";
+};
+```
+
+4. Thay nút quay lại:
 
 ```tsx
-{isNewWithinWindow(report.createdAt) && (
-  <span className="...">New</span>
-)}
+onClick={() => router.push(getStudentsBackUrl())}
 ```
 
-Nếu muốn tránh duplicate UI, có thể tách `NewBadge` component nhỏ trong cùng file.
+Nếu chi tiết sinh viên `/students/[classId]/[id]` cũng có nút quay về lớp rồi về danh sách, có thể truyền tiếp query string nhưng không bắt buộc trong scope tối thiểu này.
 
 ## 5. Test cases bắt buộc
 
-### 5.1. Ghi nhận HSSV
+### 5.1. Luồng desktop
 
-- Bản ghi có `createdAt` mới nhất nằm đầu danh sách.
-- Bản ghi `createdAt` trong 6 giờ hiện badge `New`.
-- Bản ghi `createdAt` lớn hơn 6 giờ không hiện badge `New`.
-- Bản ghi thiếu `createdAt` không làm crash page và bị xếp sau các bản ghi có thời gian hợp lệ.
-- Search/filter/class/date vẫn giữ đúng kết quả và thứ tự mới nhất lên đầu.
+- Vào `/students`, chọn khoa thứ 2 hoặc khoa bất kỳ không phải khoa đầu tiên.
+- Click một lớp trong khoa đó.
+- Bấm nút quay lại trên trang chi tiết lớp.
+- Kết quả: `/students` vẫn active đúng khoa đã chọn, không reset về khoa đầu tiên.
 
-### 5.2. Tình hình lớp học
+### 5.2. Luồng browser back
 
-- Báo cáo có `createdAt` mới nhất nằm đầu danh sách.
-- Báo cáo trong 6 giờ hiện badge `New`.
-- Báo cáo quá 6 giờ không hiện badge `New`.
-- Check select-all/xoá nhiều vẫn đúng sau khi sort.
-- Mobile card, desktop card và desktop table đều không bị lệch layout.
+- Vào `/students?deptId=<id-khoa-2>`.
+- Click lớp để sang `/students/<classId>?deptId=<id-khoa-2>`.
+- Bấm browser back.
+- Kết quả: vẫn ở khoa 2, danh sách lớp tương ứng được hiển thị.
 
-### 5.3. Regression
+### 5.3. Luồng mobile
 
-- Import ghi nhận HSSV xong, bản ghi mới hiện đầu danh sách và có badge `New`.
-- Import tình hình lớp học xong, báo cáo mới hiện đầu danh sách và có badge `New`.
-- Chuyển phân trang/items per page không mất thứ tự sắp xếp mới nhất.
+- Trên viewport mobile, chọn khoa, UI chuyển sang danh sách lớp.
+- Click lớp, vào chi tiết.
+- Bấm quay lại.
+- Kết quả: quay về đúng khoa và vẫn mở panel danh sách lớp nếu có `view=classes`.
+
+### 5.4. Query không hợp lệ
+
+- Mở `/students?deptId=invalid`.
+- Kết quả: không crash, fallback về khoa đầu tiên như hiện tại.
+
+### 5.5. Search/filter
+
+- Nhập search lớp, click lớp, quay lại.
+- Nếu implement `classSearch`, search vẫn còn.
+- Nếu scope tối thiểu chỉ giữ `deptId`, cần ghi chú rõ search không nằm trong acceptance.
 
 ## 6. Tiêu chí nghiệm thu
 
-- Hai bảng trên `/students/record` luôn hiện dữ liệu mới nhất đầu tiên theo thời điểm tạo.
-- Badge `New` chỉ hiện khi `createdAt` cách hiện tại không quá 6 giờ.
-- Không còn logic `24 * 60 * 60 * 1000` cho badge `New` ở hai bảng này.
-- Không phát sinh lỗi console khi dữ liệu thiếu `createdAt`.
-- `npm run lint` và `npm run build` frontend pass, hoặc nếu lint script hiện tại lỗi cấu hình ESLint thì cần ghi chú riêng và không tính là lỗi của task này.
+- `/students` không tự reset về khoa đầu tiên khi quay lại từ `/students/[classId]` nếu trước đó người dùng đang chọn khoa khác.
+- URL có thể biểu diễn trạng thái khoa đang active bằng `deptId`.
+- Refresh trực tiếp `/students?deptId=<id>` vẫn chọn đúng khoa.
+- Nút quay lại trong chi tiết lớp giữ lại query context thay vì push `/students` trống.
+- Browser back/forward không làm trạng thái khoa bị sai.
+- Không ảnh hưởng permission thêm/sửa/xóa khoa/lớp.
+- Không ảnh hưởng popup import lớp và popup thêm lớp.
+- Không phát sinh lỗi build do `useSearchParams` thiếu `Suspense`.
 
 ## 7. Ngoài phạm vi
 
-- Không sửa backend sorting nếu frontend đã đảm bảo được thứ tự hiển thị trên page hiện tại.
-- Không thay đổi schema/API response.
-- Không sửa các page khác ngoài `/students/record`.
-- Không thay đổi màu sắc/visual style ngoài badge `New` nếu cần tái sử dụng.
+- Không thay đổi API backend.
+- Không thay đổi schema lớp/khoa/sinh viên.
+- Không đổi UI layout của trang `/students`.
+- Không sửa luồng `/students/record` hoặc `/students/tasks`.
+- Không bắt buộc lưu trạng thái bằng `localStorage`; URL query là nguồn state chính.
 
 ## 8. Pipeline đề xuất
 
-`feature_development`
+`bug_fix`
 
-1. `code-agent/search`: Xác định các điểm render/sort/badge trong `frontend/src/app/students/record/page.tsx`.
-2. `code-agent/code_gen`: Thêm helper sort/new-window và cập nhật các render path.
-3. `test-agent`: Kiểm tra lint/build frontend, và test manual các trường hợp trong 6 giờ/quá 6 giờ.
-4. `review-agent`: Review regression với filter, pagination, permission select/delete.
-5. `doc-agent`: Cập nhật ghi chú nếu có thay đổi hành vi hiển thị.
+1. `code-agent/search`: Xác định toàn bộ điểm tạo state, chọn khoa, click lớp, và nút quay lại.
+2. `code-agent/code_gen`: Thêm URL state bằng query params và cập nhật back URL.
+3. `test-agent`: Test desktop, mobile, browser back, refresh URL có `deptId`, và query invalid.
+4. `review-agent`: Review regression với `useSearchParams`, `router.replace`, permission action, popup add/edit/import.
+5. `doc-agent`: Cập nhật ghi chú behavior nếu cần.

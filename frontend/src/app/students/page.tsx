@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
@@ -38,6 +38,8 @@ const ENABLE_MOCK_SEED = process.env.NEXT_PUBLIC_ENABLE_MOCK_SEED === "true";
 
 function StudentsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const deptIdFromUrl = searchParams.get("deptId");
   const { user } = useAuth();
   
   const userRole = String(user?.role || "").toLowerCase();
@@ -66,7 +68,7 @@ function StudentsPageContent() {
   const [deptsList, setDeptsList] = useState<Department[]>([]);
   const [classesList, setClassesList] = useState<Class[]>([]);
   const [classSummaries, setClassSummaries] = useState<any[]>([]);
-  const [selectedDept, setSelectedDept] = useState<string>("");
+  const [selectedDept, setSelectedDept] = useState<string>(() => deptIdFromUrl || "");
   const [isClassPopupOpen, setIsClassPopupOpen] = useState(false);
   const [isImportClassPopupOpen, setIsImportClassPopupOpen] = useState(false);
   const [isDeptPopupOpen, setIsDeptPopupOpen] = useState(false);
@@ -80,11 +82,28 @@ function StudentsPageContent() {
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [deptSearchTerm, setDeptSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("classSearch") || "");
+  const [deptSearchTerm, setDeptSearchTerm] = useState(() => searchParams.get("deptSearch") || "");
   const [isCaoDangExpanded, setIsCaoDangExpanded] = useState(true);
   const [isTrungCapExpanded, setIsTrungCapExpanded] = useState(true);
-  const [isMobileViewClasses, setIsMobileViewClasses] = useState(false);
+  const [isMobileViewClasses, setIsMobileViewClasses] = useState(() => searchParams.get("view") === "classes");
+
+  const updateStudentsListUrl = (next: {
+    deptId?: string;
+    classSearch?: string;
+    deptSearch?: string;
+    view?: string;
+  }) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    Object.entries(next).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    });
+
+    const query = params.toString();
+    router.replace(query ? `/students?${query}` : "/students", { scroll: false });
+  };
 
   const fetchDepartments = async () => {
     try {
@@ -124,7 +143,10 @@ function StudentsPageContent() {
 
       // Auto select the first department if none is selected
       if (fetchedDepts.length > 0) {
+        const urlDeptIsValid = deptIdFromUrl && fetchedDepts.some((dept) => dept._id === deptIdFromUrl);
+
         setSelectedDept((prev) => {
+          if (urlDeptIsValid) return deptIdFromUrl;
           if (prev && fetchedDepts.some((d) => d._id === prev)) {
             return prev;
           }
@@ -239,7 +261,14 @@ function StudentsPageContent() {
   }, [selectedDept]);
 
   const handleClassClick = (classId: string) => {
-    router.push(`/students/${classId}`);
+    const params = new URLSearchParams();
+    if (selectedDept) params.set("deptId", selectedDept);
+    if (searchTerm) params.set("classSearch", searchTerm);
+    if (deptSearchTerm) params.set("deptSearch", deptSearchTerm);
+    if (isMobileViewClasses) params.set("view", "classes");
+
+    const query = params.toString();
+    router.push(query ? `/students/${classId}?${query}` : `/students/${classId}`);
   };
 
   const currentDeptName =
@@ -370,6 +399,7 @@ function StudentsPageContent() {
                       onClick={() => {
                         setSelectedDept(dept._id);
                         setIsMobileViewClasses(true);
+                        updateStudentsListUrl({ deptId: dept._id, view: "classes" });
                       }}
                       className={`w-full p-3 rounded-xl border text-left transition-all duration-150 ease-out shrink-0 group flex flex-col cursor-pointer ${
                         selectedDept === dept._id
@@ -451,7 +481,10 @@ function StudentsPageContent() {
                     {/* Hàng tiêu đề có nút Quay lại trên mobile */}
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setIsMobileViewClasses(false)}
+                        onClick={() => {
+                          setIsMobileViewClasses(false);
+                          updateStudentsListUrl({ view: "" });
+                        }}
                         className="xl:hidden p-1.5 hover:bg-white/60 active:bg-white/80 rounded-xl text-blue-600 transition-colors -ml-1 border border-transparent hover:border-white/50 shadow-sm flex items-center justify-center shrink-0"
                         title="Quay lại danh sách khoa"
                       >

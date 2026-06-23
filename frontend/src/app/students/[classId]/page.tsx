@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, Suspense } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import {
@@ -54,7 +54,15 @@ import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/Responsive
 function ClassStudentsPageContent() {
     const router = useRouter();
     const params = useParams();
+    const searchParams = useSearchParams();
     const classId = params.classId as string;
+    
+    const getStudentsBackUrl = () => {
+        const urlParams = new URLSearchParams(searchParams.toString());
+        const query = urlParams.toString();
+        return query ? `/students?${query}` : "/students";
+    };
+
     const permissions = usePermission({
         canCreateStudent: 'STUDENT_CREATE',
         canImportStudent: 'STUDENT_IMPORT',
@@ -659,7 +667,7 @@ function ClassStudentsPageContent() {
                             <div className="flex flex-col lg:flex-row lg:items-center gap-4 z-10 w-full max-w-screen-2xl mx-auto">
                                 <div className="flex items-center gap-4 flex-1">
                                     <button
-                                        onClick={() => router.push('/students')}
+                                        onClick={() => router.push(getStudentsBackUrl())}
                                         className="flex items-center gap-1.5 text-gray-900 hover:text-primary transition-colors font-bold text-[16px] shrink-0"
                                     >
                                         <ArrowLeft className="w-5 h-5" /> {selectedClass ? selectedClass.class_name : 'Lớp học'}
