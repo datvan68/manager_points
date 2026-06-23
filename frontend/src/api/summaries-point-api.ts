@@ -175,6 +175,32 @@ export const summariesPointApi = {
     }
 
     return res.blob();
+  },
+
+  async exportSummaryExcel(payload: {
+    semesterId: string;
+    classId: string;
+    studentIds?: string[];
+    mode?: 'all_filtered' | 'selected';
+  }): Promise<Blob> {
+    const res = await httpClient(`${API_BASE}/summaries-points/export-summary-excel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      let message = text || 'Không thể kết xuất Excel từ Server';
+      try {
+        const data = text ? JSON.parse(text) : {};
+        message = data.message || data.error || message;
+      } catch {
+        // Keep plain text message.
+      }
+      throw new Error(message);
+    }
+
+    return res.blob();
   }
 };
-

@@ -14,6 +14,7 @@ import {
 import { SummariesPointService } from './summaries-point.service';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
+import { ExportSummaryExcelDto } from './dto/export-summary-excel.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import * as express from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -86,6 +87,41 @@ export class SummariesPointController {
       res.end(pdfBuffer);
     } catch (error: any) {
       res.status(500).json({ message: 'Lỗi khi xuất PDF: ' + error.message });
+    }
+  }
+
+  @Post('export-summary-excel')
+  @ApiOperation({
+    summary: 'Xuất file Excel tổng hợp điểm rèn luyện theo mẫu PL03',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Trả về file Excel dưới dạng stream.',
+  })
+  async exportSummaryExcel(
+    @Body() exportDto: ExportSummaryExcelDto,
+    @Request() req: any,
+    @Res() res: express.Response,
+  ) {
+    try {
+      const { buffer, filename } = await this.summariesPointService.generateSummaryExcel(
+        exportDto,
+        req.user,
+      );
+
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': buffer.length.toString(),
+      });
+
+      res.end(buffer);
+    } catch (error: any) {
+      const status = error.getStatus ? error.getStatus() : 500;
+      res.status(status).json({
+        statusCode: status,
+        message: error.message || 'Lỗi khi xuất Excel'
+      });
     }
   }
 

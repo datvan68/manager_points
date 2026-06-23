@@ -4,6 +4,8 @@ import { getModelToken } from '@nestjs/mongoose';
 import { SummaryPoint } from '../schemas/summary-point.schema';
 import { Student } from '../../students/schemas/student.schema';
 import { Class } from '../../classes/schemas/class.schema';
+import { Department } from '../../departments/schemas/department.schema';
+import { Semester } from '../../semesters/schemas/semester.schema';
 import { Types } from 'mongoose';
 import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 
@@ -81,6 +83,18 @@ describe('SummariesPointService', () => {
     find: jest.fn(),
   };
 
+  const mockDepartmentModel = {
+    findById: jest.fn(),
+  };
+
+  const mockSemesterModel = {
+    findById: jest.fn(),
+  };
+
+  jest.mock('../export/pl03-summary-excel.service', () => ({
+    generatePl03Excel: jest.fn().mockResolvedValue(Buffer.from('mock excel data')),
+  }));
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -104,6 +118,14 @@ describe('SummariesPointService', () => {
         {
           provide: getModelToken('Criterion'),
           useValue: mockCriterionModel,
+        },
+        {
+          provide: getModelToken(Department.name),
+          useValue: mockDepartmentModel,
+        },
+        {
+          provide: getModelToken(Semester.name),
+          useValue: mockSemesterModel,
         },
       ],
     }).compile();
@@ -724,6 +746,80 @@ describe('SummariesPointService', () => {
       
       expect(result.className).toBe('Chưa cập nhật');
       expect(result.student.class_id).toBeNull();
+    });
+  });
+
+  describe('generateSummaryExcel', () => {
+    const validSemId = '507f1f77bcf86cd799439011';
+    const validClassId = '507f1f77bcf86cd799439012';
+    const validStu1 = '507f1f77bcf86cd799439013';
+    const validStu2 = '507f1f77bcf86cd799439014';
+
+    it('should throw NotFoundException if class does not exist', async () => {
+      mockClassModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+      const dto = { semesterId: validSemId, classId: validClassId, mode: 'all_filtered' as const };
+      
+      await expect(service.generateSummaryExcel(dto, { userId: 'u1' })).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if requester is not admin/supervisor and not advisor', async () => {
+      mockClassModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: validClassId, advisor_id: 'u2' }),
+      });
+      const dto = { semesterId: validSemId, classId: validClassId, mode: 'all_filtered' as const };
+      
+      await expect(service.generateSummaryExcel(dto, { userId: 'u1', roleName: 'Teacher' }))
+        .rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow if requester is admin/supervisor', async () => {
+      mockClassModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: validClassId, advisor_id: 'u2', class_name: 'Lop 1' }),
+      });
+      mockSemesterModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: validSemId, semester_name: 'HK1' }),
+      });
+      mockStudentModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: validStu1 }]),
+      });
+      mockSummaryPointModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: 'sum1', total_score: 90 }]),
+      });
+
+      const dto = { semesterId: validSemId, classId: validClassId, mode: 'all_filtered' as const };
+      const result = await service.generateSummaryExcel(dto, { userId: 'u1', roleName: 'Admin' });
+
+      expect(result.filename).toContain('PL03_Tong_hop_RL_Lop_1_HK1.xlsx');
+      expect(result.buffer).toBeInstanceOf(Buffer);
+    });
+
+    it('should generate excel for selected students', async () => {
+      mockClassModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: validClassId, advisor_id: 'u1', class_name: 'Lop 1' }),
+      });
+      mockSemesterModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: validSemId, semester_name: 'HK1' }),
+      });
+      mockStudentModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: validStu1 }, { _id: validStu2 }]),
+      });
+      mockSummaryPointModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: 'sum1', total_score: 90 }, { _id: 'sum2', total_score: 80 }]),
+      });
+
+      const dto = { semesterId: validSemId, classId: validClassId, studentIds: [validStu1, validStu2], mode: 'selected' as const };
+      const result = await service.generateSummaryExcel(dto, { userId: 'u1', roleName: 'Teacher' });
+
+      expect(result.filename).toContain('PL03_Tong_hop_RL_Lop_1_HK1.xlsx');
+      expect(result.buffer).toBeInstanceOf(Buffer);
+      expect(mockStudentModel.find).toHaveBeenCalledWith({
+        class_id: expect.any(Types.ObjectId),
+        $or: expect.any(Array),
+      });
     });
   });
 

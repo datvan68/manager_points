@@ -1,171 +1,131 @@
-﻿# Taskscope - Điều chỉnh sticky student slider trang /grading/score
+﻿# Taskscope - Trang cài đặt cấu hình MAIL SMTP cho Admin
 
-## 1. Bối cảnh
+## Bối cảnh
 
-Trang `/grading/score` có thanh danh sách sinh viên chuyển sang trạng thái sticky khi cuộn xuống. Theo ảnh kiểm tra, các card sinh viên trong sticky bar đang bị cắt tên bằng dấu `...`, ví dụ `Nguyễn Hoàn...`, `Trần Nguyễn ...`, làm người dùng khó xác định đúng sinh viên khi chấm điểm.
+Sidebar hiện có button `Cài đặt` ở footer nhưng button này chưa điều hướng hoặc mở trang cấu hình. Hệ thống đang dùng `MailService` để gửi email quên mật khẩu/OTP qua SMTP với các biến `MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASS`, `MAIL_FROM`. Người dùng cần một trang cài đặt để Admin nhập đầy đủ thông tin SMTP, lưu cấu hình và kiểm tra kết nối mail ngay trong hệ thống.
 
-Vùng sticky cũng đang có khoảng trống phía dưới hơi dày, đặc biệt khi thanh cuộn ngang xuất hiện gần đáy, khiến tổng chiều cao thanh nhìn chưa cân đối.
+## Mục tiêu
 
-Khu vực code liên quan chính nằm trong:
+Tạo trang cài đặt hệ thống dành riêng cho Admin, tập trung trước vào cấu hình MAIL SMTP. Trang này cho phép Admin xem trạng thái cấu hình mail, nhập/sửa thông tin SMTP, kiểm tra kết nối SMTP và gửi email thử để xác nhận OTP/quên mật khẩu có thể gửi được.
 
-- `frontend/src/app/grading/score/page.tsx`
-- Component `StudentSliderCard`
-- Block render `STUDENT HERO SLIDER`
-- Cấu hình `studentVirtualizer`
+## Phạm vi chức năng
 
-## 2. Nguyên nhân quan sát được
+1. Sidebar
+   - Biến button `Cài đặt` ở footer trong `frontend/src/components/layout/Sidebar.tsx` thành link/button điều hướng tới trang cài đặt.
+   - Route đề xuất: `/system/settings` để nằm trong phân hệ quản trị hệ thống hiện có, tránh dùng lại `/settings` vì backend đang có logic dọn route mapping cũ này.
+   - Chỉ hiển thị button này với Admin thật sự: `roleCode === 'ADMIN'`, `roleName === 'Admin'`, hoặc có `ADMIN_FULL`.
+   - Trạng thái active phải nhận diện được khi đang ở `/system/settings`.
 
-Trong `StudentSliderCard`, trạng thái sticky đang giới hạn kích thước card và tên:
+2. Trang UI cấu hình MAIL
+   - Tạo trang `frontend/src/app/system/settings/page.tsx` hoặc tách component dưới `frontend/src/app/system/settings/_components` nếu form lớn.
+   - Bọc trang bằng `RouteGuard` hoặc guard tương đương, fail-closed, admin-only.
+   - Giao diện là màn hình công cụ cấu hình, không làm landing page.
+   - Các trường cấu hình cần có:
+     - `MAIL_HOST`: SMTP host, ví dụ `smtp.gmail.com`, `smtp.office365.com`.
+     - `MAIL_PORT`: port số, thường `587` hoặc `465`.
+     - `MAIL_SECURE`: toggle SSL/TLS trực tiếp; gợi ý `false` cho port `587`, `true` cho port `465`.
+     - `MAIL_USER`: tài khoản SMTP.
+     - `MAIL_PASS`: mật khẩu/app password/token SMTP, nhập dạng password và write-only.
+     - `MAIL_FROM`: địa chỉ gửi đầy đủ, ví dụ `"Manager Point" <noreply@domain.edu.vn>`.
+     - Tùy chọn bổ sung nếu backend hỗ trợ: `MAIL_REPLY_TO`, `MAIL_PROVIDER`, `MAIL_TIMEOUT_MS`, `MAIL_TLS_REJECT_UNAUTHORIZED`.
+   - UI cần có trạng thái:
+     - Đang tải cấu hình.
+     - Chưa cấu hình.
+     - Đã cấu hình nhưng thiếu trường bắt buộc.
+     - Đã cấu hình đủ.
+     - Kiểm tra kết nối thành công/thất bại.
+     - Lưu thành công/thất bại.
+   - `MAIL_PASS` không được hiển thị lại từ API. Nếu đã có mật khẩu, hiển thị trạng thái `Đã cấu hình` và ô nhập mới với mô tả nhập để thay đổi.
 
-```tsx
-isStudentSliderSticky
-  ? "rounded-xl p-1.5 px-3 gap-2 h-9 w-max max-w-[200px]"
-  : "rounded-2xl p-[13px] w-[256px] gap-[12px]"
-```
+3. Backend API cấu hình MAIL
+   - Thêm API admin-only dưới `backend/src/system/system.controller.ts`, đề xuất:
+     - `GET /api/system/settings/mail`: lấy cấu hình mail đã mask secret.
+     - `PATCH /api/system/settings/mail`: lưu/cập nhật cấu hình mail.
+     - `POST /api/system/settings/mail/test-connection`: gọi `transporter.verify()` với cấu hình hiện tại hoặc payload draft.
+     - `POST /api/system/settings/mail/send-test`: gửi email thử tới địa chỉ do Admin nhập.
+   - Tất cả endpoint phải dùng `JwtAuthGuard`, `PermissionsGuard` và kiểm tra Admin thật sự, không chỉ `SYSTEM_ADMIN`, vì yêu cầu là chỉ Admin được thấy và tương tác.
+   - Thêm permission mới nếu cần quản lý theo RBAC: `SYSTEM_MAIL_CONFIG_MANAGE`, nhưng vẫn nên bắt buộc Admin/`ADMIN_FULL` ở backend do đây là cấu hình secret.
 
-Tên sinh viên ở sticky bị ép max width và truncate:
+4. Lưu trữ cấu hình
+   - Không ghi trực tiếp vào `.env` từ UI.
+   - Không trả raw `MAIL_PASS` về frontend.
+   - Đề xuất tạo collection/schema mới, ví dụ `SystemSetting` hoặc `MailSetting`, lưu cấu hình runtime trong database.
+   - Trường nhạy cảm như `MAIL_PASS` phải mã hóa trước khi lưu. Cần biến server-side riêng để mã hóa, ví dụ `SETTINGS_ENCRYPTION_KEY` hoặc dùng secret hiện có nếu phù hợp.
+   - Khi update mà `MAIL_PASS` rỗng/không truyền lên, giữ nguyên mật khẩu SMTP cũ.
+   - Cấu hình từ database nên override env khi tồn tại; nếu chưa có trong DB thì fallback về env hiện tại để không làm hỏng production đang chạy.
 
-```tsx
-isStudentSliderSticky ? "text-[13px] max-w-[120px]" : "text-[14.5px]"
-```
+5. Tích hợp MailService
+   - Refactor `backend/src/core/mail/mail.service.ts` để lấy SMTP config từ nguồn cấu hình tập trung: DB setting nếu có, fallback env.
+   - Có cơ chế rebuild/reload Nodemailer transporter sau khi Admin lưu cấu hình mới.
+   - Thêm method:
+     - `getSafeMailConfig()` trả config đã mask.
+     - `updateMailConfig(dto)` lưu config và refresh transporter.
+     - `verifyConnection(config?)` kiểm tra kết nối SMTP.
+     - `sendTestEmail(to)` gửi email thử.
+   - Log lỗi SMTP phải an toàn: chỉ log metadata như `code`, `command`, `responseCode`, `address`, `port`; không log email thật, OTP, token, password hoặc raw config.
 
-Container sticky hiện có padding đáy và slider inner padding tương đối dày:
+6. Frontend API client
+   - Bổ sung hàm vào `frontend/src/api/system-api.ts`:
+     - `getMailSettings()`.
+     - `updateMailSettings(payload)`.
+     - `testMailConnection(payload?)`.
+     - `sendTestMail(payload)`.
+   - TypeScript interface cho cấu hình mail phải tách rõ field secret write-only:
+     - response: `hasPassword: boolean`, không có `MAIL_PASS`.
+     - request: cho phép `mailPass?: string`.
 
-```tsx
-"pt-2 px-6 md:px-8 pb-2 ... gap-2"
-"flex gap-4 overflow-x-auto pl-1 pr-10 py-2.5 ..."
-```
+7. Phân quyền và route mapping
+   - Cập nhật registry/seed permission trong `backend/src/auth/permissions.registry.ts` và RBAC seed nếu dùng permission mới.
+   - Thêm route permission mapping cho `/system/settings` nếu dùng dynamic route guard.
+   - Cập nhật `getPagePermissionScopes()` để hiển thị quyền cấu hình mail trong màn phân quyền/tổng quan.
+   - Không cấp quyền này mặc định cho `System Operator`, `Audit Viewer`, `Backup Operator`; chỉ Admin hoặc role có `ADMIN_FULL`.
 
-Virtualizer đang ước lượng item sticky là `200`, nên nếu tăng chiều rộng card để hiện đủ tên thì cần cập nhật estimate để scroll ngang và vị trí absolute không bị lệch:
+## Ngoài phạm vi
 
-```tsx
-estimateSize: () => isStudentSliderSticky ? 200 : 272
-```
+- Không đổi luồng OTP/quên mật khẩu ngoài việc dùng SMTP config mới.
+- Không ghi/sửa file `.env` từ UI.
+- Không hiển thị hoặc export mật khẩu SMTP đã lưu.
+- Không tích hợp OAuth Gmail/Microsoft trong scope này; chỉ SMTP username/password/app password.
+- Không tạo màn hình cấu hình toàn bộ hệ thống ngoài MAIL nếu chưa được yêu cầu.
 
-## 3. Mục tiêu
+## File liên quan dự kiến
 
-Điều chỉnh sticky student slider để:
+- `frontend/src/components/layout/Sidebar.tsx`
+- `frontend/src/app/system/settings/page.tsx`
+- `frontend/src/api/system-api.ts`
+- `frontend/src/components/guards/RouteGuard.tsx` nếu cần hỗ trợ admin-only rõ hơn
+- `frontend/src/providers/auth-provider.tsx`
+- `backend/src/system/system.controller.ts`
+- `backend/src/system/system.service.ts`
+- `backend/src/system/system.module.ts`
+- `backend/src/system/dto/system.dto.ts`
+- `backend/src/core/mail/mail.service.ts`
+- `backend/src/core/mail/mail.module.ts`
+- `backend/src/auth/permissions.registry.ts`
+- `backend/src/auth/services/auth.service.ts`
+- `docs/otp-rollout-checklist.md`
+- `docker-compose.prod.yml` nếu cần bổ sung biến mã hóa setting như `SETTINGS_ENCRYPTION_KEY`
 
-- Hiển thị đầy đủ tên sinh viên trong sticky bar, không tự cắt bằng `...`.
-- Giữ thanh sticky gọn, dễ scan, không làm card quá cao.
-- Giảm padding bottom để phần trên/dưới cân xứng hơn so với ảnh hiện tại.
-- Không ảnh hưởng trạng thái expanded của student slider khi chưa sticky.
-- Không thay đổi logic chấm điểm, load dữ liệu, filter, chọn lớp, chọn sinh viên.
+## Tiêu chí hoàn thành
 
-## 4. Phạm vi xử lý đề xuất
+- Admin thấy và bấm được button `Cài đặt` ở sidebar để vào `/system/settings`.
+- User không phải Admin không thấy button này và không truy cập được trang/API dù gọi trực tiếp URL.
+- Trang cấu hình MAIL hiển thị đủ field SMTP, validate port/secure hợp lý, lưu được cấu hình.
+- `MAIL_PASS` chỉ nhập để tạo/cập nhật, không bao giờ trả ngược raw value về frontend.
+- Admin có thể test connection và gửi email thử từ UI.
+- Luồng quên mật khẩu OTP dùng cấu hình SMTP mới sau khi lưu.
+- Nếu chưa có cấu hình DB, hệ thống vẫn fallback env hiện tại.
+- Log lỗi mail đủ thông tin debug nhưng không lộ secret hoặc email thật.
 
-### 4.1. Chỉnh card sticky hiển thị đầy đủ tên
+## Kiểm thử đề xuất
 
-File: `frontend/src/app/grading/score/page.tsx`
-
-Trong `StudentSliderCard`, chỉ chỉnh nhánh `isStudentSliderSticky`:
-
-- Bỏ `max-w-[200px]` ở card sticky hoặc tăng lên theo width phù hợp.
-- Bỏ `max-w-[120px]` và `truncate` ở tên khi sticky.
-- Dùng `whitespace-nowrap` để tên nằm một dòng và để card tự nở theo tên.
-- Giữ `title={student.name}` như hiện tại để vẫn có tooltip native khi hover.
-
-Gợi ý class:
-
-```tsx
-isStudentSliderSticky
-  ? "rounded-xl p-1.5 px-3 gap-2 h-9 w-max min-w-[220px] max-w-none"
-  : "rounded-2xl p-[13px] w-[256px] gap-[12px]"
-```
-
-Với `h4`:
-
-```tsx
-isStudentSliderSticky
-  ? "text-[13px] whitespace-nowrap"
-  : "text-[14.5px] truncate"
-```
-
-Lưu ý: Nếu muốn giữ card không quá dài với tên bất thường, có thể dùng `max-w-[280px]`, nhưng yêu cầu hiện tại là hiển thị đầy đủ tên nên ưu tiên không truncate.
-
-### 4.2. Cập nhật virtualizer cho width mới
-
-Trong cấu hình `studentVirtualizer`, cập nhật estimate của sticky item tương ứng với card mới:
-
-```tsx
-estimateSize: () => isStudentSliderSticky ? 240 : 272
-```
-
-Nếu chọn `min-w-[240px]` hoặc width khác, estimate nên khớp với tổng chiều rộng trung bình của card + spacing để tránh scrollToIndex lệch khi chuyển sticky.
-
-Sau khi đổi width, kiểm tra lại:
-
-- Auto scroll tới sinh viên active vẫn căn giữa hợp lý.
-- Kéo ngang không bị giật.
-- Không bị overlap giữa các card do virtual item absolute positioning.
-
-### 4.3. Giảm padding bottom của sticky bar
-
-Trong block `STUDENT HERO SLIDER`, chỉnh nhánh sticky của container:
-
-```tsx
-? "pt-2 px-6 md:px-8 pb-1 bg-sky-400/20 backdrop-blur-md border-b border-sky-400/50 gap-1 rounded-b-2xl shadow-sm"
-```
-
-Trong div `sliderRef`, giảm vertical padding khi sticky. Có thể tách class theo trạng thái thay vì dùng cố định `py-2.5`:
-
-```tsx
-className={`flex gap-4 overflow-x-auto pl-1 pr-10 custom-scrollbar scroll-smooth cursor-grab select-none ${
-  isStudentSliderSticky ? "pt-1.5 pb-1" : "py-2.5"
-}`}
-```
-
-Nếu sau khi giảm padding đáy thanh vẫn còn cao, giảm thêm virtual list height sticky:
-
-```tsx
-height: isStudentSliderSticky ? "40px" : "109px"
-```
-
-Đồng bộ skeleton sticky nếu cần:
-
-```tsx
-isStudentSliderSticky ? "min-w-[220px] h-9 rounded-xl p-1.5 px-3 gap-2" : ...
-```
-
-## 5. Ngoài phạm vi
-
-- Không đổi API, schema, dữ liệu điểm, trạng thái chấm điểm.
-- Không đổi logic `filteredStudentsForRoster`, `activeStudentId`, `studentSummaryMap`.
-- Không redesign toàn bộ trang `/grading/score`.
-- Không thay đổi layout expanded của slider khi chưa sticky, trừ khi cần đồng bộ class không ảnh hưởng visual.
-- Không sửa các lỗi TypeScript/build khác nếu phát sinh ngoài khu vực sticky slider.
-
-## 6. Test/Verify
-
-Chạy kiểm tra frontend:
-
-```bash
-cd frontend
-npm run build
-```
-
-Nếu build mất thời gian, có thể kiểm tra nhanh bằng:
-
-```bash
-cd frontend
-npx tsc --noEmit
-```
-
-Kịch bản kiểm tra thủ công:
-
-1. Mở `/grading/score` với tài khoản có quyền xem danh sách sinh viên.
-2. Chọn lớp có nhiều sinh viên và tên dài như `Nguyễn Hoàn...`, `Trần Nguyễn...`.
-3. Cuộn xuống để thanh sinh viên chuyển sang sticky.
-4. Xác nhận tên sinh viên hiển thị đầy đủ, không còn `...`.
-5. Kiểm tra sticky bar không quá cao, padding bottom cân với padding top.
-6. Kéo ngang danh sách và chọn sinh viên bất kỳ, active state vẫn đúng.
-7. Kiểm tra responsive ở desktop hẹp và mobile/tablet nếu trang hỗ trợ.
-
-## 7. Tiêu chí hoàn thành
-
-- Sticky bar trên `/grading/score` hiển thị đầy đủ tên sinh viên trong card.
-- Không còn ellipsis ở tên sinh viên trong trạng thái sticky.
-- Khoảng padding bottom của sticky bar được giảm và nhìn cân đối hơn ảnh hiện tại.
-- Slider ngang vẫn scroll mượt, không overlap, không lệch vị trí khi active student thay đổi.
-- Trạng thái expanded của student slider không bị ảnh hưởng.
-- Build/type-check frontend không phát sinh lỗi do thay đổi class/render sticky slider.
+- Backend unit test cho service lưu cấu hình mail, mask secret, giữ nguyên password khi không truyền password mới.
+- Backend unit/integration test cho endpoint admin-only: Admin được truy cập, non-admin nhận 403.
+- Test `MailService.verifyConnection()` với mock Nodemailer success/fail.
+- Frontend test form validation: port không hợp lệ, thiếu host/user/from, password write-only.
+- Chạy:
+  - `cd backend && npm test -- system`
+  - `cd backend && npm test -- mail`
+  - `cd backend && npm run build`
+  - `cd frontend && npm run build`
+- Manual test với SMTP thật: lưu cấu hình, test connection, gửi mail thử, thực hiện quên mật khẩu nhận OTP.

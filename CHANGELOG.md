@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### 🚀 Tính năng mới (New Features)
+- **Xuất Excel tổng hợp điểm rèn luyện (PL03):** Bổ sung chức năng xuất Excel tổng hợp cho toàn bộ sinh viên trong một lớp theo học kỳ tại trang quản lý điểm `/grading`. File xuất ra giữ nguyên định dạng mẫu Phụ lục 03, hỗ trợ mở rộng số lượng dòng tự động khi lớp có đông sinh viên, kèm theo thống kê tự động về số lượng và tỷ lệ xếp loại. Tính năng sử dụng thư viện mới `exceljs` để xử lý template `.xlsx`.
 - **Luồng lấy lại mật khẩu bằng OTP:** Nâng cấp chức năng "Quên mật khẩu" chuyển sang sử dụng mã OTP 6 chữ số gửi qua email thay cho đường dẫn xác nhận. Tăng cường bảo mật với các cơ chế giới hạn tần suất (rate-limit theo IP/email), chống dò quét (enumeration), đồng thời tự động thu hồi toàn bộ các phiên đăng nhập cũ sau khi đặt mật khẩu mới thành công.
 - **Import Ghi nhận HSSV theo mã tiêu chí:** Cập nhật cơ chế import từ Excel để ưu tiên tra cứu theo mã tiêu chí (do Admin tự định nghĩa) thay vì tên tiêu chí. Điều này giúp tránh sai sót do trùng lặp hoặc nhập liệu sai tên. Hỗ trợ hiển thị lỗi rõ ràng khi không tìm thấy tiêu chí theo mã.
 - **Tiêu chí chấm điểm dạng Single Option (Chọn 1):** Bổ sung hình thức chấm điểm mới cho phép quản trị viên thiết lập các lựa chọn (options) cố định cho một tiêu chí. Người chấm chỉ được phép chọn 1 lựa chọn duy nhất, và điểm số tự động tính theo lựa chọn đó thay vì theo số lượng nhân hệ số.

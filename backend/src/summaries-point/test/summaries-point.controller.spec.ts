@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SummariesPointController } from '../summaries-point.controller';
 import { SummariesPointService } from '../summaries-point.service';
+import * as express from 'express';
 
 describe('SummariesPointController', () => {
   let controller: SummariesPointController;
@@ -16,6 +17,7 @@ describe('SummariesPointController', () => {
     cancelApproval: jest.fn(),
     cancelApprovalBulk: jest.fn(),
     findLatestForStudent: jest.fn(),
+    generateSummaryExcel: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -39,6 +41,56 @@ describe('SummariesPointController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  describe('exportSummaryExcel', () => {
+    it('should return excel buffer and set headers correctly', async () => {
+      const mockReq = { user: { userId: 'teacher1', roleName: 'Teacher' } };
+      const exportDto = { semesterId: 'sem1', classId: 'class1', mode: 'all_filtered' as const };
+      const mockBuffer = Buffer.from('mock excel data');
+      const filename = 'PL03_mock.xlsx';
+      
+      mockSummariesPointService.generateSummaryExcel.mockResolvedValue({
+        buffer: mockBuffer,
+        filename,
+      });
+
+      const mockRes = {
+        set: jest.fn(),
+        end: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      } as unknown as express.Response;
+
+      await controller.exportSummaryExcel(exportDto, mockReq, mockRes);
+
+      expect(service.generateSummaryExcel).toHaveBeenCalledWith(exportDto, mockReq.user);
+      expect(mockRes.set).toHaveBeenCalledWith({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': mockBuffer.length.toString(),
+      });
+      expect(mockRes.end).toHaveBeenCalledWith(mockBuffer);
+    });
+
+    it('should return 500 if service throws error', async () => {
+      const mockReq = { user: { userId: 'teacher1', roleName: 'Teacher' } };
+      const exportDto = { semesterId: 'sem1', classId: 'class1', mode: 'all_filtered' as const };
+      
+      mockSummariesPointService.generateSummaryExcel.mockRejectedValue(new Error('Test error'));
+
+      const mockRes = {
+        set: jest.fn(),
+        end: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      } as unknown as express.Response;
+
+      await controller.exportSummaryExcel(exportDto, mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({ statusCode: 500, message: 'Test error' });
+    });
   });
 
   describe('approve', () => {

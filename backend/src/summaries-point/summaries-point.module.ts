@@ -10,6 +10,8 @@ import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
 import { Category, CategorySchema } from '../categories/schemas/category.schema';
 import { Criterion, CriterionSchema } from '../criteria/schemas/criterion.schema';
+import { Department, DepartmentSchema } from '../departments/schemas/department.schema';
+import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { Criterion, CriterionSchema } from '../criteria/schemas/criterion.schema
       { name: Class.name, schema: ClassSchema },
       { name: Category.name, schema: CategorySchema },
       { name: Criterion.name, schema: CriterionSchema },
+      { name: Department.name, schema: DepartmentSchema },
+      { name: Semester.name, schema: SemesterSchema },
     ]),
   ],
   controllers: [SummariesPointController],

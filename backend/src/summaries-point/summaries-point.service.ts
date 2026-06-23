@@ -11,6 +11,10 @@ import { Student, StudentDocument } from '../students/schemas/student.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { Category, CategoryDocument } from '../categories/schemas/category.schema';
 import { Criterion, CriterionDocument } from '../criteria/schemas/criterion.schema';
+import { Department, DepartmentDocument } from '../departments/schemas/department.schema';
+import { Semester, SemesterDocument } from '../semesters/schemas/semester.schema';
+import { ExportSummaryExcelDto } from './dto/export-summary-excel.dto';
+import { generatePl03Excel } from './export/pl03-summary-excel.service';
 
 /**
  * Tính toán hạng (rank tier) và nhãn hạng (rank label) dựa trên tổng điểm và trạng thái của bảng điểm.
@@ -69,6 +73,10 @@ export class SummariesPointService {
     private readonly categoryModel: Model<CategoryDocument>,
     @InjectModel(Criterion.name)
     private readonly criterionModel: Model<CriterionDocument>,
+    @InjectModel(Department.name)
+    private readonly departmentModel: Model<DepartmentDocument>,
+    @InjectModel(Semester.name)
+    private readonly semesterModel: Model<SemesterDocument>,
   ) {}
 
   private isTeacher(requester?: any) {
@@ -572,6 +580,108 @@ export class SummariesPointService {
     }
 
     await summary.save();
+  }
+
+  async generateSummaryExcel(
+    exportDto: ExportSummaryExcelDto,
+    requester: any,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const { semesterId, classId, studentIds, mode } = exportDto;
+
+    // Check access class
+    const classObj = await this.classModel.findById(classId).exec();
+    if (!classObj) throw new NotFoundException('Lớp học không tồn tại');
+
+    const roleName = ((requester?.roleName || requester?.role || '') + '').toLowerCase();
+    const isAdminOrSupervisor =
+      roleName.includes('admin') ||
+      roleName.includes('supervisor') ||
+      roleName.includes('quản sinh') ||
+      roleName.includes('quan sinh');
+
+    if (!isAdminOrSupervisor && classObj.advisor_id?.toString() !== requester?.userId) {
+      throw new ForbiddenException('Bạn không có quyền xuất dữ liệu lớp này.');
+    }
+
+    const semesterObj = await this.semesterModel.findById(semesterId).exec();
+    if (!semesterObj) throw new NotFoundException('Học kỳ không tồn tại');
+
+    const departmentObj = classObj.dept_id
+      ? await this.departmentModel.findById(classObj.dept_id).exec()
+      : null;
+
+    // Build filter
+    const filter: any = {
+      semester_id: new Types.ObjectId(semesterId),
+    };
+
+    let studentsToFetch: any[] = [];
+    if (mode === 'selected' && studentIds && studentIds.length > 0) {
+      const validObjectIds: Types.ObjectId[] = [];
+      const mssvList: string[] = [];
+      studentIds.forEach(id => {
+        // Only parse as ObjectId if it's a 24-char hex string
+        if (Types.ObjectId.isValid(id) && (new Types.ObjectId(id).toString() === id)) {
+          validObjectIds.push(new Types.ObjectId(id));
+        } else {
+          mssvList.push(id);
+        }
+      });
+
+      const queryOr: any[] = [];
+      if (validObjectIds.length > 0) {
+        queryOr.push({ _id: { $in: validObjectIds } });
+      }
+      if (mssvList.length > 0) {
+        queryOr.push({ student_code: { $in: mssvList } });
+      }
+
+      if (queryOr.length > 0) {
+        studentsToFetch = await this.studentModel.find({
+          class_id: new Types.ObjectId(classId),
+          $or: queryOr
+        }).select('_id').exec();
+      }
+    } else {
+      // all_filtered or no studentIds
+      studentsToFetch = await this.studentModel.find({
+        class_id: new Types.ObjectId(classId)
+      }).select('_id').exec();
+    }
+
+    if (studentsToFetch.length > 0) {
+      filter.student_id = { $in: studentsToFetch.map(s => s._id) };
+    } else {
+      filter.student_id = null; // No students to find
+    }
+
+    let summaries: SummaryPointDocument[] = [];
+    if (filter.student_id) {
+      summaries = await this.summaryPointModel
+        .find(filter)
+        .populate({
+          path: 'student_id',
+          select: 'full_name student_code'
+        })
+        .exec();
+    }
+
+    // Sort by student code or name if needed, assuming default or existing sorting
+    // Optionally sort by first name.
+    summaries.sort((a, b) => {
+      const nameA = a.student_id?.full_name || '';
+      const nameB = b.student_id?.full_name || '';
+      return nameA.localeCompare(nameB, 'vi');
+    });
+
+    const buffer = await generatePl03Excel(summaries, classObj, semesterObj, departmentObj);
+
+    // Sanitize filename
+    const safeClassName = (classObj.class_name || 'Lop').replace(/[^a-zA-Z0-9]/g, '_');
+    const safeSemesterName = (semesterObj.semester_name || 'HocKy').replace(/[^a-zA-Z0-9]/g, '_');
+    const filename = `PL03_Tong_hop_RL_${safeClassName}_${safeSemesterName}.xlsx`;
+
+    return { buffer, filename };
   }
 
   /**
