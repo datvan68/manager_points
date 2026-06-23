@@ -20,6 +20,10 @@ import {
   PasswordResetToken,
   PasswordResetTokenSchema,
 } from './schemas/password-reset-token.schema';
+import {
+  PasswordResetRequest,
+  PasswordResetRequestSchema,
+} from './schemas/password-reset-request.schema';
 import { LoginLog, LoginLogSchema } from './schemas/login-log.schema';
 import { Role, RoleSchema } from './schemas/role.schema';
 import { Permission, PermissionSchema } from './schemas/permission.schema';
@@ -48,6 +52,7 @@ import {
       { name: User.name, schema: UserSchema },
       { name: RefreshToken.name, schema: RefreshTokenSchema },
       { name: PasswordResetToken.name, schema: PasswordResetTokenSchema },
+      { name: PasswordResetRequest.name, schema: PasswordResetRequestSchema },
       { name: LoginLog.name, schema: LoginLogSchema },
       { name: Role.name, schema: RoleSchema },
       { name: Permission.name, schema: PermissionSchema },

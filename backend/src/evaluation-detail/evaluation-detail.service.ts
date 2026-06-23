@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -22,6 +22,7 @@ import {
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
+import { SummariesPointService } from '../summaries-point/summaries-point.service';
 
 @Injectable()
 export class EvaluationDetailService {
@@ -38,6 +39,8 @@ export class EvaluationDetailService {
     private readonly studentModel: Model<StudentDocument>,
     @InjectModel(Class.name)
     private readonly classModel: Model<ClassDocument>,
+    @Inject(forwardRef(() => SummariesPointService))
+    private readonly summariesPointService: SummariesPointService,
   ) {}
 
   private isTeacher(requester?: any) {
@@ -423,9 +426,11 @@ export class EvaluationDetailService {
     } else {
       systemScore = countVal * criterion.score_per_unit;
       if (criterion.score_per_unit >= 0) {
-        systemScore = Math.max(criterion.min_score, Math.min(criterion.max_score, systemScore));
+        systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
       } else {
-        systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
+        const maxScore = criterion.max_score || 10;
+        const minScore = criterion.min_score || 0;
+        systemScore = Math.max(minScore, Math.min(maxScore, maxScore - countVal * Math.abs(criterion.score_per_unit)));
       }
     }
 
@@ -465,6 +470,8 @@ export class EvaluationDetailService {
       { $push: { details: newDetail } },
       { returnDocument: 'after' }
     ).exec();
+
+    await this.summariesPointService.recomputeTotalScore(summary_id);
 
     return newDetail;
   }
@@ -723,9 +730,11 @@ export class EvaluationDetailService {
 
       let systemScore = newCount * criterion.score_per_unit;
       if (criterion.score_per_unit >= 0) {
-        systemScore = Math.max(criterion.min_score, Math.min(criterion.max_score, systemScore));
+        systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
       } else {
-        systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
+        const maxScore = criterion.max_score || 10;
+        const minScore = criterion.min_score || 0;
+        systemScore = Math.max(minScore, Math.min(maxScore, maxScore - newCount * Math.abs(criterion.score_per_unit)));
       }
       detail.system_score = systemScore;
       
@@ -772,110 +781,7 @@ export class EvaluationDetailService {
     }
 
     // --- Recompute total score ---
-    const aggResult = await this.summaryPointModel.aggregate([
-      { $match: { _id: updatedSummary._id } },
-      { $unwind: '$details' },
-      {
-        $lookup: {
-          from: 'criteria',
-          localField: 'details.criterion_id',
-          foreignField: '_id',
-          as: 'criterion'
-        }
-      },
-      { $unwind: { path: '$criterion', preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: 'categories',
-          localField: 'criterion.category_id',
-          foreignField: '_id',
-          as: 'category'
-        }
-      },
-      { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          categoryId: '$category._id',
-          maxScore: { $ifNull: ['$category.max_score', 100] },
-          score: {
-            $let: {
-              vars: {
-                rawScore: {
-                  $ifNull: [
-                    '$details.final_score',
-                    {
-                      $ifNull: [
-                        '$details.gv_score',
-                        {
-                          $ifNull: [
-                            '$details.sv_score',
-                            { $ifNull: ['$details.system_score', 0] }
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                }
-              },
-              in: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: ['$criterion.criterion_type', 'ky_luat'] },
-                      { $eq: ['$criterion.is_score_counted', false] }
-                    ]
-                  },
-                  { $subtract: ['$$rawScore', { $ifNull: ['$criterion.max_score', 10] }] },
-                  '$$rawScore'
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        $group: {
-          _id: '$categoryId',
-          maxScore: { $first: '$maxScore' },
-          currentScore: { $sum: '$score' }
-        }
-      },
-      {
-        $project: {
-          clampedScore: {
-            $cond: [
-              { $gt: ['$currentScore', '$maxScore'] },
-              '$maxScore',
-              { $cond: [{ $lt: ['$currentScore', 0] }, 0, '$currentScore'] }
-            ]
-          }
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalScore: { $sum: '$clampedScore' }
-        }
-      }
-    ]).exec();
-
-    let totalScore = aggResult.length > 0 ? aggResult[0].totalScore : 0;
-    if (totalScore > 100) totalScore = 100;
-    if (totalScore < 0) totalScore = 0;
-
-    let grading = 'Chưa xếp loại';
-    if (updatedSummary.status === 'locked') {
-      if (totalScore >= 90) grading = 'Xuất sắc';
-      else if (totalScore >= 80) grading = 'Tốt';
-      else if (totalScore >= 70) grading = 'Khá';
-      else if (totalScore >= 50) grading = 'Trung bình';
-      else grading = 'Yếu';
-    }
-
-    await this.summaryPointModel.updateOne(
-      { _id: updatedSummary._id },
-      { $set: { total_score: totalScore, grading: grading } }
-    ).exec();
+    await this.summariesPointService.recomputeTotalScore(updatedSummary._id.toString());
 
     const finalSummary = await this.summaryPointModel.findById(updatedSummary._id).exec();
     if (!finalSummary) {
@@ -950,12 +856,15 @@ export class EvaluationDetailService {
       detail.log = [];
       summary.markModified('details');
       await summary.save();
+      await this.summariesPointService.recomputeTotalScore(summary._id.toString());
       return detail;
     }
 
     summary.details.splice(detailIndex, 1);
     summary.markModified('details');
     await summary.save();
+
+    await this.summariesPointService.recomputeTotalScore(summary._id.toString());
 
     return deletedDetail;
   }

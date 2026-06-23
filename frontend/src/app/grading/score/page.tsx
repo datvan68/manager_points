@@ -183,59 +183,16 @@ import {
   mapRosterWithSummaries,
 } from "./_utils/summary-matching";
 
-interface Criteria {
-  id: string;
-  name: string;
-  pointsPerUnit: number;
-  type: "reward" | "violation";
-  maxScore?: number;
-  minScore?: number;
-  is_locked?: boolean;
-  is_score_counted?: boolean;
-  scoring_mode?: 'count' | 'single_option';
-  options?: { id: string; label: string; score: number }[];
-}
-
-interface Category {
-  id: string;
-  code?: string;
-  title: string;
-  maxPoints: number;
-  items: Criteria[];
-}
-
-export const calculateCriterionScore = (criterion: Criteria, count: number, selectedOptionId?: string | null) => {
-  const maxScore = criterion.maxScore ?? 10;
-  const minScore = criterion.minScore ?? 0;
-
-  if (criterion.scoring_mode === 'single_option') {
-    if (selectedOptionId) {
-      const option = criterion.options?.find(opt => opt.id === selectedOptionId);
-      if (option) {
-        return Math.max(minScore, Math.min(maxScore, option.score));
-      }
-    }
-    return (criterion.type === "violation" && criterion.is_score_counted === false) ? maxScore : 0;
-  }
-
-  if (criterion.pointsPerUnit >= 0) {
-    const rawScore = count * criterion.pointsPerUnit;
-    return Math.max(minScore, Math.min(maxScore, rawScore));
-  } else {
-    const baseScore = maxScore;
-    const deduction = count * Math.abs(criterion.pointsPerUnit);
-    return Math.max(minScore, Math.min(maxScore, baseScore - deduction));
-  }
-};
-
-export const getCriterionContributionScore = (criterion: Criteria, count: number, selectedOptionId?: string | null) => {
-  const rawScore = calculateCriterionScore(criterion, count, selectedOptionId);
-  if (criterion.type === "violation" && criterion.is_score_counted === false) {
-    const maxScore = criterion.maxScore ?? 10;
-    return rawScore - maxScore;
-  }
-  return rawScore;
-};
+import {
+  Criteria,
+  Category,
+  calculateCriterionScore,
+  getCriterionContributionScore,
+  calculateCategoryScore,
+  calculateTotalScore,
+  getResolvedRawCriterionScore,
+  getResolvedCriterionScore
+} from "./_utils/score-calculation";
 
 const formatScoreLabel = (score?: number | null, isViolation?: boolean) => {
   if (score === null || score === undefined) return "Chưa chấm";
@@ -1427,22 +1384,26 @@ function GradingScoreContent() {
             setEvaluationDetailsMap(detailsMap);
 
             // Merge pre-existing counts cho tiêu chí chưa có evaluation_detail
+            const isLocked = mappedStudents.find((s) => s.id === targetActiveId)?.gradingStatus === "locked";
             if (preExistingCounts) {
               setPreExistingCountsState((prev) => ({
                 ...prev,
                 [targetActiveId]: preExistingCounts,
               }));
-              Object.entries(preExistingCounts).forEach(
-                ([criId, preCountObj]) => {
-                  const preCount =
-                    typeof preCountObj === "object"
-                      ? preCountObj.current_count
-                      : preCountObj;
-                  if (!evaluatedCriteriaIds.has(criId) && preCount > 0) {
-                    counts[criId] = preCount;
-                  }
-                },
-              );
+              
+              if (!isLocked) {
+                Object.entries(preExistingCounts).forEach(
+                  ([criId, preCountObj]) => {
+                    const preCount =
+                      typeof preCountObj === "object"
+                        ? preCountObj.current_count
+                        : preCountObj;
+                    if (!evaluatedCriteriaIds.has(criId) && preCount > 0) {
+                      counts[criId] = preCount;
+                    }
+                  },
+                );
+              }
             }
 
             setEvaluationCounts((prev) => ({
@@ -1550,20 +1511,24 @@ function GradingScoreContent() {
         setEvaluationDetailsMap(detailsMap);
 
         // Merge pre-existing counts cho tiêu chí chưa có evaluation_detail
+        const isLocked = students.find((s) => s.id === activeStudentId)?.gradingStatus === "locked";
         if (preExistingCounts) {
           setPreExistingCountsState((prev) => ({
             ...prev,
             [activeStudentId]: preExistingCounts,
           }));
-          Object.entries(preExistingCounts).forEach(([criId, preCountObj]) => {
-            const preCount =
-              typeof preCountObj === "object"
-                ? preCountObj.current_count
-                : preCountObj;
-            if (!evaluatedCriteriaIds.has(criId) && preCount > 0) {
-              counts[criId] = preCount;
-            }
-          });
+          
+          if (!isLocked) {
+            Object.entries(preExistingCounts).forEach(([criId, preCountObj]) => {
+              const preCount =
+                typeof preCountObj === "object"
+                  ? preCountObj.current_count
+                  : preCountObj;
+              if (!evaluatedCriteriaIds.has(criId) && preCount > 0) {
+                counts[criId] = preCount;
+              }
+            });
+          }
         }
 
         setEvaluationCounts((prev) => ({
@@ -1760,23 +1725,8 @@ function GradingScoreContent() {
     studentCounts: Record<string, number>,
     studentOptions?: Record<string, string>
   ) => {
-    let finalScore = 0; // Thay đổi bắt đầu từ 0đ thực tế
     const options = studentOptions || selectedOptionsState[studentId] || {};
-
-    categories.forEach((cat) => {
-      let catScore = 0;
-      cat.items.forEach((cri) => {
-        const count = studentCounts[cri.id] || 0;
-        const selectedOptionId = options[cri.id];
-        const scoreForCri = getCriterionContributionScore(cri, count, selectedOptionId);
-        catScore += scoreForCri;
-      });
-
-      const clampedCatScore = Math.max(0, Math.min(cat.maxPoints, catScore));
-      finalScore += clampedCatScore;
-    });
-
-    const clampedFinalScore = Math.max(0, Math.min(100, finalScore));
+    const clampedFinalScore = calculateTotalScore(categories, studentCounts, options);
 
     setStudents((prev) =>
       prev.map((std) =>
@@ -2017,16 +1967,7 @@ function GradingScoreContent() {
     });
 
     // Tính toán điểm số tổng
-    let finalScore = 0;
-    categories.forEach((cat) => {
-      let catScore = 0;
-      cat.items.forEach((cri) => {
-        const selectedOptionId = selectedOptionsState[studentId]?.[cri.id] || null;
-        catScore += getCriterionContributionScore(cri, freshCounts[cri.id] || 0, selectedOptionId);
-      });
-      finalScore += Math.max(0, Math.min(cat.maxPoints, catScore));
-    });
-    const clampedFinalScore = Math.max(0, Math.min(100, finalScore));
+    const clampedFinalScore = calculateTotalScore(categories, freshCounts, selectedOptionsState[studentId] || {});
 
     // Cập nhật summariesPoint
     const summaryPayload: any = {
@@ -2489,17 +2430,7 @@ function GradingScoreContent() {
         ...prev.filter((record) => record.studentId !== activeStudentId),
       ]);
 
-      let finalScore = 0;
-      categories.forEach((cat) => {
-        let catScore = 0;
-        cat.items.forEach((cri) => {
-          const selectedOptionId = selectedOptionsState[activeStudentId]?.[cri.id] || null;
-          catScore += getCriterionContributionScore(cri, freshCounts[cri.id] || 0, selectedOptionId);
-        });
-        finalScore += Math.max(0, Math.min(cat.maxPoints, catScore));
-      });
-
-      const clampedFinalScore = Math.max(0, Math.min(100, finalScore));
+      const clampedFinalScore = calculateTotalScore(categories, freshCounts, selectedOptionsState[activeStudentId] || {});
 
       // Cập nhật state học sinh
       setStudents((prev) =>
@@ -3068,16 +2999,12 @@ function GradingScoreContent() {
                       evaluationCounts[activeStudentId] || {};
 
                     // Tính toán tổng điểm danh mục rèn luyện realtime
-                    let catScore = 0;
-                    category.items.forEach((cri) => {
-                      const count = studentCounts[cri.id] || 0;
-                      const selectedOptionId = selectedOptionsState[activeStudentId]?.[cri.id] || null;
-                      const criterionScore = getCriterionContributionScore(cri, count, selectedOptionId);
-                      catScore += criterionScore;
-                    });
-                    const clampedCatScore = Math.max(
-                      0,
-                      Math.min(category.maxPoints, catScore),
+                    const isLocked = activeStudent.gradingStatus === "locked";
+                    const clampedCatScore = calculateCategoryScore(
+                      category, 
+                      studentCounts, 
+                      selectedOptionsState[activeStudentId] || {}, 
+                      isLocked ? evaluationDetailsMap : undefined
                     );
 
                     // Xác định màu sắc badge dựa trên tỷ lệ điểm
@@ -3131,12 +3058,13 @@ function GradingScoreContent() {
                               detail?.status === "locked",
                             );
                             const selectedOptionId = selectedOptionsState[activeStudentId]?.[item.id] || null;
-                            const criterionScore = calculateCriterionScore(
-                              item,
-                              count,
-                              selectedOptionId
-                            );
-                            const achievedPoints = getCriterionContributionScore(item, count, selectedOptionId);
+                            const isLocked = activeStudent?.gradingStatus === "locked";
+                            const criterionScore = isLocked 
+                              ? getResolvedRawCriterionScore(item, count, selectedOptionId, detail) 
+                              : calculateCriterionScore(item, count, selectedOptionId);
+                            const achievedPoints = isLocked
+                              ? getResolvedCriterionScore(item, count, selectedOptionId, detail)
+                              : getCriterionContributionScore(item, count, selectedOptionId);
 
                             const studentPreCounts =
                               preExistingCountsState[activeStudentId] || {};

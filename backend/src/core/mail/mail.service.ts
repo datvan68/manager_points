@@ -85,4 +85,44 @@ export class MailService {
       throw new Error('Gửi email đặt lại mật khẩu thất bại.');
     }
   }
+
+  async sendPasswordResetOtpEmail(email: string, code: string) {
+    const host = this.configService.get<string>('MAIL_HOST');
+    const user = this.configService.get<string>('MAIL_USER');
+    const pass = this.configService.get<string>('MAIL_PASS');
+    if (!host || !user || !pass) {
+      console.error('❌ Cannot send OTP email: SMTP configuration is missing');
+      throw new Error('Cấu hình SMTP chưa hoàn thiện. Vui lòng liên hệ quản trị viên.');
+    }
+
+    const emailHash = this.getEmailHash(email);
+
+    const mailOptions = {
+      from:
+        this.configService.get<string>('MAIL_FROM') ||
+        '"Manager Point" <noreply@managerpoint.com>',
+      to: email,
+      subject: 'Mã OTP đặt lại mật khẩu - Manager Point',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #333; text-align: center;">Yêu cầu đặt lại mật khẩu</h2>
+          <p>Xin chào,</p>
+          <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn tại <strong>Manager Point</strong>.</p>
+          <p>Mã OTP của bạn là: <strong style="font-size: 24px; color: #4CAF50; letter-spacing: 5px;">${code}</strong></p>
+          <p>Mã này có hiệu lực trong vòng 5 phút. Không chia sẻ mã này với bất kỳ ai.</p>
+          <p>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="font-size: 12px; color: #777;">Email này được gửi tự động từ hệ thống Manager Point. Vui lòng không trả lời email này.</p>
+        </div>
+      `,
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`✅ OTP Email sent successfully. Hash: ${emailHash}`);
+    } catch (error) {
+      console.error(`❌ Failed to send OTP email. Hash: ${emailHash}`);
+      throw new Error('Gửi email OTP thất bại.');
+    }
+  }
 }

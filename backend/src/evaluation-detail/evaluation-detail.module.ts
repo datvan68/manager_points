@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { SummariesPointModule } from '../summaries-point/summaries-point.module';
 import { EvaluationDetailService } from './evaluation-detail.service';
 import { EvaluationDetailController } from './evaluation-detail.controller';
 import {
@@ -36,6 +37,7 @@ import { Class, ClassSchema } from '../classes/schemas/class.schema';
       { name: Student.name, schema: StudentSchema },
       { name: Class.name, schema: ClassSchema },
     ]),
+    forwardRef(() => SummariesPointModule),
   ],
   controllers: [EvaluationDetailController],
   providers: [EvaluationDetailService],

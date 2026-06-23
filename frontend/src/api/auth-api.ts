@@ -74,11 +74,47 @@ export const authApi = {
     return handleResponse<MessageResponse>(res);
   },
 
-  async resetPassword(token: string, new_password: string): Promise<MessageResponse> {
+  async requestPasswordReset(email: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/auth/password-reset/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async resendPasswordResetOtp(requestId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/auth/password-reset/resend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async verifyPasswordResetOtp(requestId: string, code: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/auth/password-reset/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, code }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<MessageResponse> {
     const res = await fetch(`${API_BASE}/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, new_password }),
+      body: JSON.stringify({ token, new_password: newPassword }),
+    });
+    return handleResponse<MessageResponse>(res);
+  },
+
+  async completePasswordReset(resetToken: string, newPassword: string, confirmPassword: string): Promise<MessageResponse> {
+    const res = await fetch(`${API_BASE}/auth/password-reset/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resetToken, newPassword, confirmPassword }),
     });
     return handleResponse<MessageResponse>(res);
   },

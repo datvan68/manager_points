@@ -1,27 +1,6 @@
-export interface Criterion {
-  id: string;
-  name: string;
-  pointsPerUnit: number;
-  type: "reward" | "violation";
-  maxScore?: number;
-  minScore?: number;
-  is_locked?: boolean;
-  is_score_counted?: boolean;
-}
+import { calculateCriterionScore, Criteria as Criterion } from './score-calculation';
 
-/**
- * Tính điểm cho một tiêu chí dựa trên số lượng count và pointsPerUnit.
- * Đảm bảo clamp điểm trong giới hạn [minScore, maxScore] hoặc [-maxScore, 0] nếu là violation.
- */
-export const calculateCriterionScore = (criterion: Criterion, count: number): number => {
-  const maxScore = criterion.maxScore ?? 10;
-  const minScore = criterion.minScore ?? 0;
-  const rawScore = count * criterion.pointsPerUnit;
-
-  return criterion.pointsPerUnit >= 0
-    ? Math.max(minScore, Math.min(maxScore, rawScore))
-    : Math.max(-maxScore, Math.min(0, rawScore));
-};
+export type { Criterion };
 
 /**
  * Xây dựng danh sách counts an toàn cho target student từ source counts:

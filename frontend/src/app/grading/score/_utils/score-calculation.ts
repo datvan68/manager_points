@@ -1,0 +1,137 @@
+export interface Criteria {
+  id: string;
+  name: string;
+  pointsPerUnit: number;
+  type: "reward" | "violation";
+  maxScore?: number;
+  minScore?: number;
+  is_locked?: boolean;
+  is_score_counted?: boolean;
+  scoring_mode?: 'count' | 'single_option';
+  options?: { id: string; label: string; score: number }[];
+}
+
+export interface Category {
+  id: string;
+  code?: string;
+  title: string;
+  maxPoints: number;
+  items: Criteria[];
+}
+
+export const calculateCriterionScore = (criterion: Criteria, count: number, selectedOptionId?: string | null) => {
+  const maxScore = criterion.maxScore ?? 10;
+  const minScore = criterion.minScore ?? 0;
+
+  if (criterion.scoring_mode === 'single_option') {
+    if (selectedOptionId) {
+      const option = criterion.options?.find(opt => opt.id === selectedOptionId);
+      if (option) {
+        return Math.max(minScore, Math.min(maxScore, option.score));
+      }
+    }
+    return (criterion.type === "violation" && criterion.is_score_counted === false) ? maxScore : 0;
+  }
+
+  if (criterion.pointsPerUnit >= 0) {
+    const rawScore = count * criterion.pointsPerUnit;
+    return Math.max(minScore, Math.min(maxScore, rawScore));
+  } else {
+    const baseScore = maxScore;
+    const deduction = count * Math.abs(criterion.pointsPerUnit);
+    return Math.max(minScore, Math.min(maxScore, baseScore - deduction));
+  }
+};
+
+export const getCriterionContributionScore = (criterion: Criteria, count: number, selectedOptionId?: string | null) => {
+  const rawScore = calculateCriterionScore(criterion, count, selectedOptionId);
+  if (criterion.type === "violation" && criterion.is_score_counted === false) {
+    const maxScore = criterion.maxScore ?? 10;
+    return rawScore - maxScore;
+  }
+  return rawScore;
+};
+
+export const getResolvedRawCriterionScore = (
+  criterion: Criteria,
+  count: number,
+  selectedOptionId?: string | null,
+  detail?: any
+) => {
+  if (detail) {
+    let score = detail.final_score !== null && detail.final_score !== undefined
+      ? detail.final_score
+      : detail.gv_score !== null && detail.gv_score !== undefined
+        ? detail.gv_score
+        : detail.sv_score !== null && detail.sv_score !== undefined
+          ? detail.sv_score
+          : detail.system_score !== null && detail.system_score !== undefined
+            ? detail.system_score
+            : null;
+
+    if (score !== null) {
+      if (score < 0 && criterion.type === "violation") {
+        const maxScore = criterion.maxScore ?? 10;
+        score = maxScore - Math.abs(score);
+      }
+      return score;
+    }
+  }
+  return calculateCriterionScore(criterion, count, selectedOptionId);
+};
+
+export const getResolvedCriterionScore = (
+  criterion: Criteria,
+  count: number,
+  selectedOptionId?: string | null,
+  detail?: any
+) => {
+  if (detail) {
+    const score = getResolvedRawCriterionScore(criterion, count, selectedOptionId, detail);
+    if (criterion.type === "violation" && criterion.is_score_counted === false) {
+      const maxScore = criterion.maxScore ?? 10;
+      return score - maxScore;
+    }
+    return score;
+  }
+  
+  return getCriterionContributionScore(criterion, count, selectedOptionId);
+};
+
+export const calculateCategoryScore = (
+  category: Category,
+  counts: Record<string, number>,
+  selectedOptionsState: Record<string, string>,
+  detailsMap?: Record<string, any>
+) => {
+  let catTotal = 0;
+  category.items.forEach((cri) => {
+    const count = counts[cri.id] || 0;
+    const optId = selectedOptionsState[cri.id] || null;
+    const detail = detailsMap?.[cri.id];
+    catTotal += getResolvedCriterionScore(cri, count, optId, detail);
+  });
+  return Math.max(0, Math.min(category.maxPoints, catTotal));
+};
+
+export const calculateTotalScore = (
+  categories: Category[],
+  counts: Record<string, number>,
+  selectedOptionsState: Record<string, string>,
+  detailsMap?: Record<string, any>
+) => {
+  let total = 0;
+  categories.forEach((cat) => {
+    total += calculateCategoryScore(cat, counts, selectedOptionsState, detailsMap);
+  });
+  return Math.max(0, Math.min(100, total));
+};
+
+export default {
+  calculateCriterionScore,
+  getCriterionContributionScore,
+  getResolvedRawCriterionScore,
+  getResolvedCriterionScore,
+  calculateCategoryScore,
+  calculateTotalScore
+};

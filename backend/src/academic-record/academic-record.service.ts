@@ -91,9 +91,11 @@ export class AcademicRecordService {
     // 3. Compute system_score
     let systemScore = activeCount * criterion.score_per_unit;
     if (criterion.score_per_unit >= 0) {
-      systemScore = Math.max(criterion.min_score, Math.min(criterion.max_score, systemScore));
+      systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
     } else {
-      systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
+      const maxScore = criterion.max_score || 10;
+      const minScore = criterion.min_score || 0;
+      systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit)));
     }
 
     // 4. Find all SummaryPoints for this student and semester
@@ -219,9 +221,11 @@ export class AcademicRecordService {
           const activeCount = countMap.get(criterionId) || 0;
           let systemScore = activeCount * criterion.score_per_unit;
           if (criterion.score_per_unit >= 0) {
-            systemScore = Math.max(criterion.min_score, Math.min(criterion.max_score, systemScore));
+            systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
           } else {
-            systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
+            const maxScore = criterion.max_score || 10;
+            const minScore = criterion.min_score || 0;
+            systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit)));
           }
 
           const detailIndex = details.findIndex(d => d.criterion_id && d.criterion_id.toString() === criterionId);

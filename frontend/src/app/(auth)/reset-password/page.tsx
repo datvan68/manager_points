@@ -10,7 +10,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { authApi } from '@/api/auth-api';
 
 const resetPasswordSchema = z.object({
-  password: z.string().min(8, 'Mật khẩu phải chứa ít nhất 8 ký tự'),
+  password: z.string()
+    .min(8, 'Mật khẩu phải chứa ít nhất 8 ký tự')
+    .regex(/[a-z]/, 'Mật khẩu phải chứa ít nhất 1 chữ thường')
+    .regex(/[A-Z]/, 'Mật khẩu phải chứa ít nhất 1 chữ hoa')
+    .regex(/[0-9]/, 'Mật khẩu phải chứa ít nhất 1 số')
+    .regex(/[^A-Za-z0-9]/, 'Mật khẩu phải chứa ít nhất 1 ký tự đặc biệt'),
   confirmPassword: z.string().min(8, 'Xác nhận mật khẩu phải chứa ít nhất 8 ký tự')
 }).superRefine(({ password, confirmPassword }, ctx) => {
   if (confirmPassword !== password) {
@@ -50,10 +55,11 @@ export default function ResetPasswordPage() {
     if (!pass) return { label: 'Yếu', percentage: 10, color: 'bg-red-500', textClass: 'text-red-500', meetsLength: false, meetsChars: false };
     
     const meetsLength = pass.length >= 8;
-    const hasLetter = /[a-zA-Z]/.test(pass);
+    const hasLower = /[a-z]/.test(pass);
+    const hasUpper = /[A-Z]/.test(pass);
     const hasNumber = /[0-9]/.test(pass);
     const hasSpecial = /[^A-Za-z0-9]/.test(pass);
-    const meetsChars = hasLetter && hasNumber && hasSpecial;
+    const meetsChars = hasLower && hasUpper && hasNumber && hasSpecial;
     
     let strength = 0;
     if (pass.length > 0) strength += 20; // Started typing
@@ -276,7 +282,7 @@ export default function ResetPasswordPage() {
                   <div className="flex gap-[10px] items-center">
                     <div className={`w-[6px] h-[6px] rounded-full transition-all duration-300 ${strengthInfo.meetsChars ? 'bg-green-500' : 'bg-[#c1c6d6]'}`} />
                     <span className={`font-['Inter'] font-medium text-[11px] transition-all duration-300 ${strengthInfo.meetsChars ? 'text-green-600 font-semibold' : 'text-[#414754]'}`}>
-                      Bao gồm chữ cái, số và ký tự đặc biệt
+                      Bao gồm chữ thường, chữ hoa, số và ký tự đặc biệt
                     </span>
                   </div>
                 </div>

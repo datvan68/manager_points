@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### 🚀 Tính năng mới (New Features)
+- **Luồng lấy lại mật khẩu bằng OTP:** Nâng cấp chức năng "Quên mật khẩu" chuyển sang sử dụng mã OTP 6 chữ số gửi qua email thay cho đường dẫn xác nhận. Tăng cường bảo mật với các cơ chế giới hạn tần suất (rate-limit theo IP/email), chống dò quét (enumeration), đồng thời tự động thu hồi toàn bộ các phiên đăng nhập cũ sau khi đặt mật khẩu mới thành công.
 - **Import Ghi nhận HSSV theo mã tiêu chí:** Cập nhật cơ chế import từ Excel để ưu tiên tra cứu theo mã tiêu chí (do Admin tự định nghĩa) thay vì tên tiêu chí. Điều này giúp tránh sai sót do trùng lặp hoặc nhập liệu sai tên. Hỗ trợ hiển thị lỗi rõ ràng khi không tìm thấy tiêu chí theo mã.
 - **Tiêu chí chấm điểm dạng Single Option (Chọn 1):** Bổ sung hình thức chấm điểm mới cho phép quản trị viên thiết lập các lựa chọn (options) cố định cho một tiêu chí. Người chấm chỉ được phép chọn 1 lựa chọn duy nhất, và điểm số tự động tính theo lựa chọn đó thay vì theo số lượng nhân hệ số.
 - **Thêm tính năng tạo nhiều người dùng (Bulk Create):** Hỗ trợ thêm nhiều người dùng cùng một lúc thông qua bảng nhập liệu trong modal "Thêm người dùng" tại trang `/permissions`. Tích hợp tuỳ chọn đặt **mật khẩu dùng chung** hoặc **mật khẩu riêng**, đồng thời hiển thị kết quả chi tiết (thành công/thất bại) sau khi xử lý.

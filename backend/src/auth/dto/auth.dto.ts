@@ -486,3 +486,50 @@ export class BulkCreateUsersDto {
   @Type(() => BulkCreateUserItemDto)
   users: BulkCreateUserItemDto[];
 }
+
+export class PasswordResetRequestDto {
+  @ApiProperty({ example: 'user@example.com hoặc mã sinh viên' })
+  @IsString()
+  @IsNotEmpty({ message: 'Email hoặc mã sinh viên không được để trống' })
+  email: string;
+}
+
+export class PasswordResetResendDto {
+  @ApiProperty({ example: 'req-uuid' })
+  @IsString()
+  @IsNotEmpty({ message: 'Request ID không được để trống' })
+  requestId: string;
+}
+
+export class PasswordResetVerifyDto {
+  @ApiProperty({ example: 'req-uuid' })
+  @IsString()
+  @IsNotEmpty({ message: 'Request ID không được để trống' })
+  requestId: string;
+
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  @IsNotEmpty({ message: 'Mã OTP không được để trống' })
+  @Matches(/^\d{6}$/, { message: 'OTP phải gồm đúng 6 chữ số' })
+  code: string;
+}
+
+export class PasswordResetCompleteDto {
+  @ApiProperty({ example: 'reset-token-string' })
+  @IsString()
+  @IsNotEmpty({ message: 'Reset token không được để trống' })
+  resetToken: string;
+
+  @ApiProperty({ example: 'Newpassword@123' })
+  @IsString()
+  @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, {
+    message: 'Mật khẩu mới phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
+  })
+  newPassword: string;
+
+  @ApiProperty({ example: 'Newpassword@123' })
+  @IsString()
+  @IsNotEmpty({ message: 'Xác nhận mật khẩu không được để trống' })
+  confirmPassword: string;
+}

@@ -43,6 +43,10 @@ import {
   UpdateMeDto,
   CreateUserDto,
   BulkCreateUsersDto,
+  PasswordResetRequestDto,
+  PasswordResetResendDto,
+  PasswordResetVerifyDto,
+  PasswordResetCompleteDto,
 } from '../dto/auth.dto';
 
 import { isAdminUser } from '../utils/role.util';
@@ -126,6 +130,35 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: any) {
     const ip = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
     return this.authService.resetPassword(dto, ip);
+  }
+
+  @Post('password-reset/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Yêu cầu đặt lại mật khẩu bằng OTP' })
+  async requestPasswordReset(@Body() dto: PasswordResetRequestDto, @Req() req: any) {
+    const ip = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
+    return this.authService.requestPasswordReset(dto, ip);
+  }
+
+  @Post('password-reset/resend')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Gửi lại OTP đặt lại mật khẩu' })
+  async resendPasswordResetOtp(@Body() dto: PasswordResetResendDto) {
+    return this.authService.resendPasswordResetOtp(dto);
+  }
+
+  @Post('password-reset/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Xác minh OTP đặt lại mật khẩu' })
+  async verifyPasswordResetOtp(@Body() dto: PasswordResetVerifyDto) {
+    return this.authService.verifyPasswordResetOtp(dto);
+  }
+
+  @Post('password-reset/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Hoàn thành đặt lại mật khẩu với reset token' })
+  async completePasswordReset(@Body() dto: PasswordResetCompleteDto) {
+    return this.authService.completePasswordReset(dto);
   }
 
   @Post('change-password')

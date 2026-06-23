@@ -31,6 +31,10 @@ import {
   AssignRoleDto,
   UpdateUserDto,
   UpdateMeDto,
+  PasswordResetRequestDto,
+  PasswordResetResendDto,
+  PasswordResetVerifyDto,
+  PasswordResetCompleteDto,
 } from '../dto/auth.dto';
 import { TokenService } from './token.service';
 import { PasswordService } from './password.service';
@@ -248,6 +252,22 @@ export class AuthService implements OnModuleInit {
       );
     }
     return { message: result.message };
+  }
+
+  async requestPasswordReset(dto: PasswordResetRequestDto, ip: string) {
+    return this.passwordService.requestPasswordReset(dto, ip);
+  }
+
+  async resendPasswordResetOtp(dto: PasswordResetResendDto) {
+    return this.passwordService.resendPasswordResetOtp(dto);
+  }
+
+  async verifyPasswordResetOtp(dto: PasswordResetVerifyDto) {
+    return this.passwordService.verifyPasswordResetOtp(dto);
+  }
+
+  async completePasswordReset(dto: PasswordResetCompleteDto) {
+    return this.passwordService.completePasswordReset(dto);
   }
 
   async resetPassword(dto: ResetPasswordDto, ip: string) {

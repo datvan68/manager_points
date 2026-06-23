@@ -839,6 +839,34 @@ describe('SummariesPointService', () => {
       expect(mockSummary.save).toHaveBeenCalled();
     });
 
+    it('should normalize old final_score=-3 to raw score=7 without double deducting', async () => {
+      const mockSummary = {
+        _id: 'some-id',
+        status: 'locked',
+        total_score: 50,
+        grading: 'Trung bình',
+        details: [{ criterion_id: 'cri-vio', final_score: -3 }],
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cri-vio', category_id: 'cat-1', criterion_type: 'ky_luat', score_per_unit: -1, max_score: 10, is_score_counted: true }]),
+      });
+
+      await service.recomputeTotalScore('some-id');
+
+      // final_score=-3 -> rawScore = max_score(10) - |-3| = 7. 
+      // Since is_score_counted is true, catInfo.currentScore adds 7. Total=7.
+      expect(mockSummary.total_score).toBe(7);
+      expect(mockSummary.save).toHaveBeenCalled();
+    });
+
     it('should handle scores above 100 correctly', async () => {
       const mockSummary = {
         _id: 'some-id',
@@ -893,6 +921,84 @@ describe('SummariesPointService', () => {
       await service.recomputeTotalScore('some-id');
 
       expect(mockSummary.total_score).toBe(10);
+      expect(mockSummary.save).toHaveBeenCalled();
+    });
+
+    it('should deduct correct contribution for is_score_counted === false without adding full max_score', async () => {
+      const mockSummary = {
+        _id: 'some-id',
+        status: 'draft',
+        total_score: 0,
+        grading: '',
+        details: [
+          { criterion_id: 'cri-reward', final_score: 15 },
+          { criterion_id: 'cri-violation-non-counted', final_score: 8 } // deduct 2
+        ],
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([
+          { _id: 'cri-reward', category_id: 'cat-1', criterion_type: 'thuong', score_per_unit: 5 },
+          { _id: 'cri-violation-non-counted', category_id: 'cat-1', criterion_type: 'ky_luat', max_score: 10, score_per_unit: -2, is_score_counted: false }
+        ]),
+      });
+
+      await service.recomputeTotalScore('some-id');
+
+      // final score for reward = 15
+      // final score for violation = 8
+      // countedScore for violation = 8 - 10 = -2
+      // catScore = 15 - 2 = 13
+      expect(mockSummary.total_score).toBe(13);
+      expect(mockSummary.save).toHaveBeenCalled();
+    });
+
+    it('should clamp score per category before clamping total score', async () => {
+      const mockSummary = {
+        _id: 'some-id',
+        status: 'draft',
+        total_score: 0,
+        grading: '',
+        details: [
+          { criterion_id: 'cri-cat1-1', final_score: 30 },
+          { criterion_id: 'cri-cat2-1', final_score: 40 },
+          { criterion_id: 'cri-cat3-1', final_score: 60 }
+        ],
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([
+          { _id: 'cat-1', max_score: 20 }, // 30 clamped to 20
+          { _id: 'cat-2', max_score: 50 }, // 40 clamped to 40
+          { _id: 'cat-3', max_score: 50 }  // 60 clamped to 50
+        ]),
+      });
+
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([
+          { _id: 'cri-cat1-1', category_id: 'cat-1', criterion_type: 'thuong', score_per_unit: 10 },
+          { _id: 'cri-cat2-1', category_id: 'cat-2', criterion_type: 'thuong', score_per_unit: 10 },
+          { _id: 'cri-cat3-1', category_id: 'cat-3', criterion_type: 'thuong', score_per_unit: 10 }
+        ]),
+      });
+
+      await service.recomputeTotalScore('some-id');
+
+      // sum of clamped categories = 20 + 40 + 50 = 110
+      // total score clamped to 100
+      expect(mockSummary.total_score).toBe(100);
       expect(mockSummary.save).toHaveBeenCalled();
     });
   });

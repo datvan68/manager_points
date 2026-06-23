@@ -27,6 +27,7 @@ Hệ thống được chia thành các module chính:
 
 ### 3.2 Auth Module (`src/auth`)
 *   Xử lý logic đăng ký, đăng nhập.
+*   Quản lý luồng quên mật khẩu qua OTP (Gửi OTP, Xác minh, Đặt lại mật khẩu).
 *   Tạo và xác thực JWT Token.
 *   Phân quyền (Role-based Access Control).
 
@@ -95,6 +96,10 @@ backend/
 ## 6. API Endpoints Quan trọng
 
 *   `POST /auth/login`: Đăng nhập
+*   `POST /auth/password-reset/request`: Yêu cầu gửi mã OTP quên mật khẩu
+*   `POST /auth/password-reset/resend`: Gửi lại mã OTP quên mật khẩu
+*   `POST /auth/password-reset/verify`: Xác minh mã OTP quên mật khẩu
+*   `POST /auth/password-reset/complete`: Đặt lại mật khẩu sau khi xác minh OTP
 *   `GET /agents`: Lấy danh sách Agent
 *   `POST /tasks`: Tạo task mới
 *   `GET /tasks/:id`: Xem chi tiết task

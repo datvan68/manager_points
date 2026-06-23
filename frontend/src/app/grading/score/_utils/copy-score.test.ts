@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { calculateCriterionScore, buildTargetSafeCounts, Criterion } from './copy-score';
+import { buildTargetSafeCounts } from './copy-score';
+import { calculateCriterionScore, Criteria as Criterion } from './score-calculation';
 
 describe('Copy Score Utils', () => {
   describe('calculateCriterionScore', () => {

@@ -9,6 +9,7 @@ import { SummaryPoint } from '../../summaries-point/schemas/summary-point.schema
 import { User } from '../../auth/schemas/user.schema';
 import { Student } from '../../students/schemas/student.schema';
 import { Class } from '../../classes/schemas/class.schema';
+import { SummariesPointService } from '../../summaries-point/summaries-point.service';
 
 describe('EvaluationDetailService', () => {
   let service: EvaluationDetailService;
@@ -49,6 +50,10 @@ describe('EvaluationDetailService', () => {
     find: jest.fn(),
   };
 
+  const mockSummariesPointService = {
+    recomputeTotalScore: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -76,6 +81,10 @@ describe('EvaluationDetailService', () => {
         {
           provide: getModelToken(Class.name),
           useValue: mockClassModel,
+        },
+        {
+          provide: SummariesPointService,
+          useValue: mockSummariesPointService,
         },
       ],
     }).compile();
@@ -244,6 +253,51 @@ describe('EvaluationDetailService', () => {
       await expect(
         service.create(dto, { userId: 'admin1', roleName: 'admin' }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should record system_score as 7 when violation max=10, count=3, score_per_unit=-1', async () => {
+      const summaryId = new Types.ObjectId().toString();
+      const criterionId = new Types.ObjectId().toString();
+
+      mockSummaryPointModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: summaryId,
+          student_id: new Types.ObjectId(),
+          semester_id: new Types.ObjectId(),
+          status: 'draft',
+          details: [],
+          save: jest.fn(),
+        }),
+      } as any);
+
+      mockCriterionModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          criterion_name: 'Vi pham tru diem',
+          score_per_unit: -1,
+          min_score: 0,
+          max_score: 10,
+        }),
+      } as any);
+
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'syncAcademicRecords').mockResolvedValue(undefined);
+
+      mockSummaryPointModel.findByIdAndUpdate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({}),
+      } as any);
+
+      const dto: any = {
+        summary_id: summaryId,
+        criterion_id: criterionId,
+        current_count: 3,
+      };
+
+      const result = await service.create(dto, { userId: 'admin1', roleName: 'admin' });
+
+      // systemScore should be max(0, min(10, 10 - 3 * |-1|)) = 7
+      expect(result.system_score).toBe(7);
+      expect(result.current_count).toBe(3);
     });
   });
 
@@ -496,6 +550,93 @@ describe('EvaluationDetailService', () => {
           { userId: 'admin1', roleName: 'admin' }
         )
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should update system_score to 7 when violation max=10, count changes to 3, score_per_unit=-1', async () => {
+      const detailId = new Types.ObjectId();
+      const criterionId = new Types.ObjectId();
+      const summaryId = new Types.ObjectId();
+
+      const mockSummary = {
+        _id: summaryId,
+        student_id: new Types.ObjectId(),
+        semester_id: new Types.ObjectId(),
+        status: 'draft',
+        details: [
+          {
+            _id: detailId,
+            criterion_id: criterionId,
+            current_count: 1,
+            system_score: 9,
+            status: 'draft',
+          },
+        ],
+      };
+
+      mockSummaryPointModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      } as any);
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'syncAcademicRecords').mockResolvedValue(undefined);
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      } as any);
+
+      mockCriterionModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          score_per_unit: -1,
+          min_score: 0,
+          max_score: 10,
+        }),
+      } as any);
+
+      const updatedSummary = {
+        ...mockSummary,
+        details: Object.assign(
+          [
+            {
+              ...mockSummary.details[0],
+              current_count: 3,
+              system_score: 7,
+            },
+          ],
+          {
+            id: jest.fn().mockReturnValue({
+              ...mockSummary.details[0],
+              current_count: 3,
+              system_score: 7,
+            }),
+          }
+        ),
+      };
+
+      mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(updatedSummary),
+      } as any);
+      mockSummaryPointModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(updatedSummary),
+      } as any);
+
+      mockSummaryPointModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([{ totalScore: 7 }]),
+      } as any);
+      mockSummaryPointModel.updateOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({}),
+      } as any);
+
+      const result = await service.update(
+        detailId.toString(),
+        {
+          current_count: 3,
+        } as any,
+        { userId: 'admin1', roleName: 'admin' },
+      );
+
+      // max=10, score=-1, count=3 => 7
+      expect(result.system_score).toBe(7);
+      expect(result.current_count).toBe(3);
     });
   });
 });

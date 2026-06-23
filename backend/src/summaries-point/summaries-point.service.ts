@@ -521,13 +521,18 @@ export class SummariesPointService {
         let criterionScore = 0;
         
         if (detail) {
-           criterionScore = detail.final_score !== null && detail.final_score !== undefined
+           let rawScore = detail.final_score !== null && detail.final_score !== undefined
             ? detail.final_score
             : (detail.gv_score !== null && detail.gv_score !== undefined
                 ? detail.gv_score
                 : (detail.sv_score !== null && detail.sv_score !== undefined
                     ? detail.sv_score
                     : (detail.system_score !== null && detail.system_score !== undefined ? detail.system_score : 0)));
+           
+           if (rawScore < 0 && (cri.score_per_unit < 0 || cri.criterion_type === 'ky_luat')) {
+              rawScore = (cri.max_score || 10) - Math.abs(rawScore);
+           }
+           criterionScore = rawScore;
         } else {
           // If no detail, score depends on criterion type.
           // For violation (discipline), count = 0, meaning full base score (max_score).

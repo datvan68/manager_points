@@ -6,17 +6,20 @@ describe('CreateCriterionDto', () => {
   it('should validate successfully when scoring_mode is count and options are not provided', async () => {
     const dto = plainToInstance(CreateCriterionDto, {
       category_id: '60c72b2f9b1d8e251c888888',
+      criterion_code: 'CRI-1',
       criterion_name: 'Test count mode',
       criterion_type: 'cong_diem',
       scoring_mode: 'count',
     });
     const errors = await validate(dto);
+    console.log(errors);
     expect(errors.length).toBe(0);
   });
 
   it('should validate successfully when scoring_mode is single_option and valid options are provided', async () => {
     const dto = plainToInstance(CreateCriterionDto, {
       category_id: '60c72b2f9b1d8e251c888888',
+      criterion_code: 'CRI-2',
       criterion_name: 'Test single_option mode',
       criterion_type: 'cong_diem',
       scoring_mode: 'single_option',
@@ -85,6 +88,7 @@ describe('CreateCriterionDto', () => {
   it('should validate successfully when options contain _id field', async () => {
     const dto = plainToInstance(CreateCriterionDto, {
       category_id: '60c72b2f9b1d8e251c888888',
+      criterion_code: 'CRI-5',
       criterion_name: 'Test options with _id',
       criterion_type: 'cong_diem',
       scoring_mode: 'single_option',
