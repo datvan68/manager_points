@@ -205,7 +205,9 @@ import {
   calculateCategoryScore,
   calculateTotalScore,
   getResolvedRawCriterionScore,
-  getResolvedCriterionScore
+  getResolvedCriterionScore,
+  getRecordDerivedRawCriterionScore,
+  getRecordDerivedCriterionScore
 } from "./_utils/score-calculation";
 
 const formatScoreLabel = (score?: number | null, isViolation?: boolean) => {
@@ -3073,13 +3075,17 @@ function GradingScoreContent() {
                               detail?.status === "locked",
                             );
                             const selectedOptionId = selectedOptionsState[activeStudentId]?.[item.id] || null;
-                            const isLocked = activeStudent?.gradingStatus === "locked";
-                            const criterionScore = isLocked 
-                              ? getResolvedRawCriterionScore(item, count, selectedOptionId, detail) 
-                              : calculateCriterionScore(item, count, selectedOptionId);
-                            const achievedPoints = isLocked
-                              ? getResolvedCriterionScore(item, count, selectedOptionId, detail)
-                              : getCriterionContributionScore(item, count, selectedOptionId);
+                            const isStudentLocked = activeStudent?.gradingStatus === "locked";
+                            const criterionScore = item.is_locked
+                              ? getRecordDerivedRawCriterionScore(item, count, selectedOptionId, detail)
+                              : isStudentLocked 
+                                ? getResolvedRawCriterionScore(item, count, selectedOptionId, detail) 
+                                : calculateCriterionScore(item, count, selectedOptionId);
+                            const achievedPoints = item.is_locked
+                              ? getRecordDerivedCriterionScore(item, count, selectedOptionId, detail)
+                              : isStudentLocked
+                                ? getResolvedCriterionScore(item, count, selectedOptionId, detail)
+                                : getCriterionContributionScore(item, count, selectedOptionId);
 
                             const studentPreCounts =
                               preExistingCountsState[activeStudentId] || {};
@@ -3125,28 +3131,45 @@ function GradingScoreContent() {
 
                                   {/* Scores Badges + Đơn giá */}
                                   <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                    {/* Sinh viên */}
-                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-[#1A73E8] text-[10px] font-bold border border-blue-100/40">
-                                      <span className="opacity-70">SV:</span>
-                                      <span>
-                                        {formatScoreLabel(detail?.sv_score, hasViolation)}
-                                      </span>
-                                    </div>
+                                    {item.is_locked ? (
+                                      <div
+                                        className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-50 text-slate-700 text-[10px] font-extrabold border border-slate-200/70 shadow-sm"
+                                        title="Điểm tính từ ghi nhận của P.HSSV"
+                                      >
+                                        <span className="opacity-70">P.HSSV:</span>
+                                        <span>
+                                          {formatScoreLabel(
+                                            getRecordDerivedCriterionScore(item, count, selectedOptionId, detail),
+                                            hasViolation
+                                          )}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        {/* Sinh viên */}
+                                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-[#1A73E8] text-[10px] font-bold border border-blue-100/40">
+                                          <span className="opacity-70">SV:</span>
+                                          <span>
+                                            {formatScoreLabel(detail?.sv_score, hasViolation)}
+                                          </span>
+                                        </div>
 
-                                    {/* Giảng viên / Cố vấn */}
-                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100/40">
-                                      <span className="opacity-70">GV:</span>
-                                      <span>
-                                        {formatScoreLabel(
-                                          hasTeacherReviewed
-                                            ? detail?.gv_score
-                                            : null,
-                                          hasViolation
-                                        )}
-                                      </span>
-                                    </div>
+                                        {/* Giảng viên / Cố vấn */}
+                                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100/40">
+                                          <span className="opacity-70">GV:</span>
+                                          <span>
+                                            {formatScoreLabel(
+                                              hasTeacherReviewed
+                                                ? detail?.gv_score
+                                                : null,
+                                              hasViolation
+                                            )}
+                                          </span>
+                                        </div>
+                                      </>
+                                    )}
 
-                                    {isApproved && (
+                                    {isApproved && !item.is_locked && (
                                       <div
                                         className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-extrabold border border-emerald-200/70 shadow-sm"
                                         title="Điểm đạt được sau khi supervisor/admin duyệt và chốt"
@@ -3157,7 +3180,6 @@ function GradingScoreContent() {
                                         </span>
                                       </div>
                                     )}
-
                                   </div>
                                 </div>
 

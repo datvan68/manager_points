@@ -127,11 +127,60 @@ export const calculateTotalScore = (
   return Math.max(0, Math.min(100, total));
 };
 
+export const getRecordDerivedRawCriterionScore = (
+  criterion: Criteria,
+  count: number,
+  selectedOptionId?: string | null,
+  detail?: any
+) => {
+  if (detail) {
+    let score = detail.system_score !== null && detail.system_score !== undefined
+      ? detail.system_score
+      : null;
+
+    if (score !== null) {
+      if (score < 0 && criterion.type === "violation") {
+        const maxScore = criterion.maxScore ?? 10;
+        score = maxScore - Math.abs(score);
+      }
+      return score;
+    }
+  }
+  const fallbackCount = detail?.current_count !== undefined ? detail.current_count : count;
+  return calculateCriterionScore(criterion, fallbackCount, selectedOptionId);
+};
+
+export const getRecordDerivedCriterionScore = (
+  criterion: Criteria,
+  count: number,
+  selectedOptionId?: string | null,
+  detail?: any
+) => {
+  if (detail) {
+    const rawScore = detail.system_score !== null && detail.system_score !== undefined
+      ? detail.system_score
+      : null;
+      
+    if (rawScore !== null) {
+      const score = getRecordDerivedRawCriterionScore(criterion, count, selectedOptionId, detail);
+      if (criterion.type === "violation" && criterion.is_score_counted === false) {
+        const maxScore = criterion.maxScore ?? 10;
+        return score - maxScore;
+      }
+      return score;
+    }
+  }
+  const fallbackCount = detail?.current_count !== undefined ? detail.current_count : count;
+  return getCriterionContributionScore(criterion, fallbackCount, selectedOptionId);
+};
+
 export default {
   calculateCriterionScore,
   getCriterionContributionScore,
   getResolvedRawCriterionScore,
   getResolvedCriterionScore,
+  getRecordDerivedRawCriterionScore,
+  getRecordDerivedCriterionScore,
   calculateCategoryScore,
   calculateTotalScore
 };

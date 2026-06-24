@@ -1,106 +1,137 @@
-﻿# Taskscope: Kiem tra loi Lich su ghi nhan khong hien thi trang /grading/score
+﻿# Taskscope: Hien thi tieu chi locked thanh P.HSSV tren /grading/score
 
 ## Muc tieu
-- Kiem tra vi sao tab `Lich su ghi nhan` tren trang `/grading/score` khong hien thi du lieu.
-- Xac dinh nguon du lieu dang dung cho lich su: `summary.details[].log`, `evaluation-detail`, hay `academic-records`.
-- De xuat pham vi sua de lich su hien thi dung sau khi tai trang, chuyen sinh vien, luu diem, sao chep diem va xoa lich su.
+- Dieu chinh UI trang `/grading/score` de cac tieu chi co `is_locked: true` khong hien 2 badge `SV` va `GV`.
+- Voi tieu chi locked, chi hien badge nguon diem tu P.HSSV theo format:
+  - `P.HSSV: 10d`
+- Diem `P.HSSV` phai la diem he thong tinh tu cac record/ghi nhan cua sinh vien, khong phai diem SV/GV cham tay.
+- Dam bao thay doi nay chi anh huong cach hien thi, khong lam sai tong diem, diem muc nay, copy score, save score hoac trang thai duyet.
 
 ## Hien trang da kiem tra
-- Frontend chinh nam tai `frontend/src/app/grading/score/page.tsx`.
-- Component rieng `frontend/src/app/grading/score/_components/ScoreHistoryPanel.tsx` dang ton tai nhung hien khong duoc import/su dung trong `page.tsx`.
-- `page.tsx` dang render tab lich su inline tai khoi `subTab === "history"` va loc theo:
-  - `historyRecords.filter((r) => r.studentId === activeStudentId)`.
-- `historyRecords` duoc tao tu `detail.log` cua API:
-  - `evaluationDetailApi.getEvaluationDetailsBySummary(summaryId)`.
-- Frontend dang goi `getEvaluationDetailsBySummary(summaryId)` khong truyen `includeLogs`.
-- API frontend co san tham so:
-  - `getEvaluationDetailsBySummary(summaryId: string, includeLogs?: boolean)`.
-  - Neu truyen `true` se goi `/evaluation-detail/summary/:summaryId?includeLogs=true`.
-- Backend controller `EvaluationDetailController.findBySummaryId()` dang xu ly:
-  - `const fetchLogs = includeLogs === 'true'`.
-  - Nghia la neu frontend khong truyen `includeLogs=true`, backend se xem la `false`.
-- Backend service `EvaluationDetailService.findBySummaryId(summaryId, requester, fetchLogs)` se `.select({ 'details.log': 0 })` khi `fetchLogs` la `false`.
-- Vi vay root cause co kha nang cao la frontend khong yeu cau lay log, nen `detail.log` bi loai khoi response va `activeHistory` luon rong.
+- File UI chinh: `frontend/src/app/grading/score/page.tsx`.
+- Du lieu tieu chi duoc map tu backend tai `page.tsx`:
+  - `is_locked: !!cri.is_locked`.
+- Schema backend co san field `is_locked` tai:
+  - `backend/src/criteria/schemas/criterion.schema.ts`.
+- Diem record-derived duoc backend sync tai:
+  - `backend/src/academic-record/academic-record.service.ts`.
+- Backend dang dem record theo filter:
+  - `student_id`
+  - `semester_id`
+  - `criterion_id`
+  - `status: 'active'`
+  - `is_deleted: { $ne: true }`
+- Sau khi dem record, backend sync vao summary detail:
+  - `detail.current_count = activeCount`
+  - `detail.system_score = systemScore`
+- Trong danh sach tieu chi tren UI, block render badge diem hien tai nam quanh phan `category.items.map((item) => ...)`.
+- UI hien dang luon render:
+  - Badge `SV: ...`
+  - Badge `GV: ...`
+  - Badge `Dat: ...` khi detail da locked.
+- `item.is_locked` hien moi duoc dung de:
+  - Disable select/counter.
+  - Disable nut tang/giam.
+  - Giu nguyen tieu chi khi reset/copy score.
+- Vi vay voi tieu chi locked, man hinh van hien `SV: Chua cham` va `GV: Chua cham`, gay hieu nham nhu anh nguoi dung gui.
 
 ## Ket luan root cause
-- Loi chinh: `/grading/score` khong truyen `includeLogs=true` khi load chi tiet cham diem cho tab lich su.
-- Do controller mac dinh query thieu `includeLogs` thanh `false`, backend loai bo `details.log` khoi response.
-- Ket qua:
-  - Diem/current_count van co the hien thi dung.
-  - Tab `Lich su ghi nhan` khong co ban ghi vi frontend map tu `detail.log || []`.
+- Root cause la UI khong tach case `item.is_locked` khi render badges nguon diem.
+- `is_locked` cua tieu chi dang duoc xu ly dung cho control nhap diem, nhung chua duoc xu ly cho phan hien thi badge `SV/GV`.
+- Can them branch render rieng:
+  - Neu `item.is_locked === true`: an badge `SV`, an badge `GV`, hien badge `P.HSSV`.
+  - Neu `item.is_locked !== true`: giu hien thi `SV/GV` nhu hien tai.
 
-## Cac diem can luu y them
-- `EvaluationDetailService.findBySummaryId()` co default parameter `fetchLogs = true`, nhung controller luon truyen boolean tu query.
-  - Thuc te qua controller, mac dinh la `false`, khac voi default cua service.
-  - Can thong nhat contract API: mac dinh co lay logs hay khong, hoac frontend bat buoc truyen ro.
-- `ScoreHistoryPanel.tsx` co interface `HistoryRecord` khac voi interface `HistoryRecord` trong `page.tsx`:
-  - Component yeu cau `detailId`, `evaluatorName?`.
-  - `page.tsx` dung `studentId`, `updated_by?`.
-  - Neu muon dung lai component rieng, can chuan hoa type truoc.
-- `page.tsx` co logic build history lap lai nhieu lan:
-  - Load ban dau.
-  - Lazy-load khi doi `activeStudentId`.
-  - Sau khi luu diem.
-  - Sau khi xoa lich su.
-  - Sau khi copy score.
-  - Nen tach helper `mapDetailsToHistoryRecords(details, studentId, categories, fallbackRole)` de tranh sai lech.
-- Xoa lich su hien dua vao id dang `${detail._id}-log-${index}` va split bang `-log-`.
-  - Nen chuan hoa thanh object co `detailId` va `logIndex` rieng de tranh loi parse id.
-- Khi xoa log, backend `EvaluationDetailService.update()` chi set `details.$.log` neu `log.length > 0`.
-  - Flow hien tai neu cleanLog rong thi frontend xoa detail luon, nen khong bi case update log rong.
-  - Tuy nhien can test ky neu chi muon xoa het log nhung van giu detail/current_count.
+## Quy tac nghiep vu de ap dung
+- `is_locked` o day la khoa theo cau hinh tieu chi, khac voi `activeStudent.gradingStatus === "locked"` la trang thai da duyet/chot bang diem cua sinh vien.
+- Tieu chi locked la diem do P.HSSV/he thong quan ly thong qua cac record/ghi nhan, sinh vien va giang vien khong cham truc tiep.
+- Diem hien tren badge `P.HSSV` phai lay tu record-derived score:
+  - Uu tien `detail.system_score` neu co.
+  - Neu `detail.system_score` chua co, tinh fallback tu `detail.current_count` hoac `count` hien co bang cong thuc tieu chi.
+  - Khong dung `detail.sv_score` hoac `detail.gv_score` lam nguon hien thi badge `P.HSSV`.
+- Neu bang diem da duoc chot va `final_score` ton tai, can kiem tra nghiep vu truoc khi uu tien `final_score` cho tieu chi locked:
+  - Neu `final_score` duoc sinh tu `system_score` khi chot thi co the hien `final_score`.
+  - Neu co nguy co `final_score` bi ghi de boi nguon khac, badge `P.HSSV` van nen hien `system_score` de dung nghia diem tu record.
+- Record bi xoa mem (`is_deleted: true`) hoac `status !== 'active'` khong duoc tinh vao `P.HSSV`.
+- Format hien thi:
+  - Badge: `P.HSSV: 10d`
+  - Dung `formatScoreLabel(phssvScore, hasViolation)` de dong nhat format diem thuong/vi pham.
 
-## Pham vi sua de hien thi dung
-- Frontend `frontend/src/app/grading/score/page.tsx`:
-  - Doi tat ca call can build lich su tu:
-    - `evaluationDetailApi.getEvaluationDetailsBySummary(summaryId)`
-    - sang `evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true)`.
-  - Cac vi tri can uu tien:
-    - Load du lieu active student ban dau.
-    - Lazy-load khi `activeStudentId` thay doi.
-    - Refetch sau khi luu diem.
-    - Refetch sau khi xoa lich su.
-    - Copy score neu can hien history cua target/source ngay lap tuc.
-  - Tach helper map log thanh `HistoryRecord[]` de dung chung.
-  - Reset `historyPage` ve 1 khi doi sinh vien, doi hoc ky, doi lop, hoac refetch history.
-  - Hien loading/empty state phan biet:
-    - Dang tai lich su.
-    - Da tai xong nhung chua co log.
-    - Loi khong tai duoc lich su.
-- Frontend `frontend/src/api/evaluation-detail-api.ts`:
-  - Giu tham so `includeLogs?: boolean` hoac them helper ro nghia `getEvaluationDetailsBySummaryWithLogs(summaryId)`.
-  - Dam bao query string dung `includeLogs=true` khi can lich su.
-- Backend `backend/src/evaluation-detail/evaluation-detail.controller.ts`:
-  - Can chot contract:
-    - Cach 1: giu mac dinh khong tra logs de toi uu payload, frontend bat buoc truyen `includeLogs=true`.
-    - Cach 2: doi default controller thanh true neu endpoint nay chu yeu phuc vu man cham diem.
-  - Neu giu Cach 1, bo sung test xac nhan khong co query thi khong tra log, co query thi tra log.
-- Backend `backend/src/evaluation-detail/evaluation-detail.service.ts`:
-  - Kiem tra `findBySummaryId()` tra du lieu co `details.log` khi `fetchLogs=true`.
-  - Kiem tra permission `assertCanAccessSummary()` khong chan nham role Teacher/Student/Admin/Supervisor hop le.
+## Pham vi sua frontend
+- File can sua chinh:
+  - `frontend/src/app/grading/score/page.tsx`
+- Trong block `Scores Badges + Don gia`:
+  - Them condition `item.is_locked`.
+  - Neu locked:
+    - Tinh `phssvScore` tu `detail?.system_score` hoac fallback tu record count.
+    - Render mot badge duy nhat label `P.HSSV:`.
+    - Khong render badge `SV`.
+    - Khong render badge `GV`.
+    - Can can nhac khong hien badge `Dat:` rieng cho tieu chi locked neu no lap nghia voi `P.HSSV`.
+  - Neu khong locked:
+    - Giu nguyen badges `SV` va `GV`.
+- Nen tao helper nho trong `page.tsx` hoac `_utils/score-calculation.ts` neu can:
+  - `getRecordDerivedCriterionScore(item, count, selectedOptionId, detail)`.
+  - Helper nay uu tien `detail.system_score`, khong fallback qua `sv_score/gv_score`.
+- Mau badge de de nhan dien:
+  - Nen dung emerald/slate hoac mau trung tinh khac voi blue `SV` va amber `GV`.
+  - Van giu glass/light style hien tai cua row.
+- Title/tooltip:
+  - Tooltip cho badge locked nen ghi ngan gon: `Diem tinh tu ghi nhan cua P.HSSV`.
+- Khong can doi logic disable control vi control locked hien da bi disable dung.
+
+## Pham vi backend can xac nhan
+- `backend/src/academic-record/academic-record.service.ts`
+  - Xac nhan record active va chua xoa mem moi duoc tinh vao `activeCount`.
+  - Xac nhan khi them/sua/xoa/khoi phuc record thi `syncStudentCriterionScore()` duoc goi va cap nhat lai `current_count`, `system_score`.
+  - Xac nhan khong sync vao summary da `status === 'locked'`, hoac neu nghiep vu can cap nhat ca bang da chot thi phai co task rieng.
+- `backend/src/evaluation-detail/evaluation-detail.service.ts`
+  - Xac nhan khi update direct grading khong lam sai record-derived score cua tieu chi `is_locked`.
+  - Neu tieu chi locked khong cho SV/GV cham, backend nen chan update `sv_score/gv_score` cho criterion locked trong task rieng neu hien chua co.
+- API response cua `/evaluation-detail/summary/:summaryId` can tra du `system_score` va `current_count` de UI hien `P.HSSV` dung.
+
+## Pham vi can kiem tra them
+- `frontend/src/app/grading/score/_utils/score-calculation.ts`
+  - Khong bat buoc sua neu tinh `phssvScore` ngay trong `page.tsx`.
+  - Neu tao helper, can test rieng cho record-derived score.
+- `frontend/src/app/grading/score/_utils/copy-score.ts`
+  - Da co logic giu nguyen tieu chi `is_locked`; khong nen thay doi trong task nay.
+- `frontend/src/components/grading/GradingPdfTemplate.tsx`
+  - Neu PDF/phieu in cung co hien chi tiet `SV/GV` theo tieu chi, nen tao task rieng hoac mo rong scope de dong bo label `P.HSSV`.
 
 ## Acceptance criteria
-- Khi mo `/grading/score`, chon sinh vien da tung luu diem, tab `Lich su ghi nhan` hien cac log da co trong `summary.details[].log`.
-- Khi chuyen qua sinh vien khac, lich su refetch dung sinh vien moi, khong hien data cua sinh vien cu.
-- Khi bam `Luu thay doi`, lich su moi xuat hien ngay sau khi save thanh cong, khong can refresh trang.
-- Khi reload trang, lich su da luu van con va hien thi lai dung.
-- Khi xoa 1 dong lich su, danh sach cap nhat lai, diem/current_count/tong diem dong bo dung.
-- Khi user khong co quyen xem summary, API tra loi ro rang va UI khong hien empty state gay hieu nham la khong co lich su.
-- Production build khong phat sinh TypeScript/lint error lien quan `HistoryRecord` hoac `includeLogs`.
+- Vao `/grading/score`, voi tieu chi co `is_locked: true`, UI khong con hien badge `SV` va `GV`.
+- Tieu chi locked hien dung mot badge `P.HSSV: <diem>d`.
+- Diem trong badge `P.HSSV` lay tu `detail.system_score` do record/ghi nhan tinh ra.
+- Neu co 2 record active, moi record +5d, badge hien `P.HSSV: 10d`.
+- Neu record bi xoa mem `is_deleted: true`, diem `P.HSSV` phai giam/khong tinh record do sau khi sync.
+- Tieu chi khong locked van hien `SV` va `GV` nhu hien tai.
+- Control nhap diem cua tieu chi locked van bi disable, khong cho sinh vien/giao vien sua.
+- Tong diem danh muc va tong diem sinh vien khong doi sai so voi diem record-derived hien tai.
+- Responsive mobile/desktop khong bi tran badge, khong lam vo layout row tieu chi.
 
 ## Test can bo sung
-- Backend:
-  - `GET /evaluation-detail/summary/:summaryId?includeLogs=true` tra ve `details.log`.
-  - `GET /evaluation-detail/summary/:summaryId` khong tra log neu giu contract toi uu payload.
-  - Permission theo role khong lam mat lich su cua sinh vien/lop duoc phep xem.
-- Frontend:
-  - Mock `evaluationDetailApi.getEvaluationDetailsBySummary` de xac nhan `/grading/score` truyen `includeLogs=true` khi build history.
-  - Test map `detail.log` thanh `HistoryRecord` dung `studentId`, `title`, `count`, `points`, `role`, `status`.
-  - Test doi `activeStudentId` reset `historyPage` va thay doi danh sach history.
-  - Test empty state chi hien khi API da tra thanh cong va log that su rong.
+- Unit/UI test cho render row tieu chi:
+  - `is_locked: true` -> co text `P.HSSV`, khong co text `SV:`, khong co text `GV:`.
+  - `is_locked: false` -> co `SV:` va `GV:`, khong co `P.HSSV`.
+- Test helper record-derived score:
+  - co `detail.system_score = 10` -> badge hien `P.HSSV: 10d`.
+  - khong co `detail.system_score`, co `current_count = 2`, `pointsPerUnit = 5` -> fallback hien 10d.
+  - khong fallback qua `sv_score/gv_score` neu `system_score` dang null.
+  - violation `is_score_counted=false` khong bi tru diem hai lan.
+- Backend/regression test:
+  - Tao record active -> `current_count` va `system_score` cua summary detail tang dung.
+  - Xoa mem record -> record do khong con tinh vao `system_score`.
+  - Khoi phuc record -> record duoc tinh lai vao `system_score`.
+- Manual QA:
+  - 1 tieu chi cong diem locked max 10, 2 record x 5d -> `P.HSSV: 10d`.
+  - 1 tieu chi ky luat locked co record vi pham -> hien diem con lai/tru diem dung format hien co.
+  - 1 sinh vien chua duyet va 1 sinh vien da duyet.
+  - Kiem tra mobile viewport de badge khong tran dong.
 
 ## Ngoai pham vi
-- Khong thay doi cong thuc tinh diem ren luyen trong task nay.
-- Khong thay doi logic phe duyet/chot diem neu khong lien quan truc tiep toi lich su.
-- Khong gop/refactor toan bo trang `/grading/score` ngoai cac helper can thiet cho history.
-- Khong sua UI tong the cua trang neu chi xu ly loi khong hien lich su.
+- Khong thay doi cong thuc tinh diem ren luyen.
+- Khong thay doi API criteria/evaluation-detail neu backend da tra `is_locked`, `current_count`, `system_score` dung.
+- Khong thay doi luong phe duyet/chot diem.
+- Khong thay doi logic copy score/reset score ngoai viec dam bao UI hien thi dung.
+- Khong sua PDF/export neu nguoi dung chi yeu cau man hinh `/grading/score`; co the lap task rieng neu can dong bo phieu in.
