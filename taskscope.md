@@ -1,195 +1,194 @@
-﻿# Taskscope: Kiem tra truong Khoa trong "Them ghi nhan Ren luyen"
+﻿# Taskscope: Sua loi button Xuat Excel bi lech/tran layout tren /grading
 
-## 1. Ket luan nhanh
+## Muc tieu
+- Sua loi button `Xuat Excel` bi lech ra ngoai man hinh/tran khoi trang `/grading` khi doi thiet bi, resize viewport hoac dung kich thuoc tablet/desktop hep.
+- Giu button `Xuat Excel` nam ben phai button `Xac nhan` khi 2 nut con du cho nam cung hang.
+- Neu viewport hep, cum nut duoc wrap xuong dong hop ly theo thu tu `Xac nhan` -> `Xuat Excel`, khong tran ngang va khong bi che mat.
+- Khong thay doi logic xuat Excel, filter, confirm filter, API export hay ten file export.
 
-Truong **Khoa** trong man **Them Ghi nhan Ren luyen** van dang dung du lieu tinh/hard-code trong frontend, chua lay tu API `departmentApi.getDepartments()`.
+## Boi canh hien tai
+File can kiem tra/sua chinh:
+- `frontend/src/app/grading/page.tsx`
 
-Backend va frontend da co API that cho danh sach Khoa:
+Vi tri lien quan:
+- Desktop filter toolbar dang nam trong `motion.div` co class gan dung:
 
-- Backend: `GET /departments`
-- Frontend client: `departmentApi.getDepartments()`
+```tsx
+className="hidden lg:flex ... flex-row gap-3 items-center ... w-full"
+```
 
-Tuy nhien rieng component `AddRecordView` chua import/chua goi API nay. State `department` hien chi dung de hien thi dropdown va khong duoc gui trong payload tao/cap nhat ghi nhan ren luyen.
+- Trong toolbar co nhieu phan tu `shrink-0`/`min-w-*`:
+  - Search input.
+  - Select hoc ky.
+  - Nut cau hinh hoc ky.
+  - Select khoa.
+  - Select lop.
+  - Button `Xac nhan`.
+  - Button `Xuat Excel`.
 
-## 2. Bang chung code
+- Button `Xuat Excel` hien dang dung:
 
-### Frontend - man Them Ghi nhan Ren luyen
+```tsx
+className="relative h-9 ... flex items-center gap-2"
+```
 
-File: `frontend/src/components/grading/AddRecordView.tsx`
+Rui ro hien tai:
+- Desktop toolbar bat dau hien tu breakpoint `lg` (`>=1024px`), nhung tong width cua cac select + search + 2 button co the lon hon viewport/tablet ngang.
+- Nhieu phan tu dang `shrink-0`, lam hang filter khong co kha nang co lai/wrap dung cach.
+- Khi viewport hep, button `Xuat Excel` bi day ra ngoai mep phai nhu anh nguoi dung gui.
 
-- Component man hinh: `AddRecordView`
-- Tieu de form: `Them Ghi nhan Ren luyen`
-- State Khoa dang hard-code:
-  - `const [department, setDepartment] = useState('Cong nghe thong tin')`
-- Dropdown Khoa dang co 4 option tinh:
-  - `Cong nghe thong tin`
-  - `Dien tu - Vien thong`
-  - `Kinh te`
-  - `Co khi`
-- Component chi load:
-  - `classApi.getClasses()`
-  - `criteriaApi.getCriteria()`
-  - `semesterApi.getSemesters()`
-- Khong thay:
-  - `departmentApi` import trong file nay
-  - `departmentApi.getDepartments()` trong file nay
-  - hook/store nao cap danh sach Khoa cho form nay
+## Pham vi sua
 
-### Frontend - payload luu ghi nhan
+### 1. Chuan hoa layout toolbar responsive
+File can sua:
+- `frontend/src/app/grading/page.tsx`
 
-File: `frontend/src/components/grading/AddRecordView.tsx`
+Yeu cau:
+- Toolbar desktop khong duoc gay horizontal overflow o cac viewport >= `lg`.
+- Co the chon mot trong cac huong sau, uu tien cach it anh huong UI nhat:
+  - Doi desktop toolbar tu `flex-row` sang `flex-wrap` voi cac nhom co `min-w-0`.
+  - Tach filter controls va action buttons thanh 2 group rieng:
+    - Filter group: search/selects, co the co lai hoac wrap.
+    - Action group: `Xac nhan` + `Xuat Excel`, can giu thu tu va canh phai khi du rong.
+  - Tang breakpoint desktop filter tu `lg` len `xl`, de tablet dung layout mobile/tablet hien co.
+  - Dung CSS grid responsive cho toolbar, vi du search chiem cot linh hoat va action group nam cot cuoi, sau do wrap/row moi khi thieu rong.
+- Parent/container can co `min-w-0`, `max-w-full`; khong dung cach che loi bang `overflow-hidden` neu no lam mat nut.
+- Khong de bat ky phan tu con nao day page tao horizontal scroll.
 
-Khi cap nhat mot ghi nhan, payload gui:
+Goi y class cho container:
 
-- `student_id`
-- `criterion_id`
-- `semester_id`
-- `record_title`
-- `description`
-- `status`
-- `recorded_at`
-- `recorded_by`
+```tsx
+className="hidden xl:flex relative z-20 w-full max-w-full min-w-0 flex-wrap items-center gap-3 ..."
+```
 
-Khi tao hang loat, payload gui:
+Hoac neu giu `lg:flex`:
 
-- `student_id`
-- `criterion_id`
-- `semester_id`
-- `record_title`
-- `description`
-- `status`
-- `recorded_at`
-- `recorded_by`
-- `idempotency_key`
-- `source`
+```tsx
+className="hidden lg:flex relative z-20 w-full max-w-full min-w-0 flex-wrap items-center gap-3 ..."
+```
 
-Khong co field `department`, `faculty`, `department_id`, hay `dept_id` trong payload luu ghi nhan.
+### 2. Tao action group cho Xac nhan + Xuat Excel
+File can sua:
+- `frontend/src/app/grading/page.tsx`
 
-### Frontend - API Khoa da ton tai
+Yeu cau:
+- Boc 2 nut vao wrapper rieng, vi du:
 
-File: `frontend/src/api/department-api.ts`
+```tsx
+<div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+  <Button>...</Button>
+  <Button>...</Button>
+</div>
+```
 
-- `departmentApi.getDepartments()` goi `${API_BASE}/departments`
-- API client nay da duoc dung o cac man khac:
-  - `frontend/src/app/students/page.tsx`
-  - `frontend/src/app/grading/page.tsx`
-  - `frontend/src/components/popups/ClassPopup.tsx`
-  - `frontend/src/components/popups/StudentPopup.tsx`
+- Khi khong du rong, wrapper co the xuong dong nhung khong tran viewport.
+- `Xuat Excel` luon nam sau/phai `Xac nhan` trong cung group.
+- Button can co kich thuoc on dinh:
+  - `h-9`
+  - `min-w-0`
+  - `whitespace-nowrap`
+  - text khong bi cat vo nghia.
+- Tren man hinh hep co the dung responsive text:
+  - icon luon hien.
+  - text `Xuat Excel` co the an o breakpoint nho neu can, nhung phai co `title`/`aria-label` ro rang.
+- Loading spinner khong lam button doi width bat thuong.
 
-### Backend - API Khoa that
+Goi y class cho nut:
 
-Files:
+```tsx
+className="relative h-9 min-w-0 whitespace-nowrap rounded-xl ... inline-flex items-center justify-center gap-2 px-3 sm:px-4"
+```
 
-- `backend/src/departments/departments.controller.ts`
-- `backend/src/departments/departments.service.ts`
-- `backend/src/departments/schemas/department.schema.ts`
+### 3. Dieu chinh width cua select/search de khong ep tran
+File can sua:
+- `frontend/src/app/grading/page.tsx`
 
-Backend co module `departments` that:
+Yeu cau:
+- Search input group nen co `min-w-0` va width linh hoat.
+- Cac select nen dung `min-w` hop ly nhung khong tat ca deu `shrink-0` khi o breakpoint chat.
+- Neu giu desktop toolbar o `lg`, can test truong hop ten khoa/lop dai.
+- Neu ten khoa/lop dai trong SelectValue, text phai truncate trong trigger thay vi lam trigger phinh rong.
 
-- `GET /departments`
-- `GET /departments/:id`
-- `POST /departments`
-- `PATCH /departments/:id`
-- `DELETE /departments/:id`
+Goi y:
 
-Schema `Department` gom cac truong chinh:
+```tsx
+<div className="min-w-0 flex-1 basis-[240px]">
+```
 
-- `name`
-- `code`
-- `description`
+Cho select:
 
-Khong thay endpoint/model rieng ten `faculty` hoac `faculties`.
+```tsx
+<div className="min-w-[150px] max-w-full flex-1 lg:flex-none">
+```
 
-### Backend - ghi nhan ren luyen
+### 4. Giu nguyen logic nghiep vu export
+Khong thay doi:
+- `handleExportSummaryExcel`.
+- Dieu kien disabled cua button export:
 
-Files:
+```tsx
+!appliedSemester || !appliedClass || isExportingExcel || isTableLoading
+```
 
-- `backend/src/academic-record/academic-record.controller.ts`
-- `backend/src/academic-record/schemas/academic-record.schema.ts`
+- Tooltip/title cua button export.
+- Icon `FileSpreadsheet`.
+- Loading spinner khi dang export.
+- Logic confirm filter va applied class/semester.
 
-Ghi nhan ren luyen dung resource `academic-records`, trong schema khong luu truc tiep Khoa. Khoa duoc suy ra theo sinh vien/lop:
+## Acceptance Criteria
+- O viewport desktop rong, `Xuat Excel` nam ben phai `Xac nhan` dung nhu yeu cau cu.
+- O viewport tablet/desktop hep, button khong bi day ra ngoai trang va khong tao horizontal scroll.
+- O cac kich thuoc sau khong co overflow ngang:
+  - 390 x 844
+  - 768 x 1024
+  - 1024 x 768
+  - 1180 x 820
+  - 1366 x 768
+  - 1440 x 900
+- Khi zoom trinh duyet 125% tren desktop, toolbar van khong lam button tran mep phai.
+- Neu action group bi wrap, thu tu van la `Xac nhan` truoc, `Xuat Excel` sau.
+- Text trong button khong de len nhau, khong bi che boi nut ba cham/menu hoac mep trang.
+- Khong lam hong cac flow:
+  - Chon khoa/lop/hoc ky.
+  - Bam `Xac nhan` de tai danh sach.
+  - Bam `Xuat Excel` de tai file Excel.
+  - Mobile/tablet filter va advanced filter button.
 
-- `AcademicRecord.student_id`
-- `Student.class_id`
-- `Class.dept_id`
+## Kiem thu de xuat
+Frontend:
 
-Vi vay neu chi can filter UI theo Khoa, co the xu ly o frontend bang danh sach Department + Class, khong can them field vao `AcademicRecord`.
+```bash
+cd frontend
+npm run lint
+npm run build
+```
 
-## 3. Mock/seed lien quan
+Neu project co test frontend cho trang grading thi chay them:
 
-File: `frontend/src/app/students/page.tsx`
+```bash
+cd frontend
+npm test -- grading
+```
 
-- Co co che seed Khoa/Lop khi `NEXT_PUBLIC_ENABLE_MOCK_SEED === "true"`.
-- Seed nay goi API that `departmentApi.createDepartment(...)`, khong phai la dropdown static trong `AddRecordView`.
+Manual/visual test:
+- Mo `/grading`.
+- Resize browser qua cac moc 390, 768, 1024, 1180, 1366, 1440.
+- Kiem tra khong xuat hien horizontal scrollbar.
+- Kiem tra nut `Xuat Excel` khong bi lech ra ngoai mep phai.
+- Chon khoa/lop/hoc ky, bam `Xac nhan`, sau do bam `Xuat Excel` de dam bao logic van hoat dong.
+- Test voi ten khoa/lop dai neu co du lieu mau.
 
-Files mock cu:
+Co the dung Playwright screenshot neu can xac minh UI:
 
-- `frontend/src/lib/mock-data/students.ts`
-- `frontend/src/lib/mock-data/add-record.ts`
-- `frontend/src/lib/mock-data/ghinhan.ts`
+```bash
+cd frontend
+npm run dev
+```
 
-Chua thay cac file mock nay duoc import truc tiep vao `AddRecordView` hoac `students/record/page.tsx` cho dropdown Khoa hien tai.
+Sau do chup/kiem tra `/grading` o cac viewport tren.
 
-## 4. Pham vi can sua de bo mock Khoa trong form
-
-### Muc tieu
-
-Chuyen dropdown **Khoa** trong `AddRecordView` tu danh sach hard-code sang danh sach lay tu API `departmentApi.getDepartments()`.
-
-### Frontend scope
-
-File can sua chinh:
-
-- `frontend/src/components/grading/AddRecordView.tsx`
-
-Viec can lam:
-
-1. Import `departmentApi` va type `Department`.
-2. Them state `departments`.
-3. Trong `loadData()`, goi them `departmentApi.getDepartments()`.
-4. Doi state `department` tu ten Khoa hard-code sang `departmentId`.
-5. Render dropdown Khoa bang `departments.map(...)`.
-6. Khi chon Khoa, reset `classId`, `selectedStudentId`, `classStudents`, `addedViolations`.
-7. Loc dropdown Lop theo `Class.dept_id` trung voi `departmentId`.
-8. Xu ly trang thai rong/loading/error:
-   - Chua co Khoa
-   - Khong tai duoc danh sach Khoa
-   - Khoa da chon khong co Lop
-9. Edit mode: tu `recordToEdit.student_id.class_id.dept_id` hoac API student/class de set lai `departmentId` tuong ung.
-
-### Backend scope
-
-Khong can sua backend neu muc tieu chi la bo mock dropdown Khoa va loc Lop theo Khoa trong form.
-
-Chi can can nhac backend neu muon:
-
-- Them filter `departmentId` truc tiep vao API ghi nhan ren luyen.
-- Luu snapshot ten Khoa tai thoi diem tao ghi nhan.
-- Export/report can truy van nhanh theo Khoa ma khong populate qua Lop/Sinh vien.
-
-## 5. Acceptance criteria
-
-- Dropdown Khoa trong **Them Ghi nhan Ren luyen** hien dung danh sach tu `GET /departments`.
-- Khong con 4 option hard-code trong `AddRecordView`.
-- Chon Khoa nao thi dropdown Lop chi hien Lop thuoc Khoa do.
-- Doi Khoa se reset Lop, Sinh vien va danh sach ghi nhan tam de tranh luu nham.
-- Tao moi ghi nhan van goi `academicRecordApi.bulkCreateAcademicRecords(...)` nhu hien tai.
-- Cap nhat ghi nhan van goi `academicRecordApi.updateAcademicRecord(...)` nhu hien tai.
-- Payload ghi nhan khong can them `department` neu backend tiep tuc suy ra Khoa qua `student_id -> class_id -> dept_id`.
-- Neu API `/departments` loi, UI hien thong bao ro va khong fallback ve danh sach mock am tham.
-
-## 6. Rui ro va luu y
-
-- `Class.dept_id` co the la string hoac object Department; can normalize khi loc Lop.
-- Neu tai khoan bi gioi han Khoa, `GET /departments` co the chi tra ve cac Khoa duoc phep xem; UI nen ton trong ket qua API.
-- Hien `department` trong `AddRecordView` dang khong anh huong payload, nen viec sua chu yeu tac dong trai nghiem chon/lop/sinh vien.
-- Can can than edit mode: ban ghi cu khong co Khoa truc tiep, phai suy ra tu sinh vien hoac lop cua sinh vien.
-
-## 7. De xuat task tiep theo
-
-Implement fix trong `frontend/src/components/grading/AddRecordView.tsx`:
-
-- Thay dropdown Khoa hard-code bang API departments.
-- Loc Lop theo Khoa.
-- Bo state `department` dang luu ten Khoa tinh, thay bang `departmentId`.
-- Them regression test/kiem tra thu cong cho tao moi va edit mode.
+## Ngoai pham vi
+- Khong sua backend export Excel.
+- Khong doi template Excel/filename.
+- Khong doi design tong the trang `/grading` ngoai layout responsive cua toolbar/filter/action buttons.
+- Khong doi permission hoac role export.

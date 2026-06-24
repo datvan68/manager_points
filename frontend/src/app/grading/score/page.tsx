@@ -12,6 +12,8 @@ import {
   Plus,
   Minus,
   Check,
+  CheckCircle2,
+  Loader2,
   Save,
   RotateCcw,
   History,
@@ -57,6 +59,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 const StudentSliderCard = React.memo(({
   student,
   isActive,
+  isDirty,
+  isSaving,
   isStudentSliderSticky,
   onClick,
   virtualItem,
@@ -142,10 +146,15 @@ const StudentSliderCard = React.memo(({
 
           {/* Realtime progress bar */}
           {isStudentSliderSticky ? (
-            <div className="flex items-center">
+            <div className="flex items-center gap-1.5">
               <span className="font-bold text-[#1A73E8] text-[11px] tracking-wide shrink-0 bg-blue-50/50 px-1.5 py-0.5 rounded-md border border-blue-100/50">
                 {student.score}
               </span>
+              {isDirty || isSaving ? (
+                <Loader2 size={12} className="animate-spin text-amber-500 shrink-0" />
+              ) : (
+                <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+              )}
             </div>
           ) : (
             <div className="flex gap-2.5 items-center mt-1.5">
@@ -155,8 +164,13 @@ const StudentSliderCard = React.memo(({
                   className="bg-[#1A73E8] h-full rounded-lg"
                 />
               </div>
-              <span className="font-bold text-[#1A73E8] text-[9.5px] tracking-wide shrink-0">
+              <span className="font-bold text-[#1A73E8] text-[9.5px] tracking-wide shrink-0 flex items-center gap-1">
                 {student.score}/100
+                {isDirty || isSaving ? (
+                  <Loader2 size={11} className="animate-spin text-amber-500" />
+                ) : (
+                  <CheckCircle2 size={11} className="text-emerald-500" />
+                )}
               </span>
             </div>
           )}
@@ -813,6 +827,8 @@ function GradingScoreContent() {
   }, [students, rosterSearch]);
 
   const [activeStudentId, setActiveStudentId] = useState<string>("");
+  const [dirtyStudentIds, setDirtyStudentIds] = useState<Set<string>>(new Set());
+  const [savingStudentIds, setSavingStudentIds] = useState<Set<string>>(new Set());
   const [subTab, setSubTab] = useState<"category" | "history">("category");
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isRosterLoading, setIsRosterLoading] = useState(false);
@@ -901,6 +917,18 @@ function GradingScoreContent() {
   const [recordToDelete, setRecordToDelete] = useState<HistoryRecord | null>(
     null,
   );
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (dirtyStudentIds.size > 0 || savingStudentIds.size > 0) {
+        e.preventDefault();
+        e.returnValue = "Bạn có dữ liệu đang lưu hoặc chưa lưu. Bạn có chắc muốn rời trang?";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirtyStudentIds.size, savingStudentIds.size]);
 
   const currentSemester = apiSemesters.find(
     (sem) => sem._id === selectedSemesterId,
@@ -1086,10 +1114,15 @@ function GradingScoreContent() {
     [studentIdParam]
   );
 
-  const handleClassChange = (classId: string) => {
+  const handleClassChange = async (classId: string) => {
     if (!classId || classId === selectedClassId || !apiClasses.some((c) => c._id === classId)) {
       return;
     }
+
+    if (activeStudentId && dirtyStudentIds.has(activeStudentId)) {
+      await autosaveStudentIfDirty(activeStudentId, "Tự động lưu khi đổi lớp");
+    }
+
     setSelectedClassId(classId);
     sessionStorage.setItem("grading_appliedClass", classId);
 
@@ -1604,6 +1637,8 @@ function GradingScoreContent() {
   const handleCountChange = (criteriaId: string, delta: number) => {
     if (!activeStudentId) return;
 
+    setDirtyStudentIds(prev => new Set(prev).add(activeStudentId));
+
     const summaryId = studentSummaryMap[activeStudentId];
     if (taskId && summaryId) {
       markStarted(summaryId, { studentId: activeStudentId }).catch((err) => {
@@ -1642,6 +1677,8 @@ function GradingScoreContent() {
   const handleCountSet = (criteriaId: string, value: number) => {
     if (!activeStudentId) return;
 
+    setDirtyStudentIds(prev => new Set(prev).add(activeStudentId));
+
     const summaryId = studentSummaryMap[activeStudentId];
     if (taskId && summaryId) {
       markStarted(summaryId, { studentId: activeStudentId }).catch((err) => {
@@ -1676,6 +1713,8 @@ function GradingScoreContent() {
 
   const handleOptionSet = (criteriaId: string, optionId: string) => {
     if (!activeStudentId) return;
+
+    setDirtyStudentIds(prev => new Set(prev).add(activeStudentId));
 
     const summaryId = studentSummaryMap[activeStudentId];
     if (taskId && summaryId) {
@@ -1742,6 +1781,8 @@ function GradingScoreContent() {
       toast.error("Không có quyền sửa đổi điểm rèn luyện trong giai đoạn này!");
       return;
     }
+
+    setDirtyStudentIds(prev => new Set(prev).add(activeStudentId));
 
     // Chỉ đặt lại các tiêu chí không bị khóa, giữ nguyên các tiêu chí bị khóa (is_locked)
     const currentCounts = evaluationCounts[activeStudentId] || {};
@@ -1990,6 +2031,126 @@ function GradingScoreContent() {
     };
   };
 
+  const saveStudentScore = async (studentId: string, options?: { mode: "manual" | "autosave"; reason?: string; showToast?: boolean }) => {
+    const summaryId = studentSummaryMap[studentId];
+    if (!summaryId) {
+      if (options?.showToast) toast.error("Không tìm thấy bảng điểm rèn luyện của sinh viên này trong học kỳ!");
+      return false;
+    }
+
+    try {
+      if (options?.mode === 'autosave') {
+        setSavingStudentIds((prev) => {
+          const next = new Set(prev);
+          next.add(studentId);
+          return next;
+        });
+      } else {
+        setIsFetching(true);
+        toast.loading("Đang lưu kết quả chấm điểm...", { id: "save-loading" });
+      }
+
+      const counts = evaluationCounts[studentId] || {};
+      const result = await persistStudentScore(
+        studentId,
+        summaryId,
+        counts,
+        options?.reason || "Cập nhật điểm rèn luyện"
+      );
+
+      setEvaluationCounts((prev) => ({
+        ...prev,
+        [studentId]: result.freshCounts,
+      }));
+
+      if (activeStudentId === studentId) {
+        setEvaluationDetailsMap(result.freshDetailsMap);
+        setHistoryRecords((prev) => [
+          ...result.freshHistory,
+          ...prev.filter((record) => record.studentId !== studentId),
+        ]);
+      }
+
+      setPreExistingCountsState((prev) => ({
+        ...prev,
+        [studentId]: result.freshPreExistingCounts || {},
+      }));
+
+      setStudents((prev) =>
+        prev.map((std) =>
+          std.id === studentId ? { ...std, score: result.score } : std
+        ),
+      );
+
+      setDirtyStudentIds((prev) => {
+        const next = new Set(prev);
+        next.delete(studentId);
+        return next;
+      });
+
+      if (options?.mode === 'manual') {
+        toast.dismiss("save-loading");
+        if (options?.showToast !== false) {
+          const std = students.find((s) => s.id === studentId);
+          toast.success(`Đã lưu thành công điểm rèn luyện ${result.score}/100đ cho sinh viên ${std?.name || ""}!`);
+        }
+      } else {
+        if (options?.showToast !== false) {
+          toast.success(`Đã tự động lưu điểm rèn luyện!`);
+        }
+      }
+
+      if (taskId) {
+        await syncLinkedTaskCompleted(summaryId);
+      }
+      return true;
+    } catch (error: any) {
+      if (options?.mode === 'manual') {
+        toast.dismiss("save-loading");
+        toast.error("Lỗi khi lưu kết quả chấm điểm: " + error.message);
+      } else {
+        if (options?.showToast !== false) {
+          toast.error("Tự động lưu thất bại: " + error.message);
+        }
+      }
+      return false;
+    } finally {
+      if (options?.mode === 'autosave') {
+        setSavingStudentIds((prev) => {
+          const next = new Set(prev);
+          next.delete(studentId);
+          return next;
+        });
+      } else {
+        setIsFetching(false);
+      }
+    }
+  };
+
+  const autosaveStudentIfDirty = async (studentId: string, reason?: string, showToast: boolean = false) => {
+    if (dirtyStudentIds.has(studentId)) {
+      await saveStudentScore(studentId, { mode: "autosave", reason, showToast });
+    }
+  };
+
+  useEffect(() => {
+    if (!activeStudentId || !dirtyStudentIds.has(activeStudentId)) return;
+    
+    const studentIdToSave = activeStudentId;
+    const timer = setTimeout(() => {
+      autosaveStudentIfDirty(studentIdToSave, "Tự động lưu sau khi ngừng thao tác", false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [evaluationCounts, activeStudentId, dirtyStudentIds]);
+
+  const handleActiveStudentChange = async (nextStudentId: string) => {
+    if (activeStudentId && activeStudentId !== nextStudentId) {
+      await autosaveStudentIfDirty(activeStudentId, "Tự động lưu khi chuyển sinh viên", false);
+    }
+    setActiveStudentId(nextStudentId);
+  };
+
   // Hàm Lưu thay đổi thực tế đồng bộ database qua API
   const handleSave = async () => {
     if (!activeStudent || isFetching) return;
@@ -1998,63 +2159,7 @@ function GradingScoreContent() {
       return;
     }
 
-    const summaryId = studentSummaryMap[activeStudentId];
-    if (!summaryId) {
-      toast.error(
-        "Không tìm thấy bảng điểm rèn luyện của sinh viên này trong học kỳ!",
-      );
-      return;
-    }
-
-    try {
-      setIsFetching(true);
-      toast.loading("Đang lưu kết quả chấm điểm...", { id: "save-loading" });
-
-      const counts = evaluationCounts[activeStudentId] || {};
-      const result = await persistStudentScore(
-        activeStudentId,
-        summaryId,
-        counts,
-        "Cập nhật điểm rèn luyện"
-      );
-
-      // Cập nhật các local states
-      setEvaluationCounts((prev) => ({
-        ...prev,
-        [activeStudentId]: result.freshCounts,
-      }));
-      setEvaluationDetailsMap(result.freshDetailsMap);
-      setPreExistingCountsState((prev) => ({
-        ...prev,
-        [activeStudentId]: result.freshPreExistingCounts || {},
-      }));
-      setHistoryRecords((prev) => [
-        ...result.freshHistory,
-        ...prev.filter((record) => record.studentId !== activeStudentId),
-      ]);
-
-      setStudents((prev) =>
-        prev.map((std) =>
-          std.id === activeStudentId
-            ? { ...std, score: result.score }
-            : std,
-        ),
-      );
-
-      toast.dismiss("save-loading");
-      toast.success(
-        `Đã lưu thành công điểm rèn luyện ${result.score}/100đ cho sinh viên ${activeStudent.name}!`,
-      );
-
-      if (taskId) {
-        await syncLinkedTaskCompleted(summaryId);
-      }
-    } catch (error: any) {
-      toast.dismiss("save-loading");
-      toast.error("Lỗi khi lưu kết quả chấm điểm: " + error.message);
-    } finally {
-      setIsFetching(false);
-    }
+    await saveStudentScore(activeStudentId, { mode: "manual" });
   };
 
   // Hàm xử lý xác nhận sao chép điểm rèn luyện hàng loạt cho các target students
@@ -2932,14 +3037,18 @@ function GradingScoreContent() {
                         {studentVirtualizer.getVirtualItems().map((virtualItem) => {
                           const student = filteredStudentsForRoster[virtualItem.index];
                           const isActive = student.id === activeStudentId;
+                          const isDirty = dirtyStudentIds.has(student.id);
+                          const isSaving = savingStudentIds.has(student.id);
 
                           return (
                             <StudentSliderCard
                               key={student.id || `student-card-${virtualItem.index}`}
                               student={student}
                               isActive={isActive}
+                              isDirty={isDirty}
+                              isSaving={isSaving}
                               isStudentSliderSticky={isStudentSliderSticky}
-                              onClick={setActiveStudentId}
+                              onClick={handleActiveStudentChange}
                               virtualItem={virtualItem}
                               measureElement={studentVirtualizer.measureElement}
                               getInitials={getInitials}
