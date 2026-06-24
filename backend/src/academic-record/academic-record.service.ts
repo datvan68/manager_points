@@ -516,13 +516,62 @@ export class AcademicRecordService {
 
     // Apply search filter
     if (search) {
-      if (!filter.$and) filter.$and = [];
-      filter.$and.push({
-        $or: [
-          { record_title: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } }
-        ]
-      });
+      const trimmedSearch = search.trim();
+      if (trimmedSearch) {
+        const escapedSearch = trimmedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        // Find students matching search
+        const matchingStudents = await this.studentModel.find({
+          $or: [
+            { full_name: { $regex: escapedSearch, $options: 'i' } },
+            { student_code: { $regex: escapedSearch, $options: 'i' } }
+          ]
+        }).select('_id').exec();
+        const studentIds = matchingStudents.map((s: any) => s._id);
+
+        // Find criteria matching search
+        const matchingCriteria = await this.criterionModel.find({
+          criterion_name: { $regex: escapedSearch, $options: 'i' }
+        }).select('_id').exec();
+        const criterionIds = matchingCriteria.map((c: any) => c._id);
+
+        if (!filter.$and) filter.$and = [];
+        filter.$and.push({
+          $or: [
+            { record_title: { $regex: escapedSearch, $options: 'i' } },
+            { description: { $regex: escapedSearch, $options: 'i' } },
+            { student_id: { $in: studentIds } },
+            { criterion_id: { $in: criterionIds } }
+          ]
+        });
+      }
+    }
+
+    // Process creator query if provided
+    const creator = query?.creator;
+    if (creator && creator !== 'all') {
+      try {
+        const roleModel = this.academicRecordModel.db.model('Role');
+        const userModel = this.academicRecordModel.db.model('User');
+
+        let roleRegex = '';
+        if (creator === 'admin') roleRegex = 'admin';
+        else if (creator === 'supervisor') roleRegex = 'supervisor|quản sinh|quan sinh';
+        else if (creator === 'teacher') roleRegex = 'teacher|advisor|giảng viên|giang vien';
+        else if (creator === 'student') roleRegex = 'student|học sinh|sinh viên';
+
+        if (roleRegex) {
+          const matchingRoles = await roleModel.find({ name: { $regex: roleRegex, $options: 'i' } }).select('_id').exec();
+          const roleIds = matchingRoles.map((r: any) => r._id);
+          
+          const matchingUsers = await userModel.find({ role: { $in: roleIds } }).select('_id').exec();
+          const userIds = matchingUsers.map((u: any) => u._id);
+
+          filter.recorded_by = { $in: userIds };
+        }
+      } catch (err) {
+        console.warn('Could not filter by creator due to missing models or error:', err);
+      }
     }
 
     const startDate = query?.startDate;

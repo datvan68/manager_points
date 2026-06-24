@@ -115,10 +115,34 @@ export class DailyClassReportService {
     }
 
     if (search) {
-      filter.$or = [
-        { teacher_name: { $regex: search, $options: 'i' } },
-        { class_notes: { $regex: search, $options: 'i' } }
-      ];
+      const trimmedSearch = search.trim();
+      if (trimmedSearch) {
+        const escapedSearch = trimmedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        // Find class matching search
+        const classModel = this.dailyClassReportModel.db.model('Class');
+        const matchingClasses = await classModel.find({
+          class_name: { $regex: escapedSearch, $options: 'i' }
+        }).select('_id').exec();
+        const classIds = matchingClasses.map((c: any) => c._id);
+
+        // Find user matching search
+        const userModel = this.dailyClassReportModel.db.model('User');
+        const matchingUsers = await userModel.find({
+          $or: [
+            { user_name: { $regex: escapedSearch, $options: 'i' } },
+            { email: { $regex: escapedSearch, $options: 'i' } }
+          ]
+        }).select('_id').exec();
+        const userIds = matchingUsers.map((u: any) => u._id);
+
+        filter.$or = [
+          { teacher_name: { $regex: escapedSearch, $options: 'i' } },
+          { class_notes: { $regex: escapedSearch, $options: 'i' } },
+          { class_id: { $in: classIds } },
+          { reported_by: { $in: userIds } }
+        ];
+      }
     }
 
     const isPaginationRequested = page !== undefined || limit !== undefined;

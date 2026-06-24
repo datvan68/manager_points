@@ -176,6 +176,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     "list",
   );
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -241,6 +242,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [classes, setClasses] = useState<Class[]>([]);
   const [isClassLoading, setIsClassLoading] = useState(false);
   const [classSearchTerm, setClassSearchTerm] = useState("");
+  const [debouncedClassSearchTerm, setDebouncedClassSearchTerm] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("all");
   const [selectedReportDateRange, setSelectedReportDateRange] = useState<{
     start: Date;
@@ -276,16 +278,26 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   >("all");
 
   useEffect(() => {
-    // Current page reset is handled directly in the event handlers or we can leave it here, 
-    // but we don't need this useEffect to reset page.
-    // However, if we keep it, it will reset page to 1 when filters change.
-    // The main fetch effects below will handle fetching.
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedClassSearchTerm(classSearchTerm);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [classSearchTerm]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedClassIdForStudent, creatorFilter, itemsPerPage, filterDateRange]);
+  }, [debouncedSearchTerm, selectedClassIdForStudent, creatorFilter, itemsPerPage, filterDateRange]);
 
   useEffect(() => {
     setClassCurrentPage(1);
-  }, [classSearchTerm, selectedClassId, classItemsPerPage, selectedReportDateRange]);
+  }, [debouncedClassSearchTerm, selectedClassId, classItemsPerPage, selectedReportDateRange]);
 
   const toggleExpandCard = (index: number) => {
     setExpandedCards((prev) => ({
@@ -339,10 +351,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         const res = await academicRecordApi.getAcademicRecords({
           page: currentPage,
           limit: itemsPerPage,
-          search: searchTerm || undefined,
+          search: debouncedSearchTerm || undefined,
           classId: selectedClassIdForStudent === "all" ? undefined : selectedClassIdForStudent,
           startDate: filterDateRange?.start ? format(filterDateRange.start, "yyyy-MM-dd") : undefined,
           endDate: filterDateRange?.end ? format(filterDateRange.end, "yyyy-MM-dd") : undefined,
+          creator: creatorFilter !== "all" ? creatorFilter : undefined,
         });
         if (res && 'data' in res) {
           records = res.data;
@@ -519,7 +532,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           page: classCurrentPage,
           limit: classItemsPerPage,
           classId: selectedClassId === "all" ? undefined : selectedClassId,
-          search: classSearchTerm || undefined,
+          search: debouncedClassSearchTerm || undefined,
           startDate: selectedReportDateRange?.start ? format(selectedReportDateRange.start, "yyyy-MM-dd") : undefined,
           endDate: selectedReportDateRange?.end ? format(selectedReportDateRange.end, "yyyy-MM-dd") : undefined,
         });
@@ -562,13 +575,13 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     if (activeSubTab === "student") {
       fetchAcademicRecords();
     }
-  }, [activeSubTab, currentPage, itemsPerPage, searchTerm, selectedClassIdForStudent, filterDateRange, creatorFilter]);
+  }, [activeSubTab, currentPage, itemsPerPage, debouncedSearchTerm, selectedClassIdForStudent, filterDateRange, creatorFilter]);
 
   useEffect(() => {
     if (activeSubTab === "class") {
       fetchClassReports();
     }
-  }, [activeSubTab, classCurrentPage, classItemsPerPage, classSearchTerm, selectedClassId, selectedReportDateRange]);
+  }, [activeSubTab, classCurrentPage, classItemsPerPage, debouncedClassSearchTerm, selectedClassId, selectedReportDateRange]);
 
   // Map academicRecords to dummy format for UI compatibility
   const mappedRecords = academicRecords.map((r) => {
