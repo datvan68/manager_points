@@ -326,3 +326,40 @@ export class RestoreBackupImportDto {
   @IsNotEmpty()
   confirmationText: string;
 }
+
+export class UpdateMailSettingsDto {
+  @IsString()
+  @IsNotEmpty()
+  host: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  port: number;
+
+  @IsBoolean()
+  secure: boolean;
+
+  @IsString()
+  @IsNotEmpty()
+  user: string;
+
+  @IsOptional()
+  @IsString()
+  pass?: string; // Optional, nếu không truyền sẽ giữ nguyên pass cũ
+
+  @IsString()
+  @IsNotEmpty()
+  from: string;
+}
+
+export class SendTestMailDto {
+  @IsString()
+  @IsNotEmpty()
+  to: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateMailSettingsDto)
+  config?: UpdateMailSettingsDto; // Optional config để test cấu hình chưa lưu
+}

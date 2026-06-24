@@ -18,6 +18,7 @@ import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
 import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi } from '@/api/evaluation-detail-api';
+import { departmentApi, Department } from '@/api/department-api';
 import { useAuth } from '@/providers/auth-provider';
 import { useLinkedTaskProgress } from '@/hooks/useLinkedTaskProgress';
 
@@ -63,7 +64,8 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
   const [isStudentsLoading, setIsStudentsLoading] = useState(false);
 
   // Card Trái (Thông tin cơ bản)
-  const [department, setDepartment] = useState('Công nghệ thông tin'); // Khoa mặc định
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [department, setDepartment] = useState('');
   const [classId, setClassId] = useState('');
   const [category, setCategory] = useState('ky_luat'); // 'ky_luat' hoặc 'khen_thuong'
   const [criterionId, setCriterionId] = useState('');
@@ -85,6 +87,13 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
       try {
         const classList = await classApi.getClasses();
         setClasses(classList);
+
+        try {
+          const departmentList = await departmentApi.getDepartments();
+          setDepartments(departmentList);
+        } catch (deptErr) {
+          console.warn('Lỗi khi nạp danh sách Khoa:', deptErr);
+        }
 
         const criteriaList = await criteriaApi.getCriteria();
         setCriteria(criteriaList);
@@ -108,13 +117,22 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
           
           // Resolve class from student object or by calling student API
           let classIdFromRecord = '';
+          let departmentIdFromRecord = '';
           if (studentObj?.class_id) {
             classIdFromRecord = typeof studentObj.class_id === 'object' ? studentObj.class_id?._id : studentObj.class_id;
+            const classObj = typeof studentObj.class_id === 'object' ? studentObj.class_id : classList.find(c => c._id === classIdFromRecord);
+            if (classObj && classObj.dept_id) {
+              departmentIdFromRecord = typeof classObj.dept_id === 'object' ? classObj.dept_id?._id : classObj.dept_id;
+            }
           } else if (studentIdStr) {
             try {
               const sObj = await studentApi.getStudent(studentIdStr);
               if (sObj) {
                 classIdFromRecord = typeof sObj.class_id === 'object' ? sObj.class_id?._id : sObj.class_id;
+                const classObj = typeof sObj.class_id === 'object' ? sObj.class_id : classList.find(c => c._id === classIdFromRecord);
+                if (classObj && classObj.dept_id) {
+                  departmentIdFromRecord = typeof classObj.dept_id === 'object' ? classObj.dept_id?._id : classObj.dept_id;
+                }
               }
             } catch (err) {
               console.warn('Lỗi phân giải lớp từ sinh viên:', err);
@@ -137,6 +155,9 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
             ? recordToEdit.semester_id?._id
             : recordToEdit.semester_id;
 
+          if (departmentIdFromRecord) {
+            setDepartment(String(departmentIdFromRecord));
+          }
           if (classIdFromRecord) {
             setClassId(classIdFromRecord);
           }
@@ -212,6 +233,20 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
     setViolationNote('');
     setAddedViolations([]);
   };
+
+  const handleDepartmentChange = (nextDeptId: string) => {
+    setDepartment(nextDeptId);
+    setClassId('');
+    setSelectedStudentId('');
+    setViolationNote('');
+    setAddedViolations([]);
+  };
+
+  const filteredClasses = classes.filter(c => {
+    if (!department) return false;
+    const cDeptId = typeof c.dept_id === 'object' ? c.dept_id?._id : c.dept_id;
+    return cDeptId === department;
+  });
 
   // Lọc sinh viên theo lớp học đang chọn từ backend
   useEffect(() => {
@@ -509,7 +544,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                     <div className="flex flex-col w-full relative">
                       <Select
                         value={department}
-                        onValueChange={setDepartment}
+                        onValueChange={handleDepartmentChange}
                         label="Khoa"
                         required
                         error={""}
@@ -518,10 +553,12 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           <SelectValue placeholder="Chọn Khoa..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
-                          <SelectItem value="Công nghệ thông tin">Khoa Công nghệ thông tin</SelectItem>
-                          <SelectItem value="Điện tử - Viễn thông">Khoa Điện tử - Viễn thông</SelectItem>
-                          <SelectItem value="Kinh tế">Khoa Kinh tế</SelectItem>
-                          <SelectItem value="Cơ khí">Khoa Cơ khí</SelectItem>
+                          {departments.map(d => (
+                            <SelectItem key={d._id} value={d._id}>{d.name}</SelectItem>
+                          ))}
+                          {departments.length === 0 && (
+                            <div className="p-4 text-center text-xs text-slate-400 italic">Không có khoa nào</div>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -539,9 +576,14 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           <SelectValue placeholder="Chọn lớp học..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
-                          {classes.map(c => (
+                          {filteredClasses.map(c => (
                             <SelectItem key={c._id} value={c._id}>{c.class_name}</SelectItem>
                           ))}
+                          {filteredClasses.length === 0 && (
+                            <div className="p-4 text-center text-xs text-slate-400 italic">
+                              {department ? 'Không có lớp học nào thuộc khoa này' : 'Vui lòng chọn Khoa trước'}
+                            </div>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>

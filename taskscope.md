@@ -1,131 +1,195 @@
-﻿# Taskscope - Trang cài đặt cấu hình MAIL SMTP cho Admin
+﻿# Taskscope: Kiem tra truong Khoa trong "Them ghi nhan Ren luyen"
 
-## Bối cảnh
+## 1. Ket luan nhanh
 
-Sidebar hiện có button `Cài đặt` ở footer nhưng button này chưa điều hướng hoặc mở trang cấu hình. Hệ thống đang dùng `MailService` để gửi email quên mật khẩu/OTP qua SMTP với các biến `MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASS`, `MAIL_FROM`. Người dùng cần một trang cài đặt để Admin nhập đầy đủ thông tin SMTP, lưu cấu hình và kiểm tra kết nối mail ngay trong hệ thống.
+Truong **Khoa** trong man **Them Ghi nhan Ren luyen** van dang dung du lieu tinh/hard-code trong frontend, chua lay tu API `departmentApi.getDepartments()`.
 
-## Mục tiêu
+Backend va frontend da co API that cho danh sach Khoa:
 
-Tạo trang cài đặt hệ thống dành riêng cho Admin, tập trung trước vào cấu hình MAIL SMTP. Trang này cho phép Admin xem trạng thái cấu hình mail, nhập/sửa thông tin SMTP, kiểm tra kết nối SMTP và gửi email thử để xác nhận OTP/quên mật khẩu có thể gửi được.
+- Backend: `GET /departments`
+- Frontend client: `departmentApi.getDepartments()`
 
-## Phạm vi chức năng
+Tuy nhien rieng component `AddRecordView` chua import/chua goi API nay. State `department` hien chi dung de hien thi dropdown va khong duoc gui trong payload tao/cap nhat ghi nhan ren luyen.
 
-1. Sidebar
-   - Biến button `Cài đặt` ở footer trong `frontend/src/components/layout/Sidebar.tsx` thành link/button điều hướng tới trang cài đặt.
-   - Route đề xuất: `/system/settings` để nằm trong phân hệ quản trị hệ thống hiện có, tránh dùng lại `/settings` vì backend đang có logic dọn route mapping cũ này.
-   - Chỉ hiển thị button này với Admin thật sự: `roleCode === 'ADMIN'`, `roleName === 'Admin'`, hoặc có `ADMIN_FULL`.
-   - Trạng thái active phải nhận diện được khi đang ở `/system/settings`.
+## 2. Bang chung code
 
-2. Trang UI cấu hình MAIL
-   - Tạo trang `frontend/src/app/system/settings/page.tsx` hoặc tách component dưới `frontend/src/app/system/settings/_components` nếu form lớn.
-   - Bọc trang bằng `RouteGuard` hoặc guard tương đương, fail-closed, admin-only.
-   - Giao diện là màn hình công cụ cấu hình, không làm landing page.
-   - Các trường cấu hình cần có:
-     - `MAIL_HOST`: SMTP host, ví dụ `smtp.gmail.com`, `smtp.office365.com`.
-     - `MAIL_PORT`: port số, thường `587` hoặc `465`.
-     - `MAIL_SECURE`: toggle SSL/TLS trực tiếp; gợi ý `false` cho port `587`, `true` cho port `465`.
-     - `MAIL_USER`: tài khoản SMTP.
-     - `MAIL_PASS`: mật khẩu/app password/token SMTP, nhập dạng password và write-only.
-     - `MAIL_FROM`: địa chỉ gửi đầy đủ, ví dụ `"Manager Point" <noreply@domain.edu.vn>`.
-     - Tùy chọn bổ sung nếu backend hỗ trợ: `MAIL_REPLY_TO`, `MAIL_PROVIDER`, `MAIL_TIMEOUT_MS`, `MAIL_TLS_REJECT_UNAUTHORIZED`.
-   - UI cần có trạng thái:
-     - Đang tải cấu hình.
-     - Chưa cấu hình.
-     - Đã cấu hình nhưng thiếu trường bắt buộc.
-     - Đã cấu hình đủ.
-     - Kiểm tra kết nối thành công/thất bại.
-     - Lưu thành công/thất bại.
-   - `MAIL_PASS` không được hiển thị lại từ API. Nếu đã có mật khẩu, hiển thị trạng thái `Đã cấu hình` và ô nhập mới với mô tả nhập để thay đổi.
+### Frontend - man Them Ghi nhan Ren luyen
 
-3. Backend API cấu hình MAIL
-   - Thêm API admin-only dưới `backend/src/system/system.controller.ts`, đề xuất:
-     - `GET /api/system/settings/mail`: lấy cấu hình mail đã mask secret.
-     - `PATCH /api/system/settings/mail`: lưu/cập nhật cấu hình mail.
-     - `POST /api/system/settings/mail/test-connection`: gọi `transporter.verify()` với cấu hình hiện tại hoặc payload draft.
-     - `POST /api/system/settings/mail/send-test`: gửi email thử tới địa chỉ do Admin nhập.
-   - Tất cả endpoint phải dùng `JwtAuthGuard`, `PermissionsGuard` và kiểm tra Admin thật sự, không chỉ `SYSTEM_ADMIN`, vì yêu cầu là chỉ Admin được thấy và tương tác.
-   - Thêm permission mới nếu cần quản lý theo RBAC: `SYSTEM_MAIL_CONFIG_MANAGE`, nhưng vẫn nên bắt buộc Admin/`ADMIN_FULL` ở backend do đây là cấu hình secret.
+File: `frontend/src/components/grading/AddRecordView.tsx`
 
-4. Lưu trữ cấu hình
-   - Không ghi trực tiếp vào `.env` từ UI.
-   - Không trả raw `MAIL_PASS` về frontend.
-   - Đề xuất tạo collection/schema mới, ví dụ `SystemSetting` hoặc `MailSetting`, lưu cấu hình runtime trong database.
-   - Trường nhạy cảm như `MAIL_PASS` phải mã hóa trước khi lưu. Cần biến server-side riêng để mã hóa, ví dụ `SETTINGS_ENCRYPTION_KEY` hoặc dùng secret hiện có nếu phù hợp.
-   - Khi update mà `MAIL_PASS` rỗng/không truyền lên, giữ nguyên mật khẩu SMTP cũ.
-   - Cấu hình từ database nên override env khi tồn tại; nếu chưa có trong DB thì fallback về env hiện tại để không làm hỏng production đang chạy.
+- Component man hinh: `AddRecordView`
+- Tieu de form: `Them Ghi nhan Ren luyen`
+- State Khoa dang hard-code:
+  - `const [department, setDepartment] = useState('Cong nghe thong tin')`
+- Dropdown Khoa dang co 4 option tinh:
+  - `Cong nghe thong tin`
+  - `Dien tu - Vien thong`
+  - `Kinh te`
+  - `Co khi`
+- Component chi load:
+  - `classApi.getClasses()`
+  - `criteriaApi.getCriteria()`
+  - `semesterApi.getSemesters()`
+- Khong thay:
+  - `departmentApi` import trong file nay
+  - `departmentApi.getDepartments()` trong file nay
+  - hook/store nao cap danh sach Khoa cho form nay
 
-5. Tích hợp MailService
-   - Refactor `backend/src/core/mail/mail.service.ts` để lấy SMTP config từ nguồn cấu hình tập trung: DB setting nếu có, fallback env.
-   - Có cơ chế rebuild/reload Nodemailer transporter sau khi Admin lưu cấu hình mới.
-   - Thêm method:
-     - `getSafeMailConfig()` trả config đã mask.
-     - `updateMailConfig(dto)` lưu config và refresh transporter.
-     - `verifyConnection(config?)` kiểm tra kết nối SMTP.
-     - `sendTestEmail(to)` gửi email thử.
-   - Log lỗi SMTP phải an toàn: chỉ log metadata như `code`, `command`, `responseCode`, `address`, `port`; không log email thật, OTP, token, password hoặc raw config.
+### Frontend - payload luu ghi nhan
 
-6. Frontend API client
-   - Bổ sung hàm vào `frontend/src/api/system-api.ts`:
-     - `getMailSettings()`.
-     - `updateMailSettings(payload)`.
-     - `testMailConnection(payload?)`.
-     - `sendTestMail(payload)`.
-   - TypeScript interface cho cấu hình mail phải tách rõ field secret write-only:
-     - response: `hasPassword: boolean`, không có `MAIL_PASS`.
-     - request: cho phép `mailPass?: string`.
+File: `frontend/src/components/grading/AddRecordView.tsx`
 
-7. Phân quyền và route mapping
-   - Cập nhật registry/seed permission trong `backend/src/auth/permissions.registry.ts` và RBAC seed nếu dùng permission mới.
-   - Thêm route permission mapping cho `/system/settings` nếu dùng dynamic route guard.
-   - Cập nhật `getPagePermissionScopes()` để hiển thị quyền cấu hình mail trong màn phân quyền/tổng quan.
-   - Không cấp quyền này mặc định cho `System Operator`, `Audit Viewer`, `Backup Operator`; chỉ Admin hoặc role có `ADMIN_FULL`.
+Khi cap nhat mot ghi nhan, payload gui:
 
-## Ngoài phạm vi
+- `student_id`
+- `criterion_id`
+- `semester_id`
+- `record_title`
+- `description`
+- `status`
+- `recorded_at`
+- `recorded_by`
 
-- Không đổi luồng OTP/quên mật khẩu ngoài việc dùng SMTP config mới.
-- Không ghi/sửa file `.env` từ UI.
-- Không hiển thị hoặc export mật khẩu SMTP đã lưu.
-- Không tích hợp OAuth Gmail/Microsoft trong scope này; chỉ SMTP username/password/app password.
-- Không tạo màn hình cấu hình toàn bộ hệ thống ngoài MAIL nếu chưa được yêu cầu.
+Khi tao hang loat, payload gui:
 
-## File liên quan dự kiến
+- `student_id`
+- `criterion_id`
+- `semester_id`
+- `record_title`
+- `description`
+- `status`
+- `recorded_at`
+- `recorded_by`
+- `idempotency_key`
+- `source`
 
-- `frontend/src/components/layout/Sidebar.tsx`
-- `frontend/src/app/system/settings/page.tsx`
-- `frontend/src/api/system-api.ts`
-- `frontend/src/components/guards/RouteGuard.tsx` nếu cần hỗ trợ admin-only rõ hơn
-- `frontend/src/providers/auth-provider.tsx`
-- `backend/src/system/system.controller.ts`
-- `backend/src/system/system.service.ts`
-- `backend/src/system/system.module.ts`
-- `backend/src/system/dto/system.dto.ts`
-- `backend/src/core/mail/mail.service.ts`
-- `backend/src/core/mail/mail.module.ts`
-- `backend/src/auth/permissions.registry.ts`
-- `backend/src/auth/services/auth.service.ts`
-- `docs/otp-rollout-checklist.md`
-- `docker-compose.prod.yml` nếu cần bổ sung biến mã hóa setting như `SETTINGS_ENCRYPTION_KEY`
+Khong co field `department`, `faculty`, `department_id`, hay `dept_id` trong payload luu ghi nhan.
 
-## Tiêu chí hoàn thành
+### Frontend - API Khoa da ton tai
 
-- Admin thấy và bấm được button `Cài đặt` ở sidebar để vào `/system/settings`.
-- User không phải Admin không thấy button này và không truy cập được trang/API dù gọi trực tiếp URL.
-- Trang cấu hình MAIL hiển thị đủ field SMTP, validate port/secure hợp lý, lưu được cấu hình.
-- `MAIL_PASS` chỉ nhập để tạo/cập nhật, không bao giờ trả ngược raw value về frontend.
-- Admin có thể test connection và gửi email thử từ UI.
-- Luồng quên mật khẩu OTP dùng cấu hình SMTP mới sau khi lưu.
-- Nếu chưa có cấu hình DB, hệ thống vẫn fallback env hiện tại.
-- Log lỗi mail đủ thông tin debug nhưng không lộ secret hoặc email thật.
+File: `frontend/src/api/department-api.ts`
 
-## Kiểm thử đề xuất
+- `departmentApi.getDepartments()` goi `${API_BASE}/departments`
+- API client nay da duoc dung o cac man khac:
+  - `frontend/src/app/students/page.tsx`
+  - `frontend/src/app/grading/page.tsx`
+  - `frontend/src/components/popups/ClassPopup.tsx`
+  - `frontend/src/components/popups/StudentPopup.tsx`
 
-- Backend unit test cho service lưu cấu hình mail, mask secret, giữ nguyên password khi không truyền password mới.
-- Backend unit/integration test cho endpoint admin-only: Admin được truy cập, non-admin nhận 403.
-- Test `MailService.verifyConnection()` với mock Nodemailer success/fail.
-- Frontend test form validation: port không hợp lệ, thiếu host/user/from, password write-only.
-- Chạy:
-  - `cd backend && npm test -- system`
-  - `cd backend && npm test -- mail`
-  - `cd backend && npm run build`
-  - `cd frontend && npm run build`
-- Manual test với SMTP thật: lưu cấu hình, test connection, gửi mail thử, thực hiện quên mật khẩu nhận OTP.
+### Backend - API Khoa that
+
+Files:
+
+- `backend/src/departments/departments.controller.ts`
+- `backend/src/departments/departments.service.ts`
+- `backend/src/departments/schemas/department.schema.ts`
+
+Backend co module `departments` that:
+
+- `GET /departments`
+- `GET /departments/:id`
+- `POST /departments`
+- `PATCH /departments/:id`
+- `DELETE /departments/:id`
+
+Schema `Department` gom cac truong chinh:
+
+- `name`
+- `code`
+- `description`
+
+Khong thay endpoint/model rieng ten `faculty` hoac `faculties`.
+
+### Backend - ghi nhan ren luyen
+
+Files:
+
+- `backend/src/academic-record/academic-record.controller.ts`
+- `backend/src/academic-record/schemas/academic-record.schema.ts`
+
+Ghi nhan ren luyen dung resource `academic-records`, trong schema khong luu truc tiep Khoa. Khoa duoc suy ra theo sinh vien/lop:
+
+- `AcademicRecord.student_id`
+- `Student.class_id`
+- `Class.dept_id`
+
+Vi vay neu chi can filter UI theo Khoa, co the xu ly o frontend bang danh sach Department + Class, khong can them field vao `AcademicRecord`.
+
+## 3. Mock/seed lien quan
+
+File: `frontend/src/app/students/page.tsx`
+
+- Co co che seed Khoa/Lop khi `NEXT_PUBLIC_ENABLE_MOCK_SEED === "true"`.
+- Seed nay goi API that `departmentApi.createDepartment(...)`, khong phai la dropdown static trong `AddRecordView`.
+
+Files mock cu:
+
+- `frontend/src/lib/mock-data/students.ts`
+- `frontend/src/lib/mock-data/add-record.ts`
+- `frontend/src/lib/mock-data/ghinhan.ts`
+
+Chua thay cac file mock nay duoc import truc tiep vao `AddRecordView` hoac `students/record/page.tsx` cho dropdown Khoa hien tai.
+
+## 4. Pham vi can sua de bo mock Khoa trong form
+
+### Muc tieu
+
+Chuyen dropdown **Khoa** trong `AddRecordView` tu danh sach hard-code sang danh sach lay tu API `departmentApi.getDepartments()`.
+
+### Frontend scope
+
+File can sua chinh:
+
+- `frontend/src/components/grading/AddRecordView.tsx`
+
+Viec can lam:
+
+1. Import `departmentApi` va type `Department`.
+2. Them state `departments`.
+3. Trong `loadData()`, goi them `departmentApi.getDepartments()`.
+4. Doi state `department` tu ten Khoa hard-code sang `departmentId`.
+5. Render dropdown Khoa bang `departments.map(...)`.
+6. Khi chon Khoa, reset `classId`, `selectedStudentId`, `classStudents`, `addedViolations`.
+7. Loc dropdown Lop theo `Class.dept_id` trung voi `departmentId`.
+8. Xu ly trang thai rong/loading/error:
+   - Chua co Khoa
+   - Khong tai duoc danh sach Khoa
+   - Khoa da chon khong co Lop
+9. Edit mode: tu `recordToEdit.student_id.class_id.dept_id` hoac API student/class de set lai `departmentId` tuong ung.
+
+### Backend scope
+
+Khong can sua backend neu muc tieu chi la bo mock dropdown Khoa va loc Lop theo Khoa trong form.
+
+Chi can can nhac backend neu muon:
+
+- Them filter `departmentId` truc tiep vao API ghi nhan ren luyen.
+- Luu snapshot ten Khoa tai thoi diem tao ghi nhan.
+- Export/report can truy van nhanh theo Khoa ma khong populate qua Lop/Sinh vien.
+
+## 5. Acceptance criteria
+
+- Dropdown Khoa trong **Them Ghi nhan Ren luyen** hien dung danh sach tu `GET /departments`.
+- Khong con 4 option hard-code trong `AddRecordView`.
+- Chon Khoa nao thi dropdown Lop chi hien Lop thuoc Khoa do.
+- Doi Khoa se reset Lop, Sinh vien va danh sach ghi nhan tam de tranh luu nham.
+- Tao moi ghi nhan van goi `academicRecordApi.bulkCreateAcademicRecords(...)` nhu hien tai.
+- Cap nhat ghi nhan van goi `academicRecordApi.updateAcademicRecord(...)` nhu hien tai.
+- Payload ghi nhan khong can them `department` neu backend tiep tuc suy ra Khoa qua `student_id -> class_id -> dept_id`.
+- Neu API `/departments` loi, UI hien thong bao ro va khong fallback ve danh sach mock am tham.
+
+## 6. Rui ro va luu y
+
+- `Class.dept_id` co the la string hoac object Department; can normalize khi loc Lop.
+- Neu tai khoan bi gioi han Khoa, `GET /departments` co the chi tra ve cac Khoa duoc phep xem; UI nen ton trong ket qua API.
+- Hien `department` trong `AddRecordView` dang khong anh huong payload, nen viec sua chu yeu tac dong trai nghiem chon/lop/sinh vien.
+- Can can than edit mode: ban ghi cu khong co Khoa truc tiep, phai suy ra tu sinh vien hoac lop cua sinh vien.
+
+## 7. De xuat task tiep theo
+
+Implement fix trong `frontend/src/components/grading/AddRecordView.tsx`:
+
+- Thay dropdown Khoa hard-code bang API departments.
+- Loc Lop theo Khoa.
+- Bo state `department` dang luu ten Khoa tinh, thay bang `departmentId`.
+- Them regression test/kiem tra thu cong cho tao moi va edit mode.

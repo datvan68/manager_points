@@ -188,6 +188,16 @@ export interface SystemPerformanceMetricPayload {
   }>;
 }
 
+export interface MailSettings {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass?: string;
+  from: string;
+  hasPassword?: boolean;
+}
+
 export const systemApi = {
   async getDashboardMetrics(semesterId?: string): Promise<any> {
     const params = new URLSearchParams();
@@ -432,5 +442,38 @@ export const systemApi = {
     }
     const res = await httpClient(`${API_BASE}/system/performance/summary?${params.toString()}`);
     return handleResponse<SystemPerformanceSummary>(res);
+  },
+
+  // ─── MAIL SETTINGS ─────────────────────────────────────────────────────────
+  async getMailSettings(): Promise<MailSettings> {
+    const res = await httpClient(`${API_BASE}/system/settings/mail`);
+    return handleResponse<MailSettings>(res);
+  },
+
+  async updateMailSettings(payload: MailSettings): Promise<MessageResponse> {
+    const res = await httpClient(`${API_BASE}/system/settings/mail`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<MessageResponse>(res);
+  },
+
+  async testMailConnection(payload?: Partial<MailSettings>): Promise<MessageResponse> {
+    const res = await httpClient(`${API_BASE}/system/settings/mail/test-connection`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+    return handleResponse<MessageResponse>(res);
+  },
+
+  async sendTestMail(to: string, config?: Partial<MailSettings>): Promise<MessageResponse> {
+    const res = await httpClient(`${API_BASE}/system/settings/mail/send-test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, config }),
+    });
+    return handleResponse<MessageResponse>(res);
   },
 };

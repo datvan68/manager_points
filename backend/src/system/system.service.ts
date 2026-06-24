@@ -8,8 +8,10 @@ import { DatabaseRestoreJob, DatabaseRestoreJobDocument } from './schemas/databa
 import { LoginLog, LoginLogDocument } from '../auth/schemas/login-log.schema';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { SystemPerformanceMetric, SystemPerformanceMetricDocument } from './schemas/system-performance-metric.schema';
-import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto } from './dto/system.dto';
+import { SystemSetting, SystemSettingDocument } from './schemas/system-setting.schema';
+import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto, UpdateMailSettingsDto } from './dto/system.dto';
 import { getRequesterRoleName, isStudent, isTeacher, isSupervisor, isAdmin, isAdminUser } from '../auth/utils/role.util';
+import { MailService, MailConfigOptions } from '../core/mail/mail.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
@@ -81,6 +83,8 @@ export class SystemService {
     @InjectModel(LoginLog.name) private loginLogModel: Model<LoginLogDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(SystemPerformanceMetric.name) private performanceMetricModel: Model<SystemPerformanceMetricDocument>,
+    @InjectModel(SystemSetting.name) private systemSettingModel: Model<SystemSettingDocument>,
+    private mailService: MailService,
     private configService: ConfigService,
     @InjectConnection() private connection: Connection,
   ) {
@@ -2301,5 +2305,183 @@ export class SystemService {
         mySpotlight: mySpotlight || undefined
       }
     };
+  }
+  // ─── MAIL SETTINGS ─────────────────────────────────────────────────────────
+
+  private readonly ENCRYPTION_ALGORITHM = 'aes-256-cbc';
+
+  private encrypt(text: string): { iv: string, content: string } {
+    const keyString = this.configService.get<string>('SETTINGS_ENCRYPTION_KEY');
+    if (!keyString) throw new Error('SETTINGS_ENCRYPTION_KEY is missing. Please contact administrator.');
+    const key = crypto.createHash('sha256').update(String(keyString)).digest('base64').substring(0, 32);
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(this.ENCRYPTION_ALGORITHM, Buffer.from(key), iv);
+    let encrypted = cipher.update(text);
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+    return { iv: iv.toString('hex'), content: encrypted.toString('hex') };
+  }
+
+  private decrypt(hash: { iv: string, content: string }): string {
+    const keyString = this.configService.get<string>('SETTINGS_ENCRYPTION_KEY');
+    if (!keyString) throw new Error('SETTINGS_ENCRYPTION_KEY is missing. Please contact administrator.');
+    const key = crypto.createHash('sha256').update(String(keyString)).digest('base64').substring(0, 32);
+    const iv = Buffer.from(hash.iv, 'hex');
+    const decipher = crypto.createDecipheriv(this.ENCRYPTION_ALGORITHM, Buffer.from(key), iv);
+    let decrypted = decipher.update(Buffer.from(hash.content, 'hex'));
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  }
+
+  async onModuleInit() {
+    try {
+      const mailConfig = await this.systemSettingModel.findOne({ key: 'MAIL_SMTP_CONFIG' }).lean();
+      if (mailConfig && mailConfig.value) {
+        const { host, port, secure, user, pass: encryptedPass, from } = mailConfig.value;
+        const pass = encryptedPass ? this.decrypt(encryptedPass) : undefined;
+        if (pass) {
+          this.mailService.reloadConfig({ host, port, secure, user, pass, from });
+          this.logger.log('Loaded SMTP configurations from database');
+        }
+      }
+    } catch (error) {
+      this.logger.error('Failed to load SMTP config from DB on startup, fallback to ENV.', error);
+    }
+  }
+
+  async getMailSettings() {
+    const mailConfig = await this.systemSettingModel.findOne({ key: 'MAIL_SMTP_CONFIG' }).lean();
+    if (!mailConfig || !mailConfig.value) {
+      return {
+        host: this.configService.get<string>('MAIL_HOST') || '',
+        port: parseInt(this.configService.get<string>('MAIL_PORT') || '587', 10),
+        secure: this.configService.get<string>('MAIL_SECURE') === 'true',
+        user: this.configService.get<string>('MAIL_USER') || '',
+        from: this.configService.get<string>('MAIL_FROM') || '',
+        hasPassword: !!this.configService.get<string>('MAIL_PASS')
+      };
+    }
+    
+    const { host, port, secure, user, pass, from } = mailConfig.value;
+    return {
+      host,
+      port,
+      secure,
+      user,
+      from,
+      hasPassword: !!pass // mask the password
+    };
+  }
+
+  async updateMailSettings(dto: UpdateMailSettingsDto) {
+    let encryptedPass: { iv: string, content: string } | undefined;
+
+    if (dto.pass && dto.pass.trim() !== '') {
+      encryptedPass = this.encrypt(dto.pass);
+    }
+
+    const currentConfig = await this.systemSettingModel.findOne({ key: 'MAIL_SMTP_CONFIG' });
+    
+    let passToSave = encryptedPass;
+    if (!passToSave && currentConfig && currentConfig.value && currentConfig.value.pass) {
+      passToSave = currentConfig.value.pass; // keep old password
+    }
+
+    if (!passToSave && !this.configService.get('MAIL_PASS')) {
+      throw new BadRequestException('Vui lòng nhập mật khẩu SMTP');
+    }
+
+    const value = {
+      host: dto.host,
+      port: dto.port,
+      secure: dto.secure,
+      user: dto.user,
+      pass: passToSave,
+      from: dto.from
+    };
+
+    await this.systemSettingModel.findOneAndUpdate(
+      { key: 'MAIL_SMTP_CONFIG' },
+      { key: 'MAIL_SMTP_CONFIG', value, description: 'Cấu hình kết nối MAIL SMTP' },
+      { upsert: true, new: true }
+    );
+
+    // Apply new config
+    const plainPass = passToSave ? this.decrypt(passToSave) : this.configService.get<string>('MAIL_PASS');
+    this.mailService.reloadConfig({
+      host: dto.host,
+      port: dto.port,
+      secure: dto.secure,
+      user: dto.user,
+      pass: plainPass!,
+      from: dto.from
+    });
+
+    return { message: 'Cập nhật cấu hình SMTP thành công' };
+  }
+
+  async testMailConnection(testConfig?: UpdateMailSettingsDto) {
+    let configForTest: MailConfigOptions | undefined;
+    if (testConfig) {
+      const pass = testConfig.pass && testConfig.pass.trim() !== '' 
+        ? testConfig.pass 
+        : undefined;
+
+      let passToUse = pass;
+      if (!passToUse) {
+        const currentConfig = await this.systemSettingModel.findOne({ key: 'MAIL_SMTP_CONFIG' });
+        if (currentConfig && currentConfig.value && currentConfig.value.pass) {
+          passToUse = this.decrypt(currentConfig.value.pass);
+        } else {
+          passToUse = this.configService.get<string>('MAIL_PASS');
+        }
+      }
+
+      if (!passToUse) throw new BadRequestException('Mật khẩu SMTP chưa được cấu hình');
+
+      configForTest = {
+        host: testConfig.host,
+        port: testConfig.port,
+        secure: testConfig.secure,
+        user: testConfig.user,
+        pass: passToUse,
+        from: testConfig.from
+      };
+    }
+    
+    await this.mailService.verifyConnection(configForTest);
+    return { message: 'Kiểm tra kết nối thành công' };
+  }
+
+  async sendTestMail(to: string, testConfig?: UpdateMailSettingsDto) {
+    let configForTest: MailConfigOptions | undefined;
+    if (testConfig) {
+      const pass = testConfig.pass && testConfig.pass.trim() !== '' 
+        ? testConfig.pass 
+        : undefined;
+
+      let passToUse = pass;
+      if (!passToUse) {
+        const currentConfig = await this.systemSettingModel.findOne({ key: 'MAIL_SMTP_CONFIG' });
+        if (currentConfig && currentConfig.value && currentConfig.value.pass) {
+          passToUse = this.decrypt(currentConfig.value.pass);
+        } else {
+          passToUse = this.configService.get<string>('MAIL_PASS');
+        }
+      }
+
+      if (!passToUse) throw new BadRequestException('Mật khẩu SMTP chưa được cấu hình');
+
+      configForTest = {
+        host: testConfig.host,
+        port: testConfig.port,
+        secure: testConfig.secure,
+        user: testConfig.user,
+        pass: passToUse,
+        from: testConfig.from
+      };
+    }
+
+    await this.mailService.sendTestEmail(to, configForTest);
+    return { message: 'Đã gửi email thử nghiệm thành công' };
   }
 }

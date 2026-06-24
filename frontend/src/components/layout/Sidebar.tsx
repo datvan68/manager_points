@@ -366,10 +366,16 @@ const Sidebar = () => {
             />
             {isExpanded && <span>Thu gọn</span>}
           </button>
-          <button className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold text-[#64748B] border border-transparent hover:bg-white/50 hover:text-[#1E293B] hover:scale-[1.01] hover:shadow-sm transition-all duration-150 ease-out ${isExpanded ? "" : "justify-center"}`}>
-            <Settings size={18} />
-            {isExpanded && <span>Cài đặt</span>}
-          </button>
+          {isAdminUser(user) && (
+            <Link 
+              href="/system/settings" 
+              className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-sm ${pathname === "/system/settings" ? "bg-[#1A73E8]/10 border border-[#1A73E8]/20 text-[#1A73E8]" : "text-[#64748B] border border-transparent hover:bg-[#1A73E8]/10 hover:border-[#1A73E8]/20 hover:text-[#1A73E8]"} ${isExpanded ? "" : "justify-center"}`}
+              title={isExpanded ? "" : "Cài đặt"}
+            >
+              <Settings size={18} />
+              {isExpanded && <span>Cài đặt</span>}
+            </Link>
+          )}
         </div>
       </div>
 

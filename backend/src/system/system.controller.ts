@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, MongoIdParamDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto } from './dto/system.dto';
+import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, MongoIdParamDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto, UpdateMailSettingsDto, SendTestMailDto } from './dto/system.dto';
 
 export interface AuthenticatedRequest extends Request {
   user: {
@@ -168,4 +168,31 @@ export class SystemController {
   getPerformanceMetrics(@Query() query: GetPerformanceMetricsQueryDto) {
     return this.systemService.getPerformanceMetricsList(query);
   }
+
+  // ─── MAIL SETTINGS ─────────────────────────────────────────────────────────
+
+  @Get('settings/mail')
+  @Permissions('SYSTEM_MAIL_CONFIG_MANAGE')
+  getMailSettings() {
+    return this.systemService.getMailSettings();
+  }
+
+  @Patch('settings/mail')
+  @Permissions('SYSTEM_MAIL_CONFIG_MANAGE')
+  updateMailSettings(@Body() dto: UpdateMailSettingsDto) {
+    return this.systemService.updateMailSettings(dto);
+  }
+
+  @Post('settings/mail/test-connection')
+  @Permissions('SYSTEM_MAIL_CONFIG_MANAGE')
+  testMailConnection(@Body() dto?: UpdateMailSettingsDto) {
+    return this.systemService.testMailConnection(dto && Object.keys(dto).length > 0 ? dto : undefined);
+  }
+
+  @Post('settings/mail/send-test')
+  @Permissions('SYSTEM_MAIL_CONFIG_MANAGE')
+  sendTestMail(@Body() dto: SendTestMailDto) {
+    return this.systemService.sendTestMail(dto.to, dto.config);
+  }
 }
+

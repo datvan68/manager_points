@@ -9,6 +9,7 @@ import { SystemPerformanceMetric, SystemPerformanceMetricSchema } from './schema
 import { LoginLog, LoginLogSchema } from '../auth/schemas/login-log.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { SystemSetting, SystemSettingSchema } from './schemas/system-setting.schema';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
       { name: LoginLog.name, schema: LoginLogSchema },
       { name: User.name, schema: UserSchema },
       { name: SystemPerformanceMetric.name, schema: SystemPerformanceMetricSchema },
+      { name: SystemSetting.name, schema: SystemSettingSchema },
     ]),
     ThrottlerModule.forRoot([{
       ttl: 60000,

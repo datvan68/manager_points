@@ -317,6 +317,12 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     module: SYSTEM_OPERATIONS_GROUP.name,
     description: 'Cho phép xem thống kê hiệu năng trang và API.',
   },
+  {
+    code: 'SYSTEM_MAIL_CONFIG_MANAGE',
+    name: 'Cấu hình MAIL SMTP',
+    module: SYSTEM_OPERATIONS_GROUP.name,
+    description: 'Cho phép xem, sửa và kiểm tra kết nối cấu hình MAIL SMTP của hệ thống.',
+  },
 
   // Nhóm Báo cáo
   {
