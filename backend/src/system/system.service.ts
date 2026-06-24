@@ -20,6 +20,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
+import { EJSON } from 'bson';
 
 const execFileAsync = promisify(execFile);
 
@@ -46,7 +47,7 @@ class DatabaseBackupStream extends Readable {
 
       if (!this.cursor) {
         // Send collection header
-        this.push(JSON.stringify({ __collection: currentCollName }) + '\n');
+        this.push(EJSON.stringify({ __collection: currentCollName }) + '\n');
         if (!this.db) {
           throw new Error('Kết nối cơ sở dữ liệu chưa sẵn sàng');
         }
@@ -57,7 +58,7 @@ class DatabaseBackupStream extends Readable {
 
       if (await this.cursor.hasNext()) {
         const doc = await this.cursor.next();
-        this.push(JSON.stringify(doc) + '\n');
+        this.push(EJSON.stringify(doc) + '\n');
       } else {
         // Close cursor and move to next collection
         this.cursor = null;
@@ -663,7 +664,7 @@ export class SystemService {
           for (const line of lines) {
             if (!line.trim()) continue;
             try {
-              const doc = JSON.parse(line);
+              const doc = EJSON.parse(line);
               if (doc.__collection) {
                 currentCollection = doc.__collection;
                 if (!collectionMap.has(currentCollection)) {
@@ -853,7 +854,7 @@ export class SystemService {
           for (const line of lines) {
             if (!line.trim()) continue;
             try {
-              const doc = JSON.parse(line);
+              const doc = EJSON.parse(line);
               if (doc.__collection) {
                 if (doc.__collection !== currentCollection) {
                   if (currentCollection !== 'unknown' && buffer.length > 0) {
@@ -881,6 +882,15 @@ export class SystemService {
         if (buffer.length > 0) {
           await this.insertDocsSafe(currentCollection, buffer, restoreJob.mode);
         }
+      }
+
+      // Clear refresh tokens if auth-related collections were replaced
+      if (restoreJob.mode === 'replace_selected_collections' && 
+          restoreJob.collections.some((c: string) => ['users', 'roles', 'permissions', 'refresh_tokens'].includes(c))) {
+        try {
+          await this.connection.collection('refresh_tokens').deleteMany({});
+          this.logger.log('AUDIT: Cleared all refresh tokens due to auth-related collection restore.');
+        } catch(e) {}
       }
 
       restoreJob.status = 'success';
@@ -943,6 +953,7 @@ export class SystemService {
       }
     } catch(err) {
       this.logger.error(`Error inserting docs into ${collectionName}: ${err.message}`);
+      throw new Error(`Error inserting docs into ${collectionName}: ${err.message}`);
     }
   }
 

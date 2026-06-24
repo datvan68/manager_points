@@ -169,6 +169,7 @@ function SystemAdminDashboard() {
   const [restoreMode, setRestoreMode] = useState<RestoreMode>("replace_selected_collections");
   const [confirmText, setConfirmText] = useState("");
   const [restoreChecked, setRestoreChecked] = useState(false);
+  const [reloginChecked, setReloginChecked] = useState(false);
 
   // --- Tab 4: Performance States ---
   const [performanceSummary, setPerformanceSummary] = useState<SystemPerformanceSummary | null>(null);
@@ -551,12 +552,33 @@ function SystemAdminDashboard() {
   useEffect(() => {
     if (activeTab !== "backup" || !isRestoreRunning || !canRestoreBackup) return;
 
-    const interval = setInterval(() => {
-      fetchRestoreJobs();
+    const interval = setInterval(async () => {
+      try {
+        const res = await systemApi.getRestoreJobs({ page: 1, limit: 10 });
+        
+        // Check status change
+        const previousRunningJob = restoreJobs.find(job => job.status === 'running' || job.status === 'queued');
+        if (previousRunningJob) {
+          const currentJob = res.items.find((j: any) => j._id === previousRunningJob._id);
+          if (currentJob && currentJob.status === 'success') {
+            toast.success("Khôi phục thành công. Hệ thống sẽ đăng xuất để cập nhật dữ liệu.");
+            setTimeout(() => {
+              tokenStorage.clearTokens();
+              authApi.logout();
+              window.location.href = '/login';
+            }, 2000);
+          } else if (currentJob && currentJob.status === 'failed') {
+            toast.error("Khôi phục thất bại: " + currentJob.error_message);
+          }
+        }
+        setRestoreJobs(res.items);
+      } catch (err) {
+        console.error("Lỗi polling restore job:", err);
+      }
     }, 3000); // Poll every 3 seconds
 
     return () => clearInterval(interval);
-  }, [activeTab, isRestoreRunning, canRestoreBackup]);
+  }, [activeTab, isRestoreRunning, canRestoreBackup, restoreJobs]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -565,6 +587,7 @@ function SystemAdminDashboard() {
     setIsImportLoading(true);
     setImportPreview(null);
     setSelectedCollections([]);
+    setReloginChecked(false);
     
     try {
       const preview = await systemApi.previewBackupImport(file);
@@ -583,6 +606,10 @@ function SystemAdminDashboard() {
     if (!importPreview || !canRestoreBackup) return;
     if (confirmText !== "RESTORE") {
       toast.error("Vui lòng nhập chính xác chữ RESTORE");
+      return;
+    }
+    if (!reloginChecked) {
+      toast.error("Vui lòng xác nhận việc đăng nhập lại sau khi khôi phục.");
       return;
     }
     
@@ -1954,11 +1981,30 @@ function SystemAdminDashboard() {
                   <input type="radio" name="restoreMode" value="replace_selected_collections" checked={restoreMode === 'replace_selected_collections'} onChange={(e) => setRestoreMode(e.target.value as RestoreMode)} className="accent-indigo-600" />
                   Ghi đè (Replace)
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="restoreMode" value="merge_upsert" checked={restoreMode === 'merge_upsert'} onChange={(e) => setRestoreMode(e.target.value as RestoreMode)} className="accent-indigo-600" />
+                <label className={`flex items-center gap-2 ${importPreview.format === 'mongodump_archive' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                  <input 
+                    type="radio" 
+                    name="restoreMode" 
+                    value="merge_upsert" 
+                    checked={restoreMode === 'merge_upsert'} 
+                    onChange={(e) => setRestoreMode(e.target.value as RestoreMode)} 
+                    disabled={importPreview.format === 'mongodump_archive'}
+                    className="accent-indigo-600" 
+                  />
                   Hợp nhất (Merge & Upsert)
                 </label>
               </div>
+              {importPreview.format === 'mongodump_archive' && (
+                <p className="text-[10px] text-amber-600 italic mt-1">
+                  * Chế độ Hợp nhất không khả dụng với định dạng mongodump_archive.
+                </p>
+              )}
+              {restoreMode === 'replace_selected_collections' && (
+                <p className="text-[11px] text-rose-600 font-medium mt-1 bg-rose-50 p-2 rounded-lg border border-rose-100">
+                  <AlertCircle size={12} className="inline mr-1 relative -top-[1px]" />
+                  Các collection được chọn sẽ bị <b>xóa hoàn toàn</b> trước khi nạp backup.
+                </p>
+              )}
             </div>
 
             {/* Collections list */}
@@ -2000,8 +2046,18 @@ function SystemAdminDashboard() {
                 />
                 <span className="font-medium text-rose-700">Tôi hiểu rủi ro và xác nhận khôi phục các collection đã chọn.</span>
               </label>
+
+              <label className="flex items-center gap-2 text-sm cursor-pointer mt-2">
+                <input 
+                  type="checkbox" 
+                  checked={reloginChecked} 
+                  onChange={(e) => setReloginChecked(e.target.checked)}
+                  className="accent-rose-600"
+                />
+                <span className="font-medium text-rose-700">Tôi hiểu sau khi khôi phục thành công, tất cả tài khoản cần đăng nhập lại.</span>
+              </label>
               
-              {restoreChecked && (
+              {(restoreChecked && reloginChecked) && (
                 <div className="animate-in fade-in slide-in-from-top-2 duration-200">
                   <label className="text-xs text-slate-600 block mb-1">
                     Vui lòng gõ chữ <b className="text-rose-600">RESTORE</b> để xác nhận.
@@ -2026,7 +2082,7 @@ function SystemAdminDashboard() {
                 Hủy bỏ
               </button>
               <button
-                disabled={isImportLoading || !restoreChecked || confirmText !== "RESTORE" || selectedCollections.length === 0}
+                disabled={isImportLoading || !restoreChecked || !reloginChecked || confirmText !== "RESTORE" || selectedCollections.length === 0}
                 onClick={handleRestore}
                 className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 text-white rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"
               >

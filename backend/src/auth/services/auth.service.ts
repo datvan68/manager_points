@@ -365,7 +365,8 @@ export class AuthService implements OnModuleInit {
           'DATABASE_BACKUP_READ',
           'DATABASE_BACKUP_CREATE',
           'DATABASE_BACKUP_DOWNLOAD',
-          'DATABASE_BACKUP_DELETE'
+          'DATABASE_BACKUP_DELETE',
+          'DATABASE_BACKUP_RESTORE'
         ],
         action_permissions: [
           'SYSTEM_PERFORMANCE_READ',
@@ -375,7 +376,8 @@ export class AuthService implements OnModuleInit {
           'DATABASE_BACKUP_READ',
           'DATABASE_BACKUP_CREATE',
           'DATABASE_BACKUP_DOWNLOAD',
-          'DATABASE_BACKUP_DELETE'
+          'DATABASE_BACKUP_DELETE',
+          'DATABASE_BACKUP_RESTORE'
         ]
       },
       {
