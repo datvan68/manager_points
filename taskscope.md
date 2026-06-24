@@ -1,118 +1,106 @@
-﻿# Taskscope: Sua thung rac he thong /students/record va chan tinh diem voi ghi nhan is_deleted
+﻿# Taskscope: Kiem tra loi Lich su ghi nhan khong hien thi trang /grading/score
 
 ## Muc tieu
-- Sua tinh nang "Thung rac he thong" tren trang `/students/record` de xoa vinh vien khong con bao loi 500/Internal Server Error tren production.
-- Dam bao khi API bao thanh cong thi du lieu da duoc xoa that; khi API bao loi thi khong tao trang thai "da xoa trong DB nhung UI bao that bai".
-- Xac nhan va sua luong tinh diem `/grading`: moi ghi nhan ren luyen co `is_deleted: true` hoac `status: inactive` khong duoc tinh vao tieu chi, pre-count, current-count, system-score, history va dong bo tong diem.
+- Kiem tra vi sao tab `Lich su ghi nhan` tren trang `/grading/score` khong hien thi du lieu.
+- Xac dinh nguon du lieu dang dung cho lich su: `summary.details[].log`, `evaluation-detail`, hay `academic-records`.
+- De xuat pham vi sua de lich su hien thi dung sau khi tai trang, chuyen sinh vien, luu diem, sao chep diem va xoa lich su.
 
 ## Hien trang da kiem tra
-- Frontend `/students/record` dang goi:
-  - `academicRecordApi.getDeletedAcademicRecords()` -> `GET /academic-records/deleted/all`.
-  - `academicRecordApi.forceDeleteAcademicRecord(id, true)` -> `DELETE /academic-records/:id/force?bypassDailyReportCheck=true`.
-  - `dailyClassReportApi.forceDeleteDailyClassReport(id)` -> `DELETE /daily-class-reports/:id/force`.
-- Backend `AcademicRecordService.forceRemove()` dang:
-  - tim record bang `findById(id)`.
-  - `findByIdAndDelete(id)` xoa vinh vien truoc.
-  - sau do moi goi `await this.safeSync(deleted)` de dong bo diem.
-- Trieu chung production "bao interval/internal server error, nhung thoat vao lai thi mat het ban ghi trong thung rac" rat phu hop voi kha nang: MongoDB da xoa thanh cong, nhung `safeSync()` hoac recompute/event sau xoa bi loi nen response tra 500.
-- `AcademicRecordService.syncStudentCriterionScore()` va `syncMultipleStudentCriterionScores()` da dung filter dung: `status: 'active'` va `is_deleted: { $ne: true }`.
-- Tuy nhien `EvaluationDetailService` con cac diem co nguy co tinh nham record da xoa mem:
-  - `syncAcademicRecords()` query record voi `status: 'active'` nhung chua co `is_deleted: { $ne: true }`.
-  - `getPreExistingRecordCount()` query `status: 'active'` nhung chua co `is_deleted: { $ne: true }`.
-  - `getPreExistingCountsForSummary()` query `status: 'active'` nhung chua co `is_deleted: { $ne: true }`.
-  - `getPreExistingCountsBulk()` aggregation `$match` co `status: 'active'` nhung chua co `is_deleted: { $ne: true }`.
-- Ket luan tam thoi cho cau hoi `/grading`: luong sync diem tu `AcademicRecordService` khong tinh `is_deleted: true`, nhung cac API pre-count va mot so thao tac cong/tru ghi nhan truc tiep trong `EvaluationDetailService` co rui ro tinh ca record da xoa mem neu du lieu production ton tai ban ghi `status: active, is_deleted: true` hoac trang thai khong dong nhat.
+- Frontend chinh nam tai `frontend/src/app/grading/score/page.tsx`.
+- Component rieng `frontend/src/app/grading/score/_components/ScoreHistoryPanel.tsx` dang ton tai nhung hien khong duoc import/su dung trong `page.tsx`.
+- `page.tsx` dang render tab lich su inline tai khoi `subTab === "history"` va loc theo:
+  - `historyRecords.filter((r) => r.studentId === activeStudentId)`.
+- `historyRecords` duoc tao tu `detail.log` cua API:
+  - `evaluationDetailApi.getEvaluationDetailsBySummary(summaryId)`.
+- Frontend dang goi `getEvaluationDetailsBySummary(summaryId)` khong truyen `includeLogs`.
+- API frontend co san tham so:
+  - `getEvaluationDetailsBySummary(summaryId: string, includeLogs?: boolean)`.
+  - Neu truyen `true` se goi `/evaluation-detail/summary/:summaryId?includeLogs=true`.
+- Backend controller `EvaluationDetailController.findBySummaryId()` dang xu ly:
+  - `const fetchLogs = includeLogs === 'true'`.
+  - Nghia la neu frontend khong truyen `includeLogs=true`, backend se xem la `false`.
+- Backend service `EvaluationDetailService.findBySummaryId(summaryId, requester, fetchLogs)` se `.select({ 'details.log': 0 })` khi `fetchLogs` la `false`.
+- Vi vay root cause co kha nang cao la frontend khong yeu cau lay log, nen `detail.log` bi loai khoi response va `activeHistory` luon rong.
 
-## Pham vi sua backend thung rac ghi nhan
-- Sua `AcademicRecordService.forceRemove()` de thao tac xoa vinh vien an toan/idempotent:
-  - Chi cho xoa vinh vien record dang nam trong thung rac, hoac neu cho xoa truc tiep thi phai ghi ro rule. Khuyen nghi filter: `{ _id, $or: [{ status: 'inactive' }, { is_deleted: true }] }` cho thung rac.
-  - Lay truoc `student_id`, `semester_id`, `criterion_id` can sync truoc khi xoa.
-  - Sau khi `findByIdAndDelete()` thanh cong, sync diem bang helper rieng co try/catch logging; loi sync khong duoc bien thanh 500 gia neu record da xoa thanh cong.
-  - Response nen tra `{ success: true, deletedId, syncStatus }` hoac record da xoa, nhung phai nhat quan de frontend xu ly.
-  - Neu record da bi xoa boi request truoc do, endpoint nen tra thanh cong idempotent hoac 404 co message ro; khong de UI hieu nham.
-- Sua `remove()` soft-delete de dong bo trang thai chac chan:
-  - Luon set dong thoi `status: 'inactive'`, `is_deleted: true`, `deleted_at`, `deleted_by` neu schema cho phep.
-  - Sau soft-delete sync diem phai loai record da xoa khoi count.
-- Sua `restore()`:
-  - Luon restore dong thoi `status: 'active'`, `is_deleted: false`.
-  - Sync lai diem sau restore.
-  - Neu summary da `locked`, khong duoc tu y thay doi diem da duyet; tra loi ro hoac skip sync theo invariant hien co.
-- Them log backend cho production:
-  - Log `recordId`, `studentId`, `semesterId`, `criterionId`, actor, phase `delete_db`/`sync_score`/`emit_event`.
-  - Log stack trace that su cho loi 500 de khong chi thay "Internal Server Error".
+## Ket luan root cause
+- Loi chinh: `/grading/score` khong truyen `includeLogs=true` khi load chi tiet cham diem cho tab lich su.
+- Do controller mac dinh query thieu `includeLogs` thanh `false`, backend loai bo `details.log` khoi response.
+- Ket qua:
+  - Diem/current_count van co the hien thi dung.
+  - Tab `Lich su ghi nhan` khong co ban ghi vi frontend map tu `detail.log || []`.
 
-## Pham vi sua backend bao cao lop trong thung rac
-- Kiem tra `DailyClassReportService.forceRemove()` vi khi xoa vinh vien bao cao lop, service se goi `academicRecordService.forceRemove(recordId, requester, true)` cho cac record lien ket.
-- Dam bao xoa vinh vien bao cao lop khong dung giua chung neu mot record lien ket da bi xoa truoc:
-  - Co co che continue/failure list cho tung associated record.
-  - Khong bao xoa that bai neu report va cac record con da khong con trong DB sau thao tac.
-- Kiem tra `findByDailyReportId(id, true)` tra ca record active va deleted de force delete dung, nhung khong tinh nham cac record nay vao diem.
+## Cac diem can luu y them
+- `EvaluationDetailService.findBySummaryId()` co default parameter `fetchLogs = true`, nhung controller luon truyen boolean tu query.
+  - Thuc te qua controller, mac dinh la `false`, khac voi default cua service.
+  - Can thong nhat contract API: mac dinh co lay logs hay khong, hoac frontend bat buoc truyen ro.
+- `ScoreHistoryPanel.tsx` co interface `HistoryRecord` khac voi interface `HistoryRecord` trong `page.tsx`:
+  - Component yeu cau `detailId`, `evaluatorName?`.
+  - `page.tsx` dung `studentId`, `updated_by?`.
+  - Neu muon dung lai component rieng, can chuan hoa type truoc.
+- `page.tsx` co logic build history lap lai nhieu lan:
+  - Load ban dau.
+  - Lazy-load khi doi `activeStudentId`.
+  - Sau khi luu diem.
+  - Sau khi xoa lich su.
+  - Sau khi copy score.
+  - Nen tach helper `mapDetailsToHistoryRecords(details, studentId, categories, fallbackRole)` de tranh sai lech.
+- Xoa lich su hien dua vao id dang `${detail._id}-log-${index}` va split bang `-log-`.
+  - Nen chuan hoa thanh object co `detailId` va `logIndex` rieng de tranh loi parse id.
+- Khi xoa log, backend `EvaluationDetailService.update()` chi set `details.$.log` neu `log.length > 0`.
+  - Flow hien tai neu cleanLog rong thi frontend xoa detail luon, nen khong bi case update log rong.
+  - Tuy nhien can test ky neu chi muon xoa het log nhung van giu detail/current_count.
 
-## Pham vi sua frontend /students/record
-- Khi xoa vinh vien tung ghi nhan:
-  - Sau API thanh cong: remove item khoi `deletedRecords` ngay, dong modal confirm, refetch thung rac nen chay nen.
-  - Neu API tra loi "not found" sau retry hoac do da xoa truoc: xem nhu da xoa thanh cong va refetch.
-  - Hien message loi backend that su neu con loi sync/permission.
-- Khi xoa vinh vien tat ca:
-  - Khong dung `Promise.all` kieu fail-fast neu 1 item loi lam UI bao that bai trong khi cac item khac da xoa.
-  - Doi sang `Promise.allSettled`, tong hop `deletedCount`, `failed`, `notFoundCount`.
-  - Sau batch luon refetch `fetchDeletedItems()` de UI khop DB.
-- Neu loi production la timeout/proxy, can co loading/progress va batch size nho hon thay vi ban nhieu delete song song cung luc.
-
-## Pham vi sua /grading khong tinh is_deleted
-- Bo sung `is_deleted: { $ne: true }` vao tat ca query/aggregation dem academic record trong `EvaluationDetailService`:
-  - `syncAcademicRecords()`.
-  - `getPreExistingRecordCount()`.
-  - `getPreExistingCountsForSummary()`.
-  - `getPreExistingCountsBulk()`.
-- Khi `syncAcademicRecords()` can giam count:
-  - Chi hard-delete/soft-delete nhung record active, chua xoa mem, va duoc phep xoa.
-  - Khong dung record trong thung rac de tinh `diff`, tranh tinh sai so luong can them/xoa.
-- Kiem tra frontend `/grading/score`:
-  - `preExistingCountsState` phai nhan count da loc `is_deleted` tu backend.
-  - History record neu lay tu API student records thi API da filter `status: active, is_deleted: { $ne: true }`; giu invariant nay.
-- Kiem tra cac import/commit ghi nhan lop:
-  - Khi import tao academic record, mac dinh phai co `status: active`, `is_deleted: false` hoac khong co `is_deleted` de partial filter van dung.
-
-## Cau hoi nghiep vu can chot
-- Xoa vinh vien trong thung rac co duoc ap dung voi record sinh ra tu bao cao lop ngay (`daily_report_id`) khong?
-  - Hien frontend dang goi `forceDeleteAcademicRecord(id, true)` nen dang bypass check daily report.
-  - Neu nghiep vu muon chi xoa qua bao cao lop, can bo bypass o frontend va backend phai tra message ro.
-  - Neu nghiep vu cho phep thung rac xoa vinh vien record con, backend phai xu ly lien ket daily report nhat quan, khong de report con dem sai `recordedStudentsCount`.
+## Pham vi sua de hien thi dung
+- Frontend `frontend/src/app/grading/score/page.tsx`:
+  - Doi tat ca call can build lich su tu:
+    - `evaluationDetailApi.getEvaluationDetailsBySummary(summaryId)`
+    - sang `evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true)`.
+  - Cac vi tri can uu tien:
+    - Load du lieu active student ban dau.
+    - Lazy-load khi `activeStudentId` thay doi.
+    - Refetch sau khi luu diem.
+    - Refetch sau khi xoa lich su.
+    - Copy score neu can hien history cua target/source ngay lap tuc.
+  - Tach helper map log thanh `HistoryRecord[]` de dung chung.
+  - Reset `historyPage` ve 1 khi doi sinh vien, doi hoc ky, doi lop, hoac refetch history.
+  - Hien loading/empty state phan biet:
+    - Dang tai lich su.
+    - Da tai xong nhung chua co log.
+    - Loi khong tai duoc lich su.
+- Frontend `frontend/src/api/evaluation-detail-api.ts`:
+  - Giu tham so `includeLogs?: boolean` hoac them helper ro nghia `getEvaluationDetailsBySummaryWithLogs(summaryId)`.
+  - Dam bao query string dung `includeLogs=true` khi can lich su.
+- Backend `backend/src/evaluation-detail/evaluation-detail.controller.ts`:
+  - Can chot contract:
+    - Cach 1: giu mac dinh khong tra logs de toi uu payload, frontend bat buoc truyen `includeLogs=true`.
+    - Cach 2: doi default controller thanh true neu endpoint nay chu yeu phuc vu man cham diem.
+  - Neu giu Cach 1, bo sung test xac nhan khong co query thi khong tra log, co query thi tra log.
+- Backend `backend/src/evaluation-detail/evaluation-detail.service.ts`:
+  - Kiem tra `findBySummaryId()` tra du lieu co `details.log` khi `fetchLogs=true`.
+  - Kiem tra permission `assertCanAccessSummary()` khong chan nham role Teacher/Student/Admin/Supervisor hop le.
 
 ## Acceptance criteria
-- Tren production-like build, vao `/students/record` -> Thung rac he thong -> xoa vinh vien 1 ghi nhan:
-  - API khong tra 500 neu DB da xoa thanh cong.
-  - Item bien mat khoi thung rac ngay va sau reload van khong xuat hien.
-  - Diem tong hop cua sinh vien/semester/criterion duoc recompute dung neu summary chua locked.
-- Xoa vinh vien tat ca ghi nhan trong thung rac:
-  - UI hien dung so thanh cong/that bai.
-  - Khong co tinh trang toast bao that bai nhung refresh lai mat het.
-- Khoi phuc ghi nhan:
-  - Record quay ve danh sach active.
-  - `/grading` tinh lai count va system_score co bao gom record vua restore neu summary chua locked.
-- `/grading`:
-  - Record `is_deleted: true` khong duoc tinh vao `current_count`, `original_count`, `system_score`, pre-count bulk, lich su hien thi.
-  - Record `status: inactive` khong duoc tinh.
-  - Cac summary `locked` khong bi recompute lam thay doi diem da duyet.
+- Khi mo `/grading/score`, chon sinh vien da tung luu diem, tab `Lich su ghi nhan` hien cac log da co trong `summary.details[].log`.
+- Khi chuyen qua sinh vien khac, lich su refetch dung sinh vien moi, khong hien data cua sinh vien cu.
+- Khi bam `Luu thay doi`, lich su moi xuat hien ngay sau khi save thanh cong, khong can refresh trang.
+- Khi reload trang, lich su da luu van con va hien thi lai dung.
+- Khi xoa 1 dong lich su, danh sach cap nhat lai, diem/current_count/tong diem dong bo dung.
+- Khi user khong co quyen xem summary, API tra loi ro rang va UI khong hien empty state gay hieu nham la khong co lich su.
+- Production build khong phat sinh TypeScript/lint error lien quan `HistoryRecord` hoac `includeLogs`.
 
 ## Test can bo sung
-- Backend unit/integration:
-  - `forceRemove()` xoa thanh cong ngay ca khi sync sau xoa gap loi gia lap; response khong duoc 500 neu chon chinh sach non-blocking sync.
-  - `forceRemove()` voi record da bi xoa truoc do co hanh vi idempotent theo rule da chot.
-  - `getPreExistingCountsForSummary()` khong dem record `{ status: 'active', is_deleted: true }`.
-  - `getPreExistingCountsBulk()` khong dem record `{ status: 'active', is_deleted: true }`.
-  - `syncAcademicRecords()` khong dung record deleted de tinh diff.
-  - `syncStudentCriterionScore()` sau soft-delete/restore/force-delete tinh dung active count.
+- Backend:
+  - `GET /evaluation-detail/summary/:summaryId?includeLogs=true` tra ve `details.log`.
+  - `GET /evaluation-detail/summary/:summaryId` khong tra log neu giu contract toi uu payload.
+  - Permission theo role khong lam mat lich su cua sinh vien/lop duoc phep xem.
 - Frontend:
-  - Mock force delete partial failure: UI van cap nhat item thanh cong va bao loi tung item.
-  - Xoa tat ca dung `allSettled`, khong fail-fast.
-- Manual production-like:
-  - `npm run build` frontend/backend neu co.
-  - Chay app production, tao record -> soft delete -> vao thung rac -> force delete -> reload.
-  - Tao du lieu canh: 1 record active, 1 record inactive, 1 record active + is_deleted true; vao `/grading` kiem tra count chi tinh record active khong deleted.
+  - Mock `evaluationDetailApi.getEvaluationDetailsBySummary` de xac nhan `/grading/score` truyen `includeLogs=true` khi build history.
+  - Test map `detail.log` thanh `HistoryRecord` dung `studentId`, `title`, `count`, `points`, `role`, `status`.
+  - Test doi `activeStudentId` reset `historyPage` va thay doi danh sach history.
+  - Test empty state chi hien khi API da tra thanh cong va log that su rong.
 
 ## Ngoai pham vi
-- Khong thay doi cong thuc tinh diem/tieu chi ngoai viec loai bo record deleted.
-- Khong thay doi UI lon cua `/students/record`, chi sua luong thung rac, thong bao, loading/progress neu can.
-- Khong auto-huy duyet summary da locked khi xoa/khoi phuc ghi nhan.
+- Khong thay doi cong thuc tinh diem ren luyen trong task nay.
+- Khong thay doi logic phe duyet/chot diem neu khong lien quan truc tiep toi lich su.
+- Khong gop/refactor toan bo trang `/grading/score` ngoai cac helper can thiet cho history.
+- Khong sua UI tong the cua trang neu chi xu ly loi khong hien lich su.

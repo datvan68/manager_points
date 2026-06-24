@@ -444,6 +444,8 @@ const evaluationCategories: Category[] = [
 
 interface HistoryRecord {
   id: string;
+  detailId: string;
+  logIndex: number;
   studentId: string;
   type: string;
   title: string;
@@ -455,6 +457,43 @@ interface HistoryRecord {
   updated_by?: string;
   status?: string;
 }
+
+const mapDetailsToHistoryRecords = (details: any[], studentId: string, categories: any[]): HistoryRecord[] => {
+  const activeHistory: HistoryRecord[] = [];
+  (details || []).forEach((detail) => {
+    const cri = typeof detail.criterion_id === "object" ? detail.criterion_id : null;
+    const criId = cri?._id || detail.criterion_id;
+    const criterion = categories.flatMap((cat: any) => cat.items).find((item: any) => item.id === criId);
+    
+    const criName = cri?.criterion_name || criterion?.name || "Tiêu chí";
+    const criType = cri?.criterion_type === "ky_luat" || criterion?.type === "violation" ? "violation" : "reward";
+    const pointsPerUnit = cri?.score_per_unit || criterion?.pointsPerUnit || 1;
+
+    (detail.log || []).forEach((log: any, index: number) => {
+      const countVal = log.count !== undefined ? log.count : Math.round((log.score_after || 0) / pointsPerUnit);
+      activeHistory.push({
+        id: `${detail._id}-log-${index}`,
+        detailId: detail._id,
+        logIndex: index,
+        studentId: studentId,
+        type: criType,
+        title: criName,
+        date: log.updated_at
+          ? new Date(log.updated_at).toLocaleDateString("vi-VN")
+          : new Date().toLocaleDateString("vi-VN"),
+        count: countVal,
+        points: log.score_after !== undefined ? log.score_after : pointsPerUnit * countVal,
+        session: log.updated_at
+          ? new Date(log.updated_at).getHours() < 12 ? "Sáng" : "Chiều"
+          : "Sáng",
+        role: log.role || "admin",
+        updated_by: log.updated_by,
+        status: detail.status || "draft",
+      });
+    });
+  });
+  return activeHistory.reverse();
+};
 
 const formatDate = (dateStr?: string) => {
   if (!dateStr) return "Chưa thiết lập";
@@ -1136,6 +1175,7 @@ function GradingScoreContent() {
     setSelectedOptionsState({});
     setPreExistingCountsState({});
     setHistoryRecords([]);
+    setHistoryPage(1);
 
     loadClassRosterAndSummaries(classId, selectedSemesterId);
   };
@@ -1355,13 +1395,13 @@ function GradingScoreContent() {
             const [details, preExistingCounts] = await Promise.all([
               evaluationDetailApi.getEvaluationDetailsBySummary(
                 activeSummaryId,
+                true
               ),
               evaluationDetailApi.getPreExistingCounts(activeSummaryId),
             ]);
             const counts: Record<string, number> = {};
             const optionsMap: Record<string, string> = {};
             const detailsMap: Record<string, any> = {};
-            const activeHistory: any[] = [];
 
             // Ghi nhận criteria đã có evaluation_detail
             const evaluatedCriteriaIds = new Set<string>();
@@ -1378,41 +1418,9 @@ function GradingScoreContent() {
               }
               detailsMap[criId] = detail;
               evaluatedCriteriaIds.add(criId);
-
-              const criName = cri?.criterion_name || "Tiêu chí";
-              const criType =
-                cri?.criterion_type === "ky_luat" ? "violation" : "reward";
-              const pointsPerUnit = cri?.score_per_unit || 1;
-
-              (detail.log || []).forEach((log: any, index: number) => {
-                const countVal =
-                  log.count !== undefined
-                    ? log.count
-                    : Math.round((log.score_after || 0) / pointsPerUnit);
-                activeHistory.push({
-                  id: `${detail._id}-log-${index}`,
-                  studentId: targetActiveId,
-                  type: criType,
-                  title: criName,
-                  date: log.updated_at
-                    ? new Date(log.updated_at).toLocaleDateString("vi-VN")
-                    : new Date().toLocaleDateString("vi-VN"),
-                  count: countVal,
-                  points:
-                    log.score_after !== undefined
-                      ? log.score_after
-                      : pointsPerUnit * countVal,
-                  session: log.updated_at
-                    ? new Date(log.updated_at).getHours() < 12
-                      ? "Sáng"
-                      : "Chiều"
-                    : "Sáng",
-                  role: log.role || "admin",
-                  updated_by: log.updated_by,
-                  status: detail.status || "draft",
-                });
-              });
             });
+
+            const activeHistory = mapDetailsToHistoryRecords(details, targetActiveId, categories);
 
             setEvaluationDetailsMap(detailsMap);
 
@@ -1449,7 +1457,7 @@ function GradingScoreContent() {
             }));
 
             // Sắp xếp lịch sử mới nhất lên trước
-            setHistoryRecords(activeHistory.reverse());
+            setHistoryRecords(activeHistory);
           }
         }
       } catch (error: any) {
@@ -1482,13 +1490,12 @@ function GradingScoreContent() {
       try {
         setIsFetching(true);
         const [details, preExistingCounts] = await Promise.all([
-          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId),
+          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true),
           evaluationDetailApi.getPreExistingCounts(summaryId),
         ]);
         const counts: Record<string, number> = {};
         const optionsMap: Record<string, string> = {};
         const detailsMap: Record<string, any> = {};
-        const activeHistory: any[] = [];
 
         // Ghi nhận criteria đã có evaluation_detail
         const evaluatedCriteriaIds = new Set<string>();
@@ -1505,41 +1512,9 @@ function GradingScoreContent() {
           }
           detailsMap[criId] = detail;
           evaluatedCriteriaIds.add(criId);
-
-          const criName = cri?.criterion_name || "Tiêu chí";
-          const criType =
-            cri?.criterion_type === "ky_luat" ? "violation" : "reward";
-          const pointsPerUnit = cri?.score_per_unit || 1;
-
-          (detail.log || []).forEach((log: any, index: number) => {
-            const countVal =
-              log.count !== undefined
-                ? log.count
-                : Math.round((log.score_after || 0) / pointsPerUnit);
-            activeHistory.push({
-              id: `${detail._id}-log-${index}`,
-              studentId: activeStudentId,
-              type: criType,
-              title: criName,
-              date: log.updated_at
-                ? new Date(log.updated_at).toLocaleDateString("vi-VN")
-                : new Date().toLocaleDateString("vi-VN"),
-              count: countVal,
-              points:
-                log.score_after !== undefined
-                  ? log.score_after
-                  : pointsPerUnit * countVal,
-              session: log.updated_at
-                ? new Date(log.updated_at).getHours() < 12
-                  ? "Sáng"
-                  : "Chiều"
-                : "Sáng",
-              role: log.role || "admin",
-              updated_by: log.updated_by,
-              status: detail.status || "draft",
-            });
-          });
         });
+
+        const activeHistory = mapDetailsToHistoryRecords(details, activeStudentId, categories);
 
         setEvaluationDetailsMap(detailsMap);
 
@@ -1573,7 +1548,7 @@ function GradingScoreContent() {
           [activeStudentId]: optionsMap,
         }));
 
-        setHistoryRecords(activeHistory.reverse());
+        setHistoryRecords(activeHistory);
       } catch (error: any) {
         toast.error(
           "Không thể tải chi tiết chấm điểm của sinh viên này: " +
@@ -1832,7 +1807,7 @@ function GradingScoreContent() {
     const detailStatus = "draft";
 
     // 1. Tải các chi tiết cũ của summaryId này
-    const oldDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId);
+    const oldDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true);
 
     // 2. Tạo hoặc cập nhật các chi tiết chấm điểm
     const promises: Promise<any>[] = [];
@@ -1960,52 +1935,22 @@ function GradingScoreContent() {
 
     // 3. Lấy lại chi tiết chấm điểm mới
     const [freshDetails, freshPreExistingCounts] = await Promise.all([
-      evaluationDetailApi.getEvaluationDetailsBySummary(summaryId),
+      evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true),
       evaluationDetailApi.getPreExistingCounts(summaryId),
     ]);
 
     const freshCounts: Record<string, number> = {};
     const freshDetailsMap: Record<string, any> = {};
-    const freshHistory: HistoryRecord[] = [];
 
     (freshDetails || []).forEach((detail) => {
       const cri = typeof detail.criterion_id === "object" ? detail.criterion_id : null;
       const criId = cri?._id || detail.criterion_id;
-      const criterion = categories
-        .flatMap((cat) => cat.items)
-        .find((item) => item.id === criId);
-      const pointsPerUnit = cri?.score_per_unit || criterion?.pointsPerUnit || 1;
-      const criName = cri?.criterion_name || criterion?.name || "Tiêu chí";
-      const criType = cri?.criterion_type === "ky_luat" || criterion?.type === "violation"
-        ? "violation"
-        : "reward";
 
       freshCounts[criId] = detail.current_count || 0;
       freshDetailsMap[criId] = detail;
-
-      (detail.log || []).forEach((log: any, index: number) => {
-        const countVal = log.count !== undefined
-          ? log.count
-          : Math.round((log.score_after || 0) / pointsPerUnit);
-        freshHistory.push({
-          id: `${detail._id}-log-${index}`,
-          studentId: studentId,
-          type: criType,
-          title: criName,
-          date: log.updated_at
-            ? new Date(log.updated_at).toLocaleDateString("vi-VN")
-            : new Date().toLocaleDateString("vi-VN"),
-          count: countVal,
-          points: log.score_after !== undefined ? log.score_after : pointsPerUnit * countVal,
-          session: log.updated_at
-            ? new Date(log.updated_at).getHours() < 12 ? "Sáng" : "Chiều"
-            : "Sáng",
-          role: log.role || userRole,
-          updated_by: log.updated_by,
-          status: detail.status || "draft",
-        });
-      });
     });
+
+    const freshHistory = mapDetailsToHistoryRecords(freshDetails, studentId, categories);
 
     // Tính toán điểm số tổng
     const clampedFinalScore = calculateTotalScore(categories, freshCounts, selectedOptionsState[studentId] || {});
@@ -2400,10 +2345,9 @@ function GradingScoreContent() {
       setIsFetching(true);
       toast.loading("Đang xóa lịch sử chấm điểm...", { id: "delete-loading" });
 
-      // Trích xuất detailId và logIndex
-      const parts = recordToDelete.id.split("-log-");
-      const detailId = parts[0];
-      const logIndex = parseInt(parts[1], 10);
+      // Lấy detailId và logIndex
+      const detailId = recordToDelete.detailId;
+      const logIndex = recordToDelete.logIndex;
 
       // 1. Tải chi tiết EvaluationDetail từ API
       const detail = await evaluationDetailApi.getEvaluationDetail(detailId);
@@ -2462,14 +2406,13 @@ function GradingScoreContent() {
       const summaryId = studentSummaryMap[activeStudentId];
       const [freshDetails, freshPreExistingCounts] = summaryId
         ? await Promise.all([
-          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId),
+          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true),
           evaluationDetailApi.getPreExistingCounts(summaryId),
         ])
         : [[], {}];
 
       const freshCounts: Record<string, number> = {};
       const freshDetailsMap: Record<string, any> = {};
-      const freshHistory: HistoryRecord[] = [];
 
       (freshDetails || []).forEach((freshDetail) => {
         const cri =
@@ -2477,49 +2420,12 @@ function GradingScoreContent() {
             ? freshDetail.criterion_id
             : null;
         const criId = cri?._id || freshDetail.criterion_id;
-        const criterion = categories
-          .flatMap((cat) => cat.items)
-          .find((item) => item.id === criId);
-        const pointsPerUnit =
-          cri?.score_per_unit || criterion?.pointsPerUnit || 1;
-        const criName = cri?.criterion_name || criterion?.name || "Tiêu chí";
-        const criType =
-          cri?.criterion_type === "ky_luat" || criterion?.type === "violation"
-            ? "violation"
-            : "reward";
 
         freshCounts[criId] = freshDetail.current_count || 0;
         freshDetailsMap[criId] = freshDetail;
-
-        (freshDetail.log || []).forEach((log: any, index: number) => {
-          const countVal =
-            log.count !== undefined
-              ? log.count
-              : Math.round((log.score_after || 0) / pointsPerUnit);
-          freshHistory.push({
-            id: `${freshDetail._id}-log-${index}`,
-            studentId: activeStudentId,
-            type: criType,
-            title: criName,
-            date: log.updated_at
-              ? new Date(log.updated_at).toLocaleDateString("vi-VN")
-              : new Date().toLocaleDateString("vi-VN"),
-            count: countVal,
-            points:
-              log.score_after !== undefined
-                ? log.score_after
-                : pointsPerUnit * countVal,
-            session: log.updated_at
-              ? new Date(log.updated_at).getHours() < 12
-                ? "Sáng"
-                : "Chiều"
-              : "Sáng",
-            role: log.role || "student",
-            updated_by: log.updated_by,
-            status: freshDetail.status || "draft",
-          });
-        });
       });
+
+      const freshHistory = mapDetailsToHistoryRecords(freshDetails, activeStudentId, categories);
 
       setEvaluationCounts((prev) => ({
         ...prev,
@@ -3490,7 +3396,19 @@ function GradingScoreContent() {
 
                   return (
                     <div className="flex flex-col gap-4">
-                      {records.length === 0 ? (
+                      {isFetching || isHistoryFetching || isInitialLoading ? (
+                        <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl py-20 flex flex-col items-center justify-center text-center p-8 gap-3 shadow-sm shadow-slate-300/40">
+                          <div className="p-4 bg-white/70 border border-white/80 rounded-2xl text-slate-300 shadow-sm animate-pulse">
+                            <Loader2 size={36} strokeWidth={1.5} className="animate-spin text-[#1A73E8]" />
+                          </div>
+                          <h4 className="font-bold text-[#1E293B] text-[15px]">
+                            Đang tải lịch sử chấm điểm...
+                          </h4>
+                          <p className="text-[#64748B] text-[12.5px] max-w-[260px] font-medium leading-relaxed">
+                            Vui lòng chờ trong giây lát.
+                          </p>
+                        </div>
+                      ) : records.length === 0 ? (
                         <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl py-20 flex flex-col items-center justify-center text-center p-8 gap-3 shadow-sm shadow-slate-300/40">
                           <div className="p-4 bg-white/70 border border-white/80 rounded-2xl text-slate-300 shadow-sm">
                             <History size={36} strokeWidth={1.5} />
