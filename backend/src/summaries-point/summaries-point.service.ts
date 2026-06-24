@@ -15,6 +15,7 @@ import { Department, DepartmentDocument } from '../departments/schemas/departmen
 import { Semester, SemesterDocument } from '../semesters/schemas/semester.schema';
 import { ExportSummaryExcelDto } from './dto/export-summary-excel.dto';
 import { generatePl03Excel } from './export/pl03-summary-excel.service';
+import { gradingEventEmitter } from '../system/grading-event-emitter';
 
 /**
  * Tính toán hạng (rank tier) và nhãn hạng (rank label) dựa trên tổng điểm và trạng thái của bảng điểm.
@@ -213,6 +214,16 @@ export class SummariesPointService {
         .populate('details.criterion_id')
         .exec();
       if (!result) throw new NotFoundException('SummaryPoint not found after save');
+      
+      gradingEventEmitter.emit('grading_event', {
+        type: 'summary_created',
+        classId: student?.class_id?.toString(),
+        semesterId: identity.semester_id?.toString(),
+        studentId: identity.student_id?.toString(),
+        summaryId: result._id.toString(),
+        data: result,
+      });
+
       return result;
     } catch (error: any) {
       if (error.code === 11000) {
@@ -294,6 +305,12 @@ export class SummariesPointService {
     }));
 
     await this.summaryPointModel.insertMany(insertPayloads);
+
+    gradingEventEmitter.emit('grading_event', {
+      type: 'summary_created',
+      classId: classId,
+      semesterId: semesterId,
+    });
 
     return {
       success: true,
@@ -478,6 +495,16 @@ export class SummariesPointService {
     if (!updated) {
       throw new NotFoundException(`SummaryPoint with ID ${id} not found`);
     }
+
+    gradingEventEmitter.emit('grading_event', {
+      type: 'summary_updated',
+      classId: (updated.student_id as any)?.class_id?.toString(),
+      semesterId: (updated.semester_id as any)?._id?.toString() || updated.semester_id?.toString(),
+      studentId: (updated.student_id as any)?._id?.toString() || updated.student_id?.toString(),
+      summaryId: updated._id.toString(),
+      data: updated,
+    });
+
     return updated;
   }
 
@@ -580,6 +607,14 @@ export class SummariesPointService {
     }
 
     await summary.save();
+
+    gradingEventEmitter.emit('grading_event', {
+      type: 'summary_recomputed',
+      semesterId: summary.semester_id?.toString(),
+      studentId: summary.student_id?.toString(),
+      summaryId: summary._id.toString(),
+      data: summary,
+    });
   }
 
   async generateSummaryExcel(
@@ -793,6 +828,16 @@ export class SummariesPointService {
       .populate('details.criterion_id')
       .exec();
     if (!result) throw new NotFoundException('Summary not found after update');
+
+    gradingEventEmitter.emit('grading_event', {
+      type: 'summary_approved',
+      classId: (result.student_id as any)?.class_id?.toString(),
+      semesterId: (result.semester_id as any)?._id?.toString() || result.semester_id?.toString(),
+      studentId: (result.student_id as any)?._id?.toString() || result.student_id?.toString(),
+      summaryId: result._id.toString(),
+      data: result,
+    });
+
     return result;
   }
 
@@ -882,6 +927,16 @@ export class SummariesPointService {
       .exec();
 
     if (!result) throw new NotFoundException('Summary not found after update');
+
+    gradingEventEmitter.emit('grading_event', {
+      type: 'summary_cancelled',
+      classId: (result.student_id as any)?.class_id?.toString(),
+      semesterId: (result.semester_id as any)?._id?.toString() || result.semester_id?.toString(),
+      studentId: (result.student_id as any)?._id?.toString() || result.student_id?.toString(),
+      summaryId: result._id.toString(),
+      data: result,
+    });
+
     return result;
   }
 
@@ -998,6 +1053,15 @@ export class SummariesPointService {
     if (!deleted) {
       throw new NotFoundException(`SummaryPoint with ID ${id} not found`);
     }
+
+    gradingEventEmitter.emit('grading_event', {
+      type: 'summary_deleted',
+      classId: (existingSummary.student_id as any)?.class_id?.toString(),
+      semesterId: (existingSummary.semester_id as any)?._id?.toString() || existingSummary.semester_id?.toString(),
+      studentId: (existingSummary.student_id as any)?._id?.toString() || existingSummary.student_id?.toString(),
+      summaryId: existingSummary._id.toString(),
+    });
+
     return deleted;
   }
 

@@ -10,6 +10,7 @@ import {
   UseGuards,
   Request,
   Query,
+  Sse,
 } from '@nestjs/common';
 import { SummariesPointService } from './summaries-point.service';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
@@ -19,13 +20,17 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import * as express from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkRole } from '../auth/guards/check-role.guard';
+import { GradingRealtimeService } from './grading-realtime.service';
 
 @ApiTags('summaries-points')
 @Controller('summaries-points')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class SummariesPointController {
-  constructor(private readonly summariesPointService: SummariesPointService) {}
+  constructor(
+    private readonly summariesPointService: SummariesPointService,
+    private readonly gradingRealtimeService: GradingRealtimeService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Tạo mới điểm tổng kết' })
@@ -123,6 +128,16 @@ export class SummariesPointController {
         message: error.message || 'Lỗi khi xuất Excel'
       });
     }
+  }
+
+  @Sse('realtime')
+  @ApiOperation({ summary: 'SSE stream for realtime grading updates' })
+  realtime(
+    @Request() req: any,
+    @Query('classId') classId?: string,
+    @Query('semesterId') semesterId?: string,
+  ) {
+    return this.gradingRealtimeService.getStream(req.user, classId, semesterId);
   }
 
   @Get()

@@ -46,6 +46,7 @@ import { studentApi } from '../../api/student-api';
 import { academicRecordApi } from '../../api/academic-record-api';
 import { RouteGuard, usePermission } from '@/components/guards/RouteGuard';
 import { useAuth } from '@/providers/auth-provider';
+import { useGradingRealtime } from '@/hooks/useGradingRealtime';
 
 const calculateCriterionScore = (criterion: any, count: number) => {
   const maxScore = criterion?.maxScore ?? criterion?.max_score ?? 10;
@@ -220,6 +221,35 @@ function GradingPage() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const handleRealtimeEvent = (event: any) => {
+    const { type, summaryId, data } = event;
+    if (
+      type === 'summary_updated' ||
+      type === 'summary_approved' ||
+      type === 'summary_cancelled' ||
+      type === 'summary_recomputed'
+    ) {
+      if (data) {
+        setApiSummariesPoints((prev) =>
+          prev.map((item) => (item._id === summaryId ? { ...item, ...data } : item))
+        );
+      }
+    } else if (
+      type === 'summary_created' || 
+      type === 'summary_deleted' || 
+      type === 'academic_record_changed'
+    ) {
+      fetchSummaries(currentPage);
+    }
+  };
+
+  useGradingRealtime({
+    classId: appliedClass,
+    semesterId: appliedSemester,
+    enabled: !!appliedClass && !!appliedSemester,
+    onEvent: handleRealtimeEvent,
+  });
 
   // State confirm hủy duyệt hàng loạt
   const [cancelBulkConfirm, setCancelBulkConfirm] = useState<{

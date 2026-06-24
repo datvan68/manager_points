@@ -20,6 +20,7 @@ import { Student } from '../students/schemas/student.schema';
 import { Class } from '../classes/schemas/class.schema';
 import { getRequesterRoleName, isStudent, isTeacher } from '../auth/utils/role.util';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
+import { gradingEventEmitter } from '../system/grading-event-emitter';
 
 export interface AcademicRecordFindAllQuery {
   page?: number;
@@ -151,6 +152,13 @@ export class AcademicRecordService {
       summary.markModified('details');
       await summary.save();
       await this.summariesPointService.recomputeTotalScore(summary._id.toString());
+      
+      gradingEventEmitter.emit('grading_event', {
+        type: 'academic_record_changed',
+        semesterId: summary.semester_id?.toString(),
+        studentId: summary.student_id?.toString(),
+        summaryId: summary._id.toString(),
+      });
     }
   }
 
@@ -262,6 +270,13 @@ export class AcademicRecordService {
         summary.markModified('details');
         await summary.save();
         await this.summariesPointService.recomputeTotalScore(summary._id.toString());
+        
+        gradingEventEmitter.emit('grading_event', {
+          type: 'academic_record_changed',
+          semesterId: summary.semester_id?.toString(),
+          studentId: summary.student_id?.toString(),
+          summaryId: summary._id.toString(),
+        });
       }
     }
   }

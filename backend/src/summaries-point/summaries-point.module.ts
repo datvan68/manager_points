@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SummariesPointService } from './summaries-point.service';
 import { SummariesPointController } from './summaries-point.controller';
+import { GradingRealtimeService } from './grading-realtime.service';
 import {
   SummaryPoint,
   SummaryPointSchema,
@@ -26,7 +27,7 @@ import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
     ]),
   ],
   controllers: [SummariesPointController],
-  providers: [SummariesPointService],
-  exports: [SummariesPointService],
+  providers: [SummariesPointService, GradingRealtimeService],
+  exports: [SummariesPointService, GradingRealtimeService],
 })
 export class SummariesPointModule {}
