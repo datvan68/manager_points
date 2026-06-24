@@ -311,7 +311,11 @@ export class DailyClassReportService {
     const associatedRecords = await this.academicRecordService.findByDailyReportId(id);
     for (const record of associatedRecords) {
       const recordId = (record as any)._id ? (record as any)._id.toString() : record.toString();
-      await this.academicRecordService.remove(recordId, requester, true);
+      try {
+        await this.academicRecordService.remove(recordId, requester, true);
+      } catch (err) {
+        console.warn(`Could not soft-delete associated record ${recordId} for report ${id}:`, err);
+      }
     }
 
     const deleted = await this.dailyClassReportModel
@@ -364,7 +368,11 @@ export class DailyClassReportService {
     const associatedRecords = await this.academicRecordService.findByDailyReportId(id, true);
     for (const record of associatedRecords) {
       const recordId = (record as any)._id ? (record as any)._id.toString() : record.toString();
-      await this.academicRecordService.forceRemove(recordId, requester, true);
+      try {
+        await this.academicRecordService.forceRemove(recordId, requester, true);
+      } catch (err) {
+        console.warn(`Could not force delete associated record ${recordId} for report ${id}:`, err);
+      }
     }
 
     const deleted = await this.dailyClassReportModel

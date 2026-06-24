@@ -157,6 +157,7 @@ export class EvaluationDetailService {
       semester_id: summary.semester_id as any,
       criterion_id: criterion._id as any,
       status: 'active',
+      is_deleted: { $ne: true },
     } as any)
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
@@ -225,6 +226,7 @@ export class EvaluationDetailService {
       semester_id: summary.semester_id as any,
       criterion_id: new Types.ObjectId(criterionId) as any,
       status: 'active',
+      is_deleted: { $ne: true },
     } as any).exec();
 
     return count;
@@ -244,6 +246,7 @@ export class EvaluationDetailService {
       student_id: summary.student_id as any,
       semester_id: summary.semester_id as any,
       status: 'active',
+      is_deleted: { $ne: true },
     } as any)
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
@@ -297,6 +300,7 @@ export class EvaluationDetailService {
           student_id: { $in: studentIds },
           semester_id: { $in: semesterIds },
           status: 'active',
+          is_deleted: { $ne: true },
         }
       },
       {

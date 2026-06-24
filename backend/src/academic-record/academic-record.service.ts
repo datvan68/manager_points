@@ -818,7 +818,11 @@ export class AcademicRecordService {
     }
 
     // Sync score update
-    await this.safeSync(deleted);
+    try {
+      await this.safeSync(deleted);
+    } catch (err) {
+      console.error(`Error syncing score after soft delete AcademicRecord ${id}:`, err);
+    }
 
     return deleted;
   }
@@ -866,7 +870,11 @@ export class AcademicRecordService {
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
     if (!record) {
-      throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
+      throw new NotFoundException(`AcademicRecord with ID ${id} not found or already deleted`);
+    }
+
+    if (!bypassDailyReportCheck && record.status !== 'inactive' && record.is_deleted !== true) {
+      throw new BadRequestException('Chỉ có thể xóa vĩnh viễn ghi nhận rèn luyện đã nằm trong thùng rác.');
     }
 
     if (record.daily_report_id && !bypassDailyReportCheck) {
@@ -881,11 +889,15 @@ export class AcademicRecordService {
 
     const deleted = await this.academicRecordModel.findByIdAndDelete(id).exec();
     if (!deleted) {
-      throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
+      throw new NotFoundException(`AcademicRecord with ID ${id} not found or already deleted`);
     }
 
     // Sync score update
-    await this.safeSync(deleted);
+    try {
+      await this.safeSync(deleted);
+    } catch (err) {
+      console.error(`Error syncing score after force remove AcademicRecord ${id}:`, err);
+    }
 
     return deleted;
   }

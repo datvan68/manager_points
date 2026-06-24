@@ -892,12 +892,19 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     if (deletedRecords.length === 0) return;
     const toastId = toast.loading("Đang xóa vĩnh viễn tất cả ghi nhận vi phạm...");
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         deletedRecords.map((rec) =>
           academicRecordApi.forceDeleteAcademicRecord(rec._id, true),
         ),
       );
-      toast.success("Đã xóa vĩnh viễn tất cả ghi nhận vi phạm thành công!", { id: toastId });
+      const successCount = results.filter((r) => r.status === "fulfilled").length;
+      const failCount = results.filter((r) => r.status === "rejected").length;
+
+      if (failCount > 0) {
+        toast.warning(`Đã xóa vĩnh viễn ${successCount} ghi nhận. Thất bại ${failCount} ghi nhận.`, { id: toastId });
+      } else {
+        toast.success("Đã xóa vĩnh viễn tất cả ghi nhận vi phạm thành công!", { id: toastId });
+      }
       fetchDeletedItems();
     } catch (err: any) {
       console.error("Lỗi khi xóa vĩnh viễn tất cả ghi nhận:", err);
@@ -910,12 +917,19 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     if (deletedReports.length === 0) return;
     const toastId = toast.loading("Đang xóa vĩnh viễn tất cả báo cáo lớp học...");
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         deletedReports.map((rep) =>
           dailyClassReportApi.forceDeleteDailyClassReport(rep._id),
         ),
       );
-      toast.success("Đã xóa vĩnh viễn tất cả báo cáo lớp học thành công!", { id: toastId });
+      const successCount = results.filter((r) => r.status === "fulfilled").length;
+      const failCount = results.filter((r) => r.status === "rejected").length;
+
+      if (failCount > 0) {
+        toast.warning(`Đã xóa vĩnh viễn ${successCount} báo cáo. Thất bại ${failCount} báo cáo.`, { id: toastId });
+      } else {
+        toast.success("Đã xóa vĩnh viễn tất cả báo cáo lớp học thành công!", { id: toastId });
+      }
       fetchDeletedItems();
     } catch (err: any) {
       console.error("Lỗi khi xóa vĩnh viễn tất cả báo cáo:", err);
