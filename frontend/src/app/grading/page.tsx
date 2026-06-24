@@ -16,7 +16,8 @@ import {
   Settings,
   SlidersHorizontal,
   Trash2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  X
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import dynamic from 'next/dynamic';
@@ -164,6 +165,7 @@ function GradingPage() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
 
   const [deleteBulkConfirm, setDeleteBulkConfirm] = useState<{
     isOpen: boolean;
@@ -1286,23 +1288,45 @@ function GradingPage() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="hidden lg:flex relative z-20 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4 flex-row gap-3 items-center shrink-0 min-h-[68px] shadow-sm shadow-slate-300/40 w-full"
+              className="hidden lg:flex relative z-20 w-full max-w-full min-w-0 flex-nowrap items-center gap-3 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4 shrink-0 min-h-[68px] shadow-sm shadow-slate-300/40 overflow-x-auto custom-scrollbar"
             >
-              <div className="flex-1 relative">
-                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
-                  <Search size={18} />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm tên sinh viên hoặc MSSV..."
-                  className="w-full bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl pl-10 pr-4 py-2 text-[13px] font-medium placeholder:text-slate-400 focus:bg-white/70 focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 ease-out outline-none"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+              <div className={`${isSearchExpanded ? 'min-w-0 flex-1 basis-[240px]' : 'w-9 h-9 shrink-0'} relative transition-all duration-300 ease-in-out`}>
+                {!isSearchExpanded ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsSearchExpanded(true)}
+                    className="w-full h-full rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 flex items-center justify-center text-gray-500 transition-all duration-150 ease-out shadow-sm group"
+                    title="Mở tìm kiếm"
+                  >
+                    <Search size={18} className="group-hover:scale-110 transition-transform" />
+                  </button>
+                ) : (
+                  <>
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+                      <Search size={18} />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm tên sinh viên hoặc MSSV..."
+                      className="w-full bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl pl-10 pr-10 py-2 text-[13px] font-medium placeholder:text-slate-400 focus:bg-white/70 focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 ease-out outline-none"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsSearchExpanded(false)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-black/5 transition-colors"
+                      title="Đóng tìm kiếm"
+                    >
+                      <X size={14} />
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Select Học kì */}
-              <div className="shrink-0 flex items-center gap-2">
+              <div className={`shrink-0 items-center gap-2 ${isSearchExpanded ? 'hidden' : 'flex'}`}>
                 <div className="min-w-[160px] flex-1 md:flex-initial">
                   <Select
                     value={selectedSemester}
@@ -1340,7 +1364,7 @@ function GradingPage() {
               </div>
 
               {/* Select Khoa */}
-              <div className="shrink-0 min-w-[180px]">
+              <div className="ml-auto min-w-[150px] max-w-full flex-1 lg:flex-none">
                 <Select
                   value={selectedDepartment}
                   onValueChange={(val: string) => { setSelectedDepartment(val); setSelectedClass(''); }}
@@ -1358,7 +1382,7 @@ function GradingPage() {
               </div>
 
               {/* Select Lớp */}
-              <div className="shrink-0 min-w-[160px]">
+              <div className="min-w-[150px] max-w-full flex-1 lg:flex-none">
                 <Select
                   value={selectedClass}
                   onValueChange={(val: string) => setSelectedClass(val)}
@@ -1378,41 +1402,43 @@ function GradingPage() {
                 </Select>
               </div>
 
-              <Button
-                onClick={handleConfirmFilter}
-                disabled={!selectedClass || isTableLoading}
-                className="relative h-9 rounded-xl border border-blue-500/40 bg-blue-500/15 backdrop-blur-md text-blue-700 font-medium shadow-sm shadow-blue-500/20 transition-all duration-150 ease-out hover:bg-blue-500/25 hover:border-blue-500/60 hover:shadow-md hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {isTableLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
-                )}
-                <span className={isTableLoading ? "invisible" : ""}>Xác nhận</span>
-              </Button>
-              <Button
-                onClick={handleExportSummaryExcel}
-                disabled={!appliedSemester || !appliedClass || isExportingExcel || isTableLoading}
-                className="relative h-9 rounded-xl border border-emerald-500/40 bg-emerald-500/15 backdrop-blur-md text-emerald-700 font-medium shadow-sm shadow-emerald-500/20 transition-all duration-150 ease-out hover:bg-emerald-500/25 hover:border-emerald-500/60 hover:shadow-md hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
-                title="Xuất Excel theo lớp và học kỳ đã xác nhận"
-              >
-                {isExportingExcel ? (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className="animate-spin h-4 w-4 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
-                ) : (
-                  <FileSpreadsheet size={16} />
-                )}
-                <span className={isExportingExcel ? "invisible" : ""}>
-                  {isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
-                </span>
-              </Button>
+              <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+                <Button
+                  onClick={handleConfirmFilter}
+                  disabled={!selectedClass || isTableLoading}
+                  className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center rounded-xl border border-blue-500/40 bg-blue-500/15 backdrop-blur-md text-blue-700 font-medium shadow-sm shadow-blue-500/20 transition-all duration-150 ease-out hover:bg-blue-500/25 hover:border-blue-500/60 hover:shadow-md hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
+                >
+                  {isTableLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <svg className="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                  )}
+                  <span className={isTableLoading ? "invisible" : ""}>Xác nhận</span>
+                </Button>
+                <Button
+                  onClick={handleExportSummaryExcel}
+                  disabled={!appliedSemester || !appliedClass || isExportingExcel || isTableLoading}
+                  className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 backdrop-blur-md text-emerald-700 font-medium shadow-sm shadow-emerald-500/20 transition-all duration-150 ease-out hover:bg-emerald-500/25 hover:border-emerald-500/60 hover:shadow-md hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
+                  title="Xuất Excel theo lớp và học kỳ đã xác nhận"
+                >
+                  {isExportingExcel ? (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <svg className="animate-spin h-4 w-4 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                  ) : (
+                    <FileSpreadsheet size={16} className="shrink-0" />
+                  )}
+                  <span className={isExportingExcel ? "invisible hidden sm:inline" : "hidden sm:inline"}>
+                    {isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
+                  </span>
+                </Button>
+              </div>
             </motion.div>
 
             {/* Mobile/Tablet Filters Row (Visible only on < lg screens) */}
