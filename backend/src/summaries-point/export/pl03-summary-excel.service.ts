@@ -271,16 +271,16 @@ export async function generatePl03Excel(
   const signRow2 = signRow1 + 1;
 
   sheet.mergeCells(`A${signRow1}:D${signRow1}`);
-  const gvcnCell = sheet.getCell(`A${signRow1}`);
-  gvcnCell.value = 'GVCN/CVHT';
-  gvcnCell.font = { name: 'Times New Roman', size: 12, bold: true };
-  gvcnCell.alignment = { horizontal: 'center' };
-
-  sheet.mergeCells(`E${signRow1}:G${signRow1}`);
-  const truongKhoaCell = sheet.getCell(`E${signRow1}`);
+  const truongKhoaCell = sheet.getCell(`A${signRow1}`);
   truongKhoaCell.value = 'TRƯỞNG KHOA';
   truongKhoaCell.font = { name: 'Times New Roman', size: 12, bold: true };
   truongKhoaCell.alignment = { horizontal: 'center' };
+
+  sheet.mergeCells(`E${signRow1}:G${signRow1}`);
+  const gvcnCell = sheet.getCell(`E${signRow1}`);
+  gvcnCell.value = 'GVCN/CVHT';
+  gvcnCell.font = { name: 'Times New Roman', size: 12, bold: true };
+  gvcnCell.alignment = { horizontal: 'center' };
 
   const buffer = await workbook.xlsx.writeBuffer();
   return buffer as unknown as Buffer;

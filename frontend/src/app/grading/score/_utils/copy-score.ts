@@ -12,14 +12,15 @@ export const buildTargetSafeCounts = (
   sourceCounts: Record<string, number>,
   targetCurrentCounts: Record<string, number>,
   targetPreCounts: Record<string, { original_count: number; current_count: number }>,
-  criteriaList: Criterion[]
+  criteriaList: Criterion[],
+  userRole?: string
 ): Record<string, number> => {
   const result: Record<string, number> = {};
 
   criteriaList.forEach((cri) => {
     const srcCount = sourceCounts[cri.id] || 0;
     const targetPre = targetPreCounts[cri.id] || { original_count: 0, current_count: 0 };
-    const targetMin = targetPre.original_count || 0;
+    const targetMin = userRole === 'admin' ? 0 : (targetPre.original_count || 0);
 
     // Lấy count hiện tại trong state của target, nếu chưa có thì lấy current_count pre-existing
     const targetCurrent = targetCurrentCounts[cri.id] !== undefined

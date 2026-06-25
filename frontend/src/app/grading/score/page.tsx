@@ -207,7 +207,8 @@ import {
   getResolvedRawCriterionScore,
   getResolvedCriterionScore,
   getRecordDerivedRawCriterionScore,
-  getRecordDerivedCriterionScore
+  getRecordDerivedCriterionScore,
+  mergeDetailsWithPreExistingCounts
 } from "./_utils/score-calculation";
 
 const formatScoreLabel = (score?: number | null, isViolation?: boolean) => {
@@ -282,31 +283,35 @@ const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
     numbers.push(i);
   }
 
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastProgrammaticScrollAtRef = useRef<number>(0);
+
   // Khi count thay đổi từ bên ngoài (nút +/- hoặc click)
   useEffect(() => {
     if (containerRef.current) {
       const targetScrollLeft = (count - minCount) * 36;
       if (Math.abs(containerRef.current.scrollLeft - targetScrollLeft) > 1) {
         isProgrammaticScroll.current = true;
+        lastProgrammaticScrollAtRef.current = Date.now();
         
-        requestAnimationFrame(() => {
-          if (containerRef.current) {
-            containerRef.current.scrollTo({
-              left: targetScrollLeft,
-              behavior: "auto",
-            });
-            
-            requestAnimationFrame(() => {
-              isProgrammaticScroll.current = false;
-            });
-          }
+        containerRef.current.scrollTo({
+          left: targetScrollLeft,
+          behavior: "auto",
         });
+        
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = setTimeout(() => {
+          isProgrammaticScroll.current = false;
+        }, 150);
       }
     }
   }, [count, minCount]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (isProgrammaticScroll.current || isLocked || !canModifyScore) return;
+    
+    // Bỏ qua scroll rác từ quán tính sau khi vừa set giá trị programmatic
+    if (Date.now() - lastProgrammaticScrollAtRef.current < 400) return;
 
     const container = e.currentTarget;
     const scrollLeft = container.scrollLeft;
@@ -869,6 +874,12 @@ function GradingScoreContent() {
   }, [students, rosterSearch]);
 
   const [activeStudentId, setActiveStudentId] = useState<string>("");
+  const activeStudentIdRef = useRef<string>("");
+  const detailLoadSeqRef = useRef<number>(0);
+  useEffect(() => {
+    activeStudentIdRef.current = activeStudentId;
+  }, [activeStudentId]);
+
   const [dirtyStudentIds, setDirtyStudentIds] = useState<Set<string>>(new Set());
   const [savingStudentIds, setSavingStudentIds] = useState<Set<string>>(new Set());
 
@@ -944,23 +955,31 @@ function GradingScoreContent() {
 
   // State lưu trữ số lượng (lần thực hiện) của từng tiêu chí cho từng sinh viên
   // Cấu trúc: { [studentId]: { [criteriaId]: count } }
-  const [evaluationCounts, setEvaluationCounts] = useState<
+  const [evaluationCounts, _setEvaluationCounts] = useState<
     Record<string, Record<string, number>>
   >({});
   const evaluationCountsRef = useRef<Record<string, Record<string, number>>>({});
 
-  const [selectedOptionsState, setSelectedOptionsState] = useState<
+  const setEvaluationCounts = (action: React.SetStateAction<Record<string, Record<string, number>>>) => {
+    _setEvaluationCounts((prev) => {
+      const nextState = typeof action === "function" ? (action as any)(prev) : action;
+      evaluationCountsRef.current = nextState;
+      return nextState;
+    });
+  };
+
+  const [selectedOptionsState, _setSelectedOptionsState] = useState<
     Record<string, Record<string, string>>
   >({});
   const selectedOptionsStateRef = useRef<Record<string, Record<string, string>>>({});
 
-  useEffect(() => {
-    evaluationCountsRef.current = evaluationCounts;
-  }, [evaluationCounts]);
-
-  useEffect(() => {
-    selectedOptionsStateRef.current = selectedOptionsState;
-  }, [selectedOptionsState]);
+  const setSelectedOptionsState = (action: React.SetStateAction<Record<string, Record<string, string>>>) => {
+    _setSelectedOptionsState((prev) => {
+      const nextState = typeof action === "function" ? (action as any)(prev) : action;
+      selectedOptionsStateRef.current = nextState;
+      return nextState;
+    });
+  };
 
   // State lưu lại giá trị gốc có sẵn (pre-existing) — { studentId: { criterionId: { original_count, current_count } } }
   const [preExistingCountsState, setPreExistingCountsState] = useState<
@@ -1421,61 +1440,27 @@ function GradingScoreContent() {
               ),
               evaluationDetailApi.getPreExistingCounts(activeSummaryId),
             ]);
-            const counts: Record<string, number> = {};
-            const optionsMap: Record<string, string> = {};
-            const detailsMap: Record<string, any> = {};
-
-            // Ghi nhận criteria đã có evaluation_detail
-            const evaluatedCriteriaIds = new Set<string>();
-
-            (details || []).forEach((detail) => {
-              const cri =
-                typeof detail.criterion_id === "object"
-                  ? detail.criterion_id
-                  : null;
-              const criId = cri?._id || detail.criterion_id;
-              counts[criId] = detail.current_count ?? 0;
-              if (detail.selected_option_id) {
-                optionsMap[criId] = detail.selected_option_id;
-              }
-              detailsMap[criId] = detail;
-              evaluatedCriteriaIds.add(criId);
-            });
-
+            const isLocked = mappedStudents.find((s) => s.id === targetActiveId)?.gradingStatus === "locked";
+            
+            const merged = mergeDetailsWithPreExistingCounts(details, preExistingCounts, isLocked);
             const activeHistory = mapDetailsToHistoryRecords(details, targetActiveId, categories);
 
-            setEvaluationDetailsMap(detailsMap);
+            setEvaluationDetailsMap(merged.detailsMap);
 
-            // Merge pre-existing counts cho tiêu chí chưa có evaluation_detail
-            const isLocked = mappedStudents.find((s) => s.id === targetActiveId)?.gradingStatus === "locked";
             if (preExistingCounts) {
               setPreExistingCountsState((prev) => ({
                 ...prev,
                 [targetActiveId]: preExistingCounts,
               }));
-              
-              if (!isLocked) {
-                Object.entries(preExistingCounts).forEach(
-                  ([criId, preCountObj]) => {
-                    const preCount =
-                      typeof preCountObj === "object"
-                        ? preCountObj.current_count
-                        : preCountObj;
-                    if (!evaluatedCriteriaIds.has(criId) && preCount > 0) {
-                      counts[criId] = preCount;
-                    }
-                  },
-                );
-              }
             }
 
             setEvaluationCounts((prev) => ({
               ...prev,
-              [targetActiveId]: counts,
+              [targetActiveId]: merged.counts,
             }));
             setSelectedOptionsState((prev) => ({
               ...prev,
-              [targetActiveId]: optionsMap,
+              [targetActiveId]: merged.optionsMap,
             }));
 
             // Sắp xếp lịch sử mới nhất lên trước
@@ -1511,63 +1496,44 @@ function GradingScoreContent() {
 
       try {
         setIsFetching(true);
+        const studentIdAtRequest = activeStudentId;
+        const seq = ++detailLoadSeqRef.current;
+        const currentRev = revisionRef.current[studentIdAtRequest] || 0;
         const [details, preExistingCounts] = await Promise.all([
           evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true),
           evaluationDetailApi.getPreExistingCounts(summaryId),
         ]);
-        const counts: Record<string, number> = {};
-        const optionsMap: Record<string, string> = {};
-        const detailsMap: Record<string, any> = {};
+        
+        // Guard check: Nếu có thao tác edit local trong khi chờ API, bỏ qua ghi đè
+        if (
+          seq !== detailLoadSeqRef.current ||
+          activeStudentIdRef.current !== studentIdAtRequest ||
+          revisionRef.current[studentIdAtRequest] !== currentRev ||
+          dirtyStudentIds.has(studentIdAtRequest)
+        ) {
+          return;
+        }
 
-        // Ghi nhận criteria đã có evaluation_detail
-        const evaluatedCriteriaIds = new Set<string>();
+        const isLocked = students.find((s) => s.id === studentIdAtRequest)?.gradingStatus === "locked";
+        const merged = mergeDetailsWithPreExistingCounts(details, preExistingCounts, isLocked);
+        const activeHistory = mapDetailsToHistoryRecords(details, studentIdAtRequest, categories);
 
-        (details || []).forEach((detail) => {
-          const cri =
-            typeof detail.criterion_id === "object"
-              ? detail.criterion_id
-              : null;
-          const criId = cri?._id || detail.criterion_id;
-          counts[criId] = detail.current_count ?? 0;
-          if (detail.selected_option_id) {
-            optionsMap[criId] = detail.selected_option_id;
-          }
-          detailsMap[criId] = detail;
-          evaluatedCriteriaIds.add(criId);
-        });
+        setEvaluationDetailsMap(merged.detailsMap);
 
-        const activeHistory = mapDetailsToHistoryRecords(details, activeStudentId, categories);
-
-        setEvaluationDetailsMap(detailsMap);
-
-        // Merge pre-existing counts cho tiêu chí chưa có evaluation_detail
-        const isLocked = students.find((s) => s.id === activeStudentId)?.gradingStatus === "locked";
         if (preExistingCounts) {
           setPreExistingCountsState((prev) => ({
             ...prev,
-            [activeStudentId]: preExistingCounts,
+            [studentIdAtRequest]: preExistingCounts,
           }));
-          
-          if (!isLocked) {
-            Object.entries(preExistingCounts).forEach(([criId, preCountObj]) => {
-              const preCount =
-                typeof preCountObj === "object"
-                  ? preCountObj.current_count
-                  : preCountObj;
-              if (!evaluatedCriteriaIds.has(criId) && preCount > 0) {
-                counts[criId] = preCount;
-              }
-            });
-          }
         }
 
         setEvaluationCounts((prev) => ({
           ...prev,
-          [activeStudentId]: counts,
+          [studentIdAtRequest]: merged.counts,
         }));
         setSelectedOptionsState((prev) => ({
           ...prev,
-          [activeStudentId]: optionsMap,
+          [studentIdAtRequest]: merged.optionsMap,
         }));
 
         setHistoryRecords(activeHistory);
@@ -1644,16 +1610,14 @@ function GradingScoreContent() {
       });
     }
 
-    // Lấy min count từ pre-existing records (không cho giảm dưới giá trị gốc)
-    const studentPreCounts = preExistingCountsState[activeStudentId] || {};
-    const minCount = studentPreCounts[criteriaId]?.non_deletable_count ?? studentPreCounts[criteriaId]?.original_count ?? 0;
+    const minCount = 0;
 
     setEvaluationCounts((prev) => {
       const studentCounts = prev[activeStudentId]
         ? { ...prev[activeStudentId] }
         : {};
       const currentCount = studentCounts[criteriaId] ?? 0;
-      const newCount = Math.max(minCount, currentCount + delta); // không giảm dưới giá trị gốc
+      const newCount = Math.max(minCount, currentCount + delta); // không giảm dưới 0
 
       const updatedCounts = {
         ...prev,
@@ -1662,6 +1626,8 @@ function GradingScoreContent() {
           [criteriaId]: newCount,
         },
       };
+
+      evaluationCountsRef.current = updatedCounts;
 
       // Tự động tính toán lại điểm số realtime của sinh viên này
       calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId]);
@@ -1684,14 +1650,13 @@ function GradingScoreContent() {
       });
     }
 
-    const studentPreCounts = preExistingCountsState[activeStudentId] || {};
-    const minCount = studentPreCounts[criteriaId]?.non_deletable_count ?? studentPreCounts[criteriaId]?.original_count ?? 0;
+    const minCount = 0;
 
     setEvaluationCounts((prev) => {
       const studentCounts = prev[activeStudentId]
         ? { ...prev[activeStudentId] }
         : {};
-      const newCount = Math.max(minCount, value); // không giảm dưới giá trị gốc
+      const newCount = Math.max(minCount, value); // không giảm dưới 0
 
       const updatedCounts = {
         ...prev,
@@ -1700,6 +1665,8 @@ function GradingScoreContent() {
           [criteriaId]: newCount,
         },
       };
+
+      evaluationCountsRef.current = updatedCounts;
 
       // Tự động tính toán lại điểm số realtime của sinh viên này
       calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId], selectedOptionsState[activeStudentId] || {});
@@ -1734,6 +1701,8 @@ function GradingScoreContent() {
         [activeStudentId]: studentOptions,
       };
 
+      selectedOptionsStateRef.current = updatedOptions;
+
       setEvaluationCounts((prevCounts) => {
         const studentCounts = prevCounts[activeStudentId] ? { ...prevCounts[activeStudentId] } : {};
         
@@ -1747,6 +1716,8 @@ function GradingScoreContent() {
           ...prevCounts,
           [activeStudentId]: studentCounts,
         };
+        
+        evaluationCountsRef.current = updatedCounts;
         calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId], updatedOptions[activeStudentId]);
         return updatedCounts;
       });
@@ -1803,10 +1774,14 @@ function GradingScoreContent() {
       });
     });
 
-    setEvaluationCounts((prev) => ({
-      ...prev,
-      [activeStudentId]: newCounts,
-    }));
+    setEvaluationCounts((prev) => {
+      const updatedCounts = {
+        ...prev,
+        [activeStudentId]: newCounts,
+      };
+      evaluationCountsRef.current = updatedCounts;
+      return updatedCounts;
+    });
 
     // Tính toán lại điểm số dựa trên các tiêu chí được giữ lại (tiêu chí bị khóa)
     calculateRealtimeScore(activeStudentId, newCounts);
@@ -1972,21 +1947,17 @@ function GradingScoreContent() {
       evaluationDetailApi.getPreExistingCounts(summaryId),
     ]);
 
-    const freshCounts: Record<string, number> = {};
-    const freshDetailsMap: Record<string, any> = {};
-
-    (freshDetails || []).forEach((detail) => {
-      const cri = typeof detail.criterion_id === "object" ? detail.criterion_id : null;
-      const criId = cri?._id || detail.criterion_id;
-
-      freshCounts[criId] = detail.current_count ?? 0;
-      freshDetailsMap[criId] = detail;
-    });
+    const isLocked = students.find((s) => s.id === studentId)?.gradingStatus === "locked";
+    const merged = mergeDetailsWithPreExistingCounts(freshDetails, freshPreExistingCounts, isLocked);
+    
+    const freshCounts = merged.counts;
+    const freshDetailsMap = merged.detailsMap;
 
     const freshHistory = mapDetailsToHistoryRecords(freshDetails, studentId, categories);
 
     // Tính toán điểm số tổng
-    const clampedFinalScore = calculateTotalScore(categories, freshCounts, selectedOptionsState[studentId] || {});
+    const scoreOptions = merged.optionsMap ?? selectedOptionsSnapshot;
+    const clampedFinalScore = calculateTotalScore(categories, freshCounts, scoreOptions);
 
     // Cập nhật summariesPoint
     const summaryPayload: any = {
@@ -2069,7 +2040,7 @@ function GradingScoreContent() {
         [studentId]: result.freshCounts,
       }));
 
-      if (activeStudentId === studentId) {
+      if (activeStudentIdRef.current === studentId) {
         setEvaluationDetailsMap(result.freshDetailsMap);
         setHistoryRecords((prev) => [
           ...result.freshHistory,
@@ -2137,27 +2108,35 @@ function GradingScoreContent() {
     const startRevision = revisionRef.current[studentId] || 0;
     
     const savePromise = (async () => {
-      let currentRev = startRevision;
-      while (true) {
-        await saveStudentScore(studentId, { mode: "autosave", reason, showToast });
-        
-        const newRev = revisionRef.current[studentId] || 0;
-        if (newRev === currentRev) {
-          // Không có thay đổi nào thêm trong lúc lưu, xoá cờ dirty
-          setDirtyStudentIds(prev => {
-            const next = new Set(prev);
-            next.delete(studentId);
-            return next;
-          });
-          break;
+      try {
+        let currentRev = startRevision;
+        while (true) {
+          const success = await saveStudentScore(studentId, { mode: "autosave", reason, showToast });
+          
+          if (!success) {
+            // Nếu lưu lỗi thì dừng và giữ nguyên dirty flag để lần sau lưu tiếp
+            break;
+          }
+          
+          const newRev = revisionRef.current[studentId] || 0;
+          if (newRev === currentRev) {
+            // Không có thay đổi nào thêm trong lúc lưu, xoá cờ dirty
+            setDirtyStudentIds(prev => {
+              const next = new Set(prev);
+              next.delete(studentId);
+              return next;
+            });
+            break;
+          }
+          currentRev = newRev;
         }
-        currentRev = newRev;
+      } finally {
+        inFlightRef.current[studentId] = null;
       }
     })();
 
     inFlightRef.current[studentId] = savePromise;
     await savePromise;
-    inFlightRef.current[studentId] = null;
   };
 
   useEffect(() => {
@@ -2263,7 +2242,7 @@ function GradingScoreContent() {
               }
 
               // 2. Nếu điểm nguồn thấp hơn mức tối thiểu học bạ (original_count) của sinh viên đích
-              const targetMin = targetPreCounts[cri.id]?.non_deletable_count ?? targetPreCounts[cri.id]?.original_count ?? 0;
+              const targetMin = currentUserRole === 'admin' ? 0 : (targetPreCounts[cri.id]?.non_deletable_count ?? targetPreCounts[cri.id]?.original_count ?? 0);
               const srcCount = sourceCounts[cri.id] ?? 0;
               if (srcCount < targetMin) {
                 skipCriterionIds.add(cri.id);
@@ -3186,8 +3165,7 @@ function GradingScoreContent() {
 
                             const studentPreCounts =
                               preExistingCountsState[activeStudentId] || {};
-                            const minCount =
-                              studentPreCounts[item.id]?.non_deletable_count ?? studentPreCounts[item.id]?.original_count ?? 0;
+                            const minCount = 0;
                             const maxScore = item.maxScore ?? 10;
                             const pointsPerUnit = Math.abs(item.pointsPerUnit || 1);
                             const maxCount = Math.max(minCount, Math.ceil(maxScore / pointsPerUnit));

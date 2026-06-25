@@ -174,6 +174,34 @@ export const getRecordDerivedCriterionScore = (
   return getCriterionContributionScore(criterion, fallbackCount, selectedOptionId);
 };
 
+export const mergeDetailsWithPreExistingCounts = (
+  details: any[],
+  preExistingCounts: Record<string, any> | undefined | null,
+  isLocked: boolean
+) => {
+  const counts: Record<string, number> = {};
+  const optionsMap: Record<string, string> = {};
+  const detailsMap: Record<string, any> = {};
+  const evaluatedCriteriaIds = new Set<string>();
+
+  (details || []).forEach((detail) => {
+    const cri = typeof detail.criterion_id === "object" ? detail.criterion_id : null;
+    const criId = cri?._id || detail.criterion_id;
+    
+    counts[criId] = detail.current_count ?? 0;
+    if (detail.selected_option_id) {
+      optionsMap[criId] = detail.selected_option_id;
+    }
+    detailsMap[criId] = detail;
+    evaluatedCriteriaIds.add(criId);
+  });
+
+  // Removed logic that auto-injects preExistingCounts.current_count into counts
+  // to avoid rollback bugs when Admin adjusts from 00 -> 01 or 01 -> 00.
+
+  return { counts, optionsMap, detailsMap };
+};
+
 export default {
   calculateCriterionScore,
   getCriterionContributionScore,
@@ -182,5 +210,6 @@ export default {
   getRecordDerivedRawCriterionScore,
   getRecordDerivedCriterionScore,
   calculateCategoryScore,
-  calculateTotalScore
+  calculateTotalScore,
+  mergeDetailsWithPreExistingCounts
 };

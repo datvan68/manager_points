@@ -111,54 +111,80 @@ export class AcademicRecordService {
       if (summary.status === 'locked') {
         continue;
       }
-      let details = summary.details || [];
-      const detailIndex = details.findIndex(
-        (d) => d.criterion_id && d.criterion_id.toString() === criterionId,
-      );
-
-      if (detailIndex === -1) {
-        // Add new embedded detail
-        const newDetail: any = {
-          criterion_id: new Types.ObjectId(criterionId),
-          current_count: activeCount,
-          system_score: systemScore,
-          sv_score: null,
-          sv_submitted_at: null,
-          gv_score: null,
-          gv_reviewed_at: null,
-          gv_reviewed_by: null,
-          final_score: null,
-          locked_at: null,
-          locked_by: null,
-          status: 'draft',
-          description: '',
-          log: [],
-        };
-        details.push(newDetail);
-      } else {
-        // Update existing embedded detail
-        const detail = details[detailIndex];
-        detail.current_count = activeCount;
-        detail.system_score = systemScore;
-        // Also update final_score to systemScore if it hasn't been set by student/gv/admin yet
-        if (detail.status === 'draft') {
-          detail.sv_score = systemScore;
-          detail.gv_score = systemScore;
-        }
-        details[detailIndex] = detail;
-      }
-
-      summary.details = details;
-      summary.markModified('details');
-      await summary.save();
-      await this.summariesPointService.recomputeTotalScore(summary._id.toString());
       
-      gradingEventEmitter.emit('grading_event', {
-        type: 'academic_record_changed',
-        semesterId: summary.semester_id?.toString(),
-        studentId: summary.student_id?.toString(),
-        summaryId: summary._id.toString(),
-      });
+      let success = false;
+      let attempts = 0;
+      while (!success && attempts < 3) {
+        try {
+          let currentSummary = summary;
+          if (attempts > 0) {
+            currentSummary = await this.summaryPointModel.findById(summary._id).exec() as any;
+            if (!currentSummary || currentSummary.status === 'locked') break;
+          }
+          
+          let details = currentSummary.details || [];
+          const detailIndex = details.findIndex(
+            (d: any) => d.criterion_id && d.criterion_id.toString() === criterionId,
+          );
+
+          if (detailIndex === -1) {
+            // Add new embedded detail
+            const newDetail: any = {
+              criterion_id: new Types.ObjectId(criterionId),
+              current_count: activeCount,
+              system_score: systemScore,
+              sv_score: null,
+              sv_submitted_at: null,
+              gv_score: null,
+              gv_reviewed_at: null,
+              gv_reviewed_by: null,
+              final_score: null,
+              locked_at: null,
+              locked_by: null,
+              status: 'draft',
+              description: '',
+              log: [],
+            };
+            details.push(newDetail);
+          } else {
+            // Update existing embedded detail
+            const detail = details[detailIndex];
+            detail.current_count = activeCount;
+            detail.system_score = systemScore;
+            // Also update final_score to systemScore if it hasn't been set by student/gv/admin yet
+            if (detail.status === 'draft') {
+              detail.sv_score = systemScore;
+              detail.gv_score = systemScore;
+            }
+            details[detailIndex] = detail;
+          }
+
+          currentSummary.details = details;
+          currentSummary.markModified('details');
+          await currentSummary.save();
+          await this.summariesPointService.recomputeTotalScore(currentSummary._id.toString());
+          
+          gradingEventEmitter.emit('grading_event', {
+            type: 'academic_record_changed',
+            semesterId: currentSummary.semester_id?.toString(),
+            studentId: currentSummary.student_id?.toString(),
+            summaryId: currentSummary._id.toString(),
+          });
+          
+          success = true;
+        } catch (err: any) {
+          if (err.name === 'VersionError') {
+            attempts++;
+            if (attempts >= 3) {
+              console.warn(`[syncStudentCriterionScore] VersionError retries exhausted for summary ${summary._id}`);
+              break;
+            }
+            await new Promise(res => setTimeout(res, 20 * attempts));
+          } else {
+            throw err;
+          }
+        }
+      }
     }
   }
 
@@ -220,63 +246,89 @@ export class AcademicRecordService {
 
       for (const summary of summaries) {
         if (summary.status === 'locked') continue;
-        let details = summary.details || [];
-
-        for (const criterionId of criterionIds) {
-          const criterion = criteriaMap.get(criterionId) as any;
-          if (!criterion) continue;
-
-          const activeCount = countMap.get(criterionId) || 0;
-          let systemScore = activeCount * criterion.score_per_unit;
-          if (criterion.score_per_unit >= 0) {
-            systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
-          } else {
-            const maxScore = criterion.max_score || 10;
-            const minScore = criterion.min_score || 0;
-            systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit)));
-          }
-
-          const detailIndex = details.findIndex(d => d.criterion_id && d.criterion_id.toString() === criterionId);
-          if (detailIndex === -1) {
-            details.push({
-              criterion_id: new Types.ObjectId(criterionId) as any,
-              current_count: activeCount,
-              system_score: systemScore,
-              sv_score: null,
-              sv_submitted_at: null,
-              gv_score: null,
-              gv_reviewed_at: null,
-              gv_reviewed_by: null,
-              final_score: null,
-              locked_at: null,
-              locked_by: null,
-              status: 'draft',
-              description: '',
-              log: [],
-            });
-          } else {
-            const detail = details[detailIndex];
-            detail.current_count = activeCount;
-            detail.system_score = systemScore;
-            if (detail.status === 'draft') {
-              detail.sv_score = systemScore;
-              detail.gv_score = systemScore;
+        
+        let success = false;
+        let attempts = 0;
+        while (!success && attempts < 3) {
+          try {
+            let currentSummary = summary;
+            if (attempts > 0) {
+              currentSummary = await this.summaryPointModel.findById(summary._id).exec() as any;
+              if (!currentSummary || currentSummary.status === 'locked') break;
             }
-            details[detailIndex] = detail;
+            
+            let details = currentSummary.details || [];
+
+            for (const criterionId of criterionIds) {
+              const criterion = criteriaMap.get(criterionId) as any;
+              if (!criterion) continue;
+
+              const activeCount = countMap.get(criterionId) || 0;
+              let systemScore = activeCount * criterion.score_per_unit;
+              if (criterion.score_per_unit >= 0) {
+                systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
+              } else {
+                const maxScore = criterion.max_score || 10;
+                const minScore = criterion.min_score || 0;
+                systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit)));
+              }
+
+              const detailIndex = details.findIndex((d: any) => d.criterion_id && d.criterion_id.toString() === criterionId);
+              if (detailIndex === -1) {
+                details.push({
+                  criterion_id: new Types.ObjectId(criterionId) as any,
+                  current_count: activeCount,
+                  system_score: systemScore,
+                  sv_score: null,
+                  sv_submitted_at: null,
+                  gv_score: null,
+                  gv_reviewed_at: null,
+                  gv_reviewed_by: null,
+                  final_score: null,
+                  locked_at: null,
+                  locked_by: null,
+                  status: 'draft',
+                  description: '',
+                  log: [],
+                });
+              } else {
+                const detail = details[detailIndex];
+                detail.current_count = activeCount;
+                detail.system_score = systemScore;
+                if (detail.status === 'draft') {
+                  detail.sv_score = systemScore;
+                  detail.gv_score = systemScore;
+                }
+                details[detailIndex] = detail;
+              }
+            }
+
+            currentSummary.details = details;
+            currentSummary.markModified('details');
+            await currentSummary.save();
+            await this.summariesPointService.recomputeTotalScore(currentSummary._id.toString());
+            
+            gradingEventEmitter.emit('grading_event', {
+              type: 'academic_record_changed',
+              semesterId: currentSummary.semester_id?.toString(),
+              studentId: currentSummary.student_id?.toString(),
+              summaryId: currentSummary._id.toString(),
+            });
+            
+            success = true;
+          } catch (err: any) {
+            if (err.name === 'VersionError') {
+              attempts++;
+              if (attempts >= 3) {
+                console.warn(`[syncMultipleStudentCriterionScores] VersionError retries exhausted for summary ${summary._id}`);
+                break;
+              }
+              await new Promise(res => setTimeout(res, 20 * attempts));
+            } else {
+              throw err;
+            }
           }
         }
-
-        summary.details = details;
-        summary.markModified('details');
-        await summary.save();
-        await this.summariesPointService.recomputeTotalScore(summary._id.toString());
-        
-        gradingEventEmitter.emit('grading_event', {
-          type: 'academic_record_changed',
-          semesterId: summary.semester_id?.toString(),
-          studentId: summary.student_id?.toString(),
-          summaryId: summary._id.toString(),
-        });
       }
     }
   }

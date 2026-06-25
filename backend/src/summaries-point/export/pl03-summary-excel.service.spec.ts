@@ -126,4 +126,19 @@ describe('pl03-summary-excel.service', () => {
       expect(sheet.getCell(`F${11 + i}`).value).toBe(expectedGrades[i]);
     });
   });
+
+  it('should place signatures in the correct positions', async () => {
+    const buffer = await generatePl03Excel([], classInfo, semesterInfo, departmentInfo);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const sheet = workbook.getWorksheet('TT40');
+
+    // stats start at 46 (because min rows is 35, 11 + 35)
+    // xepLoaiRow = 47, slRow = 48, percentRow = 49
+    // signRow1 = 49 + 3 = 52
+    const signRow1 = 52;
+    
+    expect(sheet.getCell(`A${signRow1}`).value).toBe('TRƯỞNG KHOA');
+    expect(sheet.getCell(`E${signRow1}`).value).toBe('GVCN/CVHT');
+  });
 });

@@ -84,5 +84,20 @@ describe('Copy Score Utils', () => {
       // cri-1: srcCount (4) >= targetMin (2) -> copy srcCount (4)
       expect(result['cri-1']).toBe(4);
     });
+
+    it('should ignore original_count when userRole is admin', () => {
+      const sourceCounts = { 'cri-1': 1 };
+      const targetCurrentCounts = { 'cri-1': 3 };
+      const targetPreCounts = {
+        'cri-1': { original_count: 5, current_count: 3 }
+      };
+
+      // Passed 'admin' as userRole
+      const result = buildTargetSafeCounts(sourceCounts, targetCurrentCounts, targetPreCounts, criteriaList, 'admin');
+
+      // srcCount is 1, target original_count is 5, but admin bypasses it (targetMin = 0)
+      // so it copies 1.
+      expect(result['cri-1']).toBe(1);
+    });
   });
 });

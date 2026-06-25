@@ -18,7 +18,7 @@ describe('EvaluationDetailService', () => {
     find: jest.fn(),
     countDocuments: jest.fn(),
     aggregate: jest.fn(),
-    findByIdAndDelete: jest.fn(),
+    findByIdAndDelete: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
     findByIdAndUpdate: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
   };
 

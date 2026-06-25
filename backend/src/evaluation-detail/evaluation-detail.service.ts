@@ -136,8 +136,8 @@ export class EvaluationDetailService {
 
   private canRequesterDeleteRecord(record: any, requester?: any): boolean {
     if (!requester?.userId) return false;
-    if (record.daily_report_id) return false;
     if (this.isAdminRole(requester)) return true;
+    if (record.daily_report_id) return false;
 
     const creator = this.getRecordCreator(record);
     if (!creator) return true;
@@ -215,7 +215,7 @@ export class EvaluationDetailService {
         });
       const recordsToDelete = deletableRecords.slice(0, excessCount);
       const promises = recordsToDelete.map((rec) =>
-        this.academicRecordModel.findByIdAndUpdate(rec._id, { status: 'inactive', is_deleted: true }).exec()
+        this.academicRecordModel.findByIdAndDelete(rec._id).exec()
       );
       await Promise.all(promises);
     }
