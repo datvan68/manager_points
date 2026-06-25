@@ -795,6 +795,159 @@ export class EvaluationDetailService {
     return updatedDetail;
   }
 
+  async bulkUpsert(
+    bulkUpsertDto: import('./dto/bulk-upsert-evaluation-detail.dto').BulkUpsertEvaluationDetailDto,
+    requester?: any,
+  ): Promise<any> {
+    const { summary_id, details, reason } = bulkUpsertDto;
+    await this.assertCanAccessSummary(summary_id, requester);
+
+    const summary = await this.summaryPointModel.findById(summary_id).exec();
+    if (!summary) {
+      throw new NotFoundException(`SummaryPoint with ID ${summary_id} not found`);
+    }
+
+    if (summary.status === 'locked') {
+      throw new BadRequestException('Không thể thêm/chỉnh sửa chi tiết chấm điểm cho bảng điểm đã chốt');
+    }
+
+    for (const detailDto of details) {
+      const { criterion_id, current_count, selected_option_id } = detailDto;
+      const criterion = await this.criterionModel.findById(criterion_id).exec();
+      if (!criterion) continue;
+
+      const existingIndex = summary.details.findIndex(
+        (d) => d.criterion_id && d.criterion_id.toString() === criterion_id
+      );
+
+      let countVal = current_count || 0;
+      let systemScore = 0;
+      let optId = selected_option_id || null;
+      let optLabel = detailDto.selected_option_label || null;
+      let optScore = detailDto.selected_option_score || null;
+
+      if (criterion.scoring_mode === 'single_option') {
+        if (optId) {
+          const option = criterion.options?.find((o) => o.id === optId);
+          if (option) {
+            systemScore = option.score;
+            optLabel = option.label;
+            optScore = option.score;
+            countVal = 1;
+          } else {
+            optId = null;
+            countVal = 0;
+            systemScore = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
+          }
+        } else {
+          countVal = 0;
+          systemScore = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
+        }
+      } else {
+        systemScore = countVal * criterion.score_per_unit;
+        if (criterion.score_per_unit >= 0) {
+          systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
+        } else {
+          const maxScore = criterion.max_score || 10;
+          const minScore = criterion.min_score || 0;
+          systemScore = Math.max(minScore, Math.min(maxScore, maxScore - countVal * Math.abs(criterion.score_per_unit)));
+        }
+      }
+
+      const firstLog = detailDto.log && detailDto.log.length > 0 ? detailDto.log[0] : null;
+      const fallbackUserId = detailDto.gv_reviewed_by || firstLog?.updated_by;
+      const effectiveRequester = requester || { userId: fallbackUserId };
+
+      let actualCountVal = countVal;
+      if (existingIndex !== -1 && criterion.scoring_mode !== 'single_option') {
+          const records = await this.academicRecordModel.find({
+            student_id: summary.student_id as any,
+            semester_id: summary.semester_id as any,
+            criterion_id: criterion._id as any,
+            status: 'active',
+          } as any)
+            .populate({ path: 'recorded_by', populate: { path: 'role' } })
+            .exec();
+
+          const originalCount = records.filter((rec) => !this.canRequesterDeleteRecord(rec, effectiveRequester)).length;
+          if (actualCountVal < originalCount) {
+             actualCountVal = originalCount;
+             systemScore = actualCountVal * criterion.score_per_unit;
+             if (criterion.score_per_unit >= 0) {
+               systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
+             } else {
+               const maxScore = criterion.max_score || 10;
+               const minScore = criterion.min_score || 0;
+               systemScore = Math.max(minScore, Math.min(maxScore, maxScore - actualCountVal * Math.abs(criterion.score_per_unit)));
+             }
+          }
+      }
+
+      await this.syncAcademicRecords(summary, criterion, actualCountVal, effectiveRequester);
+
+      const setObj: any = {
+        criterion_id: new Types.ObjectId(criterion_id),
+        current_count: actualCountVal,
+        system_score: systemScore,
+        selected_option_id: optId,
+        selected_option_label: optLabel,
+        selected_option_score: optScore,
+      };
+
+      if (detailDto.sv_score !== undefined) setObj.sv_score = detailDto.sv_score;
+      if (detailDto.sv_submitted_at !== undefined) setObj.sv_submitted_at = detailDto.sv_submitted_at ? new Date(detailDto.sv_submitted_at) : null;
+      if (detailDto.gv_score !== undefined) setObj.gv_score = detailDto.gv_score;
+      
+      const isGVScoreCleared = this.isStudent(requester) &&
+        detailDto.sv_score !== undefined &&
+        detailDto.gv_score === undefined;
+        
+      if (detailDto.gv_reviewed_at !== undefined) setObj.gv_reviewed_at = detailDto.gv_reviewed_at ? new Date(detailDto.gv_reviewed_at) : null;
+      if (detailDto.gv_reviewed_by !== undefined) setObj.gv_reviewed_by = detailDto.gv_reviewed_by ? new Types.ObjectId(detailDto.gv_reviewed_by) : null;
+      if (detailDto.status !== undefined) setObj.status = detailDto.status;
+      if (detailDto.log && detailDto.log.length > 0) setObj.log = detailDto.log;
+
+      if (existingIndex !== -1) {
+        const detail = summary.details[existingIndex];
+        if (isGVScoreCleared && !detail.gv_reviewed_at && !detail.gv_reviewed_by) {
+            setObj.gv_score = null;
+        }
+        
+        const updateQuery: any = {};
+        for (const key of Object.keys(setObj)) {
+            updateQuery[`details.$.${key}`] = setObj[key];
+        }
+        await this.summaryPointModel.findOneAndUpdate(
+          { 'details._id': (detail as any)._id },
+          { $set: updateQuery }
+        ).exec();
+      } else {
+        const newDetail: any = {
+          _id: new Types.ObjectId(),
+          ...setObj,
+          sv_score: setObj.sv_score !== undefined ? setObj.sv_score : null,
+          sv_submitted_at: setObj.sv_submitted_at || null,
+          gv_score: setObj.gv_score !== undefined ? setObj.gv_score : null,
+          gv_reviewed_at: setObj.gv_reviewed_at || null,
+          gv_reviewed_by: setObj.gv_reviewed_by || null,
+          final_score: null,
+          locked_at: null,
+          locked_by: null,
+          status: setObj.status || 'draft',
+          description: '',
+          log: setObj.log || [],
+        };
+        await this.summaryPointModel.findByIdAndUpdate(
+          summary_id,
+          { $push: { details: newDetail } }
+        ).exec();
+      }
+    }
+
+    await this.summariesPointService.recomputeTotalScore(summary_id);
+    return { success: true };
+  }
+
   async remove(id: string, requester?: any): Promise<EvaluationDetail> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);

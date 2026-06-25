@@ -396,7 +396,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
         toast.success('Cập nhật ghi nhận thành công!');
         if (taskId && recordToEdit?._id) {
           try {
-            await markCompleted(recordToEdit._id);
+            await markCompleted({ sourceId: recordToEdit._id });
           } catch (syncErr) {
             toast.warning('Nghiệp vụ đã lưu nhưng trạng thái nhiệm vụ chưa được đồng bộ!');
           }
@@ -456,7 +456,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
         try {
           const firstRecordId = response.createdRecordIds && response.createdRecordIds.length > 0 ? response.createdRecordIds[0] : null;
           if (firstRecordId) {
-             await markCompleted(firstRecordId);
+             await markCompleted({ sourceId: firstRecordId });
           } else {
              await markCompleted();
           }

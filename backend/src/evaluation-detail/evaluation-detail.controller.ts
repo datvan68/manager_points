@@ -39,6 +39,20 @@ export class EvaluationDetailController {
     return this.evaluationDetailService.create(createEvaluationDetailDto, req.user);
   }
 
+  @Post('bulk-upsert')
+  @ApiOperation({ summary: 'Lưu hàng loạt (Tạo mới hoặc Cập nhật) chi tiết chấm điểm' })
+  @ApiResponse({
+    status: 200,
+    description: 'Chi tiết chấm điểm được lưu thành công.',
+  })
+  @ApiResponse({ status: 400, description: 'Dữ liệu đầu vào không hợp lệ.' })
+  async bulkUpsert(
+    @Body() bulkUpsertDto: import('./dto/bulk-upsert-evaluation-detail.dto').BulkUpsertEvaluationDetailDto,
+    @Request() req: any,
+  ) {
+    return this.evaluationDetailService.bulkUpsert(bulkUpsertDto, req.user);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Lấy tất cả chi tiết chấm điểm' })
   @ApiResponse({

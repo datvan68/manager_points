@@ -8,6 +8,7 @@ import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Role, RoleSchema } from '../auth/schemas/role.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
+import { SummaryPoint, SummaryPointSchema } from '../summaries-point/schemas/summary-point.schema';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { Class, ClassSchema } from '../classes/schemas/class.schema';
       { name: User.name, schema: UserSchema },
       { name: Role.name, schema: RoleSchema },
       { name: Class.name, schema: ClassSchema },
+      { name: SummaryPoint.name, schema: SummaryPointSchema },
     ]),
   ],
   controllers: [StudentTaskProgressController],

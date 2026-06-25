@@ -2,7 +2,7 @@ import { Controller, Get, Patch, Post, Body, Param, Query, UseGuards, Request } 
 import { StudentTaskProgressService } from './student-task-progress.service';
 import { GetProgressOverviewDto } from './dto/get-progress-overview.dto';
 import { UpdateProgressStatusDto } from './dto/update-progress-status.dto';
-import { LinkedTaskProgressEventDto } from './dto/linked-task-progress-event.dto';
+import { LinkedTaskProgressEventDto, BulkLinkedTaskProgressEventDto } from './dto/linked-task-progress-event.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
@@ -26,6 +26,12 @@ export class StudentTaskProgressController {
     return this.progressService.updateProgressFromLinkedEvent(dto, req.user);
   }
 
+  @Post('linked-event/bulk')
+  // Mọi user đều có thể gọi. Logic kiểm tra quyền và progress được xử lý ở Service.
+  bulkUpdateProgressFromLinkedEvent(@Body() dto: BulkLinkedTaskProgressEventDto, @Request() req: any) {
+    return this.progressService.bulkUpdateProgressFromLinkedEvent(dto, req.user);
+  }
+
   @Patch(':id/status')
   // Mọi user đều có thể gọi (student đổi trạng thái của họ, quản lý đổi thay). Logic phân quyền chi tiết nằm ở Service
   updateStatus(@Param('id') id: string, @Body() dto: UpdateProgressStatusDto, @Request() req: any) {
@@ -36,6 +42,12 @@ export class StudentTaskProgressController {
   @Permissions('UPDATE_STUDENT_TASK')
   async backfill() {
     return this.progressService.backfillAllTasks();
+  }
+
+  @Get(':progressId/teacher-detail')
+  @Permissions('READ_STUDENT_TASK')
+  getTeacherProgressDetail(@Param('progressId') progressId: string, @Request() req: any) {
+    return this.progressService.getTeacherProgressDetail(progressId, req.user);
   }
 }
 

@@ -106,7 +106,9 @@ describe('StudentTaskProgressService (Unit)', () => {
         },
         {
           provide: getModelToken(Student.name),
-          useValue: {},
+          useValue: {
+            find: jest.fn(),
+          },
         },
         {
           provide: getModelToken(User.name),
@@ -122,6 +124,19 @@ describe('StudentTaskProgressService (Unit)', () => {
             find: jest.fn().mockReturnValue({
               select: jest.fn().mockReturnThis(),
               lean: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue([]),
+            }),
+          },
+        },
+        {
+          provide: getModelToken('SummaryPoint'),
+          useValue: {
+            findById: jest.fn().mockReturnValue({
+              populate: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue(null),
+            }),
+            find: jest.fn().mockReturnValue({
+              populate: jest.fn().mockReturnThis(),
               exec: jest.fn().mockResolvedValue([]),
             }),
           },
@@ -241,6 +256,114 @@ describe('StudentTaskProgressService (Unit)', () => {
       expect(result.status).toEqual(StudentTaskStatus.NOT_STARTED);
       expect(result.startedAt).toBeUndefined();
       expect(result.completedAt).toBeUndefined();
+    });
+
+    it('should calculate teacherProgress if targetType is teacher', async () => {
+      taskModel.findOne.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue({
+          ...mockTask,
+          targetType: 'teacher',
+        }),
+      });
+
+      const mockSourceSummary = {
+        semester_id: new Types.ObjectId(),
+      };
+      
+      const summaryPointModel = (service as any).summaryPointModel;
+      summaryPointModel.findById.mockReturnValueOnce({
+        select: jest.fn().mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue(mockSourceSummary),
+        }),
+      });
+
+      const classModel = (service as any).classModel;
+      classModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), class_name: 'Lớp 1' }]),
+        }),
+      });
+
+      const studentModel = (service as any).studentModel;
+      studentModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId() }]),
+        }),
+      });
+
+      summaryPointModel.find = jest.fn().mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            details: [{ sv_score: 10, gv_score: 10 }] // completed
+          }
+        ]),
+      });
+
+      const dto = {
+        taskId: mockTaskId,
+        event: 'completed' as const,
+        linkedPage: '/students/record',
+        sourceType: 'grading_score',
+        sourceId: new Types.ObjectId().toString(),
+      };
+      const user = { userId: mockUserId, roleName: 'Teacher', user_name: 'Nguyen Van A' };
+
+      const result = await service.updateProgressFromLinkedEvent(dto, user);
+
+      expect(result.teacherProgress).toBeDefined();
+      expect(result.teacherProgress?.completionRate).toEqual(100);
+      expect(result.status).toEqual(StudentTaskStatus.COMPLETED);
+    });
+
+    it('should calculate criteriaProgress if targetType is student and event from grading_score', async () => {
+      taskModel.findOne.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue({
+          ...mockTask,
+          targetType: 'student',
+          createdBy: new Types.ObjectId(mockUserId), // to pass permission check
+        }),
+      });
+
+      const mockStudentProgress = {
+        ...mockProgress,
+        studentId: new Types.ObjectId(),
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      progressModel.findOne.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(mockStudentProgress),
+      });
+
+      const summaryPointModel = (service as any).summaryPointModel;
+      summaryPointModel.findById.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({
+          _id: new Types.ObjectId(),
+          details: [
+            { gv_score: 10, sv_score: 10 } // 1 completed criteria
+          ]
+        }),
+      });
+
+      const dto = {
+        taskId: mockTaskId,
+        event: 'completed' as const,
+        linkedPage: '/students/record',
+        sourceType: 'grading_score',
+        sourceId: new Types.ObjectId().toString(),
+        assigneeStudentId: new Types.ObjectId().toString(),
+      };
+      const user = { userId: mockUserId, roleName: 'Teacher' };
+
+      const result = await service.updateProgressFromLinkedEvent(dto, user);
+
+      expect(result.criteriaProgress).toBeDefined();
+      expect(result.criteriaProgress?.completionRate).toEqual(100);
+      expect(result.statusSource).toEqual('linked_event');
+      expect(result.sourceType).toEqual('grading_score');
+      expect(result.sourceId).toEqual(dto.sourceId);
+      expect(result.status).toEqual(StudentTaskStatus.COMPLETED);
     });
 
     it('should deny non-admin to reset task progress', async () => {

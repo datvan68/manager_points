@@ -793,6 +793,65 @@ export class StudentTasksService {
     return task.save();
   }
 
+  async resolveAutoLinkedTask(linkedPage: string, user: any) {
+    if (!linkedPage) {
+      throw new BadRequestException('Trang liên kết (linkedPage) không được để trống');
+    }
+
+    const normalizedLinkedPage = normalizeLinkedPage(linkedPage);
+
+    // 1. Lấy baseFilter theo quyền truy cập của user hiện tại
+    const baseFilter = await this.buildVisibilityFilter(user);
+
+    // 2. Chỉ quan tâm các task auto-linked đang hoạt động
+    const filter: any = {
+      ...baseFilter,
+      linkedPage: normalizedLinkedPage,
+      status: { $in: [StudentTaskStatus.NOT_STARTED, StudentTaskStatus.IN_PROGRESS] },
+    };
+
+    const tasks = await this.studentTaskModel.find(filter).exec();
+
+    // 3. Lọc lại theo logic "người này có thực sự được giao task hay không" 
+    // vì baseFilter của Teacher có thể lỏng hơn (lấy cả task giao cho teacher hoặc student lớp chủ nhiệm)
+    let validTasks = [];
+    const roleName = user.roleName || '';
+    const isTeacher = this.isTeacherRole(roleName);
+    
+    if (isTeacher) {
+      const teacherId = new Types.ObjectId(user.userId);
+      const advisorClasses = await this.classModel.find({ advisor_id: teacherId as any }).select('_id').lean().exec();
+      const advisorClassIdsStr = advisorClasses.map(c => c._id.toString());
+
+      validTasks = tasks.filter((task) => {
+        // Teacher task
+        if (task.targetType === 'teacher') {
+          if (task.targetScope === 'all') return true;
+          return task.targetTeacherIds?.some(tid => tid.toString() === user.userId);
+        }
+        
+        // Student task (chỉ lấy task giao cho lớp chủ nhiệm của giáo viên)
+        if (task.targetType === 'student') {
+           if (task.targetScope === 'all') return true;
+           const matchedClass = task.targetClassIds?.some(cid => advisorClassIdsStr.includes(cid.toString()));
+           // Trong trường hợp này, việc tìm studentIds khá phức tạp, ta tạm coi nếu có matchedClass là hợp lệ.
+           return matchedClass;
+        }
+        
+        return false;
+      });
+    } else {
+      // Với student/admin/supervisor thì baseFilter đã khá chính xác, có thể dùng luôn danh sách tasks
+      validTasks = tasks;
+    }
+
+    if (validTasks.length === 1) {
+      return { taskId: validTasks[0]._id.toString(), count: 1 };
+    }
+
+    return { taskId: null, count: validTasks.length };
+  }
+
   async getTeachers() {
     const teacherRole = await this.roleModel.findOne({ role_code: 'TEACHER' }).exec();
     if (!teacherRole) return [];

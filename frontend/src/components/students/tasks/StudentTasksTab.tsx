@@ -366,11 +366,17 @@ const StudentTasksTab = () => {
     }
     toast.info(`Đang chuyển hướng sang trang: ${getLinkedPageName(task.linkedPage)}`);
     const isManager = isAdminOrSupervisor(user) || taskAccess.editTask;
-    if (isManager) {
-      router.push(task.linkedPage);
-    } else {
+    
+    if (mode === 'auto') {
       const separator = task.linkedPage.includes('?') ? '&' : '?';
       router.push(`${task.linkedPage}${separator}taskId=${task.id}`);
+    } else {
+      if (isManager) {
+        router.push(task.linkedPage);
+      } else {
+        const separator = task.linkedPage.includes('?') ? '&' : '?';
+        router.push(`${task.linkedPage}${separator}taskId=${task.id}`);
+      }
     }
   };
 

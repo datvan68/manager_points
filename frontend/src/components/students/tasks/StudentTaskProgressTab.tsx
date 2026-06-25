@@ -4,11 +4,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Search, Users, CheckCircle2, Clock, 
   ChevronLeft, ChevronRight, AlertCircle, Play, Check, ExternalLink,
-  Calendar as CalendarIcon, LayoutGrid, List, Filter, X
+  Calendar as CalendarIcon, LayoutGrid, List, Filter, X, Eye
 } from 'lucide-react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { studentTaskApi, StudentTaskProgress } from '@/api/task-api';
+import { studentTaskApi, StudentTaskProgress, TeacherTaskDetailResponse, TeacherTaskStudentDetail } from '@/api/task-api';
 import { classApi } from '@/api/class-api';
 import { toast } from 'sonner';
 import { useAuth } from '@/providers/auth-provider';
@@ -19,6 +19,7 @@ import { isStudentRole, isTeacherRole, isAdminOrSupervisor } from "@/utils/role.
 
 export default function StudentTaskProgressTab() {
   const [items, setItems] = useState<StudentTaskProgress[]>([]);
+  const [teacherSummaries, setTeacherSummaries] = useState<any[]>([]);
   const [summary, setSummary] = useState({
     totalAssignees: 0,
     notStarted: 0,
@@ -29,6 +30,15 @@ export default function StudentTaskProgressTab() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [teacherDetailOpen, setTeacherDetailOpen] = useState(false);
+  const [selectedTeacherProgress, setSelectedTeacherProgress] = useState<StudentTaskProgress | null>(null);
+  const [teacherDetail, setTeacherDetail] = useState<TeacherTaskDetailResponse | null>(null);
+  const [teacherDetailLoading, setTeacherDetailLoading] = useState(false);
+  const [teacherDetailError, setTeacherDetailError] = useState<string | null>(null);
+
+  const [criteriaDialogOpen, setCriteriaDialogOpen] = useState(false);
+  const [selectedStudentDetail, setSelectedStudentDetail] = useState<TeacherTaskStudentDetail | null>(null);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -94,9 +104,9 @@ export default function StudentTaskProgressTab() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const fetchOverview = useCallback(async () => {
+  const fetchOverview = useCallback(async (showLoading = true) => {
     const currentFetchId = ++fetchIdRef.current;
-    if (!hasLoadedOnceRef.current) {
+    if (showLoading) {
       setIsLoading(true);
     }
     setError(null);
@@ -114,6 +124,7 @@ export default function StudentTaskProgressTab() {
       if (currentFetchId !== fetchIdRef.current) return;
 
       setItems(res.items);
+      setTeacherSummaries(res.teacherSummaries || []);
       hasLoadedOnceRef.current = true;
       setSummary(res.summary);
       setTotalPages(res.totalPages);
@@ -132,7 +143,31 @@ export default function StudentTaskProgressTab() {
 
   useEffect(() => {
     fetchOverview();
+    
+    // Polling every 15 seconds
+    const interval = setInterval(() => {
+      fetchOverview(false);
+    }, 15000);
+    
+    return () => clearInterval(interval);
   }, [fetchOverview]);
+
+  const handleOpenTeacherDetail = async (progress: StudentTaskProgress) => {
+    setSelectedTeacherProgress(progress);
+    setTeacherDetailOpen(true);
+    setTeacherDetailLoading(true);
+    setTeacherDetailError(null);
+    setTeacherDetail(null);
+    try {
+      const detail = await studentTaskApi.getTeacherProgressDetail(progress.id);
+      setTeacherDetail(detail);
+    } catch (err: any) {
+      setTeacherDetailError(err.message || 'Không thể tải dữ liệu giáo viên');
+      toast.error('Lỗi khi lấy chi tiết tiến độ giáo viên');
+    } finally {
+      setTeacherDetailLoading(false);
+    }
+  };
 
   const handleUpdateStatus = async (id: string, currentStatus: string) => {
     let nextStatus = 'in_progress';
@@ -169,13 +204,78 @@ export default function StudentTaskProgressTab() {
   const startItem = totalCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
   const endItem = Math.min(currentPage * itemsPerPage, totalCount);
 
+  // Polling mechanism
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchOverview();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchOverview();
+      }
+    }, 15000); // 15 seconds
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(intervalId);
+    };
+  }, [fetchOverview]);
+
+  const renderTeacherProgressBars = () => {
+    if (!teacherSummaries || teacherSummaries.length === 0) return null;
+    return (
+      <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-4 shadow-sm mb-2 mt-2">
+        <h3 className="text-sm font-bold text-[#1E293B] mb-3">Tiến độ theo Giáo viên chủ nhiệm</h3>
+        <div className="flex flex-col gap-3">
+          {teacherSummaries.map(t => {
+            let colorClass = 'bg-amber-500';
+            let textClass = 'text-amber-700';
+            let bgClass = 'bg-amber-50';
+            
+            if (t.completionRate >= 80) {
+              colorClass = 'bg-emerald-500';
+              textClass = 'text-emerald-700';
+              bgClass = 'bg-emerald-50';
+            } else if (t.completionRate >= 40) {
+              colorClass = 'bg-blue-500';
+              textClass = 'text-blue-700';
+              bgClass = 'bg-blue-50';
+            }
+
+            return (
+              <div key={t.teacherId} className="flex flex-col gap-1">
+                <div className="flex justify-between items-center text-xs font-semibold">
+                  <span className="text-[#334155]">{t.teacherName} (Lớp: {t.classNames.join(', ')})</span>
+                  <span className={`px-2 py-0.5 rounded-lg border ${textClass} ${bgClass} border-${colorClass}/20`}>
+                    {t.completedStudents}/{t.totalStudents} ({t.completionRate}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200/50 rounded-full h-1.5 overflow-hidden border border-white/40">
+                  <div 
+                    className={`${colorClass} h-1.5 rounded-full transition-all duration-500 ease-out`} 
+                    style={{ width: `${t.completionRate}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderKPICards = (isMobile: boolean) => {
     return (
       <div 
         className={`grid gap-3 shrink-0 ${
           isMobile 
             ? "grid-cols-2 md:grid-cols-4 mt-6 pt-4 border-t border-white/30 lg:hidden" 
-            : "hidden lg:grid grid-cols-2 lg:grid-cols-4 order-2 lg:order-1"
+            : "hidden lg:grid grid-cols-2 lg:grid-cols-4 order-2 lg:order-1 mt-2"
         }`}
       >
         <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 flex flex-col justify-center shadow-sm shadow-slate-300/40 hover:scale-[1.01] hover:bg-white/60 transition-all duration-150 ease-out">
@@ -207,8 +307,145 @@ export default function StudentTaskProgressTab() {
     );
   };
 
+  const normalizeProgressStatus = (item: StudentTaskProgress, isCard: boolean) => {
+    let completionRate: number | undefined = undefined;
+    let hasData = false;
+    let detailLabel = '';
+
+    if (item.assigneeType === 'teacher') {
+      if (item.teacherProgress) {
+        const required = item.teacherProgress.totalRequiredItems;
+        const total = required !== undefined ? required : item.teacherProgress.totalStudents;
+        if (item.teacherProgress.status === 'no_data' || total === 0) {
+          hasData = false;
+        } else {
+          hasData = true;
+          completionRate = item.teacherProgress.completionRate;
+          const completed = item.teacherProgress.completedTeacherItems !== undefined ? item.teacherProgress.completedTeacherItems : item.teacherProgress.completedStudents;
+          const unit = item.teacherProgress.totalRequiredItems !== undefined ? 'mục đã chấm' : 'sinh viên';
+          detailLabel = `${completed}/${total} ${unit}`;
+        }
+      } else {
+        const ts = teacherSummaries?.find(t => t.teacherId === item.assigneeUserId);
+        if (ts && ts.totalStudents > 0) {
+          hasData = true;
+          completionRate = ts.completionRate;
+          detailLabel = `${ts.completedStudents}/${ts.totalStudents} sinh viên`;
+        } else {
+          hasData = false;
+        }
+      }
+    } else if (item.assigneeType === 'student') {
+      if (item.criteriaProgress) {
+        if (item.criteriaProgress.status === 'no_data' || item.criteriaProgress.totalCriteria === 0) {
+          hasData = false;
+        } else {
+          hasData = true;
+          completionRate = item.criteriaProgress.completionRate;
+          detailLabel = `${item.criteriaProgress.completedCriteria}/${item.criteriaProgress.totalCriteria} tiêu chí`;
+        }
+      } else {
+        hasData = false;
+      }
+    } else {
+      hasData = false;
+    }
+
+    if (completionRate !== undefined) {
+      completionRate = Math.max(0, Math.min(100, completionRate));
+    }
+
+    let statusType = 'pending';
+    if (hasData && completionRate !== undefined) {
+      if (completionRate >= 100) statusType = 'completed';
+      else if (completionRate > 0) statusType = 'in_progress';
+      else statusType = 'pending';
+    } else {
+      // Fallback for missing criteria data
+      if (item.status === 'completed') {
+        completionRate = 100;
+        statusType = 'completed';
+        hasData = true;
+      } else if (item.status === 'in_progress') {
+        completionRate = 50;
+        statusType = 'in_progress';
+        hasData = true;
+        detailLabel = 'Chưa có DL chi tiết';
+      } else if (item.status === 'not_started') {
+        completionRate = 0;
+        statusType = 'not_started';
+        hasData = true;
+      } else {
+        statusType = 'no_data';
+      }
+    }
+
+    return { statusType, completionRate, hasData, detailLabel };
+  };
+
+  const getStatusElement = (item: StudentTaskProgress, isCard: boolean) => {
+    const { statusType, completionRate, detailLabel } = normalizeProgressStatus(item, isCard);
+
+    let colorClass = 'bg-gray-500';
+    let textClass = 'text-gray-600';
+    let bgClass = 'bg-gray-50';
+    let borderClass = 'border-gray-200';
+    let label = 'Chưa có dữ liệu';
+
+    if (statusType === 'completed') {
+      colorClass = 'bg-emerald-500';
+      textClass = 'text-emerald-600';
+      bgClass = 'bg-emerald-50';
+      borderClass = 'border-emerald-200';
+      label = isCard ? 'Đã xong' : 'Đã hoàn thành';
+    } else if (statusType === 'in_progress') {
+      colorClass = 'bg-blue-500';
+      textClass = 'text-blue-600';
+      bgClass = 'bg-blue-50';
+      borderClass = 'border-blue-200';
+      label = isCard ? 'Đang làm' : 'Đang thực hiện';
+    } else if (statusType === 'pending' || statusType === 'not_started') {
+      colorClass = 'bg-gray-500';
+      textClass = 'text-gray-600';
+      bgClass = 'bg-gray-50';
+      borderClass = 'border-gray-200';
+      label = isCard ? 'Chưa xong' : 'Chưa hoàn thành';
+    } else {
+      colorClass = 'bg-slate-300';
+      textClass = 'text-slate-500';
+      bgClass = 'bg-slate-50';
+      borderClass = 'border-slate-200';
+      label = isCard ? 'Không có DL' : 'Chưa có dữ liệu';
+    }
+
+    if (completionRate !== undefined && statusType !== 'no_data') {
+      return (
+        <div className={`flex flex-col gap-1 w-full min-w-[120px] ${isCard ? '' : 'mx-auto max-w-[150px]'}`} title={detailLabel ? `${detailLabel} (${completionRate}%)` : `${completionRate}%`}>
+          <div className="flex justify-between items-center text-[10px] font-bold">
+            <span className={textClass}>{detailLabel || label}</span>
+            <span className={textClass}>{completionRate}%</span>
+          </div>
+          <div className="w-full bg-slate-200/50 rounded-full h-1.5 overflow-hidden border border-white/40">
+            <div 
+              className={`${colorClass} h-1.5 rounded-full transition-all duration-500 ease-out`} 
+              style={{ width: `${completionRate}%` }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold rounded-xl border ${bgClass} ${textClass} ${borderClass}`}>
+        {label}
+      </span>
+    );
+  };
+
   return (
     <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-0 bg-transparent">
+      {renderTeacherProgressBars()}
+
       {/* KPI Cards */}
       {renderKPICards(false)}
 
@@ -523,26 +760,31 @@ export default function StudentTaskProgressTab() {
                         {item.updatedAt ? new Date(item.updatedAt).toLocaleString('vi-VN') : '-'}
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-[10px] font-bold rounded-xl border ${
-                          item.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                          item.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                          'bg-gray-50 text-gray-600 border-gray-200'
-                        }`}>
-                          {item.status === 'completed' ? 'Đã hoàn thành' : item.status === 'in_progress' ? 'Đang thực hiện' : 'Chưa hoàn thành'}
-                        </span>
+                        {getStatusElement(item, false)}
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
-                        {(hasManagePermission || user?.id === item.assigneeUserId) ? (
-                          <button
-                            onClick={() => handleUpdateStatus(item.id, item.status)}
-                            title="Chuyển trạng thái"
-                            className="p-1.5 rounded-xl border border-white/70 bg-white/50 hover:bg-white/80 text-slate-500 hover:text-[#1A73E8] hover:border-[#1A73E8]/50 active:scale-[0.98] transition-all duration-150 hover:scale-[1.01]"
-                          >
-                            {item.status === 'completed' ? <Check size={14} className="text-emerald-500" /> : <Play size={14} className="text-blue-500" />}
-                          </button>
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
+                        <div className="flex items-center justify-center gap-1.5">
+                          {item.assigneeType === 'teacher' && (hasManagePermission || user?.id === item.assigneeUserId) && (
+                            <button
+                              onClick={() => handleOpenTeacherDetail(item)}
+                              title="Chi tiết"
+                              className="p-1.5 rounded-xl border border-white/70 bg-white/50 hover:bg-white/80 text-[#1A73E8] hover:text-[#155cb4] hover:border-[#1A73E8]/50 active:scale-[0.98] transition-all duration-150 hover:scale-[1.01]"
+                            >
+                              <Users size={14} />
+                            </button>
+                          )}
+                          {(hasManagePermission || user?.id === item.assigneeUserId) ? (
+                            <button
+                              onClick={() => handleUpdateStatus(item.id, item.status)}
+                              title="Chuyển trạng thái"
+                              className="p-1.5 rounded-xl border border-white/70 bg-white/50 hover:bg-white/80 text-slate-500 hover:text-[#1A73E8] hover:border-[#1A73E8]/50 active:scale-[0.98] transition-all duration-150 hover:scale-[1.01]"
+                            >
+                              {item.status === 'completed' ? <Check size={14} className="text-emerald-500" /> : <Play size={14} className="text-blue-500" />}
+                            </button>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -566,13 +808,7 @@ export default function StudentTaskProgressTab() {
                     }`}>
                       {item.taskType === 'project' ? 'Dự án' : item.taskType === 'assignment' ? 'Bài tập' : 'Hoạt động'}
                     </span>
-                    <span className={`inline-flex px-2 py-0.5 text-[9px] font-bold rounded-xl border ${
-                      item.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                      item.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                      'bg-gray-50 text-gray-600 border-gray-200'
-                    }`}>
-                      {item.status === 'completed' ? 'Đã xong' : item.status === 'in_progress' ? 'Đang làm' : 'Chưa xong'}
-                    </span>
+                    {getStatusElement(item, true)}
                   </div>
 
                   {/* Card Body: Task details & Assignee */}
@@ -643,6 +879,15 @@ export default function StudentTaskProgressTab() {
                         >
                           <ExternalLink size={12} />
                         </a>
+                      )}
+                      {item.assigneeType === 'teacher' && (hasManagePermission || user?.id === item.assigneeUserId) && (
+                        <button
+                          onClick={() => handleOpenTeacherDetail(item)}
+                          className="w-7 h-7 rounded-xl flex items-center justify-center border transition-all duration-150 hover:scale-[1.01] cursor-pointer bg-blue-50/70 border-blue-200 text-[#1A73E8] hover:bg-blue-100/90"
+                          title="Chi tiết"
+                        >
+                          <Users size={14} />
+                        </button>
                       )}
                       {(hasManagePermission || user?.id === item.assigneeUserId) && (
                         <button
@@ -776,6 +1021,180 @@ export default function StudentTaskProgressTab() {
             >
               Áp dụng
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Teacher Detail Dialog */}
+      <Dialog open={teacherDetailOpen} onOpenChange={setTeacherDetailOpen}>
+        <DialogContent className="max-w-5xl rounded-2xl bg-[#F8FAFC] border border-white/70 p-0 overflow-hidden flex flex-col h-[85vh] z-[100]">
+          <DialogHeader className="p-5 border-b border-slate-200/60 bg-white/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
+            <DialogTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
+              <Users size={20} className="text-blue-600" />
+              Chi tiết tiến độ: {selectedTeacherProgress?.teacherProgress?.teacherName || teacherDetail?.teacherName || selectedTeacherProgress?.assigneeName || 'Giáo viên'}
+            </DialogTitle>
+            {teacherDetail && (
+              <div className="flex gap-4 mt-2 text-sm">
+                <div className="flex items-center gap-1.5"><span className="text-slate-500">Lớp:</span><span className="font-semibold">{teacherDetail.totals.classCount}</span></div>
+                <div className="flex items-center gap-1.5"><span className="text-slate-500">Sinh viên:</span><span className="font-semibold">{teacherDetail.totals.studentCount}</span></div>
+                <div className="flex items-center gap-1.5"><span className="text-slate-500">Hoàn thành:</span><span className="font-semibold text-emerald-600">{teacherDetail.totals.completionRate}%</span></div>
+              </div>
+            )}
+          </DialogHeader>
+          {teacherDetail?.context?.source === 'none' && (
+            <div className="px-5 py-2 bg-amber-50 border-b border-amber-200 text-amber-700 text-sm font-medium flex items-center gap-2 shrink-0">
+              <AlertCircle size={16} />
+              Chưa xác định được học kỳ/kỳ đánh giá để lấy dữ liệu chấm điểm.
+            </div>
+          )}
+          <div className="p-5 overflow-auto flex-1 bg-gradient-to-b from-white/30 to-transparent">
+            {teacherDetailLoading ? (
+              <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+            ) : teacherDetailError ? (
+              <div className="text-center text-red-500 py-10 flex flex-col items-center gap-3">
+                <AlertCircle size={32} className="text-red-400" />
+                <span>{teacherDetailError}</span>
+                <button onClick={() => selectedTeacherProgress && handleOpenTeacherDetail(selectedTeacherProgress)} className="px-4 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50">Thử lại</button>
+              </div>
+            ) : teacherDetail?.classes?.length === 0 ? (
+              <div className="text-center text-slate-500 py-10 flex flex-col items-center gap-2">
+                <Users size={32} className="text-slate-300" />
+                <span>Giáo viên này không chủ nhiệm lớp nào hoặc chưa có dữ liệu sinh viên.</span>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {teacherDetail?.classes.map(cls => (
+                  <div key={cls.classId} className="bg-white/60 border border-white/70 rounded-2xl p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-slate-800 text-base">{cls.className}</h3>
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold">{cls.totals.studentCount} SV</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-slate-500">Tiến độ:</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-700">{cls.totals.completedTeacherItems}/{cls.totals.totalRequiredItems}</span>
+                          <span className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 font-bold text-xs">{cls.totals.completionRate}%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {cls.students.map(student => {
+                        let statusColor = 'bg-slate-100 text-slate-600';
+                        let statusBg = 'bg-slate-200/50';
+                        let progressColor = 'bg-slate-400';
+                        if (student.status === 'completed') { statusColor = 'bg-emerald-50 text-emerald-600'; statusBg = 'bg-emerald-100'; progressColor = 'bg-emerald-500'; }
+                        else if (student.status === 'in_progress') { statusColor = 'bg-blue-50 text-blue-600'; statusBg = 'bg-blue-100'; progressColor = 'bg-blue-500'; }
+                        else if (student.status === 'not_started') { statusColor = 'bg-amber-50 text-amber-600'; statusBg = 'bg-amber-100'; progressColor = 'bg-amber-500'; }
+                        
+                        return (
+                          <div key={student.studentId} className="bg-white border border-slate-200/60 rounded-xl p-3 flex flex-col gap-2 shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:shadow-md transition-all">
+                            <div className="flex justify-between items-start">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-800 text-sm truncate max-w-[150px]" title={student.fullName}>{student.fullName}</span>
+                                <span className="text-xs text-slate-500">{student.studentCode}</span>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  setSelectedStudentDetail(student);
+                                  setCriteriaDialogOpen(true);
+                                }}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors shrink-0"
+                                title="Xem tiêu chí"
+                              >
+                                <Eye size={14} />
+                              </button>
+                            </div>
+                            <div className="mt-1 flex flex-col gap-1.5">
+                              <div className="flex justify-between items-center text-xs font-semibold">
+                                <span className="text-slate-500">
+                                  {student.totalCriteria === 0 
+                                    ? "Chưa có dữ liệu chấm" 
+                                    : `${student.completedCriteria}/${student.totalCriteria} tiêu chí`}
+                                </span>
+                                {student.totalCriteria > 0 && (
+                                  <span className={`px-1.5 py-0.5 rounded-md ${statusColor} text-[10px]`}>{student.completionRate}%</span>
+                                )}
+                              </div>
+                              {student.totalCriteria > 0 && (
+                                <div className={`w-full ${statusBg} rounded-full h-1.5 overflow-hidden`}>
+                                  <div className={`${progressColor} h-1.5 rounded-full transition-all`} style={{ width: `${student.completionRate}%` }} />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Criteria Detail Dialog */}
+      <Dialog open={criteriaDialogOpen} onOpenChange={setCriteriaDialogOpen}>
+        <DialogContent className="max-w-2xl rounded-2xl bg-white border border-slate-200 p-0 z-[110] overflow-hidden flex flex-col max-h-[80vh]">
+          <DialogHeader className="p-4 border-b border-slate-100 bg-slate-50/50 sticky top-0 shrink-0">
+            <DialogTitle className="text-base font-bold text-slate-800">
+              Chi tiết điểm - {selectedStudentDetail?.fullName} ({selectedStudentDetail?.studentCode})
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4 overflow-auto flex-1">
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="text-xs uppercase bg-slate-50 text-slate-500 sticky top-0 z-10 rounded-t-lg">
+                <tr>
+                  <th className="px-4 py-2 font-bold rounded-tl-lg">Mã TC</th>
+                  <th className="px-4 py-2 font-bold text-center">Điểm đạt</th>
+                  <th className="px-4 py-2 font-bold text-center rounded-tr-lg">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {[...(selectedStudentDetail?.criteria || [])]
+                  .sort((a, b) => a.criterionCode.localeCompare(b.criterionCode, 'vi', { numeric: true, sensitivity: 'base' }))
+                  .map((c, i) => (
+                  <tr key={c.criterionId || i} className={`hover:bg-slate-50/50 ${c.isLocked ? 'opacity-60 bg-slate-50' : ''}`}>
+                    <td className="px-4 py-2.5 font-medium text-slate-700">
+                      <div className="flex items-center gap-2">
+                        {c.criterionCode}
+                        {c.isLocked && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-500">
+                            Đã khóa
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className={`px-4 py-2.5 text-center font-semibold ${c.isLocked ? 'text-slate-500' : 'text-blue-600'}`}>
+                      {c.score !== null && c.score !== undefined ? c.score : <span className="text-slate-400 font-normal italic">Chưa có điểm</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {c.isLocked ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
+                          Không tính
+                        </span>
+                      ) : c.isTeacherHandled ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 size={12} /> Đã chấm
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                          <Clock size={12} /> Chờ chấm
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {(!selectedStudentDetail?.criteria || selectedStudentDetail.criteria.length === 0) && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-6 text-center text-slate-500 italic">
+                      Chưa có dữ liệu tiêu chí cho sinh viên này trong kỳ đánh giá đang xem.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </DialogContent>
       </Dialog>

@@ -757,7 +757,7 @@ function GradingScoreContent() {
   const studentIdParam = searchParams.get("studentId");
   const taskId = searchParams.get("taskId");
 
-  const { markStarted, markCompleted } = useLinkedTaskProgress({
+  const { resolvedTaskId, markStarted, markCompleted } = useLinkedTaskProgress({
     taskId,
     linkedPage: "/grading/score",
     sourceType: "grading_score",
@@ -870,6 +870,15 @@ function GradingScoreContent() {
   const [activeStudentId, setActiveStudentId] = useState<string>("");
   const [dirtyStudentIds, setDirtyStudentIds] = useState<Set<string>>(new Set());
   const [savingStudentIds, setSavingStudentIds] = useState<Set<string>>(new Set());
+
+  // Refs cho cơ chế lưu tuần tự (save queue)
+  const revisionRef = useRef<Record<string, number>>({});
+  const inFlightRef = useRef<Record<string, Promise<void> | null>>({});
+
+  const markStudentDirty = (studentId: string) => {
+    revisionRef.current[studentId] = (revisionRef.current[studentId] || 0) + 1;
+    setDirtyStudentIds(prev => new Set(prev).add(studentId));
+  };
   const [subTab, setSubTab] = useState<"category" | "history">("category");
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isRosterLoading, setIsRosterLoading] = useState(false);
@@ -916,16 +925,16 @@ function GradingScoreContent() {
     Record<string, string>
   >({});
 
-  const syncLinkedTaskCompleted = async (summaryId: string) => {
-    if (!taskId) return;
+  const syncLinkedTaskCompleted = async (summaryId: string, studentId: string) => {
+    if (!resolvedTaskId) return;
     try {
-      await markCompleted(summaryId, { studentId: activeStudentId });
+      await markCompleted({ sourceId: summaryId, assigneeStudentId: studentId });
     } catch (syncErr) {
       toast.warning("Nghiệp vụ đã lưu nhưng trạng thái nhiệm vụ chưa được đồng bộ!");
       console.warn("Failed to sync task completed status. Debug info:", {
-        taskId,
+        taskId: resolvedTaskId,
         summaryId,
-        activeStudentId,
+        assigneeStudentId: studentId,
         sourceType: "grading_score",
         error: syncErr
       });
@@ -1614,11 +1623,11 @@ function GradingScoreContent() {
   const handleCountChange = (criteriaId: string, delta: number) => {
     if (!activeStudentId) return;
 
-    setDirtyStudentIds(prev => new Set(prev).add(activeStudentId));
+    markStudentDirty(activeStudentId);
 
     const summaryId = studentSummaryMap[activeStudentId];
-    if (taskId && summaryId) {
-      markStarted(summaryId, { studentId: activeStudentId }).catch((err) => {
+    if (resolvedTaskId && summaryId) {
+      markStarted({ sourceId: summaryId, assigneeStudentId: activeStudentId }).catch((err) => {
         toast.warning("Không thể tự động đồng bộ trạng thái nhiệm vụ sang 'Đang làm'!");
         console.warn("Failed to sync task in_progress status:", err);
       });
@@ -1654,11 +1663,11 @@ function GradingScoreContent() {
   const handleCountSet = (criteriaId: string, value: number) => {
     if (!activeStudentId) return;
 
-    setDirtyStudentIds(prev => new Set(prev).add(activeStudentId));
+    markStudentDirty(activeStudentId);
 
     const summaryId = studentSummaryMap[activeStudentId];
-    if (taskId && summaryId) {
-      markStarted(summaryId, { studentId: activeStudentId }).catch((err) => {
+    if (resolvedTaskId && summaryId) {
+      markStarted({ sourceId: summaryId, assigneeStudentId: activeStudentId }).catch((err) => {
         toast.warning("Không thể tự động đồng bộ trạng thái nhiệm vụ sang 'Đang làm'!");
         console.warn("Failed to sync task in_progress status:", err);
       });
@@ -1691,11 +1700,11 @@ function GradingScoreContent() {
   const handleOptionSet = (criteriaId: string, optionId: string) => {
     if (!activeStudentId) return;
 
-    setDirtyStudentIds(prev => new Set(prev).add(activeStudentId));
+    markStudentDirty(activeStudentId);
 
     const summaryId = studentSummaryMap[activeStudentId];
-    if (taskId && summaryId) {
-      markStarted(summaryId, { studentId: activeStudentId }).catch((err) => {
+    if (resolvedTaskId && summaryId) {
+      markStarted({ sourceId: summaryId, assigneeStudentId: activeStudentId }).catch((err) => {
         toast.warning("Không thể tự động đồng bộ trạng thái nhiệm vụ sang 'Đang làm'!");
       });
     }
@@ -1759,7 +1768,7 @@ function GradingScoreContent() {
       return;
     }
 
-    setDirtyStudentIds(prev => new Set(prev).add(activeStudentId));
+    markStudentDirty(activeStudentId);
 
     // Chỉ đặt lại các tiêu chí không bị khóa, giữ nguyên các tiêu chí bị khóa (is_locked)
     const currentCounts = evaluationCounts[activeStudentId] || {};
@@ -1811,8 +1820,8 @@ function GradingScoreContent() {
     // 1. Tải các chi tiết cũ của summaryId này
     const oldDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true);
 
-    // 2. Tạo hoặc cập nhật các chi tiết chấm điểm
-    const promises: Promise<any>[] = [];
+    // 2. Gom các thay đổi vào payload bulk upsert
+    const payloads: any[] = [];
 
     categories.forEach((cat) => {
       cat.items.forEach((cri) => {
@@ -1868,46 +1877,31 @@ function GradingScoreContent() {
               reason: log.reason || reason,
             }));
 
-            const scorePayload: any = {};
-            if (userRole === "student") {
-              scorePayload.sv_score = calculatedScore;
-              scorePayload.sv_submitted_at = new Date();
-            } else {
-              scorePayload.gv_score = calculatedScore;
-              scorePayload.gv_reviewed_at = new Date();
-              scorePayload.gv_reviewed_by = currentUser?.id;
-            }
-
-            promises.push(
-              evaluationDetailApi.updateEvaluationDetail(existingDetail._id, {
+            const payload: any = {
+                criterion_id: cri.id,
                 current_count: count,
                 log: cleanLog,
                 status: detailStatus,
                 selected_option_id: selectedOptionId,
                 selected_option_label: optionObj ? optionObj.label : null,
                 selected_option_score: optionObj ? optionObj.score : null,
-                ...scorePayload,
-              })
-            );
+            };
+            if (userRole === "student") {
+              payload.sv_score = calculatedScore;
+              payload.sv_submitted_at = new Date();
+            } else {
+              payload.gv_score = calculatedScore;
+              payload.gv_reviewed_at = new Date();
+              payload.gv_reviewed_by = currentUser?.id;
+            }
+            payloads.push(payload);
           }
         } else {
           // Nếu chưa có và count > 0 (hoặc có selectedOptionId), ta tiến hành tạo mới
           if (count > 0 || selectedOptionId) {
             const calculatedScore = calculateCriterionScore(cri, count, selectedOptionId);
 
-            const scorePayload: any = {};
-            if (userRole === "student") {
-              scorePayload.sv_score = calculatedScore;
-              scorePayload.sv_submitted_at = new Date();
-            } else {
-              scorePayload.gv_score = calculatedScore;
-              scorePayload.gv_reviewed_at = new Date();
-              scorePayload.gv_reviewed_by = currentUser?.id;
-            }
-
-            promises.push(
-              evaluationDetailApi.createEvaluationDetail({
-                summary_id: summaryId,
+            const payload: any = {
                 criterion_id: cri.id,
                 current_count: count,
                 log: [
@@ -1925,15 +1919,28 @@ function GradingScoreContent() {
                 selected_option_id: selectedOptionId,
                 selected_option_label: optionObj ? optionObj.label : null,
                 selected_option_score: optionObj ? optionObj.score : null,
-                ...scorePayload,
-              })
-            );
+            };
+            if (userRole === "student") {
+              payload.sv_score = calculatedScore;
+              payload.sv_submitted_at = new Date();
+            } else {
+              payload.gv_score = calculatedScore;
+              payload.gv_reviewed_at = new Date();
+              payload.gv_reviewed_by = currentUser?.id;
+            }
+            payloads.push(payload);
           }
         }
       });
     });
 
-    await Promise.all(promises);
+    if (payloads.length > 0) {
+      await evaluationDetailApi.bulkUpsertEvaluationDetails({
+        summary_id: summaryId,
+        details: payloads,
+        reason
+      });
+    }
 
     // 3. Lấy lại chi tiết chấm điểm mới
     const [freshDetails, freshPreExistingCounts] = await Promise.all([
@@ -1966,7 +1973,10 @@ function GradingScoreContent() {
       summaryPayload.grading = "CHƯA XẾP LOẠI";
       finalGrading = "CHƯA XẾP LOẠI";
     }
-    await summariesPointApi.updateSummariesPoint(summaryId, summaryPayload);
+    
+    if (payloads.length > 0 || (clampedFinalScore === 0 && finalGrading === "CHƯA XẾP LOẠI")) {
+      await summariesPointApi.updateSummariesPoint(summaryId, summaryPayload);
+    }
 
     return {
       score: clampedFinalScore,
@@ -2029,12 +2039,6 @@ function GradingScoreContent() {
         ),
       );
 
-      setDirtyStudentIds((prev) => {
-        const next = new Set(prev);
-        next.delete(studentId);
-        return next;
-      });
-
       if (options?.mode === 'manual') {
         toast.dismiss("save-loading");
         if (options?.showToast !== false) {
@@ -2047,8 +2051,8 @@ function GradingScoreContent() {
         }
       }
 
-      if (taskId) {
-        await syncLinkedTaskCompleted(summaryId);
+      if (resolvedTaskId) {
+        await syncLinkedTaskCompleted(summaryId, studentId);
       }
       return true;
     } catch (error: any) {
@@ -2075,9 +2079,36 @@ function GradingScoreContent() {
   };
 
   const autosaveStudentIfDirty = async (studentId: string, reason?: string, showToast: boolean = false) => {
-    if (dirtyStudentIds.has(studentId)) {
-      await saveStudentScore(studentId, { mode: "autosave", reason, showToast });
-    }
+    if (!dirtyStudentIds.has(studentId)) return;
+    
+    // Nếu sinh viên đang có một tiến trình lưu, chỉ cần return.
+    // Tiến trình đang chạy sẽ vòng lặp kiểm tra revision và chạy tiếp nếu cần.
+    if (inFlightRef.current[studentId]) return;
+
+    const startRevision = revisionRef.current[studentId] || 0;
+    
+    const savePromise = (async () => {
+      let currentRev = startRevision;
+      while (true) {
+        await saveStudentScore(studentId, { mode: "autosave", reason, showToast });
+        
+        const newRev = revisionRef.current[studentId] || 0;
+        if (newRev === currentRev) {
+          // Không có thay đổi nào thêm trong lúc lưu, xoá cờ dirty
+          setDirtyStudentIds(prev => {
+            const next = new Set(prev);
+            next.delete(studentId);
+            return next;
+          });
+          break;
+        }
+        currentRev = newRev;
+      }
+    })();
+
+    inFlightRef.current[studentId] = savePromise;
+    await savePromise;
+    inFlightRef.current[studentId] = null;
   };
 
   useEffect(() => {
@@ -2089,11 +2120,12 @@ function GradingScoreContent() {
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [evaluationCounts, activeStudentId, dirtyStudentIds]);
+  }, [evaluationCounts, selectedOptionsState, activeStudentId, dirtyStudentIds]);
 
   const handleActiveStudentChange = async (nextStudentId: string) => {
     if (activeStudentId && activeStudentId !== nextStudentId) {
-      await autosaveStudentIfDirty(activeStudentId, "Tự động lưu khi chuyển sinh viên", false);
+      // Trigger autosave if needed when switching
+      autosaveStudentIfDirty(activeStudentId, "Tự động lưu khi chuyển sinh viên", false);
     }
     setActiveStudentId(nextStudentId);
   };
@@ -2106,7 +2138,21 @@ function GradingScoreContent() {
       return;
     }
 
+    if (inFlightRef.current[activeStudentId]) {
+      toast.warning("Đang có tiến trình tự động lưu chạy, vui lòng chờ...");
+      return;
+    }
+
+    const currentRev = revisionRef.current[activeStudentId] || 0;
     await saveStudentScore(activeStudentId, { mode: "manual" });
+    const newRev = revisionRef.current[activeStudentId] || 0;
+    if (newRev === currentRev) {
+      setDirtyStudentIds(prev => {
+        const next = new Set(prev);
+        next.delete(activeStudentId);
+        return next;
+      });
+    }
   };
 
   // Hàm xử lý xác nhận sao chép điểm rèn luyện hàng loạt cho các target students

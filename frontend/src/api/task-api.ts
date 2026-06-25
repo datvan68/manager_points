@@ -197,9 +197,29 @@ export const studentTaskApi = {
     linkedPage?: string;
     sourceType?: string;
     sourceId?: string;
+    assigneeStudentId?: string;
     metadata?: Record<string, unknown>;
   }): Promise<any> {
     const res = await httpClient(`${API_BASE}/student-tasks/progress/linked-event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async sendBulkLinkedTaskProgressEvent(payload: {
+    taskId: string;
+    event: 'started' | 'completed' | 'reset';
+    linkedPage?: string;
+    sourceType?: string;
+    items: {
+      assigneeStudentId?: string;
+      sourceId?: string;
+      metadata?: Record<string, unknown>;
+    }[];
+  }): Promise<any> {
+    const res = await httpClient(`${API_BASE}/student-tasks/progress/linked-event/bulk`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -215,6 +235,16 @@ export const studentTaskApi = {
   }> {
     const res = await httpClient(`${API_BASE}/student-tasks/${id}/access`);
     return handleResponse<any>(res);
+  },
+
+  async resolveAutoLinkedTask(linkedPage: string): Promise<{ taskId: string | null; count: number }> {
+    const res = await httpClient(`${API_BASE}/student-tasks/resolve-auto?linkedPage=${encodeURIComponent(linkedPage)}`);
+    return handleResponse<any>(res);
+  },
+
+  async getTeacherProgressDetail(progressId: string): Promise<TeacherTaskDetailResponse> {
+    const res = await httpClient(`${API_BASE}/student-tasks/progress/${progressId}/teacher-detail`);
+    return handleResponse<TeacherTaskDetailResponse>(res);
   },
 };
 
@@ -242,10 +272,45 @@ export interface StudentTaskProgress {
   sourceType?: string;
   sourceId?: string;
   lastSyncedAt?: string;
+  criteriaProgress?: {
+    totalCriteria: number;
+    completedCriteria: number;
+    completionRate: number;
+    status?: string;
+    lastCalculatedAt: string;
+  };
+  teacherProgress?: {
+    teacherId: string;
+    teacherName: string;
+    classIds: string[];
+    classNames: string[];
+    totalStudents: number;
+    completedStudents: number;
+    inProgressStudents: number;
+    notStartedStudents: number;
+    completionRate: number;
+    status: string;
+    totalRequiredItems?: number;
+    completedTeacherItems?: number;
+  };
+}
+
+export interface TeacherProgressSummary {
+  teacherId: string;
+  teacherName: string;
+  classIds: string[];
+  classNames: string[];
+  totalStudents: number;
+  notStartedStudents: number;
+  inProgressStudents: number;
+  completedStudents: number;
+  completionRate: number;
+  status: 'not_started' | 'in_progress' | 'completed' | 'no_data';
 }
 
 export interface TaskProgressOverviewResponse {
   items: StudentTaskProgress[];
+  teacherSummaries?: TeacherProgressSummary[];
   total: number;
   page: number;
   limit: number;
@@ -257,5 +322,58 @@ export interface TaskProgressOverviewResponse {
     completed: number;
     completionRate: number;
   };
+}
+
+export interface TeacherTaskDetailResponse {
+  progressId: string;
+  taskId: string;
+  teacherId: string;
+  teacherName: string;
+  semesterId?: string;
+  periodId?: string;
+  totals: {
+    classCount: number;
+    studentCount: number;
+    completedTeacherItems: number;
+    totalRequiredItems: number;
+    completionRate: number;
+  };
+  classes: TeacherTaskClassDetail[];
+}
+
+export interface TeacherTaskClassDetail {
+  classId: string;
+  className: string;
+  totals: {
+    studentCount: number;
+    completedTeacherItems: number;
+    totalRequiredItems: number;
+    completionRate: number;
+  };
+  students: TeacherTaskStudentDetail[];
+}
+
+export interface TeacherTaskStudentDetail {
+  studentId: string;
+  studentCode: string;
+  fullName: string;
+  summaryId?: string;
+  totalCriteria: number;
+  completedCriteria: number;
+  completionRate: number;
+  status: 'not_started' | 'in_progress' | 'completed' | 'no_data';
+  criteria: TeacherTaskCriterionDetail[];
+}
+
+export interface TeacherTaskCriterionDetail {
+  criterionId?: string;
+  criterionCode: string;
+  score: number | null;
+  svScore?: number | null;
+  gvScore?: number | null;
+  finalScore?: number | null;
+  isTeacherHandled: boolean;
+  isLocked?: boolean;
+  countedInProgress?: boolean;
 }
 

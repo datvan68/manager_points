@@ -126,6 +126,15 @@ export const evaluationDetailApi = {
     return handleResponse<EvaluationDetail>(res);
   },
 
+  async bulkUpsertEvaluationDetails(dto: { summary_id: string; details: any[]; reason?: string }): Promise<any> {
+    const res = await httpClient(`${API_BASE}/evaluation-detail/bulk-upsert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dto),
+    });
+    return handleResponse<any>(res);
+  },
+
   async deleteEvaluationDetail(id: string): Promise<EvaluationDetail> {
     const res = await httpClient(`${API_BASE}/evaluation-detail/${id}`, {
       method: 'DELETE',

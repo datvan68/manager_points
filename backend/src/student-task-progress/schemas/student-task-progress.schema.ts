@@ -62,6 +62,31 @@ export class StudentTaskProgress {
 
   @Prop()
   removedReason?: string;
+
+  @Prop({ type: MongooseSchema.Types.Mixed })
+  criteriaProgress?: {
+    totalCriteria: number;
+    completedCriteria: number;
+    completionRate: number;
+    status: string;
+    lastCalculatedAt: Date;
+  };
+
+  @Prop({ type: MongooseSchema.Types.Mixed })
+  teacherProgress?: {
+    teacherId: string;
+    teacherName: string;
+    classIds: string[];
+    classNames: string[];
+    totalStudents: number;
+    completedStudents: number;
+    inProgressStudents: number;
+    notStartedStudents: number;
+    totalRequiredItems?: number;
+    completedTeacherItems?: number;
+    completionRate: number;
+    status: string;
+  };
 }
 
 export const StudentTaskProgressSchema = SchemaFactory.createForClass(StudentTaskProgress);

@@ -51,6 +51,12 @@ export class StudentTasksController {
     return this.studentTasksService.checkAccess(id, req.user);
   }
 
+  @Get('resolve-auto')
+  @ApiOperation({ summary: 'Tìm nhiệm vụ auto-linked duy nhất cho route hiện tại' })
+  resolveAuto(@Query('linkedPage') linkedPage: string, @Req() req: any) {
+    return this.studentTasksService.resolveAutoLinkedTask(linkedPage, req.user);
+  }
+
   @Get(':id')
   @UseGuards(checkPermission('READ_STUDENT_TASK'))
   @ApiOperation({ summary: 'Lấy chi tiết nhiệm vụ học tập' })

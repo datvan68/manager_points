@@ -8,8 +8,9 @@ import { User, UserDocument } from '../auth/schemas/user.schema';
 import { Role, RoleDocument } from '../auth/schemas/role.schema';
 import { GetProgressOverviewDto } from './dto/get-progress-overview.dto';
 import { UpdateProgressStatusDto } from './dto/update-progress-status.dto';
-import { LinkedTaskProgressEventDto } from './dto/linked-task-progress-event.dto';
+import { LinkedTaskProgressEventDto, BulkLinkedTaskProgressEventDto, BulkLinkedTaskProgressEventItemDto } from './dto/linked-task-progress-event.dto';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
+import { SummaryPoint, SummaryPointDocument } from '../summaries-point/schemas/summary-point.schema';
 
 @Injectable()
 export class StudentTaskProgressService {
@@ -20,6 +21,7 @@ export class StudentTaskProgressService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
     @InjectModel(Class.name) private classModel: Model<ClassDocument>,
+    @InjectModel(SummaryPoint.name) private summaryPointModel: Model<SummaryPointDocument>,
   ) {}
 
   async syncProgressForTask(taskId: string): Promise<{
@@ -367,6 +369,57 @@ export class StudentTaskProgressService {
 
     const results = await this.progressModel.aggregate(dataPipeline).exec();
 
+    // Teacher Summaries Pipeline
+    const teacherSummaryPipeline = [...pipeline];
+    const teacherSummaryFilter = { ...filter, assigneeType: 'student' };
+    teacherSummaryPipeline[0] = { $match: teacherSummaryFilter };
+    
+    teacherSummaryPipeline.push(
+      { $match: { 'class.advisor_id': { $ne: null, $exists: true } } },
+      {
+        $group: {
+          _id: '$class.advisor_id',
+          classIds: { $addToSet: '$classId' },
+          classNames: { $addToSet: '$class.class_name' },
+          totalStudents: { $sum: 1 },
+          notStartedStudents: { $sum: { $cond: [{ $eq: ['$status', 'not_started'] }, 1, 0] } },
+          inProgressStudents: { $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] } },
+          completedStudents: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'advisor'
+        }
+      },
+      { $unwind: { path: '$advisor', preserveNullAndEmptyArrays: true } }
+    );
+
+    const teacherSummariesRaw = await this.progressModel.aggregate(teacherSummaryPipeline).exec();
+    const teacherSummaries = teacherSummariesRaw.map(t => {
+      const tr = t.totalStudents > 0 ? Math.round((t.completedStudents / t.totalStudents) * 100) : 0;
+      let status = 'not_started';
+      if (t.totalStudents === 0) status = 'no_data';
+      else if (t.completedStudents === t.totalStudents && t.totalStudents > 0) status = 'completed';
+      else if (t.completedStudents > 0 || t.inProgressStudents > 0) status = 'in_progress';
+      
+      return {
+        teacherId: t._id?.toString(),
+        teacherName: t.advisor?.user_name || 'N/A',
+        classIds: t.classIds.map((id: any) => id?.toString()).filter(Boolean),
+        classNames: t.classNames.filter(Boolean),
+        totalStudents: t.totalStudents,
+        notStartedStudents: t.notStartedStudents,
+        inProgressStudents: t.inProgressStudents,
+        completedStudents: t.completedStudents,
+        completionRate: tr,
+        status
+      };
+    });
+
     const mappedItems = results.map(item => ({
       id: item._id.toString(),
       taskId: item.taskId.toString(),
@@ -391,10 +444,13 @@ export class StudentTaskProgressService {
       sourceType: item.sourceType,
       sourceId: item.sourceId,
       lastSyncedAt: item.lastSyncedAt,
+      criteriaProgress: item.criteriaProgress,
+      teacherProgress: item.teacherProgress,
     }));
 
     return {
       items: mappedItems,
+      teacherSummaries,
       total: summary.totalAssignees,
       page,
       limit,
@@ -580,51 +636,247 @@ export class StudentTaskProgressService {
       }
     }
 
-    const progress = await this.progressModel.findOne({
+    const roleName = user.roleName || '';
+    const isStudent = roleName.toLowerCase().includes('student') || roleName.toLowerCase().includes('học sinh') || roleName.toLowerCase().includes('sinh viên');
+    const hasManagePermission =
+      roleName === 'Admin' ||
+      roleName.toLowerCase().includes('supervisor') ||
+      roleName.toLowerCase().includes('quản sinh') ||
+      (user.permissions || []).includes('UPDATE_STUDENT_TASK');
+
+    let progressQuery: any = {
       taskId: task._id,
-      assigneeUserId: new Types.ObjectId(user.userId),
       isActive: true,
-    }).exec();
+    };
+
+    if (task.targetType === 'teacher') {
+      progressQuery.assigneeUserId = new Types.ObjectId(user.userId);
+    } else {
+      if (dto.assigneeStudentId) {
+        if (isStudent) {
+          throw new ForbiddenException('Bạn không có quyền cập nhật tiến độ của người khác');
+        }
+        if (Types.ObjectId.isValid(dto.assigneeStudentId)) {
+          progressQuery.studentId = new Types.ObjectId(dto.assigneeStudentId);
+        } else {
+          const student = await this.studentModel.findOne({ student_code: dto.assigneeStudentId }).select('_id').lean().exec();
+          if (!student) {
+            throw new NotFoundException(`Không tìm thấy sinh viên có mã ${dto.assigneeStudentId}`);
+          }
+          progressQuery.studentId = student._id as Types.ObjectId;
+        }
+      } else {
+        progressQuery.assigneeUserId = new Types.ObjectId(user.userId);
+      }
+    }
+
+    const progress = await this.progressModel.findOne(progressQuery).exec();
 
     if (!progress) {
       throw new ForbiddenException('Bạn không được giao nhiệm vụ này hoặc tiến độ không hoạt động');
     }
 
+    const isUpdatingStudentProgress = task.targetType !== 'teacher' && Boolean(dto.assigneeStudentId);
+
+    if (isUpdatingStudentProgress && !hasManagePermission) {
+      const isCreator = task.createdBy && task.createdBy.toString() === user.userId;
+      let isAdvisor = false;
+      if (progress.classId) {
+        const studentClass = await this.classModel.findById(progress.classId).lean().exec();
+        if (studentClass && studentClass.advisor_id && studentClass.advisor_id.toString() === user.userId) {
+          isAdvisor = true;
+        }
+      }
+      if (!isCreator && !isAdvisor) {
+        throw new ForbiddenException('Bạn không có quyền cập nhật tiến độ của sinh viên này');
+      }
+    }
+
     const now = new Date();
     let targetStatus = progress.status;
+    let newCriteriaProgress = progress.criteriaProgress;
+    let newTeacherProgress = progress.teacherProgress;
 
-    if (dto.event === 'started') {
-      if (progress.status === StudentTaskStatus.NOT_STARTED) {
-        targetStatus = StudentTaskStatus.IN_PROGRESS;
-      }
-      if (!progress.startedAt) {
-        progress.startedAt = now;
-      }
-    } else if (dto.event === 'completed') {
-      targetStatus = StudentTaskStatus.COMPLETED;
-      if (!progress.startedAt) {
-        progress.startedAt = now;
-      }
-      if (!progress.completedAt) {
-        progress.completedAt = now;
-      }
-    } else if (dto.event === 'reset') {
-      const roleName = user.roleName || '';
-      const hasManagePermission =
-        roleName === 'Admin' ||
-        roleName.toLowerCase().includes('supervisor') ||
-        roleName.toLowerCase().includes('quản sinh') ||
-        (user.permissions || []).includes('UPDATE_STUDENT_TASK');
+    if (task.targetType === 'teacher') {
+      if (dto.sourceId && Types.ObjectId.isValid(dto.sourceId) && dto.sourceType === 'grading_score') {
+        const sourceSummary = await this.summaryPointModel.findById(dto.sourceId).select('semester_id').exec();
+        if (sourceSummary && sourceSummary.semester_id) {
+          const teacherId = user.userId;
+          const advisorClasses = await this.classModel.find({ advisor_id: new Types.ObjectId(teacherId) as any }).select('_id class_name').exec();
+          const classIds = advisorClasses.map(c => c._id);
+          const classNames = advisorClasses.map(c => c.class_name);
 
-      if (!hasManagePermission) {
-        throw new ForbiddenException('Bạn không có quyền reset tiến độ nhiệm vụ');
+          if (classIds.length > 0) {
+            const students = await this.studentModel.find({ class_id: { $in: classIds as any }, status: 'Studying' }).select('_id').exec();
+            const studentIds = students.map(s => s._id);
+
+            const totalStudents = studentIds.length;
+
+            const summaries = await this.summaryPointModel.find({
+              semester_id: sourceSummary.semester_id,
+              student_id: { $in: studentIds as any }
+            }).populate('details.criterion_id', 'is_locked').exec();
+
+            let completedStudents = 0;
+            let inProgressStudents = 0;
+            let notStartedStudents = 0;
+            let totalRequiredItems = 0;
+            let completedTeacherItems = 0;
+
+            summaries.forEach(s => {
+              const details = s.details || [];
+              let totalCriteria = 0;
+              let studentTeacherCompletedCriteria = 0;
+
+              details.forEach(d => {
+                const criterion = d.criterion_id as any;
+                const isLocked = criterion?.is_locked === true;
+                const countedInProgress = !isLocked;
+
+                if (countedInProgress) {
+                  totalCriteria++;
+                  totalRequiredItems++;
+
+                  const isTeacherHandled = d.gv_score !== null || d.final_score !== null || d.gv_reviewed_at !== null;
+                  if (isTeacherHandled) {
+                    completedTeacherItems++;
+                    studentTeacherCompletedCriteria++;
+                  }
+                }
+              });
+
+              if (totalCriteria > 0) {
+                if (studentTeacherCompletedCriteria === 0) {
+                  notStartedStudents++;
+                } else if (studentTeacherCompletedCriteria < totalCriteria) {
+                  inProgressStudents++;
+                } else {
+                  completedStudents++;
+                }
+              } else {
+                notStartedStudents++;
+              }
+            });
+            
+            notStartedStudents += (totalStudents - summaries.length);
+
+            const completionRate = totalRequiredItems === 0 ? 0 : Math.round((completedTeacherItems / totalRequiredItems) * 100);
+
+            let statusStr = 'not_started';
+            if (totalRequiredItems === 0) statusStr = 'no_data';
+            else if (completionRate === 100) statusStr = 'completed';
+            else if (completedTeacherItems > 0) statusStr = 'in_progress';
+
+            newTeacherProgress = {
+              teacherId: teacherId.toString(),
+              teacherName: user.user_name || user.username || 'Giáo viên',
+              classIds: classIds.map(id => id.toString()),
+              classNames,
+              totalStudents,
+              completedStudents,
+              inProgressStudents,
+              notStartedStudents,
+              totalRequiredItems,
+              completedTeacherItems,
+              completionRate,
+              status: statusStr
+            };
+
+            if (statusStr === 'completed') {
+              targetStatus = StudentTaskStatus.COMPLETED;
+              if (!progress.startedAt) progress.startedAt = now;
+              if (!progress.completedAt) progress.completedAt = now;
+            } else if (statusStr === 'in_progress') {
+              targetStatus = StudentTaskStatus.IN_PROGRESS;
+              if (!progress.startedAt) progress.startedAt = now;
+              progress.completedAt = undefined;
+            } else {
+              targetStatus = StudentTaskStatus.NOT_STARTED;
+              progress.startedAt = undefined;
+              progress.completedAt = undefined;
+            }
+          }
+        }
       }
-      targetStatus = StudentTaskStatus.NOT_STARTED;
-      progress.startedAt = undefined;
-      progress.completedAt = undefined;
+    } else {
+      if (dto.sourceId && Types.ObjectId.isValid(dto.sourceId) && dto.sourceType === 'grading_score') {
+        const summary = await this.summaryPointModel.findById(dto.sourceId).populate('details.criterion_id', 'is_locked').exec();
+        if (summary) {
+          const details = summary.details || [];
+          let totalCriteria = 0;
+          let completedCriteria = 0;
+          
+          details.forEach(d => {
+            const criterion = d.criterion_id as any;
+            const isLocked = criterion?.is_locked === true;
+            if (!isLocked) {
+              totalCriteria++;
+              if ((d.log && d.log.length > 0) || d.sv_score !== null || d.gv_score !== null || d.final_score !== null) {
+                completedCriteria++;
+              }
+            }
+          });
+          
+          const completionRate = totalCriteria === 0 ? 0 : Math.round((completedCriteria / totalCriteria) * 100);
+          
+          let statusStr = 'not_started';
+          if (totalCriteria === 0) statusStr = 'no_data';
+          else if (completionRate === 100) statusStr = 'completed';
+          else if (completedCriteria > 0) statusStr = 'in_progress';
+
+          newCriteriaProgress = {
+            totalCriteria,
+            completedCriteria,
+            completionRate,
+            status: statusStr,
+            lastCalculatedAt: now,
+          };
+
+          if (totalCriteria === 0 || completedCriteria === 0) {
+            targetStatus = StudentTaskStatus.NOT_STARTED;
+            progress.startedAt = undefined;
+            progress.completedAt = undefined;
+          } else if (completedCriteria < totalCriteria) {
+            targetStatus = StudentTaskStatus.IN_PROGRESS;
+            if (!progress.startedAt) progress.startedAt = now;
+            progress.completedAt = undefined;
+          } else {
+            targetStatus = StudentTaskStatus.COMPLETED;
+            if (!progress.startedAt) progress.startedAt = now;
+            if (!progress.completedAt) progress.completedAt = now;
+          }
+        }
+      } else {
+        // Fallback for other events
+        if (dto.event === 'started') {
+          if (progress.status === StudentTaskStatus.NOT_STARTED) {
+            targetStatus = StudentTaskStatus.IN_PROGRESS;
+          }
+          if (!progress.startedAt) {
+            progress.startedAt = now;
+          }
+        } else if (dto.event === 'completed') {
+          targetStatus = StudentTaskStatus.COMPLETED;
+          if (!progress.startedAt) {
+            progress.startedAt = now;
+          }
+          if (!progress.completedAt) {
+            progress.completedAt = now;
+          }
+        } else if (dto.event === 'reset') {
+          if (!hasManagePermission) {
+            throw new ForbiddenException('Bạn không có quyền reset tiến độ nhiệm vụ');
+          }
+          targetStatus = StudentTaskStatus.NOT_STARTED;
+          progress.startedAt = undefined;
+          progress.completedAt = undefined;
+        }
+      }
     }
 
     progress.status = targetStatus;
+    progress.criteriaProgress = newCriteriaProgress;
+    progress.teacherProgress = newTeacherProgress;
     progress.lastActivityAt = now;
     progress.updatedBy = new Types.ObjectId(user.userId);
     progress.statusSource = 'linked_event';
@@ -638,6 +890,197 @@ export class StudentTaskProgressService {
     await this.recalculateTaskAggregateStatus(task._id.toString());
 
     return progress;
+  }
+
+  async bulkUpdateProgressFromLinkedEvent(dto: BulkLinkedTaskProgressEventDto, user: any): Promise<{ updated: number, skipped: number, errors: string[] }> {
+    if (!Types.ObjectId.isValid(dto.taskId)) {
+      throw new BadRequestException('Mã nhiệm vụ không hợp lệ');
+    }
+
+    const task = await this.taskModel.findOne({ _id: new Types.ObjectId(dto.taskId), deletedAt: null }).exec();
+    if (!task) {
+      throw new NotFoundException('Không tìm thấy nhiệm vụ hoặc nhiệm vụ đã bị xóa');
+    }
+
+    const AUTO_EVENT_PAGES = ['/students/record', '/grading/score'];
+    const cleanPath = (url?: string | null) => {
+      let p = (url || '').split('?')[0].trim();
+      if (!p) return '';
+      if (!p.startsWith('/')) {
+        p = '/' + p;
+      }
+      return p;
+    };
+
+    const normalizedTaskPage = cleanPath(task.linkedPage);
+    if (!normalizedTaskPage || !AUTO_EVENT_PAGES.includes(normalizedTaskPage)) {
+      throw new BadRequestException('Nhiệm vụ này không hỗ trợ tự động đồng bộ tiến độ');
+    }
+
+    if (dto.linkedPage) {
+      if (cleanPath(dto.linkedPage) !== normalizedTaskPage) {
+        throw new BadRequestException('Trang liên kết không khớp với cấu hình nhiệm vụ');
+      }
+    }
+
+    const roleName = user.roleName || '';
+    const isStudent = roleName.toLowerCase().includes('student') || roleName.toLowerCase().includes('học sinh') || roleName.toLowerCase().includes('sinh viên');
+    const hasManagePermission =
+      roleName === 'Admin' ||
+      roleName.toLowerCase().includes('supervisor') ||
+      roleName.toLowerCase().includes('quản sinh') ||
+      (user.permissions || []).includes('UPDATE_STUDENT_TASK');
+
+    const isCreator = task.createdBy && task.createdBy.toString() === user.userId;
+
+    let updated = 0;
+    let skipped = 0;
+    let errors: string[] = [];
+
+    const now = new Date();
+
+    for (const item of dto.items) {
+      try {
+        let progressQuery: any = {
+          taskId: task._id,
+          isActive: true,
+        };
+
+        if (item.assigneeStudentId) {
+          if (isStudent) {
+            throw new ForbiddenException('Bạn không có quyền cập nhật tiến độ của người khác');
+          }
+          if (Types.ObjectId.isValid(item.assigneeStudentId)) {
+            progressQuery.studentId = new Types.ObjectId(item.assigneeStudentId);
+          } else {
+            const student = await this.studentModel.findOne({ student_code: item.assigneeStudentId }).select('_id').lean().exec();
+            if (!student) {
+              throw new ForbiddenException(`Không tìm thấy sinh viên có mã ${item.assigneeStudentId}`);
+            }
+            progressQuery.studentId = student._id as Types.ObjectId;
+          }
+        } else {
+          progressQuery.assigneeUserId = new Types.ObjectId(user.userId);
+        }
+
+        const progress = await this.progressModel.findOne(progressQuery).exec();
+
+        if (!progress) {
+          throw new ForbiddenException(`Không tìm thấy tiến độ hợp lệ cho studentId ${item.assigneeStudentId || user.userId}`);
+        }
+
+        if (item.assigneeStudentId && !hasManagePermission) {
+          let isAdvisor = false;
+          if (progress.classId) {
+            const studentClass = await this.classModel.findById(progress.classId).lean().exec();
+            if (studentClass && studentClass.advisor_id && studentClass.advisor_id.toString() === user.userId) {
+              isAdvisor = true;
+            }
+          }
+          if (!isCreator && !isAdvisor) {
+            throw new ForbiddenException(`Không có quyền cập nhật tiến độ của sinh viên ${item.assigneeStudentId}`);
+          }
+        }
+
+        let targetStatus = progress.status;
+        let newCriteriaProgress = progress.criteriaProgress;
+
+        if (item.sourceId && Types.ObjectId.isValid(item.sourceId) && dto.sourceType === 'grading_score') {
+          const summary = await this.summaryPointModel.findById(item.sourceId).populate('details.criterion_id', 'is_locked').exec();
+          if (summary) {
+            const details = summary.details || [];
+            let totalCriteria = 0;
+            let completedCriteria = 0;
+            
+            details.forEach(d => {
+              const criterion = d.criterion_id as any;
+              const isLocked = criterion?.is_locked === true;
+              if (!isLocked) {
+                totalCriteria++;
+                if ((d.log && d.log.length > 0) || d.sv_score !== null || d.gv_score !== null || d.final_score !== null) {
+                  completedCriteria++;
+                }
+              }
+            });
+            
+            const completionRate = totalCriteria === 0 ? 0 : Math.round((completedCriteria / totalCriteria) * 100);
+            
+            let statusStr = 'not_started';
+            if (totalCriteria === 0) statusStr = 'no_data';
+            else if (completionRate === 100) statusStr = 'completed';
+            else if (completedCriteria > 0) statusStr = 'in_progress';
+
+            newCriteriaProgress = {
+              totalCriteria,
+              completedCriteria,
+              completionRate,
+              status: statusStr,
+              lastCalculatedAt: now,
+            };
+
+            if (totalCriteria === 0 || completedCriteria === 0) {
+              targetStatus = StudentTaskStatus.NOT_STARTED;
+              progress.startedAt = undefined;
+              progress.completedAt = undefined;
+            } else if (completedCriteria < totalCriteria) {
+              targetStatus = StudentTaskStatus.IN_PROGRESS;
+              if (!progress.startedAt) progress.startedAt = now;
+              progress.completedAt = undefined;
+            } else {
+              targetStatus = StudentTaskStatus.COMPLETED;
+              if (!progress.startedAt) progress.startedAt = now;
+              if (!progress.completedAt) progress.completedAt = now;
+            }
+          }
+        } else {
+          // Fallback logic
+          if (dto.event === 'started') {
+            if (progress.status === StudentTaskStatus.NOT_STARTED) {
+              targetStatus = StudentTaskStatus.IN_PROGRESS;
+            }
+            if (!progress.startedAt) {
+              progress.startedAt = now;
+            }
+          } else if (dto.event === 'completed') {
+            targetStatus = StudentTaskStatus.COMPLETED;
+            if (!progress.startedAt) {
+              progress.startedAt = now;
+            }
+            if (!progress.completedAt) {
+              progress.completedAt = now;
+            }
+          } else if (dto.event === 'reset') {
+            if (!hasManagePermission) {
+              throw new ForbiddenException('Bạn không có quyền reset tiến độ nhiệm vụ');
+            }
+            targetStatus = StudentTaskStatus.NOT_STARTED;
+            progress.startedAt = undefined;
+            progress.completedAt = undefined;
+          }
+        }
+
+        progress.status = targetStatus;
+        progress.criteriaProgress = newCriteriaProgress;
+        progress.lastActivityAt = now;
+        progress.updatedBy = new Types.ObjectId(user.userId);
+        progress.statusSource = 'linked_event';
+        progress.sourceType = dto.sourceType || undefined;
+        progress.sourceId = item.sourceId || undefined;
+        progress.lastSyncedAt = now;
+
+        await progress.save();
+        updated++;
+      } catch (err: any) {
+        errors.push(err.message || 'Lỗi không xác định');
+        skipped++;
+      }
+    }
+
+    if (updated > 0) {
+      await this.recalculateTaskAggregateStatus(task._id.toString());
+    }
+
+    return { updated, skipped, errors };
   }
 
   async cascadeStatusToActiveProgresses(taskId: string, status: string, userId: string): Promise<{ matched: number; modified: number }> {
@@ -696,11 +1139,243 @@ export class StudentTaskProgressService {
         modified = res.modifiedCount || 0;
       }
 
-      // Tự động gọi recalculateTaskAggregateStatus sau khi cascade
+  // Tự động gọi recalculateTaskAggregateStatus sau khi cascade
       await this.recalculateTaskAggregateStatus(taskId);
     }
 
     return { matched, modified };
+  }
+
+  async getTeacherProgressDetail(progressId: string, user: any) {
+    if (!Types.ObjectId.isValid(progressId)) {
+      throw new BadRequestException('Mã tiến độ không hợp lệ');
+    }
+
+    const progress = await this.progressModel.findById(progressId).populate('taskId').exec();
+    if (!progress || progress.assigneeType !== AssigneeType.TEACHER) {
+      throw new NotFoundException('Không tìm thấy tiến độ của giáo viên');
+    }
+
+    const roleName = user.roleName || '';
+    const hasAdminAccess = roleName === 'Admin' || roleName.toLowerCase().includes('supervisor') || roleName.toLowerCase().includes('quản sinh');
+    
+    const teacherId = progress.assigneeUserId.toString();
+    
+    // Check permissions
+    if (!hasAdminAccess && user.userId !== teacherId) {
+      const isAdvisorOfSomeClasses = await this.classModel.exists({ advisor_id: new Types.ObjectId(user.userId) as any });
+      if (!isAdvisorOfSomeClasses) {
+         throw new ForbiddenException('Bạn không có quyền xem chi tiết này');
+      }
+    }
+
+    const advisorClasses = await this.classModel.find({ advisor_id: new Types.ObjectId(teacherId) as any }).select('_id class_name').lean().exec();
+    
+    let allowedClassIds = advisorClasses.map(c => c._id.toString());
+    if (!hasAdminAccess && user.userId !== teacherId) {
+      const userClasses = await this.classModel.find({ advisor_id: new Types.ObjectId(user.userId) as any }).select('_id').lean().exec();
+      const userClassIds = userClasses.map(c => c._id.toString());
+      allowedClassIds = allowedClassIds.filter(id => userClassIds.includes(id));
+      if (allowedClassIds.length === 0) {
+        throw new ForbiddenException('Bạn không có quyền xem dữ liệu của các lớp này');
+      }
+    }
+
+    const filteredClasses = advisorClasses.filter(c => allowedClassIds.includes(c._id.toString()));
+    const classIds = filteredClasses.map(c => c._id);
+
+    const students = await this.studentModel.find({ class_id: { $in: classIds as any }, status: 'Studying' }).select('_id student_code full_name class_id').lean().exec();
+    
+    const task = progress.taskId as any;
+    let semesterId: Types.ObjectId | undefined;
+    let periodId: Types.ObjectId | undefined;
+    let contextSource: 'progress_source' | 'latest_summary' | 'none' = 'none';
+
+    if (progress.sourceType === 'grading_score' && progress.sourceId && Types.ObjectId.isValid(progress.sourceId.toString())) {
+       const summary = await this.summaryPointModel.findById(progress.sourceId).select('semester_id period_id').lean().exec();
+       if (summary) {
+         semesterId = summary.semester_id as any;
+         periodId = summary.period_id as any;
+         contextSource = 'progress_source';
+       }
+    }
+
+    if (!semesterId) {
+       const filterLatest: any = {
+         student_id: { $in: students.map(s => s._id) }
+       };
+       const latestSummary = await this.summaryPointModel.findOne(filterLatest).sort({ updatedAt: -1 }).select('semester_id period_id').lean().exec();
+
+       if (latestSummary) {
+         semesterId = latestSummary.semester_id as any;
+         periodId = latestSummary.period_id as any;
+         contextSource = 'latest_summary';
+       }
+    }
+
+    let summaries: any[] = [];
+    if (semesterId) {
+       const query: any = {
+         semester_id: semesterId,
+         student_id: { $in: students.map(s => s._id) }
+       };
+       if (periodId) {
+         query.period_id = periodId;
+       } else {
+         query.$or = [{ period_id: null }, { period_id: { $exists: false } }];
+       }
+       summaries = await this.summaryPointModel.find(query).populate('details.criterion_id', 'criterion_code criterion_name is_locked').lean().exec();
+    }
+
+    const summaryMap = new Map();
+    // Sort summaries to ensure latest comes last and overwrites
+    summaries.sort((a, b) => {
+      const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return dateA - dateB;
+    });
+    summaries.forEach(s => summaryMap.set(s.student_id.toString(), s));
+
+    const resultClasses: any[] = [];
+    let totalCompletedTeacherItems = 0;
+    let totalRequiredItemsTotal = 0;
+    let totalStudentsTotal = 0;
+
+    for (const cls of filteredClasses) {
+       const classStudents = students.filter(s => s.class_id?.toString() === cls._id.toString());
+       const studentDetails: any[] = [];
+       
+       let classCompletedTeacherItems = 0;
+       let classTotalRequiredItems = 0;
+
+       for (const student of classStudents) {
+         const summary = summaryMap.get(student._id.toString());
+         
+         const criteria: any[] = [];
+         let totalCriteria = 0;
+         let completedCriteria = 0;
+         let status: 'not_started' | 'in_progress' | 'completed' | 'no_data' = 'no_data';
+
+         if (summary && summary.details) {
+            for (const d of summary.details) {
+               const criterion = d.criterion_id as any;
+               const isLocked = criterion?.is_locked === true;
+               const countedInProgress = !isLocked;
+
+               const isTeacherHandled = (d.gv_score !== null && d.gv_score !== undefined) || (d.final_score !== null && d.final_score !== undefined) || (d.gv_reviewed_at !== null && d.gv_reviewed_at !== undefined);
+               
+               if (countedInProgress) {
+                 totalCriteria++;
+                 classTotalRequiredItems++;
+                 
+                 if (isTeacherHandled) {
+                   completedCriteria++;
+                   classCompletedTeacherItems++;
+                 }
+               }
+               
+               let score = null;
+               if (d.final_score !== null && d.final_score !== undefined) score = d.final_score;
+               else if (d.gv_score !== null && d.gv_score !== undefined) score = d.gv_score;
+               else if (d.sv_score !== null && d.sv_score !== undefined) score = d.sv_score;
+               else if (d.system_score !== null && d.system_score !== undefined) score = d.system_score;
+
+               const criterionCode = criterion?.criterion_code || criterion?.criterion_name || d.criterion_code || '--';
+
+               criteria.push({
+                 criterionId: criterion?._id?.toString() || (typeof d.criterion_id === 'string' ? d.criterion_id : d.criterion_id?.toString()),
+                 criterionCode: criterionCode,
+                 score: score,
+                 svScore: d.sv_score ?? null,
+                 gvScore: d.gv_score ?? null,
+                 finalScore: d.final_score ?? null,
+                 isTeacherHandled,
+                 isLocked,
+                 countedInProgress
+               });
+            }
+
+            const collator = new Intl.Collator('vi', {
+              numeric: true,
+              sensitivity: 'base',
+            });
+
+            criteria.sort((a, b) =>
+              collator.compare(a.criterionCode || '', b.criterionCode || '')
+            );
+
+            if (totalCriteria === 0) {
+              status = 'no_data';
+            } else if (completedCriteria === 0) {
+              status = 'not_started';
+            } else if (completedCriteria < totalCriteria) {
+              status = 'in_progress';
+            } else {
+              status = 'completed';
+            }
+         }
+
+         const completionRate = totalCriteria === 0 ? 0 : Math.round((completedCriteria / totalCriteria) * 100);
+
+         studentDetails.push({
+           studentId: student._id.toString(),
+           studentCode: student.student_code || '--',
+           fullName: student.full_name || '--',
+           summaryId: summary?._id?.toString(),
+           totalCriteria,
+           completedCriteria,
+           completionRate,
+           status,
+           criteria
+         });
+       }
+
+       const classCompletionRate = classTotalRequiredItems === 0 ? 0 : Math.round((classCompletedTeacherItems / classTotalRequiredItems) * 100);
+
+       resultClasses.push({
+         classId: cls._id.toString(),
+         className: cls.class_name,
+         totals: {
+           studentCount: classStudents.length,
+           completedTeacherItems: classCompletedTeacherItems,
+           totalRequiredItems: classTotalRequiredItems,
+           completionRate: classCompletionRate,
+         },
+         students: studentDetails,
+       });
+
+       totalStudentsTotal += classStudents.length;
+       totalCompletedTeacherItems += classCompletedTeacherItems;
+       totalRequiredItemsTotal += classTotalRequiredItems;
+    }
+
+    const teacherObj = progress.assigneeUserId ? await this.userModel.findById(progress.assigneeUserId).select('user_name').lean().exec() : null;
+    const teacherName = teacherObj ? teacherObj.user_name : 'Giáo viên';
+
+    const overallCompletionRate = totalRequiredItemsTotal === 0 ? 0 : Math.round((totalCompletedTeacherItems / totalRequiredItemsTotal) * 100);
+
+    return {
+      progressId: progress._id.toString(),
+      taskId: progress.taskId.toString(),
+      teacherId: teacherId,
+      teacherName: teacherName,
+      semesterId: semesterId?.toString(),
+      periodId: periodId?.toString(),
+      context: {
+        source: contextSource,
+        semesterId: semesterId?.toString(),
+        periodId: periodId?.toString(),
+        summariesFound: summaries.length,
+      },
+      totals: {
+        classCount: filteredClasses.length,
+        studentCount: totalStudentsTotal,
+        completedTeacherItems: totalCompletedTeacherItems,
+        totalRequiredItems: totalRequiredItemsTotal,
+        completionRate: overallCompletionRate,
+      },
+      classes: resultClasses,
+    };
   }
 }
 
