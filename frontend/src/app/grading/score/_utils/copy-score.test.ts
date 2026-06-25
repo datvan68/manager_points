@@ -30,10 +30,10 @@ describe('Copy Score Utils', () => {
         minScore: 0
       };
 
-      expect(calculateCriterionScore(criterion, 0)).toBe(-0);
-      expect(calculateCriterionScore(criterion, 2)).toBe(-10);
-      expect(calculateCriterionScore(criterion, 3)).toBe(-15);
-      expect(calculateCriterionScore(criterion, 4)).toBe(-15); // Clamp max trừ
+      expect(calculateCriterionScore(criterion, 0)).toBe(15);
+      expect(calculateCriterionScore(criterion, 2)).toBe(5);
+      expect(calculateCriterionScore(criterion, 3)).toBe(0);
+      expect(calculateCriterionScore(criterion, 4)).toBe(0); // Clamp max trừ
     });
   });
 

@@ -126,13 +126,13 @@ export const evaluationDetailApi = {
     return handleResponse<EvaluationDetail>(res);
   },
 
-  async bulkUpsertEvaluationDetails(dto: { summary_id: string; details: any[]; reason?: string }): Promise<any> {
+  async bulkUpsertEvaluationDetails(dto: { summary_id: string; details: any[]; reason?: string }): Promise<{ success: boolean; clampResults?: any[] }> {
     const res = await httpClient(`${API_BASE}/evaluation-detail/bulk-upsert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    return handleResponse<any>(res);
+    return handleResponse<{ success: boolean; clampResults?: any[] }>(res);
   },
 
   async deleteEvaluationDetail(id: string): Promise<EvaluationDetail> {
@@ -146,21 +146,21 @@ export const evaluationDetailApi = {
    * Đếm số academic_record đã có sẵn cho tất cả tiêu chí của 1 summary.
    * Trả về map { criterionId: count }
    */
-  async getPreExistingCounts(summaryId: string): Promise<Record<string, { original_count: number; current_count: number }>> {
+  async getPreExistingCounts(summaryId: string): Promise<Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>> {
     const res = await httpClient(`${API_BASE}/evaluation-detail/pre-counts/${summaryId}`);
-    return handleResponse<Record<string, { original_count: number; current_count: number }>>(res);
+    return handleResponse<Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>>(res);
   },
 
   /**
    * Đếm hàng loạt số academic_record đã có sẵn cho nhiều summaries.
    */
-  async getPreExistingCountsBulk(summaryIds: string[]): Promise<Record<string, Record<string, { original_count: number; current_count: number }>>> {
+  async getPreExistingCountsBulk(summaryIds: string[]): Promise<Record<string, Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>>> {
     const res = await httpClient(`${API_BASE}/evaluation-detail/pre-counts/bulk`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ summaryIds }),
     });
-    return handleResponse<Record<string, Record<string, { original_count: number; current_count: number }>>>(res);
+    return handleResponse<Record<string, Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>>>(res);
   }
 };
 

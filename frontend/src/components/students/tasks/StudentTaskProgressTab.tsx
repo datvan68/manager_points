@@ -342,7 +342,11 @@ export default function StudentTaskProgressTab() {
         } else {
           hasData = true;
           completionRate = item.criteriaProgress.completionRate;
-          detailLabel = `${item.criteriaProgress.completedCriteria}/${item.criteriaProgress.totalCriteria} tiêu chí`;
+          if (completionRate >= 100) {
+            detailLabel = `Đã lưu điểm`;
+          } else {
+            detailLabel = `Chưa lưu điểm`;
+          }
         }
       } else {
         hasData = false;
@@ -1108,15 +1112,15 @@ export default function StudentTaskProgressTab() {
                             <div className="mt-1 flex flex-col gap-1.5">
                               <div className="flex justify-between items-center text-xs font-semibold">
                                 <span className="text-slate-500">
-                                  {student.totalCriteria === 0 
-                                    ? "Chưa có dữ liệu chấm" 
-                                    : `${student.completedCriteria}/${student.totalCriteria} tiêu chí`}
+                                  {student.status === 'no_data' 
+                                    ? "Chưa có dữ liệu" 
+                                    : student.completionRate === 100 ? "Đã lưu điểm" : "Chưa lưu điểm"}
                                 </span>
-                                {student.totalCriteria > 0 && (
+                                {student.status !== 'no_data' && (
                                   <span className={`px-1.5 py-0.5 rounded-md ${statusColor} text-[10px]`}>{student.completionRate}%</span>
                                 )}
                               </div>
-                              {student.totalCriteria > 0 && (
+                              {student.status !== 'no_data' && (
                                 <div className={`w-full ${statusBg} rounded-full h-1.5 overflow-hidden`}>
                                   <div className={`${progressColor} h-1.5 rounded-full transition-all`} style={{ width: `${student.completionRate}%` }} />
                                 </div>

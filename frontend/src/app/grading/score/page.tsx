@@ -276,7 +276,6 @@ const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScroll = useRef(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const numbers = [];
   for (let i = minCount; i <= maxCount; i++) {
@@ -289,20 +288,21 @@ const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
       const targetScrollLeft = (count - minCount) * 36;
       if (Math.abs(containerRef.current.scrollLeft - targetScrollLeft) > 1) {
         isProgrammaticScroll.current = true;
-        containerRef.current.scrollTo({
-          left: targetScrollLeft,
-          behavior: "smooth",
+        
+        requestAnimationFrame(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTo({
+              left: targetScrollLeft,
+              behavior: "auto",
+            });
+            
+            requestAnimationFrame(() => {
+              isProgrammaticScroll.current = false;
+            });
+          }
         });
-
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-          isProgrammaticScroll.current = false;
-        }, 150);
       }
     }
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
   }, [count, minCount]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -310,10 +310,11 @@ const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
 
     const container = e.currentTarget;
     const scrollLeft = container.scrollLeft;
-    const activeIndex = Math.round(scrollLeft / 36);
+    const maxIndex = maxCount - minCount;
+    const activeIndex = Math.max(0, Math.min(maxIndex, Math.round(scrollLeft / 36)));
     const targetVal = minCount + activeIndex;
 
-    if (targetVal !== count && targetVal >= minCount && targetVal <= maxCount) {
+    if (targetVal !== count) {
       onChange(targetVal);
     }
   };
@@ -946,16 +947,26 @@ function GradingScoreContent() {
   const [evaluationCounts, setEvaluationCounts] = useState<
     Record<string, Record<string, number>>
   >({});
+  const evaluationCountsRef = useRef<Record<string, Record<string, number>>>({});
 
   const [selectedOptionsState, setSelectedOptionsState] = useState<
     Record<string, Record<string, string>>
   >({});
+  const selectedOptionsStateRef = useRef<Record<string, Record<string, string>>>({});
+
+  useEffect(() => {
+    evaluationCountsRef.current = evaluationCounts;
+  }, [evaluationCounts]);
+
+  useEffect(() => {
+    selectedOptionsStateRef.current = selectedOptionsState;
+  }, [selectedOptionsState]);
 
   // State lưu lại giá trị gốc có sẵn (pre-existing) — { studentId: { criterionId: { original_count, current_count } } }
   const [preExistingCountsState, setPreExistingCountsState] = useState<
     Record<
       string,
-      Record<string, { original_count: number; current_count: number }>
+      Record<string, { original_count: number; current_count: number; non_deletable_count?: number; deletable_count?: number; }>
     >
   >({});
 
@@ -1423,7 +1434,7 @@ function GradingScoreContent() {
                   ? detail.criterion_id
                   : null;
               const criId = cri?._id || detail.criterion_id;
-              counts[criId] = detail.current_count || 0;
+              counts[criId] = detail.current_count ?? 0;
               if (detail.selected_option_id) {
                 optionsMap[criId] = detail.selected_option_id;
               }
@@ -1517,7 +1528,7 @@ function GradingScoreContent() {
               ? detail.criterion_id
               : null;
           const criId = cri?._id || detail.criterion_id;
-          counts[criId] = detail.current_count || 0;
+          counts[criId] = detail.current_count ?? 0;
           if (detail.selected_option_id) {
             optionsMap[criId] = detail.selected_option_id;
           }
@@ -1635,13 +1646,13 @@ function GradingScoreContent() {
 
     // Lấy min count từ pre-existing records (không cho giảm dưới giá trị gốc)
     const studentPreCounts = preExistingCountsState[activeStudentId] || {};
-    const minCount = studentPreCounts[criteriaId]?.original_count || 0;
+    const minCount = studentPreCounts[criteriaId]?.non_deletable_count ?? studentPreCounts[criteriaId]?.original_count ?? 0;
 
     setEvaluationCounts((prev) => {
       const studentCounts = prev[activeStudentId]
         ? { ...prev[activeStudentId] }
         : {};
-      const currentCount = studentCounts[criteriaId] || 0;
+      const currentCount = studentCounts[criteriaId] ?? 0;
       const newCount = Math.max(minCount, currentCount + delta); // không giảm dưới giá trị gốc
 
       const updatedCounts = {
@@ -1674,7 +1685,7 @@ function GradingScoreContent() {
     }
 
     const studentPreCounts = preExistingCountsState[activeStudentId] || {};
-    const minCount = studentPreCounts[criteriaId]?.original_count || 0;
+    const minCount = studentPreCounts[criteriaId]?.non_deletable_count ?? studentPreCounts[criteriaId]?.original_count ?? 0;
 
     setEvaluationCounts((prev) => {
       const studentCounts = prev[activeStudentId]
@@ -1810,6 +1821,7 @@ function GradingScoreContent() {
     studentId: string,
     summaryId: string,
     counts: Record<string, number>,
+    selectedOptionsSnapshot: Record<string, string>,
     reason: string,
     options?: { skipCriterionIds?: Set<string>; source?: string }
   ) => {
@@ -1830,8 +1842,8 @@ function GradingScoreContent() {
           return;
         }
 
-        const count = counts[cri.id] || 0;
-        const selectedOptionId = selectedOptionsState[studentId]?.[cri.id] || null;
+        const count = counts[cri.id] ?? 0;
+        const selectedOptionId = selectedOptionsSnapshot[cri.id] || null;
         const optionObj = cri.scoring_mode === 'single_option' && selectedOptionId ? cri.options?.find(o => o.id === selectedOptionId) : null;
         
         // Tìm xem tiêu chí này đã có EvaluationDetail cũ chưa
@@ -1935,11 +1947,23 @@ function GradingScoreContent() {
     });
 
     if (payloads.length > 0) {
-      await evaluationDetailApi.bulkUpsertEvaluationDetails({
+      const res = await evaluationDetailApi.bulkUpsertEvaluationDetails({
         summary_id: summaryId,
         details: payloads,
         reason
       });
+      
+      if (res && res.clampResults && res.clampResults.length > 0) {
+        res.clampResults.forEach((clamp: any) => {
+          const cri = categories.flatMap((c: any) => c.items).find((i: any) => i.id === clamp.criterion_id);
+          const criName = cri ? cri.name : "Tiêu chí";
+          if (clamp.daily_report_count > 0) {
+            toast.warning(`Không thể giảm "${criName}" dưới ${clamp.non_deletable_count} lần do có ${clamp.daily_report_count} vi phạm từ báo cáo ngày.`);
+          } else {
+            toast.warning(`Không thể giảm "${criName}" dưới ${clamp.non_deletable_count} lần do vướng record không được phép xóa.`);
+          }
+        });
+      }
     }
 
     // 3. Lấy lại chi tiết chấm điểm mới
@@ -1955,7 +1979,7 @@ function GradingScoreContent() {
       const cri = typeof detail.criterion_id === "object" ? detail.criterion_id : null;
       const criId = cri?._id || detail.criterion_id;
 
-      freshCounts[criId] = detail.current_count || 0;
+      freshCounts[criId] = detail.current_count ?? 0;
       freshDetailsMap[criId] = detail;
     });
 
@@ -2007,13 +2031,38 @@ function GradingScoreContent() {
         toast.loading("Đang lưu kết quả chấm điểm...", { id: "save-loading" });
       }
 
-      const counts = evaluationCounts[studentId] || {};
+      const counts = evaluationCountsRef.current[studentId] || {};
+      const selectedOptionsSnapshot = selectedOptionsStateRef.current[studentId] || {};
+      const requestRev = revisionRef.current[studentId] || 0;
       const result = await persistStudentScore(
         studentId,
         summaryId,
         counts,
+        selectedOptionsSnapshot,
         options?.reason || "Cập nhật điểm rèn luyện"
       );
+
+      const currentRev = revisionRef.current[studentId] || 0;
+      if (currentRev !== requestRev) {
+        // Có thay đổi mới trong quá trình lưu, không ghi đè UI bằng dữ liệu cũ
+        if (options?.mode === 'manual') {
+          toast.dismiss("save-loading");
+          if (options?.showToast !== false) {
+             toast.warning("Dữ liệu đang được đồng bộ thêm...");
+          }
+        }
+        return true;
+      }
+
+      let hasMismatch = false;
+      Object.keys(counts).forEach(criId => {
+        if (counts[criId] !== result.freshCounts[criId] && result.freshCounts[criId] !== undefined) {
+          hasMismatch = true;
+        }
+      });
+      if (hasMismatch && options?.showToast !== false) {
+        toast.warning("Một số điểm không thể giảm do còn record nguồn hoặc nghiệp vụ không cho phép xóa.", { duration: 5000 });
+      }
 
       setEvaluationCounts((prev) => ({
         ...prev,
@@ -2214,8 +2263,8 @@ function GradingScoreContent() {
               }
 
               // 2. Nếu điểm nguồn thấp hơn mức tối thiểu học bạ (original_count) của sinh viên đích
-              const targetMin = targetPreCounts[cri.id]?.original_count || 0;
-              const srcCount = sourceCounts[cri.id] || 0;
+              const targetMin = targetPreCounts[cri.id]?.non_deletable_count ?? targetPreCounts[cri.id]?.original_count ?? 0;
+              const srcCount = sourceCounts[cri.id] ?? 0;
               if (srcCount < targetMin) {
                 skipCriterionIds.add(cri.id);
               }
@@ -2223,10 +2272,12 @@ function GradingScoreContent() {
           });
 
           // Gọi helper lưu điểm với danh sách tiêu chí cần skip
+          const sourceOptions = selectedOptionsStateRef.current[activeStudentId] || {};
           const persistResult = await persistStudentScore(
             targetId,
             targetSummaryId,
             sourceCounts,
+            sourceOptions,
             `Sao chép điểm từ ${activeStudent?.name || "sinh viên khác"}`,
             { skipCriterionIds, source: "copy-score" }
           );
@@ -2469,7 +2520,7 @@ function GradingScoreContent() {
             : null;
         const criId = cri?._id || freshDetail.criterion_id;
 
-        freshCounts[criId] = freshDetail.current_count || 0;
+        freshCounts[criId] = freshDetail.current_count ?? 0;
         freshDetailsMap[criId] = freshDetail;
       });
 
@@ -3110,7 +3161,7 @@ function GradingScoreContent() {
                         {/* Criteria List Rows */}
                         <div className="flex flex-col w-full gap-3 p-4 bg-white/10">
                           {category.items.map((item) => {
-                            const count = studentCounts[item.id] || 0;
+                            const count = studentCounts[item.id] ?? 0;
                             const hasViolation = item.type === "violation";
                             const detail = evaluationDetailsMap[item.id];
                             const isApproved = detail?.status === "locked";
@@ -3136,7 +3187,7 @@ function GradingScoreContent() {
                             const studentPreCounts =
                               preExistingCountsState[activeStudentId] || {};
                             const minCount =
-                              studentPreCounts[item.id]?.original_count || 0;
+                              studentPreCounts[item.id]?.non_deletable_count ?? studentPreCounts[item.id]?.original_count ?? 0;
                             const maxScore = item.maxScore ?? 10;
                             const pointsPerUnit = Math.abs(item.pointsPerUnit || 1);
                             const maxCount = Math.max(minCount, Math.ceil(maxScore / pointsPerUnit));
@@ -3288,7 +3339,9 @@ function GradingScoreContent() {
                                               ? "Không có quyền sửa đổi trong giai đoạn này"
                                               : item.is_locked
                                                 ? "Tiêu chí đã bị khóa"
-                                                : "Giảm số lần"
+                                                : count <= minCount && minCount > 0
+                                                  ? `Không thể giảm dưới ${minCount} vì còn bản ghi không được phép xóa.`
+                                                  : "Giảm số lần"
                                           }
                                         >
                                           <Minus className="w-[15px] h-[15px] md:w-[11px] md:h-[11px]" strokeWidth={3} />

@@ -24,6 +24,19 @@ export class StudentTaskProgressService {
     @InjectModel(SummaryPoint.name) private summaryPointModel: Model<SummaryPointDocument>,
   ) {}
 
+  private isSummarySaved(summary: any): boolean {
+    if (!summary) return false;
+    if (summary.total_score !== null && summary.total_score !== undefined) return true;
+    if (summary.details && summary.details.length > 0) {
+      for (const d of summary.details) {
+        if ((d.log && d.log.length > 0) || d.sv_score !== null || d.gv_score !== null || d.final_score !== null || d.gv_reviewed_at !== null) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   async syncProgressForTask(taskId: string): Promise<{
     created: number;
     reactivated: number;
@@ -650,8 +663,26 @@ export class StudentTaskProgressService {
     };
 
     if (task.targetType === 'teacher') {
-      progressQuery.assigneeUserId = new Types.ObjectId(user.userId);
-    } else {
+      if (dto.assigneeStudentId && hasManagePermission && !isStudent) {
+        let studentObj;
+        if (Types.ObjectId.isValid(dto.assigneeStudentId)) {
+          studentObj = await this.studentModel.findById(dto.assigneeStudentId).select('class_id').lean().exec();
+        } else {
+          studentObj = await this.studentModel.findOne({ student_code: dto.assigneeStudentId }).select('class_id').lean().exec();
+        }
+        
+        let advisorId = user.userId;
+        if (studentObj && studentObj.class_id) {
+          const classObj = await this.classModel.findById(studentObj.class_id).select('advisor_id').lean().exec();
+          if (classObj && classObj.advisor_id) {
+            advisorId = classObj.advisor_id.toString();
+          }
+        }
+        progressQuery.assigneeUserId = new Types.ObjectId(advisorId);
+      } else {
+        progressQuery.assigneeUserId = new Types.ObjectId(user.userId);
+      }
+    } else if (task.targetType === 'student') {
       if (dto.assigneeStudentId) {
         if (isStudent) {
           throw new ForbiddenException('Bạn không có quyền cập nhật tiến độ của người khác');
@@ -668,6 +699,8 @@ export class StudentTaskProgressService {
       } else {
         progressQuery.assigneeUserId = new Types.ObjectId(user.userId);
       }
+    } else {
+      progressQuery.assigneeUserId = new Types.ObjectId(user.userId);
     }
 
     const progress = await this.progressModel.findOne(progressQuery).exec();
@@ -688,7 +721,11 @@ export class StudentTaskProgressService {
         }
       }
       if (!isCreator && !isAdvisor) {
-        throw new ForbiddenException('Bạn không có quyền cập nhật tiến độ của sinh viên này');
+        // Admin or supervisor could update with hasManagePermission
+        // Do not throw ForbiddenException if hasManagePermission is true
+        if (!hasManagePermission) {
+          throw new ForbiddenException('Bạn không có quyền cập nhật tiến độ của sinh viên này');
+        }
       }
     }
 
@@ -720,39 +757,10 @@ export class StudentTaskProgressService {
             let completedStudents = 0;
             let inProgressStudents = 0;
             let notStartedStudents = 0;
-            let totalRequiredItems = 0;
-            let completedTeacherItems = 0;
 
             summaries.forEach(s => {
-              const details = s.details || [];
-              let totalCriteria = 0;
-              let studentTeacherCompletedCriteria = 0;
-
-              details.forEach(d => {
-                const criterion = d.criterion_id as any;
-                const isLocked = criterion?.is_locked === true;
-                const countedInProgress = !isLocked;
-
-                if (countedInProgress) {
-                  totalCriteria++;
-                  totalRequiredItems++;
-
-                  const isTeacherHandled = d.gv_score !== null || d.final_score !== null || d.gv_reviewed_at !== null;
-                  if (isTeacherHandled) {
-                    completedTeacherItems++;
-                    studentTeacherCompletedCriteria++;
-                  }
-                }
-              });
-
-              if (totalCriteria > 0) {
-                if (studentTeacherCompletedCriteria === 0) {
-                  notStartedStudents++;
-                } else if (studentTeacherCompletedCriteria < totalCriteria) {
-                  inProgressStudents++;
-                } else {
-                  completedStudents++;
-                }
+              if (this.isSummarySaved(s)) {
+                completedStudents++;
               } else {
                 notStartedStudents++;
               }
@@ -760,6 +768,8 @@ export class StudentTaskProgressService {
             
             notStartedStudents += (totalStudents - summaries.length);
 
+            const totalRequiredItems = totalStudents;
+            const completedTeacherItems = completedStudents;
             const completionRate = totalRequiredItems === 0 ? 0 : Math.round((completedTeacherItems / totalRequiredItems) * 100);
 
             let statusStr = 'not_started';
@@ -802,27 +812,12 @@ export class StudentTaskProgressService {
       if (dto.sourceId && Types.ObjectId.isValid(dto.sourceId) && dto.sourceType === 'grading_score') {
         const summary = await this.summaryPointModel.findById(dto.sourceId).populate('details.criterion_id', 'is_locked').exec();
         if (summary) {
-          const details = summary.details || [];
-          let totalCriteria = 0;
-          let completedCriteria = 0;
+          const isSaved = this.isSummarySaved(summary);
+          const totalCriteria = 1;
+          const completedCriteria = isSaved ? 1 : 0;
+          const completionRate = isSaved ? 100 : 0;
           
-          details.forEach(d => {
-            const criterion = d.criterion_id as any;
-            const isLocked = criterion?.is_locked === true;
-            if (!isLocked) {
-              totalCriteria++;
-              if ((d.log && d.log.length > 0) || d.sv_score !== null || d.gv_score !== null || d.final_score !== null) {
-                completedCriteria++;
-              }
-            }
-          });
-          
-          const completionRate = totalCriteria === 0 ? 0 : Math.round((completedCriteria / totalCriteria) * 100);
-          
-          let statusStr = 'not_started';
-          if (totalCriteria === 0) statusStr = 'no_data';
-          else if (completionRate === 100) statusStr = 'completed';
-          else if (completedCriteria > 0) statusStr = 'in_progress';
+          let statusStr = isSaved ? 'completed' : 'not_started';
 
           newCriteriaProgress = {
             totalCriteria,
@@ -832,13 +827,9 @@ export class StudentTaskProgressService {
             lastCalculatedAt: now,
           };
 
-          if (totalCriteria === 0 || completedCriteria === 0) {
+          if (!isSaved) {
             targetStatus = StudentTaskStatus.NOT_STARTED;
             progress.startedAt = undefined;
-            progress.completedAt = undefined;
-          } else if (completedCriteria < totalCriteria) {
-            targetStatus = StudentTaskStatus.IN_PROGRESS;
-            if (!progress.startedAt) progress.startedAt = now;
             progress.completedAt = undefined;
           } else {
             targetStatus = StudentTaskStatus.COMPLETED;
@@ -978,7 +969,9 @@ export class StudentTaskProgressService {
             }
           }
           if (!isCreator && !isAdvisor) {
-            throw new ForbiddenException(`Không có quyền cập nhật tiến độ của sinh viên ${item.assigneeStudentId}`);
+            if (!hasManagePermission) {
+              throw new ForbiddenException(`Không có quyền cập nhật tiến độ của sinh viên ${item.assigneeStudentId}`);
+            }
           }
         }
 
@@ -988,27 +981,12 @@ export class StudentTaskProgressService {
         if (item.sourceId && Types.ObjectId.isValid(item.sourceId) && dto.sourceType === 'grading_score') {
           const summary = await this.summaryPointModel.findById(item.sourceId).populate('details.criterion_id', 'is_locked').exec();
           if (summary) {
-            const details = summary.details || [];
-            let totalCriteria = 0;
-            let completedCriteria = 0;
+            const isSaved = this.isSummarySaved(summary);
+            const totalCriteria = 1;
+            const completedCriteria = isSaved ? 1 : 0;
+            const completionRate = isSaved ? 100 : 0;
             
-            details.forEach(d => {
-              const criterion = d.criterion_id as any;
-              const isLocked = criterion?.is_locked === true;
-              if (!isLocked) {
-                totalCriteria++;
-                if ((d.log && d.log.length > 0) || d.sv_score !== null || d.gv_score !== null || d.final_score !== null) {
-                  completedCriteria++;
-                }
-              }
-            });
-            
-            const completionRate = totalCriteria === 0 ? 0 : Math.round((completedCriteria / totalCriteria) * 100);
-            
-            let statusStr = 'not_started';
-            if (totalCriteria === 0) statusStr = 'no_data';
-            else if (completionRate === 100) statusStr = 'completed';
-            else if (completedCriteria > 0) statusStr = 'in_progress';
+            let statusStr = isSaved ? 'completed' : 'not_started';
 
             newCriteriaProgress = {
               totalCriteria,
@@ -1018,13 +996,9 @@ export class StudentTaskProgressService {
               lastCalculatedAt: now,
             };
 
-            if (totalCriteria === 0 || completedCriteria === 0) {
+            if (!isSaved) {
               targetStatus = StudentTaskStatus.NOT_STARTED;
               progress.startedAt = undefined;
-              progress.completedAt = undefined;
-            } else if (completedCriteria < totalCriteria) {
-              targetStatus = StudentTaskStatus.IN_PROGRESS;
-              if (!progress.startedAt) progress.startedAt = now;
               progress.completedAt = undefined;
             } else {
               targetStatus = StudentTaskStatus.COMPLETED;
@@ -1246,76 +1220,67 @@ export class StudentTaskProgressService {
        const studentDetails: any[] = [];
        
        let classCompletedTeacherItems = 0;
-       let classTotalRequiredItems = 0;
+       let classTotalRequiredItems = classStudents.length;
 
        for (const student of classStudents) {
          const summary = summaryMap.get(student._id.toString());
          
          const criteria: any[] = [];
-         let totalCriteria = 0;
+         let totalCriteria = 1;
          let completedCriteria = 0;
          let status: 'not_started' | 'in_progress' | 'completed' | 'no_data' = 'no_data';
 
-         if (summary && summary.details) {
-            for (const d of summary.details) {
-               const criterion = d.criterion_id as any;
-               const isLocked = criterion?.is_locked === true;
-               const countedInProgress = !isLocked;
-
-               const isTeacherHandled = (d.gv_score !== null && d.gv_score !== undefined) || (d.final_score !== null && d.final_score !== undefined) || (d.gv_reviewed_at !== null && d.gv_reviewed_at !== undefined);
-               
-               if (countedInProgress) {
-                 totalCriteria++;
-                 classTotalRequiredItems++;
-                 
-                 if (isTeacherHandled) {
-                   completedCriteria++;
-                   classCompletedTeacherItems++;
-                 }
-               }
-               
-               let score = null;
-               if (d.final_score !== null && d.final_score !== undefined) score = d.final_score;
-               else if (d.gv_score !== null && d.gv_score !== undefined) score = d.gv_score;
-               else if (d.sv_score !== null && d.sv_score !== undefined) score = d.sv_score;
-               else if (d.system_score !== null && d.system_score !== undefined) score = d.system_score;
-
-               const criterionCode = criterion?.criterion_code || criterion?.criterion_name || d.criterion_code || '--';
-
-               criteria.push({
-                 criterionId: criterion?._id?.toString() || (typeof d.criterion_id === 'string' ? d.criterion_id : d.criterion_id?.toString()),
-                 criterionCode: criterionCode,
-                 score: score,
-                 svScore: d.sv_score ?? null,
-                 gvScore: d.gv_score ?? null,
-                 finalScore: d.final_score ?? null,
-                 isTeacherHandled,
-                 isLocked,
-                 countedInProgress
-               });
+         if (summary) {
+            const isSaved = this.isSummarySaved(summary);
+            if (isSaved) {
+                completedCriteria = 1;
+                status = 'completed';
+                classCompletedTeacherItems++;
+            } else {
+                status = 'not_started';
             }
 
-            const collator = new Intl.Collator('vi', {
-              numeric: true,
-              sensitivity: 'base',
-            });
+            if (summary.details) {
+                for (const d of summary.details) {
+                   const criterion = d.criterion_id as any;
+                   const isLocked = criterion?.is_locked === true;
+                   const countedInProgress = !isLocked;
 
-            criteria.sort((a, b) =>
-              collator.compare(a.criterionCode || '', b.criterionCode || '')
-            );
+                   const isTeacherHandled = (d.gv_score !== null && d.gv_score !== undefined) || (d.final_score !== null && d.final_score !== undefined) || (d.gv_reviewed_at !== null && d.gv_reviewed_at !== undefined);
+                   
+                   let score = null;
+                   if (d.final_score !== null && d.final_score !== undefined) score = d.final_score;
+                   else if (d.gv_score !== null && d.gv_score !== undefined) score = d.gv_score;
+                   else if (d.sv_score !== null && d.sv_score !== undefined) score = d.sv_score;
+                   else if (d.system_score !== null && d.system_score !== undefined) score = d.system_score;
 
-            if (totalCriteria === 0) {
-              status = 'no_data';
-            } else if (completedCriteria === 0) {
-              status = 'not_started';
-            } else if (completedCriteria < totalCriteria) {
-              status = 'in_progress';
-            } else {
-              status = 'completed';
+                   const criterionCode = criterion?.criterion_code || criterion?.criterion_name || d.criterion_code || '--';
+
+                   criteria.push({
+                     criterionId: criterion?._id?.toString() || (typeof d.criterion_id === 'string' ? d.criterion_id : d.criterion_id?.toString()),
+                     criterionCode: criterionCode,
+                     score: score,
+                     svScore: d.sv_score ?? null,
+                     gvScore: d.gv_score ?? null,
+                     finalScore: d.final_score ?? null,
+                     isTeacherHandled,
+                     isLocked,
+                     countedInProgress
+                   });
+                }
+
+                const collator = new Intl.Collator('vi', {
+                  numeric: true,
+                  sensitivity: 'base',
+                });
+
+                criteria.sort((a, b) =>
+                  collator.compare(a.criterionCode || '', b.criterionCode || '')
+                );
             }
          }
 
-         const completionRate = totalCriteria === 0 ? 0 : Math.round((completedCriteria / totalCriteria) * 100);
+         const completionRate = completedCriteria === 1 ? 100 : 0;
 
          studentDetails.push({
            studentId: student._id.toString(),

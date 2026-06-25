@@ -19,6 +19,7 @@ describe('EvaluationDetailService', () => {
     countDocuments: jest.fn(),
     aggregate: jest.fn(),
     findByIdAndDelete: jest.fn(),
+    findByIdAndUpdate: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
   };
 
   const mockCriterionModel = {
@@ -637,6 +638,152 @@ describe('EvaluationDetailService', () => {
       // max=10, score=-1, count=3 => 7
       expect(result.system_score).toBe(7);
       expect(result.current_count).toBe(3);
+    });
+  });
+
+  describe('bulkUpsert', () => {
+    it('should process current_count: 0 and not clamp if records are deletable', async () => {
+      const summaryId = new Types.ObjectId().toString();
+      const criterionId = new Types.ObjectId().toString();
+      
+      const mockSummary = {
+        _id: summaryId,
+        student_id: new Types.ObjectId(),
+        semester_id: new Types.ObjectId(),
+        status: 'draft',
+        details: [
+          {
+            _id: new Types.ObjectId(),
+            criterion_id: criterionId,
+            current_count: 1,
+            system_score: 10,
+            status: 'draft',
+          },
+        ],
+      };
+
+      mockSummaryPointModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      } as any);
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+
+      mockCriterionModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          score_per_unit: 10,
+          min_score: 0,
+          max_score: 100,
+        }),
+      } as any);
+
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: 'rec1', recorded_by: 'admin1' }]),
+      } as any);
+      
+      jest.spyOn(service as any, 'canRequesterDeleteRecord').mockReturnValue(true);
+
+      mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      } as any);
+
+      const dto: any = {
+        summary_id: summaryId,
+        details: [
+          {
+            criterion_id: criterionId,
+            current_count: 0,
+          }
+        ]
+      };
+
+      const result = await service.bulkUpsert(dto, { userId: 'admin1', roleName: 'admin' });
+
+      expect(result.success).toBe(true);
+      expect(result.clampResults.length).toBe(0);
+      
+      expect(mockSummaryPointModel.findOneAndUpdate).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            'details.$.current_count': 0,
+            'details.$.system_score': 0,
+          })
+        })
+      );
+    });
+
+    it('should clamp to 1 and populate daily_report_count if record has daily_report_id', async () => {
+      const summaryId = new Types.ObjectId().toString();
+      const criterionId = new Types.ObjectId().toString();
+      
+      const mockSummary = {
+        _id: summaryId,
+        student_id: new Types.ObjectId(),
+        semester_id: new Types.ObjectId(),
+        status: 'draft',
+        details: [
+          {
+            _id: new Types.ObjectId(),
+            criterion_id: criterionId,
+            current_count: 1,
+            system_score: 10,
+            status: 'draft',
+          },
+        ],
+      };
+
+      mockSummaryPointModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      } as any);
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+
+      mockCriterionModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          score_per_unit: 10,
+          min_score: 0,
+          max_score: 100,
+        }),
+      } as any);
+
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: 'rec1', daily_report_id: 'dr1', recorded_by: 'admin1' }]),
+      } as any);
+      
+      jest.spyOn(service as any, 'canRequesterDeleteRecord').mockReturnValue(false);
+
+      mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      } as any);
+
+      const dto: any = {
+        summary_id: summaryId,
+        details: [
+          {
+            criterion_id: criterionId,
+            current_count: 0,
+          }
+        ]
+      };
+
+      const result = await service.bulkUpsert(dto, { userId: 'admin1', roleName: 'admin' });
+
+      expect(result.success).toBe(true);
+      expect(result.clampResults.length).toBe(1);
+      expect(result.clampResults[0].daily_report_count).toBe(1);
+      expect(result.clampResults[0].reason).toBe('daily_report_locked');
+      
+      expect(mockSummaryPointModel.findOneAndUpdate).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            'details.$.current_count': 1,
+            'details.$.system_score': 10,
+          })
+        })
+      );
     });
   });
 });

@@ -331,6 +331,10 @@ export interface TeacherTaskDetailResponse {
   teacherName: string;
   semesterId?: string;
   periodId?: string;
+  context?: {
+    source: string;
+    classId?: string;
+  };
   totals: {
     classCount: number;
     studentCount: number;

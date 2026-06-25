@@ -130,16 +130,26 @@ export class EvaluationDetailService {
     return { id, level: this.getRoleLevel(roleName) };
   }
 
+  private isAdminRole(requester?: any): boolean {
+    return this.getRoleLevel(requester?.roleName) >= 4;
+  }
+
   private canRequesterDeleteRecord(record: any, requester?: any): boolean {
-    if (!requester?.userId || record.daily_report_id) return false;
+    if (!requester?.userId) return false;
+    if (record.daily_report_id) return false;
+    if (this.isAdminRole(requester)) return true;
 
     const creator = this.getRecordCreator(record);
-    if (!creator) return false;
+    if (!creator) return true;
+
+    // Luôn cho phép nếu chính người tạo thao tác
+    if (requester.userId.toString() === creator.id.toString()) return true;
 
     const requesterLevel = this.getRoleLevel(requester.roleName);
+    // Cho phép nếu role level của requester lớn hơn role level của người tạo
     if (requesterLevel > creator.level) return true;
 
-    return requesterLevel === creator.level && requester.userId === creator.id;
+    return false;
   }
 
   /**
@@ -205,7 +215,7 @@ export class EvaluationDetailService {
         });
       const recordsToDelete = deletableRecords.slice(0, excessCount);
       const promises = recordsToDelete.map((rec) =>
-        this.academicRecordModel.findByIdAndDelete(rec._id).exec()
+        this.academicRecordModel.findByIdAndUpdate(rec._id, { status: 'inactive', is_deleted: true }).exec()
       );
       await Promise.all(promises);
     }
@@ -238,7 +248,7 @@ export class EvaluationDetailService {
   async getPreExistingCountsForSummary(
     summaryId: string,
     requester?: any,
-  ): Promise<Record<string, { original_count: number; current_count: number }>> {
+  ): Promise<Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>> {
     const summary = await this.summaryPointModel.findById(summaryId).exec();
     if (!summary) return {};
 
@@ -251,16 +261,19 @@ export class EvaluationDetailService {
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
 
-    const countsMap: Record<string, { original_count: number; current_count: number }> = {};
+    const countsMap: Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }> = {};
     records.forEach((rec) => {
       const criId = rec.criterion_id?.toString();
       if (criId) {
         if (!countsMap[criId]) {
-          countsMap[criId] = { original_count: 0, current_count: 0 };
+          countsMap[criId] = { original_count: 0, non_deletable_count: 0, deletable_count: 0, current_count: 0 };
         }
         countsMap[criId].current_count += 1;
         if (!this.canRequesterDeleteRecord(rec, requester)) {
           countsMap[criId].original_count += 1;
+          countsMap[criId].non_deletable_count += 1;
+        } else {
+          countsMap[criId].deletable_count += 1;
         }
       }
     });
@@ -271,7 +284,7 @@ export class EvaluationDetailService {
   async getPreExistingCountsBulk(
     summaryIds: string[],
     requester?: any,
-  ): Promise<Record<string, Record<string, { original_count: number; current_count: number }>>> {
+  ): Promise<Record<string, Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>>> {
     if (!summaryIds || summaryIds.length === 0) return {};
 
     // 1. Tìm tất cả summaries được yêu cầu
@@ -333,8 +346,14 @@ export class EvaluationDetailService {
             $push: {
               daily_report_id: '$daily_report_id',
               recorded_by: {
-                _id: '$recorded_by_user._id',
-                role: { name: '$recorded_by_role.name' }
+                $cond: {
+                  if: { $ifNull: ["$recorded_by_user._id", false] },
+                  then: {
+                    _id: '$recorded_by_user._id',
+                    role: { name: '$recorded_by_role.name' }
+                  },
+                  else: null
+                }
               }
             }
           }
@@ -342,7 +361,7 @@ export class EvaluationDetailService {
       }
     ]).exec();
 
-    const result: Record<string, Record<string, { original_count: number; current_count: number }>> = {};
+    const result: Record<string, Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>> = {};
 
     // Khởi tạo map kết quả
     for (const s of summaries) {
@@ -359,16 +378,21 @@ export class EvaluationDetailService {
       const summaryId = summaryMap[`${studentIdStr}_${semesterIdStr}`];
       if (!summaryId) continue;
 
-      let original_count = 0;
+      let non_deletable_count = 0;
+      let deletable_count = 0;
       for (const rec of group.records) {
         if (!this.canRequesterDeleteRecord(rec, requester)) {
-          original_count++;
+          non_deletable_count++;
+        } else {
+          deletable_count++;
         }
       }
 
       result[summaryId][criterionIdStr] = {
         current_count: group.current_count,
-        original_count,
+        original_count: non_deletable_count,
+        non_deletable_count,
+        deletable_count,
       };
     }
 
@@ -404,7 +428,7 @@ export class EvaluationDetailService {
       throw new ConflictException(`EvaluationDetail for Criterion ${criterion_id} already exists on this SummaryPoint`);
     }
 
-    let countVal = current_count || 0;
+    let countVal = current_count ?? 0;
     let systemScore = 0;
 
     const rawRest = rest as any;
@@ -719,6 +743,7 @@ export class EvaluationDetailService {
         semester_id: summary.semester_id as any,
         criterion_id: criterion._id as any,
         status: 'active',
+        is_deleted: { $ne: true },
       } as any)
         .populate({ path: 'recorded_by', populate: { path: 'role' } })
         .exec();
@@ -811,6 +836,8 @@ export class EvaluationDetailService {
       throw new BadRequestException('Không thể thêm/chỉnh sửa chi tiết chấm điểm cho bảng điểm đã chốt');
     }
 
+    const clampResults: any[] = [];
+
     for (const detailDto of details) {
       const { criterion_id, current_count, selected_option_id } = detailDto;
       const criterion = await this.criterionModel.findById(criterion_id).exec();
@@ -820,7 +847,7 @@ export class EvaluationDetailService {
         (d) => d.criterion_id && d.criterion_id.toString() === criterion_id
       );
 
-      let countVal = current_count || 0;
+      let countVal = current_count ?? 0;
       let systemScore = 0;
       let optId = selected_option_id || null;
       let optLabel = detailDto.selected_option_label || null;
@@ -865,11 +892,14 @@ export class EvaluationDetailService {
             semester_id: summary.semester_id as any,
             criterion_id: criterion._id as any,
             status: 'active',
+            is_deleted: { $ne: true },
           } as any)
             .populate({ path: 'recorded_by', populate: { path: 'role' } })
             .exec();
 
+          const dailyReportCount = records.filter(rec => rec.daily_report_id).length;
           const originalCount = records.filter((rec) => !this.canRequesterDeleteRecord(rec, effectiveRequester)).length;
+          const permissionLockedCount = originalCount - dailyReportCount;
           if (actualCountVal < originalCount) {
              actualCountVal = originalCount;
              systemScore = actualCountVal * criterion.score_per_unit;
@@ -880,6 +910,15 @@ export class EvaluationDetailService {
                const minScore = criterion.min_score || 0;
                systemScore = Math.max(minScore, Math.min(maxScore, maxScore - actualCountVal * Math.abs(criterion.score_per_unit)));
              }
+             clampResults.push({
+               criterion_id,
+               requested_count: countVal,
+               actual_count: actualCountVal,
+               non_deletable_count: originalCount,
+               daily_report_count: dailyReportCount,
+               permission_locked_count: permissionLockedCount,
+               reason: dailyReportCount > 0 ? 'daily_report_locked' : 'permission_locked',
+             });
           }
       }
 
@@ -945,7 +984,7 @@ export class EvaluationDetailService {
     }
 
     await this.summariesPointService.recomputeTotalScore(summary_id);
-    return { success: true };
+    return { success: true, clampResults };
   }
 
   async remove(id: string, requester?: any): Promise<EvaluationDetail> {
@@ -987,6 +1026,7 @@ export class EvaluationDetailService {
       semester_id: summary.semester_id as any,
       criterion_id: deletedDetail.criterion_id as any,
       status: 'active',
+      is_deleted: { $ne: true },
     } as any)
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
