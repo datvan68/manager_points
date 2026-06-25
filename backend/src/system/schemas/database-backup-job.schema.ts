@@ -30,6 +30,9 @@ export class DatabaseBackupJob {
   collections: string[];
 
   @Prop()
+  backup_format: string;
+
+  @Prop()
   error_message: string;
 }
 

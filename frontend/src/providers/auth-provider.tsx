@@ -37,6 +37,7 @@ interface AuthContextType {
   hasPermission: (permission: string) => boolean;
   hasAnyPermission: (...permissions: string[]) => boolean;
   hasAllPermissions: (...permissions: string[]) => boolean;
+  forceLogoutAfterRestore: (reason?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -228,24 +229,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     const interval = setInterval(() => {
+      if (sessionStorage.getItem("restore_logout_in_progress")) return;
+
       const attemptRefresh = async (retryCount = 0) => {
+        if (sessionStorage.getItem("restore_logout_in_progress")) return;
         try {
           const result = await synchronizedRefreshToken();
           tokenStorage.setAccessToken(result.access_token);
           loadUserPermissions(result.access_token);
         } catch (err: any) {
-          console.error(`Silent refresh failed (attempt ${retryCount + 1}):`, err);
-          
-          if (retryCount === 0) {
-            setTimeout(() => attemptRefresh(1), 2000); // Retry after 2 seconds
-            return;
-          }
-          
+          if (sessionStorage.getItem("restore_logout_in_progress")) return;
+
           const isAuthFailure = 
             err && 
             typeof err.status === 'number' && 
             [400, 401, 403].includes(err.status);
             
+          const isSessionNotExist = err?.message === 'Phiên làm việc không tồn tại' || err?.message === 'Phiên làm việc đã kết thúc';
+
+          if (!isSessionNotExist) {
+            console.error(`Silent refresh failed (attempt ${retryCount + 1}):`, err);
+          }
+          
+          if (retryCount === 0 && !isSessionNotExist) {
+            setTimeout(() => attemptRefresh(1), 2000); // Retry after 2 seconds
+            return;
+          }
+          
           if (isAuthFailure) {
             logout();
           }
@@ -289,6 +299,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const forceLogoutAfterRestore = async (reason?: string) => {
+    try {
+      sessionStorage.setItem("restore_logout_in_progress", "true");
+      const bc = new BroadcastChannel('auth_sync_channel');
+      bc.postMessage({ type: 'RESTORE_SESSION_INVALIDATED' });
+      bc.close();
+      tokenStorage.clearTokens();
+      setUser(null);
+      setPermissions([]);
+      await authApi.logout();
+    } catch (e) {
+      // Ignore
+    } finally {
+      sessionStorage.removeItem("restore_logout_in_progress");
+      router.push(`/login?reason=${reason || 'restore'}`);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -297,6 +325,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         permissions,
         logout,
+        forceLogoutAfterRestore,
         checkAuth,
         hasPermission,
         hasAnyPermission,

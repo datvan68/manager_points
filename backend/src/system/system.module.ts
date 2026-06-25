@@ -10,6 +10,7 @@ import { LoginLog, LoginLogSchema } from '../auth/schemas/login-log.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { SystemSetting, SystemSettingSchema } from './schemas/system-setting.schema';
+import { RestoreTypeRegistry } from './restore-type-registry';
 
 @Module({
   imports: [
@@ -28,7 +29,7 @@ import { SystemSetting, SystemSettingSchema } from './schemas/system-setting.sch
     }]),
   ],
   controllers: [SystemController],
-  providers: [SystemService],
+  providers: [SystemService, RestoreTypeRegistry],
   exports: [SystemService],
 })
 export class SystemModule {}

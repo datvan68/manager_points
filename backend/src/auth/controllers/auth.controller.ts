@@ -185,18 +185,25 @@ export class AuthController {
       throw new UnauthorizedException('Phiên làm việc đã kết thúc');
     }
 
-    const result = await this.authService.refreshToken(token);
+    try {
+      const result = await this.authService.refreshToken(token);
 
-    const maxAge = Math.max(0, new Date(result.expires_at).getTime() - Date.now());
+      const maxAge = Math.max(0, new Date(result.expires_at).getTime() - Date.now());
 
-    // Rotate Cookie
-    res.cookie(
-      REFRESH_COOKIE_NAME,
-      result.refresh_token,
-      getRefreshCookieOptions(maxAge),
-    );
+      // Rotate Cookie
+      res.cookie(
+        REFRESH_COOKIE_NAME,
+        result.refresh_token,
+        getRefreshCookieOptions(maxAge),
+      );
 
-    return { access_token: result.access_token };
+      return { access_token: result.access_token };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
+      }
+      throw error;
+    }
   }
 
   @Post('logout')

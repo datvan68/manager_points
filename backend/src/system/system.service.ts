@@ -12,6 +12,7 @@ import { SystemSetting, SystemSettingDocument } from './schemas/system-setting.s
 import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto, UpdateMailSettingsDto } from './dto/system.dto';
 import { getRequesterRoleName, isStudent, isTeacher, isSupervisor, isAdmin, isAdminUser } from '../auth/utils/role.util';
 import { MailService, MailConfigOptions } from '../core/mail/mail.service';
+import { RestoreTypeRegistry } from './restore-type-registry';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
@@ -21,6 +22,7 @@ import { promisify } from 'util';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { EJSON } from 'bson';
+import { StringDecoder } from 'string_decoder';
 
 const execFileAsync = promisify(execFile);
 
@@ -88,6 +90,7 @@ export class SystemService {
     private mailService: MailService,
     private configService: ConfigService,
     @InjectConnection() private connection: Connection,
+    private restoreTypeRegistry: RestoreTypeRegistry,
   ) {
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
@@ -385,6 +388,112 @@ export class SystemService {
 
   // ─── DATABASE BACKUPS ────────────────────────────────────────────────────────
 
+  async getSystemActivity() {
+    const now = new Date();
+    const staleQueuedThreshold = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes
+    const staleRunningThreshold = new Date(now.getTime() - 60 * 60 * 1000); // 60 minutes
+
+    // Find all queued/running jobs
+    const activeBackups = await this.backupJobModel.find({ status: { $in: ['queued', 'running'] } }).exec();
+    const activeRestores = await this.restoreJobModel.find({ status: { $in: ['queued', 'running'] } }).exec();
+
+    let hasActiveBackup = false;
+    let hasActiveRestore = false;
+    let staleJobsFound = false;
+    let activeJobInfo: any = null;
+
+    const checkJob = (job: any, type: string) => {
+      const isStaleQueued = job.status === 'queued' && job.createdAt < staleQueuedThreshold;
+      const isStaleRunning = job.status === 'running' && job.createdAt < staleRunningThreshold;
+      const isStale = isStaleQueued || isStaleRunning;
+
+      if (isStale) {
+        staleJobsFound = true;
+      } else {
+        if (type === 'backup') hasActiveBackup = true;
+        if (type === 'restore') hasActiveRestore = true;
+        if (!activeJobInfo) {
+          activeJobInfo = {
+            id: job._id,
+            type,
+            status: job.status,
+            createdAt: job.createdAt,
+            started_at: job.started_at
+          };
+        }
+      }
+    };
+
+    activeBackups.forEach(job => checkJob(job, 'backup'));
+    activeRestores.forEach(job => checkJob(job, 'restore'));
+
+    return {
+      hasActiveBackup,
+      hasActiveRestore,
+      activeJob: activeJobInfo,
+      hasStaleJobs: staleJobsFound
+    };
+  }
+
+  async cleanupStaleJobs() {
+    const now = new Date();
+    const staleQueuedThreshold = new Date(now.getTime() - 5 * 60 * 1000);
+    const staleRunningThreshold = new Date(now.getTime() - 60 * 60 * 1000);
+
+    const errorMessage = 'Tiến trình bị gián đoạn và quá thời gian chờ (Stale)';
+
+    // Cleanup Backup Jobs
+    const staleBackupQuery = {
+      $or: [
+        { status: 'queued', createdAt: { $lt: staleQueuedThreshold } },
+        { status: 'running', createdAt: { $lt: staleRunningThreshold } }
+      ]
+    };
+    await this.backupJobModel.updateMany(staleBackupQuery, {
+      $set: { status: 'failed', error_message: errorMessage, finished_at: now }
+    });
+
+    // Cleanup Restore Jobs
+    const staleRestoreQuery = {
+      $or: [
+        { status: 'queued', createdAt: { $lt: staleQueuedThreshold } },
+        { status: 'running', createdAt: { $lt: staleRunningThreshold } }
+      ]
+    };
+    await this.restoreJobModel.updateMany(staleRestoreQuery, {
+      $set: { status: 'failed', error_message: errorMessage, finished_at: now }
+    });
+
+    this.logger.log('AUDIT: Cleaned up stale backup/restore jobs.');
+    return { success: true, message: 'Đã dọn dẹp các tiến trình bị kẹt.' };
+  }
+
+  async markJobFailed(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('ID không hợp lệ');
+    }
+    
+    const backupJob = await this.backupJobModel.findById(id).exec();
+    if (backupJob && ['queued', 'running'].includes(backupJob.status)) {
+      backupJob.status = 'failed';
+      backupJob.error_message = 'Bị hủy bằng tay do kẹt (Force Cancel)';
+      backupJob.finished_at = new Date();
+      await backupJob.save();
+      return { success: true, message: 'Đã hủy tiến trình sao lưu.' };
+    }
+
+    const restoreJob = await this.restoreJobModel.findById(id).exec();
+    if (restoreJob && ['queued', 'running'].includes(restoreJob.status)) {
+      restoreJob.status = 'failed';
+      restoreJob.error_message = 'Bị hủy bằng tay do kẹt (Force Cancel)';
+      restoreJob.finished_at = new Date();
+      await restoreJob.save();
+      return { success: true, message: 'Đã hủy tiến trình khôi phục.' };
+    }
+
+    throw new NotFoundException('Không tìm thấy tiến trình đang chạy với ID này.');
+  }
+
   async getBackups(query: GetBackupsQueryDto) {
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
@@ -419,13 +528,13 @@ export class SystemService {
   }
 
   async createBackup(userId: string) {
-    // Block both running and queued backup jobs
-    const activeJob = await this.backupJobModel.findOne({
-      status: { $in: ['queued', 'running'] }
-    }).exec();
+    const activity = await this.getSystemActivity();
 
-    if (activeJob) {
-      throw new ConflictException('Hiện tại đang có tiến trình sao lưu khác đang chờ hoặc đang chạy.');
+    if (activity.hasActiveBackup || activity.hasActiveRestore) {
+      throw new ConflictException({
+        message: 'Hiện tại đang có tiến trình sao lưu hoặc khôi phục khác đang chạy.',
+        activeJob: activity.activeJob
+      });
     }
 
     const job = await this.backupJobModel.create({
@@ -479,12 +588,14 @@ export class SystemService {
         // execFile args are passed safely as an array
         await execFileAsync('mongodump', [`--uri=${mongoUri}`, `--archive=${filePath}`, '--gzip']);
         this.logger.log(`mongodump completed successfully for job ${jobId}`);
+        job.backup_format = 'mongodump_archive';
       } catch (err) {
         const maskedMsg = this.maskUri(err.message || '');
         this.logger.warn(`mongodump failed, trying fallback mongoose stream: ${maskedMsg}`);
         // Fallback to Mongoose custom NDJSON stream
         await this.runMongooseBackupFallback(filePath, collections);
         this.logger.log(`Fallback mongoose streaming backup completed for job ${jobId}`);
+        job.backup_format = 'ndjson_gzip';
       }
 
       const stat = fs.statSync(filePath);
@@ -565,7 +676,15 @@ export class SystemService {
     }
     const job = await this.backupJobModel.findById(id).exec();
     if (!job) {
+      const rawDoc = await this.connection.collection('database_backup_jobs').findOne({ _id: id as any });
+      if (rawDoc) {
+        throw new ConflictException('Dữ liệu backup job sai BSON type, cần chạy công cụ sửa lỗi trước khi xóa');
+      }
       throw new NotFoundException('Yêu cầu sao lưu không tồn tại');
+    }
+    
+    if (job.status === 'queued' || job.status === 'running') {
+      throw new ConflictException('Không thể xóa backup đang chạy. Vui lòng đợi hoàn tất hoặc dùng thao tác hủy nếu được hỗ trợ.');
     }
     
     let fileExists = false;
@@ -616,6 +735,10 @@ export class SystemService {
     return { items, total, page, limit, totalPages };
   }
 
+  public normalizeMongoTypes(collectionName: string, doc: Record<string, any>): Record<string, any> {
+    return this.restoreTypeRegistry.normalizeDocument(collectionName, doc);
+  }
+
   /**
    * Processes the uploaded backup file, saves it temporarily, and analyzes its content.
    * Supports both mongodump archives and custom NDJSON gzip formats.
@@ -646,10 +769,11 @@ export class SystemService {
     // Parse logic
     const collectionMap = new Map<string, number>();
     let isArchive = false;
+    const encodingErrors = new Set<string>();
 
     try {
       try {
-        await execFileAsync('mongorestore', ['--archive', '--dryRun', filePath]);
+        await execFileAsync('mongorestore', [`--archive=${filePath}`, '--gzip', '--dryRun']);
         isArchive = true;
       } catch (err) {
         isArchive = false;
@@ -657,13 +781,24 @@ export class SystemService {
 
       if (!isArchive) {
         const gzip = fs.createReadStream(filePath).pipe(zlib.createGunzip());
+        const decoder = new StringDecoder('utf8');
         let currentCollection = 'unknown';
+        let lineBuffer = '';
+        let lineCount = 0;
+        let hasTypeMismatch = false;
 
         for await (const chunk of gzip) {
-          const lines = chunk.toString().split('\n');
+          lineBuffer += decoder.write(chunk as Buffer);
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() || '';
+
           for (const line of lines) {
             if (!line.trim()) continue;
+            lineCount++;
             try {
+              if (line.includes('\uFFFD')) {
+                encodingErrors.add(currentCollection);
+              }
               const doc = EJSON.parse(line);
               if (doc.__collection) {
                 currentCollection = doc.__collection;
@@ -672,10 +807,46 @@ export class SystemService {
                 }
               } else if (currentCollection !== 'unknown') {
                 collectionMap.set(currentCollection, (collectionMap.get(currentCollection) || 0) + 1);
+                
+                // Validate all documents
+                try {
+                  const normalizedDoc = this.normalizeMongoTypes(currentCollection, doc);
+                  // Strict check: if collection requires ObjectId _id but it's still string after normalization
+                  if (normalizedDoc._id && typeof normalizedDoc._id === 'string' && this.restoreTypeRegistry.hasRule(currentCollection)) {
+                    hasTypeMismatch = true;
+                  }
+                } catch (typeErr: any) {
+                  throw new Error(`Type validation error: ${typeErr.message}`);
+                }
               }
-            } catch (e) {}
+            } catch (e: any) {
+               throw new Error(`Lỗi parse JSON tại dòng ${lineCount} (collection: ${currentCollection}): ${e.message}`);
+            }
           }
         }
+        
+        lineBuffer += decoder.end();
+        
+        if (lineBuffer.trim()) {
+           if (lineBuffer.includes('\uFFFD')) {
+             encodingErrors.add(currentCollection);
+           }
+           try {
+              const doc = EJSON.parse(lineBuffer);
+              if (doc.__collection) {
+                 collectionMap.set(doc.__collection, 0);
+              } else if (currentCollection !== 'unknown') {
+                 collectionMap.set(currentCollection, (collectionMap.get(currentCollection) || 0) + 1);
+              }
+           } catch(e: any) {
+              throw new Error(`Lỗi parse JSON tại dòng cuối cùng (collection: ${currentCollection}): ${e.message}`);
+           }
+        }
+
+        if (hasTypeMismatch) {
+           throw new BadRequestException('File import có field sai BSON type (VD: _id không phải ObjectId hợp lệ), không thể khôi phục an toàn. Vui lòng kiểm tra lại file import.');
+        }
+
       } else {
         collectionMap.set('Archive Content (Full Restore Available)', 1);
       }
@@ -685,6 +856,7 @@ export class SystemService {
       }
 
       const summaries = [];
+      const operationalCollections = ['database_backup_jobs', 'database_restore_jobs', 'refresh_tokens', 'login_logs'];
       for (const [name, countInBackup] of collectionMap.entries()) {
         let countInDb = 0;
         try {
@@ -694,16 +866,23 @@ export class SystemService {
           }
         } catch (e) { }
 
+        let status = countInDb > 0 ? 'warning' : 'valid';
+        if (operationalCollections.includes(name)) {
+          status = 'operational';
+        } else if (encodingErrors.has(name)) {
+          status = 'encoding_error';
+        }
+
         summaries.push({
           name,
           document_count_in_backup: countInBackup,
           document_count_in_db: countInDb,
-          status: countInDb > 0 ? 'warning' : 'valid'
+          status: status
         });
       }
 
       const restoreJob = await this.restoreJobModel.create({
-        status: 'queued',
+        status: 'preview',
         requested_by: this.toObjectId(userId),
         source_file_name: file.originalname,
         source_file_size: file.size,
@@ -743,19 +922,16 @@ export class SystemService {
       throw new NotFoundException('Phiên import không tồn tại hoặc đã hết hạn');
     }
 
-    if (job.status !== 'queued') {
-      throw new ConflictException('Tiến trình khôi phục đã được chạy');
+    if (job.status !== 'preview') {
+      throw new ConflictException('Phiên xem trước không hợp lệ hoặc tiến trình khôi phục đã được chạy');
     }
 
-    const activeBackupJob = await this.backupJobModel.findOne({
-      status: { $in: ['queued', 'running'] }
-    }).exec();
-    const activeRestoreJob = await this.restoreJobModel.findOne({
-      status: { $in: ['running'] }
-    }).exec();
-
-    if (activeBackupJob || activeRestoreJob) {
-      throw new ConflictException('Hiện tại đang có tiến trình backup/restore khác đang chạy.');
+    const activity = await this.getSystemActivity();
+    if (activity.hasActiveBackup || activity.hasActiveRestore) {
+      throw new ConflictException({
+        message: 'Hiện tại đang có tiến trình backup/restore khác đang chạy.',
+        activeJob: activity.activeJob
+      });
     }
 
     job.collections = dto.collections;
@@ -780,7 +956,37 @@ export class SystemService {
       this.logger.error(`Error running restore job ${job._id}:`, err);
     });
 
-    return job;
+    const requiresRelogin = job.collections && job.collections.some(c => ['users', 'roles', 'permissions', 'refresh_tokens'].includes(c));
+
+    // @ts-ignore
+    return {
+      ...job.toObject(),
+      requiresRelogin
+    };
+  }
+
+  async cancelBackupPreview(previewSessionId: string) {
+    const job = await this.restoreJobModel.findOne({ preview_session_id: previewSessionId }).exec();
+    if (!job) {
+      throw new NotFoundException('Phiên import không tồn tại');
+    }
+
+    if (job.status === 'preview') {
+      job.status = 'cancelled';
+      await job.save();
+
+      // Attempt to delete temp file
+      const tempFileName = `import_${previewSessionId}_${job.source_file_name}`;
+      const filePath = path.resolve(this.importDir, tempFileName);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (err) {
+          this.logger.error(`Failed to delete temp preview file: ${filePath}`, err);
+        }
+      }
+    }
+    return { message: 'Đã hủy phiên xem trước' };
   }
 
   private async runBackupAndRestoreAsync(restoreJobId: string, preBackupJobId: string) {
@@ -816,7 +1022,7 @@ export class SystemService {
       
       let isArchive = false;
       try {
-        await execFileAsync('mongorestore', ['--archive', '--dryRun', filePath]);
+        await execFileAsync('mongorestore', [`--archive=${filePath}`, '--gzip', '--dryRun']);
         isArchive = true;
       } catch(e) {}
 
@@ -846,13 +1052,20 @@ export class SystemService {
       } else {
         // ndjson fallback
         const gzip = fs.createReadStream(filePath).pipe(zlib.createGunzip());
+        const decoder = new StringDecoder('utf8');
         let currentCollection = 'unknown';
+        let lineBufferStr = '';
+        let lineCount = 0;
 
         let buffer = [];
         for await (const chunk of gzip) {
-          const lines = chunk.toString().split('\n');
+          lineBufferStr += decoder.write(chunk as Buffer);
+          const lines = lineBufferStr.split('\n');
+          lineBufferStr = lines.pop() || '';
+
           for (const line of lines) {
             if (!line.trim()) continue;
+            lineCount++;
             try {
               const doc = EJSON.parse(line);
               if (doc.__collection) {
@@ -870,15 +1083,32 @@ export class SystemService {
                   } catch(e) {}
                 }
               } else if (currentCollection !== 'unknown' && restoreJob.collections.includes(currentCollection)) {
-                buffer.push(doc);
+                const normalizedDoc = this.normalizeMongoTypes(currentCollection, doc);
+                buffer.push(normalizedDoc);
                 if (buffer.length >= 500) {
                   await this.insertDocsSafe(currentCollection, buffer, restoreJob.mode);
                   buffer = [];
                 }
               }
-            } catch (e) {}
+            } catch (e: any) {
+              throw new Error(`Lỗi parse JSON tại dòng ${lineCount} (collection: ${currentCollection}): ${e.message}`);
+            }
           }
         }
+
+        lineBufferStr += decoder.end();
+        if (lineBufferStr.trim()) {
+           try {
+             const doc = EJSON.parse(lineBufferStr);
+             if (!doc.__collection && currentCollection !== 'unknown' && restoreJob.collections.includes(currentCollection)) {
+                const normalizedDoc = this.normalizeMongoTypes(currentCollection, doc);
+                buffer.push(normalizedDoc);
+             }
+           } catch(e: any) {
+             throw new Error(`Lỗi parse JSON tại dòng cuối cùng (collection: ${currentCollection}): ${e.message}`);
+           }
+        }
+
         if (buffer.length > 0) {
           await this.insertDocsSafe(currentCollection, buffer, restoreJob.mode);
         }
@@ -933,12 +1163,29 @@ export class SystemService {
     if (docs.length === 0) return;
     const dbColl = this.connection.collection(collectionName);
     
+    // Strict check for ObjectId collections
+    const rule = this.restoreTypeRegistry.getRule(collectionName);
+    const requiresObjectId = rule && (rule.objectIds?.includes('_id') || rule.source === 'schema');
+
+    if (collectionName === 'database_backup_jobs' || collectionName === 'database_restore_jobs') {
+      for (const doc of docs) {
+        if (doc.status === 'queued' || doc.status === 'running') {
+          doc.status = 'failed';
+          doc.error_message = 'Imported historical job was not active in this environment';
+        }
+      }
+    }
+    
     try {
       if (mode === 'merge_upsert') {
         const operations = docs.map(doc => {
           let id = doc._id;
           if (id && id.$oid) id = new Types.ObjectId(id.$oid);
-          // if we cannot convert, just use string id
+          
+          if (requiresObjectId && typeof id === 'string') {
+             throw new Error(`Document in collection ${collectionName} has invalid _id (string) but requires ObjectId: ${id}`);
+          }
+          
           return {
             updateOne: {
               filter: { _id: id },
@@ -949,12 +1196,145 @@ export class SystemService {
         });
         await dbColl.bulkWrite(operations);
       } else {
+        // Validate _id for strict collections
+        if (requiresObjectId) {
+           for (const doc of docs) {
+              let id = doc._id;
+              if (id && id.$oid) id = new Types.ObjectId(id.$oid);
+              if (typeof id === 'string') {
+                 throw new Error(`Document in collection ${collectionName} has invalid _id (string) but requires ObjectId: ${id}`);
+              }
+           }
+        }
         await dbColl.insertMany(docs);
       }
     } catch(err) {
       this.logger.error(`Error inserting docs into ${collectionName}: ${err.message}`);
       throw new Error(`Error inserting docs into ${collectionName}: ${err.message}`);
     }
+  }
+
+  async checkBsonTypes() {
+    const issues = [];
+    const collectionsToCheck = ['users', 'roles', 'permissions', 'students', 'classes', 'departments', 'academicrecords', 'summarypoints', 'studenttasks', 'database_backup_jobs', 'login_logs'];
+
+    for (const collectionName of collectionsToCheck) {
+      try {
+        const rule = this.restoreTypeRegistry.getRule(collectionName);
+        if (!rule) continue;
+        
+        const projectStage: any = { _id: 1 };
+        const orConditions: any[] = [];
+        
+        if (rule.objectIds) {
+           for (const field of rule.objectIds) {
+             projectStage[`${field}Type`] = { $type: `$${field}` };
+             orConditions.push({ [`${field}Type`]: { $nin: ["objectId", "missing", "null"] } });
+           }
+        }
+        
+        if (rule.dates) {
+           for (const field of rule.dates) {
+             projectStage[`${field}Type`] = { $type: `$${field}` };
+             orConditions.push({ [`${field}Type`]: { $nin: ["date", "missing", "null"] } });
+           }
+        }
+        
+        if (orConditions.length === 0) continue;
+
+        const coll = this.connection.collection(collectionName);
+        const wrongDocs = await coll.aggregate([
+          { $project: projectStage },
+          { $match: { $or: orConditions } },
+          { $limit: 5 }
+        ]).toArray();
+        
+        if (wrongDocs.length > 0) {
+          issues.push({ collection: collectionName, count: wrongDocs.length, sample: wrongDocs });
+        }
+      } catch (e: any) {
+          this.logger.error(`checkBsonTypes error on ${collectionName}: ${e.message}`);
+      }
+    }
+    
+    return {
+      status: issues.length > 0 ? 'issues_found' : 'ok',
+      issues
+    };
+  }
+
+  async repairBsonTypes(collectionName?: string) {
+     const targetCollections = collectionName ? [collectionName] : ['database_backup_jobs', 'database_restore_jobs', 'users', 'roles', 'permissions', 'students', 'classes', 'departments', 'academicrecords', 'summarypoints', 'studenttasks', 'studenttaskprogresses', 'login_logs', 'notifications', 'system_requests'];
+     let totalRepaired = 0;
+     let totalFailed = 0;
+     const results: any = {};
+
+     for (const cName of targetCollections) {
+        const rule = this.restoreTypeRegistry.getRule(cName);
+        if (!rule && cName !== 'database_backup_jobs') continue;
+        
+        const coll = this.connection.collection(cName);
+        // Documents imported from buggy NDJSON fallback will always have string _id
+        const docs = await coll.find({ _id: { $type: "string" } }).toArray();
+        let repaired = 0;
+        let failed = 0;
+
+        for (const doc of docs) {
+           try {
+              const oldIdStr = doc._id;
+              if (!Types.ObjectId.isValid(oldIdStr)) {
+                 failed++;
+                 continue;
+              }
+              
+              const normalizedDoc = this.restoreTypeRegistry.normalizeDocument(cName, doc);
+              normalizedDoc._id = new Types.ObjectId(oldIdStr);
+
+              if (cName === 'database_backup_jobs' || cName === 'database_restore_jobs') {
+                  if (normalizedDoc.file_path && !fs.existsSync(normalizedDoc.file_path)) {
+                      normalizedDoc.status = 'failed';
+                      normalizedDoc.error_message = 'File sao lưu không tồn tại trên máy chủ (Repair BSON)';
+                  } else if (normalizedDoc.status === 'queued' || normalizedDoc.status === 'running') {
+                      normalizedDoc.status = 'failed';
+                      normalizedDoc.error_message = 'Job chưa hoàn thành từ phiên làm việc trước (Repair BSON)';
+                  }
+              }
+
+              await coll.insertOne(normalizedDoc);
+              await coll.deleteOne({ _id: oldIdStr });
+              repaired++;
+           } catch(e: any) {
+              this.logger.error(`Failed to repair document ${doc._id} in ${cName}: ${e.message}`);
+              failed++;
+           }
+        }
+        totalRepaired += repaired;
+        totalFailed += failed;
+        if (repaired > 0 || failed > 0) {
+           results[cName] = { repaired, failed };
+        }
+     }
+
+     return {
+        message: 'Repair BSON process completed',
+        total_repaired: totalRepaired,
+        total_failed: totalFailed,
+        details: results
+     };
+  }
+
+  async checkMongoDbTools(): Promise<{ mongodump: boolean, mongorestore: boolean }> {
+    let mongodump = false;
+    let mongorestore = false;
+    try {
+      await execFileAsync('mongodump', ['--version']);
+      mongodump = true;
+    } catch (e) {}
+    try {
+      await execFileAsync('mongorestore', ['--version']);
+      mongorestore = true;
+    } catch (e) {}
+    return { mongodump, mongorestore };
   }
 
   // ─── PERFORMANCE METRICS ───────────────────────────────────────────────────

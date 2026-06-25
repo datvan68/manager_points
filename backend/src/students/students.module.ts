@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { StudentsService } from './students.service';
 import { StudentsController } from './students.controller';
+import { StudentAccountSyncController } from './student-account-sync.controller';
 import { Student, StudentSchema } from './schemas/student.schema';
 import { RefreshToken, RefreshTokenSchema } from '../auth/schemas/refresh-token.schema';
 import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
@@ -25,7 +26,7 @@ import { Class, ClassSchema } from '../classes/schemas/class.schema';
       { name: Class.name, schema: ClassSchema },
     ]),
   ],
-  controllers: [StudentsController],
+  controllers: [StudentsController, StudentAccountSyncController],
   providers: [StudentsService],
   exports: [StudentsService],
 })

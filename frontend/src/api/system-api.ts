@@ -98,6 +98,7 @@ export interface BackupJob {
   file_name?: string;
   file_size?: number;
   collections?: string[];
+  backup_format?: string;
   error_message?: string;
   createdAt: string;
 }
@@ -120,7 +121,7 @@ export interface BackupImportPreview {
 
 export interface RestoreJob {
   _id: string;
-  status: 'queued' | 'running' | 'success' | 'failed';
+  status: 'queued' | 'running' | 'success' | 'failed' | 'preview' | 'cancelled' | 'expired';
   requested_by: {
     _id: string;
     user_name: string;
@@ -134,10 +135,19 @@ export interface RestoreJob {
   collections?: string[];
   collection_summaries?: BackupPreviewCollection[];
   error_message?: string;
+  requiresRelogin?: boolean;
+  pre_restore_backup_job_id?: string;
   createdAt: string;
 }
 
 export type RestoreMode = 'replace_selected_collections' | 'merge_upsert';
+
+export interface SystemActivity {
+  hasActiveBackup: boolean;
+  hasActiveRestore: boolean;
+  activeJob: any;
+  hasStaleJobs: boolean;
+}
 
 export interface PaginatedResponse<T> {
   items: T[];
@@ -324,6 +334,25 @@ export const systemApi = {
   },
 
   // ─── DATABASE BACKUPS ────────────────────────────────────────────────────────
+  async getSystemActivity(): Promise<SystemActivity> {
+    const res = await httpClient(`${API_BASE}/system/backups/activity`);
+    return handleResponse<SystemActivity>(res);
+  },
+
+  async cleanupStaleJobs(): Promise<MessageResponse> {
+    const res = await httpClient(`${API_BASE}/system/backups/cleanup-stale`, {
+      method: 'POST',
+    });
+    return handleResponse<MessageResponse>(res);
+  },
+
+  async markJobFailed(id: string): Promise<MessageResponse> {
+    const res = await httpClient(`${API_BASE}/system/backups/${id}/mark-failed`, {
+      method: 'POST',
+    });
+    return handleResponse<MessageResponse>(res);
+  },
+
   async getBackups(query: { page?: number; limit?: number }): Promise<PaginatedResponse<BackupJob>> {
     const params = new URLSearchParams();
     Object.entries(query).forEach(([key, value]) => {
@@ -347,6 +376,11 @@ export const systemApi = {
       method: 'DELETE',
     });
     return handleResponse<MessageResponse>(res);
+  },
+
+  async getMongoDbToolsHealth(): Promise<{ mongodump: boolean, mongorestore: boolean }> {
+    const res = await httpClient(`${API_BASE}/system/backups/tools-health`);
+    return handleResponse<{ mongodump: boolean, mongorestore: boolean }>(res);
   },
 
   async previewBackupImport(file: File): Promise<BackupImportPreview> {
@@ -375,6 +409,25 @@ export const systemApi = {
       body: JSON.stringify(payload),
     });
     return handleResponse<RestoreJob>(res);
+  },
+
+  async cancelBackupPreview(previewSessionId: string): Promise<{ message: string }> {
+    const res = await httpClient(`${API_BASE}/system/backups/import/preview/${previewSessionId}/cancel`, {
+      method: 'POST',
+    });
+    return handleResponse<{ message: string }>(res);
+  },
+
+  async checkBsonTypes(): Promise<{ status: string, issues: any[] }> {
+    const res = await httpClient(`${API_BASE}/system/backups/check-bson-types`);
+    return handleResponse<{ status: string, issues: any[] }>(res);
+  },
+
+  async repairBsonTypes(): Promise<{ message: string, repaired: number, failed: number }> {
+    const res = await httpClient(`${API_BASE}/system/backups/repair-bson-types`, {
+      method: 'POST',
+    });
+    return handleResponse<{ message: string, repaired: number, failed: number }>(res);
   },
 
   async getRestoreJobs(query: { page?: number; limit?: number }): Promise<PaginatedResponse<RestoreJob>> {

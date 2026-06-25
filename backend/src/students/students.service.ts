@@ -8,6 +8,7 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
@@ -34,6 +35,7 @@ export class StudentsService implements OnModuleInit {
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
     @InjectModel(Class.name) private classModel: Model<ClassDocument>,
     @InjectModel(RefreshToken.name) private refreshTokenModel: Model<RefreshTokenDocument>,
+    private configService: ConfigService,
   ) {}
 
   async onModuleInit() {
@@ -70,7 +72,28 @@ export class StudentsService implements OnModuleInit {
     }
 
     try {
-      await this.syncLegacyStudentsAccounts();
+      const syncConfig = this.configService.get<string>('STUDENT_ACCOUNT_STARTUP_SYNC') || 'off';
+      const isProduction = process.env.NODE_ENV === 'production';
+      const allowRepair = this.configService.get<string>('ALLOW_STARTUP_DB_REPAIR') === 'true';
+
+      const studentsCount = await this.studentModel.countDocuments();
+      const usersCount = await this.userModel.countDocuments();
+
+      if (studentsCount > 0 && usersCount === 0) {
+        this.logger.warn(
+          `Users collection is empty while students has ${studentsCount} records. Startup student-account repair is disabled. Run explicit sync job if this is intended.`,
+        );
+      }
+
+      if (syncConfig === 'apply') {
+        if (isProduction && !allowRepair) {
+          this.logger.warn('STUDENT_ACCOUNT_STARTUP_SYNC is "apply" but ALLOW_STARTUP_DB_REPAIR is not "true" in production. Skipping sync.');
+        } else {
+          await this.syncLegacyStudentsAccounts('apply');
+        }
+      } else if (syncConfig === 'dry-run') {
+        await this.syncLegacyStudentsAccounts('preview');
+      }
     } catch (syncErr) {
       this.logger.error(
         'Failed to sync legacy student accounts automatically:',
@@ -247,20 +270,31 @@ export class StudentsService implements OnModuleInit {
     }
   }
 
-  private async syncLegacyStudentsAccounts() {
+  async syncLegacyStudentsAccounts(mode: 'preview' | 'apply' = 'preview') {
     const students = await this.studentModel.find().exec();
-    if (students.length === 0) return;
+    if (students.length === 0) return { scanned: 0, created: 0, linked: 0, orphaned: 0, skipped: 0 };
+
+    let created = 0;
+    let linked = 0;
+    let orphaned = 0;
+    let skipped = 0;
 
     const studentEmails = students.map((student) => this.getStudentEmail(student));
     const existingUsers = await this.userModel
       .find({ email: { $in: studentEmails } })
       .exec();
     const existingEmails = new Set(existingUsers.map((user) => user.email));
+    
+    // To check orphan link, we should find all users by student user_id, but to avoid many queries, 
+    // we can gather all user_ids from students
+    const studentUserIds = students.map(s => s.user_id).filter(id => !!id) as Types.ObjectId[];
+    const existingUsersById = await this.userModel.find({ _id: { $in: studentUserIds } }).exec();
+    const existingUserIds = new Set(existingUsersById.map(u => u._id.toString()));
 
     const legacyNameUsers = existingUsers.filter((user) =>
       !/^\d+$/.test(user.user_name),
     );
-    if (legacyNameUsers.length > 0) {
+    if (legacyNameUsers.length > 0 && mode === 'apply') {
       this.logger.log(
         `Detected ${legacyNameUsers.length} legacy student accounts with name-based usernames.`,
       );
@@ -275,39 +309,82 @@ export class StudentsService implements OnModuleInit {
       }
     }
 
-    const legacyStudents = students.filter(
-      (student) => !existingEmails.has(this.getStudentEmail(student)),
-    );
-    if (legacyStudents.length === 0) return;
+    const previewSamples = [];
 
-    this.logger.log(
-      `Detected ${legacyStudents.length} legacy students without user accounts.`,
-    );
+    for (const student of students) {
+      const email = this.getStudentEmail(student);
+      const hasEmailLink = existingEmails.has(email);
+      const hasOrphanLink = student.user_id && !existingUserIds.has(student.user_id.toString());
 
-    let successCount = 0;
-    for (const student of legacyStudents) {
-      try {
-        const plainPassword = this.getDefaultPasswordFromDob(student.date_bir);
-
-        const linkedUser = await this.generateStudentUser(student, plainPassword);
-        await this.ensureStudentUserLink(student, linkedUser);
-        successCount++;
-      } catch (error) {
-        this.logger.error(
-          `Failed to auto-create user for student ${student.full_name} (${student.student_code}):`,
-          error,
-        );
+      if (hasEmailLink) {
+        linked++;
+      } else if (hasOrphanLink) {
+        orphaned++;
+        if (mode === 'apply') {
+           try {
+             const plainPassword = this.getDefaultPasswordFromDob(student.date_bir);
+             const linkedUser = await this.generateStudentUser(student, plainPassword, false);
+             await this.ensureStudentUserLink(student, linkedUser);
+             created++;
+           } catch (error) {
+             skipped++;
+           }
+        } else {
+           if (previewSamples.length < 5) {
+             previewSamples.push({
+               student_code: student.student_code,
+               email: email.replace(/(.{2})(.*)(?=@)/, (gp1, gp2, gp3) => {
+                 return gp1 + '*'.repeat(gp2.length);
+               }),
+               reason: 'orphan_user_link'
+             });
+           }
+        }
+      } else {
+        // Missing user completely
+        if (mode === 'apply') {
+           try {
+             const plainPassword = this.getDefaultPasswordFromDob(student.date_bir);
+             const linkedUser = await this.generateStudentUser(student, plainPassword, false);
+             await this.ensureStudentUserLink(student, linkedUser);
+             created++;
+           } catch (error) {
+             skipped++;
+           }
+        } else {
+           created++; // Will be created
+           if (previewSamples.length < 5) {
+             previewSamples.push({
+               student_code: student.student_code,
+               email: email.replace(/(.{2})(.*)(?=@)/, (gp1, gp2, gp3) => {
+                 return gp1 + '*'.repeat(gp2.length);
+               }),
+               reason: 'missing_user'
+             });
+           }
+        }
       }
     }
 
-    if (successCount > 0) {
+    const summary = {
+      scanned: students.length,
+      created: mode === 'preview' ? created : created,
+      linked,
+      orphaned,
+      skipped,
+      samples: mode === 'preview' ? previewSamples : undefined
+    };
+
+    if (mode === 'apply') {
       this.logger.log(
-        `Synced ${successCount}/${legacyStudents.length} legacy student accounts successfully.`,
+        `Student account sync completed: scanned=${summary.scanned}, created=${summary.created}, linked=${summary.linked}, orphaned=${summary.orphaned}, skipped=${summary.skipped}`,
       );
     }
+
+    return summary;
   }
 
-  private async generateStudentUser(student: any, plainPasswordDob: string) {
+  private async generateStudentUser(student: any, plainPasswordDob: string, logCreation: boolean = true) {
     const defaultRole = await this.roleModel.findOne({ name: 'Student' });
     const pw_hash = await bcrypt.hash(plainPasswordDob, 12);
     const studentEmail = this.getStudentEmail(student);
@@ -327,9 +404,12 @@ export class StudentsService implements OnModuleInit {
       role: defaultRole?._id,
       date_birth: student.date_bir,
     });
-    this.logger.log(
-      `Auto-created login account for student ${student.full_name} (${student.student_code}).`,
-    );
+    
+    if (logCreation) {
+      this.logger.log(
+        `Auto-created login account for student ${student.full_name} (${student.student_code}).`,
+      );
+    }
 
     return createdUser;
   }

@@ -9,6 +9,11 @@ import { DatabaseRestoreJob } from './schemas/database-restore-job.schema';
 import { LoginLog } from '../auth/schemas/login-log.schema';
 import { User } from '../auth/schemas/user.schema';
 import { SystemPerformanceMetric } from './schemas/system-performance-metric.schema';
+import { UpdateSystemRequestDto } from './dto/update-system-request.dto';
+import { CreateSystemPerformanceMetricDto } from './dto/create-system-performance-metric.dto';
+import { RestoreTypeRegistry } from './restore-type-registry';
+import { SystemSetting } from './schemas/system-setting.schema';
+import { MailService } from '../core/mail/mail.service';
 import { Types } from 'mongoose';
 const fs = require('fs');
 import * as path from 'path';
@@ -82,6 +87,7 @@ describe('SystemService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SystemService,
+        RestoreTypeRegistry,
         {
           provide: getModelToken(SystemRequest.name),
           useValue: {
@@ -183,6 +189,20 @@ describe('SystemService', () => {
           },
         },
         {
+          provide: getModelToken(SystemSetting.name),
+          useValue: {
+            findOne: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue(null),
+            }),
+          },
+        },
+        {
+          provide: MailService,
+          useValue: {
+            sendBackupFailureAlert: jest.fn().mockResolvedValue(true),
+          },
+        },
+        {
           provide: getModelToken(SystemPerformanceMetric.name),
           useValue: MockPerformanceMetricModel,
         },
@@ -204,6 +224,7 @@ describe('SystemService', () => {
             collection: jest.fn().mockReturnValue({
               insertMany: jest.fn().mockResolvedValue(true),
               bulkWrite: jest.fn().mockResolvedValue(true),
+              findOne: jest.fn().mockResolvedValue(null),
             }),
           },
         },
@@ -211,6 +232,12 @@ describe('SystemService', () => {
     }).compile();
 
     service = module.get<SystemService>(SystemService);
+    service['restoreTypeRegistry']['rules'].set('users', {
+      source: 'override',
+      objectIds: ['_id', 'role'],
+      dates: ['createdAt', 'updatedAt'],
+    });
+    
     requestModel = module.get(getModelToken(SystemRequest.name));
     backupJobModel = module.get(getModelToken(DatabaseBackupJob.name));
     restoreJobModel = module.get(getModelToken(DatabaseRestoreJob.name));
@@ -335,6 +362,24 @@ describe('SystemService', () => {
     });
   });
 
+  describe('normalizeMongoTypes', () => {
+    it('should throw error for invalid object ids', () => {
+      const doc = {
+        _id: 'invalid-id'
+      };
+      expect(() => service.normalizeMongoTypes('users', doc)).toThrow(/Invalid ObjectId format/);
+    });
+
+    it('should not cast unknown fields', () => {
+      const doc = {
+        _id: new Types.ObjectId().toString(),
+        unknownField: 'value'
+      };
+      const normalized = service.normalizeMongoTypes('users', doc);
+      expect(normalized.unknownField).toBe('value');
+    });
+  });
+
   describe('createRequest', () => {
     it('should successfully create a request', async () => {
       const dto = {
@@ -439,11 +484,11 @@ describe('SystemService', () => {
     });
 
     it('should throw ConflictException if another job is running or queued', async () => {
-      backupJobModel.findOne.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue({
+      backupJobModel.find.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue([{
           _id: new Types.ObjectId(),
           status: 'queued',
-        }),
+        }]),
       });
       await expect(service.createBackup(mockUserId)).rejects.toThrow(
         ConflictException,

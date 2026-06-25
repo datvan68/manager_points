@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
+import { ConfigService } from '@nestjs/config';
 import { NotFoundException, ForbiddenException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { StudentsService } from '../students.service';
@@ -42,6 +43,16 @@ describe('StudentsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StudentsService,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockImplementation((key) => {
+              if (key === 'STUDENT_ACCOUNT_STARTUP_SYNC') return 'off';
+              if (key === 'ALLOW_STARTUP_DB_REPAIR') return 'false';
+              return null;
+            }),
+          },
+        },
         {
           provide: getModelToken(Student.name),
           useValue: Object.assign(
@@ -143,6 +154,14 @@ describe('StudentsService', () => {
     classModel = module.get(getModelToken(Class.name));
     summaryPointModel = module.get(getModelToken(SummaryPoint.name));
     refreshTokenModel = module.get(getModelToken(RefreshToken.name));
+    
+    // Reset config service mock
+    const configService = module.get<ConfigService>(ConfigService);
+    (configService.get as jest.Mock).mockImplementation((key) => {
+      if (key === 'STUDENT_ACCOUNT_STARTUP_SYNC') return 'off';
+      if (key === 'ALLOW_STARTUP_DB_REPAIR') return 'false';
+      return null;
+    });
   });
 
   it('should be defined', () => {
@@ -1056,6 +1075,61 @@ describe('StudentsService', () => {
           expect(logMsg).not.toContain('SV12345');
         }
       }
+    });
+  });
+
+  describe('Student Account Sync', () => {
+    it('should not sync on startup if config is off', async () => {
+      const syncSpy = jest.spyOn(service, 'syncLegacyStudentsAccounts').mockResolvedValue(null as any);
+      await service.onModuleInit();
+      expect(syncSpy).not.toHaveBeenCalled();
+    });
+
+    it('should call sync with preview if config is dry-run', async () => {
+      const configService = service['configService'];
+      (configService.get as jest.Mock).mockImplementation((k) => k === 'STUDENT_ACCOUNT_STARTUP_SYNC' ? 'dry-run' : null);
+      const syncSpy = jest.spyOn(service, 'syncLegacyStudentsAccounts').mockResolvedValue(null as any);
+      await service.onModuleInit();
+      expect(syncSpy).toHaveBeenCalledWith('preview');
+    });
+
+    it('should call sync with apply if config is apply and repair allowed', async () => {
+      const configService = service['configService'];
+      (configService.get as jest.Mock).mockImplementation((k) => {
+        if (k === 'STUDENT_ACCOUNT_STARTUP_SYNC') return 'apply';
+        if (k === 'ALLOW_STARTUP_DB_REPAIR') return 'true';
+        return null;
+      });
+      const origEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      const syncSpy = jest.spyOn(service, 'syncLegacyStudentsAccounts').mockResolvedValue(null as any);
+      await service.onModuleInit();
+      expect(syncSpy).toHaveBeenCalledWith('apply');
+      process.env.NODE_ENV = origEnv;
+    });
+
+    it('should block apply if production and repair not allowed', async () => {
+      const configService = service['configService'];
+      (configService.get as jest.Mock).mockImplementation((k) => k === 'STUDENT_ACCOUNT_STARTUP_SYNC' ? 'apply' : 'false');
+      const origEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      const syncSpy = jest.spyOn(service, 'syncLegacyStudentsAccounts').mockResolvedValue(null as any);
+      await service.onModuleInit();
+      expect(syncSpy).not.toHaveBeenCalled();
+      process.env.NODE_ENV = origEnv;
+    });
+
+    it('should return correct summary on preview', async () => {
+      const userModel = service['userModel'];
+      jest.spyOn(userModel, 'find').mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
+      } as any);
+
+      const summary = await service.syncLegacyStudentsAccounts('preview');
+      expect(summary.scanned).toBe(1);
+      expect(summary.created).toBe(1);
+      expect(summary.linked).toBe(0);
+      expect(summary.samples).toBeDefined();
     });
   });
 });

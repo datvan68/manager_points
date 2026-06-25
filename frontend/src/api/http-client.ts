@@ -46,6 +46,19 @@ if (authChannel) {
       onRefreshed(event.data.token);
     } else if (event.data.type === 'TOKEN_CLEARED') {
       tokenStorage.clearTokens();
+    } else if (event.data.type === 'RESTORE_SESSION_INVALIDATED') {
+      tokenStorage.clearTokens();
+      if (typeof window !== 'undefined') {
+        const isPublicRoute = [
+          "/login",
+          "/register",
+          "/forgot-password",
+          "/reset-password",
+        ].includes(window.location.pathname);
+        if (!isPublicRoute) {
+          window.location.href = `/login?reason=restore`;
+        }
+      }
     }
   };
 }
@@ -207,9 +220,11 @@ export async function httpClient(url: string, options: RequestInit = {}): Promis
           authChannel.postMessage({ type: 'TOKEN_CLEARED' });
         }
         if (typeof window !== 'undefined') {
-          toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', {
-            id: 'session-expired-toast'
-          });
+          if (!sessionStorage.getItem("restore_logout_in_progress")) {
+            toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', {
+              id: 'session-expired-toast'
+            });
+          }
           setTimeout(() => {
             window.location.href = '/login';
           }, 1500);

@@ -25,6 +25,7 @@ RUN apk add --no-cache \
     harfbuzz \
     nss \
     ttf-freefont \
+    mongodb-tools \
   && addgroup -S app \
   && adduser -S app -G app
 

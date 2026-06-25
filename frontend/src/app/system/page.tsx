@@ -5,7 +5,7 @@ import { RouteGuard } from "@/components/guards/RouteGuard";
 import { useAuth } from "@/providers/auth-provider";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
-import { systemApi, LoginLog, LoginLogsSummary, SystemRequest, BackupJob, SystemPerformanceSummary, BackupImportPreview, RestoreJob, RestoreMode } from "@/api/system-api";
+import { systemApi, LoginLog, LoginLogsSummary, SystemRequest, BackupJob, SystemPerformanceSummary, BackupImportPreview, RestoreJob, RestoreMode, SystemActivity } from "@/api/system-api";
 import { authApi } from "@/api/auth-api";
 import { systemPerformance } from "@/lib/performance/system-performance";
 import { tokenStorage } from "@/api/auth-api";
@@ -82,7 +82,7 @@ export default function SystemAdminPage() {
 }
 
 function SystemAdminDashboard() {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, forceLogoutAfterRestore } = useAuth();
   const token = tokenStorage.getAccessToken() || "";
   // Permissions checks
   const canReadLogs = hasPermission("LOGIN_LOG_READ");
@@ -155,10 +155,16 @@ function SystemAdminDashboard() {
   const [backupsLoading, setBackupsLoading] = useState(true);
   const [backupsPage, setBackupsPage] = useState(1);
   const [backupsTotalPages, setBackupsTotalPages] = useState(1);
-  const [isBackupRunning, setIsBackupRunning] = useState(false);
+  const [systemActivity, setSystemActivity] = useState<SystemActivity | null>(null);
+  const isBackupRunning = systemActivity?.hasActiveBackup || false;
+  const isRestoreRunning = systemActivity?.hasActiveRestore || false;
+  const hasStaleJobs = systemActivity?.hasStaleJobs || false;
   const [isConfirmBackupOpen, setIsConfirmBackupOpen] = useState(false);
   const [isConfirmDeleteBackupOpen, setIsConfirmDeleteBackupOpen] = useState(false);
   const [backupToDelete, setBackupToDelete] = useState<string | null>(null);
+  const [isConfirmForceCancelOpen, setIsConfirmForceCancelOpen] = useState(false);
+  const [jobToForceCancel, setJobToForceCancel] = useState<{id?: string, type: 'backup'|'restore'|'cleanup'} | null>(null);
+  const [mongoToolsHealth, setMongoToolsHealth] = useState<{ mongodump: boolean, mongorestore: boolean } | null>(null);
 
   const [restoreJobs, setRestoreJobs] = useState<RestoreJob[]>([]);
   const [restoreJobsLoading, setRestoreJobsLoading] = useState(false);
@@ -170,6 +176,7 @@ function SystemAdminDashboard() {
   const [confirmText, setConfirmText] = useState("");
   const [restoreChecked, setRestoreChecked] = useState(false);
   const [reloginChecked, setReloginChecked] = useState(false);
+  const [activeRestoreJobId, setActiveRestoreJobId] = useState<string | null>(null);
 
   // --- Tab 4: Performance States ---
   const [performanceSummary, setPerformanceSummary] = useState<SystemPerformanceSummary | null>(null);
@@ -448,41 +455,53 @@ function SystemAdminDashboard() {
   // ---------------------------------------------------------------------------
   // EFFECT: Fetch Backups & Jobs list
   // ---------------------------------------------------------------------------
-  const fetchBackups = async (page = 1) => {
+  const fetchSystemActivity = async () => {
+    try {
+      const res = await systemApi.getSystemActivity();
+      setSystemActivity(res);
+    } catch (err) {
+      console.error("Lỗi tải system activity:", err);
+    }
+  };
+
+  const fetchBackups = async (page = 1, silent = false) => {
     if (!canReadBackups) return;
     try {
-      setBackupsLoading(true);
+      if (!silent) setBackupsLoading(true);
       const res = await systemPerformance.trackApi('backups', () => systemApi.getBackups({ page, limit: 20 }));
       setBackups(res.items);
       setBackupsTotalPages(res.totalPages);
       setBackupsPage(res.page);
-
-      // Check if any job is currently running or queued
-      const running = res.items.some(job => job.status === 'running' || job.status === 'queued');
-      setIsBackupRunning(running);
     } catch (err: any) {
       toast.error("Lỗi tải danh sách sao lưu: " + err.message);
     } finally {
-      setBackupsLoading(false);
+      if (!silent) setBackupsLoading(false);
     }
   };
 
   useEffect(() => {
     if (activeTab === "backup" && canReadBackups) {
+      fetchSystemActivity();
       fetchBackups(backupsPage);
+      systemApi.getMongoDbToolsHealth().then(setMongoToolsHealth).catch(console.error);
     }
   }, [activeTab, backupsPage, canReadBackups]);
 
-  // Backup polling when a backup is running
+  // System Activity Polling
   useEffect(() => {
-    if (activeTab !== "backup" || !isBackupRunning || !canReadBackups) return;
+    if (activeTab !== "backup" || !canReadBackups) return;
 
-    const interval = setInterval(() => {
-      fetchBackups(backupsPage);
-    }, 3000); // Poll every 3 seconds
+    const intervalTime = (isBackupRunning || isRestoreRunning) ? 3000 : 10000;
+
+    const interval = setInterval(async () => {
+      await fetchSystemActivity();
+      if (isBackupRunning) {
+        fetchBackups(backupsPage, true);
+      }
+    }, intervalTime);
 
     return () => clearInterval(interval);
-  }, [activeTab, isBackupRunning, backupsPage, canReadBackups]);
+  }, [activeTab, isBackupRunning, isRestoreRunning, backupsPage, canReadBackups]);
 
   // Create Backup Action
   const handleCreateBackup = async () => {
@@ -505,13 +524,39 @@ function SystemAdminDashboard() {
       toast.success("Xóa bản sao lưu thành công");
       fetchBackups(backupsPage);
     } catch (err: any) {
-      toast.error("Xóa bản sao lưu thất bại: " + err.message);
+      if (err.message && err.message.includes("sai BSON type")) {
+        toast.error("Dữ liệu backup job sai BSON type, cần chạy công cụ sửa lỗi trước khi xóa");
+      } else {
+        toast.error("Xóa bản sao lưu thất bại: " + err.message);
+      }
+      fetchBackups(backupsPage);
     }
   };
 
   const requestDeleteBackup = (id: string) => {
     setBackupToDelete(id);
     setIsConfirmDeleteBackupOpen(true);
+  };
+
+  const handleForceCancel = async () => {
+    if (!jobToForceCancel) return;
+    try {
+      if (jobToForceCancel.type === 'cleanup') {
+        await systemApi.cleanupStaleJobs();
+        toast.success("Dọn dẹp thành công.");
+      } else {
+        await systemApi.markJobFailed(jobToForceCancel.id!);
+        toast.success(`Đã hủy tiến trình ${jobToForceCancel.type === 'backup' ? 'sao lưu' : 'khôi phục'}.`);
+      }
+      fetchSystemActivity();
+      fetchBackups(1, true);
+      fetchRestoreJobs(true);
+    } catch (err: any) {
+      toast.error("Lỗi: " + err.message);
+    } finally {
+      setIsConfirmForceCancelOpen(false);
+      setJobToForceCancel(null);
+    }
   };
 
   // Download Backup Action
@@ -528,16 +573,16 @@ function SystemAdminDashboard() {
   // ---------------------------------------------------------------------------
   // EFFECT: Fetch Restore Jobs
   // ---------------------------------------------------------------------------
-  const fetchRestoreJobs = async () => {
+  const fetchRestoreJobs = async (silent = false) => {
     if (!canRestoreBackup) return;
     try {
-      setRestoreJobsLoading(true);
+      if (!silent) setRestoreJobsLoading(true);
       const res = await systemApi.getRestoreJobs({ page: 1, limit: 10 });
       setRestoreJobs(res.items);
     } catch (err: any) {
       console.error("Lỗi tải danh sách khôi phục:", err);
     } finally {
-      setRestoreJobsLoading(false);
+      if (!silent) setRestoreJobsLoading(false);
     }
   };
 
@@ -548,27 +593,29 @@ function SystemAdminDashboard() {
   }, [activeTab, canRestoreBackup]);
 
   // Restore Jobs polling when a restore is running
-  const isRestoreRunning = restoreJobs.some(job => job.status === 'running' || job.status === 'queued');
   useEffect(() => {
-    if (activeTab !== "backup" || !isRestoreRunning || !canRestoreBackup) return;
+    if (activeTab !== "backup" || (!isRestoreRunning && !activeRestoreJobId) || !canRestoreBackup) return;
 
     const interval = setInterval(async () => {
       try {
         const res = await systemApi.getRestoreJobs({ page: 1, limit: 10 });
         
         // Check status change
-        const previousRunningJob = restoreJobs.find(job => job.status === 'running' || job.status === 'queued');
-        if (previousRunningJob) {
-          const currentJob = res.items.find((j: any) => j._id === previousRunningJob._id);
+        const runningOrQueuedJob = restoreJobs.find(job => job.status === 'running' || job.status === 'queued');
+        const targetJobId = activeRestoreJobId || runningOrQueuedJob?._id;
+        
+        if (targetJobId) {
+          const currentJob = res.items.find((j: any) => j._id === targetJobId);
           if (currentJob && currentJob.status === 'success') {
-            toast.success("Khôi phục thành công. Hệ thống sẽ đăng xuất để cập nhật dữ liệu.");
+            toast.success("Dữ liệu đã được khôi phục. Vui lòng đăng nhập lại để nạp phiên mới.");
+            setActiveRestoreJobId(null);
+            clearInterval(interval);
             setTimeout(() => {
-              tokenStorage.clearTokens();
-              authApi.logout();
-              window.location.href = '/login';
+              forceLogoutAfterRestore('restore');
             }, 2000);
           } else if (currentJob && currentJob.status === 'failed') {
             toast.error("Khôi phục thất bại: " + currentJob.error_message);
+            setActiveRestoreJobId(null);
           }
         }
         setRestoreJobs(res.items);
@@ -578,7 +625,7 @@ function SystemAdminDashboard() {
     }, 3000); // Poll every 3 seconds
 
     return () => clearInterval(interval);
-  }, [activeTab, isRestoreRunning, canRestoreBackup, restoreJobs]);
+  }, [activeTab, isRestoreRunning, canRestoreBackup, restoreJobs, forceLogoutAfterRestore, activeRestoreJobId]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -592,7 +639,11 @@ function SystemAdminDashboard() {
     try {
       const preview = await systemApi.previewBackupImport(file);
       setImportPreview(preview);
-      setSelectedCollections(preview.collections.map((c: any) => c.name));
+      const operational = ['database_backup_jobs', 'database_restore_jobs', 'refresh_tokens', 'login_logs'];
+      const defaultCollections = preview.collections
+        .map((c: any) => c.name)
+        .filter((name: string) => !operational.includes(name));
+      setSelectedCollections(defaultCollections);
       setIsImportModalOpen(true);
     } catch (err: any) {
       toast.error("Lỗi xem trước file sao lưu: " + err.message);
@@ -615,12 +666,13 @@ function SystemAdminDashboard() {
     
     try {
       setIsImportLoading(true);
-      await systemApi.restoreBackupImport({
+      const res = await systemApi.restoreBackupImport({
         previewSessionId: importPreview.previewSessionId,
         collections: selectedCollections,
         mode: restoreMode,
         confirmationText: confirmText,
       });
+      setActiveRestoreJobId(res._id);
       toast.success("Tiến trình khôi phục dữ liệu đã được khởi chạy.");
       setIsImportModalOpen(false);
       setImportPreview(null);
@@ -632,6 +684,14 @@ function SystemAdminDashboard() {
     } finally {
       setIsImportLoading(false);
     }
+  };
+
+  const handleCloseImportModal = () => {
+    if (isImportLoading) return;
+    if (importPreview && importPreview.previewSessionId) {
+      systemApi.cancelBackupPreview(importPreview.previewSessionId).catch(console.error);
+    }
+    setIsImportModalOpen(false);
   };
 
   // Helpers
@@ -688,7 +748,7 @@ function SystemAdminDashboard() {
       key: "login_time",
       header: "Thời gian",
       priority: "secondary",
-      render: (_, log) => new Date(log.login_time || log.createdAt).toLocaleString()
+      render: (_, log) => <span className="text-xs text-[#64748B]">{new Date(log.login_time || log.createdAt).toLocaleString()}</span>
     },
     {
       key: "user_name",
@@ -696,7 +756,7 @@ function SystemAdminDashboard() {
       priority: "primary",
       render: (_, log) => (
         <div className="flex flex-col">
-          <span className="font-semibold text-[#1E293B]">
+          <span className="text-xs font-semibold text-[#1E293B]">
             {log.user_id?.user_name ?? "Chưa xác thực"}
           </span>
           <span className="text-[10px] text-[#64748B]">
@@ -709,7 +769,7 @@ function SystemAdminDashboard() {
       key: "ip_address",
       header: "Địa chỉ IP",
       priority: "metadata",
-      render: (val) => <span className="font-mono text-[#64748B]">{val}</span>
+      render: (val) => <span className="text-xs font-mono text-[#64748B]">{val}</span>
     },
     {
       key: "action",
@@ -727,7 +787,7 @@ function SystemAdminDashboard() {
       key: "details",
       header: "Chi tiết",
       priority: "metadata",
-      render: (val) => <span className="max-w-xs truncate block text-[#64748B]" title={val}>{val || "-"}</span>
+      render: (val) => <span className="text-xs max-w-xs truncate block text-[#64748B]" title={val}>{val || "-"}</span>
     }
   ];
 
@@ -792,7 +852,7 @@ function SystemAdminDashboard() {
       priority: "primary",
       render: (_, job) => (
         <div className="flex flex-col">
-          <span className="font-semibold text-[#1E293B]">
+          <span className="text-xs font-semibold text-[#1E293B]">
             {job.file_name ?? "Chờ khởi tạo..."}
           </span>
           <span className="text-[10px] text-[#64748B]">
@@ -802,16 +862,29 @@ function SystemAdminDashboard() {
       )
     },
     {
+      key: "backup_format",
+      header: "Định dạng",
+      priority: "secondary",
+      render: (_, job) => {
+        if (job.backup_format === 'ndjson_gzip') {
+          return <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded-xl text-[10px] font-bold border border-amber-200" title="MongoDB tools not installed or unavailable">Fallback (NDJSON)</span>;
+        } else if (job.backup_format === 'mongodump_archive') {
+          return <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-xl text-[10px] font-bold border border-emerald-200">Archive</span>;
+        }
+        return <span className="text-slate-500 bg-slate-50 px-2 py-0.5 rounded-xl text-[10px] font-bold border border-slate-200">Không rõ</span>;
+      }
+    },
+    {
       key: "file_size",
       header: "Dung lượng",
       priority: "secondary",
-      render: (val) => <span className="font-medium text-[#64748B]">{val ? formatBytes(val) : "-"}</span>
+      render: (val) => <span className="text-xs font-medium text-[#64748B]">{val ? formatBytes(val) : "-"}</span>
     },
     {
       key: "requested_by",
       header: "Yêu cầu bởi",
       priority: "metadata",
-      render: (_, job) => <span className="text-[#64748B]">{job.requested_by?.user_name ?? "System"}</span>
+      render: (_, job) => <span className="text-xs text-[#64748B]">{job.requested_by?.user_name ?? "System"}</span>
     },
     {
       key: "status",
@@ -820,7 +893,7 @@ function SystemAdminDashboard() {
       render: (_, job) => {
         if (job.status === "running") return <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px] animate-pulse flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
         if (job.status === "success") return <span className="bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Success</span>;
-        if (job.status === "failed") return <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Failed</span>;
+        if (job.status === "failed") return <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]" title={job.error_message}>Failed</span>;
         return <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Queued</span>;
       }
     },
@@ -842,11 +915,27 @@ function SystemAdminDashboard() {
           )}
           {canDeleteBackup && (
             <button
+              disabled={job.status === "queued" || job.status === "running"}
               onClick={() => requestDeleteBackup(job._id)}
-              className="p-1.5 text-rose-600 hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
+              className={`p-1.5 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05] ${
+                job.status === "queued" || job.status === "running" ? "text-slate-300 cursor-not-allowed hidden" : "text-rose-600 hover:bg-white/50"
+              }`}
               title="Xóa"
             >
               <Trash2 size={14} />
+            </button>
+          )}
+          {canDeleteBackup && (job.status === 'queued' || job.status === 'running') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setJobToForceCancel({ id: job._id, type: 'backup' });
+                setIsConfirmForceCancelOpen(true);
+              }}
+              className="p-1.5 text-rose-600 hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
+              title="Force Cancel (Đánh dấu thất bại)"
+            >
+              <X size={14} />
             </button>
           )}
         </div>
@@ -861,7 +950,7 @@ function SystemAdminDashboard() {
       priority: "primary",
       render: (_, job) => (
         <div className="flex flex-col">
-          <span className="font-semibold text-[#1E293B]">
+          <span className="text-xs font-semibold text-[#1E293B]">
             {job.source_file_name ?? "Chờ khởi tạo..."}
           </span>
           <span className="text-[10px] text-[#64748B]">
@@ -874,13 +963,13 @@ function SystemAdminDashboard() {
       key: "mode",
       header: "Chế độ",
       priority: "secondary",
-      render: (val) => <span className="font-semibold text-[#64748B]">{val === 'merge_upsert' ? 'Merge & Upsert' : 'Replace Selected'}</span>
+      render: (val) => <span className="text-xs font-medium text-[#64748B]">{val === 'merge_upsert' ? 'Merge & Upsert' : 'Replace Selected'}</span>
     },
     {
       key: "requested_by",
       header: "Yêu cầu bởi",
       priority: "metadata",
-      render: (_, job) => <span className="text-[#64748B]">{job.requested_by?.user_name ?? "System"}</span>
+      render: (_, job) => <span className="text-xs text-[#64748B]">{job.requested_by?.user_name ?? "System"}</span>
     },
     {
       key: "status",
@@ -890,8 +979,33 @@ function SystemAdminDashboard() {
         if (job.status === "running") return <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px] animate-pulse flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
         if (job.status === "success") return <span className="bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Success</span>;
         if (job.status === "failed") return <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]" title={job.error_message}>Failed</span>;
+        if (job.status === "preview") return <span className="bg-amber-500/10 text-amber-700 border border-amber-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Preview</span>;
+        if (job.status === "cancelled") return <span className="bg-slate-500/10 text-slate-700 border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Cancelled</span>;
+        if (job.status === "expired") return <span className="bg-slate-500/10 text-slate-700 border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Expired</span>;
         return <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Queued</span>;
       }
+    },
+    {
+      key: "actions",
+      header: "Tác vụ",
+      priority: "action",
+      render: (_, job) => (
+        <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {canRestoreBackup && (job.status === 'queued' || job.status === 'running') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setJobToForceCancel({ id: job._id, type: 'restore' });
+                setIsConfirmForceCancelOpen(true);
+              }}
+              className="p-1.5 text-rose-600 hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
+              title="Force Cancel (Đánh dấu thất bại)"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      )
     }
   ];
 
@@ -1340,6 +1454,35 @@ function SystemAdminDashboard() {
             </div>
           ) : (
             <>
+              {mongoToolsHealth && (!mongoToolsHealth.mongodump || !mongoToolsHealth.mongorestore) && (
+                <div className="lg:col-span-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex items-start space-x-3 mb-1 shadow-sm shadow-slate-300/40">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-sm">Cảnh báo: Thiếu công cụ MongoDB Database Tools</h4>
+                    <p className="text-xs mt-1">Hệ thống không tìm thấy lệnh <code>mongodump</code> hoặc <code>mongorestore</code> trong môi trường hiện tại. Tính năng sao lưu sẽ dùng phương thức dự phòng (NDJSON gzip) thay vì Archive chuẩn. Để đảm bảo an toàn dữ liệu cao nhất, vui lòng cài đặt MongoDB Database Tools cho backend container.</p>
+                  </div>
+                </div>
+              )}
+              {hasStaleJobs && (
+                <div className="lg:col-span-3 bg-red-50 border border-red-200 text-red-800 rounded-2xl p-4 flex items-center justify-between mb-1 shadow-sm shadow-slate-300/40">
+                  <div className="flex items-start space-x-3">
+                    <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-sm">Hệ thống phát hiện có tiến trình bị kẹt</h4>
+                      <p className="text-xs mt-1">Một số tiến trình sao lưu/khôi phục đã chạy quá thời gian cho phép nhưng chưa hoàn thành (stale). Bạn cần dọn dẹp để hệ thống hoạt động bình thường.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setJobToForceCancel({ type: 'cleanup' });
+                      setIsConfirmForceCancelOpen(true);
+                    }}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all whitespace-nowrap ml-4"
+                  >
+                    Dọn dẹp ngay
+                  </button>
+                </div>
+              )}
               {/* Action Trigger Card */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 flex flex-col justify-between h-fit space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
@@ -1936,7 +2079,7 @@ function SystemAdminDashboard() {
       {isImportModalOpen && importPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div 
-            onClick={() => !isImportLoading && setIsImportModalOpen(false)} 
+            onClick={() => !isImportLoading && handleCloseImportModal()} 
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
           />
           <div className="relative w-full max-w-2xl bg-white/95 backdrop-blur-md border border-white/60 shadow-2xl rounded-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto scale-in duration-200 text-[#1E293B]">
@@ -1946,7 +2089,7 @@ function SystemAdminDashboard() {
                 <h3 className="text-base font-bold text-[#1E293B]">Khôi phục dữ liệu: Xem trước</h3>
               </div>
               <button 
-                onClick={() => !isImportLoading && setIsImportModalOpen(false)}
+                onClick={() => !isImportLoading && handleCloseImportModal()}
                 className="p-1 text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl transition-all duration-150"
               >
                 <X size={20} />
@@ -2023,7 +2166,15 @@ function SystemAdminDashboard() {
                         }}
                         className="accent-indigo-600 rounded"
                       />
-                      <span className="font-medium text-sm text-slate-700">{col.name}</span>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-sm text-slate-700">{col.name}</span>
+                        {col.status === 'operational' && (
+                          <span className="text-[10px] text-rose-600 font-semibold bg-rose-50 border border-rose-100 rounded-md px-1 py-0.5 w-fit mt-0.5" title="Chứa dữ liệu vận hành nội bộ, việc khôi phục có thể gây đứt gãy luồng hoạt động hiện tại.">⚠️ Dữ liệu nội bộ (Cân nhắc)</span>
+                        )}
+                        {col.status === 'encoding_error' && (
+                          <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 border border-amber-100 rounded-md px-1 py-0.5 w-fit mt-0.5" title="Dữ liệu có chứa ký tự không thể giải mã thành UTF-8.">⚠️ Lỗi Unicode</span>
+                        )}
+                      </div>
                     </label>
                     <div className="text-xs text-slate-500 flex gap-4 text-right">
                       <span>Trong backup: <b className="text-slate-700">{col.document_count_in_backup}</b> docs</span>
@@ -2076,7 +2227,7 @@ function SystemAdminDashboard() {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 disabled={isImportLoading}
-                onClick={() => setIsImportModalOpen(false)}
+                onClick={handleCloseImportModal}
                 className="px-4 py-2 hover:bg-slate-100 rounded-xl font-semibold text-slate-600 transition-colors"
               >
                 Hủy bỏ
@@ -2094,6 +2245,21 @@ function SystemAdminDashboard() {
         </div>
       )}
 
+      <ConfirmModal
+        isOpen={isConfirmForceCancelOpen}
+        onClose={() => {
+          setIsConfirmForceCancelOpen(false);
+          setJobToForceCancel(null);
+        }}
+        onConfirm={handleForceCancel}
+        title={jobToForceCancel?.type === 'cleanup' ? "Xác nhận dọn dẹp" : "Xác nhận đánh dấu thất bại"}
+        message={jobToForceCancel?.type === 'cleanup' 
+          ? "Bạn có chắc chắn muốn đánh dấu tất cả các tiến trình bị kẹt thành thất bại không?" 
+          : "Chỉ sử dụng tính năng này khi tiến trình bị kẹt. Bạn có chắc chắn muốn đánh dấu tiến trình này thành thất bại?"}
+        confirmLabel="Xác nhận"
+        cancelLabel="Hủy bỏ"
+        variant="danger"
+      />
         </main>
       </div>
     </div>

@@ -84,6 +84,24 @@ export class SystemController {
 
   // ─── DATABASE BACKUPS ────────────────────────────────────────────────────────
 
+  @Get('backups/activity')
+  @Permissions('DATABASE_BACKUP_READ', 'DATABASE_BACKUP_RESTORE')
+  getSystemActivity() {
+    return this.systemService.getSystemActivity();
+  }
+
+  @Post('backups/cleanup-stale')
+  @Permissions('DATABASE_BACKUP_CREATE', 'DATABASE_BACKUP_RESTORE')
+  cleanupStaleJobs() {
+    return this.systemService.cleanupStaleJobs();
+  }
+
+  @Post('backups/:id/mark-failed')
+  @Permissions('DATABASE_BACKUP_CREATE', 'DATABASE_BACKUP_RESTORE')
+  markJobFailed(@Param() params: MongoIdParamDto) {
+    return this.systemService.markJobFailed(params.id);
+  }
+
   @Get('backups')
   @Permissions('DATABASE_BACKUP_READ')
   getBackups(@Query() query: GetBackupsQueryDto) {
@@ -100,6 +118,12 @@ export class SystemController {
   @Permissions('DATABASE_BACKUP_READ', 'DATABASE_BACKUP_RESTORE')
   getRestoreJobs(@Query() query: GetBackupsQueryDto) {
     return this.systemService.getRestoreJobs(query);
+  }
+
+  @Get('backups/tools-health')
+  @Permissions('DATABASE_BACKUP_READ', 'DATABASE_BACKUP_CREATE')
+  async getMongoDbToolsHealth() {
+    return this.systemService.checkMongoDbTools();
   }
 
   @Get('backups/:id')
@@ -135,6 +159,12 @@ export class SystemController {
     return this.systemService.previewBackupImport(file, req.user.userId);
   }
 
+  @Post('backups/import/preview/:previewSessionId/cancel')
+  @Permissions('DATABASE_BACKUP_RESTORE')
+  async cancelBackupPreview(@Param('previewSessionId') previewSessionId: string) {
+    return this.systemService.cancelBackupPreview(previewSessionId);
+  }
+
   /**
    * Execute the database restoration process.
    * Requires confirmation text "RESTORE" and a valid preview session.
@@ -144,6 +174,18 @@ export class SystemController {
   @Permissions('DATABASE_BACKUP_RESTORE')
   async restoreBackupImport(@Body() dto: RestoreBackupImportDto, @Req() req: AuthenticatedRequest) {
     return this.systemService.restoreBackupImport(dto, req.user.userId);
+  }
+
+  @Get('backups/check-bson-types')
+  @Permissions('DATABASE_BACKUP_RESTORE')
+  checkBsonTypes() {
+    return this.systemService.checkBsonTypes();
+  }
+
+  @Post('backups/repair-bson-types')
+  @Permissions('DATABASE_BACKUP_RESTORE')
+  repairBsonTypes(@Query('collection') collection?: string) {
+    return this.systemService.repairBsonTypes(collection);
   }
 
   // ─── PERFORMANCE METRICS ───────────────────────────────────────────────────

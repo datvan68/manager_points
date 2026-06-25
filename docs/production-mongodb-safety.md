@@ -54,7 +54,17 @@ To ensure data integrity and security, perform regular backups using the `mongod
 
 ### 4.1. Backup Procedure
 
-Use the `mongodump` command to create a compressed backup in `.archive` format:
+#### 4.1.1. Automatic/UI Backups
+Backups triggered from the System Admin UI run directly within the `backend` container. For these backups to create a standard MongoDB archive, the `mongodb-tools` package must be installed in the backend image.
+You can verify the tools are installed by running:
+```bash
+docker compose -f docker-compose.prod.yml exec backend mongodump --version
+docker compose -f docker-compose.prod.yml exec backend mongorestore --version
+```
+If the tools are missing, the system will gracefully fall back to a custom NDJSON format, but standard archives are recommended.
+
+#### 4.1.2. Manual Backups (CLI)
+Use the `mongodump` command directly inside the `mongodb` container to create a compressed backup in `.archive` format:
 
 ```bash
 docker compose -f docker-compose.prod.yml exec mongodb mongodump --archive --db=manager-point > backup_$(date +%F).archive

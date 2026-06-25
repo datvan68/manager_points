@@ -321,5 +321,34 @@ describe('Auth (e2e)', () => {
       expect(rawCookie3).toBeDefined();
       expect(rawCookie3).not.toBe(rawCookie2);
     });
+
+    it('Gửi request POST /api/auth/refresh với cookie còn hạn nhưng DB không có (do restore) -> mong đợi 401 và xoá cookie', async () => {
+      // 1. Đăng nhập
+      const loginRes = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({
+          email: '20230005',
+          password: '15082003',
+        })
+        .expect(200);
+
+      const rawCookie = loginRes.headers['set-cookie']?.find((c: string) => c.startsWith('refresh_token='))?.split(';')[0];
+
+      // 2. Xóa refresh token khỏi DB
+      await refreshTokenModel.deleteMany({});
+
+      // 3. Gọi refresh
+      const refreshRes = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', [rawCookie!])
+        .expect(401);
+
+      // Phải có header clear cookie (thường set lại cookie rỗng hoặc Max-Age/Expires về 0/quá khứ)
+      const cookies = refreshRes.headers['set-cookie'] || [];
+      const refreshTokenCookie = cookies.find((cookie: string) => cookie.startsWith('refresh_token='));
+      expect(refreshTokenCookie).toBeDefined();
+      // Express clearCookie thường set path=/api/auth; expires=Thu, 01 Jan 1970 00:00:00 GMT; httponly
+      expect(refreshTokenCookie).toMatch(/Expires=Thu, 01 Jan 1970 00:00:00 GMT|Max-Age=0/i);
+    });
   });
 });
