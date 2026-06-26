@@ -136,8 +136,8 @@ export class EvaluationDetailService {
 
   private canRequesterDeleteRecord(record: any, requester?: any): boolean {
     if (!requester?.userId) return false;
-    if (this.isAdminRole(requester)) return true;
     if (record.daily_report_id) return false;
+    if (this.isAdminRole(requester)) return true;
 
     const creator = this.getRecordCreator(record);
     if (!creator) return true;
@@ -160,7 +160,7 @@ export class EvaluationDetailService {
     criterion: CriterionDocument,
     currentCount: number,
     requester?: any,
-  ): Promise<void> {
+  ): Promise<{ actualCount: number, originalCount: number, dailyReportCount: number, permissionLockedCount: number }> {
     // Find all active academic records for this student, semester, and criterion
     const records = await this.academicRecordModel.find({
       student_id: summary.student_id as any,
@@ -169,10 +169,15 @@ export class EvaluationDetailService {
       status: 'active',
       is_deleted: { $ne: true },
     } as any)
-      .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
 
     const diff = currentCount - records.length;
+    let actualCount = records.length;
+
+    const dailyReportCount = records.filter(rec => rec.daily_report_id).length;
+    const originalCount = records.filter((rec) => !this.canRequesterDeleteRecord(rec, requester)).length;
+    const permissionLockedCount = originalCount - dailyReportCount;
+
     if (diff > 0) {
       let userName = 'Hệ thống';
       const updatedByUserId = requester?.userId;
@@ -199,6 +204,7 @@ export class EvaluationDetailService {
         );
       }
       await Promise.all(promises);
+      actualCount += diff;
     } else if (diff < 0) {
       // Delete excess direct grading records created by the current user
       const excessCount = Math.abs(diff);
@@ -218,7 +224,10 @@ export class EvaluationDetailService {
         this.academicRecordModel.findByIdAndDelete(rec._id).exec()
       );
       await Promise.all(promises);
+      actualCount -= recordsToDelete.length;
     }
+
+    return { actualCount, originalCount, dailyReportCount, permissionLockedCount };
   }
 
   /**
@@ -462,15 +471,7 @@ export class EvaluationDetailService {
       }
     }
 
-    // Sync academic records first
-    const firstLog = rest.log && rest.log.length > 0 ? rest.log[0] : null;
-    const createdByUserId = requester?.userId || firstLog?.updated_by || rest.gv_reviewed_by;
-    await this.syncAcademicRecords(
-      summary,
-      criterion,
-      countVal,
-      requester || { userId: createdByUserId },
-    );
+    // We no longer sync records from evaluation_detail as academic_record is the source of truth
 
     const newDetail: any = {
       _id: new Types.ObjectId(),
@@ -717,14 +718,12 @@ export class EvaluationDetailService {
         detail.current_count = 0;
       }
 
-      const lastLog = updateEvaluationDetailDto.log && updateEvaluationDetailDto.log.length > 0
-        ? updateEvaluationDetailDto.log[updateEvaluationDetailDto.log.length - 1]
-        : null;
-      const fallbackUserId = lastLog?.updated_by || updateEvaluationDetailDto.gv_reviewed_by;
-      const effectiveRequester = requester || { userId: fallbackUserId };
-      await this.syncAcademicRecords(summary, criterion, detail.current_count, effectiveRequester);
+      const actualCount = detail.current_count;
+      
+      // For single_option, we won't clamp systemScore because it's based on option.
+      // But actual count could be different if clamped, though not typical for single_option.
 
-      setObj['details.$.current_count'] = detail.current_count;
+      setObj['details.$.current_count'] = actualCount;
       setObj['details.$.system_score'] = detail.system_score;
       setObj['details.$.selected_option_id'] = detail.selected_option_id;
       setObj['details.$.selected_option_label'] = detail.selected_option_label;
@@ -732,29 +731,7 @@ export class EvaluationDetailService {
     } else if (updateEvaluationDetailDto.current_count !== undefined && criterion.scoring_mode !== 'single_option') {
       let newCount = updateEvaluationDetailDto.current_count;
 
-      const lastLog = updateEvaluationDetailDto.log && updateEvaluationDetailDto.log.length > 0
-        ? updateEvaluationDetailDto.log[updateEvaluationDetailDto.log.length - 1]
-        : null;
-      const fallbackUserId = lastLog?.updated_by || updateEvaluationDetailDto.gv_reviewed_by;
-      const effectiveRequester = requester || { userId: fallbackUserId };
-
-      const records = await this.academicRecordModel.find({
-        student_id: summary.student_id as any,
-        semester_id: summary.semester_id as any,
-        criterion_id: criterion._id as any,
-        status: 'active',
-        is_deleted: { $ne: true },
-      } as any)
-        .populate({ path: 'recorded_by', populate: { path: 'role' } })
-        .exec();
-
-      const originalCount = records.filter((rec) => !this.canRequesterDeleteRecord(rec, effectiveRequester)).length;
-
-      if (newCount < originalCount) {
-        newCount = originalCount;
-      }
-
-      await this.syncAcademicRecords(summary, criterion, newCount, effectiveRequester);
+      // We no longer sync records here
       detail.current_count = newCount;
 
       let systemScore = newCount * criterion.score_per_unit;
@@ -885,52 +862,10 @@ export class EvaluationDetailService {
       const fallbackUserId = detailDto.gv_reviewed_by || firstLog?.updated_by;
       const effectiveRequester = requester || { userId: fallbackUserId };
 
-      let actualCountVal = countVal;
-      if (existingIndex !== -1 && criterion.scoring_mode !== 'single_option') {
-          const records = await this.academicRecordModel.find({
-            student_id: summary.student_id as any,
-            semester_id: summary.semester_id as any,
-            criterion_id: criterion._id as any,
-            status: 'active',
-            is_deleted: { $ne: true },
-          } as any)
-            .populate({ path: 'recorded_by', populate: { path: 'role' } })
-            .exec();
-
-          const dailyReportCount = records.filter(rec => rec.daily_report_id).length;
-          const originalCount = records.filter((rec) => !this.canRequesterDeleteRecord(rec, effectiveRequester)).length;
-          const permissionLockedCount = originalCount - dailyReportCount;
-          if (actualCountVal < originalCount) {
-             actualCountVal = originalCount;
-             systemScore = actualCountVal * criterion.score_per_unit;
-             if (criterion.score_per_unit >= 0) {
-               systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
-             } else {
-               const maxScore = criterion.max_score || 10;
-               const minScore = criterion.min_score || 0;
-               systemScore = Math.max(minScore, Math.min(maxScore, maxScore - actualCountVal * Math.abs(criterion.score_per_unit)));
-             }
-             clampResults.push({
-               criterion_id,
-               requested_count: countVal,
-               actual_count: actualCountVal,
-               non_deletable_count: originalCount,
-               daily_report_count: dailyReportCount,
-               permission_locked_count: permissionLockedCount,
-               reason: dailyReportCount > 0 ? 'daily_report_locked' : 'permission_locked',
-             });
-          }
-      }
-
-      await this.syncAcademicRecords(summary, criterion, actualCountVal, effectiveRequester);
-
+      // current_count, system_score, selected_option_* should NOT be overwritten by bulkUpsert
+      // because they are now strictly managed by academic_record and syncStudentCriterionScore.
       const setObj: any = {
         criterion_id: new Types.ObjectId(criterion_id),
-        current_count: actualCountVal,
-        system_score: systemScore,
-        selected_option_id: optId,
-        selected_option_label: optLabel,
-        selected_option_score: optScore,
       };
 
       if (detailDto.sv_score !== undefined) setObj.sv_score = detailDto.sv_score;
@@ -964,6 +899,8 @@ export class EvaluationDetailService {
         const newDetail: any = {
           _id: new Types.ObjectId(),
           ...setObj,
+          current_count: 0,
+          system_score: 0,
           sv_score: setObj.sv_score !== undefined ? setObj.sv_score : null,
           sv_submitted_at: setObj.sv_submitted_at || null,
           gv_score: setObj.gv_score !== undefined ? setObj.gv_score : null,

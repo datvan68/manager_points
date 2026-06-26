@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -21,6 +21,7 @@ import { Class } from '../classes/schemas/class.schema';
 import { getRequesterRoleName, isStudent, isTeacher } from '../auth/utils/role.util';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
 import { gradingEventEmitter } from '../system/grading-event-emitter';
+import { IntentScoreDto } from './dto/intent-score.dto';
 
 export interface AcademicRecordFindAllQuery {
   page?: number;
@@ -90,13 +91,74 @@ export class AcademicRecordService {
     if (!criterion) return;
 
     // 3. Compute system_score
-    let systemScore = activeCount * criterion.score_per_unit;
-    if (criterion.score_per_unit >= 0) {
-      systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
+    let systemScore = activeCount * (criterion.score_per_unit || 0);
+    let selectedOptionId: string | null = null;
+    let selectedOptionLabel: string | null = null;
+    let selectedOptionScore: number | null = null;
+
+    if (activeCount > 0) {
+      // Find the latest active record to extract option or manual score if applicable
+      const latestRecord = await this.academicRecordModel.findOne({
+        student_id: new Types.ObjectId(studentId),
+        semester_id: new Types.ObjectId(semesterId),
+        criterion_id: new Types.ObjectId(criterionId),
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any).sort({ createdAt: -1 }).exec();
+
+      if (latestRecord) {
+        if (criterion.scoring_mode === 'single_option') {
+          // Ưu tiên field mới
+          if (latestRecord.selected_option_id) {
+            selectedOptionId = latestRecord.selected_option_id;
+            selectedOptionLabel = latestRecord.selected_option_label || null;
+            selectedOptionScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
+            systemScore = selectedOptionScore ?? 0;
+          } else if (latestRecord.record_title && latestRecord.record_title.startsWith('Lựa chọn option ')) {
+            // Fallback dữ liệu cũ từ record_title
+            selectedOptionId = latestRecord.record_title.replace('Lựa chọn option ', '');
+            const option = criterion.options?.find((o: any) => o.id === selectedOptionId);
+            if (option) {
+              selectedOptionLabel = option.label;
+              selectedOptionScore = option.score;
+              systemScore = option.score;
+            }
+          }
+        } else {
+          if (latestRecord.record_title) {
+            if (latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
+              const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
+              systemScore = parseFloat(manualScoreStr) || 0;
+            } else {
+              // Normal counting mode
+              if ((criterion.score_per_unit || 0) >= 0) {
+                systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
+              } else {
+                const maxScore = criterion.max_score || 10;
+                const minScore = criterion.min_score || 0;
+                systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit || 0)));
+              }
+            }
+          } else {
+            if ((criterion.score_per_unit || 0) >= 0) {
+              systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
+            } else {
+              const maxScore = criterion.max_score || 10;
+              const minScore = criterion.min_score || 0;
+              systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit || 0)));
+            }
+          }
+        }
+      }
     } else {
-      const maxScore = criterion.max_score || 10;
-      const minScore = criterion.min_score || 0;
-      systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit)));
+      if (criterion.scoring_mode === 'single_option') {
+        systemScore = 0;
+        selectedOptionId = null;
+        selectedOptionLabel = null;
+        selectedOptionScore = null;
+      } else {
+        systemScore = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
+      }
     }
 
     // 4. Find all SummaryPoints for this student and semester
@@ -131,8 +193,11 @@ export class AcademicRecordService {
             // Add new embedded detail
             const newDetail: any = {
               criterion_id: new Types.ObjectId(criterionId),
-              current_count: activeCount,
+              current_count: criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount,
               system_score: systemScore,
+              selected_option_id: selectedOptionId,
+              selected_option_label: selectedOptionLabel,
+              selected_option_score: selectedOptionScore,
               sv_score: null,
               sv_submitted_at: null,
               gv_score: null,
@@ -145,12 +210,19 @@ export class AcademicRecordService {
               description: '',
               log: [],
             };
+            if (newDetail.status === 'draft') {
+              newDetail.sv_score = systemScore;
+              newDetail.gv_score = systemScore;
+            }
             details.push(newDetail);
           } else {
             // Update existing embedded detail
             const detail = details[detailIndex];
-            detail.current_count = activeCount;
+            detail.current_count = criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount;
             detail.system_score = systemScore;
+            detail.selected_option_id = selectedOptionId;
+            detail.selected_option_label = selectedOptionLabel;
+            detail.selected_option_score = selectedOptionScore;
             // Also update final_score to systemScore if it hasn't been set by student/gv/admin yet
             if (detail.status === 'draft') {
               detail.sv_score = systemScore;
@@ -264,21 +336,81 @@ export class AcademicRecordService {
               if (!criterion) continue;
 
               const activeCount = countMap.get(criterionId) || 0;
-              let systemScore = activeCount * criterion.score_per_unit;
-              if (criterion.score_per_unit >= 0) {
-                systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
+              let systemScore = activeCount * (criterion.score_per_unit || 0);
+              let selectedOptionId: string | null = null;
+              let selectedOptionLabel: string | null = null;
+              let selectedOptionScore: number | null = null;
+
+              if (activeCount > 0) {
+                const latestRecord = await this.academicRecordModel.findOne({
+                  student_id: new Types.ObjectId(studentId),
+                  semester_id: new Types.ObjectId(semesterId),
+                  criterion_id: new Types.ObjectId(criterionId),
+                  status: 'active',
+                  is_deleted: { $ne: true },
+                } as any).sort({ createdAt: -1 }).exec();
+
+                if (latestRecord) {
+                  if (criterion.scoring_mode === 'single_option') {
+                    if (latestRecord.selected_option_id) {
+                      selectedOptionId = latestRecord.selected_option_id;
+                      selectedOptionLabel = latestRecord.selected_option_label || null;
+                      selectedOptionScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
+                      systemScore = selectedOptionScore ?? 0;
+                    } else if (latestRecord.record_title && latestRecord.record_title.startsWith('Lựa chọn option ')) {
+                      selectedOptionId = latestRecord.record_title.replace('Lựa chọn option ', '');
+                      const option = criterion.options?.find((o: any) => o.id === selectedOptionId);
+                      if (option) {
+                        selectedOptionLabel = option.label;
+                        selectedOptionScore = option.score;
+                        systemScore = option.score;
+                      }
+                    }
+                  } else {
+                    if (latestRecord.record_title) {
+                      if (latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
+                        const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
+                        systemScore = parseFloat(manualScoreStr) || 0;
+                      } else {
+                        if ((criterion.score_per_unit || 0) >= 0) {
+                          systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
+                        } else {
+                          const maxScore = criterion.max_score || 10;
+                          const minScore = criterion.min_score || 0;
+                          systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit || 0)));
+                        }
+                      }
+                    } else {
+                      if ((criterion.score_per_unit || 0) >= 0) {
+                        systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
+                      } else {
+                        const maxScore = criterion.max_score || 10;
+                        const minScore = criterion.min_score || 0;
+                        systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit || 0)));
+                      }
+                    }
+                  }
+                }
               } else {
-                const maxScore = criterion.max_score || 10;
-                const minScore = criterion.min_score || 0;
-                systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit)));
+                if (criterion.scoring_mode === 'single_option') {
+                  systemScore = 0;
+                  selectedOptionId = null;
+                  selectedOptionLabel = null;
+                  selectedOptionScore = null;
+                } else {
+                  systemScore = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
+                }
               }
 
               const detailIndex = details.findIndex((d: any) => d.criterion_id && d.criterion_id.toString() === criterionId);
               if (detailIndex === -1) {
-                details.push({
+                const newDetail: any = {
                   criterion_id: new Types.ObjectId(criterionId) as any,
-                  current_count: activeCount,
+                  current_count: criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount,
                   system_score: systemScore,
+                  selected_option_id: selectedOptionId,
+                  selected_option_label: selectedOptionLabel,
+                  selected_option_score: selectedOptionScore,
                   sv_score: null,
                   sv_submitted_at: null,
                   gv_score: null,
@@ -290,11 +422,19 @@ export class AcademicRecordService {
                   status: 'draft',
                   description: '',
                   log: [],
-                });
+                };
+                if (newDetail.status === 'draft') {
+                  newDetail.sv_score = systemScore;
+                  newDetail.gv_score = systemScore;
+                }
+                details.push(newDetail);
               } else {
                 const detail = details[detailIndex];
-                detail.current_count = activeCount;
+                detail.current_count = criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount;
                 detail.system_score = systemScore;
+                detail.selected_option_id = selectedOptionId;
+                detail.selected_option_label = selectedOptionLabel;
+                detail.selected_option_score = selectedOptionScore;
                 if (detail.status === 'draft') {
                   detail.sv_score = systemScore;
                   detail.gv_score = systemScore;
@@ -333,6 +473,314 @@ export class AcademicRecordService {
     }
   }
 
+
+  async handleScoreIntent(intentDto: IntentScoreDto, requester?: any) {
+    const { student_id, criterion_id, semester_id, intent_type, target_count, manual_score, selected_option_id, note } = intentDto;
+
+    // Verify permissions for the requester
+    if (requester) {
+      const roleName = (requester.roleName || '').toLowerCase();
+      if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
+        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+        const classIds = classes.map((c: any) => c._id.toString());
+        const student = await this.studentModel.findById(student_id).select('class_id').exec();
+        if (!student || !student.class_id || !classIds.includes(student.class_id.toString())) {
+          throw new ForbiddenException('Bạn không có quyền đánh giá sinh viên ngoài lớp phụ trách.');
+        }
+      } else if (roleName.includes('student')) {
+        if (requester.userId !== student_id) {
+          throw new ForbiddenException('Bạn không thể thao tác điểm của sinh viên khác.');
+        }
+      }
+    }
+
+    const requesterLevel = this.getRoleLevel(requester?.roleName);
+    let changedRecordIds: string[] = [];
+
+    if (intent_type === 'increase' || intent_type === 'decrease' || intent_type === 'set_target_count') {
+      const currentRecords = await this.academicRecordModel.find({
+        student_id: new Types.ObjectId(student_id),
+        semester_id: new Types.ObjectId(semester_id),
+        criterion_id: new Types.ObjectId(criterion_id),
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any)
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .exec();
+
+      let currentCount = currentRecords.length;
+      let desiredCount = currentCount;
+
+      if (intent_type === 'increase') desiredCount++;
+      else if (intent_type === 'decrease') desiredCount--;
+      else if (intent_type === 'set_target_count' && target_count !== undefined) desiredCount = target_count;
+
+      if (desiredCount > currentCount) {
+        // Need to add records
+        const recordsToAdd = desiredCount - currentCount;
+        const newRecords = [];
+        for (let i = 0; i < recordsToAdd; i++) {
+          newRecords.push({
+            student_id: new Types.ObjectId(student_id) as any,
+            semester_id: new Types.ObjectId(semester_id) as any,
+            criterion_id: new Types.ObjectId(criterion_id) as any,
+            recorded_by: requester?.userId,
+            record_title: note || `Được thêm bởi ${requester?.roleName}`,
+            status: 'active',
+          });
+        }
+        const inserted = await this.academicRecordModel.insertMany(newRecords);
+        changedRecordIds.push(...inserted.map(r => r._id.toString()));
+      } else if (desiredCount < currentCount) {
+        // Need to delete records
+        let recordsToRemove = currentCount - desiredCount;
+        // Reverse to delete the most recent ones first
+        for (const record of currentRecords.reverse()) {
+          if (recordsToRemove <= 0) break;
+
+          let canDelete = false;
+          if (requesterLevel >= 4) {
+            canDelete = true;
+          } else {
+            let creatorRoleName = '';
+            if (record.recorded_by && (record.recorded_by as any).role) {
+                creatorRoleName = (record.recorded_by as any).role.role_name || '';
+            } else if (record.recorded_by && (record.recorded_by as any).role_name) {
+                creatorRoleName = (record.recorded_by as any).role_name;
+            }
+
+            let creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
+            
+            const recordedById = record.recorded_by && (record.recorded_by as any)._id 
+              ? (record.recorded_by as any)._id.toString() 
+              : record.recorded_by?.toString();
+            
+            if (requesterLevel > creatorLevel || recordedById === requester?.userId) {
+              canDelete = true;
+            }
+          }
+
+          if (canDelete) {
+            Logger.log(`[AUDIT_LOG] Hard-delete academic_record _id=${record._id} for student_id=${student_id}, requested_by=${requester?.userId}`);
+            await this.academicRecordModel.deleteOne({ _id: record._id });
+            changedRecordIds.push(record._id.toString());
+            recordsToRemove--;
+          }
+        }
+      }
+    } else if (intent_type === 'select_option') {
+      const criterion = await this.criterionModel.findById(criterion_id).exec();
+      if (!criterion) {
+        throw new NotFoundException(`Criterion with ID ${criterion_id} not found`);
+      }
+      if (criterion.scoring_mode !== 'single_option') {
+        throw new BadRequestException('Tiêu chí này không hỗ trợ chế độ chấm điểm lựa chọn duy nhất (single_option).');
+      }
+
+      let existingRecord = await this.academicRecordModel.findOne({
+        student_id: new Types.ObjectId(student_id),
+        semester_id: new Types.ObjectId(semester_id),
+        criterion_id: new Types.ObjectId(criterion_id),
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any).exec();
+
+      if (selected_option_id) {
+        const option = criterion.options?.find((o: any) => o.id === selected_option_id);
+        if (!option) {
+          throw new BadRequestException(`Lựa chọn có ID '${selected_option_id}' không tồn tại trong tiêu chí này.`);
+        }
+
+        if (existingRecord) {
+          // Kiểm tra xem user có quyền thay đổi không
+          let canUpdate = false;
+          if (requesterLevel >= 4) {
+            canUpdate = true;
+          } else {
+            let creatorRoleName = '';
+            if (existingRecord.recorded_by && (existingRecord.recorded_by as any).role) {
+                creatorRoleName = (existingRecord.recorded_by as any).role.role_name || '';
+            } else if (existingRecord.recorded_by && (existingRecord.recorded_by as any).role_name) {
+                creatorRoleName = (existingRecord.recorded_by as any).role_name;
+            }
+            let creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
+            const recordedById = existingRecord.recorded_by && (existingRecord.recorded_by as any)._id 
+              ? (existingRecord.recorded_by as any)._id.toString() 
+              : existingRecord.recorded_by?.toString();
+            
+            if (requesterLevel > creatorLevel || recordedById === requester?.userId) {
+              canUpdate = true;
+            }
+          }
+          if (!canUpdate) {
+            throw new ForbiddenException('Bạn không có quyền sửa đổi điểm do người khác chấm.');
+          }
+
+          existingRecord.selected_option_id = selected_option_id;
+          existingRecord.selected_option_label = option.label;
+          existingRecord.selected_option_score = option.score;
+          existingRecord.record_title = `Lựa chọn option ${selected_option_id}`;
+          existingRecord.recorded_by = requester?.userId;
+          await existingRecord.save();
+          changedRecordIds.push(existingRecord._id.toString());
+        } else {
+          const created = await this.academicRecordModel.create({
+            student_id: new Types.ObjectId(student_id) as any,
+            semester_id: new Types.ObjectId(semester_id) as any,
+            criterion_id: new Types.ObjectId(criterion_id) as any,
+            recorded_by: requester?.userId,
+            selected_option_id: selected_option_id,
+            selected_option_label: option.label,
+            selected_option_score: option.score,
+            record_title: `Lựa chọn option ${selected_option_id}`,
+            status: 'active',
+          });
+          changedRecordIds.push(created._id.toString());
+        }
+      } else {
+        // Xóa option (bỏ chọn)
+        if (existingRecord) {
+          let canDelete = false;
+          if (requesterLevel >= 4) {
+            canDelete = true;
+          } else {
+            let creatorRoleName = '';
+            if (existingRecord.recorded_by && (existingRecord.recorded_by as any).role) {
+                creatorRoleName = (existingRecord.recorded_by as any).role.role_name || '';
+            } else if (existingRecord.recorded_by && (existingRecord.recorded_by as any).role_name) {
+                creatorRoleName = (existingRecord.recorded_by as any).role_name;
+            }
+            let creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
+            const recordedById = existingRecord.recorded_by && (existingRecord.recorded_by as any)._id 
+              ? (existingRecord.recorded_by as any)._id.toString() 
+              : existingRecord.recorded_by?.toString();
+            
+            if (requesterLevel > creatorLevel || recordedById === requester?.userId) {
+              canDelete = true;
+            }
+          }
+
+          if (!canDelete) {
+            throw new ForbiddenException('Bạn không có quyền xóa điểm do người khác chấm.');
+          }
+
+          await this.academicRecordModel.deleteOne({ _id: existingRecord._id });
+          changedRecordIds.push(existingRecord._id.toString());
+        }
+      }
+    } else if (intent_type === 'set_manual_score') {
+      let existingRecord = await this.academicRecordModel.findOne({
+        student_id: new Types.ObjectId(student_id),
+        semester_id: new Types.ObjectId(semester_id),
+        criterion_id: new Types.ObjectId(criterion_id),
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any).exec();
+
+      if (existingRecord) {
+        existingRecord.record_title = `Nhập điểm tay: ${manual_score}`;
+        existingRecord.recorded_by = requester?.userId;
+        await existingRecord.save();
+        changedRecordIds.push(existingRecord._id.toString());
+      } else {
+        const created = await this.academicRecordModel.create({
+          student_id: new Types.ObjectId(student_id) as any,
+          semester_id: new Types.ObjectId(semester_id) as any,
+          criterion_id: new Types.ObjectId(criterion_id) as any,
+          recorded_by: requester?.userId,
+          record_title: `Nhập điểm tay: ${manual_score}`,
+          status: 'active',
+        });
+        changedRecordIds.push(created._id.toString());
+      }
+
+    } else if (intent_type === 'clear_score') {
+      const currentRecords = await this.academicRecordModel.find({
+        student_id: new Types.ObjectId(student_id),
+        semester_id: new Types.ObjectId(semester_id),
+        criterion_id: new Types.ObjectId(criterion_id),
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any)
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .exec();
+
+      for (const record of currentRecords) {
+        let canDelete = false;
+        if (requesterLevel >= 4) {
+          canDelete = true;
+        } else {
+          let creatorRoleName = '';
+          if (record.recorded_by && (record.recorded_by as any).role) {
+              creatorRoleName = (record.recorded_by as any).role.role_name || '';
+          } else if (record.recorded_by && (record.recorded_by as any).role_name) {
+              creatorRoleName = (record.recorded_by as any).role_name;
+          }
+
+          let creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
+          
+          const recordedById = record.recorded_by && (record.recorded_by as any)._id 
+            ? (record.recorded_by as any)._id.toString() 
+            : record.recorded_by?.toString();
+          
+          if (requesterLevel > creatorLevel || recordedById === requester?.userId) {
+            canDelete = true;
+          }
+        }
+
+        if (canDelete) {
+          Logger.log(`[AUDIT_LOG] Hard-delete academic_record _id=${record._id} for clear_score requested_by=${requester?.userId}`);
+          await this.academicRecordModel.deleteOne({ _id: record._id });
+          changedRecordIds.push(record._id.toString());
+        }
+      }
+    }
+
+    // Rebuild detail
+    await this.syncStudentCriterionScore(student_id, semester_id, criterion_id);
+
+    // Return the updated summary and actual count
+    const summary = await this.summaryPointModel.findOne({
+      student_id: new Types.ObjectId(student_id),
+      semester_id: new Types.ObjectId(semester_id),
+    } as any).lean().exec();
+
+    const detail = (summary as any)?.details?.find((d: any) => d.criterion_id?.toString() === criterion_id);
+
+    let syncStatus: 'synced' | 'summary_missing' | 'summary_locked' = 'synced';
+    if (!summary) {
+      syncStatus = 'summary_missing';
+    } else if (summary.status === 'locked') {
+      syncStatus = 'summary_locked';
+    }
+
+    return {
+      success: true,
+      actual_count: detail?.current_count || 0,
+      evaluation_detail: detail,
+      summary_total_score: (summary as any)?.total_score,
+      changed_record_ids: changedRecordIds,
+      sync_status: syncStatus,
+    };
+  }
+
+  private getRoleLevel(roleName?: string): number {
+    if (!roleName) return 1;
+    const nameLower = roleName.toLowerCase();
+    if (nameLower.includes('admin')) return 4;
+    if (nameLower.includes('supervisor') || nameLower.includes('quản sinh') || nameLower.includes('quan sinh')) return 3;
+    if (
+      nameLower.includes('teacher') ||
+      nameLower.includes('adviser') ||
+      nameLower.includes('advisor') ||
+      nameLower.includes('giảng viên') ||
+      nameLower.includes('giang vien') ||
+      nameLower.includes('lecturer')
+    ) {
+      return 2;
+    }
+    return 1;
+  }
 
   async create(
     createAcademicRecordDto: CreateAcademicRecordDto,

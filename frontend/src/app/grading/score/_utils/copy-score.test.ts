@@ -56,7 +56,7 @@ describe('Copy Score Utils', () => {
       expect(result['cri-3']).toBe(2); // copied normally
     });
 
-    it('should not lower target count below original_count (pre-existing records)', () => {
+    it('should overwrite target count even if it is lower than original_count, relying on backend for clamping', () => {
       const sourceCounts = { 'cri-1': 1, 'cri-3': 5 };
       const targetCurrentCounts = { 'cri-1': 3, 'cri-3': 3 };
       const targetPreCounts = {
@@ -66,38 +66,10 @@ describe('Copy Score Utils', () => {
 
       const result = buildTargetSafeCounts(sourceCounts, targetCurrentCounts, targetPreCounts, criteriaList);
 
-      // cri-1: srcCount (1) < targetMin (2) -> keep targetCurrent (3)
-      expect(result['cri-1']).toBe(3);
-      // cri-3: srcCount (5) >= targetMin (1) -> use srcCount (5)
-      expect(result['cri-3']).toBe(5);
-    });
-
-    it('should clamp copied counts to target original_count if it is higher than source but less than current', () => {
-      const sourceCounts = { 'cri-1': 4 };
-      const targetCurrentCounts = { 'cri-1': 5 };
-      const targetPreCounts = {
-        'cri-1': { original_count: 2, current_count: 5 }
-      };
-
-      const result = buildTargetSafeCounts(sourceCounts, targetCurrentCounts, targetPreCounts, criteriaList);
-
-      // cri-1: srcCount (4) >= targetMin (2) -> copy srcCount (4)
-      expect(result['cri-1']).toBe(4);
-    });
-
-    it('should ignore original_count when userRole is admin', () => {
-      const sourceCounts = { 'cri-1': 1 };
-      const targetCurrentCounts = { 'cri-1': 3 };
-      const targetPreCounts = {
-        'cri-1': { original_count: 5, current_count: 3 }
-      };
-
-      // Passed 'admin' as userRole
-      const result = buildTargetSafeCounts(sourceCounts, targetCurrentCounts, targetPreCounts, criteriaList, 'admin');
-
-      // srcCount is 1, target original_count is 5, but admin bypasses it (targetMin = 0)
-      // so it copies 1.
+      // cri-1: no longer respects targetMin (2) -> overwrites with srcCount (1)
       expect(result['cri-1']).toBe(1);
+      // cri-3: overwrites with srcCount (5)
+      expect(result['cri-3']).toBe(5);
     });
   });
 });

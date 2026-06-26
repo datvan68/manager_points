@@ -146,7 +146,7 @@ function GradingPage() {
   const [apiSummariesPoints, setApiSummariesPoints] = useState<any[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [apiEvaluationDetails, setApiEvaluationDetails] = useState<any[]>([]);
-  const [preExistingCountsCache, setPreExistingCountsCache] = useState<Record<string, Record<string, { original_count: number; current_count: number }>>>({});
+
   const [categories, setCategories] = useState<any[]>([]);
 
   // States lưu các bộ lọc đã xác nhận (applied)
@@ -767,13 +767,7 @@ function GradingPage() {
       setTotalItems(res.meta?.total || 0);
       setHasMore(res.meta?.totalPages ? pageToFetch < res.meta.totalPages : data.length > 0);
 
-      const summaryIds = data.map((s: any) => s._id);
-      if (summaryIds.length > 0) {
-        const bulkCounts = await evaluationDetailApi.getPreExistingCountsBulk(summaryIds);
-        if (bulkCounts) {
-          setPreExistingCountsCache(prev => ({ ...prev, ...bulkCounts }));
-        }
-      }
+
     } catch (e) {
       console.error('Error fetching summaries:', e);
     } finally {
@@ -991,7 +985,7 @@ function GradingPage() {
       setHasMore(true);
       setIsLoadingMore(false);
       setApiSummariesPoints([]);
-      setPreExistingCountsCache({});
+
       setAppliedSemester(selectedSemester);
       setAppliedDepartment(selectedDepartment);
       setAppliedClass(selectedClass);
@@ -1088,15 +1082,7 @@ function GradingPage() {
       }
     });
 
-    // Merge pre-existing counts cho tiêu chí chưa có evaluation_detail
-    const preCounts = preExistingCountsCache[student.summaryId];
-    if (preCounts) {
-      Object.entries(preCounts).forEach(([criId, preCount]) => {
-        if (!evaluatedCriteriaIds.has(criId) && preCount.current_count > 0) {
-          evaluationCountsMap[student.id][criId] = preCount.current_count;
-        }
-      });
-    }
+
   });
 
   const columns: ResponsiveColumn<any>[] = [
@@ -1162,10 +1148,8 @@ function GradingPage() {
         const userRoleLower = currentUser?.role?.toLowerCase() || '';
         const canApprove = userRoleLower.includes('admin') || userRoleLower.includes('supervisor') || userRoleLower.includes('quản sinh');
         const isApproved = student.status === 'locked';
-        const studentPreCounts = preExistingCountsCache[student.summaryId];
-        const hasPreCounts = studentPreCounts ? Object.values(studentPreCounts).some((pc: any) => (pc.current_count || 0) > 0) : false;
         const hasDetails = (student.details || []).some((detail: any) => (detail.current_count || 0) > 0);
-        const hasEvaluations = hasDetails || hasPreCounts;
+        const hasEvaluations = hasDetails;
 
         return (
           <div className="flex gap-2 justify-end items-center" onClick={(e) => e.stopPropagation()}>

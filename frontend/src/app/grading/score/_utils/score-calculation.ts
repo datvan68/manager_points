@@ -176,7 +176,6 @@ export const getRecordDerivedCriterionScore = (
 
 export const mergeDetailsWithPreExistingCounts = (
   details: any[],
-  preExistingCounts: Record<string, any> | undefined | null,
   isLocked: boolean
 ) => {
   const counts: Record<string, number> = {};

@@ -78,6 +78,15 @@ export class AcademicRecord {
 
   @Prop({ type: String, required: false, default: 'manual' })
   source?: string;
+
+  @Prop({ type: String, required: false })
+  selected_option_id?: string;
+
+  @Prop({ type: String, required: false })
+  selected_option_label?: string;
+
+  @Prop({ type: Number, required: false })
+  selected_option_score?: number;
 }
 
 export const AcademicRecordSchema =

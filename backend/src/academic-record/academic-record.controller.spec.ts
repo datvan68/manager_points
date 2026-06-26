@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { AcademicRecordController } from './academic-record.controller';
 import { AcademicRecordService } from './academic-record.service';
 import { ImportAcademicRecordRequestDto, ImportAcademicRecordCommitDto } from './dto/import-academic-record.dto';
+import { IntentScoreDto } from './dto/intent-score.dto';
 import { Types } from 'mongoose';
 
 describe('AcademicRecordController - Import Flow', () => {
@@ -79,6 +81,58 @@ describe('AcademicRecordController - Import Flow', () => {
 
       expect(service.getImportProgress).toHaveBeenCalledWith(sessionId);
       expect(result).toEqual(expectedProgress);
+    });
+  });
+
+  describe('DTO Validation (ValidationPipe)', () => {
+    let validationPipe: ValidationPipe;
+
+    beforeEach(() => {
+      validationPipe = new ValidationPipe({ transform: true, whitelist: true });
+    });
+
+    it('should throw BadRequestException when intentDto contains invalid student_id (e.g. "SV001" instead of ObjectId)', async () => {
+      const invalidDto = {
+        student_id: 'SV001', // Không phải MongoDB ObjectId
+        criterion_id: new Types.ObjectId().toString(),
+        semester_id: new Types.ObjectId().toString(),
+        intent_type: 'increase',
+      };
+
+      await expect(
+        validationPipe.transform(invalidDto, {
+          type: 'body',
+          metatype: IntentScoreDto,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      
+      try {
+        await validationPipe.transform(invalidDto, {
+          type: 'body',
+          metatype: IntentScoreDto,
+        });
+      } catch (error) {
+        expect(error).toBeInstanceOf(BadRequestException);
+        const response = error.getResponse();
+        expect(response.message).toContain('student_id phải là MongoDB ObjectId của sinh viên, không phải MSSV');
+      }
+    });
+
+    it('should pass ValidationPipe when student_id is a valid MongoDB ObjectId', async () => {
+      const validDto = {
+        student_id: new Types.ObjectId().toString(), // Hợp lệ
+        criterion_id: new Types.ObjectId().toString(),
+        semester_id: new Types.ObjectId().toString(),
+        intent_type: 'increase',
+      };
+
+      const result = await validationPipe.transform(validDto, {
+        type: 'body',
+        metatype: IntentScoreDto,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.student_id).toEqual(validDto.student_id);
     });
   });
 });

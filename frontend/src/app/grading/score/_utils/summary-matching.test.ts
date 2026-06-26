@@ -32,7 +32,6 @@ describe("Summary Matching Utility Tests", () => {
       const index = buildSummaryIndex(mockSummaries);
 
       expect(index.get("db-student-id-1")).toEqual(mockSummaries[0]);
-      expect(index.get("sv001")).toEqual(mockSummaries[0]);
       expect(index.get("id-1")).toEqual(mockSummaries[0]);
       expect(index.get("db-student-id-2")).toEqual(mockSummaries[1]);
       
@@ -55,11 +54,9 @@ describe("Summary Matching Utility Tests", () => {
       ];
       const index = buildSummaryIndex(mockSummaries);
 
-      const studentByCode = { student_code: "SV001" };
       const studentByDbId = { _id: "db-student-id-1" };
       const studentById = { id: "db-student-id-1" };
 
-      expect(findSummaryForStudent(studentByCode, index)).toEqual(mockSummaries[0]);
       expect(findSummaryForStudent(studentByDbId, index)).toEqual(mockSummaries[0]);
       expect(findSummaryForStudent(studentById, index)).toEqual(mockSummaries[0]);
     });
@@ -112,14 +109,16 @@ describe("Summary Matching Utility Tests", () => {
       expect(mapped).toHaveLength(2);
 
       // Student 1 has summary
-      expect(mapped[0].id).toBe("SV001");
+      expect(mapped[0].id).toBe("stud-id-1");
+      expect(mapped[0].studentCode).toBe("SV001");
       expect(mapped[0].score).toBe(85);
       expect(mapped[0].gradingStatus).toBe("locked");
       expect(mapped[0].classId).toBe("class-1");
       expect(mapped[0].className).toBe("Lop 1A");
 
       // Student 2 misses summary -> should map to 'no_summary'
-      expect(mapped[1].id).toBe("SV002");
+      expect(mapped[1].id).toBe("stud-id-2");
+      expect(mapped[1].studentCode).toBe("SV002");
       expect(mapped[1].score).toBe(0);
       expect(mapped[1].gradingStatus).toBe("no_summary");
     });

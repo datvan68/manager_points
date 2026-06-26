@@ -42,6 +42,7 @@ import { summariesPointApi } from "@/api/summaries-point-api";
 import { criteriaApi } from "@/api/criteria-api";
 import { categoryApi } from "@/api/category-api";
 import { evaluationDetailApi } from "@/api/evaluation-detail-api";
+import { academicRecordApi } from "@/api/academic-record-api";
 import { semesterApi } from "@/api/semester-api";
 import { classApi } from "@/api/class-api";
 import { studentApi, Student } from "@/api/student-api";
@@ -138,7 +139,7 @@ const StudentSliderCard = React.memo(({
           {!isStudentSliderSticky && (
             <div className="flex items-center justify-between mt-0.5 w-full min-w-0">
               <span className="text-[#64748B] text-[11px] font-medium truncate">
-                MSSV: {student.id}
+                MSSV: {student.studentCode || student.id}
               </span>
               {renderGradingStatusBadge(student.gradingStatus)}
             </div>
@@ -867,7 +868,8 @@ function GradingScoreContent() {
       list = list.filter(
         (s) =>
           s.name.toLowerCase().includes(searchLower) ||
-          s.id.toLowerCase().includes(searchLower)
+          s.id.toLowerCase().includes(searchLower) ||
+          (s.studentCode && s.studentCode.toLowerCase().includes(searchLower))
       );
     }
     return list;
@@ -981,15 +983,10 @@ function GradingScoreContent() {
     });
   };
 
-  // State lưu lại giá trị gốc có sẵn (pre-existing) — { studentId: { criterionId: { original_count, current_count } } }
-  const [preExistingCountsState, setPreExistingCountsState] = useState<
-    Record<
-      string,
-      Record<string, { original_count: number; current_count: number; non_deletable_count?: number; deletable_count?: number; }>
-    >
-  >({});
+
 
   // State lưu lịch sử ghi nhận
+  const [pendingIntentKeys, setPendingIntentKeys] = useState<Record<string, boolean>>({});
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
   const [historyPage, setHistoryPage] = useState(1);
   const [isHistoryFetching, setIsHistoryFetching] = useState(false);
@@ -1164,7 +1161,7 @@ function GradingScoreContent() {
         const summaryIndex = buildSummaryIndex(summariesData);
         const summaryMap: Record<string, string> = {};
         filteredStudents.forEach((student) => {
-          const studentId = student.student_code || student._id || "";
+          const studentId = student._id || student.id || "";
           if (studentId) {
             const summary = findSummaryForStudent(student, summaryIndex);
             if (summary && summary._id) {
@@ -1291,9 +1288,9 @@ function GradingScoreContent() {
             if (resolvedStudentId) {
               params.studentId = resolvedStudentId;
             } else {
-              const studentCode = currentUser?.student_code || currentUser?.username || "";
-              if (studentCode) {
-                params.studentId = studentCode;
+              const studentObjectId = currentUser?._id || currentUser?.id || "";
+              if (studentObjectId) {
+                params.studentId = studentObjectId;
               }
             }
           } else if (currentUserRole === "teacher") {
@@ -1318,7 +1315,7 @@ function GradingScoreContent() {
             const myStudent = await studentApi.getMyStudent();
             if (myStudent) {
               filteredStudents = [myStudent];
-              resolvedStudentIdForSummaryLookup = myStudent.student_code || myStudent._id || "";
+              resolvedStudentIdForSummaryLookup = myStudent._id || myStudent.id || "";
             }
           } catch (err) {
             console.error("Failed to load current student profile:", err);
@@ -1401,7 +1398,7 @@ function GradingScoreContent() {
         const summaryIndex = buildSummaryIndex(summariesData);
         const summaryMap: Record<string, string> = {};
         filteredStudents.forEach((student) => {
-          const studentId = student.student_code || student._id || "";
+          const studentId = student._id || student.id || "";
           if (studentId) {
             const summary = findSummaryForStudent(student, summaryIndex);
             if (summary && summary._id) {
@@ -1433,26 +1430,20 @@ function GradingScoreContent() {
         if (targetActiveId) {
           const activeSummaryId = summaryMap[targetActiveId];
           if (activeSummaryId) {
-            const [details, preExistingCounts] = await Promise.all([
+            const [details] = await Promise.all([
               evaluationDetailApi.getEvaluationDetailsBySummary(
                 activeSummaryId,
                 true
-              ),
-              evaluationDetailApi.getPreExistingCounts(activeSummaryId),
+              )
             ]);
             const isLocked = mappedStudents.find((s) => s.id === targetActiveId)?.gradingStatus === "locked";
             
-            const merged = mergeDetailsWithPreExistingCounts(details, preExistingCounts, isLocked);
+            const merged = mergeDetailsWithPreExistingCounts(details, isLocked);
             const activeHistory = mapDetailsToHistoryRecords(details, targetActiveId, categories);
 
             setEvaluationDetailsMap(merged.detailsMap);
 
-            if (preExistingCounts) {
-              setPreExistingCountsState((prev) => ({
-                ...prev,
-                [targetActiveId]: preExistingCounts,
-              }));
-            }
+            // removed preExistingCountsState
 
             setEvaluationCounts((prev) => ({
               ...prev,
@@ -1499,9 +1490,8 @@ function GradingScoreContent() {
         const studentIdAtRequest = activeStudentId;
         const seq = ++detailLoadSeqRef.current;
         const currentRev = revisionRef.current[studentIdAtRequest] || 0;
-        const [details, preExistingCounts] = await Promise.all([
-          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true),
-          evaluationDetailApi.getPreExistingCounts(summaryId),
+        const [details] = await Promise.all([
+          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true)
         ]);
         
         // Guard check: Nếu có thao tác edit local trong khi chờ API, bỏ qua ghi đè
@@ -1515,17 +1505,12 @@ function GradingScoreContent() {
         }
 
         const isLocked = students.find((s) => s.id === studentIdAtRequest)?.gradingStatus === "locked";
-        const merged = mergeDetailsWithPreExistingCounts(details, preExistingCounts, isLocked);
+        const merged = mergeDetailsWithPreExistingCounts(details, isLocked);
         const activeHistory = mapDetailsToHistoryRecords(details, studentIdAtRequest, categories);
 
         setEvaluationDetailsMap(merged.detailsMap);
 
-        if (preExistingCounts) {
-          setPreExistingCountsState((prev) => ({
-            ...prev,
-            [studentIdAtRequest]: preExistingCounts,
-          }));
-        }
+        // removed preExistingCountsState
 
         setEvaluationCounts((prev) => ({
           ...prev,
@@ -1596,9 +1581,23 @@ function GradingScoreContent() {
     }
   };
 
-  // Hàm thay đổi số lượng chấm của tiêu chí
-  const handleCountChange = (criteriaId: string, delta: number) => {
-    if (!activeStudentId) return;
+  const isMongoObjectId = (value: string) => /^[a-f\d]{24}$/i.test(value);
+
+  const applyScoreIntent = async (
+    criteriaId: string,
+    intentType: "increase" | "decrease" | "set_target_count" | "select_option",
+    value?: number | string
+  ) => {
+    if (!activeStudentId || !selectedSemesterId) return;
+    
+    if (!isMongoObjectId(activeStudentId)) {
+      toast.error("Không xác định được ID sinh viên hợp lệ để chấm điểm.");
+      return;
+    }
+
+    // Nếu criterion này đang pending request, bỏ qua để tránh double click
+    const intentKey = `${activeStudentId}:${criteriaId}`;
+    if (pendingIntentKeys[intentKey]) return;
 
     markStudentDirty(activeStudentId);
 
@@ -1610,120 +1609,147 @@ function GradingScoreContent() {
       });
     }
 
-    const minCount = 0;
+    // Khoá state tránh double click
+    setPendingIntentKeys(prev => ({ ...prev, [intentKey]: true }));
 
-    setEvaluationCounts((prev) => {
-      const studentCounts = prev[activeStudentId]
-        ? { ...prev[activeStudentId] }
-        : {};
-      const currentCount = studentCounts[criteriaId] ?? 0;
-      const newCount = Math.max(minCount, currentCount + delta); // không giảm dưới 0
+    // Backup state cũ phòng khi rollback
+    const backupCount = evaluationCounts[activeStudentId]?.[criteriaId] ?? 0;
+    const backupOption = selectedOptionsState[activeStudentId]?.[criteriaId];
 
-      const updatedCounts = {
-        ...prev,
-        [activeStudentId]: {
-          ...studentCounts,
-          [criteriaId]: newCount,
-        },
-      };
+    try {
+      let target_count: number | undefined = undefined;
+      let selected_option_id: string | undefined = undefined;
 
-      evaluationCountsRef.current = updatedCounts;
+      if (intentType === "set_target_count" && typeof value === "number") {
+        target_count = value;
+      } else if (intentType === "select_option") {
+        selected_option_id = value === "none" ? undefined : (value as string);
+      }
 
-      // Tự động tính toán lại điểm số realtime của sinh viên này
-      calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId]);
+      const res = await academicRecordApi.sendIntent({
+        student_id: activeStudentId,
+        semester_id: selectedSemesterId,
+        criterion_id: criteriaId,
+        intent_type: intentType,
+        target_count,
+        selected_option_id,
+        note: "Chấm điểm từ /grading/score",
+      });
 
-      return updatedCounts;
-    });
+      if (res.success) {
+        // Cập nhật actual_count
+        setEvaluationCounts(prev => {
+          const studentCounts = prev[activeStudentId] ? { ...prev[activeStudentId] } : {};
+          studentCounts[criteriaId] = res.actual_count;
+          const updated = { ...prev, [activeStudentId]: studentCounts };
+          evaluationCountsRef.current = updated;
+          calculateRealtimeScore(activeStudentId, updated[activeStudentId], selectedOptionsStateRef.current[activeStudentId]);
+          return updated;
+        });
+
+        if (intentType === "select_option") {
+          setSelectedOptionsState(prev => {
+            const studentOptions = prev[activeStudentId] ? { ...prev[activeStudentId] } : {};
+            if (value === "none") delete studentOptions[criteriaId];
+            else studentOptions[criteriaId] = value as string;
+            const updated = { ...prev, [activeStudentId]: studentOptions };
+            selectedOptionsStateRef.current = updated;
+            calculateRealtimeScore(activeStudentId, evaluationCountsRef.current[activeStudentId], updated[activeStudentId]);
+            return updated;
+          });
+        }
+
+        // Cập nhật lại evaluation detail map
+        if (res.evaluation_detail) {
+          setEvaluationDetailsMap(prev => {
+            const mapObj = { ...prev };
+            if (!mapObj[activeStudentId]) mapObj[activeStudentId] = [];
+            
+            const existingIdx = mapObj[activeStudentId].findIndex(
+              (d: any) => getEntityId(d.criterion_id) === criteriaId
+            );
+            
+            if (existingIdx >= 0) {
+              mapObj[activeStudentId][existingIdx] = res.evaluation_detail;
+            } else {
+              mapObj[activeStudentId].push(res.evaluation_detail);
+            }
+            return mapObj;
+          });
+        } else {
+          // Xoá detail khỏi map nếu count = 0
+          setEvaluationDetailsMap(prev => {
+            if (!prev[activeStudentId]) return prev;
+            return {
+              ...prev,
+              [activeStudentId]: prev[activeStudentId].filter(
+                (d: any) => getEntityId(d.criterion_id) !== criteriaId
+              )
+            };
+          });
+        }
+
+        // Kiểm tra trạng thái sync và hiển thị cảnh báo phù hợp
+        if (res.sync_status === 'summary_locked') {
+          toast.warning("Bảng điểm đang bị khóa nên thay đổi chưa được đồng bộ vào chi tiết điểm.");
+        } else if (res.sync_status === 'summary_missing') {
+          toast.warning("Chưa tìm thấy bảng điểm tổng hợp để đồng bộ chi tiết điểm.");
+        } else {
+          // sync_status === 'synced', check xem detail có khớp count/option thực tế không
+          if (intentType === "select_option") {
+            const expectedOptionId = value === "none" ? undefined : (value as string);
+            const detailOptionId = res.evaluation_detail?.selected_option_id;
+            const isMatch = expectedOptionId ? (detailOptionId === expectedOptionId) : (!detailOptionId);
+            if (!isMatch) {
+              toast.warning("Thay đổi đã được ghi nhận vào academic_record nhưng chi tiết điểm chưa đồng bộ đúng. Vui lòng tải lại hoặc kiểm tra sync.");
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.status === 403) {
+        toast.error("Bạn không có quyền cập nhật tiêu chí này.");
+      } else {
+        toast.error(err.message || "Lỗi khi cập nhật điểm!");
+      }
+      // Rollback
+      setEvaluationCounts(prev => {
+        const studentCounts = prev[activeStudentId] ? { ...prev[activeStudentId] } : {};
+        studentCounts[criteriaId] = backupCount;
+        const updated = { ...prev, [activeStudentId]: studentCounts };
+        evaluationCountsRef.current = updated;
+        calculateRealtimeScore(activeStudentId, updated[activeStudentId], selectedOptionsStateRef.current[activeStudentId]);
+        return updated;
+      });
+
+      if (intentType === "select_option") {
+        setSelectedOptionsState(prev => {
+          const studentOptions = prev[activeStudentId] ? { ...prev[activeStudentId] } : {};
+          if (!backupOption) delete studentOptions[criteriaId];
+          else studentOptions[criteriaId] = backupOption;
+          const updated = { ...prev, [activeStudentId]: studentOptions };
+          selectedOptionsStateRef.current = updated;
+          calculateRealtimeScore(activeStudentId, evaluationCountsRef.current[activeStudentId], updated[activeStudentId]);
+          return updated;
+        });
+      }
+    } finally {
+      setPendingIntentKeys(prev => ({ ...prev, [intentKey]: false }));
+    }
+  };
+
+  // Hàm thay đổi số lượng chấm của tiêu chí
+  const handleCountChange = (criteriaId: string, delta: number) => {
+    applyScoreIntent(criteriaId, delta > 0 ? "increase" : "decrease");
   };
 
   // Hàm gán trực tiếp số lượng chấm của tiêu chí (dùng cho thanh trượt Slider)
   const handleCountSet = (criteriaId: string, value: number) => {
-    if (!activeStudentId) return;
-
-    markStudentDirty(activeStudentId);
-
-    const summaryId = studentSummaryMap[activeStudentId];
-    if (resolvedTaskId && summaryId) {
-      markStarted({ sourceId: summaryId, assigneeStudentId: activeStudentId }).catch((err) => {
-        toast.warning("Không thể tự động đồng bộ trạng thái nhiệm vụ sang 'Đang làm'!");
-        console.warn("Failed to sync task in_progress status:", err);
-      });
-    }
-
-    const minCount = 0;
-
-    setEvaluationCounts((prev) => {
-      const studentCounts = prev[activeStudentId]
-        ? { ...prev[activeStudentId] }
-        : {};
-      const newCount = Math.max(minCount, value); // không giảm dưới 0
-
-      const updatedCounts = {
-        ...prev,
-        [activeStudentId]: {
-          ...studentCounts,
-          [criteriaId]: newCount,
-        },
-      };
-
-      evaluationCountsRef.current = updatedCounts;
-
-      // Tự động tính toán lại điểm số realtime của sinh viên này
-      calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId], selectedOptionsState[activeStudentId] || {});
-
-      return updatedCounts;
-    });
+    applyScoreIntent(criteriaId, "set_target_count", value);
   };
 
   const handleOptionSet = (criteriaId: string, optionId: string) => {
-    if (!activeStudentId) return;
-
-    markStudentDirty(activeStudentId);
-
-    const summaryId = studentSummaryMap[activeStudentId];
-    if (resolvedTaskId && summaryId) {
-      markStarted({ sourceId: summaryId, assigneeStudentId: activeStudentId }).catch((err) => {
-        toast.warning("Không thể tự động đồng bộ trạng thái nhiệm vụ sang 'Đang làm'!");
-      });
-    }
-
-    setSelectedOptionsState((prev) => {
-      const studentOptions = prev[activeStudentId] ? { ...prev[activeStudentId] } : {};
-      
-      if (optionId === "none") {
-        delete studentOptions[criteriaId];
-      } else {
-        studentOptions[criteriaId] = optionId;
-      }
-
-      const updatedOptions = {
-        ...prev,
-        [activeStudentId]: studentOptions,
-      };
-
-      selectedOptionsStateRef.current = updatedOptions;
-
-      setEvaluationCounts((prevCounts) => {
-        const studentCounts = prevCounts[activeStudentId] ? { ...prevCounts[activeStudentId] } : {};
-        
-        if (optionId === "none") {
-          studentCounts[criteriaId] = 0;
-        } else {
-          studentCounts[criteriaId] = optionId ? 1 : 0;
-        }
-
-        const updatedCounts = {
-          ...prevCounts,
-          [activeStudentId]: studentCounts,
-        };
-        
-        evaluationCountsRef.current = updatedCounts;
-        calculateRealtimeScore(activeStudentId, updatedCounts[activeStudentId], updatedOptions[activeStudentId]);
-        return updatedCounts;
-      });
-
-      return updatedOptions;
-    });
+    applyScoreIntent(criteriaId, "select_option", optionId);
   };
 
   // Tính điểm thời gian thực dựa trên các lần thực hiện tiêu chí
@@ -1764,12 +1790,7 @@ function GradingScoreContent() {
             newCounts[cri.id] = currentCounts[cri.id];
           }
         } else {
-          // Lấy lại giá trị pre-existing nếu có, nếu không thì = 0 (tránh xoá record ghi nhận hàng ngày)
-          const studentPreCounts =
-            preExistingCountsState[activeStudentId] || {};
-          if (studentPreCounts[cri.id]) {
-            newCounts[cri.id] = studentPreCounts[cri.id].current_count;
-          }
+          newCounts[cri.id] = 0;
         }
       });
     });
@@ -1807,148 +1828,94 @@ function GradingScoreContent() {
     // 1. Tải các chi tiết cũ của summaryId này
     const oldDetails = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true);
 
-    // 2. Gom các thay đổi vào payload bulk upsert
-    const payloads: any[] = [];
+    // 2. Gom các thay đổi và gửi lên backend qua intent
+    const intents: Promise<any>[] = [];
+
+    const summary = students.find((s) => s.id === studentId);
+    const activeSemesterId = selectedSemesterId;
 
     categories.forEach((cat) => {
       cat.items.forEach((cri) => {
-        // Nếu tiêu chí này nằm trong tập hợp bỏ qua (skip), không thay đổi gì cả
         if (options?.skipCriterionIds?.has(cri.id)) {
           return;
         }
 
         const count = counts[cri.id] ?? 0;
         const selectedOptionId = selectedOptionsSnapshot[cri.id] || null;
-        const optionObj = cri.scoring_mode === 'single_option' && selectedOptionId ? cri.options?.find(o => o.id === selectedOptionId) : null;
         
-        // Tìm xem tiêu chí này đã có EvaluationDetail cũ chưa
         const existingDetail = (oldDetails || []).find((d) => {
-          const detailCriId =
-            typeof d.criterion_id === "object"
-              ? d.criterion_id?._id
-              : d.criterion_id;
+          const detailCriId = typeof d.criterion_id === "object" ? d.criterion_id?._id : d.criterion_id;
           return detailCriId === cri.id;
         });
 
         const isCountChanged = existingDetail?.current_count !== count;
         const isOptionChanged = cri.scoring_mode === 'single_option' && existingDetail?.selected_option_id !== selectedOptionId;
 
-        if (existingDetail) {
-          // Nếu số lần khác nhau (có thay đổi)
-          if (isCountChanged || isOptionChanged) {
-            const calculatedScore = calculateCriterionScore(cri, count, selectedOptionId);
-
-            const updatedHistory = [...(existingDetail.log || [])];
-            updatedHistory.push({
-              from_status: existingDetail.status || "draft",
-              to_status: detailStatus,
-              score_before: existingDetail.system_score || 0,
-              score_after: calculatedScore,
-              count,
-              updated_by: currentUser?.id,
-              reason: optionObj ? `${reason} (Đã chọn: ${optionObj.label})`.trim() : reason,
-            });
-
-            // Lọc sạch lịch sử để khớp chính xác DTO ở Backend
-            const cleanLog = updatedHistory.map((log: any) => ({
-              from_status: log.from_status || "draft",
-              to_status: log.to_status || "draft",
-              score_before: log.score_before !== undefined ? log.score_before : 0,
-              score_after: log.score_after !== undefined ? log.score_after : 0,
-              count: log.count !== undefined
-                ? log.count
-                : Math.round((log.score_after || 0) / cri.pointsPerUnit),
-              updated_by: typeof log.updated_by === "object"
-                ? log.updated_by?._id
-                : log.updated_by,
-              reason: log.reason || reason,
+        if (isCountChanged || isOptionChanged) {
+          if (cri.scoring_mode === 'single_option') {
+            intents.push(academicRecordApi.sendIntent({
+              student_id: studentId,
+              criterion_id: cri.id,
+              semester_id: activeSemesterId,
+              intent_type: 'select_option',
+              selected_option_id: selectedOptionId,
+              note: reason,
+            }).then(res => {
+              if (res.success) {
+                if (res.sync_status === 'summary_locked') {
+                  toast.warning(`Tiêu chí "${cri.name}": Bảng điểm đang bị khóa nên thay đổi chưa được đồng bộ vào chi tiết điểm.`);
+                } else if (res.sync_status === 'summary_missing') {
+                  toast.warning(`Tiêu chí "${cri.name}": Chưa tìm thấy bảng điểm tổng hợp để đồng bộ chi tiết điểm.`);
+                } else {
+                  const detailOptionId = res.evaluation_detail?.selected_option_id;
+                  const isMatch = selectedOptionId ? (detailOptionId === selectedOptionId) : (!detailOptionId);
+                  if (!isMatch) {
+                    toast.warning(`Thay đổi tại tiêu chí "${cri.name}" đã được ghi nhận vào academic_record nhưng chi tiết điểm chưa đồng bộ đúng. Vui lòng tải lại hoặc kiểm tra sync.`);
+                  }
+                }
+              }
+            }).catch(err => {
+              if (err.status === 403) {
+                toast.error(`Bạn không có quyền cập nhật tiêu chí "${cri.name}".`);
+              } else {
+                toast.error(`Lỗi cập nhật tiêu chí "${cri.name}": ${err.message}`);
+              }
             }));
-
-            const payload: any = {
-                criterion_id: cri.id,
-                current_count: count,
-                log: cleanLog,
-                status: detailStatus,
-                selected_option_id: selectedOptionId,
-                selected_option_label: optionObj ? optionObj.label : null,
-                selected_option_score: optionObj ? optionObj.score : null,
-            };
-            if (userRole === "student") {
-              payload.sv_score = calculatedScore;
-              payload.sv_submitted_at = new Date();
-            } else {
-              payload.gv_score = calculatedScore;
-              payload.gv_reviewed_at = new Date();
-              payload.gv_reviewed_by = currentUser?.id;
-            }
-            payloads.push(payload);
-          }
-        } else {
-          // Nếu chưa có và count > 0 (hoặc có selectedOptionId), ta tiến hành tạo mới
-          if (count > 0 || selectedOptionId) {
-            const calculatedScore = calculateCriterionScore(cri, count, selectedOptionId);
-
-            const payload: any = {
-                criterion_id: cri.id,
-                current_count: count,
-                log: [
-                  {
-                    from_status: "draft",
-                    to_status: detailStatus,
-                    score_before: 0,
-                    score_after: calculatedScore,
-                    count,
-                    updated_by: currentUser?.id,
-                    reason: optionObj ? `${reason} (Đã chọn: ${optionObj.label})`.trim() : reason,
-                  },
-                ],
-                status: detailStatus,
-                selected_option_id: selectedOptionId,
-                selected_option_label: optionObj ? optionObj.label : null,
-                selected_option_score: optionObj ? optionObj.score : null,
-            };
-            if (userRole === "student") {
-              payload.sv_score = calculatedScore;
-              payload.sv_submitted_at = new Date();
-            } else {
-              payload.gv_score = calculatedScore;
-              payload.gv_reviewed_at = new Date();
-              payload.gv_reviewed_by = currentUser?.id;
-            }
-            payloads.push(payload);
+          } else {
+            intents.push(academicRecordApi.sendIntent({
+              student_id: studentId,
+              criterion_id: cri.id,
+              semester_id: activeSemesterId,
+              intent_type: 'set_target_count',
+              target_count: count,
+              note: reason,
+            }).then(res => {
+              if (res.actual_count !== count) {
+                toast.warning(`Tiêu chí "${cri.name}" chỉ cập nhật được thành ${res.actual_count} lần (không thể giảm thêm do quyền hạn hoặc báo cáo ngày).`);
+              }
+            }).catch(err => {
+              if (err.status === 403) {
+                toast.error(`Bạn không có quyền cập nhật tiêu chí "${cri.name}".`);
+              } else {
+                toast.error(`Lỗi cập nhật tiêu chí "${cri.name}": ${err.message}`);
+              }
+            }));
           }
         }
       });
     });
 
-    if (payloads.length > 0) {
-      const res = await evaluationDetailApi.bulkUpsertEvaluationDetails({
-        summary_id: summaryId,
-        details: payloads,
-        reason
-      });
-      
-      if (res && res.clampResults && res.clampResults.length > 0) {
-        res.clampResults.forEach((clamp: any) => {
-          const cri = categories.flatMap((c: any) => c.items).find((i: any) => i.id === clamp.criterion_id);
-          const criName = cri ? cri.name : "Tiêu chí";
-          if (clamp.daily_report_count > 0) {
-            toast.warning(`Không thể giảm "${criName}" dưới ${clamp.non_deletable_count} lần do có ${clamp.daily_report_count} vi phạm từ báo cáo ngày.`);
-          } else {
-            toast.warning(`Không thể giảm "${criName}" dưới ${clamp.non_deletable_count} lần do vướng record không được phép xóa.`);
-          }
-        });
-      }
+    if (intents.length > 0) {
+      await Promise.allSettled(intents);
     }
 
     // 3. Lấy lại chi tiết chấm điểm mới
-    const [freshDetails, freshPreExistingCounts] = await Promise.all([
-      evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true),
-      evaluationDetailApi.getPreExistingCounts(summaryId),
+    const [freshDetails] = await Promise.all([
+      evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true)
     ]);
 
     const isLocked = students.find((s) => s.id === studentId)?.gradingStatus === "locked";
-    const merged = mergeDetailsWithPreExistingCounts(freshDetails, freshPreExistingCounts, isLocked);
+    const merged = mergeDetailsWithPreExistingCounts(freshDetails, isLocked);
     
     const freshCounts = merged.counts;
     const freshDetailsMap = merged.detailsMap;
@@ -1969,7 +1936,7 @@ function GradingScoreContent() {
       finalGrading = "CHƯA XẾP LOẠI";
     }
     
-    if (payloads.length > 0 || (clampedFinalScore === 0 && finalGrading === "CHƯA XẾP LOẠI")) {
+    if (intents.length > 0 || (clampedFinalScore === 0 && finalGrading === "CHƯA XẾP LOẠI")) {
       await summariesPointApi.updateSummariesPoint(summaryId, summaryPayload);
     }
 
@@ -1977,7 +1944,7 @@ function GradingScoreContent() {
       score: clampedFinalScore,
       grading: finalGrading,
       freshCounts,
-      freshPreExistingCounts,
+      freshPreExistingCounts: undefined,
       freshHistory,
       freshDetailsMap,
     };
@@ -2048,10 +2015,7 @@ function GradingScoreContent() {
         ]);
       }
 
-      setPreExistingCountsState((prev) => ({
-        ...prev,
-        [studentId]: result.freshPreExistingCounts || {},
-      }));
+
 
       setStudents((prev) =>
         prev.map((std) =>
@@ -2203,8 +2167,6 @@ function GradingScoreContent() {
     if (targetSummaryIds.length === 0) return [];
 
     try {
-      // 2. Load pre-existing counts bulk
-      const bulkPreExisting = await evaluationDetailApi.getPreExistingCountsBulk(targetSummaryIds);
 
       // Lấy source counts đang có trên màn hình
       const sourceCounts = evaluationCounts[activeStudentId] || {};
@@ -2229,7 +2191,6 @@ function GradingScoreContent() {
         }
 
         try {
-          const targetPreCounts = bulkPreExisting[targetSummaryId] || {};
 
           // Xác định các tiêu chí cần skip cho sinh viên đích này
           const skipCriterionIds = new Set<string>();
@@ -2241,12 +2202,7 @@ function GradingScoreContent() {
                 return;
               }
 
-              // 2. Nếu điểm nguồn thấp hơn mức tối thiểu học bạ (original_count) của sinh viên đích
-              const targetMin = currentUserRole === 'admin' ? 0 : (targetPreCounts[cri.id]?.non_deletable_count ?? targetPreCounts[cri.id]?.original_count ?? 0);
-              const srcCount = sourceCounts[cri.id] ?? 0;
-              if (srcCount < targetMin) {
-                skipCriterionIds.add(cri.id);
-              }
+              // (Removed client-side original_count check. Backend will clamp if not Admin)
             });
           });
 
@@ -2266,10 +2222,7 @@ function GradingScoreContent() {
             ...prev,
             [targetId]: persistResult.freshCounts,
           }));
-          setPreExistingCountsState((prev) => ({
-            ...prev,
-            [targetId]: persistResult.freshPreExistingCounts || {},
-          }));
+
           setHistoryRecords((prev) => [
             ...persistResult.freshHistory,
             ...prev.filter((record) => record.studentId !== targetId),
@@ -2482,12 +2435,11 @@ function GradingScoreContent() {
       }
 
       const summaryId = studentSummaryMap[activeStudentId];
-      const [freshDetails, freshPreExistingCounts] = summaryId
+      const [freshDetails] = summaryId
         ? await Promise.all([
-          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true),
-          evaluationDetailApi.getPreExistingCounts(summaryId),
+          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true)
         ])
-        : [[], {}];
+        : [[]];
 
       const freshCounts: Record<string, number> = {};
       const freshDetailsMap: Record<string, any> = {};
@@ -2510,10 +2462,7 @@ function GradingScoreContent() {
         [activeStudentId]: freshCounts,
       }));
       setEvaluationDetailsMap(freshDetailsMap);
-      setPreExistingCountsState((prev) => ({
-        ...prev,
-        [activeStudentId]: freshPreExistingCounts || {},
-      }));
+
       setHistoryRecords((prev) => [
         ...freshHistory,
         ...prev.filter((record) => record.studentId !== activeStudentId),
@@ -3163,13 +3112,11 @@ function GradingScoreContent() {
                                 ? getResolvedCriterionScore(item, count, selectedOptionId, detail)
                                 : getCriterionContributionScore(item, count, selectedOptionId);
 
-                            const studentPreCounts =
-                              preExistingCountsState[activeStudentId] || {};
                             const minCount = 0;
                             const maxScore = item.maxScore ?? 10;
                             const pointsPerUnit = Math.abs(item.pointsPerUnit || 1);
                             const maxCount = Math.max(minCount, Math.ceil(maxScore / pointsPerUnit));
-                            const sliderMax = Math.max(maxCount, count);
+                            const sliderMax = Math.max(maxCount, count + 1);
                             const numbers = [];
                             for (let i = minCount; i <= sliderMax; i++) {
                               numbers.push(i);
@@ -3267,10 +3214,11 @@ function GradingScoreContent() {
                                         <Select
                                           value={selectedOptionsState[activeStudentId]?.[item.id] || ""}
                                           onValueChange={(val: string) => handleOptionSet(item.id, val)}
+                                          disabled={item.is_locked || !canModifyScore || pendingIntentKeys[`${activeStudentId}:${item.id}`]}
                                         >
                                           <SelectTrigger
                                             className={`w-full h-[40px] text-[13px] font-medium text-[#1E293B] ${
-                                              item.is_locked || !canModifyScore
+                                              item.is_locked || !canModifyScore || pendingIntentKeys[`${activeStudentId}:${item.id}`]
                                                 ? "opacity-60 bg-slate-100/50 cursor-not-allowed pointer-events-none"
                                                 : "cursor-pointer hover:bg-white/80"
                                             }`}
@@ -3301,11 +3249,13 @@ function GradingScoreContent() {
                                           disabled={
                                             count <= minCount ||
                                             item.is_locked ||
-                                            !canModifyScore
+                                            !canModifyScore ||
+                                            pendingIntentKeys[`${activeStudentId}:${item.id}`]
                                           }
                                           className={`w-8 h-8 md:w-7 md:h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count <= minCount ||
                                             item.is_locked ||
-                                            !canModifyScore
+                                            !canModifyScore ||
+                                            pendingIntentKeys[`${activeStudentId}:${item.id}`]
                                             ? "opacity-30 cursor-not-allowed text-slate-400"
                                             : "cursor-pointer " +
                                             (hasViolation
@@ -3330,7 +3280,7 @@ function GradingScoreContent() {
                                           minCount={minCount}
                                           maxCount={sliderMax}
                                           onChange={(val) => handleCountSet(item.id, val)}
-                                          isLocked={item.is_locked || false}
+                                          isLocked={item.is_locked || false || pendingIntentKeys[`${activeStudentId}:${item.id}`] || false}
                                           canModifyScore={canModifyScore}
                                           hasViolation={hasViolation}
                                         />
@@ -3343,13 +3293,13 @@ function GradingScoreContent() {
                                             handleCountChange(item.id, 1)
                                           }
                                           disabled={
-                                            count >= sliderMax ||
                                             item.is_locked ||
-                                            !canModifyScore
+                                            !canModifyScore ||
+                                            pendingIntentKeys[`${activeStudentId}:${item.id}`]
                                           }
-                                          className={`w-8 h-8 md:w-7 md:h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count >= sliderMax ||
-                                            item.is_locked ||
-                                            !canModifyScore
+                                          className={`w-8 h-8 md:w-7 md:h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${item.is_locked ||
+                                            !canModifyScore ||
+                                            pendingIntentKeys[`${activeStudentId}:${item.id}`]
                                             ? "opacity-30 cursor-not-allowed text-slate-400"
                                             : "cursor-pointer " +
                                             (hasViolation

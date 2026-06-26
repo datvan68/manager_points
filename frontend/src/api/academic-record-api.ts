@@ -39,6 +39,17 @@ export interface CreateAcademicRecordDto {
   source?: string;
 }
 
+export interface IntentScoreDto {
+  student_id: string;
+  criterion_id: string;
+  semester_id: string;
+  intent_type: 'increase' | 'decrease' | 'set_target_count' | 'select_option' | 'set_manual_score' | 'clear_score';
+  target_count?: number;
+  manual_score?: number;
+  selected_option_id?: string;
+  note?: string;
+}
+
 export interface UpdateAcademicRecordDto {
   student_id?: string;
   criterion_id?: string;
@@ -55,7 +66,9 @@ export interface UpdateAcademicRecordDto {
 async function handleResponse<T>(res: Response): Promise<T> {
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.message || data.error || 'Đã xảy ra lỗi');
+    const error = new Error(data.message || data.error || 'Đã xảy ra lỗi');
+    (error as any).status = res.status;
+    throw error;
   }
   return data as T;
 }
@@ -96,6 +109,19 @@ export const academicRecordApi = {
       headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
     });
     return handleResponse<AcademicRecord>(res);
+  },
+
+  async sendIntent(intent: IntentScoreDto): Promise<{ success: boolean; actual_count: number; evaluation_detail: any; sync_status?: 'synced' | 'summary_missing' | 'summary_locked'; warning_code?: string }> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/intent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(intent),
+    });
+    return handleResponse(res);
   },
 
   async getAcademicRecordsByStudent(studentId: string): Promise<AcademicRecord[]> {

@@ -25,9 +25,8 @@ export const buildSummaryIndex = (summaries: any[]): Map<string, any> => {
     const studentIdVal = summary.student_id;
     if (studentIdVal) {
       if (typeof studentIdVal === "object") {
-        if (studentIdVal._id) index.set(String(studentIdVal._id).trim().toLowerCase(), summary);
-        if (studentIdVal.id) index.set(String(studentIdVal.id).trim().toLowerCase(), summary);
-        if (studentIdVal.student_code) index.set(String(studentIdVal.student_code).trim().toLowerCase(), summary);
+        const id = studentIdVal._id || studentIdVal.id;
+        if (id) index.set(String(id).trim().toLowerCase(), summary);
       } else if (typeof studentIdVal === "string") {
         index.set(studentIdVal.trim().toLowerCase(), summary);
       }
@@ -39,7 +38,7 @@ export const buildSummaryIndex = (summaries: any[]): Map<string, any> => {
 
 /**
  * Tra cứu bảng điểm tương ứng với sinh viên O(1) từ summaryIndex.
- * Kiểm tra tuần tự các mã định danh có thể có của sinh viên (student_code, _id, id).
+ * Kiểm tra tuần tự các mã định danh có thể có của sinh viên (_id, id).
  *
  * @param student - Object chứa thông tin sinh viên cần tra cứu.
  * @param summaryIndex - Chỉ mục (Map) các bảng điểm đã được khởi tạo từ hàm `buildSummaryIndex`.
@@ -49,7 +48,6 @@ export const findSummaryForStudent = (student: any, summaryIndex: Map<string, an
   if (!student || !summaryIndex) return null;
 
   const candidates = [
-    student.student_code,
     student._id,
     student.id
   ].filter(Boolean).map(val => String(val).trim().toLowerCase());
@@ -81,7 +79,8 @@ export const mapRosterWithSummaries = (
   const summaryIndex = buildSummaryIndex(semesterSummaries);
 
   return students.map((student, idx) => {
-    const studentId = student.student_code || student._id || `student-${idx}`;
+    const studentObjectId = student._id || student.id || "";
+    const studentCode = student.student_code || "";
     const summary = findSummaryForStudent(student, summaryIndex);
 
     const studentName = student.full_name || "Chưa rõ";
@@ -92,16 +91,17 @@ export const mapRosterWithSummaries = (
     }
 
     let avatarUrl = undefined;
-    if (studentId === "20216001") {
+    if (studentCode === "20216001") {
       avatarUrl =
         "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=120&q=80";
-    } else if (studentId === "20216002") {
+    } else if (studentCode === "20216002") {
       avatarUrl =
         "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80";
     }
 
     return {
-      id: studentId,
+      id: studentObjectId,
+      studentCode,
       name: studentName,
       email: student.email || "",
       dob: student.date_bir

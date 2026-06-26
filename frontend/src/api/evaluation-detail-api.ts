@@ -140,27 +140,5 @@ export const evaluationDetailApi = {
       method: 'DELETE',
     });
     return handleResponse<EvaluationDetail>(res);
-  },
-
-  /**
-   * Đếm số academic_record đã có sẵn cho tất cả tiêu chí của 1 summary.
-   * Trả về map { criterionId: count }
-   */
-  async getPreExistingCounts(summaryId: string): Promise<Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>> {
-    const res = await httpClient(`${API_BASE}/evaluation-detail/pre-counts/${summaryId}`);
-    return handleResponse<Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>>(res);
-  },
-
-  /**
-   * Đếm hàng loạt số academic_record đã có sẵn cho nhiều summaries.
-   */
-  async getPreExistingCountsBulk(summaryIds: string[]): Promise<Record<string, Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>>> {
-    const res = await httpClient(`${API_BASE}/evaluation-detail/pre-counts/bulk`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ summaryIds }),
-    });
-    return handleResponse<Record<string, Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>>>(res);
   }
 };
-

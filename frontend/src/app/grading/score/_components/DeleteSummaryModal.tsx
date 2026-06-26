@@ -97,7 +97,8 @@ export default function DeleteSummaryModal({
     return targetStudents.filter(
       (s) =>
         s.name.toLowerCase().includes(term) ||
-        s.id.toLowerCase().includes(term)
+        s.id.toLowerCase().includes(term) ||
+        (s.studentCode && s.studentCode.toLowerCase().includes(term))
     );
   }, [targetStudents, searchTerm]);
 
@@ -317,7 +318,7 @@ export default function DeleteSummaryModal({
                               )}
                               <div className="flex flex-col">
                                 <span className="font-bold text-[13.5px]">{student.name}</span>
-                                <span className="text-[11px] text-[#64748B]">MSSV: {student.id}</span>
+                                <span className="text-[11px] text-[#64748B]">MSSV: {student.studentCode || student.id}</span>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">

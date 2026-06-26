@@ -21,6 +21,7 @@ import {
   ImportAcademicRecordCommitResultDto,
   ImportAcademicRecordProgressDto 
 } from './dto/import-academic-record.dto';
+import { IntentScoreDto } from './dto/intent-score.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { checkRole } from '../auth/guards/check-role.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -39,6 +40,21 @@ export class AcademicRecordController {
   create(@Body() createAcademicRecordDto: CreateAcademicRecordDto, @Request() req: any) {
     const requester = req.user;
     return this.academicRecordService.create(createAcademicRecordDto, requester);
+  }
+
+  @Post('intent')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Xử lý ý định thao tác điểm (tăng/giảm đếm, chọn option, nhập điểm tay)',
+  })
+  @ApiBody({ type: IntentScoreDto })
+  async handleIntent(
+    @Body() intentDto: IntentScoreDto,
+    @Request() req: any,
+  ) {
+    const requester = req.user;
+    return this.academicRecordService.handleScoreIntent(intentDto, requester);
   }
 
   @Post('bulk')

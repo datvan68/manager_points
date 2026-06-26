@@ -101,7 +101,8 @@ export default function CopyScoreModal({
     return targetStudents.filter(
       (s) =>
         s.name.toLowerCase().includes(term) ||
-        s.id.toLowerCase().includes(term)
+        s.id.toLowerCase().includes(term) ||
+        (s.studentCode && s.studentCode.toLowerCase().includes(term))
     );
   }, [targetStudents, searchTerm]);
 
@@ -391,7 +392,7 @@ export default function CopyScoreModal({
                           {sourceStudent.name}
                         </span>
                         <span className="text-[11px] text-[#64748B] font-medium font-mono mt-0.5">
-                          MSSV: {sourceStudent.id}
+                          MSSV: {sourceStudent.studentCode || sourceStudent.id}
                         </span>
                       </div>
                     </div>
@@ -482,7 +483,7 @@ export default function CopyScoreModal({
                                     {student.name}
                                   </span>
                                   <span className="text-[11px] text-[#64748B] font-medium font-mono mt-0.5">
-                                    MSSV: {student.id}
+                                    MSSV: {student.studentCode || student.id}
                                   </span>
                                 </div>
                               </div>

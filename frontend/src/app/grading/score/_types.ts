@@ -6,7 +6,8 @@ export type GradingStatus =
   | "no_summary";
 
 export interface StudentData {
-  id: string;
+  id: string; // MongoDB ObjectId
+  studentCode?: string;
   name: string;
   email: string;
   dob: string;
