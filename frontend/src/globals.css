@@ -352,3 +352,14 @@ body {
     1px 1px 0px rgba(15, 23, 42, 0.15),      /* Shadow for 3D indentation */
     2px 3px 5px rgba(15, 23, 42, 0.1);       /* Soft drop shadow for elevation */
 }
+
+/* Hide scrollbar for sticky student grading slider */
+.sticky-slider-scrollbar-none {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.sticky-slider-scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}

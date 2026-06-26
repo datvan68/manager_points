@@ -450,7 +450,6 @@ function GradingPage() {
     }
 
     const summaryIdsToApprove: string[] = [];
-    const skippedStudents: string[] = [];
 
     selectedStudentIds.forEach((studentId) => {
       const summary = (apiSummariesPoints || []).find(s => {
@@ -459,12 +458,7 @@ function GradingPage() {
       });
 
       if (summary) {
-        if (summary.status === 'locked') {
-           const studentObj = typeof summary.student_id === 'object' ? summary.student_id : null;
-           skippedStudents.push(studentObj?.full_name || studentObj?.name || studentId);
-        } else {
-           summaryIdsToApprove.push(summary._id);
-        }
+        summaryIdsToApprove.push(summary._id);
       }
     });
 
@@ -473,18 +467,13 @@ function GradingPage() {
       return;
     }
 
-    let messageText = '';
-    if (skippedStudents.length > 0) {
-      messageText = `Có ${skippedStudents.length} sinh viên đã được duyệt (sẽ bị bỏ qua): ${skippedStudents.join(', ')}. Bạn có chắc chắn muốn duyệt ${summaryIdsToApprove.length} bảng điểm còn lại không?`;
-    } else {
-      messageText = `Bạn có chắc chắn muốn duyệt ${summaryIdsToApprove.length} bảng điểm đã chọn không?`;
-    }
+    const messageText = `Bạn có chắc chắn muốn duyệt ${summaryIdsToApprove.length} bảng điểm đã chọn không?`;
 
     setApproveBulkConfirm({
       isOpen: true,
       message: messageText,
       summaryIds: summaryIdsToApprove,
-      skippedStudents: skippedStudents
+      skippedStudents: []
     });
   };
 
@@ -1180,25 +1169,16 @@ function GradingPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (isApproved) return;
-                  if (!hasEvaluations) {
-                    toast.warning(`Sinh viên ${student.name} chưa được chấm tiêu chí nào để duyệt!`);
-                    return;
-                  }
                   handleApproveEvaluation(student.summaryId, student.name);
                 }}
                 className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150 ease-out active:scale-95 shadow-sm ${isApproved
-                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-default'
-                  : !hasEvaluations
-                    ? 'bg-slate-50 border border-slate-100 text-slate-300 opacity-60 cursor-not-allowed'
-                    : 'bg-white/60 border border-white/80 text-slate-400 hover:bg-white/90 hover:scale-[1.05] cursor-pointer'
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-pointer hover:scale-[1.05]'
+                  : 'bg-white/60 border border-white/80 text-slate-400 hover:bg-white/90 hover:scale-[1.05] cursor-pointer'
                   }`}
                 title={
                   isApproved
-                    ? "Đã phê duyệt điểm rèn luyện"
-                    : !hasEvaluations
-                      ? "Chưa có tiêu chí nào được chấm để duyệt"
-                      : "Phê duyệt điểm rèn luyện"
+                    ? "Phê duyệt lại điểm rèn luyện (Đã duyệt)"
+                    : "Phê duyệt điểm rèn luyện"
                 }
               >
                 <CheckCircle size={15} />

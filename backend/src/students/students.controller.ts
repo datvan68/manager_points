@@ -78,6 +78,7 @@ export class StudentsController {
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('status') status?: string,
+    @Query('fields') fields?: string,
   ) {
     return this.studentsService.findAll(
       {
@@ -87,6 +88,7 @@ export class StudentsController {
         limit: limit ? parseInt(limit, 10) : undefined,
         search,
         status,
+        fields,
       },
       req.user,
     );

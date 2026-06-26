@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "../../../components/layout/Sidebar";
 import Header from "../../../components/layout/Header";
@@ -55,131 +55,9 @@ import { studentTaskApi } from "@/api/task-api";
 import { normalizeLinkedPath, getLinkedTaskMode } from "@/lib/task-linked-page";
 import dynamic from "next/dynamic";
 import { isStudentRole, isAdminRole } from "@/utils/role.util";
+import { StudentGradingSlider } from "./_components/StudentGradingSlider";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-const StudentSliderCard = React.memo(({
-  student,
-  isActive,
-  isDirty,
-  isSaving,
-  isStudentSliderSticky,
-  onClick,
-  virtualItem,
-  measureElement,
-  getInitials,
-  renderGradingStatusBadge
-}: any) => {
-  const initials = getInitials(student.name);
-
-  return (
-    <div
-      ref={measureElement}
-      data-index={virtualItem.index}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: `${virtualItem.start}px`,
-        height: '100%',
-      }}
-      className="pr-4"
-    >
-      <div
-        id={`student-card-${student.id}`}
-        onClick={() => onClick(student.id)}
-        className={`relative bg-white/55 backdrop-blur-sm border-2 cursor-pointer transition-[background-color,border-color,box-shadow,transform] duration-200 select-none shadow-sm flex items-center shrink-0 ${
-          isStudentSliderSticky
-            ? "rounded-xl p-1.5 px-3 gap-2 h-9 w-max min-w-[220px] max-w-none"
-            : "rounded-2xl p-[13px] w-[256px] gap-[12px]"
-        } ${
-          isActive
-            ? "border-[#1A73E8] bg-white/80 shadow-[0px_4px_16px_rgba(26,115,232,0.08)] scale-[1.015]"
-            : "border-white hover:border-slate-300/40 hover:scale-[1.01]"
-        }`}
-      >
-        {/* Avatar container */}
-        <div className={`relative shrink-0 rounded-full transition-all duration-200 ${isStudentSliderSticky ? "w-6 h-6" : "w-12 h-12"}`}>
-          {student.avatarUrl ? (
-            <div className="absolute inset-0 rounded-full overflow-hidden border border-white/80 ring-2 ring-white">
-              <img
-                alt={student.name}
-                className="object-cover w-full h-full"
-                src={student.avatarUrl}
-              />
-            </div>
-          ) : (
-            <div
-              className={`absolute inset-0 rounded-full flex items-center justify-center font-bold border border-white/80 ring-2 ring-white transition-all duration-200 ${isStudentSliderSticky ? "text-[10px]" : "text-[15px]"} ${student.colorTheme?.bg} ${student.colorTheme?.text}`}
-            >
-              {initials}
-            </div>
-          )}
-
-          {/* Active Badge Checkmark */}
-          {isActive && !isStudentSliderSticky && (
-            <div className="absolute -bottom-1 -right-1 bg-[#1A73E8] text-white border-2 border-white rounded-lg w-5 h-5 flex items-center justify-center shadow-md">
-              <Check size={11} strokeWidth={3} />
-            </div>
-          )}
-          {isActive && isStudentSliderSticky && (
-            <div className="absolute -bottom-0.5 -right-0.5 bg-[#1A73E8] text-white border border-white rounded-full w-3 h-3 flex items-center justify-center shadow-md">
-              <Check size={8} strokeWidth={2} />
-            </div>
-          )}
-        </div>
-
-        {/* Student Info & Realtime Progress */}
-        <div className={`flex-1 min-w-0 flex ${isStudentSliderSticky ? "flex-row items-center gap-2" : "flex-col"}`}>
-          <h4
-            className={`font-bold text-[#1E293B] transition-all duration-200 ${isStudentSliderSticky ? "text-[13px] whitespace-nowrap" : "text-[14.5px] truncate"}`}
-            title={student.name}
-          >
-            {student.name}
-          </h4>
-          
-          {!isStudentSliderSticky && (
-            <div className="flex items-center justify-between mt-0.5 w-full min-w-0">
-              <span className="text-[#64748B] text-[11px] font-medium truncate">
-                MSSV: {student.studentCode || student.id}
-              </span>
-              {renderGradingStatusBadge(student.gradingStatus)}
-            </div>
-          )}
-
-          {/* Realtime progress bar */}
-          {isStudentSliderSticky ? (
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-[#1A73E8] text-[11px] tracking-wide shrink-0 bg-blue-50/50 px-1.5 py-0.5 rounded-md border border-blue-100/50">
-                {student.score}
-              </span>
-              {isDirty || isSaving ? (
-                <Loader2 size={12} className="animate-spin text-amber-500 shrink-0" />
-              ) : (
-                <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
-              )}
-            </div>
-          ) : (
-            <div className="flex gap-2.5 items-center mt-1.5">
-              <div className="bg-[#EBF2FA] flex-1 h-[5px] rounded-lg overflow-hidden border border-white/20">
-                <div
-                  style={{ width: `${student.score}%`, transition: 'width 0.3s ease' }}
-                  className="bg-[#1A73E8] h-full rounded-lg"
-                />
-              </div>
-              <span className="font-bold text-[#1A73E8] text-[9.5px] tracking-wide shrink-0 flex items-center gap-1">
-                {student.score}/100
-                {isDirty || isSaving ? (
-                  <Loader2 size={11} className="animate-spin text-amber-500" />
-                ) : (
-                  <CheckCircle2 size={11} className="text-emerald-500" />
-                )}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-});
 
 const ActiveStudentRankCard = dynamic(
   () => import("@/components/grading/ActiveStudentRankCard"),
@@ -770,77 +648,44 @@ function GradingScoreContent() {
     sourceType: "grading_score",
   });
 
-  // Slider scroll ref
-  const sliderRef = useRef<HTMLDivElement>(null);
-
-  // Slider drag to scroll refs & handlers
-  const isDownRef = useRef(false);
-  const startXRef = useRef(0);
-  const scrollLeftRef = useRef(0);
-
-  const handleSliderMouseDown = (e: React.MouseEvent) => {
-    if (!sliderRef.current) return;
-    isDownRef.current = true;
-    sliderRef.current.classList.remove("scroll-smooth", "cursor-grab");
-    sliderRef.current.classList.add("scroll-auto", "cursor-grabbing");
-    startXRef.current = e.pageX - sliderRef.current.offsetLeft;
-    scrollLeftRef.current = sliderRef.current.scrollLeft;
-  };
-
-  const handleSliderMouseUpOrLeave = () => {
-    isDownRef.current = false;
-    if (sliderRef.current) {
-      sliderRef.current.classList.remove("scroll-auto", "cursor-grabbing");
-      sliderRef.current.classList.add("scroll-smooth", "cursor-grab");
-    }
-  };
-
-  const handleSliderMouseMove = (e: React.MouseEvent) => {
-    if (!isDownRef.current || !sliderRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - sliderRef.current.offsetLeft;
-    const walk = (x - startXRef.current) * 1.5; // Tốc độ kéo
-    sliderRef.current.scrollLeft = scrollLeftRef.current - walk;
-  };
 
   // Scroll to Top ref & state
   const mainRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [isStudentSliderSticky, setIsStudentSliderSticky] = useState(false);
-  const [sliderExpandedHeight, setSliderExpandedHeight] = useState<number | undefined>(undefined);
-  const sliderContainerRef = useRef<HTMLDivElement>(null);
+  const rAFRef = useRef<number | null>(null);
+  const loadedHistoryStudentIdRef = useRef<string>("");
 
+
+  // Chỉ sử dụng handleScroll để cập nhật showScrollTop với cơ chế throttle dùng requestAnimationFrame
   const handleScroll = React.useCallback(() => {
-    if (mainRef.current) {
-      const scrollTop = mainRef.current.scrollTop;
-      if (scrollTop > 300) {
-        setShowScrollTop(true);
-      } else {
-        setShowScrollTop(false);
-      }
+    if (rAFRef.current) {
+      cancelAnimationFrame(rAFRef.current);
+    }
 
-      // Xử lý sticky với hysteresis 32px
-      if (sentinelRef.current) {
-        const sentinelTop = sentinelRef.current.getBoundingClientRect().top;
-        const mainTop = mainRef.current.getBoundingClientRect().top;
-        const buffer = 32;
-
-        setIsStudentSliderSticky((prev) => {
-          if (!prev && sentinelTop <= mainTop) {
-            return true;
-          }
-          if (prev && sentinelTop > mainTop + buffer) {
-            return false;
+    rAFRef.current = requestAnimationFrame(() => {
+      if (mainRef.current) {
+        const scrollTop = mainRef.current.scrollTop;
+        const shouldShow = scrollTop > 300;
+        setShowScrollTop((prev) => {
+          if (prev !== shouldShow) {
+            return shouldShow;
           }
           return prev;
         });
       }
-    }
+    });
   }, []);
 
   useEffect(() => {
-    // Initial check for sticky state in case of page reload halfway down
+    return () => {
+      if (rAFRef.current) {
+        cancelAnimationFrame(rAFRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    // Initial check for showScrollTop state in case of page reload halfway down
     const timeout = setTimeout(() => {
       handleScroll();
     }, 100);
@@ -859,21 +704,7 @@ function GradingScoreContent() {
   };
 
   const [students, setStudents] = useState<StudentData[]>([]);
-  const [rosterSearch, setRosterSearch] = useState("");
 
-  const filteredStudentsForRoster = React.useMemo(() => {
-    let list = students;
-    if (rosterSearch) {
-      const searchLower = rosterSearch.toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.name.toLowerCase().includes(searchLower) ||
-          s.id.toLowerCase().includes(searchLower) ||
-          (s.studentCode && s.studentCode.toLowerCase().includes(searchLower))
-      );
-    }
-    return list;
-  }, [students, rosterSearch]);
 
   const [activeStudentId, setActiveStudentId] = useState<string>("");
   const activeStudentIdRef = useRef<string>("");
@@ -883,39 +714,32 @@ function GradingScoreContent() {
   }, [activeStudentId]);
 
   const [dirtyStudentIds, setDirtyStudentIds] = useState<Set<string>>(new Set());
+  const dirtyStudentIdsRef = useRef<Set<string>>(new Set());
   const [savingStudentIds, setSavingStudentIds] = useState<Set<string>>(new Set());
 
   // Refs cho cơ chế lưu tuần tự (save queue)
   const revisionRef = useRef<Record<string, number>>({});
   const inFlightRef = useRef<Record<string, Promise<void> | null>>({});
 
+  // Refs cho cơ chế debounce click tăng/giảm đếm
+  const pendingCountByCriterionRef = useRef<Record<string, number>>({});
+  const flushIntentTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const originalCountsRef = useRef<Record<string, number>>({});
+
   const markStudentDirty = (studentId: string) => {
     revisionRef.current[studentId] = (revisionRef.current[studentId] || 0) + 1;
-    setDirtyStudentIds(prev => new Set(prev).add(studentId));
+    dirtyStudentIdsRef.current.add(studentId);
+    setDirtyStudentIds(new Set(dirtyStudentIdsRef.current));
   };
   const [subTab, setSubTab] = useState<"category" | "history">("category");
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isRosterLoading, setIsRosterLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [isDetailsLoading, setIsDetailsLoading] = useState(false);
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (isStudentSliderSticky || !sliderContainerRef.current) return;
 
-    // Set initial height
-    setSliderExpandedHeight(sliderContainerRef.current.offsetHeight);
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setSliderExpandedHeight((entry.target as HTMLElement).offsetHeight);
-      }
-    });
-
-    resizeObserver.observe(sliderContainerRef.current);
-
-    return () => resizeObserver.disconnect();
-  }, [isStudentSliderSticky, students, rosterSearch, isInitialLoading]);
 
   // States lưu danh mục & tiêu chí thật từ API
   const [categories, setCategories] =
@@ -1071,7 +895,7 @@ function GradingScoreContent() {
 
   // Kiểm tra quyền chấm điểm theo vai trò và trạng thái kỳ đánh giá
   const canModifyScore = (() => {
-    if (isInitialLoading || isFetching || isRosterLoading) return false;
+    if (isInitialLoading || isDetailsLoading || isFetching || isRosterLoading) return false;
 
     if (!isSemesterActive) return false;
 
@@ -1132,7 +956,7 @@ function GradingScoreContent() {
         let filteredStudents: Student[] = [];
         if (classId) {
           try {
-            const rosterResult = await studentApi.getStudents({ classId });
+            const rosterResult = await studentApi.getStudents({ classId, fields: 'slider' } as any);
             filteredStudents = Array.isArray(rosterResult) ? rosterResult : rosterResult?.data || [];
           } catch (err) {
             console.error("Failed to fetch class roster:", err);
@@ -1146,7 +970,8 @@ function GradingScoreContent() {
             classId,
             page: 1,
             limit: 1000,
-          });
+            fields: 'slider',
+          } as any);
           const raw = Array.isArray(res) ? res : res?.data || [];
           summariesData = raw.filter((sum: any) => !sum.period_id || sum.period_id === null);
         } catch (err) {
@@ -1161,7 +986,7 @@ function GradingScoreContent() {
         const summaryIndex = buildSummaryIndex(summariesData);
         const summaryMap: Record<string, string> = {};
         filteredStudents.forEach((student) => {
-          const studentId = student._id || student.id || "";
+          const studentId = student._id || (student as any).id || "";
           if (studentId) {
             const summary = findSummaryForStudent(student, summaryIndex);
             if (summary && summary._id) {
@@ -1203,7 +1028,6 @@ function GradingScoreContent() {
     setSelectedClassId(classId);
     sessionStorage.setItem("grading_appliedClass", classId);
 
-    setRosterSearch("");
     setActiveStudentId("");
     setStudents([]);
     setApiSummariesPoints([]);
@@ -1211,7 +1035,6 @@ function GradingScoreContent() {
     setEvaluationDetailsMap({});
     setEvaluationCounts({});
     setSelectedOptionsState({});
-    setPreExistingCountsState({});
     setHistoryRecords([]);
     setHistoryPage(1);
 
@@ -1274,13 +1097,13 @@ function GradingScoreContent() {
         setSelectedSemesterId(savedSem);
         setSelectedClassId(effectiveClassId);
 
-        // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên savedSem và effectiveClassId
-        // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên savedSem và effectiveClassId
+         // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên savedSem và effectiveClassId
         const fetchAllSummaries = async (sem: string, clsId?: string, resolvedStudentId?: string) => {
           const params: any = {
             semesterId: sem,
             page: 1,
             limit: 1000,
+            fields: 'slider',
           };
           if (clsId) {
             params.classId = clsId;
@@ -1315,7 +1138,7 @@ function GradingScoreContent() {
             const myStudent = await studentApi.getMyStudent();
             if (myStudent) {
               filteredStudents = [myStudent];
-              resolvedStudentIdForSummaryLookup = myStudent._id || myStudent.id || "";
+              resolvedStudentIdForSummaryLookup = myStudent._id || (myStudent as any).id || "";
             }
           } catch (err) {
             console.error("Failed to load current student profile:", err);
@@ -1325,7 +1148,7 @@ function GradingScoreContent() {
         } else {
           if (effectiveClassId) {
             try {
-              const rosterResult = await studentApi.getStudents({ classId: effectiveClassId });
+              const rosterResult = await studentApi.getStudents({ classId: effectiveClassId, fields: 'slider' } as any);
               filteredStudents = Array.isArray(rosterResult)
                 ? rosterResult
                 : rosterResult?.data || [];
@@ -1398,7 +1221,7 @@ function GradingScoreContent() {
         const summaryIndex = buildSummaryIndex(summariesData);
         const summaryMap: Record<string, string> = {};
         filteredStudents.forEach((student) => {
-          const studentId = student._id || student.id || "";
+          const studentId = student._id || (student as any).id || "";
           if (studentId) {
             const summary = findSummaryForStudent(student, summaryIndex);
             if (summary && summary._id) {
@@ -1433,17 +1256,14 @@ function GradingScoreContent() {
             const [details] = await Promise.all([
               evaluationDetailApi.getEvaluationDetailsBySummary(
                 activeSummaryId,
-                true
+                false
               )
             ]);
             const isLocked = mappedStudents.find((s) => s.id === targetActiveId)?.gradingStatus === "locked";
             
             const merged = mergeDetailsWithPreExistingCounts(details, isLocked);
-            const activeHistory = mapDetailsToHistoryRecords(details, targetActiveId, categories);
 
             setEvaluationDetailsMap(merged.detailsMap);
-
-            // removed preExistingCountsState
 
             setEvaluationCounts((prev) => ({
               ...prev,
@@ -1454,8 +1274,8 @@ function GradingScoreContent() {
               [targetActiveId]: merged.optionsMap,
             }));
 
-            // Sắp xếp lịch sử mới nhất lên trước
-            setHistoryRecords(activeHistory);
+            setHistoryRecords([]);
+            loadedHistoryStudentIdRef.current = "";
           }
         }
       } catch (error: any) {
@@ -1468,13 +1288,15 @@ function GradingScoreContent() {
     loadRealData();
   }, [studentIdParam]);
 
+  const activeStudentSummaryId = studentSummaryMap[activeStudentId];
+
   // Lazy-load chi tiết chấm điểm của sinh viên khi activeStudentId thay đổi
   useEffect(() => {
     setHistoryPage(1);
     const loadStudentDetails = async () => {
       if (!activeStudentId || isInitialLoading) return;
 
-      const summaryId = studentSummaryMap[activeStudentId];
+      const summaryId = activeStudentSummaryId;
       if (!summaryId) {
         setEvaluationDetailsMap({});
         setEvaluationCounts((prev) => ({
@@ -1482,17 +1304,19 @@ function GradingScoreContent() {
           [activeStudentId]: {},
         }));
         setHistoryRecords([]);
+        loadedHistoryStudentIdRef.current = "";
         return;
       }
 
       try {
-        setIsFetching(true);
+        setIsDetailsLoading(true);
         const studentIdAtRequest = activeStudentId;
         const seq = ++detailLoadSeqRef.current;
         const currentRev = revisionRef.current[studentIdAtRequest] || 0;
-        const [details] = await Promise.all([
-          evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true)
-        ]);
+        
+        // Chỉ nạp logs nếu subTab hiện tại đang là history
+        const shouldIncludeLogs = subTab === "history";
+        const details = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, shouldIncludeLogs);
         
         // Guard check: Nếu có thao tác edit local trong khi chờ API, bỏ qua ghi đè
         if (
@@ -1506,11 +1330,8 @@ function GradingScoreContent() {
 
         const isLocked = students.find((s) => s.id === studentIdAtRequest)?.gradingStatus === "locked";
         const merged = mergeDetailsWithPreExistingCounts(details, isLocked);
-        const activeHistory = mapDetailsToHistoryRecords(details, studentIdAtRequest, categories);
 
         setEvaluationDetailsMap(merged.detailsMap);
-
-        // removed preExistingCountsState
 
         setEvaluationCounts((prev) => ({
           ...prev,
@@ -1521,65 +1342,57 @@ function GradingScoreContent() {
           [studentIdAtRequest]: merged.optionsMap,
         }));
 
-        setHistoryRecords(activeHistory);
+        if (shouldIncludeLogs) {
+          const activeHistory = mapDetailsToHistoryRecords(details, studentIdAtRequest, categories);
+          setHistoryRecords(activeHistory);
+          loadedHistoryStudentIdRef.current = studentIdAtRequest;
+        } else {
+          setHistoryRecords([]);
+          loadedHistoryStudentIdRef.current = "";
+        }
       } catch (error: any) {
         toast.error(
           "Không thể tải chi tiết chấm điểm của sinh viên này: " +
           error.message,
         );
       } finally {
-        setIsFetching(false);
+        setIsDetailsLoading(false);
       }
     };
 
     loadStudentDetails();
-  }, [activeStudentId, studentSummaryMap, isInitialLoading]);
+  }, [activeStudentId, activeStudentSummaryId, isInitialLoading, subTab]);
 
-  const activeStudentIndex = filteredStudentsForRoster.findIndex(s => s.id === activeStudentId);
-
-  const studentVirtualizer = useVirtualizer({
-    horizontal: true,
-    count: filteredStudentsForRoster.length,
-    getScrollElement: () => sliderRef.current,
-    estimateSize: () => isStudentSliderSticky ? 240 : 272,
-    overscan: 5,
-  });
-
-  // Tự động cuộn slider ngang đến vị trí sinh viên đang được active
+  // Load history records khi chuyển sang subTab history hoặc active student thay đổi
   useEffect(() => {
-    if (activeStudentIndex !== -1 && studentVirtualizer) {
-      studentVirtualizer.scrollToIndex(activeStudentIndex, { align: "center", behavior: "smooth" });
-    }
-  }, [activeStudentIndex, studentVirtualizer]);
+    const fetchHistoryForActiveStudent = async () => {
+      if (subTab !== "history" || !activeStudentId || isInitialLoading) return;
+      const summaryId = activeStudentSummaryId;
+      if (!summaryId) return;
+
+      if (loadedHistoryStudentIdRef.current === activeStudentId) return;
+
+      try {
+        setIsHistoryFetching(true);
+        const details = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true);
+        const activeHistory = mapDetailsToHistoryRecords(details, activeStudentId, categories);
+        setHistoryRecords(activeHistory);
+        loadedHistoryStudentIdRef.current = activeStudentId;
+      } catch (err: any) {
+        toast.error("Không thể tải lịch sử chấm điểm: " + err.message);
+      } finally {
+        setIsHistoryFetching(false);
+      }
+    };
+
+    fetchHistoryForActiveStudent();
+  }, [subTab, activeStudentId, activeStudentSummaryId, isInitialLoading, categories]);
 
   // Sinh viên đang active
   const activeStudent = students.find((s) => s.id === activeStudentId);
 
   const shouldShowActiveStudentRankCard = isStudentRole(currentUser) || isAdminRole(currentUser);
 
-
-  // Lấy chữ viết tắt tên sinh viên (ví dụ: Lê Công Thành -> LC)
-  const getInitials = (name: string) => {
-    if (!name) return "SV";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      const first = parts[parts.length - 2].charAt(0).toUpperCase();
-      const last = parts[parts.length - 1].charAt(0).toUpperCase();
-      return `${first}${last}`;
-    }
-    return name.slice(0, 2).toUpperCase();
-  };
-
-  // Nút slider di chuyển
-  const scrollSlider = (direction: "left" | "right") => {
-    if (sliderRef.current) {
-      const scrollAmount = 300;
-      sliderRef.current.scrollBy({
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-        behavior: "smooth",
-      });
-    }
-  };
 
   const isMongoObjectId = (value: string) => /^[a-f\d]{24}$/i.test(value);
 
@@ -1659,51 +1472,23 @@ function GradingScoreContent() {
           });
         }
 
-        // Cập nhật lại evaluation detail map
+        // Cập nhật lại evaluation detail map theo đúng shape Record<criterionId, detail>
         if (res.evaluation_detail) {
-          setEvaluationDetailsMap(prev => {
-            const mapObj = { ...prev };
-            if (!mapObj[activeStudentId]) mapObj[activeStudentId] = [];
-            
-            const existingIdx = mapObj[activeStudentId].findIndex(
-              (d: any) => getEntityId(d.criterion_id) === criteriaId
-            );
-            
-            if (existingIdx >= 0) {
-              mapObj[activeStudentId][existingIdx] = res.evaluation_detail;
-            } else {
-              mapObj[activeStudentId].push(res.evaluation_detail);
-            }
-            return mapObj;
-          });
+          setEvaluationDetailsMap(prev => ({
+            ...prev,
+            [criteriaId]: res.evaluation_detail
+          }));
         } else {
-          // Xoá detail khỏi map nếu count = 0
           setEvaluationDetailsMap(prev => {
-            if (!prev[activeStudentId]) return prev;
-            return {
-              ...prev,
-              [activeStudentId]: prev[activeStudentId].filter(
-                (d: any) => getEntityId(d.criterion_id) !== criteriaId
-              )
-            };
+            const next = { ...prev };
+            delete next[criteriaId];
+            return next;
           });
         }
 
-        // Kiểm tra trạng thái sync và hiển thị cảnh báo phù hợp
-        if (res.sync_status === 'summary_locked') {
-          toast.warning("Bảng điểm đang bị khóa nên thay đổi chưa được đồng bộ vào chi tiết điểm.");
-        } else if (res.sync_status === 'summary_missing') {
-          toast.warning("Chưa tìm thấy bảng điểm tổng hợp để đồng bộ chi tiết điểm.");
-        } else {
-          // sync_status === 'synced', check xem detail có khớp count/option thực tế không
-          if (intentType === "select_option") {
-            const expectedOptionId = value === "none" ? undefined : (value as string);
-            const detailOptionId = res.evaluation_detail?.selected_option_id;
-            const isMatch = expectedOptionId ? (detailOptionId === expectedOptionId) : (!detailOptionId);
-            if (!isMatch) {
-              toast.warning("Thay đổi đã được ghi nhận vào academic_record nhưng chi tiết điểm chưa đồng bộ đúng. Vui lòng tải lại hoặc kiểm tra sync.");
-            }
-          }
+        // Đồng bộ tổng điểm ngay từ backend summary
+        if (res.summary) {
+          applyFreshSummaryToRoster(res.summary);
         }
       }
     } catch (err: any) {
@@ -1738,28 +1523,259 @@ function GradingScoreContent() {
     }
   };
 
-  // Hàm thay đổi số lượng chấm của tiêu chí
-  const handleCountChange = (criteriaId: string, delta: number) => {
-    applyScoreIntent(criteriaId, delta > 0 ? "increase" : "decrease");
+  const flushTargetCountIntent = async (criteriaId: string, targetCount: number, studentIdInput?: string) => {
+    const studentId = studentIdInput || activeStudentId;
+    if (!studentId || !selectedSemesterId) return;
+
+    const intentKey = `${studentId}:${criteriaId}`;
+    setPendingIntentKeys(prev => ({ ...prev, [intentKey]: true }));
+
+    const key = `${studentId}:${criteriaId}`;
+    const backupCount = originalCountsRef.current[key] ?? (evaluationCounts[studentId]?.[criteriaId] ?? 0);
+
+    try {
+      const res = await academicRecordApi.sendIntent({
+        student_id: studentId,
+        semester_id: selectedSemesterId,
+        criterion_id: criteriaId,
+        intent_type: 'set_target_count',
+        target_count: targetCount,
+        note: "Chấm điểm từ /grading/score",
+      });
+
+      if (res.success) {
+        setEvaluationCounts(prev => {
+          const studentCounts = prev[studentId] ? { ...prev[studentId] } : {};
+          studentCounts[criteriaId] = res.actual_count;
+          const updated = { ...prev, [studentId]: studentCounts };
+          evaluationCountsRef.current = updated;
+          calculateRealtimeScore(studentId, updated[studentId], selectedOptionsStateRef.current[studentId]);
+          return updated;
+        });
+
+        if (studentId === activeStudentIdRef.current) {
+          if (res.evaluation_detail) {
+            setEvaluationDetailsMap(prev => ({
+              ...prev,
+              [criteriaId]: res.evaluation_detail
+            }));
+          } else {
+            setEvaluationDetailsMap(prev => {
+              const next = { ...prev };
+              delete next[criteriaId];
+              return next;
+            });
+          }
+        }
+
+        if (res.summary) {
+          applyFreshSummaryToRoster(res.summary);
+        }
+
+        if (res.actual_count !== targetCount) {
+          toast.warning(`Chỉ cập nhật được thành ${res.actual_count} lần (không thể giảm thêm do quyền hạn hoặc báo cáo ngày).`);
+        }
+      }
+    } catch (err: any) {
+      if (err.status === 403) {
+        toast.error("Bạn không có quyền cập nhật tiêu chí này.");
+      } else {
+        toast.error(err.message || "Lỗi khi cập nhật điểm!");
+      }
+
+      setEvaluationCounts(prev => {
+        const studentCounts = prev[studentId] ? { ...prev[studentId] } : {};
+        studentCounts[criteriaId] = backupCount;
+        const updated = { ...prev, [studentId]: studentCounts };
+        evaluationCountsRef.current = updated;
+        calculateRealtimeScore(studentId, updated[studentId], selectedOptionsStateRef.current[studentId]);
+        return updated;
+      });
+    } finally {
+      setPendingIntentKeys(prev => ({ ...prev, [intentKey]: false }));
+      delete originalCountsRef.current[key];
+    }
   };
 
-  // Hàm gán trực tiếp số lượng chấm của tiêu chí (dùng cho thanh trượt Slider)
+  const findCriterion = (criteriaId: string) => {
+    for (const cat of categories) {
+      const found = cat.items.find(item => item.id === criteriaId);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const handleCountChange = (criteriaId: string, delta: number) => {
+    if (!activeStudentId || !selectedSemesterId) return;
+
+    const criterion = findCriterion(criteriaId);
+    if (!criterion) return;
+
+    let maxCount = 0;
+    if (criterion.scoring_mode === 'single_option') {
+      maxCount = 1;
+    } else {
+      const pointsPerUnit = criterion.pointsPerUnit || 0;
+      if (pointsPerUnit === 0) {
+        alert('Tiêu chí này không hỗ trợ chế độ cộng trừ hoặc cấu hình điểm sai lệch.');
+        return;
+      }
+      maxCount = Math.ceil(criterion.maxScore / Math.abs(pointsPerUnit));
+    }
+
+    const key = `${activeStudentId}:${criteriaId}`;
+    if (originalCountsRef.current[key] === undefined) {
+      originalCountsRef.current[key] = evaluationCounts[activeStudentId]?.[criteriaId] ?? 0;
+    }
+
+    const currentCount = pendingCountByCriterionRef.current[key] !== undefined
+      ? pendingCountByCriterionRef.current[key]
+      : (evaluationCounts[activeStudentId]?.[criteriaId] ?? 0);
+
+    const newCount = Math.min(maxCount, Math.max(0, currentCount + delta));
+    pendingCountByCriterionRef.current[key] = newCount;
+
+    setEvaluationCounts(prev => {
+      const studentCounts = prev[activeStudentId] ? { ...prev[activeStudentId] } : {};
+      studentCounts[criteriaId] = newCount;
+      const updated = { ...prev, [activeStudentId]: studentCounts };
+      evaluationCountsRef.current = updated;
+      calculateRealtimeScore(activeStudentId, updated[activeStudentId], selectedOptionsStateRef.current[activeStudentId]);
+      return updated;
+    });
+
+    markStudentDirty(activeStudentId);
+
+    if (flushIntentTimersRef.current[key]) {
+      clearTimeout(flushIntentTimersRef.current[key]);
+    }
+
+    const summaryId = studentSummaryMap[activeStudentId];
+    if (resolvedTaskId && summaryId) {
+      markStarted({ sourceId: summaryId, assigneeStudentId: activeStudentId }).catch((err) => {
+        console.warn("Failed to sync task in_progress status:", err);
+      });
+    }
+
+    const studentIdToFlush = activeStudentId;
+    flushIntentTimersRef.current[key] = setTimeout(() => {
+      const targetCount = pendingCountByCriterionRef.current[key];
+      delete pendingCountByCriterionRef.current[key];
+      delete flushIntentTimersRef.current[key];
+
+      if (targetCount !== undefined) {
+        flushTargetCountIntent(criteriaId, targetCount, studentIdToFlush);
+      }
+    }, 350);
+  };
+
   const handleCountSet = (criteriaId: string, value: number) => {
-    applyScoreIntent(criteriaId, "set_target_count", value);
+    if (!activeStudentId || !selectedSemesterId) return;
+
+    const criterion = findCriterion(criteriaId);
+    if (!criterion) return;
+
+    let maxCount = 0;
+    if (criterion.scoring_mode === 'single_option') {
+      maxCount = 1;
+    } else {
+      const pointsPerUnit = criterion.pointsPerUnit || 0;
+      if (pointsPerUnit === 0) {
+        alert('Tiêu chí này không hỗ trợ chế độ cộng trừ hoặc cấu hình điểm sai lệch.');
+        return;
+      }
+      maxCount = Math.ceil(criterion.maxScore / Math.abs(pointsPerUnit));
+    }
+
+    const key = `${activeStudentId}:${criteriaId}`;
+    if (originalCountsRef.current[key] === undefined) {
+      originalCountsRef.current[key] = evaluationCounts[activeStudentId]?.[criteriaId] ?? 0;
+    }
+
+    const newCount = Math.min(maxCount, Math.max(0, value));
+    pendingCountByCriterionRef.current[key] = newCount;
+
+    setEvaluationCounts(prev => {
+      const studentCounts = prev[activeStudentId] ? { ...prev[activeStudentId] } : {};
+      studentCounts[criteriaId] = newCount;
+      const updated = { ...prev, [activeStudentId]: studentCounts };
+      evaluationCountsRef.current = updated;
+      calculateRealtimeScore(activeStudentId, updated[activeStudentId], selectedOptionsStateRef.current[activeStudentId]);
+      return updated;
+    });
+
+    markStudentDirty(activeStudentId);
+
+    if (flushIntentTimersRef.current[key]) {
+      clearTimeout(flushIntentTimersRef.current[key]);
+    }
+
+    const summaryId = studentSummaryMap[activeStudentId];
+    if (resolvedTaskId && summaryId) {
+      markStarted({ sourceId: summaryId, assigneeStudentId: activeStudentId }).catch((err) => {
+        console.warn("Failed to sync task in_progress status:", err);
+      });
+    }
+
+    const studentIdToFlush = activeStudentId;
+    flushIntentTimersRef.current[key] = setTimeout(() => {
+      const targetCount = pendingCountByCriterionRef.current[key];
+      delete pendingCountByCriterionRef.current[key];
+      delete flushIntentTimersRef.current[key];
+
+      if (targetCount !== undefined) {
+        flushTargetCountIntent(criteriaId, targetCount, studentIdToFlush);
+      }
+    }, 350);
   };
 
   const handleOptionSet = (criteriaId: string, optionId: string) => {
     applyScoreIntent(criteriaId, "select_option", optionId);
   };
 
+  const applyFreshSummaryToRoster = (summary: any) => {
+    if (!summary) return;
+    const summaryId = summary._id;
+    const studentId = summary.student_id?._id || summary.student_id;
+    if (!studentId) return;
+
+    const totalScore = summary.total_score ?? 0;
+
+    // 1. Cập nhật apiSummariesPoints
+    setApiSummariesPoints((prev) =>
+      prev.map((s) => (s._id === summaryId ? { ...s, total_score: totalScore, grading: summary.grading, status: summary.status } : s))
+    );
+
+    // 2. Cập nhật students[].score và status
+    setStudents((prev) =>
+      prev.map((std) =>
+        std.id === studentId
+          ? { 
+              ...std, 
+              score: dirtyStudentIdsRef.current.has(studentId) ? std.score : totalScore, 
+              gradingStatus: summary.status 
+            }
+          : std
+      )
+    );
+
+    // 3. Cập nhật studentSummaryMap
+    setStudentSummaryMap((prev) => ({
+      ...prev,
+      [studentId]: summaryId
+    }));
+  };
+
   // Tính điểm thời gian thực dựa trên các lần thực hiện tiêu chí
   const calculateRealtimeScore = (
     studentId: string,
     studentCounts: Record<string, number>,
-    studentOptions?: Record<string, string>
+    studentOptions?: Record<string, string>,
+    detailsMap?: Record<string, any>
   ) => {
     const options = studentOptions || selectedOptionsState[studentId] || {};
-    const clampedFinalScore = calculateTotalScore(categories, studentCounts, options);
+    const actualDetailsMap = detailsMap || (studentId === activeStudentId ? evaluationDetailsMap : undefined);
+    const clampedFinalScore = calculateTotalScore(categories, studentCounts, options, actualDetailsMap);
 
     setStudents((prev) =>
       prev.map((std) =>
@@ -1909,9 +1925,10 @@ function GradingScoreContent() {
       await Promise.allSettled(intents);
     }
 
-    // 3. Lấy lại chi tiết chấm điểm mới
-    const [freshDetails] = await Promise.all([
-      evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true)
+    // 3. Lấy lại chi tiết chấm điểm mới và fresh summary từ backend
+    const [freshDetails, freshSummary] = await Promise.all([
+      evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, true),
+      summariesPointApi.getSummariesPoint(summaryId)
     ]);
 
     const isLocked = students.find((s) => s.id === studentId)?.gradingStatus === "locked";
@@ -1922,27 +1939,13 @@ function GradingScoreContent() {
 
     const freshHistory = mapDetailsToHistoryRecords(freshDetails, studentId, categories);
 
-    // Tính toán điểm số tổng
-    const scoreOptions = merged.optionsMap ?? selectedOptionsSnapshot;
-    const clampedFinalScore = calculateTotalScore(categories, freshCounts, scoreOptions);
-
-    // Cập nhật summariesPoint
-    const summaryPayload: any = {
-      total_score: clampedFinalScore,
-    };
-    let finalGrading: string | undefined = undefined;
-    if (clampedFinalScore === 0) {
-      summaryPayload.grading = "CHƯA XẾP LOẠI";
-      finalGrading = "CHƯA XẾP LOẠI";
-    }
-    
-    if (intents.length > 0 || (clampedFinalScore === 0 && finalGrading === "CHƯA XẾP LOẠI")) {
-      await summariesPointApi.updateSummariesPoint(summaryId, summaryPayload);
-    }
+    // Đồng bộ fresh summary vào Roster
+    applyFreshSummaryToRoster(freshSummary);
 
     return {
-      score: clampedFinalScore,
-      grading: finalGrading,
+      score: freshSummary.total_score ?? 0,
+      grading: freshSummary.grading,
+      gradingStatus: freshSummary.status,
       freshCounts,
       freshPreExistingCounts: undefined,
       freshHistory,
@@ -2007,6 +2010,13 @@ function GradingScoreContent() {
         [studentId]: result.freshCounts,
       }));
 
+      // Update student's final score in students list
+      setStudents((prev) =>
+        prev.map((std) =>
+          std.id === studentId ? { ...std, score: result.score, gradingStatus: result.gradingStatus } : std
+        )
+      );
+
       if (activeStudentIdRef.current === studentId) {
         setEvaluationDetailsMap(result.freshDetailsMap);
         setHistoryRecords((prev) => [
@@ -2017,11 +2027,7 @@ function GradingScoreContent() {
 
 
 
-      setStudents((prev) =>
-        prev.map((std) =>
-          std.id === studentId ? { ...std, score: result.score } : std
-        ),
-      );
+
 
       if (options?.mode === 'manual') {
         toast.dismiss("save-loading");
@@ -2085,11 +2091,8 @@ function GradingScoreContent() {
           const newRev = revisionRef.current[studentId] || 0;
           if (newRev === currentRev) {
             // Không có thay đổi nào thêm trong lúc lưu, xoá cờ dirty
-            setDirtyStudentIds(prev => {
-              const next = new Set(prev);
-              next.delete(studentId);
-              return next;
-            });
+            dirtyStudentIdsRef.current.delete(studentId);
+            setDirtyStudentIds(new Set(dirtyStudentIdsRef.current));
             break;
           }
           currentRev = newRev;
@@ -2114,13 +2117,33 @@ function GradingScoreContent() {
     return () => clearTimeout(timer);
   }, [evaluationCounts, selectedOptionsState, activeStudentId, dirtyStudentIds]);
 
-  const handleActiveStudentChange = async (nextStudentId: string) => {
+  const handleActiveStudentChange = useCallback(async (nextStudentId: string) => {
     if (activeStudentId && activeStudentId !== nextStudentId) {
+      // Flush any pending click timers for the current active student
+      categories.forEach((cat) => {
+        cat.items.forEach((cri) => {
+          const key = `${activeStudentId}:${cri.id}`;
+          if (flushIntentTimersRef.current[key]) {
+            clearTimeout(flushIntentTimersRef.current[key]);
+            const targetCount = pendingCountByCriterionRef.current[key];
+            delete pendingCountByCriterionRef.current[key];
+            delete flushIntentTimersRef.current[key];
+            if (targetCount !== undefined) {
+              flushTargetCountIntent(cri.id, targetCount, activeStudentId);
+            }
+          }
+        });
+      });
+
       // Trigger autosave if needed when switching
       autosaveStudentIfDirty(activeStudentId, "Tự động lưu khi chuyển sinh viên", false);
     }
     setActiveStudentId(nextStudentId);
-  };
+  }, [activeStudentId, categories, autosaveStudentIfDirty, flushTargetCountIntent]);
+
+  const handleOpenDeleteModal = useCallback(() => {
+    setIsDeleteModalOpen(true);
+  }, []);
 
   // Hàm Lưu thay đổi thực tế đồng bộ database qua API
   const handleSave = async () => {
@@ -2139,11 +2162,8 @@ function GradingScoreContent() {
     await saveStudentScore(activeStudentId, { mode: "manual" });
     const newRev = revisionRef.current[activeStudentId] || 0;
     if (newRev === currentRev) {
-      setDirtyStudentIds(prev => {
-        const next = new Set(prev);
-        next.delete(activeStudentId);
-        return next;
-      });
+      dirtyStudentIdsRef.current.delete(activeStudentId);
+      setDirtyStudentIds(new Set(dirtyStudentIdsRef.current));
     }
   };
 
@@ -2227,24 +2247,7 @@ function GradingScoreContent() {
             ...persistResult.freshHistory,
             ...prev.filter((record) => record.studentId !== targetId),
           ]);
-          setStudents((prev) =>
-            prev.map((std) =>
-              std.id === targetId
-                ? { ...std, score: persistResult.score }
-                : std
-            )
-          );
-          setApiSummariesPoints((prev) =>
-            prev.map((s) =>
-              s._id === targetSummaryId
-                ? {
-                  ...s,
-                  total_score: persistResult.score,
-                  ...(persistResult.grading ? { grading: persistResult.grading } : {})
-                }
-                : s
-            )
-          );
+
 
           results.push({
             studentId: targetId,
@@ -2468,25 +2471,9 @@ function GradingScoreContent() {
         ...prev.filter((record) => record.studentId !== activeStudentId),
       ]);
 
-      const clampedFinalScore = calculateTotalScore(categories, freshCounts, selectedOptionsState[activeStudentId] || {});
-
-      // Cập nhật state học sinh
-      setStudents((prev) =>
-        prev.map((std) =>
-          std.id === activeStudentId
-            ? { ...std, score: clampedFinalScore }
-            : std,
-        ),
-      );
-
       if (summaryId) {
-        const deletePayload: any = {
-          total_score: clampedFinalScore,
-        };
-        if (clampedFinalScore === 0) {
-          deletePayload.grading = "CHƯA XẾP LOẠI";
-        }
-        await summariesPointApi.updateSummariesPoint(summaryId, deletePayload);
+        const freshSummary = await summariesPointApi.getSummariesPoint(summaryId);
+        applyFreshSummaryToRoster(freshSummary);
       }
 
       toast.dismiss("delete-loading");
@@ -2852,153 +2839,23 @@ function GradingScoreContent() {
 
             {/* ================= STUDENT HERO SLIDER ================= */}
             {shouldShowStudentSlider && (
-              <div
-                className={`z-30 ${isStudentSliderSticky ? "sticky -top-6 -mx-6 md:-mx-8 pointer-events-none" : "relative"}`}
-                style={{ minHeight: sliderExpandedHeight ? `${sliderExpandedHeight}px` : undefined }}
-              >
-                <div
-                  ref={sliderContainerRef}
-                  className={`shrink-0 flex flex-col relative overflow-hidden transition-[background-color,border-color,box-shadow,padding] duration-300 pointer-events-auto ${isStudentSliderSticky
-                    ? "pt-2 px-6 md:px-8 pb-1 bg-sky-400/20 backdrop-blur-md border-b border-sky-400/50 gap-1 rounded-b-2xl shadow-sm"
-                    : "bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-300/40 gap-4"
-                    }`}
-                >
-                {!isStudentSliderSticky && (
-                    <div className="flex flex-col md:flex-row md:items-center justify-between w-full gap-3">
-                      <div className="flex flex-col md:flex-row md:items-center gap-3 flex-1 min-w-0">
-                        <h3 className="font-sans font-bold text-[#64748B] text-[11px] tracking-[1px] uppercase shrink-0">
-                          Sinh viên đang chấm điểm
-                        </h3>
-                        <div className="relative w-full md:w-[220px]">
-                          <Select
-                            value={selectedClassId || undefined}
-                            onValueChange={handleClassChange}
-                            disabled={isRosterLoading || apiClasses.length === 0}
-                          >
-                            <SelectTrigger className="h-8 bg-white/70 border-slate-200 text-xs font-semibold">
-                              <SelectValue placeholder={isRosterLoading ? "Đang tải..." : "Chọn lớp"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {apiClasses.map((cls) => (
-                                <SelectItem key={cls._id} value={cls._id}>
-                                  {cls.class_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="relative flex-1 max-w-[240px]">
-                          <input
-                            type="text"
-                            placeholder="Tìm MSSV hoặc tên..."
-                            value={rosterSearch}
-                            onChange={(e) => setRosterSearch(e.target.value)}
-                            className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/70 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1A73E8]"
-                          />
-                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                        </div>
-                      </div>
-                    <div className="flex gap-2 items-center">
-                      {isAdminOrSupervisor && (
-                        <button
-                          onClick={() => setIsDeleteModalOpen(true)}
-                          className="w-8 h-8 rounded-xl bg-rose-50 backdrop-blur-sm border border-rose-100 flex items-center justify-center text-rose-500 hover:bg-rose-100 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
-                          title="Xóa bảng điểm"
-                        >
-                          <Trash2 size={15} strokeWidth={2.5} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => scrollSlider("left")}
-                        className="w-8 h-8 rounded-xl bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
-                        title="Trượt sang trái"
-                      >
-                        <ChevronLeft size={16} strokeWidth={2.5} />
-                      </button>
-                      <button
-                        onClick={() => scrollSlider("right")}
-                        className="w-8 h-8 rounded-xl bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-center text-[#64748B] hover:bg-white/90 active:scale-95 transition-all cursor-pointer shadow-sm hover:scale-[1.05]"
-                        title="Trượt sang phải"
-                      >
-                        <ChevronRight size={16} strokeWidth={2.5} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div
-                  ref={sliderRef}
-                  onMouseDown={handleSliderMouseDown}
-                  onMouseUp={handleSliderMouseUpOrLeave}
-                  onMouseLeave={handleSliderMouseUpOrLeave}
-                  onMouseMove={handleSliderMouseMove}
-                  className={`flex gap-4 overflow-x-auto pl-1 pr-10 custom-scrollbar scroll-smooth cursor-grab select-none ${isStudentSliderSticky ? "pt-1.5 pb-1" : "py-2.5"}`}
-                >
-                  {isInitialLoading || isRosterLoading
-                    ? Array.from({ length: 4 }).map((_, idx) => (
-                      <div
-                        key={`skel-hero-${idx}`}
-                        className={`bg-white/50 backdrop-blur-sm border border-white/60 flex items-center shrink-0 animate-pulse ${
-                          isStudentSliderSticky
-                            ? "min-w-[220px] h-9 rounded-xl p-1.5 px-3 gap-2"
-                            : "w-[256px] h-[83px] rounded-2xl p-3.5 gap-3"
-                        }`}
-                      >
-                        <Skeleton className={`rounded-full bg-slate-100 shrink-0 animate-pulse ${isStudentSliderSticky ? "w-6 h-6" : "w-12 h-12"}`} />
-                        <div className={`flex-1 flex ${isStudentSliderSticky ? "flex-row items-center gap-2" : "flex-col gap-1.5"}`}>
-                          <Skeleton className={`${isStudentSliderSticky ? "h-3 w-16" : "h-4 w-3/4"} bg-slate-100 rounded`} />
-                          {!isStudentSliderSticky && <Skeleton className="h-3.5 w-1/2 bg-slate-100 rounded" />}
-                        </div>
-                      </div>
-                    ))
-                    : filteredStudentsForRoster.length === 0 ? (
-                      <div className="flex-1 py-6 flex flex-col items-center justify-center text-center text-[#64748B] font-medium text-[13.5px] border border-dashed border-slate-300/60 rounded-2xl bg-white/40 select-none">
-                        {!selectedClassId
-                          ? "Vui lòng chọn lớp học để xem danh sách sinh viên."
-                          : students.length === 0 
-                            ? "Lớp này chưa có sinh viên."
-                            : "Không tìm thấy sinh viên nào khớp với bộ lọc."}
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          height: isStudentSliderSticky ? "40px" : "109px",
-                          width: `${studentVirtualizer.getTotalSize()}px`,
-                          position: "relative",
-                        }}
-                      >
-                        {studentVirtualizer.getVirtualItems().map((virtualItem) => {
-                          const student = filteredStudentsForRoster[virtualItem.index];
-                          const isActive = student.id === activeStudentId;
-                          const isDirty = dirtyStudentIds.has(student.id);
-                          const isSaving = savingStudentIds.has(student.id);
-
-                          return (
-                            <StudentSliderCard
-                              key={student.id || `student-card-${virtualItem.index}`}
-                              student={student}
-                              isActive={isActive}
-                              isDirty={isDirty}
-                              isSaving={isSaving}
-                              isStudentSliderSticky={isStudentSliderSticky}
-                              onClick={handleActiveStudentChange}
-                              virtualItem={virtualItem}
-                              measureElement={studentVirtualizer.measureElement}
-                              getInitials={getInitials}
-                              renderGradingStatusBadge={renderGradingStatusBadge}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
-                </div>
-                </div>
-              </div>
+              <StudentGradingSlider
+                students={students}
+                activeStudentId={activeStudentId}
+                dirtyStudentIds={dirtyStudentIds}
+                savingStudentIds={savingStudentIds}
+                isInitialLoading={isInitialLoading}
+                isRosterLoading={isRosterLoading}
+                selectedClassId={selectedClassId}
+                apiClasses={apiClasses}
+                isAdminOrSupervisor={isAdminOrSupervisor}
+                scrollContainerRef={mainRef}
+                onClassChange={handleClassChange}
+                onActiveStudentChange={handleActiveStudentChange}
+                onOpenDeleteModal={handleOpenDeleteModal}
+                renderGradingStatusBadge={renderGradingStatusBadge}
+              />
             )}
-
-            <div className="relative w-full h-0 pointer-events-none" aria-hidden="true">
-              <div ref={sentinelRef} className="absolute top-0 w-full h-[1px]" />
-            </div>
 
             {/* ================= ACTIVE STUDENT RANK CARD ================= */}
             {shouldShowActiveStudentRankCard && activeStudent && (
@@ -3040,13 +2897,11 @@ function GradingScoreContent() {
                     const studentCounts =
                       evaluationCounts[activeStudentId] || {};
 
-                    // Tính toán tổng điểm danh mục rèn luyện realtime
-                    const isLocked = activeStudent.gradingStatus === "locked";
                     const clampedCatScore = calculateCategoryScore(
                       category, 
                       studentCounts, 
                       selectedOptionsState[activeStudentId] || {}, 
-                      isLocked ? evaluationDetailsMap : undefined
+                      evaluationDetailsMap
                     );
 
                     // Xác định màu sắc badge dựa trên tỷ lệ điểm
@@ -3115,8 +2970,10 @@ function GradingScoreContent() {
                             const minCount = 0;
                             const maxScore = item.maxScore ?? 10;
                             const pointsPerUnit = Math.abs(item.pointsPerUnit || 1);
-                            const maxCount = Math.max(minCount, Math.ceil(maxScore / pointsPerUnit));
-                            const sliderMax = Math.max(maxCount, count + 1);
+                            const maxCount = item.scoring_mode === 'single_option'
+                              ? 1
+                              : (pointsPerUnit === 0 ? 0 : Math.max(minCount, Math.ceil(maxScore / pointsPerUnit)));
+                            const sliderMax = maxCount;
                             const numbers = [];
                             for (let i = minCount; i <= sliderMax; i++) {
                               numbers.push(i);
@@ -3141,7 +2998,7 @@ function GradingScoreContent() {
                                     {/* Mobile-only Realtime Points Display on the right of title */}
                                     <div className="flex flex-col items-end shrink-0 md:hidden">
                                       <span className={`font-bold text-[16px] ${getScoreColorClass(achievedPoints, item)}`}>
-                                        {formatScoreLabel(achievedPoints, hasViolation)}
+                                        {formatScoreLabel(criterionScore, hasViolation)}
                                       </span>
                                       {item.maxScore !== undefined && (
                                         <span className="text-[8.5px] text-[#64748B] font-bold">
@@ -3161,7 +3018,7 @@ function GradingScoreContent() {
                                         <span className="opacity-70">P.HSSV:</span>
                                         <span>
                                           {formatScoreLabel(
-                                            getRecordDerivedCriterionScore(item, count, selectedOptionId, detail),
+                                            getRecordDerivedRawCriterionScore(item, count, selectedOptionId, detail),
                                             hasViolation
                                           )}
                                         </span>
@@ -3249,13 +3106,11 @@ function GradingScoreContent() {
                                           disabled={
                                             count <= minCount ||
                                             item.is_locked ||
-                                            !canModifyScore ||
-                                            pendingIntentKeys[`${activeStudentId}:${item.id}`]
+                                            !canModifyScore
                                           }
                                           className={`w-8 h-8 md:w-7 md:h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count <= minCount ||
                                             item.is_locked ||
-                                            !canModifyScore ||
-                                            pendingIntentKeys[`${activeStudentId}:${item.id}`]
+                                            !canModifyScore
                                             ? "opacity-30 cursor-not-allowed text-slate-400"
                                             : "cursor-pointer " +
                                             (hasViolation
@@ -3280,7 +3135,7 @@ function GradingScoreContent() {
                                           minCount={minCount}
                                           maxCount={sliderMax}
                                           onChange={(val) => handleCountSet(item.id, val)}
-                                          isLocked={item.is_locked || false || pendingIntentKeys[`${activeStudentId}:${item.id}`] || false}
+                                          isLocked={item.is_locked || false}
                                           canModifyScore={canModifyScore}
                                           hasViolation={hasViolation}
                                         />
@@ -3293,13 +3148,13 @@ function GradingScoreContent() {
                                             handleCountChange(item.id, 1)
                                           }
                                           disabled={
+                                            count >= maxCount ||
                                             item.is_locked ||
-                                            !canModifyScore ||
-                                            pendingIntentKeys[`${activeStudentId}:${item.id}`]
+                                            !canModifyScore
                                           }
-                                          className={`w-8 h-8 md:w-7 md:h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${item.is_locked ||
-                                            !canModifyScore ||
-                                            pendingIntentKeys[`${activeStudentId}:${item.id}`]
+                                          className={`w-8 h-8 md:w-7 md:h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count >= maxCount ||
+                                            item.is_locked ||
+                                            !canModifyScore
                                             ? "opacity-30 cursor-not-allowed text-slate-400"
                                             : "cursor-pointer " +
                                             (hasViolation
@@ -3311,7 +3166,9 @@ function GradingScoreContent() {
                                               ? "Không có quyền sửa đổi trong giai đoạn này"
                                               : item.is_locked
                                                 ? "Tiêu chí đã bị khóa"
-                                                : "Tăng số lần"
+                                                : count >= maxCount
+                                                  ? `Đã đạt giới hạn tối đa (${maxCount} lần)`
+                                                  : "Tăng số lần"
                                           }
                                         >
                                           <Plus className="w-[15px] h-[15px] md:w-[11px] md:h-[11px]" strokeWidth={3} />
@@ -3329,11 +3186,23 @@ function GradingScoreContent() {
                                         <span className="text-rose-600 text-[10px] font-bold tracking-wide">
                                           Trừ {Math.abs(item.pointsPerUnit)}đ/lần vi phạm
                                         </span>
+                                        {count >= maxCount && (
+                                          <span className="text-amber-600 text-[9px] font-extrabold mt-0.5 animate-pulse">
+                                            Đạt giới hạn tối đa ({maxCount} lần)
+                                          </span>
+                                        )}
                                       </div>
                                     ) : (
-                                      <span className="text-[#64748B] text-[10px] font-bold tracking-wide pr-3 select-none">
-                                        +{item.pointsPerUnit}đ/lần
-                                      </span>
+                                      <div className="flex flex-col items-end pr-3 select-none">
+                                        <span className="text-[#64748B] text-[10px] font-bold tracking-wide">
+                                          +{item.pointsPerUnit}đ/lần
+                                        </span>
+                                        {count >= maxCount && (
+                                          <span className="text-amber-600 text-[9px] font-extrabold mt-0.5 animate-pulse">
+                                            Đạt giới hạn tối đa ({maxCount} lần)
+                                          </span>
+                                        )}
+                                      </div>
                                     )}
                                   </div>
 
@@ -3342,7 +3211,7 @@ function GradingScoreContent() {
                                     <span
                                       className={`font-bold text-[16px] ${getScoreColorClass(achievedPoints, item)}`}
                                     >
-                                      {formatScoreLabel(achievedPoints, hasViolation)}
+                                      {formatScoreLabel(criterionScore, hasViolation)}
                                     </span>
                                     <span className="text-[9.5px] text-[#64748B] font-bold mt-0.5">
                                       {isApproved
@@ -3445,7 +3314,7 @@ function GradingScoreContent() {
 
                   return (
                     <div className="flex flex-col gap-4">
-                      {isFetching || isHistoryFetching || isInitialLoading ? (
+                      {isDetailsLoading || isHistoryFetching || isInitialLoading ? (
                         <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl py-20 flex flex-col items-center justify-center text-center p-8 gap-3 shadow-sm shadow-slate-300/40">
                           <div className="p-4 bg-white/70 border border-white/80 rounded-2xl text-slate-300 shadow-sm animate-pulse">
                             <Loader2 size={36} strokeWidth={1.5} className="animate-spin text-[#1A73E8]" />

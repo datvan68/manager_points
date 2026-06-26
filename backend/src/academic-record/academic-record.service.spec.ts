@@ -503,6 +503,10 @@ describe('AcademicRecordService - Import Flow', () => {
       mockSummaryPointModel.findOne = jest.fn().mockReturnValue({
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue({
+          _id: new Types.ObjectId(),
+          total_score: 100,
+          grading: 'A',
+          status: 'draft',
           details: [
             {
               criterion_id: criterionId,
@@ -572,6 +576,15 @@ describe('AcademicRecordService - Import Flow', () => {
       const requester = { userId: studentId, roleName: 'Student' };
       const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'increase' };
       
+      mockCriterionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'count',
+          score_per_unit: 2,
+          max_score: 10,
+        })
+      });
+
       const currentRecords = [{ _id: new Types.ObjectId() }];
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
@@ -655,6 +668,15 @@ describe('AcademicRecordService - Import Flow', () => {
       const requester = { userId: studentId, roleName: 'Student' };
       const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'set_target_count', target_count: 3 };
       
+      mockCriterionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'count',
+          score_per_unit: 2,
+          max_score: 10,
+        })
+      });
+
       const currentRecords = [{ _id: new Types.ObjectId() }];
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
@@ -713,6 +735,44 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(mockAcademicRecordModel.deleteOne).toHaveBeenCalledTimes(1);
       expect(mockAcademicRecordModel.deleteOne).toHaveBeenCalledWith({ _id: studentRecordId });
       expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('clear_score'));
+    });
+
+    it('should throw BadRequestException if desiredCount > maxCount', async () => {
+      const requester = { userId: studentId, roleName: 'Student' };
+      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'increase' };
+      
+      mockCriterionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'count',
+          score_per_unit: 5,
+          max_score: 10, // maxCount = 2
+        })
+      });
+
+      const currentRecords = [{ _id: new Types.ObjectId() }, { _id: new Types.ObjectId() }]; // currentCount = 2
+      mockAcademicRecordModel.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(currentRecords)
+      });
+
+      await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if score_per_unit is 0 in count mode', async () => {
+      const requester = { userId: studentId, roleName: 'Student' };
+      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'increase' };
+      
+      mockCriterionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'count',
+          score_per_unit: 0,
+          max_score: 10,
+        })
+      });
+
+      await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(BadRequestException);
     });
   });
 

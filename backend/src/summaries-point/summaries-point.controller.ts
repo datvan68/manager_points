@@ -155,6 +155,7 @@ export class SummariesPointController {
     @Query('studentId') studentId?: string,
     @Query('studentIds') studentIds?: string,
     @Query('status') status?: string,
+    @Query('fields') fields?: string,
   ) {
     return this.summariesPointService.findAll(req.user, {
       page: page ? parseInt(page, 10) : undefined,
@@ -164,6 +165,7 @@ export class SummariesPointController {
       studentId,
       studentIds,
       status,
+      fields,
     });
   }
 

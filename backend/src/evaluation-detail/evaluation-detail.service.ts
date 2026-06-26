@@ -23,6 +23,8 @@ import { User, UserDocument } from '../auth/schemas/user.schema';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
+import { calculateCriterionScoreHelper } from '../academic-record/academic-record.utils';
+
 
 @Injectable()
 export class EvaluationDetailService {
@@ -437,39 +439,28 @@ export class EvaluationDetailService {
       throw new ConflictException(`EvaluationDetail for Criterion ${criterion_id} already exists on this SummaryPoint`);
     }
 
-    let countVal = current_count ?? 0;
-    let systemScore = 0;
-
     const rawRest = rest as any;
-    let optId = rawRest.selected_option_id;
-    let optLabel = null;
-    let optScore = null;
-
-    if (criterion.scoring_mode === 'single_option') {
-      if (optId) {
-        const option = criterion.options?.find((o) => o.id === optId);
-        if (option) {
-          systemScore = option.score;
-          optLabel = option.label;
-          optScore = option.score;
-          countVal = 1;
-        } else {
-          throw new BadRequestException('Option không hợp lệ');
-        }
-      } else {
-        countVal = 0;
-        systemScore = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
-      }
-    } else {
-      systemScore = countVal * criterion.score_per_unit;
-      if (criterion.score_per_unit >= 0) {
-        systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
-      } else {
-        const maxScore = criterion.max_score || 10;
-        const minScore = criterion.min_score || 0;
-        systemScore = Math.max(minScore, Math.min(maxScore, maxScore - countVal * Math.abs(criterion.score_per_unit)));
+    if (criterion.scoring_mode === 'single_option' && rawRest.selected_option_id) {
+      const option = criterion.options?.find((o: any) => o.id === rawRest.selected_option_id);
+      if (!option) {
+        throw new BadRequestException('Option không hợp lệ');
       }
     }
+
+    const scoringResult = calculateCriterionScoreHelper({
+      criterion,
+      count: current_count ?? 0,
+      selectedOptionId: rawRest.selected_option_id,
+      selectedOptionLabel: rawRest.selected_option_label,
+      selectedOptionScore: rawRest.selected_option_score,
+      isSyncPath: false,
+    });
+
+    const countVal = scoringResult.currentCount;
+    const systemScore = scoringResult.systemScore;
+    const optId = scoringResult.selectedOptionId;
+    const optLabel = scoringResult.selectedOptionLabel;
+    const optScore = scoringResult.selectedOptionScore;
 
     // We no longer sync records from evaluation_detail as academic_record is the source of truth
 
@@ -824,39 +815,20 @@ export class EvaluationDetailService {
         (d) => d.criterion_id && d.criterion_id.toString() === criterion_id
       );
 
-      let countVal = current_count ?? 0;
-      let systemScore = 0;
-      let optId = selected_option_id || null;
-      let optLabel = detailDto.selected_option_label || null;
-      let optScore = detailDto.selected_option_score || null;
+      const scoringResult = calculateCriterionScoreHelper({
+        criterion,
+        count: current_count ?? 0,
+        selectedOptionId: selected_option_id,
+        selectedOptionLabel: detailDto.selected_option_label,
+        selectedOptionScore: detailDto.selected_option_score,
+        isSyncPath: false,
+      });
 
-      if (criterion.scoring_mode === 'single_option') {
-        if (optId) {
-          const option = criterion.options?.find((o) => o.id === optId);
-          if (option) {
-            systemScore = option.score;
-            optLabel = option.label;
-            optScore = option.score;
-            countVal = 1;
-          } else {
-            optId = null;
-            countVal = 0;
-            systemScore = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
-          }
-        } else {
-          countVal = 0;
-          systemScore = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
-        }
-      } else {
-        systemScore = countVal * criterion.score_per_unit;
-        if (criterion.score_per_unit >= 0) {
-          systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
-        } else {
-          const maxScore = criterion.max_score || 10;
-          const minScore = criterion.min_score || 0;
-          systemScore = Math.max(minScore, Math.min(maxScore, maxScore - countVal * Math.abs(criterion.score_per_unit)));
-        }
-      }
+      let countVal = scoringResult.currentCount;
+      let systemScore = scoringResult.systemScore;
+      let optId = scoringResult.selectedOptionId;
+      let optLabel = scoringResult.selectedOptionLabel;
+      let optScore = scoringResult.selectedOptionScore;
 
       const firstLog = detailDto.log && detailDto.log.length > 0 ? detailDto.log[0] : null;
       const fallbackUserId = detailDto.gv_reviewed_by || firstLog?.updated_by;

@@ -7,6 +7,7 @@ import { resolveRankTier, getRankStyle, getCongratsMessage, type RankStyle } fro
 
 export interface StudentData {
   id: string;
+  studentCode?: string;
   name: string;
   email: string;
   dob: string;
@@ -219,7 +220,7 @@ export default function ActiveStudentRankCard({ activeStudent }: { activeStudent
           </h3>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[12px] font-medium justify-center sm:justify-start min-w-0">
             <span className={`${activeStudentRankStyle.descText || 'text-slate-500'} shrink-0`}>
-              MSSV: <strong className="font-bold">{activeStudent.id}</strong>
+              MSSV: <strong className="font-bold">{activeStudent.studentCode || activeStudent.id}</strong>
             </span>
             <span className={`w-1 h-1 rounded-full shrink-0 ${activeStudentRankTier === 'unranked' ? 'bg-slate-400' : 'bg-current opacity-60'}`} />
             <span className={`${activeStudentRankStyle.descText || 'text-slate-500'} flex items-center min-w-0 gap-1`}>

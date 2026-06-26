@@ -115,12 +115,19 @@ describe("score-calculation helper", () => {
         pointsPerUnit: 0,
         type: "violation",
         is_score_counted: false,
-        scoring_mode: "single_option"
+        scoring_mode: "single_option",
+        options: [
+          { id: "opt-3", label: "Muc vi pham 3 diem", score: 7 }
+        ]
       };
 
       // khong chon option -> rawScore maxScore (10), contribution 0
       expect(calculateCriterionScore(violationCriterion, 1, null)).toBe(10);
       expect(getCriterionContributionScore(violationCriterion, 1, null)).toBe(0);
+
+      // chon option score=7 -> rawScore 7, contribution 7 - 10 = -3
+      expect(calculateCriterionScore(violationCriterion, 1, "opt-3")).toBe(7);
+      expect(getCriterionContributionScore(violationCriterion, 1, "opt-3")).toBe(-3);
     });
   });
 

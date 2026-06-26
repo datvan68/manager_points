@@ -328,6 +328,7 @@ export class SummariesPointService {
       studentId?: string;
       studentIds?: string | string[];
       status?: string;
+      fields?: string;
     },
   ): Promise<any> {
     const teacherStudentIds = await this.getTeacherStudentIds(requester);
@@ -406,23 +407,35 @@ export class SummariesPointService {
       }
     }
 
+    const isSliderMode = query?.fields === 'slider';
     const rawPage = query?.page ? Number(query.page) : 1;
     const rawLimit = query?.limit ? Number(query.limit) : 10;
     const page = Math.max(1, isNaN(rawPage) ? 1 : rawPage);
-    const limit = Math.max(1, Math.min(100, isNaN(rawLimit) ? 10 : rawLimit));
+    const maxLimit = isSliderMode || rawLimit === 1000 || rawLimit > 100 ? 1000 : 100;
+    const limit = Math.max(1, Math.min(maxLimit, isNaN(rawLimit) ? 10 : rawLimit));
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
-      this.summaryPointModel
-        .find(filter)
-        .select('-details')
-        .populate('student_id')
-        .populate('semester_id')
-        .populate('period_id')
-        .sort({ createdAt: 1, _id: 1 })
-        .skip(skip)
-        .limit(limit)
-        .exec(),
+      isSliderMode
+        ? this.summaryPointModel
+            .find(filter)
+            .select('_id student_id total_score status grading period_id')
+            .populate('student_id', '_id student_code full_name')
+            .sort({ createdAt: 1, _id: 1 })
+            .skip(skip)
+            .limit(limit)
+            .lean()
+            .exec()
+        : this.summaryPointModel
+            .find(filter)
+            .select('-details')
+            .populate('student_id')
+            .populate('semester_id')
+            .populate('period_id')
+            .sort({ createdAt: 1, _id: 1 })
+            .skip(skip)
+            .limit(limit)
+            .exec(),
       this.summaryPointModel.countDocuments(filter).exec(),
     ]);
 
@@ -508,6 +521,14 @@ export class SummariesPointService {
     return updated;
   }
 
+  private getCriterionContributionForTotal(cri: any, rawScore: number): number {
+    const isDiscipline = cri.criterion_type === 'ky_luat' || cri.score_per_unit < 0;
+    if (isDiscipline && cri.is_score_counted === false) {
+      return rawScore - (cri.max_score || 10);
+    }
+    return rawScore;
+  }
+
   /**
    * Tính toán lại tổng điểm rèn luyện của một bảng điểm dựa trên các tiêu chí và danh mục.
    * Đồng thời cập nhật trường `grading` (xếp loại) nếu bảng điểm đã được chốt.
@@ -515,15 +536,17 @@ export class SummariesPointService {
    * @param summaryId - ID của bảng điểm rèn luyện cần tính toán lại.
    * @returns Promise<void>
    */
-  async recomputeTotalScore(summaryId: string): Promise<void> {
+  async recomputeTotalScore(
+    summaryId: string,
+    preloadedMetadata?: { categories: any[]; criteria: any[] },
+  ): Promise<void> {
     const summary = await this.summaryPointModel.findById(summaryId);
     if (!summary) return;
 
     const details = summary.details || [];
-    if (details.length === 0) return;
 
-    const categories = await this.categoryModel.find().lean().exec();
-    const criteria = await this.criterionModel.find().lean().exec();
+    const categories = preloadedMetadata?.categories || await this.categoryModel.find().lean().exec();
+    const criteria = preloadedMetadata?.criteria || await this.criterionModel.find().lean().exec();
 
     // Map categories by ID
     const categoryMap = new Map<string, any>();
@@ -554,6 +577,7 @@ export class SummariesPointService {
         );
 
         let criterionScore = 0;
+        const isDiscipline = cri.score_per_unit < 0 || cri.criterion_type === 'ky_luat';
         
         if (detail) {
            let rawScore = detail.final_score !== null && detail.final_score !== undefined
@@ -564,22 +588,28 @@ export class SummariesPointService {
                     ? detail.sv_score
                     : (detail.system_score !== null && detail.system_score !== undefined ? detail.system_score : 0)));
            
-           if (rawScore < 0 && (cri.score_per_unit < 0 || cri.criterion_type === 'ky_luat')) {
-              rawScore = (cri.max_score || 10) - Math.abs(rawScore);
+           if (isDiscipline) {
+             const maxScore = cri.max_score || 10;
+             const count = detail.current_count ?? 0;
+             if (rawScore < 0) {
+               rawScore = maxScore - Math.abs(rawScore);
+             } else if (rawScore === 0 && count === 0) {
+               rawScore = maxScore;
+             }
            }
            criterionScore = rawScore;
         } else {
           // If no detail, score depends on criterion type.
           // For violation (discipline), count = 0, meaning full base score (max_score).
           // Otherwise 0.
-          if (cri.score_per_unit < 0 || cri.criterion_type === 'ky_luat') {
+          if (isDiscipline) {
              criterionScore = cri.max_score || 10;
           } else {
              criterionScore = 0;
           }
         }
         
-        const countedScore = cri.criterion_type === 'ky_luat' && cri.is_score_counted === false ? (criterionScore - (cri.max_score || 10)) : criterionScore;
+        const countedScore = this.getCriterionContributionForTotal(cri, criterionScore);
         catInfo.currentScore += countedScore;
       }
     }
@@ -749,9 +779,6 @@ export class SummariesPointService {
       throw new ForbiddenException('Bạn không có quyền phê duyệt bảng điểm rèn luyện.');
     }
 
-    // 1. Kiểm tra quyền truy cập
-    await this.assertCanAccessSummary(summaryId, requester);
-
     // Find the summary from DB. If not found, throw NotFoundException.
     const summary = await this.summaryPointModel.findById(summaryId);
     if (!summary) {
@@ -775,20 +802,22 @@ export class SummariesPointService {
                   : 0));
 
         detail.final_score = finalScore;
-        detail.locked_at = lockedAt;
-        detail.locked_by = lockedBy as any;
+        detail.locked_at = detail.locked_at || lockedAt;
+        detail.locked_by = detail.locked_by || (lockedBy as any);
 
-        detail.log = detail.log || [];
-        detail.log.push({
-          from_status: oldStatus,
-          to_status: 'locked',
-          score_before: detail.system_score !== undefined && detail.system_score !== null ? detail.system_score : 0,
-          score_after: finalScore,
-          count: detail.current_count,
-          updated_by: lockedBy as any,
-          updated_at: lockedAt,
-          reason: 'Phê duyệt rèn luyện bởi ' + (requester.roleName?.toLowerCase().includes('supervisor') ? 'Quản sinh' : 'Admin'),
-        });
+        if (oldStatus !== 'locked') {
+          detail.log = detail.log || [];
+          detail.log.push({
+            from_status: oldStatus,
+            to_status: 'locked',
+            score_before: detail.system_score !== undefined && detail.system_score !== null ? detail.system_score : 0,
+            score_after: finalScore,
+            count: detail.current_count,
+            updated_by: lockedBy as any,
+            updated_at: lockedAt,
+            reason: 'Phê duyệt rèn luyện bởi ' + (requester.roleName?.toLowerCase().includes('supervisor') ? 'Quản sinh' : 'Admin'),
+          });
+        }
       }
       summary.markModified('details');
     }

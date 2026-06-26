@@ -19,6 +19,13 @@ export interface Category {
   items: Criteria[];
 }
 
+export const isNonCountedViolation = (criterion: Criteria) =>
+  criterion.type === "violation" && criterion.is_score_counted === false;
+
+export const getViolationContribution = (rawScore: number, maxScore: number, isScoreCounted?: boolean) =>
+  isScoreCounted === false ? rawScore - maxScore : rawScore;
+
+
 export const calculateCriterionScore = (criterion: Criteria, count: number, selectedOptionId?: string | null) => {
   const maxScore = criterion.maxScore ?? 10;
   const minScore = criterion.minScore ?? 0;
@@ -30,7 +37,7 @@ export const calculateCriterionScore = (criterion: Criteria, count: number, sele
         return Math.max(minScore, Math.min(maxScore, option.score));
       }
     }
-    return (criterion.type === "violation" && criterion.is_score_counted === false) ? maxScore : 0;
+    return (criterion.type === "violation") ? maxScore : 0;
   }
 
   if (criterion.pointsPerUnit >= 0) {
@@ -45,9 +52,9 @@ export const calculateCriterionScore = (criterion: Criteria, count: number, sele
 
 export const getCriterionContributionScore = (criterion: Criteria, count: number, selectedOptionId?: string | null) => {
   const rawScore = calculateCriterionScore(criterion, count, selectedOptionId);
-  if (criterion.type === "violation" && criterion.is_score_counted === false) {
+  if (isNonCountedViolation(criterion)) {
     const maxScore = criterion.maxScore ?? 10;
-    return rawScore - maxScore;
+    return getViolationContribution(rawScore, maxScore, criterion.is_score_counted);
   }
   return rawScore;
 };
@@ -73,6 +80,9 @@ export const getResolvedRawCriterionScore = (
       if (score < 0 && criterion.type === "violation") {
         const maxScore = criterion.maxScore ?? 10;
         score = maxScore - Math.abs(score);
+      } else if (score === 0 && count === 0 && criterion.type === "violation") {
+        const maxScore = criterion.maxScore ?? 10;
+        score = maxScore;
       }
       return score;
     }
@@ -88,9 +98,9 @@ export const getResolvedCriterionScore = (
 ) => {
   if (detail) {
     const score = getResolvedRawCriterionScore(criterion, count, selectedOptionId, detail);
-    if (criterion.type === "violation" && criterion.is_score_counted === false) {
+    if (isNonCountedViolation(criterion)) {
       const maxScore = criterion.maxScore ?? 10;
-      return score - maxScore;
+      return getViolationContribution(score, maxScore, criterion.is_score_counted);
     }
     return score;
   }
@@ -142,6 +152,9 @@ export const getRecordDerivedRawCriterionScore = (
       if (score < 0 && criterion.type === "violation") {
         const maxScore = criterion.maxScore ?? 10;
         score = maxScore - Math.abs(score);
+      } else if (score === 0 && count === 0 && criterion.type === "violation") {
+        const maxScore = criterion.maxScore ?? 10;
+        score = maxScore;
       }
       return score;
     }
@@ -163,9 +176,9 @@ export const getRecordDerivedCriterionScore = (
       
     if (rawScore !== null) {
       const score = getRecordDerivedRawCriterionScore(criterion, count, selectedOptionId, detail);
-      if (criterion.type === "violation" && criterion.is_score_counted === false) {
+      if (isNonCountedViolation(criterion)) {
         const maxScore = criterion.maxScore ?? 10;
-        return score - maxScore;
+        return getViolationContribution(score, maxScore, criterion.is_score_counted);
       }
       return score;
     }
@@ -210,5 +223,7 @@ export default {
   getRecordDerivedCriterionScore,
   calculateCategoryScore,
   calculateTotalScore,
-  mergeDetailsWithPreExistingCounts
+  mergeDetailsWithPreExistingCounts,
+  isNonCountedViolation,
+  getViolationContribution
 };

@@ -111,7 +111,19 @@ export const academicRecordApi = {
     return handleResponse<AcademicRecord>(res);
   },
 
-  async sendIntent(intent: IntentScoreDto): Promise<{ success: boolean; actual_count: number; evaluation_detail: any; sync_status?: 'synced' | 'summary_missing' | 'summary_locked'; warning_code?: string }> {
+  async sendIntent(intent: IntentScoreDto): Promise<{
+    success: boolean;
+    actual_count: number;
+    evaluation_detail: any;
+    sync_status?: 'synced' | 'summary_missing' | 'summary_locked';
+    warning_code?: string;
+    summary?: {
+      _id: string;
+      total_score: number | null;
+      grading: string | null;
+      status: string;
+    } | null;
+  }> {
     const token = tokenStorage.getAccessToken() || '';
     const res = await fetch(`${API_BASE}/academic-records/intent`, {
       method: 'POST',

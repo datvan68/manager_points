@@ -34,6 +34,7 @@ export const studentApi = {
     departmentId?: string;
     search?: string;
     status?: string;
+    fields?: string;
   }): Promise<{ data: Student[]; meta?: any } | Student[]> {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', params.page.toString());
@@ -42,6 +43,7 @@ export const studentApi = {
     if (params?.departmentId) query.set('departmentId', params.departmentId);
     if (params?.search) query.set('search', params.search);
     if (params?.status) query.set('status', params.status);
+    if (params?.fields) query.set('fields', params.fields);
     
     const qs = query.toString();
     const url = `${API_BASE}/students${qs ? `?${qs}` : ''}`;

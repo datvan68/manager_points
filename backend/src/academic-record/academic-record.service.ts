@@ -22,6 +22,8 @@ import { getRequesterRoleName, isStudent, isTeacher } from '../auth/utils/role.u
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
 import { gradingEventEmitter } from '../system/grading-event-emitter';
 import { IntentScoreDto } from './dto/intent-score.dto';
+import { calculateCriterionScoreHelper } from './academic-record.utils';
+
 
 export interface AcademicRecordFindAllQuery {
   page?: number;
@@ -91,10 +93,10 @@ export class AcademicRecordService {
     if (!criterion) return;
 
     // 3. Compute system_score
-    let systemScore = activeCount * (criterion.score_per_unit || 0);
-    let selectedOptionId: string | null = null;
-    let selectedOptionLabel: string | null = null;
-    let selectedOptionScore: number | null = null;
+    let optId: string | null = null;
+    let optLabel: string | null = null;
+    let optScore: number | null = null;
+    let manualScore: number | null = null;
 
     if (activeCount > 0) {
       // Find the latest active record to extract option or manual score if applicable
@@ -108,58 +110,37 @@ export class AcademicRecordService {
 
       if (latestRecord) {
         if (criterion.scoring_mode === 'single_option') {
-          // Ưu tiên field mới
           if (latestRecord.selected_option_id) {
-            selectedOptionId = latestRecord.selected_option_id;
-            selectedOptionLabel = latestRecord.selected_option_label || null;
-            selectedOptionScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
-            systemScore = selectedOptionScore ?? 0;
+            optId = latestRecord.selected_option_id;
+            optLabel = latestRecord.selected_option_label || null;
+            optScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
           } else if (latestRecord.record_title && latestRecord.record_title.startsWith('Lựa chọn option ')) {
-            // Fallback dữ liệu cũ từ record_title
-            selectedOptionId = latestRecord.record_title.replace('Lựa chọn option ', '');
-            const option = criterion.options?.find((o: any) => o.id === selectedOptionId);
-            if (option) {
-              selectedOptionLabel = option.label;
-              selectedOptionScore = option.score;
-              systemScore = option.score;
-            }
+            optId = latestRecord.record_title.replace('Lựa chọn option ', '');
           }
         } else {
-          if (latestRecord.record_title) {
-            if (latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
-              const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
-              systemScore = parseFloat(manualScoreStr) || 0;
-            } else {
-              // Normal counting mode
-              if ((criterion.score_per_unit || 0) >= 0) {
-                systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
-              } else {
-                const maxScore = criterion.max_score || 10;
-                const minScore = criterion.min_score || 0;
-                systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit || 0)));
-              }
-            }
-          } else {
-            if ((criterion.score_per_unit || 0) >= 0) {
-              systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
-            } else {
-              const maxScore = criterion.max_score || 10;
-              const minScore = criterion.min_score || 0;
-              systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit || 0)));
-            }
+          if (latestRecord.record_title && latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
+            const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
+            manualScore = parseFloat(manualScoreStr) || 0;
           }
         }
       }
-    } else {
-      if (criterion.scoring_mode === 'single_option') {
-        systemScore = 0;
-        selectedOptionId = null;
-        selectedOptionLabel = null;
-        selectedOptionScore = null;
-      } else {
-        systemScore = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
-      }
     }
+
+    const scoringResult = calculateCriterionScoreHelper({
+      criterion,
+      count: activeCount,
+      selectedOptionId: optId,
+      selectedOptionLabel: optLabel,
+      selectedOptionScore: optScore,
+      manualScore,
+      isSyncPath: true,
+    });
+
+    const systemScore = scoringResult.systemScore;
+    const selectedOptionId = scoringResult.selectedOptionId;
+    const selectedOptionLabel = scoringResult.selectedOptionLabel;
+    const selectedOptionScore = scoringResult.selectedOptionScore;
+
 
     // 4. Find all SummaryPoints for this student and semester
     let summaries = await this.summaryPointModel.find({
@@ -280,10 +261,14 @@ export class AcademicRecordService {
       groups.get(key)!.criterionIds.add(cId);
     }
 
-    // Preload criteria definitions to avoid N+1 queries
+    // Preload criteria and categories definitions to avoid N+1 queries during sync & recompute
     const allCriterionIds = Array.from(new Set(records.map(r => r.criterion_id ? r.criterion_id.toString() : '').filter(Boolean)));
     const criteria = await this.criterionModel.find({ _id: { $in: allCriterionIds as any } } as any).lean().exec();
     const criteriaMap = new Map(criteria.map((c: any) => [c._id.toString(), c]));
+
+    const allCategories = await this.summaryPointModel.db.model('Category').find().lean().exec();
+    const allCriteria = await this.criterionModel.find().lean().exec();
+    const preloadedMetadata = { categories: allCategories, criteria: allCriteria };
 
     // Sync each student/semester group
     for (const [_, group] of groups) {
@@ -309,6 +294,27 @@ export class AcademicRecordService {
         }
       ]);
       const countMap = new Map(activeCounts.map(c => [c._id.toString(), c.count]));
+
+      // Preload latest records for all criteria in this student/semester group in one query
+      const latestRecordsAgg = await this.academicRecordModel.aggregate([
+        {
+          $match: {
+            student_id: new Types.ObjectId(studentId),
+            semester_id: new Types.ObjectId(semesterId),
+            criterion_id: { $in: Array.from(criterionIds).map(id => new Types.ObjectId(id)) },
+            status: 'active',
+            is_deleted: { $ne: true }
+          }
+        },
+        { $sort: { createdAt: -1 } },
+        {
+          $group: {
+            _id: '$criterion_id',
+            latestDoc: { $first: '$$ROOT' }
+          }
+        }
+      ]);
+      const latestRecordMap = new Map(latestRecordsAgg.map(r => [r._id.toString(), r.latestDoc]));
 
       // Load all SummaryPoints for this student and semester
       const summaries = await this.summaryPointModel.find({
@@ -336,77 +342,50 @@ export class AcademicRecordService {
               if (!criterion) continue;
 
               const activeCount = countMap.get(criterionId) || 0;
-              let systemScore = activeCount * (criterion.score_per_unit || 0);
-              let selectedOptionId: string | null = null;
-              let selectedOptionLabel: string | null = null;
-              let selectedOptionScore: number | null = null;
+              const latestRecord = latestRecordMap.get(criterionId) as any;
 
-              if (activeCount > 0) {
-                const latestRecord = await this.academicRecordModel.findOne({
-                  student_id: new Types.ObjectId(studentId),
-                  semester_id: new Types.ObjectId(semesterId),
-                  criterion_id: new Types.ObjectId(criterionId),
-                  status: 'active',
-                  is_deleted: { $ne: true },
-                } as any).sort({ createdAt: -1 }).exec();
+              let optId: string | null = null;
+              let optLabel: string | null = null;
+              let optScore: number | null = null;
+              let manualScore: number | null = null;
 
-                if (latestRecord) {
-                  if (criterion.scoring_mode === 'single_option') {
-                    if (latestRecord.selected_option_id) {
-                      selectedOptionId = latestRecord.selected_option_id;
-                      selectedOptionLabel = latestRecord.selected_option_label || null;
-                      selectedOptionScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
-                      systemScore = selectedOptionScore ?? 0;
-                    } else if (latestRecord.record_title && latestRecord.record_title.startsWith('Lựa chọn option ')) {
-                      selectedOptionId = latestRecord.record_title.replace('Lựa chọn option ', '');
-                      const option = criterion.options?.find((o: any) => o.id === selectedOptionId);
-                      if (option) {
-                        selectedOptionLabel = option.label;
-                        selectedOptionScore = option.score;
-                        systemScore = option.score;
-                      }
-                    }
-                  } else {
-                    if (latestRecord.record_title) {
-                      if (latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
-                        const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
-                        systemScore = parseFloat(manualScoreStr) || 0;
-                      } else {
-                        if ((criterion.score_per_unit || 0) >= 0) {
-                          systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
-                        } else {
-                          const maxScore = criterion.max_score || 10;
-                          const minScore = criterion.min_score || 0;
-                          systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit || 0)));
-                        }
-                      }
-                    } else {
-                      if ((criterion.score_per_unit || 0) >= 0) {
-                        systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
-                      } else {
-                        const maxScore = criterion.max_score || 10;
-                        const minScore = criterion.min_score || 0;
-                        systemScore = Math.max(minScore, Math.min(maxScore, maxScore - activeCount * Math.abs(criterion.score_per_unit || 0)));
-                      }
-                    }
+              if (activeCount > 0 && latestRecord) {
+                if (criterion.scoring_mode === 'single_option') {
+                  if (latestRecord.selected_option_id) {
+                    optId = latestRecord.selected_option_id;
+                    optLabel = latestRecord.selected_option_label || null;
+                    optScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
+                  } else if (latestRecord.record_title && latestRecord.record_title.startsWith('Lựa chọn option ')) {
+                    optId = latestRecord.record_title.replace('Lựa chọn option ', '');
+                  }
+                } else {
+                  if (latestRecord.record_title && latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
+                    const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
+                    manualScore = parseFloat(manualScoreStr) || 0;
                   }
                 }
-              } else {
-                if (criterion.scoring_mode === 'single_option') {
-                  systemScore = 0;
-                  selectedOptionId = null;
-                  selectedOptionLabel = null;
-                  selectedOptionScore = null;
-                } else {
-                  systemScore = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
-                }
               }
+
+              const scoringResult = calculateCriterionScoreHelper({
+                criterion,
+                count: activeCount,
+                selectedOptionId: optId,
+                selectedOptionLabel: optLabel,
+                selectedOptionScore: optScore,
+                manualScore,
+                isSyncPath: true,
+              });
+
+              const systemScore = scoringResult.systemScore;
+              const selectedOptionId = scoringResult.selectedOptionId;
+              const selectedOptionLabel = scoringResult.selectedOptionLabel;
+              const selectedOptionScore = scoringResult.selectedOptionScore;
 
               const detailIndex = details.findIndex((d: any) => d.criterion_id && d.criterion_id.toString() === criterionId);
               if (detailIndex === -1) {
                 const newDetail: any = {
                   criterion_id: new Types.ObjectId(criterionId) as any,
-                  current_count: criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount,
+                  current_count: scoringResult.currentCount,
                   system_score: systemScore,
                   selected_option_id: selectedOptionId,
                   selected_option_label: selectedOptionLabel,
@@ -430,7 +409,7 @@ export class AcademicRecordService {
                 details.push(newDetail);
               } else {
                 const detail = details[detailIndex];
-                detail.current_count = criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount;
+                detail.current_count = scoringResult.currentCount;
                 detail.system_score = systemScore;
                 detail.selected_option_id = selectedOptionId;
                 detail.selected_option_label = selectedOptionLabel;
@@ -446,7 +425,7 @@ export class AcademicRecordService {
             currentSummary.details = details;
             currentSummary.markModified('details');
             await currentSummary.save();
-            await this.summariesPointService.recomputeTotalScore(currentSummary._id.toString());
+            await this.summariesPointService.recomputeTotalScore(currentSummary._id.toString(), preloadedMetadata);
             
             gradingEventEmitter.emit('grading_event', {
               type: 'academic_record_changed',
@@ -498,6 +477,23 @@ export class AcademicRecordService {
     let changedRecordIds: string[] = [];
 
     if (intent_type === 'increase' || intent_type === 'decrease' || intent_type === 'set_target_count') {
+      const criterion = await this.criterionModel.findById(criterion_id).exec();
+      if (!criterion) {
+        throw new NotFoundException(`Criterion with ID ${criterion_id} not found`);
+      }
+
+      let maxCount = 0;
+      if (criterion.scoring_mode === 'single_option') {
+        maxCount = 1;
+      } else {
+        const pointsPerUnit = criterion.score_per_unit || 0;
+        if (pointsPerUnit === 0) {
+          throw new BadRequestException('Tiêu chí này không hỗ trợ chế độ cộng trừ do điểm trên mỗi đơn vị bằng 0.');
+        }
+        const maxScore = criterion.max_score || 10;
+        maxCount = Math.ceil(maxScore / Math.abs(pointsPerUnit));
+      }
+
       const currentRecords = await this.academicRecordModel.find({
         student_id: new Types.ObjectId(student_id),
         semester_id: new Types.ObjectId(semester_id),
@@ -514,6 +510,12 @@ export class AcademicRecordService {
       if (intent_type === 'increase') desiredCount++;
       else if (intent_type === 'decrease') desiredCount--;
       else if (intent_type === 'set_target_count' && target_count !== undefined) desiredCount = target_count;
+
+      desiredCount = Math.max(0, desiredCount);
+
+      if (desiredCount > maxCount) {
+        throw new BadRequestException(`Số lần tích lũy vượt quá giới hạn tối đa cho phép (${maxCount} lần).`);
+      }
 
       if (desiredCount > currentCount) {
         // Need to add records
@@ -758,7 +760,12 @@ export class AcademicRecordService {
       success: true,
       actual_count: detail?.current_count || 0,
       evaluation_detail: detail,
-      summary_total_score: (summary as any)?.total_score,
+      summary: summary ? {
+        _id: summary._id.toString(),
+        total_score: summary.total_score,
+        grading: summary.grading,
+        status: summary.status
+      } : null,
       changed_record_ids: changedRecordIds,
       sync_status: syncStatus,
     };

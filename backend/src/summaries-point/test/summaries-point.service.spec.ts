@@ -505,6 +505,27 @@ describe('SummariesPointService', () => {
       expect(mockSummary.details[1].final_score).toBe(0);
       expect(mockSummary.details[2].final_score).toBe(0);
     });
+
+    it('should be idempotent and approve an already locked summary successfully', async () => {
+      const details = [
+        {
+          gv_score: 9,
+          sv_score: 8,
+          system_score: 7,
+          status: 'locked',
+          final_score: 9,
+          log: [{ from_status: 'draft', to_status: 'locked', score_after: 9 }],
+        },
+      ];
+      const { mockSummary } = setupApproveGradingMock(details);
+      mockSummary.status = 'locked';
+
+      const result = await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+
+      expect(result.status).toBe('locked');
+      expect(mockSummary.details[0].final_score).toBe(9);
+      expect(mockSummary.details[0].log.length).toBe(1);
+    });
   });
 
   describe('cancelApproval', () => {
@@ -1010,12 +1031,16 @@ describe('SummariesPointService', () => {
       mockCriterionModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValueOnce([
-          { _id: 'cri-1', category_id: 'cat-1', criterion_type: 'ky_luat', max_score: 10, score_per_unit: -2 }
+          { _id: 'cri-1', category_id: 'cat-1', criterion_type: 'ky_luat', max_score: 10, score_per_unit: -2, is_score_counted: true },
+          { _id: 'cri-2', category_id: 'cat-1', criterion_type: 'ky_luat', max_score: 10, score_per_unit: -2, is_score_counted: false }
         ]),
       });
 
       await service.recomputeTotalScore('some-id');
 
+      // cri-1 (counted) -> raw 10, contribution 10
+      // cri-2 (non-counted) -> raw 10, contribution 0 (10 - 10)
+      // total = 10 + 0 = 10
       expect(mockSummary.total_score).toBe(10);
       expect(mockSummary.save).toHaveBeenCalled();
     });

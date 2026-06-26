@@ -655,6 +655,7 @@ export class StudentsService implements OnModuleInit {
       limit?: number;
       search?: string;
       status?: string;
+      fields?: string;
     },
     requester?: any,
   ): Promise<any> {
@@ -664,6 +665,7 @@ export class StudentsService implements OnModuleInit {
     let limit: number | undefined;
     let search: string | undefined;
     let status: string | undefined;
+    let fields: string | undefined;
     let actualRequester = requester;
 
     if (query && ('roleName' in query || 'userId' in query || 'role' in query || 'username' in query)) {
@@ -676,6 +678,7 @@ export class StudentsService implements OnModuleInit {
       limit = query.limit;
       search = query.search;
       status = query.status;
+      fields = query.fields;
     }
 
     const isPaginationRequested = page !== undefined || limit !== undefined;
@@ -778,9 +781,38 @@ export class StudentsService implements OnModuleInit {
       }
     }
 
+    const isSliderMode = fields === 'slider';
+
     if (isPaginationRequested) {
       const p = page || 1;
       const l = limit || 10;
+
+      if (isSliderMode) {
+        const [students, total] = await Promise.all([
+          this.studentModel
+            .find(filter)
+            .select('_id student_code full_name status class_id user_id date_bir sex email')
+            .populate({
+              path: 'class_id',
+              select: 'class_name _id',
+            })
+            .skip((p - 1) * l)
+            .limit(l)
+            .lean()
+            .exec(),
+          this.studentModel.countDocuments(filter).exec(),
+        ]);
+
+        return {
+          data: students,
+          meta: {
+            total,
+            page: p,
+            limit: l,
+            totalPages: Math.ceil(total / l),
+          },
+        };
+      }
 
       const [students, total] = await Promise.all([
         this.studentModel
@@ -812,6 +844,18 @@ export class StudentsService implements OnModuleInit {
         },
       };
     } else {
+      if (isSliderMode) {
+        return this.studentModel
+          .find(filter)
+          .select('_id student_code full_name status class_id user_id date_bir sex email')
+          .populate({
+            path: 'class_id',
+            select: 'class_name _id',
+          })
+          .lean()
+          .exec();
+      }
+
       const students = await this.studentModel
         .find(filter)
         .populate({

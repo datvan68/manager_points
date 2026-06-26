@@ -67,6 +67,7 @@ export const summariesPointApi = {
     studentId?: string;
     studentIds?: string | string[];
     status?: string;
+    fields?: string;
   }): Promise<{ data: SummaryPoint[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', params.page.toString());
@@ -79,6 +80,7 @@ export const summariesPointApi = {
       query.set('studentIds', idsParam);
     }
     if (params?.status) query.set('status', params.status);
+    if (params?.fields) query.set('fields', params.fields);
     
     const qs = query.toString();
     const url = `${API_BASE}/summaries-points${qs ? `?${qs}` : ''}`;
