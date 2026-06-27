@@ -48,6 +48,19 @@ Cho phép quản trị viên cấu hình tiêu chí với danh sách các lựa 
 ### Import Ghi nhận HSSV từ Excel
 Tính năng Import Ghi nhận HSSV cho phép gán nhanh các ghi nhận dựa trên **Mã tiêu chí** do Admin tự định nghĩa, tránh nhầm lẫn do trùng tên hoặc sai khác nội dung. Hỗ trợ preview và báo lỗi chi tiết khi không tìm thấy mã tiêu chí hợp lệ. Chi tiết cách dùng xem tại [Tài liệu Import Ghi nhận HSSV](./docs/import_hssv_record.md).
 
+### Điều hướng ứng dụng (Sidebar)
+Ứng dụng sử dụng sidebar làm thanh điều hướng chính trên desktop và màn hình lớn.
+
+**Lưu ý về tương tác:**
+- **Điều khiển thủ công:** Trạng thái sidebar (mở rộng hay thu gọn) không còn tự động thay đổi khi di chuột (hover).
+- **Tính ổn định:** Việc loại bỏ tính năng tự động mở rộng giúp bố cục trang ổn định, ngăn chặn sự dịch chuyển nội dung chính không mong muốn khi người dùng tương tác với các thành phần điều hướng.
+
+### Cuộn vô hạn trên Mobile (Backend-batched Infinite Scroll)
+Các danh sách trên thiết bị di động hiện hỗ trợ tính năng cuộn vô hạn với dữ liệu được chia lô từ backend (backend-batched infinite scroll). Điều này đảm bảo tối ưu hóa việc sử dụng bộ nhớ và hiệu suất mạng bằng cách chỉ tải các phân đoạn dữ liệu khi người dùng thực sự cần đến.
+
+- **Cơ chế hoạt động**: Khi người dùng cuộn gần đến cuối danh sách hiện tại, một lô dữ liệu mới sẽ được tự động yêu cầu từ backend, mang lại trải nghiệm cuộn mượt mà không bị gián đoạn.
+- **Lợi ích**: Tốc độ tải trang ban đầu nhanh hơn, giảm tiêu thụ bộ nhớ trên các thiết bị di động, và mang lại trải nghiệm tổng thể mượt mà hơn.
+
 ## 🛠 Công nghệ sử dụng (Tech Stack)
 
 - **AI Framework**: MCP (Model Context Protocol)
