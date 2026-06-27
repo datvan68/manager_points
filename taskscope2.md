@@ -1,203 +1,162 @@
-﻿# Taskscope2: Fix canh bao single_option cap nhat khong dung khi cham diem /grading/score
+﻿# Taskscope2: Fix `/grading` PL01 PDF Date and Header Wrapping
+
+## Objective
+
+Fix the `/grading` PDF preview and downloaded PDF so they render the official PL01 form consistently, with correct birthdate formatting and no unwanted wrapping in the national header.
+
+Latest reported issues:
 
-## Muc tieu
+1. `Ngay sinh` is currently rendering a full ISO timestamp such as `2006-02-28T17:00:00.000Z`; the PDF must display only the date.
+2. The right-side national header `CONG HOA XA HOI CHU NGHIA VIET NAM` is too large and wraps `VIET NAM` onto a second line; reduce or fit the font so the header stays on one line.
+3. The downloaded PDF must remain 100% consistent with the preview after these changes.
+
+Official reference file:
+
+`C:\Users\hoang\OneDrive\Máy tính\PL01- Phiếu đánh giá RL (TT40).rtf`
 
-Khac phuc canh bao sai ngu canh khi thao tac them/chon diem tai trang `/grading/score`:
-
-> Tuy chon cho tieu chi ... co the khong duoc cap nhat do quyen han.
-
-Canh bao nay hien dang duoc frontend hien thi khi backend tra `actual_count` khong khop ky vong cua UI, nhung noi dung lai quy ve "quyen han". Can xu ly dung ban chat: neu loi do quyen thi bao quyen; neu loi do sync option/record/detail thi bao va sua theo luong `academic_record` la nguon du lieu duy nhat.
-
-## Hien trang can sua
-
-Tai `frontend/src/app/grading/score/page.tsx`, khi tieu chi co `scoring_mode === 'single_option'`, frontend gui intent:
-
-- `intent_type: 'select_option'`
-- `selected_option_id`
-
-Sau do frontend kiem tra:
-
-- Co option duoc chon thi ky vong `res.actual_count === 1`
-- Neu khong khop thi hien toast warning "co the khong duoc cap nhat do quyen han"
-
-Van de:
-
-1. Warning nay khong chac la loi quyen han.
-2. Backend validate `selected_option_id` bang `@IsMongoId()`, trong khi option cua criterion dang la `{ id: string; label: string; score: number }`, khong bat buoc la MongoDB ObjectId.
-3. `academic_record` chua co field rieng de luu option da chon; backend dang dua option vao `record_title` roi parse nguoc khi rebuild `evaluation_detail`.
-4. Neu `summary_point` bi khoa, khong ton tai, hoac sync detail that bai, frontend cung co the hien warning "do quyen han" du khong phai loi quyen.
-
-## Nguyen tac sua
-
-1. `academic_record` la nguon du lieu duy nhat.
-2. Voi tieu chi `single_option`, moi lan chon option phai tao hoac cap nhat 1 `academic_record` active dai dien cho option dang chon.
-3. `evaluation_detail` chi la du lieu tong hop/rebuild tu `academic_record`.
-4. Khong parse `selected_option_id` tu `record_title` lam logic chinh.
-5. Khong dung warning "do quyen han" cho cac loi sync/du lieu.
-
-## Backend scope
-
-### 1. Dieu chinh DTO intent
-
-File: `backend/src/academic-record/dto/intent-score.dto.ts`
-
-Sua `selected_option_id`:
-
-- Bo `@IsMongoId()` tren `selected_option_id`.
-- Dung `@IsString()` vi option id trong criterion schema la string.
-- Giu validate MongoDB ObjectId cho `student_id`, `criterion_id`, `semester_id`.
-
-Ket qua mong muon:
-
-- Option id dang `opt1`, `option_10`, hoac string noi bo cua criterion van duoc chap nhan.
-- Neu option id khong ton tai trong criterion thi backend tra loi domain ro rang, khong phai loi validate MongoDB id.
-
-### 2. Bo sung field option vao academic_record
-
-File: `backend/src/academic-record/schemas/academic-record.schema.ts`
-
-Bo sung field:
-
-- `selected_option_id?: string`
-- `selected_option_label?: string`
-- `selected_option_score?: number`
-
-Ly do:
-
-- Luu option co cau truc, khong phu thuoc `record_title`.
-- Rebuild `evaluation_detail` on dinh hon.
-- De truy vet lich su cham diem va debug sync de hon.
-
-### 3. Sua `handleScoreIntent` cho `select_option`
-
-File: `backend/src/academic-record/academic-record.service.ts`
-
-Khi `intent_type === 'select_option'`:
-
-1. Load criterion theo `criterion_id`.
-2. Kiem tra criterion co `scoring_mode === 'single_option'`.
-3. Neu `selected_option_id` co gia tri:
-   - Tim option trong `criterion.options` theo `option.id === selected_option_id`.
-   - Neu khong thay, tra `BadRequestException` voi message ro rang.
-   - Neu da co active academic_record cho student/semester/criterion thi update record do.
-   - Neu chua co thi create 1 record moi.
-   - Gan `selected_option_id`, `selected_option_label`, `selected_option_score`.
-   - Gan `record_title` chi de hien thi, khong dung lam source chinh.
-4. Neu `selected_option_id` rong/null:
-   - Hieu la bo chon option.
-   - Xoa vinh vien academic_record active lien quan neu requester co quyen.
-   - Sync lai `evaluation_detail` ve count 0 / option null.
-
-### 4. Sua rebuild/sync evaluation_detail
-
-File: `backend/src/academic-record/academic-record.service.ts`
-
-Trong `syncStudentCriterionScore` va cac ham rebuild tu academic_record:
-
-- Voi criterion `single_option`, lay option tu field `academic_record.selected_option_id`.
-- Chi fallback parse tu `record_title` cho du lieu cu neu field moi chua co.
-- `activeCount` cua `single_option` nen la `1` khi co record active hop le, `0` khi khong co record.
-- `system_score` lay tu `selected_option_score` hoac tu `criterion.options`.
-- `evaluation_detail.selected_option_id`, `selected_option_label`, `selected_option_score` phai khop record active moi nhat.
-
-### 5. Phan biet loi quyen va loi sync
-
-Backend response/error can ro rang:
-
-- 403: khong co quyen thao tac.
-- 400: option khong hop le hoac criterion khong phai single_option.
-- 200 success nhung `evaluation_detail` null: can co field canh bao ky thuat, vi co the summary bi khoa/khong ton tai.
-
-De xuat response intent bo sung:
-
-```ts
-{
-  success: true,
-  actual_count: number,
-  evaluation_detail?: any,
-  sync_status: 'synced' | 'summary_missing' | 'summary_locked',
-  warning_code?: string
-}
-```
-
-## Frontend scope
-
-### 1. Sua message warning
-
-File: `frontend/src/app/grading/score/page.tsx`
-
-Khong hien mac dinh:
-
-> co the khong duoc cap nhat do quyen han
-
-Thay bang phan nhanh theo ket qua:
-
-- Loi 403: "Ban khong co quyen cap nhat tieu chi nay."
-- Loi 400 option invalid: hien message backend, vi day la loi cau hinh/du lieu option.
-- `sync_status === 'summary_locked'`: "Bang diem dang bi khoa nen thay doi chua duoc dong bo vao chi tiet diem."
-- `sync_status === 'summary_missing'`: "Chua tim thay bang diem tong hop de dong bo chi tiet diem."
-- `actual_count` khong khop nhung request success: "Thay doi da duoc ghi nhan vao academic_record nhung chi tiet diem chua dong bo dung. Vui long tai lai hoac kiem tra sync."
-
-### 2. Khong dung `actual_count !== 1` lam ket luan quyen han
-
-Voi `single_option`:
-
-- Neu backend success va co `evaluation_detail.selected_option_id` khop option vua chon thi coi la thanh cong.
-- Neu bo chon option thi ky vong `actual_count === 0` va `selected_option_id` null.
-- Neu backend success nhung detail khong khop, hien warning sync, khong noi ve quyen.
-
-### 3. Cap nhat state theo backend
-
-Sau intent `select_option` thanh cong:
-
-- Cap nhat `selectedOptionsState` tu `res.evaluation_detail.selected_option_id` neu co.
-- Cap nhat count tu `res.actual_count`.
-- Neu `evaluation_detail` null nhung success, giu optimistic state tam thoi va danh dau can reload/sync.
-
-## Permission rules can giu
-
-1. Admin: duoc tang/giam/chon/bo chon, tru tieu chi bi khoa.
-2. Teacher: khong duoc xoa diem do admin cham; duoc thao tac trong lop phu trach theo rule hien co.
-3. Student: chi duoc xoa/sua diem do student cham.
-4. Neu vi pham permission thi backend tra 403, frontend hien dung message quyen han.
-
-## Migration/backfill du lieu cu
-
-Can co script hoac logic fallback de nang cap record cu:
-
-1. Tim academic_record co `record_title` dang "Lua chon option ...".
-2. Parse option id cu.
-3. Doi chieu voi `criterion.options`.
-4. Gan `selected_option_id`, `selected_option_label`, `selected_option_score`.
-5. Rebuild lai `evaluation_detail` tu academic_record.
-
-Khong bat buoc xoa `record_title`; chi khong dung no lam source chinh nua.
-
-## Acceptance criteria
-
-1. Tai `/grading/score`, chon option cho tieu chi single_option tao/cap nhat 1 academic_record active.
-2. `academic_record` luu ro `selected_option_id`, `selected_option_label`, `selected_option_score`.
-3. `evaluation_detail.current_count` thanh `1` khi co option, `0` khi bo option.
-4. `evaluation_detail.selected_option_id` khop option da chon.
-5. Khong con hien warning "co the khong duoc cap nhat do quyen han" khi loi thuc te la sync/du lieu.
-6. Neu user khong co quyen that, backend tra 403 va frontend hien message quyen han ro rang.
-7. Option id dang string khong phai MongoDB ObjectId van cham duoc neu ton tai trong `criterion.options`.
-8. Reload trang xong option va so lan van giu dung theo academic_record.
-
-## Test can bo sung
-
-Backend:
-
-- `select_option` chap nhan selected_option_id dang string.
-- `select_option` tao academic_record moi khi chua co.
-- `select_option` update academic_record cu khi da co.
-- `select_option` invalid option tra 400.
-- Rebuild detail lay option tu academic_record field moi.
-- Fallback du lieu cu tu `record_title` van hoat dong.
-
-Frontend:
-
-- Khi single_option success va detail khop, khong hien warning.
-- Khi backend 403, hien message quyen han.
-- Khi success nhung detail khong khop, hien warning sync.
-- Khi option id khong phai MongoDB ObjectId, payload van gui va khong bi chan o frontend.
+## Current Scope
+
+Relevant files to inspect and adjust:
+
+- `frontend/src/app/grading/page.tsx`
+- `frontend/src/components/grading/GradingPdfTemplate.tsx`
+- `frontend/src/utils/pdf-score-utils.ts`
+- `frontend/src/api/summaries-point-api.ts`
+- `backend/src/summaries-point/summaries-point.controller.ts`
+- `backend/src/summaries-point/summaries-point.service.ts`
+
+Preserve unrelated uncommitted changes. Only change the PL01 PDF preview/export flow, document data normalization, and supporting formatting utilities where required.
+
+## Required Result
+
+- `Ngay sinh` displays date only in PL01 format, preferably `dd/MM/yyyy`.
+- `Ngay sinh` must not show time, timezone, ISO suffix, or raw database string.
+- The right header line `CONG HOA XA HOI CHU NGHIA VIET NAM` stays on one line in both preview and downloaded PDF.
+- Preview and downloaded PDF use the same normalized document data and the same layout rules.
+- Downloaded PDF output must match the preview 100% for the same selected student.
+- The exported PDF follows the official PL01 form, not a dashboard/card-style UI.
+
+## Birthdate Formatting Requirements
+
+- Normalize student birthdate before rendering preview/export.
+- Accept common input shapes:
+  - ISO string: `2006-02-28T17:00:00.000Z`
+  - date string: `2006-03-01`
+  - existing formatted date: `01/03/2006`
+  - `Date` object if already parsed by the app.
+- Output must be date only:
+  - preferred: `01/03/2006`
+  - never: `2006-02-28T17:00:00.000Z`
+- Avoid timezone day-shift bugs:
+  - If the backend/database value represents a student's date of birth, treat it as a calendar date, not an instant in time.
+  - Do not let browser timezone conversion change the displayed day.
+  - If input is an ISO timestamp generated from a date-only field, extract or normalize the calendar date intentionally before formatting.
+- The same formatted birthdate must be used in preview and download.
+
+## Header Layout Requirements
+
+### Right National Header
+
+- Keep `CONG HOA XA HOI CHU NGHIA VIET NAM` on one line.
+- Reduce font size, letter spacing, or column width constraints as needed.
+- Keep the second line `Doc lap - Tu do - Hanh phuc` centered and underlined per the PL01 form.
+- Preserve formal document style:
+  - Times New Roman or equivalent system serif font.
+  - Bold for the national header.
+  - Center alignment in the right header column.
+- Avoid layout fixes that break A4 print:
+  - no CSS transforms for print fitting
+  - no viewport-dependent scaling
+  - no clipping hidden text
+
+### Header Grid
+
+- Use a stable two-column header matching the official PL01 structure:
+  - left: school/agency block
+  - right: national title block
+- Ensure both preview and export use identical widths and font sizes.
+- Header must remain inside A4 printable margins.
+
+## Preview and Download Parity Requirements
+
+The preview and download must render from the same normalized PL01 document model.
+
+Required parity:
+
+- Same birthdate value and formatting.
+- Same header text, font size, and line wrapping.
+- Same student fields.
+- Same criterion order.
+- Same maximum scores.
+- Same achieved scores.
+- Same category totals.
+- Same final score and classification.
+- Same signature block.
+- Same A4 page-break behavior as closely as possible.
+
+Implementation direction:
+
+- Build one normalized PDF payload per selected student before preview/export.
+- Put birthdate formatting in one shared helper or shared normalization path.
+- Do not format dates separately in preview and backend export unless tests prove both paths produce identical output.
+- If backend PDF is generated with Puppeteer/HTML, send the same normalized HTML/data used by the preview.
+- Mock/config-preview data must never be used for real download.
+
+## Existing PDF Requirements to Preserve
+
+- The full-name row must stay on one line when possible.
+- `GIAO VIEN CHU NHIEM/CO VAN HOC TAP` must stay on one line.
+- `Diem dat duoc` must match actual grading data and must not default to `0.0`.
+- Category totals, bonus score, capped final score, and classification must remain correct.
+- A4 pagination must not split important blocks incorrectly.
+- PDF size should remain reasonable: no screenshot-based PDF for text tables, no remote fonts, no large unused assets.
+
+## A4 Print Requirements
+
+- Use print CSS:
+  - `@page { size: A4; margin: ... }`
+  - `preferCSSPageSize` for Puppeteer export.
+- Use print-safe document CSS:
+  - `border-collapse: collapse`
+  - fixed table column widths
+  - stable header grid widths
+  - no Tailwind CDN or Google Fonts in exported HTML
+  - no transforms, shadows, gradients, or decorative dashboard styles.
+
+## Acceptance Criteria
+
+1. `Ngay sinh` in preview displays only a date, for example `01/03/2006`.
+2. `Ngay sinh` in downloaded PDF displays exactly the same date as preview.
+3. Raw ISO timestamps such as `2006-02-28T17:00:00.000Z` never appear in preview or downloaded PDF.
+4. `CONG HOA XA HOI CHU NGHIA VIET NAM` stays on one line in preview.
+5. `CONG HOA XA HOI CHU NGHIA VIET NAM` stays on one line in downloaded PDF.
+6. `Doc lap - Tu do - Hanh phuc` remains centered and underlined below the national header.
+7. Downloaded PDF is visually identical to preview for the same selected student.
+8. Scores and totals remain unchanged by the date/header layout fixes.
+9. A4 margins and page breaks remain valid.
+10. No TypeScript/runtime/backend export errors are introduced.
+
+## Verification Plan
+
+- Select the student shown in the screenshot or another student whose birthdate currently renders as an ISO timestamp.
+- Open `/grading` PDF preview and verify:
+  - `Ngay sinh` is date-only.
+  - the right national header stays on one line.
+  - the header is still aligned with the official PL01 layout.
+- Download the PDF and compare it with the preview:
+  - same birthdate text
+  - same header line wrapping
+  - same scores/totals
+  - same A4 page layout.
+- Add or update tests for:
+  - birthdate normalization from ISO timestamp
+  - birthdate normalization from date-only string
+  - preview/export normalized payload equivalence
+  - header class/style snapshot if practical.
+
+## Non-goals
+
+- Do not redesign the `/grading` dashboard/list page.
+- Do not change unrelated grading business rules.
+- Do not rewrite Excel export.
+- Do not change approval, lock, or permission behavior unless required for PDF correctness.

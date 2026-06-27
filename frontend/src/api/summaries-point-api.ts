@@ -157,7 +157,7 @@ export const summariesPointApi = {
     return handleResponse<{ success: boolean; createdCount: number }>(res);
   },
 
-  async exportPdf(payload: any): Promise<Blob> {
+  async exportPdf(payload: { payloads: any[] }): Promise<Blob> {
     const res = await httpClient(`${API_BASE}/summaries-points/export-pdf`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

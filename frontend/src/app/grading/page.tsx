@@ -741,6 +741,7 @@ function GradingPage() {
         limit: pageSize,
         semesterId: semToFetch,
         classId: classToFetch,
+        fields: 'details',
       });
       const data = res.data || [];
       
@@ -1055,23 +1056,35 @@ function GradingPage() {
   const currentClassName = currentClassObj ? currentClassObj.class_name : '';
   const currentSemesterName = currentSemesterObj ? currentSemesterObj.semester_name : '';
 
-  const evaluationCountsMap: Record<string, Record<string, number>> = {};
+  // Build normalized evaluation scores map with full detail data for PDF
+  // Uses NormalizedEvalDetail to carry all score fields (not just count)
+  // so the PDF template can apply the correct score priority chain.
+  const evaluationScoresMap: Record<string, Record<string, {
+    count: number;
+    finalScore: number | null;
+    teacherScore: number | null;
+    studentScore: number | null;
+    systemScore: number | null;
+    selectedOptionScore: number | null;
+  }>> = {};
   selectedStudentsData.forEach(student => {
-    evaluationCountsMap[student.id] = {};
+    evaluationScoresMap[student.id] = {};
 
     const studentDetails = student.details || [];
-
-    const evaluatedCriteriaIds = new Set<string>();
 
     studentDetails.forEach(detail => {
       const criterionId = typeof detail.criterion_id === 'object' ? detail.criterion_id?._id : detail.criterion_id;
       if (criterionId) {
-        evaluationCountsMap[student.id][criterionId] = detail.current_count || 0;
-        evaluatedCriteriaIds.add(criterionId);
+        evaluationScoresMap[student.id][criterionId] = {
+          count: detail.current_count ?? 0,
+          finalScore: detail.final_score ?? null,
+          teacherScore: detail.gv_score ?? null,
+          studentScore: detail.sv_score ?? null,
+          systemScore: detail.system_score ?? null,
+          selectedOptionScore: detail.selected_option_score ?? null,
+        };
       }
     });
-
-
   });
 
   const columns: ResponsiveColumn<any>[] = [
@@ -1623,7 +1636,7 @@ function GradingPage() {
         onClose={() => setIsPrintModalOpen(false)}
         selectedStudents={selectedStudentsData}
         categories={categories}
-        evaluationCounts={evaluationCountsMap}
+        evaluationCounts={evaluationScoresMap}
         semesterName={currentSemesterName}
         className={currentClassName}
       />

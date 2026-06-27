@@ -66,22 +66,8 @@ export class SummariesPointController {
   })
   async exportPdf(@Body() body: any, @Res() res: express.Response) {
     try {
-      const {
-        selectedStudents,
-        categories,
-        evaluationCounts,
-        semesterName,
-        className,
-        pdfConfig,
-      } = body;
-      const pdfBuffer = await this.summariesPointService.generatePdf(
-        selectedStudents,
-        categories,
-        evaluationCounts,
-        semesterName,
-        className,
-        pdfConfig,
-      );
+      const { payloads } = body;
+      const pdfBuffer = await this.summariesPointService.generatePdf(payloads);
 
       res.set({
         'Content-Type': 'application/pdf',
