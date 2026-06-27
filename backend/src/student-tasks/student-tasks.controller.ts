@@ -38,6 +38,13 @@ export class StudentTasksController {
     return this.studentTasksService.getTeachers();
   }
 
+  @Get('linked-deadline')
+  @ApiOperation({ summary: 'Lấy hạn chót mặc định cho trang liên kết' })
+  async getLinkedDeadline(@Query('linkedPage') linkedPage: string) {
+    const deadline = await this.studentTasksService.resolveLinkedTaskDeadline(linkedPage);
+    return { deadline };
+  }
+
   @Get()
   @UseGuards(checkAnyPermission('READ_STUDENT_TASK', 'STUDENT_PAGE'))
   @ApiOperation({ summary: 'Lấy danh sách nhiệm vụ học tập có phân trang và bộ lọc' })

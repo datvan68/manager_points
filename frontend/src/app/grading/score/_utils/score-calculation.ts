@@ -144,9 +144,11 @@ export const getRecordDerivedRawCriterionScore = (
   detail?: any
 ) => {
   if (detail) {
-    let score = detail.system_score !== null && detail.system_score !== undefined
-      ? detail.system_score
-      : null;
+    let score = detail.final_score !== null && detail.final_score !== undefined 
+      ? detail.final_score 
+      : detail.system_score !== null && detail.system_score !== undefined 
+        ? detail.system_score 
+        : null;
 
     if (score !== null) {
       if (score < 0 && criterion.type === "violation") {
@@ -170,9 +172,11 @@ export const getRecordDerivedCriterionScore = (
   detail?: any
 ) => {
   if (detail) {
-    const rawScore = detail.system_score !== null && detail.system_score !== undefined
-      ? detail.system_score
-      : null;
+    const rawScore = detail.final_score !== null && detail.final_score !== undefined 
+      ? detail.final_score 
+      : detail.system_score !== null && detail.system_score !== undefined 
+        ? detail.system_score 
+        : null;
       
     if (rawScore !== null) {
       const score = getRecordDerivedRawCriterionScore(criterion, count, selectedOptionId, detail);

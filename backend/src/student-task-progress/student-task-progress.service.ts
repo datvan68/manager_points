@@ -792,18 +792,11 @@ export class StudentTaskProgressService {
               status: statusStr
             };
 
-            if (statusStr === 'completed') {
-              targetStatus = StudentTaskStatus.COMPLETED;
-              if (!progress.startedAt) progress.startedAt = now;
-              if (!progress.completedAt) progress.completedAt = now;
-            } else if (statusStr === 'in_progress') {
-              targetStatus = StudentTaskStatus.IN_PROGRESS;
-              if (!progress.startedAt) progress.startedAt = now;
-              progress.completedAt = undefined;
-            } else {
-              targetStatus = StudentTaskStatus.NOT_STARTED;
-              progress.startedAt = undefined;
-              progress.completedAt = undefined;
+            if (statusStr === 'completed' || statusStr === 'in_progress') {
+              if (progress.status === StudentTaskStatus.NOT_STARTED) {
+                targetStatus = StudentTaskStatus.IN_PROGRESS;
+                if (!progress.startedAt) progress.startedAt = now;
+              }
             }
           }
         }
@@ -827,32 +820,21 @@ export class StudentTaskProgressService {
             lastCalculatedAt: now,
           };
 
-          if (!isSaved) {
-            targetStatus = StudentTaskStatus.NOT_STARTED;
-            progress.startedAt = undefined;
-            progress.completedAt = undefined;
-          } else {
-            targetStatus = StudentTaskStatus.COMPLETED;
-            if (!progress.startedAt) progress.startedAt = now;
-            if (!progress.completedAt) progress.completedAt = now;
+          if (isSaved) {
+            if (progress.status === StudentTaskStatus.NOT_STARTED) {
+              targetStatus = StudentTaskStatus.IN_PROGRESS;
+              if (!progress.startedAt) progress.startedAt = now;
+            }
           }
         }
       } else {
         // Fallback for other events
-        if (dto.event === 'started') {
+        if (dto.event === 'started' || dto.event === 'completed') {
           if (progress.status === StudentTaskStatus.NOT_STARTED) {
             targetStatus = StudentTaskStatus.IN_PROGRESS;
           }
           if (!progress.startedAt) {
             progress.startedAt = now;
-          }
-        } else if (dto.event === 'completed') {
-          targetStatus = StudentTaskStatus.COMPLETED;
-          if (!progress.startedAt) {
-            progress.startedAt = now;
-          }
-          if (!progress.completedAt) {
-            progress.completedAt = now;
           }
         } else if (dto.event === 'reset') {
           if (!hasManagePermission) {
@@ -996,32 +978,21 @@ export class StudentTaskProgressService {
               lastCalculatedAt: now,
             };
 
-            if (!isSaved) {
-              targetStatus = StudentTaskStatus.NOT_STARTED;
-              progress.startedAt = undefined;
-              progress.completedAt = undefined;
-            } else {
-              targetStatus = StudentTaskStatus.COMPLETED;
-              if (!progress.startedAt) progress.startedAt = now;
-              if (!progress.completedAt) progress.completedAt = now;
+            if (isSaved) {
+              if (progress.status === StudentTaskStatus.NOT_STARTED) {
+                targetStatus = StudentTaskStatus.IN_PROGRESS;
+                if (!progress.startedAt) progress.startedAt = now;
+              }
             }
           }
         } else {
           // Fallback logic
-          if (dto.event === 'started') {
+          if (dto.event === 'started' || dto.event === 'completed') {
             if (progress.status === StudentTaskStatus.NOT_STARTED) {
               targetStatus = StudentTaskStatus.IN_PROGRESS;
             }
             if (!progress.startedAt) {
               progress.startedAt = now;
-            }
-          } else if (dto.event === 'completed') {
-            targetStatus = StudentTaskStatus.COMPLETED;
-            if (!progress.startedAt) {
-              progress.startedAt = now;
-            }
-            if (!progress.completedAt) {
-              progress.completedAt = now;
             }
           } else if (dto.event === 'reset') {
             if (!hasManagePermission) {
@@ -1342,5 +1313,94 @@ export class StudentTaskProgressService {
       classes: resultClasses,
     };
   }
-}
 
+  async markAccess(taskId: string, linkedPage?: string, user?: any) {
+    if (!Types.ObjectId.isValid(taskId)) {
+      throw new BadRequestException('Mã nhiệm vụ không hợp lệ');
+    }
+
+    const task = await this.taskModel.findOne({ _id: new Types.ObjectId(taskId), deletedAt: null }).exec();
+    if (!task) {
+      throw new NotFoundException('Không tìm thấy nhiệm vụ hoặc nhiệm vụ đã bị xóa');
+    }
+
+    if (linkedPage && task.linkedPage) {
+      const cleanPath = (url?: string | null) => {
+        let p = (url || '').split('?')[0].trim();
+        if (!p) return '';
+        if (!p.startsWith('/')) p = '/' + p;
+        return p;
+      };
+      if (cleanPath(linkedPage) !== cleanPath(task.linkedPage)) {
+        throw new BadRequestException('Trang liên kết không khớp với cấu hình nhiệm vụ');
+      }
+    }
+
+    const progress = await this.progressModel.findOne({
+      taskId: task._id,
+      assigneeUserId: new Types.ObjectId(user.userId),
+      isActive: true,
+    }).exec();
+
+    if (!progress) {
+      const roleName = user?.roleName || '';
+      const isAdminOrSupervisor = roleName === 'Admin' || 
+                                  roleName.toLowerCase().includes('supervisor') || 
+                                  roleName.toLowerCase().includes('quản sinh');
+      if (isAdminOrSupervisor) {
+        return { tracked: false, reason: 'role_bypass' };
+      }
+      throw new ForbiddenException('Bạn không được giao nhiệm vụ này hoặc tiến độ không hoạt động');
+    }
+
+    const now = new Date();
+    progress.lastActivityAt = now;
+    
+    if (!task.deadline || now <= task.deadline) {
+      if (progress.status === StudentTaskStatus.NOT_STARTED) {
+        progress.status = StudentTaskStatus.IN_PROGRESS;
+        progress.statusSource = 'system';
+        progress.sourceType = 'task_access';
+        progress.sourceId = linkedPage || undefined;
+      }
+      if (!progress.startedAt) {
+        progress.startedAt = now;
+      }
+    }
+
+    await progress.save();
+    await this.recalculateTaskAggregateStatus(task._id.toString());
+    return progress;
+  }
+
+  async finalizeExpiredTaskProgress(now: Date = new Date()) {
+    const expiredTasks = await this.taskModel.find({
+      deadline: { $lte: now },
+      deletedAt: null
+    }).exec();
+
+    let updatedRowsCount = 0;
+    for (const task of expiredTasks) {
+      const activeProgresses = await this.progressModel.find({ taskId: task._id, isActive: true }).exec();
+      let taskUpdated = false;
+
+      for (const p of activeProgresses) {
+        if (p.status !== StudentTaskStatus.COMPLETED && p.startedAt && p.startedAt <= task.deadline) {
+          p.status = StudentTaskStatus.COMPLETED;
+          p.completedAt = task.deadline;
+          p.statusSource = 'system';
+          p.sourceType = 'deadline_finalizer';
+          await p.save();
+          taskUpdated = true;
+          updatedRowsCount++;
+        }
+      }
+
+      if (taskUpdated) {
+        await this.recalculateTaskAggregateStatus(task._id.toString());
+      }
+    }
+
+    return { success: true, updatedRowsCount, tasksProcessed: expiredTasks.length };
+  }
+}

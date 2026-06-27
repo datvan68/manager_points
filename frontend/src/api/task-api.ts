@@ -191,39 +191,17 @@ export const studentTaskApi = {
     return handleResponse<any>(res);
   },
 
-  async sendLinkedTaskProgressEvent(payload: {
-    taskId: string;
-    event: 'started' | 'completed' | 'reset';
-    linkedPage?: string;
-    sourceType?: string;
-    sourceId?: string;
-    assigneeStudentId?: string;
-    metadata?: Record<string, unknown>;
-  }): Promise<any> {
-    const res = await httpClient(`${API_BASE}/student-tasks/progress/linked-event`, {
+  async markTaskAccess(taskId: string, linkedPage?: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/student-tasks/progress/access`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ taskId, linkedPage }),
     });
     return handleResponse<any>(res);
   },
 
-  async sendBulkLinkedTaskProgressEvent(payload: {
-    taskId: string;
-    event: 'started' | 'completed' | 'reset';
-    linkedPage?: string;
-    sourceType?: string;
-    items: {
-      assigneeStudentId?: string;
-      sourceId?: string;
-      metadata?: Record<string, unknown>;
-    }[];
-  }): Promise<any> {
-    const res = await httpClient(`${API_BASE}/student-tasks/progress/linked-event/bulk`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+  async getLinkedDeadline(linkedPage: string): Promise<{ deadline: string | null }> {
+    const res = await httpClient(`${API_BASE}/student-tasks/linked-deadline?linkedPage=${encodeURIComponent(linkedPage)}`);
     return handleResponse<any>(res);
   },
 

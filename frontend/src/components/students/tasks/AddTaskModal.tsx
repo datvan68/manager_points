@@ -61,6 +61,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
   const [targetType, setTargetType] = useState<'HSSV' | 'Giáo viên' | 'Quản sinh'>('HSSV');
   const [targetScope, setTargetScope] = useState<'Tất cả' | 'Cụ thể'>('Tất cả');
   const [targetDetail, setTargetDetail] = useState('');
+  const [hasAutoDeadline, setHasAutoDeadline] = useState(false);
 
   // Specific Lists States
   const [studentsList, setStudentsList] = useState<any[]>([]);
@@ -101,6 +102,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
       
       setPriority(editingTask.priority);
       setStatus(editingTask.status);
+      setHasAutoDeadline(false); // Reset auto deadline mode on edit by default
       
       // Linked Page
       const currentLinkedPage = editingTask.linkedPage;
@@ -112,6 +114,10 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
         if (isPreset) {
           setPageSelection(currentLinkedPage);
           setCustomPageUrl('');
+          // Re-fetch deadline to lock if applicable
+          studentTaskApi.getLinkedDeadline(currentLinkedPage).then(res => {
+            if (res?.deadline) setHasAutoDeadline(true);
+          }).catch(() => {});
         } else {
           setPageSelection('custom');
           setCustomPageUrl(currentLinkedPage || '');
@@ -138,6 +144,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
       // Defaults
       setPageSelection('none');
       setCustomPageUrl('');
+      setHasAutoDeadline(false);
       setTargetType('HSSV');
       setTargetScope('Tất cả');
       setTargetDetail('');
@@ -146,6 +153,27 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
       setSelectedTeacherIds([]);
     }
   }, [editingTask, isOpen]);
+
+  const handlePageSelectionChange = async (val: string) => {
+    setPageSelection(val);
+    setHasAutoDeadline(false);
+    if (val !== 'none' && val !== 'custom') {
+      try {
+        const res = await studentTaskApi.getLinkedDeadline(val);
+        if (res?.deadline) {
+          const date = new Date(res.deadline);
+          const yyyy = date.getFullYear();
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const dd = String(date.getDate()).padStart(2, '0');
+          setDeadline(`${yyyy}-${mm}-${dd}`);
+          setHasAutoDeadline(true);
+          toast.success('Đã tự động điền hạn chót từ trang liên kết');
+        }
+      } catch (err) {
+        console.warn('Không thể lấy deadline tự động:', err);
+      }
+    }
+  };
 
   // Load specific items for checkbox lists when Scope is Cụ thể (except students)
   useEffect(() => {
@@ -396,11 +424,17 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                   {/* Hạn chót */}
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-[#64748B] block">Hạn chót (Deadline)</label>
-                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                    <Popover open={isCalendarOpen && !hasAutoDeadline} onOpenChange={(open) => {
+                      if (!hasAutoDeadline) setIsCalendarOpen(open);
+                    }}>
                       <PopoverTrigger asChild>
                         <button
                           type="button"
-                          className="w-full flex items-center justify-between rounded-xl border border-white/70 bg-white/50 px-3 py-2.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all duration-150 text-left"
+                          disabled={hasAutoDeadline}
+                          className={cn(
+                            "w-full flex items-center justify-between rounded-xl border border-white/70 bg-white/50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all duration-150 text-left",
+                            hasAutoDeadline ? "opacity-70 cursor-not-allowed bg-slate-50" : "text-[#1E293B]"
+                          )}
                         >
                           <span className={deadline ? 'text-[#1E293B]' : 'text-gray-400'}>
                             {deadline ? format(new Date(deadline), 'dd/MM/yyyy') : 'Chọn ngày...'}
@@ -427,6 +461,11 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                         />
                       </PopoverContent>
                     </Popover>
+                    {hasAutoDeadline && (
+                      <p className="text-[10px] text-[#10B981] font-medium leading-tight">
+                        Đã khóa theo lịch trình (auto-resolved)
+                      </p>
+                    )}
                   </div>
 
                   {/* Trạng thái */}
@@ -656,7 +695,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                   <div className="space-y-3">
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-[#64748B] block">Chọn trang đích</label>
-                      <Select value={pageSelection} onValueChange={setPageSelection}>
+                      <Select value={pageSelection} onValueChange={handlePageSelectionChange}>
                         <SelectTrigger className="rounded-xl bg-white/50 border-white/70 focus:ring-2 focus:ring-[#1A73E8]/30">
                           <SelectValue placeholder="Chọn trang đích" />
                         </SelectTrigger>
@@ -704,8 +743,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                       if (linkMode === 'auto') {
                         return (
                           <p className="text-[11px] text-[#10B981] font-medium mt-1 leading-relaxed flex items-start gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] shrink-0 mt-1"></span>
-                            <span>Nhiệm vụ tự động đồng bộ: Trạng thái sẽ tự động chuyển sang "Đang làm" khi bắt đầu thao tác và "Đã xong" khi hoàn thành nghiệp vụ trên trang đích.</span>
+                            <span className="text-amber-500 mr-2 flex-shrink-0">⚠️</span>
+                            <span>Nhiệm vụ theo dõi tự động: Trạng thái tự động chuyển sang "Đã truy cập" khi người dùng truy cập trang đích. Trạng thái vẫn là "Đã truy cập" hoặc "Đã quá hạn" (nếu chưa xem) sau khi hết hạn chót.</span>
                           </p>
                         );
                       }

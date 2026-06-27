@@ -252,14 +252,14 @@ export default function GradingPdfTemplate({
                     <table style={{ width: '100%', border: 'none', marginBottom: '10px' }}>
                       <tbody>
                         <tr>
-                          <td style={{ width: '40%', textAlign: 'center', verticalAlign: 'top' }}>
-                            <div style={{ fontWeight: 'normal', fontSize: '13pt' }}>ỦY BAN NHÂN DÂN</div>
-                            <div style={{ fontWeight: 'normal', fontSize: '13pt' }}>THÀNH PHỐ HỒ CHÍ MINH</div>
-                            <div style={{ fontWeight: 'bold', fontSize: '13pt', textTransform: 'uppercase' }}>TRƯỜNG CAO ĐẲNG BÁCH KHOA<br/>NAM SÀI GÒN</div>
+                          <td style={{ width: '45%', textAlign: 'center', verticalAlign: 'top' }}>
+                            <div style={{ fontWeight: 'normal', fontSize: '13pt', whiteSpace: 'nowrap' }}>ỦY BAN NHÂN DÂN</div>
+                            <div style={{ fontWeight: 'normal', fontSize: '13pt', whiteSpace: 'nowrap' }}>THÀNH PHỐ HỒ CHÍ MINH</div>
+                            <div style={{ fontWeight: 'bold', fontSize: '13pt', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TRƯỜNG CAO ĐẲNG BÁCH KHOA<br/>NAM SÀI GÒN</div>
                           </td>
-                          <td style={{ width: '60%', textAlign: 'center', verticalAlign: 'top' }}>
-                            <div style={{ fontWeight: 'bold', fontSize: '12pt' }}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-                            <div style={{ fontWeight: 'bold', fontSize: '13pt', textDecoration: 'underline' }}>Độc lập - Tự do - Hạnh phúc</div>
+                          <td style={{ width: '55%', textAlign: 'center', verticalAlign: 'top' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '12pt', whiteSpace: 'nowrap' }}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                            <div style={{ fontWeight: 'bold', fontSize: '13pt', textDecoration: 'underline', whiteSpace: 'nowrap' }}>Độc lập - Tự do - Hạnh phúc</div>
                           </td>
                         </tr>
                       </tbody>

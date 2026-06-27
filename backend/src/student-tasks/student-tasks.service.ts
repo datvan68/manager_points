@@ -14,6 +14,7 @@ import {
 } from './schemas/student-task.schema';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
+import { EvaluationPeriod, EvaluationPeriodDocument } from '../evaluation-periods/schemas/evaluation-period.schema';
 import { CreateStudentTaskDto } from './dto/create-student-task.dto';
 import { UpdateStudentTaskDto } from './dto/update-student-task.dto';
 import { QueryStudentTaskDto } from './dto/query-student-task.dto';
@@ -41,6 +42,8 @@ export class StudentTasksService {
     private roleModel: Model<RoleDocument>,
     @InjectModel(Class.name)
     private classModel: Model<ClassDocument>,
+    @InjectModel(EvaluationPeriod.name)
+    private evaluationPeriodModel: Model<EvaluationPeriodDocument>,
     private notificationsService: NotificationsService,
     private studentTaskProgressService: StudentTaskProgressService,
   ) {}
@@ -143,16 +146,37 @@ export class StudentTasksService {
     return filter;
   }
 
+  async resolveLinkedTaskDeadline(linkedPage?: string): Promise<Date | null> {
+    const normalized = normalizeLinkedPage(linkedPage);
+    if (normalized === '/grading/score') {
+      const activePeriod = await this.evaluationPeriodModel
+        .findOne({ status: { $in: ['sv_phase', 'gv_phase'] } })
+        .sort({ createdAt: -1 })
+        .exec();
+      
+      if (activePeriod) {
+        if (activePeriod.status === 'sv_phase') return activePeriod.sv_deadline;
+        if (activePeriod.status === 'gv_phase') return activePeriod.gv_deadline;
+      }
+    }
+    return null;
+  }
+
   async create(
     createDto: CreateStudentTaskDto,
     creatorId: string,
   ): Promise<StudentTaskDocument> {
     this.checkObjectId(creatorId, 'Mã người tạo');
 
-    // Validate deadline
-    const parsedDeadline = new Date(createDto.deadline);
+    let parsedDeadline = new Date(createDto.deadline);
+    
     if (isNaN(parsedDeadline.getTime())) {
-      throw new BadRequestException('Hạn chót (deadline) không hợp lệ');
+      const autoDeadline = await this.resolveLinkedTaskDeadline(createDto.linkedPage);
+      if (autoDeadline) {
+        parsedDeadline = autoDeadline;
+      } else {
+        throw new BadRequestException('Hạn chót (deadline) không hợp lệ và không thể tự động xác định.');
+      }
     }
 
     // Validate targetScope & targetDetail

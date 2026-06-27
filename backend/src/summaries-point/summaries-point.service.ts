@@ -1174,14 +1174,14 @@ export class SummariesPointService {
         <div class="page page-break-after-always">
           <table style="width: 100%; border: none; margin-bottom: 10px;">
             <tr>
-              <td style="width: 40%; text-align: center; vertical-align: top;">
-                <div style="font-weight: normal; font-size: 13pt;">${customTexts.ubnd || 'ỦY BAN NHÂN DÂN'}</div>
-                <div style="font-weight: normal; font-size: 13pt;">${customTexts.city || 'THÀNH PHỐ HỒ CHÍ MINH'}</div>
-                <div style="font-weight: bold; font-size: 13pt; text-transform: uppercase;">${(customTexts.school || 'TRƯỜNG CAO ĐẲNG BÁCH KHOA\\nNAM SÀI GÒN').replace(/\\\\n/g, '<br/>').replace(/\\n/g, '<br/>')}</div>
+              <td style="width: 45%; text-align: center; vertical-align: top;">
+                <div style="font-weight: normal; font-size: 13pt; white-space: nowrap;">${customTexts.ubnd || 'ỦY BAN NHÂN DÂN'}</div>
+                <div style="font-weight: normal; font-size: 13pt; white-space: nowrap;">${customTexts.city || 'THÀNH PHỐ HỒ CHÍ MINH'}</div>
+                <div style="font-weight: bold; font-size: 13pt; text-transform: uppercase; white-space: nowrap;">${(customTexts.school || 'TRƯỜNG CAO ĐẲNG BÁCH KHOA\\nNAM SÀI GÒN').replace(/\\\\n/g, '<br/>').replace(/\\n/g, '<br/>')}</div>
               </td>
-              <td style="width: 60%; text-align: center; vertical-align: top;">
-                <div style="font-weight: bold; font-size: 12pt;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-                <div style="font-weight: bold; font-size: 13pt; text-decoration: underline;">Độc lập - Tự do - Hạnh phúc</div>
+              <td style="width: 55%; text-align: center; vertical-align: top;">
+                <div style="font-weight: bold; font-size: 12pt; white-space: nowrap;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                <div style="font-weight: bold; font-size: 13pt; text-decoration: underline; white-space: nowrap;">Độc lập - Tự do - Hạnh phúc</div>
               </td>
             </tr>
           </table>

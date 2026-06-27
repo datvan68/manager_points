@@ -203,7 +203,6 @@ const StudentTasksTab = () => {
     totalTasks: 0,
     urgentTasks: 0,
     completedTasks: 0,
-    progressPercentage: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -359,22 +358,29 @@ const StudentTasksTab = () => {
   };
 
   // Click card to navigate to page
-  const handleCardClick = (task: Task) => {
+  const handleCardClick = async (task: Task) => {
     const mode = getLinkedTaskMode(task.linkedPage);
     if (mode === 'none') {
       return;
     }
+    
+    try {
+      await studentTaskApi.markTaskAccess(task.id, task.linkedPage);
+    } catch (err: any) {
+      toast.error(err.message || 'Bạn không có quyền truy cập nhiệm vụ này');
+      return;
+    }
+
     toast.info(`Đang chuyển hướng sang trang: ${getLinkedPageName(task.linkedPage)}`);
     const isManager = isAdminOrSupervisor(user) || taskAccess.editTask;
     
+    const separator = task.linkedPage.includes('?') ? '&' : '?';
     if (mode === 'auto') {
-      const separator = task.linkedPage.includes('?') ? '&' : '?';
       router.push(`${task.linkedPage}${separator}taskId=${task.id}`);
     } else {
       if (isManager) {
         router.push(task.linkedPage);
       } else {
-        const separator = task.linkedPage.includes('?') ? '&' : '?';
         router.push(`${task.linkedPage}${separator}taskId=${task.id}`);
       }
     }
@@ -419,7 +425,6 @@ const StudentTasksTab = () => {
   const totalTasks = summary.totalTasks;
   const urgentTasks = summary.urgentTasks;
   const completedTasks = summary.completedTasks;
-  const progressPercentage = summary.progressPercentage;
 
   const startItem = totalCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
   const endItem = Math.min(currentPage * itemsPerPage, totalCount);
@@ -479,7 +484,7 @@ const StudentTasksTab = () => {
             <div className="flex items-baseline gap-1.5">
               <span className="text-xl font-bold text-emerald-600">{completedTasks}</span>
               <span className="inline-flex items-center text-[9px] font-semibold text-emerald-600 bg-emerald-50/70 border border-emerald-100/60 px-1.5 py-0.5 rounded-xl">
-                {progressPercentage}% tiến độ
+                Hoàn thành
               </span>
             </div>
           </div>

@@ -746,7 +746,7 @@ export class SystemService {
    */
   async previewBackupImport(file: any, userId: string) {
     if (!file.originalname.match(/\.(gz|archive|zip)$/)) {
-      throw new BadRequestException('Chỉ chấp nhận file .gz, .archive, .zip');
+      throw new BadRequestException('Định dạng file không được hỗ trợ: Chỉ chấp nhận file .gz, .archive, .zip');
     }
 
     const previewSessionId = crypto.randomBytes(16).toString('hex');
@@ -768,18 +768,47 @@ export class SystemService {
 
     // Parse logic
     const collectionMap = new Map<string, number>();
-    let isArchive = false;
+    let detectedFormat: 'mongodump_archive' | 'ndjson_gzip' | 'unknown' = 'unknown';
     const encodingErrors = new Set<string>();
 
     try {
       try {
-        await execFileAsync('mongorestore', [`--archive=${filePath}`, '--gzip', '--dryRun']);
-        isArchive = true;
-      } catch (err) {
-        isArchive = false;
+        const sampleBuffer = await new Promise<Buffer>((resolve, reject) => {
+          const stream = fs.createReadStream(filePath).pipe(zlib.createGunzip());
+          stream.once('data', (chunk) => {
+             stream.destroy();
+             resolve(chunk as Buffer);
+          });
+          stream.once('error', (err) => {
+             reject(err);
+          });
+          stream.once('end', () => {
+             resolve(Buffer.alloc(0));
+          });
+        });
+
+        const sampleText = sampleBuffer.toString('utf8', 0, Math.min(sampleBuffer.length, 500));
+        if (sampleText.trimStart().startsWith('{')) {
+           detectedFormat = 'ndjson_gzip';
+        } else {
+           detectedFormat = 'mongodump_archive';
+        }
+      } catch (e: any) {
+        throw new BadRequestException('File không đúng định dạng gzip hoặc bị lỗi giải nén: ' + e.message);
       }
 
-      if (!isArchive) {
+      if (detectedFormat === 'mongodump_archive') {
+        try {
+          await execFileAsync('mongorestore', [`--archive=${filePath}`, '--gzip', '--dryRun']);
+        } catch (err: any) {
+          if (err.code === 'ENOENT') {
+            throw new BadRequestException('Lỗi thiếu công cụ hệ thống: Phát hiện định dạng Archive backup, nhưng MongoDB Database Tools chưa được cài đặt. Để khôi phục, vui lòng cài đặt mongorestore hoặc sử dụng server có sẵn bộ công cụ này. Nếu không thể cài đặt, hãy sử dụng tính năng sao lưu với định dạng fallback (NDJSON) thay vì Archive.');
+          }
+          throw new Error('Lỗi xác thực file archive bằng mongorestore. File có thể bị hỏng hoặc không đúng định dạng mongodump.');
+        }
+      }
+
+      if (detectedFormat === 'ndjson_gzip') {
         const gzip = fs.createReadStream(filePath).pipe(zlib.createGunzip());
         const decoder = new StringDecoder('utf8');
         let currentCollection = 'unknown';
@@ -888,6 +917,7 @@ export class SystemService {
         source_file_size: file.size,
         source_file_hash: hash,
         preview_session_id: previewSessionId,
+        format: detectedFormat,
         collection_summaries: summaries
       });
 
@@ -895,15 +925,38 @@ export class SystemService {
         previewSessionId,
         fileName: file.originalname,
         fileSize: file.size,
-        format: isArchive ? 'mongodump_archive' : 'ndjson_gzip',
+        format: detectedFormat,
         hash,
         collections: summaries
       };
-    } catch (err) {
+    } catch (err: any) {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
-      throw new BadRequestException('File không hợp lệ: ' + this.maskUri(err.message));
+      
+      const maskedMessage = this.maskUri(err.message);
+      
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
+      
+      if (maskedMessage.startsWith('Nội dung file không hợp lệ:') || 
+          maskedMessage.startsWith('Định dạng file không được hỗ trợ:') ||
+          maskedMessage.startsWith('Công cụ xác thực ngoại vi không khả dụng:')) {
+        throw new BadRequestException(maskedMessage);
+      }
+      
+
+      if (maskedMessage.includes('Lỗi xác thực file archive') || 
+          maskedMessage.includes('Lỗi parse JSON') || 
+          maskedMessage.includes('không hợp lệ') || 
+          maskedMessage.includes('không đúng định dạng gzip') ||
+          maskedMessage.includes('Không tìm thấy dữ liệu hợp lệ trong file') ||
+          maskedMessage.includes('sai BSON type')) {
+        throw new BadRequestException(`Nội dung file không hợp lệ: ${maskedMessage}`);
+      }
+      
+      throw new BadRequestException(`Lỗi hệ thống không xác định: ${maskedMessage}`);
     }
   }
 
@@ -1020,11 +1073,13 @@ export class SystemService {
         throw new Error('Cấu hình MONGO_URI bị thiếu, không thể khôi phục dữ liệu');
       }
       
-      let isArchive = false;
-      try {
-        await execFileAsync('mongorestore', [`--archive=${filePath}`, '--gzip', '--dryRun']);
-        isArchive = true;
-      } catch(e) {}
+      let isArchive = restoreJob.format === 'mongodump_archive';
+      if (!restoreJob.format) {
+        try {
+          await execFileAsync('mongorestore', [`--archive=${filePath}`, '--gzip', '--dryRun']);
+          isArchive = true;
+        } catch(e) {}
+      }
 
       if (isArchive) {
         // mongorestore
@@ -1048,7 +1103,14 @@ export class SystemService {
             args.push(`--nsInclude=*.${col}`);
           }
         }
-        await execFileAsync('mongorestore', args);
+        try {
+          await execFileAsync('mongorestore', args);
+        } catch (execErr: any) {
+          if (execErr.code === 'ENOENT') {
+            throw new Error('Lỗi thiếu công cụ hệ thống: Không tìm thấy công cụ mongorestore trên hệ thống để thực hiện khôi phục. Vui lòng cài đặt MongoDB Database Tools.');
+          }
+          throw execErr;
+        }
       } else {
         // ndjson fallback
         const gzip = fs.createReadStream(filePath).pipe(zlib.createGunzip());

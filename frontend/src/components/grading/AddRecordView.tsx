@@ -42,19 +42,12 @@ interface AddRecordViewProps {
 export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId }: AddRecordViewProps) {
   const { user } = useAuth();
 
-  const { markStarted, markCompleted } = useLinkedTaskProgress({
+  useLinkedTaskProgress({
     taskId,
     linkedPage: '/students/record',
     sourceType: 'student_record',
   });
 
-  useEffect(() => {
-    if (taskId) {
-      markStarted().catch((err) => {
-        console.warn('Không thể tự động chuyển trạng thái nhiệm vụ sang Đang làm:', err);
-      });
-    }
-  }, [taskId, markStarted]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
@@ -394,13 +387,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
         });
 
         toast.success('Cập nhật ghi nhận thành công!');
-        if (taskId && recordToEdit?._id) {
-          try {
-            await markCompleted({ sourceId: recordToEdit._id });
-          } catch (syncErr) {
-            toast.warning('Nghiệp vụ đã lưu nhưng trạng thái nhiệm vụ chưa được đồng bộ!');
-          }
-        }
         if (onSuccess) {
           onSuccess();
         } else {
@@ -452,18 +438,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
         toast.error('Không có ghi nhận nào được tạo thành công.');
       }
 
-      if (taskId) {
-        try {
-          const firstRecordId = response.createdRecordIds && response.createdRecordIds.length > 0 ? response.createdRecordIds[0] : null;
-          if (firstRecordId) {
-             await markCompleted({ sourceId: firstRecordId });
-          } else {
-             await markCompleted();
-          }
-        } catch (syncErr) {
-          toast.warning('Nghiệp vụ đã lưu nhưng trạng thái nhiệm vụ chưa được đồng bộ!');
-        }
-      }
       if (onSuccess) {
         onSuccess();
       } else {

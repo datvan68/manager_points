@@ -646,7 +646,21 @@ function SystemAdminDashboard() {
       setSelectedCollections(defaultCollections);
       setIsImportModalOpen(true);
     } catch (err: any) {
-      toast.error("Lỗi xem trước file sao lưu: " + err.message);
+      let msg = err.message;
+      if (msg.startsWith('Lỗi thiếu công cụ hệ thống:')) {
+        toast.error(msg, { duration: 8000 });
+      } else if (msg.startsWith('Công cụ xác thực ngoại vi không khả dụng:')) {
+        msg = msg.replace('Công cụ xác thực ngoại vi không khả dụng: ', '');
+        toast.error(`Thiếu công cụ hệ thống: ${msg}`, { duration: 6000 });
+      } else if (msg.startsWith('Nội dung file không hợp lệ:')) {
+        msg = msg.replace('Nội dung file không hợp lệ: ', '');
+        toast.error(`File không hợp lệ: ${msg}`, { duration: 6000 });
+      } else if (msg.startsWith('Định dạng file không được hỗ trợ:')) {
+        msg = msg.replace('Định dạng file không được hỗ trợ: ', '');
+        toast.error(`Định dạng không hợp lệ: ${msg}`);
+      } else {
+        toast.error("Lỗi xem trước file sao lưu: " + msg);
+      }
     } finally {
       setIsImportLoading(false);
       if (e.target) e.target.value = ''; // reset input

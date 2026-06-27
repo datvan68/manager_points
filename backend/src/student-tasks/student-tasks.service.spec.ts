@@ -7,6 +7,7 @@ import { Student } from '../students/schemas/student.schema';
 import { User } from '../auth/schemas/user.schema';
 import { Role } from '../auth/schemas/role.schema';
 import { Class } from '../classes/schemas/class.schema';
+import { EvaluationPeriod } from '../evaluation-periods/schemas/evaluation-period.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StudentTaskProgressService } from '../student-task-progress/student-task-progress.service';
 import { Types } from 'mongoose';
@@ -53,6 +54,7 @@ describe('StudentTasksService', () => {
   let service: StudentTasksService;
   let model: any;
   let studentModel: any;
+  let evaluationPeriodModel: any;
   let notificationsService: any;
   let studentTaskProgressService: any;
 
@@ -122,6 +124,15 @@ describe('StudentTasksService', () => {
           },
         },
         {
+          provide: getModelToken(EvaluationPeriod.name),
+          useValue: {
+            findOne: jest.fn().mockReturnValue({
+              sort: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue(null),
+            }),
+          },
+        },
+        {
           provide: getModelToken(StudentTask.name),
           useValue: Object.assign(
             jest.fn().mockImplementation((dto) => ({
@@ -158,6 +169,7 @@ describe('StudentTasksService', () => {
     service = module.get<StudentTasksService>(StudentTasksService);
     model = module.get(getModelToken(StudentTask.name));
     studentModel = module.get(getModelToken(Student.name));
+    evaluationPeriodModel = module.get(getModelToken(EvaluationPeriod.name));
     notificationsService = module.get<NotificationsService>(NotificationsService);
     studentTaskProgressService = module.get<StudentTaskProgressService>(StudentTaskProgressService);
   });
@@ -612,6 +624,40 @@ describe('StudentTasksService', () => {
       mockTask.save.mockResolvedValueOnce({ ...mockTask, deletedAt: new Date() });
       const result = await service.remove(mockTaskId, mockUserId);
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('resolveLinkedTaskDeadline', () => {
+    it('should return deadline for /grading/score if active grading period exists', async () => {
+      const mockPeriod = { 
+        status: 'gv_phase',
+        gv_deadline: new Date('2026-06-27T23:59:59.000Z'),
+        sv_deadline: new Date('2026-06-26T23:59:59.000Z')
+      };
+      evaluationPeriodModel.findOne.mockReturnValueOnce({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockPeriod),
+      });
+
+      const result = await service.resolveLinkedTaskDeadline('/grading/score');
+
+      expect(result).toEqual(mockPeriod.gv_deadline);
+    });
+
+    it('should return null if no active period for /grading/score', async () => {
+      evaluationPeriodModel.findOne.mockReturnValueOnce({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      const result = await service.resolveLinkedTaskDeadline('/grading/score');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null for unknown linked page', async () => {
+      const result = await service.resolveLinkedTaskDeadline('/unknown/page');
+      expect(result).toBeNull();
     });
   });
 });

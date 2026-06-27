@@ -46,6 +46,9 @@ export class DatabaseRestoreJob {
   @Prop()
   mode: string;
 
+  @Prop()
+  format: string;
+
   @Prop({ type: [String] })
   collections: string[];
 

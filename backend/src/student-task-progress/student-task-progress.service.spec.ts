@@ -99,6 +99,9 @@ describe('StudentTaskProgressService (Unit)', () => {
             findById: jest.fn().mockReturnValue({
               exec: jest.fn().mockResolvedValue(mockTask),
             }),
+            find: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue([mockTask]),
+            }),
             updateOne: jest.fn().mockReturnValue({
               exec: jest.fn().mockResolvedValue({ nModified: 1 }),
             }),
@@ -172,7 +175,7 @@ describe('StudentTaskProgressService (Unit)', () => {
       expect(mockProgress.save).toHaveBeenCalled();
     });
 
-    it('should successfully update status to completed on completed event', async () => {
+    it('should successfully update status to in_progress on completed event (save no longer completes)', async () => {
       const dto = {
         taskId: mockTaskId,
         event: 'completed' as const,
@@ -184,9 +187,9 @@ describe('StudentTaskProgressService (Unit)', () => {
 
       const result = await service.updateProgressFromLinkedEvent(dto, user);
 
-      expect(result.status).toEqual(StudentTaskStatus.COMPLETED);
+      expect(result.status).toEqual(StudentTaskStatus.IN_PROGRESS);
       expect(result.startedAt).toBeDefined();
-      expect(result.completedAt).toBeDefined();
+      expect(result.completedAt).toBeUndefined();
       expect(mockProgress.save).toHaveBeenCalled();
     });
 
@@ -313,7 +316,7 @@ describe('StudentTaskProgressService (Unit)', () => {
 
       expect(result.teacherProgress).toBeDefined();
       expect(result.teacherProgress?.completionRate).toEqual(100);
-      expect(result.status).toEqual(StudentTaskStatus.COMPLETED);
+      expect(result.status).toEqual(StudentTaskStatus.IN_PROGRESS);
     });
 
     it('should calculate criteriaProgress if targetType is student and event from grading_score', async () => {
@@ -363,7 +366,7 @@ describe('StudentTaskProgressService (Unit)', () => {
       expect(result.statusSource).toEqual('linked_event');
       expect(result.sourceType).toEqual('grading_score');
       expect(result.sourceId).toEqual(dto.sourceId);
-      expect(result.status).toEqual(StudentTaskStatus.COMPLETED);
+      expect(result.status).toEqual(StudentTaskStatus.IN_PROGRESS);
     });
 
     it('should deny non-admin to reset task progress', async () => {
@@ -498,7 +501,7 @@ describe('StudentTaskProgressService (Unit)', () => {
   });
 
   describe('updateProgressFromLinkedEvent additional checks', () => {
-    it('should call recalculateTaskAggregateStatus on completed event', async () => {
+    it('should not call recalculateTaskAggregateStatus to complete if completed event received', async () => {
       const dto = {
         taskId: mockTaskId,
         event: 'completed' as const,
@@ -559,6 +562,82 @@ describe('StudentTaskProgressService (Unit)', () => {
 
       expect(progressModel.updateMany).toHaveBeenCalled();
       expect(result).toEqual({ matched: 1, modified: 2 });
+    });
+  });
+
+  describe('finalizeExpiredTaskProgress', () => {
+    it('should complete progress rows that started before or on deadline', async () => {
+      const now = new Date('2026-06-28T00:00:00Z');
+      const mockDeadline = new Date('2026-06-27T00:00:00Z');
+      const mockStartedAt = new Date('2026-06-26T00:00:00Z');
+
+      taskModel.find.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue([
+          { _id: new Types.ObjectId(mockTaskId), deadline: mockDeadline }
+        ])
+      });
+
+      const activeProgress = {
+        _id: new Types.ObjectId(),
+        taskId: new Types.ObjectId(mockTaskId),
+        status: StudentTaskStatus.IN_PROGRESS,
+        startedAt: mockStartedAt,
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      progressModel.find.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue([activeProgress])
+      });
+
+      const spy = jest.spyOn(service, 'recalculateTaskAggregateStatus');
+      spy.mockResolvedValue(undefined as any);
+
+      const result = await service.finalizeExpiredTaskProgress(now);
+
+      expect(result.tasksProcessed).toBe(1);
+      expect(result.updatedRowsCount).toBe(1);
+      expect(activeProgress.status).toBe(StudentTaskStatus.COMPLETED);
+      expect(activeProgress.completedAt).toBe(mockDeadline);
+      expect(activeProgress.statusSource).toBe('system');
+      expect(activeProgress.sourceType).toBe('deadline_finalizer');
+      expect(activeProgress.save).toHaveBeenCalled();
+      expect(spy).toHaveBeenCalledWith(activeProgress.taskId.toString());
+
+      spy.mockRestore();
+    });
+
+    it('should leave progress rows without startedAt incomplete', async () => {
+      const now = new Date('2026-06-28T00:00:00Z');
+      const mockDeadline = new Date('2026-06-27T00:00:00Z');
+
+      taskModel.find.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue([
+          { _id: new Types.ObjectId(mockTaskId), deadline: mockDeadline }
+        ])
+      });
+
+      const activeProgress = {
+        _id: new Types.ObjectId(),
+        taskId: new Types.ObjectId(mockTaskId),
+        status: StudentTaskStatus.NOT_STARTED,
+        startedAt: undefined,
+        save: jest.fn()
+      };
+
+      progressModel.find.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue([activeProgress])
+      });
+
+      const spy = jest.spyOn(service, 'recalculateTaskAggregateStatus');
+      spy.mockResolvedValue(undefined as any);
+
+      const result = await service.finalizeExpiredTaskProgress(now);
+
+      expect(result.tasksProcessed).toBe(1);
+      expect(result.updatedRowsCount).toBe(0);
+      expect(activeProgress.save).not.toHaveBeenCalled();
+      
+      spy.mockRestore();
     });
   });
 });

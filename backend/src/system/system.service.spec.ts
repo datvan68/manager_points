@@ -855,6 +855,84 @@ describe('SystemService', () => {
       
       await expect(service.previewBackupImport(file, mockUserId)).rejects.toThrow(BadRequestException);
     });
+
+    it('should detect ndjson_gzip successfully', async () => {
+      const ndjsonContent = '{"__collection":"users"}\n{"_id":{"$oid":"5f9f1b9b9b9b9b9b9b9b9b9b"},"name":"User1"}\n';
+      const gzBuffer = zlib.gzipSync(ndjsonContent);
+      const file = { originalname: 'backup.gz', buffer: gzBuffer, size: gzBuffer.length } as any;
+      restoreJobModel.create.mockResolvedValueOnce({ _id: new Types.ObjectId(), status: 'preview' } as any);
+      
+      const result = await service.previewBackupImport(file, mockUserId);
+      expect(result.format).toBe('ndjson_gzip');
+      expect(result.collections.length).toBeGreaterThan(0);
+      expect(result.collections[0].name).toBe('users');
+    });
+
+    it('should detect ndjson_gzip successfully even if mongorestore is not installed', async () => {
+      const ndjsonContent = '{"__collection":"users"}\n{"_id":{"$oid":"5f9f1b9b9b9b9b9b9b9b9b9b"},"name":"User1"}\n';
+      const gzBuffer = zlib.gzipSync(ndjsonContent);
+      const file = { originalname: 'backup.gz', buffer: gzBuffer, size: gzBuffer.length } as any;
+      restoreJobModel.create.mockResolvedValueOnce({ _id: new Types.ObjectId(), status: 'preview' } as any);
+      
+      // Simulate mongorestore not being available on system
+      const execSpy = jest.spyOn(cp, 'execFile').mockImplementation(((cmd: string, args: any[], cb: any) => {
+        const err: any = new Error('mongorestore ENOENT');
+        err.code = 'ENOENT';
+        if (cb) cb(err, '', '');
+      }) as any);
+      
+      const result = await service.previewBackupImport(file, mockUserId);
+      expect(result.format).toBe('ndjson_gzip');
+      expect(result.collections.length).toBeGreaterThan(0);
+      expect(result.collections[0].name).toBe('users');
+      expect(execSpy).not.toHaveBeenCalled();
+      execSpy.mockRestore();
+    });
+
+    it('should detect mongodump_archive and mock success', async () => {
+      const archiveContent = 'BSON_ARCHIVE_BINARY_DATA_DUMMY_THAT_DOES_NOT_START_WITH_BRACKET';
+      const gzBuffer = zlib.gzipSync(archiveContent);
+      const file = { originalname: 'backup.gz', buffer: gzBuffer, size: gzBuffer.length } as any;
+      
+      // Override execFile to simulate mongorestore --dryRun success
+      jest.spyOn(cp, 'execFile').mockImplementationOnce(((cmd: string, args: any[], cb: any) => {
+        if (cb) cb(null, 'done', '');
+      }) as any);
+
+      restoreJobModel.create.mockResolvedValueOnce({ _id: new Types.ObjectId(), status: 'preview' } as any);
+
+      const result = await service.previewBackupImport(file, mockUserId);
+      expect(result.format).toBe('mongodump_archive');
+      expect(result.collections[0].name).toBe('Archive Content (Full Restore Available)');
+    });
+
+    it('should throw error when mongodump_archive validation fails', async () => {
+      const archiveContent = 'BSON_ARCHIVE_BINARY_DATA_DUMMY_THAT_DOES_NOT_START_WITH_BRACKET';
+      const gzBuffer = zlib.gzipSync(archiveContent);
+      const file = { originalname: 'backup.gz', buffer: gzBuffer, size: gzBuffer.length } as any;
+      
+      // Override execFile to simulate mongorestore --dryRun failure
+      jest.spyOn(cp, 'execFile').mockImplementationOnce(((cmd: string, args: any[], cb: any) => {
+        if (cb) cb(new Error('mongorestore failed'), '', '');
+      }) as any);
+
+      await expect(service.previewBackupImport(file, mockUserId)).rejects.toThrow('Lỗi xác thực file archive bằng mongorestore. File có thể bị hỏng hoặc không đúng định dạng mongodump.');
+    });
+
+    it('should throw ENOENT error when mongorestore is not installed', async () => {
+      const archiveContent = 'BSON_ARCHIVE_BINARY_DATA_DUMMY_THAT_DOES_NOT_START_WITH_BRACKET';
+      const gzBuffer = zlib.gzipSync(archiveContent);
+      const file = { originalname: 'backup.gz', buffer: gzBuffer, size: gzBuffer.length } as any;
+      
+      // Override execFile to simulate mongorestore --dryRun ENOENT failure
+      jest.spyOn(cp, 'execFile').mockImplementationOnce(((cmd: string, args: any[], cb: any) => {
+        const err: any = new Error('mongorestore ENOENT');
+        err.code = 'ENOENT';
+        if (cb) cb(err, '', '');
+      }) as any);
+
+      await expect(service.previewBackupImport(file, mockUserId)).rejects.toThrow('Lỗi thiếu công cụ hệ thống: Phát hiện định dạng Archive backup, nhưng MongoDB Database Tools chưa được cài đặt. Để khôi phục, vui lòng cài đặt mongorestore hoặc sử dụng server có sẵn bộ công cụ này. Nếu không thể cài đặt, hãy sử dụng tính năng sao lưu với định dạng fallback (NDJSON) thay vì Archive.');
+    });
   });
 
   describe('restoreBackupImport', () => {

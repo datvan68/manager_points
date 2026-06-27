@@ -12,6 +12,11 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 export class StudentTaskProgressController {
   constructor(private readonly progressService: StudentTaskProgressService) {}
 
+  @Post('access')
+  markAccess(@Body() dto: { taskId: string, linkedPage?: string }, @Request() req: any) {
+    return this.progressService.markAccess(dto.taskId, dto.linkedPage, req.user);
+  }
+
   @Get('overview')
   // Cần quyền đọc task, nhưng chỉ những role quản lý (như nói ở taskscope) mới gọi API này
   // Frontend sẽ tự ẩn tab nếu không đủ quyền, backend chỉ check READ_STUDENT_TASK chung
@@ -20,17 +25,7 @@ export class StudentTaskProgressController {
     return this.progressService.getOverview(query, req.user);
   }
 
-  @Post('linked-event')
-  // Mọi user đều có thể gọi. Logic kiểm tra quyền và progress được xử lý ở Service.
-  updateProgressFromLinkedEvent(@Body() dto: LinkedTaskProgressEventDto, @Request() req: any) {
-    return this.progressService.updateProgressFromLinkedEvent(dto, req.user);
-  }
 
-  @Post('linked-event/bulk')
-  // Mọi user đều có thể gọi. Logic kiểm tra quyền và progress được xử lý ở Service.
-  bulkUpdateProgressFromLinkedEvent(@Body() dto: BulkLinkedTaskProgressEventDto, @Request() req: any) {
-    return this.progressService.bulkUpdateProgressFromLinkedEvent(dto, req.user);
-  }
 
   @Patch(':id/status')
   // Mọi user đều có thể gọi (student đổi trạng thái của họ, quản lý đổi thay). Logic phân quyền chi tiết nằm ở Service
@@ -48,6 +43,12 @@ export class StudentTaskProgressController {
   @Permissions('READ_STUDENT_TASK')
   getTeacherProgressDetail(@Param('progressId') progressId: string, @Request() req: any) {
     return this.progressService.getTeacherProgressDetail(progressId, req.user);
+  }
+
+  @Post('finalize-expired')
+  @Permissions('UPDATE_STUDENT_TASK')
+  async finalizeExpiredTasks() {
+    return this.progressService.finalizeExpiredTaskProgress();
   }
 }
 

@@ -642,7 +642,7 @@ function GradingScoreContent() {
   const studentIdParam = searchParams.get("studentId");
   const taskId = searchParams.get("taskId");
 
-  const { resolvedTaskId, markStarted, markCompleted } = useLinkedTaskProgress({
+  const { resolvedTaskId } = useLinkedTaskProgress({
     taskId,
     linkedPage: "/grading/score",
     sourceType: "grading_score",
@@ -764,19 +764,8 @@ function GradingScoreContent() {
   >({});
 
   const syncLinkedTaskCompleted = async (summaryId: string, studentId: string) => {
-    if (!resolvedTaskId) return;
-    try {
-      await markCompleted({ sourceId: summaryId, assigneeStudentId: studentId });
-    } catch (syncErr) {
-      toast.warning("Nghiệp vụ đã lưu nhưng trạng thái nhiệm vụ chưa được đồng bộ!");
-      console.warn("Failed to sync task completed status. Debug info:", {
-        taskId: resolvedTaskId,
-        summaryId,
-        assigneeStudentId: studentId,
-        sourceType: "grading_score",
-        error: syncErr
-      });
-    }
+    // markCompleted has been removed from useLinkedTaskProgress because 
+    // we no longer set tasks to completed via save events.
   };
 
   // State lưu trữ số lượng (lần thực hiện) của từng tiêu chí cho từng sinh viên
@@ -1415,12 +1404,6 @@ function GradingScoreContent() {
     markStudentDirty(activeStudentId);
 
     const summaryId = studentSummaryMap[activeStudentId];
-    if (resolvedTaskId && summaryId) {
-      markStarted({ sourceId: summaryId, assigneeStudentId: activeStudentId }).catch((err) => {
-        toast.warning("Không thể tự động đồng bộ trạng thái nhiệm vụ sang 'Đang làm'!");
-        console.warn("Failed to sync task in_progress status:", err);
-      });
-    }
 
     // Khoá state tránh double click
     setPendingIntentKeys(prev => ({ ...prev, [intentKey]: true }));
@@ -1651,11 +1634,6 @@ function GradingScoreContent() {
     }
 
     const summaryId = studentSummaryMap[activeStudentId];
-    if (resolvedTaskId && summaryId) {
-      markStarted({ sourceId: summaryId, assigneeStudentId: activeStudentId }).catch((err) => {
-        console.warn("Failed to sync task in_progress status:", err);
-      });
-    }
 
     const studentIdToFlush = activeStudentId;
     flushIntentTimersRef.current[key] = setTimeout(() => {
@@ -1711,11 +1689,6 @@ function GradingScoreContent() {
     }
 
     const summaryId = studentSummaryMap[activeStudentId];
-    if (resolvedTaskId && summaryId) {
-      markStarted({ sourceId: summaryId, assigneeStudentId: activeStudentId }).catch((err) => {
-        console.warn("Failed to sync task in_progress status:", err);
-      });
-    }
 
     const studentIdToFlush = activeStudentId;
     flushIntentTimersRef.current[key] = setTimeout(() => {
@@ -3010,45 +2983,40 @@ function GradingScoreContent() {
 
                                   {/* Scores Badges + Đơn giá */}
                                   <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                    {item.is_locked ? (
+                                    {/* Sinh viên */}
+                                    {!item.is_locked && (
+                                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-[#1A73E8] text-[10px] font-bold border border-blue-100/40">
+                                        <span className="opacity-70">SV:</span>
+                                        <span>
+                                          {formatScoreLabel(detail?.sv_score, hasViolation)}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {/* Giảng viên / Cố vấn */}
+                                    {!item.is_locked && (
+                                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100/40">
+                                        <span className="opacity-70">GV:</span>
+                                        <span>
+                                          {formatScoreLabel(detail?.gv_score, hasViolation)}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {/* P.HSSV */}
+                                    {item.is_locked && (
                                       <div
                                         className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-50 text-slate-700 text-[10px] font-extrabold border border-slate-200/70 shadow-sm"
                                         title="Điểm tính từ ghi nhận của P.HSSV"
                                       >
                                         <span className="opacity-70">P.HSSV:</span>
                                         <span>
-                                          {formatScoreLabel(
-                                            getRecordDerivedRawCriterionScore(item, count, selectedOptionId, detail),
-                                            hasViolation
-                                          )}
+                                          {formatScoreLabel(detail?.final_score, hasViolation)}
                                         </span>
                                       </div>
-                                    ) : (
-                                      <>
-                                        {/* Sinh viên */}
-                                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-[#1A73E8] text-[10px] font-bold border border-blue-100/40">
-                                          <span className="opacity-70">SV:</span>
-                                          <span>
-                                            {formatScoreLabel(detail?.sv_score, hasViolation)}
-                                          </span>
-                                        </div>
-
-                                        {/* Giảng viên / Cố vấn */}
-                                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100/40">
-                                          <span className="opacity-70">GV:</span>
-                                          <span>
-                                            {formatScoreLabel(
-                                              hasTeacherReviewed
-                                                ? detail?.gv_score
-                                                : null,
-                                              hasViolation
-                                            )}
-                                          </span>
-                                        </div>
-                                      </>
                                     )}
 
-                                    {isApproved && !item.is_locked && (
+                                    {isApproved && (
                                       <div
                                         className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-extrabold border border-emerald-200/70 shadow-sm"
                                         title="Điểm đạt được sau khi supervisor/admin duyệt và chốt"

@@ -40,47 +40,33 @@ export function useLinkedTaskProgress({
     isStartedSent.current = false;
   }, [resolvedTaskId]);
 
-  const markStarted = useCallback(async (options?: { sourceId?: string, assigneeStudentId?: string, metadata?: Record<string, unknown> }) => {
+  const markAccess = useCallback(async () => {
     if (!resolvedTaskId) return;
-    if (isStartedSent.current) return; // Tránh gửi started nhiều lần trong cùng 1 session component
+    if (isStartedSent.current) return;
     try {
-      await studentTaskApi.sendLinkedTaskProgressEvent({
-        taskId: resolvedTaskId,
-        event: 'started',
-        linkedPage,
-        sourceType,
-        sourceId: options?.sourceId,
-        assigneeStudentId: options?.assigneeStudentId,
-        metadata: options?.metadata,
-      });
+      const res = await studentTaskApi.markTaskAccess(resolvedTaskId, linkedPage);
+      if (res && res.tracked === false) {
+        // Admin/supervisor bypass
+        console.log('Task access bypassed:', res.reason);
+      }
       isStartedSent.current = true;
-    } catch (error) {
-      console.error('Failed to send started event for task:', resolvedTaskId, error);
-      throw error;
-    }
-  }, [resolvedTaskId, linkedPage, sourceType]);
-
-  const markCompleted = useCallback(async (options?: { sourceId?: string, assigneeStudentId?: string, metadata?: Record<string, unknown> }) => {
-    if (!resolvedTaskId) return;
-    try {
-      await studentTaskApi.sendLinkedTaskProgressEvent({
-        taskId: resolvedTaskId,
-        event: 'completed',
-        linkedPage,
-        sourceType,
-        sourceId: options?.sourceId,
-        assigneeStudentId: options?.assigneeStudentId,
-        metadata: options?.metadata,
+    } catch (error: any) {
+      console.error('Failed to mark access for task:', resolvedTaskId, error);
+      import('sonner').then(({ toast }) => {
+        toast.error(error.message || 'Lỗi truy cập nhiệm vụ');
       });
-    } catch (error) {
-      console.error('Failed to send completed event for task:', resolvedTaskId, error);
-      throw error;
+      // Do not rethrow to avoid blocking unhandled promise rejection in browser
     }
-  }, [resolvedTaskId, linkedPage, sourceType]);
+  }, [resolvedTaskId, linkedPage]);
+
+  useEffect(() => {
+    if (resolvedTaskId && !isStartedSent.current) {
+      markAccess();
+    }
+  }, [resolvedTaskId, markAccess]);
 
   return {
     resolvedTaskId,
-    markStarted,
-    markCompleted,
+    markAccess,
   };
 }
