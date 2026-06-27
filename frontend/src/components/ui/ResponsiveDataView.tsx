@@ -47,6 +47,10 @@ interface ResponsiveDataViewProps<T> {
   // Mobile infinite scroll support
   mobileFooter?: React.ReactNode;
   mobileScrollRef?: React.Ref<HTMLDivElement>;
+  
+  // Desktop infinite scroll support
+  desktopFooter?: React.ReactNode;
+  desktopScrollRef?: React.Ref<HTMLDivElement>;
 }
 
 export default function ResponsiveDataView<T>({
@@ -65,7 +69,9 @@ export default function ResponsiveDataView<T>({
   cardClassName = '',
   hidePaginationOnMobile = false,
   mobileFooter,
-  mobileScrollRef
+  mobileScrollRef,
+  desktopFooter,
+  desktopScrollRef
 }: ResponsiveDataViewProps<T>) {
   
   const getBreakpointClass = (bp: 'sm' | 'md' | 'lg' | 'xl') => {
@@ -198,7 +204,7 @@ export default function ResponsiveDataView<T>({
       </div>
 
       {/* 2. Table View (Desktop) */}
-      <div className={`${bpClasses.table} flex-1 overflow-auto`}>
+      <div ref={desktopScrollRef} className={`${bpClasses.table} flex-1 overflow-auto`}>
         <table className={`w-full border-collapse ${tableClassName}`}>
           <thead className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm border-b border-white/80 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]">
             <tr>
@@ -279,6 +285,7 @@ export default function ResponsiveDataView<T>({
             )}
           </tbody>
         </table>
+        {desktopFooter}
       </div>
 
       {/* 3. Pagination Footer (outside scroll area) */}

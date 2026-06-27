@@ -236,6 +236,15 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [totalRecords, setTotalRecords] = useState(0);
   const [allCriteria, setAllCriteria] = useState<Criterion[]>([]);
 
+  // Infinite scroll states
+  const [hasMoreRecords, setHasMoreRecords] = useState(true);
+  const [isLoadingMoreRecords, setIsLoadingMoreRecords] = useState(false);
+  const [loadMoreRecordsError, setLoadMoreRecordsError] = useState(false);
+  const recordsObserverTargetRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const isFetchingRef = useRef<boolean>(false);
+  const loadMoreInitiatedRef = useRef<number>(1);
+
   // Class tab states
   const [classReports, setClassReports] = useState<DailyClassReport[]>([]);
   const [totalClassReports, setTotalClassReports] = useState(0);
@@ -291,9 +300,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     return () => clearTimeout(handler);
   }, [classSearchTerm]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearchTerm, selectedClassIdForStudent, creatorFilter, itemsPerPage, filterDateRange]);
+  // Filter reset effect moved to after fetchAcademicRecords definition
 
   useEffect(() => {
     setClassCurrentPage(1);
@@ -331,8 +338,23 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   }, []);
 
   // Fetch student academic records
-  const fetchAcademicRecords = async () => {
-    setIsLoading(true);
+  const fetchAcademicRecords = async (pageToFetch = 1, isAppend = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
+    if (pageToFetch === 1) {
+      setCurrentPage(1);
+      loadMoreInitiatedRef.current = 1;
+    }
+
+    if (isAppend) {
+      setIsLoadingMoreRecords(true);
+    } else {
+      setIsLoading(true);
+      setAcademicRecords([]); // Clear old records
+    }
+    setLoadMoreRecordsError(false);
+
     try {
       // Load all criteria first if empty
       let criteriaList = allCriteria;
@@ -349,7 +371,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       let total = 0;
       try {
         const res = await academicRecordApi.getAcademicRecords({
-          page: currentPage,
+          page: pageToFetch,
           limit: itemsPerPage,
           search: debouncedSearchTerm || undefined,
           classId: selectedClassIdForStudent === "all" ? undefined : selectedClassIdForStudent,
@@ -366,14 +388,31 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         }
       } catch (apiErr) {
         console.warn("API getAcademicRecords lỗi:", apiErr);
+        setLoadMoreRecordsError(true);
+        if (!isAppend) toast.error("Không thể tải dữ liệu ghi nhận HSSV.");
+        return;
       }
-      setAcademicRecords(records);
+
+      setAcademicRecords(prev => {
+        if (!isAppend) return records;
+        const existingIds = new Set(prev.map(r => r._id));
+        const newRecords = records.filter(r => !existingIds.has(r._id));
+        return [...prev, ...newRecords];
+      });
       setTotalRecords(total);
+      
+      setHasMoreRecords((pageToFetch - 1) * itemsPerPage + records.length < total);
     } catch (err) {
       console.error("Lỗi khi nạp dữ liệu ghi nhận HSSV:", err);
-      toast.error("Không thể tải dữ liệu ghi nhận HSSV.");
+      if (!isAppend) toast.error("Không thể tải dữ liệu ghi nhận HSSV.");
+      setLoadMoreRecordsError(true);
     } finally {
-      setIsLoading(false);
+      if (isAppend) {
+        setIsLoadingMoreRecords(false);
+      } else {
+        setIsLoading(false);
+      }
+      isFetchingRef.current = false;
     }
   };
 
@@ -573,15 +612,59 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   useEffect(() => {
     if (activeSubTab === "student") {
-      fetchAcademicRecords();
+      setCurrentPage(1);
+      setHasMoreRecords(true);
+      setLoadMoreRecordsError(false);
+      loadMoreInitiatedRef.current = 1;
+      fetchAcademicRecords(1, false);
     }
-  }, [activeSubTab, currentPage, itemsPerPage, debouncedSearchTerm, selectedClassIdForStudent, filterDateRange, creatorFilter]);
+  }, [activeSubTab, itemsPerPage, debouncedSearchTerm, selectedClassIdForStudent, filterDateRange, creatorFilter]);
 
   useEffect(() => {
     if (activeSubTab === "class") {
       fetchClassReports();
     }
   }, [activeSubTab, classCurrentPage, classItemsPerPage, debouncedClassSearchTerm, selectedClassId, selectedReportDateRange]);
+
+  const fetchAcademicRecordsRef = useRef<any>(null);
+  useEffect(() => {
+    fetchAcademicRecordsRef.current = fetchAcademicRecords;
+  });
+
+  // Intersection Observer for Infinite Scroll
+  useEffect(() => {
+    if (activeSubTab !== "student") return;
+    if (!hasMoreRecords || loadMoreRecordsError) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          if (isFetchingRef.current) return;
+          const currentRefPage = loadMoreInitiatedRef.current;
+          const nextPage = currentRefPage + 1;
+          loadMoreInitiatedRef.current = nextPage;
+          setCurrentPage(nextPage);
+          if (fetchAcademicRecordsRef.current) {
+            fetchAcademicRecordsRef.current(nextPage, true);
+          }
+        }
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: "100px",
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = recordsObserverTargetRef.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) observer.unobserve(currentTarget);
+    };
+  }, [activeSubTab, hasMoreRecords, loadMoreRecordsError]);
 
   // Map academicRecords to dummy format for UI compatibility
   const mappedRecords = academicRecords.map((r) => {
@@ -2022,7 +2105,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             {/* Table Content student record */}
             <div className="flex-1 overflow-y-auto w-full max-w-full bg-transparent flex flex-col">
             {/* Mobile/Tablet View (Luôn hiển thị dạng thẻ tinh giản và ẩn trên desktop) */}
-            <div className="p-4 bg-blue-50/30 backdrop-blur-md lg:hidden flex-1 overflow-y-auto">
+            <div ref={scrollContainerRef} className="p-4 bg-blue-50/30 backdrop-blur-md lg:hidden flex-1 overflow-y-auto">
               {isLoading ? (
                 <div className="flex flex-col gap-4">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -2078,6 +2161,30 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   )}
                 </div>
               )}
+              
+              {/* Infinite Scroll Sentinel */}
+              <div ref={recordsObserverTargetRef} className="py-4 w-full flex justify-center items-center shrink-0 min-h-[60px] pb-6">
+                {isLoadingMoreRecords && (
+                  <div className="flex items-center gap-2 text-sm text-[#1A73E8]">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang tải thêm...</span>
+                  </div>
+                )}
+                {loadMoreRecordsError && (
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-sm text-rose-500 font-medium">Lỗi khi tải thêm dữ liệu</span>
+                    <button
+                      onClick={() => fetchAcademicRecords(currentPage, true)}
+                      className="text-xs text-[#1A73E8] underline hover:text-[#1557b0]"
+                    >
+                      Thử lại
+                    </button>
+                  </div>
+                )}
+                {!hasMoreRecords && academicRecords.length > 0 && !isLoading && !isLoadingMoreRecords && (
+                  <span className="text-sm text-slate-400 italic">Đã hiển thị tất cả ghi nhận.</span>
+                )}
+              </div>
             </div>
 
             {/* Desktop View (lg:block - chỉ hiển thị trên desktop) */}
@@ -3337,12 +3444,14 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 totalItems={totalRecords}
                 onPageChange={(page) => {
                   setCurrentPage(page);
+                  fetchAcademicRecords(page, false);
                 }}
                 onPageSizeChange={(size) => {
                   setItemsPerPage(size);
                   setCurrentPage(1);
+                  // useEffect on itemsPerPage change will handle fetch
                 }}
-                label="ghi nhận"
+                label="bản ghi"
                 isLoading={isLoading}
               />
             </div>

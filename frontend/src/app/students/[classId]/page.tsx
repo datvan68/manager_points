@@ -46,7 +46,6 @@ import ConfirmModal from '@/components/modals/ConfirmModal';
 import { StudentAvatar } from '@/components/ui/StudentAvatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CustomPagination } from '@/components/ui/pagination';
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
 import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 
@@ -103,7 +102,9 @@ function ClassStudentsPageContent() {
     const [isLoadingMoreStudents, setIsLoadingMoreStudents] = useState(false);
     const [loadMoreError, setLoadMoreError] = useState('');
     const studentsObserverTargetRef = React.useRef<HTMLDivElement | null>(null);
+    const desktopObserverTargetRef = React.useRef<HTMLDivElement | null>(null);
     const mobileScrollRootRef = React.useRef<HTMLDivElement | null>(null);
+    const desktopScrollRootRef = React.useRef<HTMLDivElement | null>(null);
     const loadingMoreRef = React.useRef(false);
 
     const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
@@ -252,17 +253,17 @@ function ClassStudentsPageContent() {
 
     // Lắng nghe thay đổi của các filter/phân trang để fetch lại
     useEffect(() => {
-        const isAppend = isMobileOrTablet && currentPage > 1 && loadingMoreRef.current;
+        const isAppend = currentPage > 1 && loadingMoreRef.current;
         loadStudentsData(currentPage, isAppend);
     }, [classId, currentPage, itemsPerPage, activeTab, debouncedSearchTerm]);
 
     // Infinite scroll observer
     useEffect(() => {
-        if (!isMobileOrTablet || !hasMoreStudents) return;
+        if (!hasMoreStudents) return;
         if (isLoading || isDataLoading || isLoadingMoreStudents) return;
 
-        const root = mobileScrollRootRef.current;
-        const target = studentsObserverTargetRef.current;
+        const root = isMobileOrTablet ? mobileScrollRootRef.current : desktopScrollRootRef.current;
+        const target = isMobileOrTablet ? studentsObserverTargetRef.current : desktopObserverTargetRef.current;
         if (!root || !target) return;
 
         const observer = new IntersectionObserver(([entry]) => {
@@ -310,9 +311,7 @@ function ClassStudentsPageContent() {
     // Reset về trang 1 khi tìm kiếm, lọc hoặc đổi số lượng phần tử mỗi trang
     useEffect(() => {
         setCurrentPage(1);
-        if (isMobileOrTablet) {
-            setStudentsList([]);
-        }
+        setStudentsList([]);
         setHasMoreStudents(true);
         setLoadMoreError('');
         loadingMoreRef.current = false;
@@ -763,8 +762,25 @@ function ClassStudentsPageContent() {
                                 columns={studentsColumns}
                                 isLoading={isLoading || (isDataLoading && !isLoadingMoreStudents)}
                                 mobileScrollRef={mobileScrollRootRef}
-                                mobileFooter={isMobileOrTablet && paginatedStudents.length > 0 ? (
+                                mobileFooter={paginatedStudents.length > 0 ? (
                                     <div ref={studentsObserverTargetRef} className="py-4 text-center text-xs text-slate-500">
+                                        {loadMoreError ? (
+                                            <div className="flex flex-col items-center gap-2">
+                                                <span className="text-red-500">{loadMoreError}</span>
+                                                <button onClick={() => { setLoadMoreError(''); loadStudentsData(currentPage, true); }} className="px-3 py-1 bg-white border border-slate-200 rounded-lg">Thử lại</button>
+                                            </div>
+                                        ) : isLoadingMoreStudents ? (
+                                            <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Đang tải thêm sinh viên...</span>
+                                        ) : hasMoreStudents ? (
+                                            'Kéo xuống để tải thêm'
+                                        ) : (
+                                            'Đã tải hết sinh viên'
+                                        )}
+                                    </div>
+                                ) : null}
+                                desktopScrollRef={desktopScrollRootRef}
+                                desktopFooter={paginatedStudents.length > 0 ? (
+                                    <div ref={desktopObserverTargetRef} className="py-4 text-center text-xs text-slate-500">
                                         {loadMoreError ? (
                                             <div className="flex flex-col items-center gap-2">
                                                 <span className="text-red-500">{loadMoreError}</span>
@@ -804,19 +820,6 @@ function ClassStudentsPageContent() {
                                     allSelected: paginatedStudents.length > 0 && selectedStudentIds.length === paginatedStudents.length
                                 }}
                                 onRowClick={(student) => setOpenDrawerId(student._id)}
-                                hidePaginationOnMobile={true}
-                                pagination={!isMobileOrTablet ? (
-                                    <CustomPagination
-                                        currentPage={currentPage}
-                                        pageSize={itemsPerPage}
-                                        totalItems={totalStudents}
-                                        onPageChange={(page) => setCurrentPage(page)}
-                                        onPageSizeChange={setItemsPerPage}
-                                        label="sinh viên"
-                                        isLoading={isDataLoading}
-                                        className="shadow-none border-none rounded-none bg-transparent"
-                                    />
-                                ) : null}
                             />
                         </div>
                     </motion.div>

@@ -57,36 +57,40 @@ const allMenuItems = [
 
 // Global variables to persist sidebar state across client-side page transitions
 let globalIsCollapsed = true; // Mặc định thu gọn
-let globalIsHovered = false;
 
 const skeletonWidths = ["w-2/3", "w-1/2", "w-3/4"];
 
+/**
+ * Sidebar Component
+ * 
+ * Overview:
+ * Renders the primary navigation sidebar for the application.
+ * 
+ * Interaction Changes (Latest Update):
+ * The desktop sidebar no longer automatically expands or collapses based on mouse hover events. 
+ * The expanded/collapsed state is now explicitly controlled to provide a stable layout, 
+ * improve overall usability, and prevent accidental layout shifts (content reflow) when 
+ * the user simply moves the cursor across the screen.
+ */
 const Sidebar = () => {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = React.useState(globalIsCollapsed);
-  const [isHovered, setIsHovered] = useState(globalIsHovered);
-  const hoverTimeoutRef = React.useRef<any>(null);
-  const ignoreHoverRef = React.useRef(false);
+  const closeTimeoutRef = React.useRef<any>(null);
 
-  const handleMouseEnter = () => {
-    if (ignoreHoverRef.current) return;
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
+  const startCloseTimer = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
     }
-    setIsHovered(true);
-    globalIsHovered = true;
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsCollapsed(true);
+      globalIsCollapsed = true;
+    }, 60000);
   };
 
-  const handleMouseLeave = () => {
-    ignoreHoverRef.current = false; // Reset ignore flag khi chuột đã rời đi hẳn
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    hoverTimeoutRef.current = setTimeout(() => {
-      setIsHovered(false);
-      globalIsHovered = false;
-    }, 5000); // 400ms delay tránh giật mắt khi vô tình di chuột ra ngoài
+  const handleMenuItemClick = () => {
+    setIsCollapsed(false);
+    globalIsCollapsed = false;
+    startCloseTimer();
   };
 
   const handleCompactClick = () => {
@@ -94,24 +98,22 @@ const Sidebar = () => {
     setIsCollapsed(nextCollapsed);
     globalIsCollapsed = nextCollapsed;
     if (nextCollapsed) {
-      setIsHovered(false);
-      globalIsHovered = false;
-      ignoreHoverRef.current = true; // Bỏ qua hover cho đến khi chuột rời khỏi hẳn
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
       }
     }
   };
 
   useEffect(() => {
     return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
       }
     };
   }, []);
 
-  const isExpanded = !isCollapsed || isHovered;
+  const isExpanded = !isCollapsed;
 
   const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);
   const pathname = usePathname();
@@ -282,8 +284,6 @@ const Sidebar = () => {
     <>
       {/* Desktop Left Sidebar (Hidden on mobile) */}
       <div
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
         className={`hidden md:flex flex-col h-screen ${isExpanded ? "w-64" : "w-20"} bg-white/45 backdrop-blur-md border-r border-white/75 justify-between transition-all duration-300 shrink-0 shadow-sm shadow-slate-300/40`}
       >
         {/* Header */}
@@ -338,6 +338,7 @@ const Sidebar = () => {
                 <Link
                   key={index}
                   href={targetHref}
+                  onClick={handleMenuItemClick}
                   className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold transition-all duration-300 ease-in-out hover:scale-[1.01] ${isActive
                     ? "bg-[#1A73E8]/10 border border-[#1A73E8]/20 text-[#1A73E8] shadow-sm shadow-slate-200/20"
                     : "text-[#64748B] border border-transparent hover:bg-[#1A73E8]/10 hover:border-[#1A73E8]/20 hover:text-[#1A73E8] hover:shadow-sm"
@@ -369,6 +370,7 @@ const Sidebar = () => {
           {isAdminUser(user) && (
             <Link 
               href="/system/settings" 
+              onClick={handleMenuItemClick}
               className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-sm ${pathname === "/system/settings" ? "bg-[#1A73E8]/10 border border-[#1A73E8]/20 text-[#1A73E8]" : "text-[#64748B] border border-transparent hover:bg-[#1A73E8]/10 hover:border-[#1A73E8]/20 hover:text-[#1A73E8]"} ${isExpanded ? "" : "justify-center"}`}
               title={isExpanded ? "" : "Cài đặt"}
             >
