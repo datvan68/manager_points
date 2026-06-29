@@ -593,65 +593,81 @@ function CategoriesPage() {
     criteria
       .filter((item) => item.categoryId === categoryId)
       .reduce((sum, item) => sum + Number(item.maxPoints || 0), 0);
-  const renderStatsRow = (isMobile: boolean) => (
-    <div className={`grid ${isMobile ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-4'} gap-3 w-full`}>
-      {/* Tổng số danh mục */}
-      <div className={`${glassCardClass} flex flex-col gap-1 items-start min-w-px relative w-full`}>
-        <span className={`font-sans font-semibold text-[#5f6368] ${isMobile ? 'text-[9px] sm:text-[10px]' : 'text-[10px]'} tracking-[0.55px] uppercase leading-tight ${isMobile ? 'whitespace-normal sm:whitespace-nowrap' : 'whitespace-nowrap'}`}>
-          TỔNG SỐ DANH MỤC
-        </span>
-        <span className="font-sans font-bold text-[#005bbf] text-[20px] leading-none mt-1">
-          {isInitialLoading ? (
-            <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
-          ) : (
-            categories.length
-          )}
-        </span>
-      </div>
+  const renderStatsRow = (isMobile: boolean) => {
+    const premiumStatsGlassCardClass = 'bg-gradient-to-br from-white/60 to-white/35 backdrop-blur-lg border border-white/80 rounded-xl shadow-sm shadow-slate-200/40 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] px-3.5 py-3 flex items-center justify-between gap-3 transition-all duration-200 hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-300/30';
+    
+    return (
+      <div className={`grid ${isMobile ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-4'} gap-3 w-full`}>
+        {/* Tổng số danh mục */}
+        <div className={premiumStatsGlassCardClass}>
+          <span 
+            className="font-sans font-semibold text-slate-500 text-[8.5px] xs:text-[9.5px] sm:text-[10px] tracking-[0.5px] uppercase leading-tight truncate" 
+            title="TỔNG SỐ DANH MỤC"
+          >
+            TỔNG SỐ DANH MỤC
+          </span>
+          <span className="font-sans font-bold text-[#005bbf] text-[18px] sm:text-[20px] leading-none shrink-0">
+            {isInitialLoading ? (
+              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl animate-pulse" />
+            ) : (
+              categories.length
+            )}
+          </span>
+        </div>
 
-      {/* Tiêu chí khen thưởng */}
-      <div className={`${glassCardClass} flex flex-col gap-1 items-start min-w-px relative w-full`}>
-        <span className={`font-sans font-semibold text-[#5f6368] ${isMobile ? 'text-[9px] sm:text-[10px]' : 'text-[10px]'} tracking-[0.55px] uppercase leading-tight ${isMobile ? 'whitespace-normal sm:whitespace-nowrap' : 'whitespace-nowrap'}`}>
-          TIÊU CHÍ KHEN THƯỜNG
-        </span>
-        <span className="font-sans font-bold text-[#006d2b] text-[20px] leading-none mt-1">
-          {isInitialLoading ? (
-            <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
-          ) : (
-            criteria.filter(c => c.type === 'khen_thuong' || c.type === 'cong_diem').length
-          )}
-        </span>
-      </div>
+        {/* Tiêu chí khen thưởng */}
+        <div className={premiumStatsGlassCardClass}>
+          <span 
+            className="font-sans font-semibold text-slate-500 text-[8.5px] xs:text-[9.5px] sm:text-[10px] tracking-[0.5px] uppercase leading-tight truncate" 
+            title="TIÊU CHÍ KHEN THƯỜNG"
+          >
+            TIÊU CHÍ KHEN THƯỜNG
+          </span>
+          <span className="font-sans font-bold text-[#006d2b] text-[18px] sm:text-[20px] leading-none shrink-0">
+            {isInitialLoading ? (
+              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl animate-pulse" />
+            ) : (
+              criteria.filter(c => c.type === 'khen_thuong' || c.type === 'cong_diem').length
+            )}
+          </span>
+        </div>
 
-      {/* Tiêu chí kỷ luật */}
-      <div className={`${glassCardClass} flex flex-col gap-1 items-start min-w-px relative w-full`}>
-        <span className={`font-sans font-semibold text-[#5f6368] ${isMobile ? 'text-[9px] sm:text-[10px]' : 'text-[10px]'} tracking-[0.55px] uppercase leading-tight ${isMobile ? 'whitespace-normal sm:whitespace-nowrap' : 'whitespace-nowrap'}`}>
-          TIÊU CHÍ KỶ LUẬT
-        </span>
-        <span className="font-sans font-bold text-[#ba1a1a] text-[20px] leading-none mt-1">
-          {isInitialLoading ? (
-            <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl" />
-          ) : (
-            criteria.filter(c => c.type === 'ky_luat').length
-          )}
-        </span>
-      </div>
+        {/* Tiêu chí kỷ luật */}
+        <div className={premiumStatsGlassCardClass}>
+          <span 
+            className="font-sans font-semibold text-slate-500 text-[8.5px] xs:text-[9.5px] sm:text-[10px] tracking-[0.5px] uppercase leading-tight truncate" 
+            title="TIÊU CHÍ KỶ LUẬT"
+          >
+            TIÊU CHÍ KỶ LUẬT
+          </span>
+          <span className="font-sans font-bold text-[#ba1a1a] text-[18px] sm:text-[20px] leading-none shrink-0">
+            {isInitialLoading ? (
+              <Skeleton className="h-5 w-8 bg-slate-100/80 rounded-xl animate-pulse" />
+            ) : (
+              criteria.filter(c => c.type === 'ky_luat').length
+            )}
+          </span>
+        </div>
 
-      {/* Điểm tối đa TB */}
-      <div className={`${glassCardClass} flex flex-col gap-1 items-start min-w-px relative w-full`}>
-        <span className={`font-sans font-semibold text-[#5f6368] ${isMobile ? 'text-[9px] sm:text-[10px]' : 'text-[10px]'} tracking-[0.55px] uppercase leading-tight ${isMobile ? 'whitespace-normal sm:whitespace-nowrap' : 'whitespace-nowrap'}`}>
-          ĐIỂM TỐI ĐA TB
-        </span>
-        <span className="font-sans font-bold text-[#f9ab00] text-[20px] leading-none mt-1">
-          {isInitialLoading ? (
-            <Skeleton className="h-5 w-12 bg-slate-100/80 rounded-xl" />
-          ) : (
-            Math.min(categories.reduce((sum, c) => sum + c.maxPoints, 0), 100)
-          )}
-        </span>
+        {/* Điểm tối đa TB */}
+        <div className={premiumStatsGlassCardClass}>
+          <span 
+            className="font-sans font-semibold text-slate-500 text-[8.5px] xs:text-[9.5px] sm:text-[10px] tracking-[0.5px] uppercase leading-tight truncate" 
+            title="ĐIỂM TỐI ĐA TB"
+          >
+            ĐIỂM TỐI ĐA TB
+          </span>
+          <span className="font-sans font-bold text-[#f9ab00] text-[18px] sm:text-[20px] leading-none shrink-0">
+            {isInitialLoading ? (
+              <Skeleton className="h-5 w-12 bg-slate-100/80 rounded-xl animate-pulse" />
+            ) : (
+              Math.min(categories.reduce((sum, c) => sum + c.maxPoints, 0), 100)
+            )}
+          </span>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <>
