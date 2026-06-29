@@ -15,14 +15,17 @@ import { studentApi } from '@/api/student-api';
 import { isAuthError } from '@/api/http-client';
 import { toast } from 'sonner';
 import StudentCongratsModalGate from './StudentCongratsModalGate';
+import { useHeader } from '@/providers/header-provider';
 
 interface HeaderProps {
     customMappings?: Record<string, string>;
 }
 
-const Header = ({ customMappings = {} }: HeaderProps) => {
+const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const { user, logout } = useAuth();
     const router = useRouter();
+    const headerContext = useHeader();
+    const customMappings = headerContext ? { ...headerContext.customMappings, ...propMappings } : propMappings;
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);

@@ -8,7 +8,8 @@ import {
   LayoutDashboard,
   Users,
   GraduationCap,
-  ChevronLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   LayoutGrid,
   Bell,
@@ -287,11 +288,39 @@ const Sidebar = () => {
         className={`hidden md:flex flex-col h-screen ${isExpanded ? "w-64" : "w-20"} bg-white/45 backdrop-blur-md border-r border-white/75 justify-between transition-all duration-300 shrink-0 shadow-sm shadow-slate-300/40`}
       >
         {/* Header */}
-        <div className={`p-4 ${isExpanded ? "block" : "flex justify-center"}`}>
-          <div
-            className={`flex items-center gap-2 mb-2 ${isExpanded ? "" : "justify-center"}`}
-          >
-            <div className="w-8 h-8 min-w-[32px] flex items-center justify-center rounded-xl overflow-hidden shadow-sm bg-white/80">
+        <div className={`p-4 relative ${isExpanded ? "block" : "flex justify-center"}`}>
+          {isExpanded ? (
+            <div className="flex items-center justify-between w-full mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 min-w-[32px] flex items-center justify-center rounded-xl overflow-hidden shadow-sm bg-white/80">
+                  <Image
+                    src={logoNsg}
+                    alt="NSG Logo"
+                    width={32}
+                    height={32}
+                    className="object-contain"
+                  />
+                </div>
+                <span className="text-[14px] font-black glassmorphic-text tracking-wide whitespace-nowrap animate-in fade-in duration-200">
+                  HOCSINHSINHVIEN
+                </span>
+              </div>
+              <button
+                onClick={handleCompactClick}
+                className="p-1 rounded-lg text-[#64748B] hover:bg-white/50 hover:text-[#1E293B] transition-colors duration-150"
+                data-id="btn/Compact"
+                title="Thu gọn"
+              >
+                <PanelLeftClose size={18} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleCompactClick}
+              className="w-8 h-8 flex items-center justify-center rounded-xl overflow-hidden shadow-sm bg-white/80 hover:scale-[1.05] transition-all duration-200 cursor-pointer mb-2"
+              data-id="btn/Compact"
+              title="Mở rộng"
+            >
               <Image
                 src={logoNsg}
                 alt="NSG Logo"
@@ -299,13 +328,9 @@ const Sidebar = () => {
                 height={32}
                 className="object-contain"
               />
-            </div>
-            {isExpanded && (
-              <span className="text-[14px] font-black glassmorphic-text tracking-wide whitespace-nowrap animate-in fade-in duration-200">
-                HOCSINHSINHVIEN
-              </span>
-            )}
-          </div>
+            </button>
+          )}
+          
           {isExpanded && (
             <div className="text-[11px] text-[#64748B] font-semibold px-1 animate-in fade-in duration-200">
               Quản lý sinh viên
@@ -355,19 +380,8 @@ const Sidebar = () => {
         </nav>
 
         {/* Footer */}
-        <div className="p-3 border-t border-white/75 space-y-1.5">
-          <button
-            onClick={handleCompactClick}
-            className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold text-[#64748B] border border-transparent hover:bg-white/50 hover:text-[#1E293B] hover:scale-[1.01] hover:shadow-sm transition-all duration-150 ease-out ${isExpanded ? "" : "justify-center"}`}
-            data-id="btn/Compact"
-          >
-            <ChevronLeft
-              size={18}
-              className={`transition-transform duration-300 ${isCollapsed ? "rotate-180" : ""}`}
-            />
-            {isExpanded && <span>Thu gọn</span>}
-          </button>
-          {isAdminUser(user) && (
+        {isAdminUser(user) && (
+          <div className="p-3 border-t border-white/75 space-y-1.5">
             <Link 
               href="/system/settings" 
               onClick={handleMenuItemClick}
@@ -377,8 +391,8 @@ const Sidebar = () => {
               <Settings size={18} />
               {isExpanded && <span>Cài đặt</span>}
             </Link>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Mobile Bottom Navigation Bar (Hidden on desktop) */}

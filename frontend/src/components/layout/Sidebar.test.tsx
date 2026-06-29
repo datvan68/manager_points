@@ -178,13 +178,15 @@ describe('Sidebar Component', () => {
     const sidebar = getSidebarElement();
     expect(sidebar?.classList.contains('w-20')).toBe(true);
     
-    const compactBtn = document.querySelector('[data-id="btn/Compact"]');
+    let compactBtn = document.querySelector('[data-id="btn/Compact"]');
     expect(compactBtn).toBeTruthy();
     
     // Expand by clicking the compact button
     fireEvent.click(compactBtn as Element);
     expect(sidebar?.classList.contains('w-64')).toBe(true);
     
+    // Re-query the button from DOM because the element is replaced during React render
+    compactBtn = document.querySelector('[data-id="btn/Compact"]');
     // Collapse by clicking the compact button again
     fireEvent.click(compactBtn as Element);
     expect(sidebar?.classList.contains('w-20')).toBe(true);

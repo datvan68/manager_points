@@ -27,7 +27,7 @@ class BulkUpsertDetailItemDto {
   @IsOptional()
   @IsNumber()
   selected_option_score?: number;
-  
+
   @ApiPropertyOptional({ description: 'Điểm sinh viên tự chấm', example: 10 })
   @IsOptional()
   @IsNumber()
@@ -36,7 +36,7 @@ class BulkUpsertDetailItemDto {
   @ApiPropertyOptional()
   @IsOptional()
   sv_submitted_at?: Date;
-  
+
   @ApiPropertyOptional({ description: 'Điểm cố vấn / quản sinh / admin duyệt', example: 10 })
   @IsOptional()
   @IsNumber()
@@ -55,11 +55,6 @@ class BulkUpsertDetailItemDto {
   @IsOptional()
   @IsString()
   status?: string;
-
-  @ApiPropertyOptional({ description: 'Điểm tổng hợp cuối cùng' })
-  @IsOptional()
-  @IsNumber()
-  final_score?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
