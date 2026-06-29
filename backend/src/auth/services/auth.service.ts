@@ -75,6 +75,7 @@ export class AuthService implements OnModuleInit {
     await this.seedSystemAdmin();
     await this.migrateLegacyRoles();
     await this.migrateLegacyUserFields();
+    await this.deduplicateRbacReferences();
   }
 
   private async safeSave(doc: any) {
@@ -1536,6 +1537,57 @@ export class AuthService implements OnModuleInit {
       console.log(
         `🧹 Cleaned up legacy fields (username/password_hash) for ${cleanupResult.modifiedCount} users.`,
       );
+    }
+  }
+
+  private async deduplicateRbacReferences() {
+    try {
+      const allPerms = await this.permissionModel.find({}, { _id: 1 }).exec();
+      const validPermIds = new Set(allPerms.map(p => p._id.toString()));
+
+      const groups = await this.permissionGroupModel.find({}).exec();
+      for (const group of groups) {
+        if (group.permissions && Array.isArray(group.permissions)) {
+          const uniqueIds = [];
+          const seen = new Set();
+          for (const p of group.permissions) {
+            if (!p) continue;
+            const idStr = p.toString();
+            if (validPermIds.has(idStr) && !seen.has(idStr)) {
+              seen.add(idStr);
+              uniqueIds.push(p);
+            }
+          }
+          if (uniqueIds.length !== group.permissions.length) {
+            group.permissions = uniqueIds as any;
+            await this.safeSave(group);
+            console.log(`🧹 Deduplicated & cleaned permissions for group: ${group.name} (${group.code})`);
+          }
+        }
+      }
+
+      const roles = await this.roleModel.find({}).exec();
+      for (const role of roles) {
+        if (role.permissions && Array.isArray(role.permissions)) {
+          const uniqueIds = [];
+          const seen = new Set();
+          for (const p of role.permissions) {
+            if (!p) continue;
+            const idStr = p.toString();
+            if (validPermIds.has(idStr) && !seen.has(idStr)) {
+              seen.add(idStr);
+              uniqueIds.push(p);
+            }
+          }
+          if (uniqueIds.length !== role.permissions.length) {
+            role.permissions = uniqueIds as any;
+            await this.safeSave(role);
+            console.log(`🧹 Deduplicated & cleaned permissions for role: ${role.name} (${role.role_code})`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to deduplicate RBAC references:', err);
     }
   }
 }

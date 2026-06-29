@@ -445,15 +445,26 @@ function PermissionsPageContent() {
       setClasses(cls);
 
       // Groups from API
-      const apiGroups = g.map((group: any, idx: number) => ({
-        id: group._id,
-        name: group.name,
-        desc: group.description || `Các quyền thuộc nhóm ${group.name}`,
-        tag: `G_${idx}`,
-        status: group.status || 'Active',
-        count: group.permissions?.length || 0,
-        permissions: group.permissions || []
-      }));
+      const apiGroups = g.map((group: any, idx: number) => {
+        const uniquePermissions = [];
+        const seenCodes = new Set();
+        (group.permissions || []).forEach((perm: any) => {
+          if (perm && perm.code && !seenCodes.has(perm.code)) {
+            seenCodes.add(perm.code);
+            uniquePermissions.push(perm);
+          }
+        });
+
+        return {
+          id: group._id,
+          name: group.name,
+          desc: group.description || `Các quyền thuộc nhóm ${group.name}`,
+          tag: `G_${idx}`,
+          status: group.status || 'Active',
+          count: uniquePermissions.length,
+          permissions: uniquePermissions
+        };
+      });
 
       const groupsMap: Record<string, any[]> = {};
       apiGroups.forEach((group: any) => {
@@ -467,8 +478,16 @@ function PermissionsPageContent() {
       });
 
       // Handle permissions NOT in any group (Legacy/Fallback)
-      const permsInGroups = new Set(g.flatMap((group: any) => group.permissions?.map((p: any) => p._id.toString()) || []));
-      const ungroupedPerms = p.filter(perm => !permsInGroups.has(perm._id.toString()));
+      const permsInGroups = new Set(apiGroups.flatMap((group: any) => group.permissions?.map((p: any) => p._id.toString()) || []));
+      
+      const seenAllPermCodes = new Set();
+      const uniqueAllPermissions = p.filter((perm: any) => {
+        if (!perm || !perm.code || seenAllPermCodes.has(perm.code)) return false;
+        seenAllPermCodes.add(perm.code);
+        return true;
+      });
+
+      const ungroupedPerms = uniqueAllPermissions.filter(perm => !permsInGroups.has(perm._id.toString()));
 
       if (ungroupedPerms.length > 0) {
         const fallbackId = 'fallback_group';
@@ -1588,11 +1607,11 @@ function PermissionsPageContent() {
                               {/* Permissions Grid */}
                               <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-y-4 gap-x-8">
                                 {permissions.map((perm) => (
-                                  <div key={perm.code} className="flex items-start gap-3 flex-1 group">
+                                  <div key={`${groupData.id}-${perm.code}`} className="flex items-start gap-3 flex-1 group">
                                     <div className="mt-0.5 shrink-0">
                                       <input
                                         type="checkbox"
-                                        id={`perm-${perm.code}`}
+                                        id={`perm-${groupData.id}-${perm.code}`}
                                         checked={checkedPerms.includes(perm.code)}
                                         onChange={() => togglePermission(perm.code)}
                                         className="w-3.5 h-3.5 rounded border-slate-300 text-[#1A73E8] focus:ring-[#1A73E8]/30 cursor-pointer transition-colors"
@@ -1600,7 +1619,7 @@ function PermissionsPageContent() {
                                     </div>
                                     <div className="flex flex-col flex-1 min-w-0">
                                       <div className="flex items-start justify-between gap-3 mb-0.5">
-                                        <label htmlFor={`perm-${perm.code}`} className="text-xs font-bold text-[#1E293B] cursor-pointer hover:text-[#1A73E8] transition-colors leading-tight">
+                                        <label htmlFor={`perm-${groupData.id}-${perm.code}`} className="text-xs font-bold text-[#1E293B] cursor-pointer hover:text-[#1A73E8] transition-colors leading-tight">
                                           {perm.name}
                                         </label>
                                         <span className="font-mono text-[9.5px] font-semibold text-[#64748B] mt-0.5 shrink-0">

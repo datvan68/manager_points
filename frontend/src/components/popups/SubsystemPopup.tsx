@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Search, LayoutGrid, Users, ArrowUpRight, 
@@ -143,7 +143,29 @@ const INITIAL_MODULES = [
 export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
-  const [modulesState, setModulesState] = useState(INITIAL_MODULES);
+  
+  // Khởi tạo trạng thái ban đầu từ localStorage đồng bộ nếu có
+  const [modulesState, setModulesState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('subsystems_maintenance_states');
+        if (stored) {
+          const states = JSON.parse(stored);
+          return INITIAL_MODULES.map(mod => {
+            const isMaint = states[mod.id] === true;
+            return {
+              ...mod,
+              status: isMaint ? 'MAINTENANCE' : (mod.id === 'security' ? 'RESTRICTED' : 'ACTIVE')
+            };
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return INITIAL_MODULES;
+  });
+
   const { user, hasPermission, hasAnyPermission, hasAllPermissions } = useAuth();
   const [routeMappings, setRouteMappings] = useState<any[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -164,9 +186,8 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
   const isTeacher = userRole.includes('teacher') || userRole.includes('advisor') || userRole.includes('giảng viên') || userRole.includes('giáo viên');
   const isAdmin = isAdminUser(user);
 
-  // Tải danh sách cấu hình phân quyền động từ Database khi mở popup
+  // Tải trước danh sách cấu hình phân quyền động từ Database khi component mount
   useEffect(() => {
-    if (!isOpen) return;
     const fetchMappings = async () => {
       try {
         const { tokenStorage } = await import('@/api/auth-api');
@@ -178,27 +199,33 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
       }
     };
     fetchMappings();
-  }, [isOpen, refreshTrigger]);
+  }, [refreshTrigger]);
 
-  // Đồng bộ trạng thái bảo trì từ localStorage khi mount hoặc mở popup
+  // Lắng nghe sự kiện storage để đồng bộ trạng thái bảo trì giữa các component
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const stored = localStorage.getItem('subsystems_maintenance_states');
-      if (stored) {
-        const states = JSON.parse(stored);
-        setModulesState(prev => prev.map(mod => {
-          const isMaint = states[mod.id] === true;
-          return {
-            ...mod,
-            status: isMaint ? 'MAINTENANCE' : (mod.id === 'security' ? 'RESTRICTED' : 'ACTIVE')
-          };
-        }));
+    const handleStorageChange = () => {
+      try {
+        const stored = localStorage.getItem('subsystems_maintenance_states');
+        if (stored) {
+          const states = JSON.parse(stored);
+          setModulesState(prev => prev.map(mod => {
+            const isMaint = states[mod.id] === true;
+            return {
+              ...mod,
+              status: isMaint ? 'MAINTENANCE' : (mod.id === 'security' ? 'RESTRICTED' : 'ACTIVE')
+            };
+          }));
+        }
+      } catch (e) {
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
     }
-  }, [isOpen]);
+  }, []);
 
   const getInitials = (name: string) => {
     if (!name || typeof name !== 'string') return '??';
@@ -338,13 +365,15 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
     return true;
   };
 
-  const filteredModules = modulesState.filter(mod => {
-    const matchesSearch = mod.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      mod.desc.toLowerCase().includes(searchTerm.toLowerCase());
-    if (!matchesSearch) return false;
+  const filteredModules = useMemo(() => {
+    return modulesState.filter(mod => {
+      const matchesSearch = mod.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        mod.desc.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!matchesSearch) return false;
 
-    return checkModulePermission(mod);
-  });
+      return checkModulePermission(mod);
+    });
+  }, [modulesState, searchTerm, routeMappings, user, hasPermission, hasAnyPermission, hasAllPermissions]);
 
   return (
     <AnimatePresence>
@@ -365,7 +394,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="bg-[#eef4fd]/90 backdrop-blur-lg border border-white/80 rounded-2xl w-full max-w-[1152px] h-[90vh] max-h-[850px] shadow-[0_20px_50px_rgba(0,0,0,0.12)] relative z-10 overflow-hidden flex flex-col font-sans animate-in fade-in duration-200"
+            className="bg-[#edf2fa] border border-white/80 rounded-2xl w-full max-w-[1152px] h-[90vh] max-h-[850px] shadow-[0_20px_50px_rgba(0,0,0,0.12)] relative z-10 overflow-hidden flex flex-col font-sans animate-in fade-in duration-200"
           >
             {/* Header */}
             <div className="px-4 py-3.5 sm:px-10 sm:py-5 border-b border-white/70 flex items-center justify-between shrink-0 bg-gradient-to-r from-blue-50/20 via-white to-slate-50/20 gap-2">
@@ -425,7 +454,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                         <div 
                           key={mod.id} 
                           onClick={() => handleAccess(mod.name, mod.href, mod.status)}
-                          className="bg-white/60 backdrop-blur-sm border border-white/80 hover:border-blue-400 hover:bg-white/80 rounded-xl p-4 flex flex-col justify-between min-h-[150px] transition-all duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99] pb-3.5"
+                          className="bg-white/80 border border-white/80 hover:border-blue-400 hover:bg-white rounded-xl p-4 flex flex-col justify-between min-h-[150px] transition-[transform,shadow,border-color,background-color] duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99] pb-3.5"
                         >
                           <div className="space-y-2.5">
                             <div className="flex items-start gap-2.5 min-w-0">
@@ -503,7 +532,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                         <div 
                           key={mod.id} 
                           onClick={() => handleAccess(mod.name, mod.href, mod.status)}
-                          className="bg-white/60 backdrop-blur-sm border border-white/80 hover:border-blue-400 hover:bg-white/80 rounded-xl p-4 flex flex-col justify-between min-h-[150px] transition-all duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99] pb-3.5"
+                          className="bg-white/80 border border-white/80 hover:border-blue-400 hover:bg-white rounded-xl p-4 flex flex-col justify-between min-h-[150px] transition-[transform,shadow,border-color,background-color] duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99] pb-3.5"
                         >
                           <div className="space-y-2.5">
                             <div className="flex items-start gap-2.5 min-w-0">
@@ -567,7 +596,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                         <div 
                           key={mod.id} 
                           onClick={() => handleAccess(mod.name, mod.href, mod.status)}
-                          className="bg-white/60 backdrop-blur-sm border border-white/80 hover:border-blue-400 hover:bg-white/80 rounded-xl p-4 flex flex-col justify-between min-h-[150px] transition-all duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99] pb-3.5"
+                          className="bg-white/80 border border-white/80 hover:border-blue-400 hover:bg-white rounded-xl p-4 flex flex-col justify-between min-h-[150px] transition-[transform,shadow,border-color,background-color] duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99] pb-3.5"
                         >
                           <div className="space-y-2.5">
                             <div className="flex items-start gap-2.5 min-w-0">
@@ -631,7 +660,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                         <div 
                           key={mod.id} 
                           onClick={() => handleAccess(mod.name, mod.href, mod.status)}
-                          className="bg-white/60 backdrop-blur-sm border border-white/80 hover:border-blue-400 hover:bg-white/80 rounded-xl p-4 flex flex-col justify-between min-h-[150px] transition-all duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99] pb-3.5"
+                          className="bg-white/80 border border-white/80 hover:border-blue-400 hover:bg-white rounded-xl p-4 flex flex-col justify-between min-h-[150px] transition-[transform,shadow,border-color,background-color] duration-150 hover:scale-[1.01] hover:shadow-md group cursor-pointer active:scale-[0.99] pb-3.5"
                         >
                           <div className="space-y-2.5">
                             <div className="flex items-start gap-2.5 min-w-0">

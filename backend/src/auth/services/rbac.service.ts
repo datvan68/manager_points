@@ -42,7 +42,20 @@ export class RbacService {
   ) {}
 
   async getRoles() {
-    return this.roleModel.find().populate('permissions');
+    const roles = await this.roleModel.find().populate('permissions').exec();
+    return roles.map(role => {
+      const rObj = role.toObject();
+      if (rObj.permissions && Array.isArray(rObj.permissions)) {
+        const seenCodes = new Set<string>();
+        rObj.permissions = rObj.permissions.filter((p: any) => {
+          if (!p || !p.code) return false;
+          if (seenCodes.has(p.code)) return false;
+          seenCodes.add(p.code);
+          return true;
+        });
+      }
+      return rObj;
+    });
   }
 
   async getPermissions() {
@@ -129,7 +142,20 @@ export class RbacService {
   }
 
   async getPermissionGroups() {
-    return this.permissionGroupModel.find().populate('permissions');
+    const groups = await this.permissionGroupModel.find().populate('permissions').exec();
+    return groups.map(group => {
+      const gObj = group.toObject();
+      if (gObj.permissions && Array.isArray(gObj.permissions)) {
+        const seenCodes = new Set<string>();
+        gObj.permissions = gObj.permissions.filter((p: any) => {
+          if (!p || !p.code) return false;
+          if (seenCodes.has(p.code)) return false;
+          seenCodes.add(p.code);
+          return true;
+        });
+      }
+      return gObj;
+    });
   }
 
   async createPermissionGroup(dto: CreatePermissionGroupDto) {
