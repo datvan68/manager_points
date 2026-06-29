@@ -58,3 +58,14 @@ output/
 .agents/**/reports/*.html
 mcp_config.json
 backend/storage/
+
+# Test scripts
+backend/load-test-concurrent.js
+backend/load-test-metrics.js
+backend/load-test.js
+backend/test-mongo-exact.js
+backend/test-mongo.js
+backend/test-script.js
+backend/test_path.ts
+backend/test_path2.ts
+backend/test_schema_paths.ts
