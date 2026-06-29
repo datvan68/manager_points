@@ -13,7 +13,7 @@ import { Types } from 'mongoose';
 describe('AcademicRecordService - Import Flow', () => {
   let service: AcademicRecordService;
 
-  const mockAcademicRecordModel = {
+  const mockAcademicRecordModel: any = {
     db: { model: jest.fn() },
     bulkWrite: jest.fn(),
     find: jest.fn(),
@@ -22,24 +22,32 @@ describe('AcademicRecordService - Import Flow', () => {
       sort: jest.fn().mockReturnThis(),
       exec: jest.fn().mockResolvedValue(null),
     }),
+    insertMany: jest.fn(),
+    deleteOne: jest.fn(),
+    create: jest.fn(),
   };
 
-  const mockSummaryPointModel = {
+  const mockSummaryPointModel: any = {
     find: jest.fn(),
+    findOne: jest.fn(),
   };
-  const mockCriterionModel = {
-    find: jest.fn(),
-    findById: jest.fn(),
-  };
-  const mockStudentModel = {
+
+  const mockCriterionModel: any = {
     find: jest.fn(),
     findById: jest.fn(),
   };
-  const mockClassModel = {
+  const mockStudentModel: any = {
+    find: jest.fn(),
+    findById: jest.fn(),
+  };
+  const mockClassModel: any = {
     find: jest.fn(),
   };
-  const mockSummariesPointService = {};
-  const mockSemesterModel = {
+  const mockSummariesPointService: any = {
+    recomputeTotalScore: jest.fn(),
+  };
+
+  const mockSemesterModel: any = {
     find: jest.fn(),
   };
 
@@ -500,6 +508,7 @@ describe('AcademicRecordService - Import Flow', () => {
       semesterId = new Types.ObjectId().toString();
       criterionId = new Types.ObjectId().toString();
 
+
       mockSummaryPointModel.findOne = jest.fn().mockReturnValue({
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue({
@@ -781,6 +790,7 @@ describe('AcademicRecordService - Import Flow', () => {
     const semesterId = new Types.ObjectId().toString();
     const criterionId = new Types.ObjectId().toString();
     const summaryId = new Types.ObjectId();
+    let mockSummary: any;
 
     beforeEach(() => {
       mockAcademicRecordModel.countDocuments = jest.fn().mockReturnValue({
@@ -837,6 +847,22 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(mockSummariesPointService.recomputeTotalScore).toHaveBeenCalled();
     });
     
+    it('should NOT overwrite sv_score and gv_score with systemScore', async () => {
+      mockSummary.details[0].sv_score = 5;
+      mockSummary.details[0].gv_score = 6;
+      mockAcademicRecordModel.countDocuments = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(2) // 2 active records
+      });
+
+      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+
+      expect(mockSummary.details[0].current_count).toBe(2);
+      expect(mockSummary.details[0].system_score).toBe(4); // 2 * 2 score
+      expect(mockSummary.details[0].sv_score).toBe(5); // NOT overwritten
+      expect(mockSummary.details[0].gv_score).toBe(6); // NOT overwritten
+      expect(mockSummary.save).toHaveBeenCalled();
+    });
+
     it.todo('should detect evaluation_detail with score but no active academic_record (orphan detection logic)');
   });
 

@@ -172,12 +172,12 @@ const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
       if (Math.abs(containerRef.current.scrollLeft - targetScrollLeft) > 1) {
         isProgrammaticScroll.current = true;
         lastProgrammaticScrollAtRef.current = Date.now();
-        
+
         containerRef.current.scrollTo({
           left: targetScrollLeft,
           behavior: "auto",
         });
-        
+
         if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
         scrollTimeoutRef.current = setTimeout(() => {
           isProgrammaticScroll.current = false;
@@ -188,7 +188,7 @@ const CupertinoHorizontalPicker: React.FC<CupertinoPickerProps> = ({
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (isProgrammaticScroll.current || isLocked || !canModifyScore) return;
-    
+
     // Bỏ qua scroll rác từ quán tính sau khi vừa set giá trị programmatic
     if (Date.now() - lastProgrammaticScrollAtRef.current < 400) return;
 
@@ -351,7 +351,7 @@ const mapDetailsToHistoryRecords = (details: any[], studentId: string, categorie
     const cri = typeof detail.criterion_id === "object" ? detail.criterion_id : null;
     const criId = cri?._id || detail.criterion_id;
     const criterion = categories.flatMap((cat: any) => cat.items).find((item: any) => item.id === criId);
-    
+
     const criName = cri?.criterion_name || criterion?.name || "Tiêu chí";
     const criType = cri?.criterion_type === "ky_luat" || criterion?.type === "violation" ? "violation" : "reward";
     const pointsPerUnit = cri?.score_per_unit || criterion?.pointsPerUnit || 1;
@@ -992,7 +992,7 @@ function GradingScoreContent() {
         } else if (mappedStudents.length > 0) {
           targetActiveId = mappedStudents[0].id;
         }
-        
+
         setActiveStudentId(targetActiveId || "");
 
       } catch (err: any) {
@@ -1086,7 +1086,7 @@ function GradingScoreContent() {
         setSelectedSemesterId(savedSem);
         setSelectedClassId(effectiveClassId);
 
-         // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên savedSem và effectiveClassId
+        // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên savedSem và effectiveClassId
         const fetchAllSummaries = async (sem: string, clsId?: string, resolvedStudentId?: string) => {
           const params: any = {
             semesterId: sem,
@@ -1249,7 +1249,7 @@ function GradingScoreContent() {
               )
             ]);
             const isLocked = mappedStudents.find((s) => s.id === targetActiveId)?.gradingStatus === "locked";
-            
+
             const merged = mergeDetailsWithPreExistingCounts(details, isLocked);
 
             setEvaluationDetailsMap(merged.detailsMap);
@@ -1302,11 +1302,11 @@ function GradingScoreContent() {
         const studentIdAtRequest = activeStudentId;
         const seq = ++detailLoadSeqRef.current;
         const currentRev = revisionRef.current[studentIdAtRequest] || 0;
-        
+
         // Chỉ nạp logs nếu subTab hiện tại đang là history
         const shouldIncludeLogs = subTab === "history";
         const details = await evaluationDetailApi.getEvaluationDetailsBySummary(summaryId, shouldIncludeLogs);
-        
+
         // Guard check: Nếu có thao tác edit local trong khi chờ API, bỏ qua ghi đè
         if (
           seq !== detailLoadSeqRef.current ||
@@ -1391,7 +1391,7 @@ function GradingScoreContent() {
     value?: number | string
   ) => {
     if (!activeStudentId || !selectedSemesterId) return;
-    
+
     if (!isMongoObjectId(activeStudentId)) {
       toast.error("Không xác định được ID sinh viên hợp lệ để chấm điểm.");
       return;
@@ -1723,11 +1723,11 @@ function GradingScoreContent() {
     setStudents((prev) =>
       prev.map((std) =>
         std.id === studentId
-          ? { 
-              ...std, 
-              score: dirtyStudentIdsRef.current.has(studentId) ? std.score : totalScore, 
-              gradingStatus: summary.status 
-            }
+          ? {
+            ...std,
+            score: dirtyStudentIdsRef.current.has(studentId) ? std.score : totalScore,
+            gradingStatus: summary.status
+          }
           : std
       )
     );
@@ -1831,7 +1831,7 @@ function GradingScoreContent() {
 
         const count = counts[cri.id] ?? 0;
         const selectedOptionId = selectedOptionsSnapshot[cri.id] || null;
-        
+
         const existingDetail = (oldDetails || []).find((d) => {
           const detailCriId = typeof d.criterion_id === "object" ? d.criterion_id?._id : d.criterion_id;
           return detailCriId === cri.id;
@@ -1906,7 +1906,7 @@ function GradingScoreContent() {
 
     const isLocked = students.find((s) => s.id === studentId)?.gradingStatus === "locked";
     const merged = mergeDetailsWithPreExistingCounts(freshDetails, isLocked);
-    
+
     const freshCounts = merged.counts;
     const freshDetailsMap = merged.detailsMap;
 
@@ -1962,7 +1962,7 @@ function GradingScoreContent() {
         if (options?.mode === 'manual') {
           toast.dismiss("save-loading");
           if (options?.showToast !== false) {
-             toast.warning("Dữ liệu đang được đồng bộ thêm...");
+            toast.warning("Dữ liệu đang được đồng bộ thêm...");
           }
         }
         return true;
@@ -2043,24 +2043,24 @@ function GradingScoreContent() {
 
   const autosaveStudentIfDirty = async (studentId: string, reason?: string, showToast: boolean = false) => {
     if (!dirtyStudentIds.has(studentId)) return;
-    
+
     // Nếu sinh viên đang có một tiến trình lưu, chỉ cần return.
     // Tiến trình đang chạy sẽ vòng lặp kiểm tra revision và chạy tiếp nếu cần.
     if (inFlightRef.current[studentId]) return;
 
     const startRevision = revisionRef.current[studentId] || 0;
-    
+
     const savePromise = (async () => {
       try {
         let currentRev = startRevision;
         while (true) {
           const success = await saveStudentScore(studentId, { mode: "autosave", reason, showToast });
-          
+
           if (!success) {
             // Nếu lưu lỗi thì dừng và giữ nguyên dirty flag để lần sau lưu tiếp
             break;
           }
-          
+
           const newRev = revisionRef.current[studentId] || 0;
           if (newRev === currentRev) {
             // Không có thay đổi nào thêm trong lúc lưu, xoá cờ dirty
@@ -2081,7 +2081,7 @@ function GradingScoreContent() {
 
   useEffect(() => {
     if (!activeStudentId || !dirtyStudentIds.has(activeStudentId)) return;
-    
+
     const studentIdToSave = activeStudentId;
     const timer = setTimeout(() => {
       autosaveStudentIfDirty(studentIdToSave, "Tự động lưu sau khi ngừng thao tác", false);
@@ -2871,9 +2871,9 @@ function GradingScoreContent() {
                       evaluationCounts[activeStudentId] || {};
 
                     const clampedCatScore = calculateCategoryScore(
-                      category, 
-                      studentCounts, 
-                      selectedOptionsState[activeStudentId] || {}, 
+                      category,
+                      studentCounts,
+                      selectedOptionsState[activeStudentId] || {},
                       evaluationDetailsMap
                     );
 
@@ -2931,8 +2931,8 @@ function GradingScoreContent() {
                             const isStudentLocked = activeStudent?.gradingStatus === "locked";
                             const criterionScore = item.is_locked
                               ? getRecordDerivedRawCriterionScore(item, count, selectedOptionId, detail)
-                              : isStudentLocked 
-                                ? getResolvedRawCriterionScore(item, count, selectedOptionId, detail) 
+                              : isStudentLocked
+                                ? getResolvedRawCriterionScore(item, count, selectedOptionId, detail)
                                 : calculateCriterionScore(item, count, selectedOptionId);
                             const achievedPoints = item.is_locked
                               ? getRecordDerivedCriterionScore(item, count, selectedOptionId, detail)
@@ -3042,11 +3042,10 @@ function GradingScoreContent() {
                                           disabled={item.is_locked || !canModifyScore || pendingIntentKeys[`${activeStudentId}:${item.id}`]}
                                         >
                                           <SelectTrigger
-                                            className={`w-full h-[40px] text-[13px] font-medium text-[#1E293B] ${
-                                              item.is_locked || !canModifyScore || pendingIntentKeys[`${activeStudentId}:${item.id}`]
-                                                ? "opacity-60 bg-slate-100/50 cursor-not-allowed pointer-events-none"
-                                                : "cursor-pointer hover:bg-white/80"
-                                            }`}
+                                            className={`w-full h-[40px] text-[13px] font-medium text-[#1E293B] ${item.is_locked || !canModifyScore || pendingIntentKeys[`${activeStudentId}:${item.id}`]
+                                              ? "opacity-60 bg-slate-100/50 cursor-not-allowed pointer-events-none"
+                                              : "cursor-pointer hover:bg-white/80"
+                                              }`}
                                           >
                                             <SelectValue placeholder="-- Chọn tùy chọn --" />
                                           </SelectTrigger>

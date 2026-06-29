@@ -650,7 +650,7 @@ describe('EvaluationDetailService', () => {
     it('should process current_count: 0 and not clamp if records are deletable', async () => {
       const summaryId = new Types.ObjectId().toString();
       const criterionId = new Types.ObjectId().toString();
-      
+
       const mockSummary = {
         _id: summaryId,
         student_id: new Types.ObjectId(),
@@ -685,7 +685,7 @@ describe('EvaluationDetailService', () => {
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([{ _id: 'rec1', recorded_by: 'admin1' }]),
       } as any);
-      
+
       jest.spyOn(service as any, 'canRequesterDeleteRecord').mockReturnValue(true);
 
       mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
@@ -706,7 +706,7 @@ describe('EvaluationDetailService', () => {
 
       expect(result.success).toBe(true);
       expect(result.clampResults.length).toBe(0);
-      
+
       expect(mockSummaryPointModel.findOneAndUpdate).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
@@ -721,7 +721,7 @@ describe('EvaluationDetailService', () => {
     it('should NOT clamp and simply update current_count even if record has daily_report_id', async () => {
       const summaryId = new Types.ObjectId().toString();
       const criterionId = new Types.ObjectId().toString();
-      
+
       const mockSummary = {
         _id: summaryId,
         student_id: new Types.ObjectId(),
@@ -756,7 +756,7 @@ describe('EvaluationDetailService', () => {
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([{ _id: 'rec1', daily_report_id: 'dr1', recorded_by: 'admin1' }]),
       } as any);
-      
+
       jest.spyOn(service as any, 'canRequesterDeleteRecord').mockReturnValue(false);
 
       mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
@@ -777,7 +777,7 @@ describe('EvaluationDetailService', () => {
 
       expect(result.success).toBe(true);
       expect(result.clampResults.length).toBe(0);
-      
+
       expect(mockSummaryPointModel.findOneAndUpdate).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
@@ -792,7 +792,7 @@ describe('EvaluationDetailService', () => {
     it('should NOT clamp if record cannot be deleted due to permissions', async () => {
       const summaryId = new Types.ObjectId().toString();
       const criterionId = new Types.ObjectId().toString();
-      
+
       const mockSummary = {
         _id: summaryId,
         student_id: new Types.ObjectId(),
@@ -827,7 +827,7 @@ describe('EvaluationDetailService', () => {
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([{ _id: 'rec1', recorded_by: { _id: 'admin_id', role: { name: 'admin' } } }]),
       } as any);
-      
+
       jest.spyOn(service as any, 'canRequesterDeleteRecord').mockReturnValue(false);
 
       mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
@@ -848,7 +848,7 @@ describe('EvaluationDetailService', () => {
 
       expect(result.success).toBe(true);
       expect(result.clampResults.length).toBe(0);
-      
+
       expect(mockSummaryPointModel.findOneAndUpdate).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
@@ -870,28 +870,28 @@ describe('EvaluationDetailService', () => {
         student_id: new Types.ObjectId(),
         semester_id: new Types.ObjectId(),
       } as any;
-      
+
       const criterion = {
         _id: criterionId,
         criterion_name: 'Test Criterion',
       } as any;
-      
+
       // Setup mock to return 1 existing record
       mockAcademicRecordModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([
           { _id: 'rec1', recorded_by: 'admin1', status: 'active' }
         ]),
       } as any);
-      
+
       const requester = { userId: new Types.ObjectId().toString(), roleName: 'admin' };
-      
+
       mockUserModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue({ user_name: 'Admin' }),
       } as any);
-      
+
       // We want to sync to count 3, diff will be 3 - 1 = 2
       const result = await (service as any).syncAcademicRecords(summary, criterion, 3, requester);
-      
+
       expect(result.actualCount).toBe(3);
       expect(mockAcademicRecordModel).toHaveBeenCalledTimes(2);
     });
@@ -904,12 +904,12 @@ describe('EvaluationDetailService', () => {
         student_id: new Types.ObjectId(),
         semester_id: new Types.ObjectId(),
       } as any;
-      
+
       const criterion = {
         _id: criterionId,
         criterion_name: 'Test Criterion',
       } as any;
-      
+
       // Setup mock to return 3 existing records
       mockAcademicRecordModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([
@@ -918,18 +918,18 @@ describe('EvaluationDetailService', () => {
           { _id: 'rec3', recorded_by: 'admin1', status: 'active', createdAt: new Date('2023-01-03') }
         ]),
       } as any);
-      
+
       // Reset delete mock
       mockAcademicRecordModel.findByIdAndDelete.mockClear();
-      
+
       // requester is admin, can delete all records
       const requester = { userId: 'admin1', roleName: 'admin' };
-      
+
       jest.spyOn(service as any, 'canRequesterDeleteRecord').mockReturnValue(true);
-      
+
       // We want to sync to count 1, diff will be 1 - 3 = -2. So 2 records should be deleted.
       const result = await (service as any).syncAcademicRecords(summary, criterion, 1, requester);
-      
+
       expect(result.actualCount).toBe(1);
       expect(mockAcademicRecordModel.findByIdAndDelete).toHaveBeenCalledTimes(2);
       // It should delete the most recent records first (rec3, rec2)

@@ -56,6 +56,11 @@ class BulkUpsertDetailItemDto {
   @IsString()
   status?: string;
 
+  @ApiPropertyOptional({ description: 'Điểm tổng hợp cuối cùng' })
+  @IsOptional()
+  @IsNumber()
+  final_score?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsArray()

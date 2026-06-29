@@ -1,553 +1,142 @@
-﻿# Taskscope: Fix /grading/score tao academic_record va rang buoc evaluation_detail
+﻿# Taskscope: Sidebar Collapse Control Realignment
 
-## Muc tieu
+## Objective
 
-Khac phuc hien trang tai trang `/grading/score`: khi admin/teacher/student bam tang so lan cua tieu chi, UI co the hien thi tang tam thoi nhung backend khong tao `academic_record`, dan den `evaluation_detail.current_count` khong duoc sync va so lan khong on dinh sau khi tai lai/lay lai du lieu.
+Adjust the sidebar collapse control so it behaves like a modern shell navigation toggle and aligns with the system branding area.
 
-Sau khi fix, moi thao tac cham diem tren `/grading/score` phai di qua `academic_record` truoc. `evaluation_detail` chi la du lieu tong hop/cache duoc rebuild tu `academic_record`.
+The requested outcome is:
 
-## Ket luan review hien trang
+- The collapse icon sits immediately to the right of the system name in the expanded sidebar header.
+- The icon must not use a chevron or arrow-style visual.
+- When the sidebar is collapsed, the control overlays the logo area instead of occupying a separate external position.
 
-Tai frontend `frontend/src/app/grading/score/page.tsx`:
+This document defines the implementation scope, UI behavior, constraints, and acceptance criteria for that change.
 
-- `handleCountChange(criteriaId, delta)` hien chi cap nhat local state `evaluationCounts` va tinh diem realtime.
-- `handleCountSet(criteriaId, value)` cung chi cap nhat local state.
-- Viec goi backend tao/xoa record hien nam trong `persistStudentScore`, thong qua `academicRecordApi.sendIntent(...)`.
-- Neu user bam `+` nhung flow save/persist khong duoc goi, hoac logic so sanh voi `evaluation_detail` cu khong nhan ra thay doi, `academic_record` se khong duoc tao.
-- Khi fetch lai, count duoc lay tu `evaluation_detail`/record da sync; neu khong co `academic_record`, count quay ve gia tri cu.
+## Requested UX Change
 
-Tai backend:
+### 1. Reposition the collapse control next to the system name
 
-- `backend/src/academic-record/academic-record.service.ts` da co `handleScoreIntent`.
-- Intent `increase`, `decrease`, `set_target_count` co kha nang tao/xoa `academic_record`.
-- Sau khi xu ly intent, service goi `syncStudentCriterionScore(student_id, semester_id, criterion_id)` de rebuild `evaluation_detail`.
-- Nghia la backend da co huong dung, nhung `/grading/score` can dung no lam duong ghi chinh cho count.
+In the expanded sidebar state, move the collapse control into the same branding row as the system identity.
 
-Van de cot loi: UI dang cho phep thay doi count o local state truoc, nhung viec tao `academic_record` chua duoc rang buoc bat buoc ngay tai thao tac tang/giam hoac tai luong persist duy nhat.
+Expected layout:
 
-## Nguyen tac bat buoc
+- Logo and system name remain the primary branding block.
+- The collapse control is placed flush on the right side of that same header row.
+- The spacing should feel intentional and compact, not detached like a floating utility button.
 
-### 1. academic_record la source of truth
+This control should read as part of the sidebar header, not as a separate navigation affordance.
 
-Moi diem/su kien cham diem co hieu luc phai co `academic_record` active.
+### 2. Replace the old arrow metaphor
 
-Khong duoc xem `evaluation_detail.current_count` la nguon goc de quyet dinh diem. Truong nay chi duoc tinh lai tu danh sach `academic_record` active theo bo khoa:
+Do not use a left/right arrow or chevron icon.
 
-```text
-student_id + semester_id + criterion_id
-```
+The icon should follow a more current UI pattern, such as a compact panel, sidebar, layout, or dock-style metaphor that communicates sidebar state without relying on directional arrows.
 
-### 2. evaluation_detail la aggregate/cache
+The final icon should:
 
-`evaluation_detail` chi ton tai de hien thi nhanh diem tong hop tren bang diem.
+- Feel contemporary
+- Match the application visual language
+- Remain understandable in both expanded and collapsed states
+- Preserve a clean silhouette at small sizes
 
-Invariant can dam bao:
+### 3. Overlay the logo area when collapsed
 
-```text
-Co academic_record active => phai sync ra evaluation_detail tuong ung.
-Co evaluation_detail co diem/current_count/option => phai truy ve duoc academic_record active tuong ung.
-Khong co academic_record active => evaluation_detail khong duoc giu diem ao.
-```
+When the sidebar collapses, the collapse control should visually sit on top of the logo area.
 
-Quan he dung khong phai 1-1, ma la:
+Expected behavior:
 
-```text
-academic_record 1..n -> evaluation_detail 1
-```
+- The control remains accessible in the collapsed state.
+- It no longer depends on the full system-name row being visible.
+- It overlays or anchors within the compact logo zone.
+- It should look deliberate, not like a misplaced absolute-positioned patch.
 
-Vi du count criterion:
+This is specifically intended to make the collapsed sidebar feel tighter and more modern.
 
-```text
-3 academic_record active
-=> 1 evaluation_detail.current_count = 3
-```
+## Functional Interpretation
 
-### 3. Tat ca thao tac ghi diem phai di qua academic_record
+The sidebar now needs two coordinated header states.
 
-Ap dung cho:
+### Expanded state
 
-- Bam `+` tang so lan.
-- Bam `-` giam so lan.
-- Keo/chon picker de set so lan truc tiep.
-- Chon option cua tieu chi `single_option`.
-- Nhap diem tay neu co.
-- Diem khoa/he thong/import neu duoc ghi nhan thanh diem co hieu luc.
+- Logo is visible.
+- System name is visible.
+- Collapse control is aligned immediately to the right of the system name.
+- Control styling integrates with the header instead of sitting away from branding.
 
-Khong con luong ghi truc tiep vao `evaluation_detail` de tao diem.
+### Collapsed state
 
-## Rang buoc evaluation_detail mo coi
+- Full system name is hidden.
+- Logo remains visible in compact form, if the current design already supports that.
+- Collapse control is still visible and clickable.
+- Control overlays the logo region so the collapsed header does not allocate extra width or awkward empty space.
 
-### Dinh nghia du lieu mo coi
+## Visual Direction
 
-`evaluation_detail` duoc xem la mo coi/khong hop le neu no co gia tri diem nhung khong co `academic_record` active tuong ung theo bo khoa:
+The change should follow a modern admin-dashboard pattern rather than an older drawer-toggle pattern.
 
-```text
-summary.student_id + summary.semester_id + evaluation_detail.criterion_id
-```
+Preferred characteristics:
 
-Cac truong hop can coi la co gia tri diem:
+- Compact header composition
+- Icon-first control with subtle container styling
+- Strong alignment with branding
+- Clean collapsed silhouette
+- No arrow-based directional cue
 
-- `current_count > 0`
-- `system_score` khac gia tri mac dinh/0 theo tieu chi
-- `selected_option_id != null`
-- `selected_option_score != null`
-- `sv_score`, `gv_score`, `final_score` co gia tri do cham diem tao ra
+Avoid:
 
-### Rule bat buoc
+- Chevron-left / chevron-right icons
+- A control placed far away from the system title
+- A collapsed button that appears disconnected from the logo block
+- Layout jitter between expanded and collapsed states
 
-Khong cho phep `evaluation_detail` ton tai nhu mot nguon diem doc lap.
+## In Scope
 
-Khi backend phat hien:
+- Update sidebar header structure to place the toggle next to the system name
+- Replace the current toggle icon if it is arrow-based
+- Adjust collapsed-state positioning so the toggle overlays the logo area
+- Update styling, spacing, alignment, and positioning rules required for both states
+- Preserve clickability, hover states, and accessibility of the toggle control
+- Ensure responsive behavior remains stable across desktop and common laptop widths
 
-```text
-evaluation_detail co diem/current_count/option
-nhung khong co academic_record active tuong ung
-```
+## Out of Scope
 
-thi phai xu ly theo mot trong hai cach ro rang:
+- Full sidebar redesign beyond the header/toggle area
+- Changes to sidebar navigation items unrelated to collapse behavior
+- Changes to application branding assets such as logo artwork or product name
+- Rework of mobile navigation unless the same component is shared and requires compatibility fixes
+- Broader design-system icon refresh outside this specific control
 
-1. Neu day la du lieu cu hop le can giu diem: chay migration/repair de tao bu `academic_record` tuong ung.
-2. Neu day la diem ao/sai: rebuild `evaluation_detail` theo `academic_record`, tuc la xoa detail hoac reset ve 0/null.
+## Implementation Notes
 
-Mac dinh trong runtime sau khi fix:
+The implementation should verify the following before coding:
 
-```text
-academic_record thang khi co lech du lieu.
-evaluation_detail phai bi rebuild theo academic_record.
-```
+1. Whether the sidebar header currently uses a single flex row or separate stacked blocks.
+2. Whether the existing toggle button is positioned inside or outside the branding container.
+3. Whether collapsed mode already uses absolute positioning around the logo area.
+4. Whether the current icon source comes from an icon library that already includes a suitable panel/sidebar glyph.
 
-### Rang buoc theo tung loai tieu chi
+Recommended implementation direction:
 
-Count criterion:
+- Keep one shared toggle component for both states.
+- Change placement logic through layout and state-based styling rather than duplicating controls.
+- Use absolute positioning in collapsed mode only if needed to create a deliberate overlay effect.
+- Ensure the clickable area remains large enough for usability even if the visible icon is compact.
 
-```text
-evaluation_detail.current_count phai bang so academic_record active.
-current_count = 3 => phai co dung 3 academic_record active.
-current_count = 0 => khong duoc con diem ao trong detail.
-```
+## Acceptance Criteria
 
-Single option criterion:
+A follow-up implementation is complete only if all conditions below are satisfied:
 
-```text
-selected_option_id != null => phai co academic_record active dai dien option dang chon.
-Khong co academic_record active => selected_option_id/label/score phai ve null va count ve 0, hoac xoa detail.
-```
+1. In expanded state, the collapse icon appears immediately to the right of the system name in the sidebar header.
+2. The icon is not an arrow or chevron.
+3. The icon visually matches a modern sidebar/layout control pattern.
+4. In collapsed state, the control overlays the logo area instead of sitting outside it.
+5. The control remains clearly visible and clickable in both states.
+6. The header does not feel misaligned or leave awkward spacing during state transitions.
+7. Collapsing and expanding the sidebar does not introduce layout jump, overlap bugs, or broken branding alignment.
+8. The updated control continues to support hover, focus, and accessible interaction states.
 
-Manual score criterion neu co:
+## Deliverable
 
-```text
-manual/system score co hieu luc => phai co academic_record active dai dien lan cham diem do.
-Khong co academic_record active => manual score khong duoc tiep tuc tinh vao tong diem.
-```
+Implement the sidebar header adjustment so the collapse control feels embedded in the branding area when expanded and intentionally overlaid on the logo zone when collapsed.
 
-### Noi enforce
-
-Rang buoc nay phai enforce o backend service, khong chi enforce tren frontend.
-
-Cac entrypoint can tuan thu:
-
-- `POST /academic-records/intent`
-- sync/rebuild tu `academic_record` sang `evaluation_detail`
-- API lay evaluation detail cho `/grading/score`
-- job repair/migration neu co
-- cac flow import/daily report/manual score co tao diem
-
-Frontend chi hien thi ket qua backend da sync; frontend khong duoc tu tao diem ao bang cach day `evaluation_detail` len truoc.
-
-## Scope fix chinh
-
-### 1. Sua flow tang so lan tai /grading/score
-
-Khi user bam nut `+` tren tieu chi count:
-
-1. Frontend goi API:
-
-```ts
-academicRecordApi.sendIntent({
-  student_id: activeStudentId,
-  semester_id: selectedSemesterId,
-  criterion_id: criteriaId,
-  intent_type: "increase",
-  note: reason,
-})
-```
-
-2. Backend tao them 1 `academic_record` active.
-3. Backend rebuild `evaluation_detail` bang `syncStudentCriterionScore(...)`.
-4. Backend tra ve:
-
-```ts
-{
-  success: true,
-  actual_count: number,
-  evaluation_detail: EvaluationDetail | null
-}
-```
-
-5. Frontend cap nhat `evaluationCounts[studentId][criterionId]` bang `actual_count` tu response, khong lay gia tri optimistic lam gia tri cuoi.
-6. Frontend cap nhat `evaluationDetailsMap` bang `evaluation_detail` moi neu backend tra ve.
-7. Frontend tinh lai tong diem tu count/option moi.
-
-Ket qua bat buoc:
-
-```text
-Bam 00 -> 01
-=> tao 1 academic_record
-=> evaluation_detail.current_count = 1
-=> UI hien 01 on dinh sau khi refresh/fetch lai
-```
-
-### 2. Sua flow giam so lan
-
-Khi user bam nut `-`:
-
-1. Frontend goi API:
-
-```ts
-academicRecordApi.sendIntent({
-  student_id: activeStudentId,
-  semester_id: selectedSemesterId,
-  criterion_id: criteriaId,
-  intent_type: "decrease",
-  note: reason,
-})
-```
-
-2. Backend xoa vinh vien 1 `academic_record` duoc phep xoa.
-3. Backend rebuild `evaluation_detail`.
-4. Frontend dung `actual_count` tu response de cap nhat UI.
-
-Neu backend khong the xoa record do rule phan quyen, frontend phai hien warning va rollback ve `actual_count`.
-
-### 3. Sua flow set count truc tiep
-
-Khi user dung picker/slider de doi `00 -> 03` hoac `03 -> 01`, frontend khong duoc chi sua local state.
-
-Frontend goi:
-
-```ts
-academicRecordApi.sendIntent({
-  student_id: activeStudentId,
-  semester_id: selectedSemesterId,
-  criterion_id: criteriaId,
-  intent_type: "set_target_count",
-  target_count: value,
-  note: reason,
-})
-```
-
-Backend tinh diff:
-
-```text
-target_count > current academic_record count => tao them record
-target_count < current academic_record count => xoa record duoc phep xoa
-target_count = current academic_record count => khong doi
-```
-
-Frontend chi chap nhan count cuoi cung la `actual_count` tu backend.
-
-### 4. Khong dung evaluation-detail bulkUpsert lam duong ghi count
-
-Tren `/grading/score`, bo/chan luong dung:
-
-```ts
-evaluationDetailApi.bulkUpsertEvaluationDetails(...)
-```
-
-de ghi `current_count` nhu nguon chinh.
-
-Neu van can `bulkUpsert` cho metadata/trang thai, endpoint do khong duoc tu tao diem ao. Count/option/manual score phai duoc tao qua `academic-records/intent`.
-
-## Thay doi frontend can lam
-
-### File
-
-```text
-frontend/src/app/grading/score/page.tsx
-frontend/src/api/academic-record-api.ts
-frontend/src/app/grading/score/_utils/score-calculation.ts
-```
-
-### Viec can sua
-
-1. Tach handler async cho count intent:
-
-```ts
-async function applyCountIntent(criteriaId: string, intent: "increase" | "decrease" | "set_target_count", targetCount?: number)
-```
-
-2. `handleCountChange(criteriaId, +1)` phai goi `applyCountIntent(..., "increase")`.
-3. `handleCountChange(criteriaId, -1)` phai goi `applyCountIntent(..., "decrease")`.
-4. `handleCountSet(criteriaId, value)` phai goi `applyCountIntent(..., "set_target_count", value)`.
-5. Trong luc request dang chay, khoa control cua dung `studentId + criterionId` de tranh double click tao record lap.
-6. Sau response, update state bang `actual_count`.
-7. Neu request fail, rollback ve count truoc do va hien toast loi.
-8. Sau moi intent thanh cong, refresh hoac patch lai:
-
-```text
-evaluationCounts
-evaluationDetailsMap
-students[].score
-dirty/saving state
-```
-
-9. Khong dua vao `preExistingCountsState`, `original_count`, `non_deletable_count` de clamp UI nua.
-10. Nut `+` khong bi disable sai khi count dang bang `sliderMax`; neu can tang tiep thi `sliderMax` phai mo rong theo `count + 1` hoac theo max hop le cua tieu chi.
-
-## Thay doi backend can lam
-
-### File
-
-```text
-backend/src/academic-record/academic-record.service.ts
-backend/src/academic-record/academic-record.controller.ts
-backend/src/academic-record/dto/intent-score.dto.ts
-backend/src/evaluation-detail/evaluation-detail.service.ts
-backend/src/summaries-point/summaries-point.service.ts
-```
-
-### Viec can kiem tra/sua
-
-1. `handleScoreIntent` phai la duong ghi chinh cho count.
-2. Intent `increase` bat buoc tao dung 1 `academic_record` active.
-3. Intent `set_target_count` bat buoc tao/xoa record theo diff giua `target_count` va so record active hien tai.
-4. Sau moi mutation, goi `syncStudentCriterionScore(student_id, semester_id, criterion_id)`.
-5. `syncStudentCriterionScore` phai:
-
-```text
-- dem academic_record active
-- tinh system_score theo criterion
-- tao evaluation_detail neu count > 0 va detail chua ton tai
-- update evaluation_detail neu detail da ton tai
-- xoa evaluation_detail hoac dua ve 0 neu khong con record active theo rule san pham da chon
-- phat hien va repair/reset evaluation_detail mo coi
-- recompute total score cua summary
-```
-
-6. `evaluation-detail.service.bulkUpsert` khong duoc ghi de `current_count` truc tiep nhu source of truth.
-7. Can co transaction hoac co che atomic hop ly cho:
-
-```text
-create/delete academic_record
-sync evaluation_detail
-recompute total score
-```
-
-Neu chua dung Mongo transaction, can dam bao co retry/rebuild idempotent de tranh record tao roi nhung detail chua sync.
-
-## Repair/migration du lieu cu
-
-Can co script/job rieng de quet du lieu hien co va phat hien lech giua `evaluation_detail` va `academic_record`.
-
-### Bao cao can co
-
-Script can thong ke:
-
-```text
-- summary_id
-- student_id
-- semester_id
-- criterion_id
-- evaluation_detail.current_count
-- active academic_record count
-- selected_option_id neu co
-- system_score/sv_score/gv_score/final_score neu co
-- loai lech: missing_records, extra_records, count_mismatch, orphan_detail
-```
-
-### Huong repair
-
-Khong nen tu dong quyet dinh tat ca truong hop neu chua co xac nhan nghiep vu.
-
-De xuat 2 mode:
-
-```text
---mode=report
-Chi bao cao lech, khong sua DB.
-
---mode=repair-from-records
-Lay academic_record lam dung, rebuild/xoa/reset evaluation_detail.
-
---mode=backfill-records
-Tao bu academic_record tu evaluation_detail cu neu nghiep vu xac nhan diem cu la hop le.
-```
-
-Mode mac dinh cho runtime sau khi fix la `repair-from-records` vi `academic_record` la source of truth.
-
-## Rule phan quyen
-
-### Admin
-
-- Duoc tang/giam count khong dieu kien, tru cac tieu chi bi khoa tuyet doi theo rule san pham.
-- Khi giam count, admin duoc xoa record cua bat ky nguoi tao nao neu record thuoc diem chinh sua tren `/grading/score`.
-
-### Teacher
-
-- Duoc tang count cho sinh vien thuoc lop/pham vi phu trach.
-- Khong duoc xoa diem/record do admin tao.
-- Khi giam count, chi xoa record teacher duoc phep xoa theo rule backend.
-
-### Student
-
-- Chi duoc thao tac diem cua chinh minh trong giai doan cho phep.
-- Chi duoc xoa record do student do tao.
-- Khong duoc xoa record cua teacher/admin/system.
-
-### Locked criteria
-
-- Neu tieu chi `is_locked` la khoa tuyet doi tren UI, khong cho user thao tac tang/giam.
-- Neu diem locked van can hien thi, no cung phai den tu `academic_record` active va duoc sync sang `evaluation_detail`.
-
-## API contract can chot
-
-Endpoint:
-
-```http
-POST /academic-records/intent
-```
-
-Request:
-
-```ts
-type IntentScoreDto = {
-  student_id: string;
-  semester_id: string;
-  criterion_id: string;
-  intent_type:
-    | "increase"
-    | "decrease"
-    | "set_target_count"
-    | "select_option"
-    | "set_manual_score"
-    | "clear_score";
-  target_count?: number;
-  selected_option_id?: string | null;
-  manual_score?: number;
-  note?: string;
-  idempotency_key?: string;
-}
-```
-
-Response:
-
-```ts
-type IntentScoreResponse = {
-  success: true;
-  actual_count: number;
-  evaluation_detail: EvaluationDetail | null;
-  summary_total_score?: number;
-  changed_record_ids?: string[];
-  warnings?: string[];
-}
-```
-
-`actual_count` la gia tri duy nhat frontend duoc tin de hien thi sau mutation.
-
-## Idempotency va double click
-
-Can tranh viec user bam `+` nhieu lan do request cham:
-
-- Frontend khoa control theo key `studentId:criterionId` khi request dang pending.
-- Backend nen ho tro `idempotency_key` cho tung thao tac.
-- Neu retry cung `idempotency_key`, backend khong tao record trung.
-
-De xuat key:
-
-```text
-grading-score:{studentId}:{semesterId}:{criterionId}:{intent}:{timestamp-or-client-action-id}
-```
-
-## Acceptance criteria
-
-1. Tai `/grading/score`, tieu chi dang hien `00`, bam `+` mot lan:
-
-```text
-academic_record active tang tu 0 len 1
-evaluation_detail.current_count = 1
-UI hien 01
-refresh trang van hien 01
-```
-
-2. Bam `+` tu `01 -> 02`:
-
-```text
-academic_record active tang tu 1 len 2
-evaluation_detail.current_count = 2
-UI hien 02
-```
-
-3. Bam `-` tu `02 -> 01`:
-
-```text
-1 academic_record duoc phep xoa bi xoa vinh vien
-evaluation_detail.current_count = 1
-UI hien 01
-```
-
-4. Teacher giam count nhung record gan nhat do admin tao:
-
-```text
-backend khong xoa record admin
-response actual_count giu nguyen
-UI rollback ve actual_count
-toast canh bao ro ly do
-```
-
-5. Student giam count cua record do student tao:
-
-```text
-record bi xoa
-evaluation_detail sync lai
-UI cap nhat dung
-```
-
-6. Student giam count cua record do teacher/admin tao:
-
-```text
-record khong bi xoa
-actual_count khong giam
-UI rollback
-```
-
-7. Khong con truong hop UI hien `01` tam thoi roi quay ve `00` sau fetch lai neu API tao record thanh cong.
-
-8. Khong con `evaluation_detail` co count/diem ma khong co `academic_record` active tuong ung.
-
-9. Neu database co san `evaluation_detail.current_count = 3` nhung active `academic_record count = 0`, job report phai danh dau la `orphan_detail`.
-
-10. Sau repair theo `repair-from-records`, detail mo coi phai bi xoa/reset va tong diem summary phai recompute lai.
-
-11. Sau backfill theo `backfill-records`, so `academic_record` active phai khop voi gia tri hop le tu `evaluation_detail` cu.
-
-## Test cases can bo sung
-
-### Backend unit/integration
-
-- `handleScoreIntent increase` tao 1 `academic_record` khi current count = 0.
-- `handleScoreIntent increase` tao them record khi current count > 0.
-- `handleScoreIntent set_target_count` tao dung so record theo diff.
-- `handleScoreIntent decrease` hard-delete 1 record duoc phep xoa.
-- Teacher khong xoa duoc record admin.
-- Student chi xoa duoc record cua chinh student.
-- Sau moi intent, `evaluation_detail.current_count` bang so `academic_record` active.
-- Khi khong con record active, `evaluation_detail` khong con diem ao.
-- Phat hien `evaluation_detail` co diem nhung khong co `academic_record` active.
-- `repair-from-records` reset/xoa detail mo coi va recompute total score.
-- `backfill-records` tao bu record tu detail cu khi duoc chon mode nay.
-
-### Frontend
-
-- Click `+` goi `academicRecordApi.sendIntent` voi `intent_type = "increase"`.
-- Click `-` goi `intent_type = "decrease"`.
-- Picker set value goi `intent_type = "set_target_count"`.
-- UI cap nhat count bang `actual_count` tu response.
-- Request fail thi rollback count cu.
-- Trong luc request pending, control bi khoa de tranh double submit.
-- UI khong tu hien diem tu `evaluation_detail` mo coi neu backend da tra ve count/detail sau rebuild.
-
-## Ngoai pham vi
-
-- Khong doi cong thuc tinh diem neu cong thuc hien tai dung.
-- Khong doi UI tong the cua `/grading/score`, chi sua flow ghi du lieu.
-- Khong tu dong backfill record tu du lieu cu neu chua co xac nhan nghiep vu.
-- Khong xoa audit/log lich su ngoai cac `academic_record` duoc xoa theo intent va rule quyen.
+The final result should look contemporary, compact, and visually cleaner than the current arrow-based sidebar toggle.

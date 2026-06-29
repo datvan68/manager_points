@@ -43,7 +43,7 @@ export class EvaluationDetailService {
     private readonly classModel: Model<ClassDocument>,
     @Inject(forwardRef(() => SummariesPointService))
     private readonly summariesPointService: SummariesPointService,
-  ) {}
+  ) { }
 
   private isTeacher(requester?: any) {
     const role = (requester?.roleName || '').toLowerCase();
@@ -710,7 +710,7 @@ export class EvaluationDetailService {
       }
 
       const actualCount = detail.current_count;
-      
+
       // For single_option, we won't clamp systemScore because it's based on option.
       // But actual count could be different if clamped, though not typical for single_option.
 
@@ -734,14 +734,14 @@ export class EvaluationDetailService {
         systemScore = Math.max(minScore, Math.min(maxScore, maxScore - newCount * Math.abs(criterion.score_per_unit)));
       }
       detail.system_score = systemScore;
-      
+
       setObj['details.$.current_count'] = detail.current_count;
       setObj['details.$.system_score'] = detail.system_score;
     }
     if (updateEvaluationDetailDto.sv_score !== undefined) setObj['details.$.sv_score'] = updateEvaluationDetailDto.sv_score;
     if (updateEvaluationDetailDto.sv_submitted_at !== undefined) setObj['details.$.sv_submitted_at'] = updateEvaluationDetailDto.sv_submitted_at ? new Date(updateEvaluationDetailDto.sv_submitted_at) : null;
     if (updateEvaluationDetailDto.gv_score !== undefined) setObj['details.$.gv_score'] = updateEvaluationDetailDto.gv_score;
-    
+
     // Clear gv_score if student updates sv_score and gv hasn't reviewed
     if (
       this.isStudent(requester) &&
@@ -843,11 +843,11 @@ export class EvaluationDetailService {
       if (detailDto.sv_score !== undefined) setObj.sv_score = detailDto.sv_score;
       if (detailDto.sv_submitted_at !== undefined) setObj.sv_submitted_at = detailDto.sv_submitted_at ? new Date(detailDto.sv_submitted_at) : null;
       if (detailDto.gv_score !== undefined) setObj.gv_score = detailDto.gv_score;
-      
+
       const isGVScoreCleared = this.isStudent(requester) &&
         detailDto.sv_score !== undefined &&
         detailDto.gv_score === undefined;
-        
+
       if (detailDto.gv_reviewed_at !== undefined) setObj.gv_reviewed_at = detailDto.gv_reviewed_at ? new Date(detailDto.gv_reviewed_at) : null;
       if (detailDto.gv_reviewed_by !== undefined) setObj.gv_reviewed_by = detailDto.gv_reviewed_by ? new Types.ObjectId(detailDto.gv_reviewed_by) : null;
       if (detailDto.status !== undefined) setObj.status = detailDto.status;
@@ -856,12 +856,12 @@ export class EvaluationDetailService {
       if (existingIndex !== -1) {
         const detail = summary.details[existingIndex];
         if (isGVScoreCleared && !detail.gv_reviewed_at && !detail.gv_reviewed_by) {
-            setObj.gv_score = null;
+          setObj.gv_score = null;
         }
-        
+
         const updateQuery: any = {};
         for (const key of Object.keys(setObj)) {
-            updateQuery[`details.$.${key}`] = setObj[key];
+          updateQuery[`details.$.${key}`] = setObj[key];
         }
         await this.summaryPointModel.findOneAndUpdate(
           { 'details._id': (detail as any)._id },

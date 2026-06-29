@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { 
-  calculateCriterionScore, 
-  getCriterionContributionScore, 
+import {
+  calculateCriterionScore,
+  getCriterionContributionScore,
   getResolvedRawCriterionScore,
   getResolvedCriterionScore,
-  calculateCategoryScore, 
+  calculateCategoryScore,
   calculateTotalScore,
   Criteria,
   Category
@@ -21,7 +21,7 @@ describe("score-calculation helper", () => {
         pointsPerUnit: 2,
         type: "reward"
       };
-      
+
       expect(calculateCriterionScore(criterion, 3)).toBe(6);
       expect(getCriterionContributionScore(criterion, 3)).toBe(6);
 
@@ -39,7 +39,7 @@ describe("score-calculation helper", () => {
         type: "violation",
         is_score_counted: true
       };
-      
+
       expect(calculateCriterionScore(criterion, 0)).toBe(10);
       expect(getCriterionContributionScore(criterion, 0)).toBe(10);
 
@@ -60,7 +60,7 @@ describe("score-calculation helper", () => {
         type: "violation",
         is_score_counted: true
       };
-      
+
       expect(calculateCriterionScore(criterion, 3)).toBe(7);
       expect(getCriterionContributionScore(criterion, 3)).toBe(7);
     });
@@ -75,7 +75,7 @@ describe("score-calculation helper", () => {
         type: "violation",
         is_score_counted: false
       };
-      
+
       // count 0 -> rawScore is 10, contribution 0
       expect(calculateCriterionScore(criterion, 0)).toBe(10);
       expect(getCriterionContributionScore(criterion, 0)).toBe(0);
@@ -103,10 +103,10 @@ describe("score-calculation helper", () => {
           { id: "opt-2", label: "Muc 2", score: 15 }
         ]
       };
-      
+
       expect(calculateCriterionScore(criterion, 1, "opt-1")).toBe(8);
       expect(calculateCriterionScore(criterion, 1, "opt-2")).toBe(10); // clamped max 10
-      
+
       const violationCriterion: Criteria = {
         id: "cri-5",
         name: "Violation non-counted single option",
@@ -180,7 +180,7 @@ describe("score-calculation helper", () => {
         type: "violation",
         is_score_counted: false
       };
-      
+
       const detail = { final_score: 8 }; // raw score is 8
       // For non-counted violation, contribution is raw - maxScore = 8 - 10 = -2
       expect(getResolvedCriterionScore(vioCriterion, 3, null, detail)).toBe(-2);
@@ -228,7 +228,7 @@ describe("score-calculation helper", () => {
       };
 
       const detail = { final_score: -3 };
-      
+
       // raw score normalized = 10 - |-3| = 7
       expect(getResolvedRawCriterionScore(criterion, 3, null, detail)).toBe(7);
       expect(getResolvedCriterionScore(criterion, 3, null, detail)).toBe(7);
@@ -248,7 +248,7 @@ describe("score-calculation helper", () => {
         ]
       };
 
-      const counts = { "c1": 2, "c2": 1, "c3": 0 }; 
+      const counts = { "c1": 2, "c2": 1, "c3": 0 };
       // c1: raw 15 (max 15), contrib 15
       // c2: raw 10, contrib 10
       // c3: contrib 0
@@ -321,7 +321,7 @@ describe("score-calculation helper", () => {
 
       const counts = { "c1": 0 };
       const detailsMap = { "c1": { final_score: 45 } };
-      
+
       expect(calculateTotalScore(categories, counts, {}, detailsMap)).toBe(45);
     });
   });
