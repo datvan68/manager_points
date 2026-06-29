@@ -40,7 +40,7 @@ export async function generatePl03Excel(
 
   sheet.mergeCells('A4:C4');
   sheet.getCell('A4').value = 'NAM SÀI GÒN';
-  sheet.getCell('A4').font = { name: 'Times New Roman', size: 12, bold: true, underline: true };
+  sheet.getCell('A4').font = { name: 'Times New Roman', size: 12, bold: true };
   sheet.getCell('A4').alignment = { horizontal: 'center' };
 
   sheet.mergeCells('D3:G3');
@@ -55,7 +55,7 @@ export async function generatePl03Excel(
 
   sheet.mergeCells('A5:C5');
   sheet.getCell('A5').value = `KHOA: ${departmentInfo?.name || '...........................................'}`.toUpperCase();
-  sheet.getCell('A5').font = { name: 'Times New Roman', size: 12, bold: true };
+  sheet.getCell('A5').font = { name: 'Times New Roman', size: 12, bold: true, underline: true };
   sheet.getCell('A5').alignment = { horizontal: 'center' };
 
   sheet.mergeCells('A7:G7');

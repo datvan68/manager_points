@@ -22,6 +22,10 @@ describe('pl03-summary-excel.service', () => {
     expect(sheet.getCell('A8').value).toContain('HK1');
     expect(sheet.getCell('A8').value).toContain('2023-2024');
 
+    // Check underline styles
+    expect(sheet.getCell('A4').font?.underline).toBeUndefined();
+    expect(sheet.getCell('A5').font?.underline).toBe(true);
+
     // Check minimum rows (header at 10, min 35 rows means stats start at 11 + 35 = 46)
     const statHeaderCell = sheet.getCell('A46');
     expect(statHeaderCell.value).toBe('Tổng hợp kết quả rèn luyện');
