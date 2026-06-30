@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, MongoIdParamDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto, UpdateMailSettingsDto, SendTestMailDto } from './dto/system.dto';
+import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, MongoIdParamDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto, UpdateMailSettingsDto, SendTestMailDto, UpdateModuleMaintenanceDto } from './dto/system.dto';
 
 export interface AuthenticatedRequest extends Request {
   user: {
@@ -189,6 +189,24 @@ export class SystemController {
   }
 
   // ─── PERFORMANCE METRICS ───────────────────────────────────────────────────
+
+  // Module maintenance states
+
+  @Get('module-maintenance')
+  @Permissions()
+  getModuleMaintenanceStates() {
+    return this.systemService.getModuleMaintenanceStates();
+  }
+
+  @Patch('module-maintenance/:moduleId')
+  @Permissions('ADMIN_FULL')
+  updateModuleMaintenanceState(
+    @Param('moduleId') moduleId: string,
+    @Body() dto: UpdateModuleMaintenanceDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.systemService.updateModuleMaintenanceState(moduleId, dto, req.user.userId);
+  }
 
   @Post('performance/metrics')
   @Permissions()

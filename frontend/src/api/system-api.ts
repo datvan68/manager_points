@@ -208,7 +208,27 @@ export interface MailSettings {
   hasPassword?: boolean;
 }
 
+export interface ModuleMaintenanceResponse {
+  states: Record<string, boolean>;
+  updatedAt?: string | null;
+}
+
 export const systemApi = {
+  async getModuleMaintenanceStates(): Promise<ModuleMaintenanceResponse> {
+    const res = await httpClient(`${API_BASE}/system/module-maintenance`);
+    return handleResponse<ModuleMaintenanceResponse>(res);
+  },
+
+  async updateModuleMaintenanceState(moduleId: string, payload: { isMaintenance: boolean }): Promise<ModuleMaintenanceResponse> {
+    const res = await httpClient(`${API_BASE}/system/module-maintenance/${encodeURIComponent(moduleId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<ModuleMaintenanceResponse>(res);
+  },
+
+
   async getDashboardMetrics(semesterId?: string): Promise<any> {
     const params = new URLSearchParams();
     if (semesterId) {

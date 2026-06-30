@@ -1,6 +1,10 @@
 import React from 'react';
 import { CheckSquare, Clock, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { DashboardMetrics } from './dashboard-helpers';
+import { useAuth, isAdminUser } from '@/providers/auth-provider';
+import { useRouter } from 'next/navigation';
+import { getModuleIdByPath, getMaintenanceStatesWithCache } from '@/utils/module-maintenance.util';
+import { toast } from 'sonner';
 
 interface TaskPanelProps {
   metrics: DashboardMetrics;
@@ -8,11 +12,28 @@ interface TaskPanelProps {
 
 export default function TaskPanel({ metrics }: TaskPanelProps) {
   const { urgentTasks, roleScope } = metrics;
+  const { user } = useAuth();
+  const router = useRouter();
 
-  const handleNav = (path: string) => {
-    if (typeof window !== 'undefined') {
-      window.location.href = path;
+  const handleNav = async (path: string) => {
+    if (!path) return;
+
+    if (user && !isAdminUser(user)) {
+      const moduleId = getModuleIdByPath(path);
+      if (moduleId) {
+        try {
+          const states = await getMaintenanceStatesWithCache();
+          if (states[moduleId] === true) {
+            toast.error('Phân hệ này đang bảo trì. Vui lòng quay lại sau.');
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to check maintenance state:', err);
+        }
+      }
     }
+
+    router.push(path);
   };
 
   const getPriorityStyle = (priority?: string) => {

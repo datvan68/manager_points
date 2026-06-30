@@ -4,8 +4,14 @@ import React, { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { authApi } from '@/api/auth-api';
+import { systemApi } from '@/api/system-api';
 import { toast } from 'sonner';
-import { ShieldAlert, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
+import { 
+  getModuleIdByPath, 
+  subscribeModuleMaintenanceUpdates,
+  getMaintenanceStatesWithCache
+} from '@/utils/module-maintenance.util';
 
 interface RouteGuardProps {
   /** Permission code required to access this route (e.g. 'view_users', 'STUDENT_READ') */
@@ -62,19 +68,6 @@ async function fetchRouteMappings(token?: string): Promise<any[]> {
  *     <StudentsPage />
  *   </RouteGuard>
  */
-const PATH_TO_MODULE_ID: Record<string, string> = {
-  '/students': 'sv-profile',
-  '/grading': 'grading',
-  '/students/record': 'attendance',
-  '/dormitory': 'dormitory',
-  '/club': 'club',
-  '/permissions': 'security',
-  '/system': 'config',
-  '/students/tasks': 'events',
-  '/reports': 'reports',
-  '/notifications': 'notifications',
-};
-
 export function RouteGuard({
   requiredPermission,
   requiredPermissions,
@@ -91,6 +84,7 @@ export function RouteGuard({
   const [dynamicCheckDone, setDynamicCheckDone] = useState(!useDynamicMapping);
   const [dynamicAllowed, setDynamicAllowed] = useState(true);
   const [isUnderMaintenance, setIsUnderMaintenance] = useState(false);
+  const [maintenanceCheckDone, setMaintenanceCheckDone] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Invalidate cache and trigger reload on update event
@@ -109,46 +103,59 @@ export function RouteGuard({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const getModuleIdByPath = (path: string): string | null => {
-      const sortedPaths = Object.keys(PATH_TO_MODULE_ID).sort((a, b) => b.length - a.length);
-      for (const p of sortedPaths) {
-        if (path === p || path.startsWith(p + '/')) {
-          return PATH_TO_MODULE_ID[p];
-        }
-      }
-      return null;
-    };
+    let cancelled = false;
 
-    const checkMaintenance = () => {
-      // Nếu user là Admin thì bỏ qua kiểm tra bảo trì
-      if (isAdminUser(user)) {
-        setIsUnderMaintenance(false);
-        return;
-      }
+    if (isLoading) {
+      setMaintenanceCheckDone(false);
+      return;
+    }
 
-      const moduleId = getModuleIdByPath(pathname);
-      if (!moduleId) {
-        setIsUnderMaintenance(false);
-        return;
-      }
-      try {
-        const stored = localStorage.getItem('subsystems_maintenance_states');
-        if (stored) {
-          const states = JSON.parse(stored);
-          if (states[moduleId] === true) {
-            setIsUnderMaintenance(true);
-            return;
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      }
+    if (!user || isAdminUser(user)) {
       setIsUnderMaintenance(false);
+      setMaintenanceCheckDone(true);
+      return;
+    }
+
+    const moduleId = getModuleIdByPath(pathname);
+    if (!moduleId) {
+      setIsUnderMaintenance(false);
+      setMaintenanceCheckDone(true);
+      return;
+    }
+
+    const applyStates = (states: Record<string, boolean>) => {
+      if (cancelled) return;
+      setIsUnderMaintenance(states[moduleId] === true);
+      setMaintenanceCheckDone(true);
     };
 
+    const checkMaintenance = async () => {
+      try {
+        const states = await getMaintenanceStatesWithCache();
+        applyStates(states);
+      } catch (error) {
+        console.error('Failed to load module maintenance states:', error);
+        if (!cancelled) {
+          setIsUnderMaintenance(false);
+          setMaintenanceCheckDone(true);
+        }
+      }
+    };
+
+    setMaintenanceCheckDone(false);
     checkMaintenance();
-    window.addEventListener('storage', checkMaintenance);
-    return () => window.removeEventListener('storage', checkMaintenance);
+
+    const unsubscribe = subscribeModuleMaintenanceUpdates(applyStates);
+    const handleFocus = () => checkMaintenance();
+    window.addEventListener('focus', handleFocus);
+    const intervalId = window.setInterval(checkMaintenance, 30000);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      window.removeEventListener('focus', handleFocus);
+      window.clearInterval(intervalId);
+    };
   }, [pathname, user, isLoading]);
 
   // Dynamic mapping check
@@ -224,7 +231,7 @@ export function RouteGuard({
 
   // Redirect effect — MUST be declared before any early returns
   useEffect(() => {
-    if (!isLoading && dynamicCheckDone && !isAllowed && user && !isUnderMaintenance) {
+    if (!isLoading && dynamicCheckDone && maintenanceCheckDone && !isAllowed && user && !isUnderMaintenance) {
       toast.error(forbiddenMessage, {
         id: 'permission-denied-toast',
         description: 'Liên hệ quản trị viên để được cấp quyền truy cập.',
@@ -232,11 +239,11 @@ export function RouteGuard({
       });
       router.replace(fallbackPath || '/');
     }
-  }, [isAllowed, isLoading, dynamicCheckDone, user, isUnderMaintenance]);
+  }, [isAllowed, isLoading, dynamicCheckDone, maintenanceCheckDone, user, isUnderMaintenance]);
 
   // --- All hooks above, early returns below ---
 
-  if (isLoading || !dynamicCheckDone) {
+  if (isLoading || !dynamicCheckDone || !maintenanceCheckDone) {
     return (
       <div className="flex h-full w-full items-center justify-center p-8">
         <div className="h-8 w-8 animate-spin rounded-full border-3 border-blue-600 border-t-transparent"></div>

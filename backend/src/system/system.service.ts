@@ -9,7 +9,7 @@ import { LoginLog, LoginLogDocument } from '../auth/schemas/login-log.schema';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { SystemPerformanceMetric, SystemPerformanceMetricDocument } from './schemas/system-performance-metric.schema';
 import { SystemSetting, SystemSettingDocument } from './schemas/system-setting.schema';
-import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto, UpdateMailSettingsDto } from './dto/system.dto';
+import { GetLoginLogsQueryDto, GetLoginLogsSummaryQueryDto, CreateSystemRequestDto, UpdateSystemRequestDto, UpdateSystemRequestStatusDto, GetSystemRequestsQueryDto, GetBackupsQueryDto, CreateSystemPerformanceMetricDto, GetPerformanceSummaryQueryDto, GetPerformanceMetricsQueryDto, RestoreBackupImportDto, UpdateMailSettingsDto, UpdateModuleMaintenanceDto } from './dto/system.dto';
 import { getRequesterRoleName, isStudent, isTeacher, isSupervisor, isAdmin, isAdminUser } from '../auth/utils/role.util';
 import { MailService, MailConfigOptions } from '../core/mail/mail.service';
 import { RestoreTypeRegistry } from './restore-type-registry';
@@ -25,6 +25,7 @@ import { EJSON } from 'bson';
 import { StringDecoder } from 'string_decoder';
 
 const execFileAsync = promisify(execFile);
+const MODULE_MAINTENANCE_SETTING_KEY = 'SYSTEM_MODULE_MAINTENANCE';
 
 class DatabaseBackupStream extends Readable {
   private collectionNames: string[];
@@ -2760,6 +2761,66 @@ export class SystemService {
     };
   }
   // ─── MAIL SETTINGS ─────────────────────────────────────────────────────────
+
+  private normalizeModuleMaintenanceStates(value: any): Record<string, boolean> {
+    const rawStates = value?.states && typeof value.states === 'object' ? value.states : value;
+    if (!rawStates || typeof rawStates !== 'object' || Array.isArray(rawStates)) return {};
+
+    return Object.entries(rawStates).reduce<Record<string, boolean>>((acc, [moduleId, isMaintenance]) => {
+      if (moduleId && typeof moduleId === 'string') {
+        acc[moduleId] = isMaintenance === true;
+      }
+      return acc;
+    }, {});
+  }
+
+  async getModuleMaintenanceStates() {
+    const setting: any = await this.systemSettingModel
+      .findOne({ key: MODULE_MAINTENANCE_SETTING_KEY })
+      .lean()
+      .exec();
+
+    return {
+      states: this.normalizeModuleMaintenanceStates(setting?.value),
+      updatedAt: setting?.updatedAt || null,
+    };
+  }
+
+  async updateModuleMaintenanceState(moduleId: string, dto: UpdateModuleMaintenanceDto, userId?: string) {
+    const normalizedModuleId = String(moduleId || '').trim();
+    if (!/^[a-z0-9][a-z0-9_-]{1,79}$/i.test(normalizedModuleId)) {
+      throw new BadRequestException('Invalid module id');
+    }
+
+    const currentSetting: any = await this.systemSettingModel
+      .findOne({ key: MODULE_MAINTENANCE_SETTING_KEY })
+      .lean()
+      .exec();
+    const states = this.normalizeModuleMaintenanceStates(currentSetting?.value);
+    states[normalizedModuleId] = dto.isMaintenance === true;
+
+    const updatedSetting: any = await this.systemSettingModel
+      .findOneAndUpdate(
+        { key: MODULE_MAINTENANCE_SETTING_KEY },
+        {
+          key: MODULE_MAINTENANCE_SETTING_KEY,
+          value: { states },
+          description: 'Per-module maintenance mode flags',
+        },
+        { upsert: true, new: true },
+      )
+      .lean()
+      .exec();
+
+    this.logger.log(
+      `AUDIT: User ${userId || 'unknown'} set maintenance for module ${normalizedModuleId} to ${states[normalizedModuleId]}`,
+    );
+
+    return {
+      states: this.normalizeModuleMaintenanceStates(updatedSetting?.value),
+      updatedAt: updatedSetting?.updatedAt || null,
+    };
+  }
 
   private readonly ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 

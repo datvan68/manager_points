@@ -353,6 +353,11 @@ export class UpdateMailSettingsDto {
   from: string;
 }
 
+export class UpdateModuleMaintenanceDto {
+  @IsBoolean()
+  isMaintenance: boolean;
+}
+
 export class SendTestMailDto {
   @IsString()
   @IsNotEmpty()

@@ -1,147 +1,169 @@
-﻿# Taskscope: Backend Review Fixes for Academic Record Realtime Sync
+# Taskscope: Maintenance Mode Enforcement for Task-Linked Routes
 
 ## Objective
-Stabilize the recently implemented academic-record and grading realtime synchronization work so the backend builds cleanly and the sync contract is consistent across `academic_record`, embedded `evaluation_detail`, `summary_point.total_score`, and realtime SSE events.
+Fix the maintenance-mode access leak where non-admin users can open a maintained module by navigating from `/students/tasks` or from a task-linked destination. Maintenance mode must be enforced consistently for direct URL access, sidebar/module navigation, tab navigation, dashboard shortcuts, and task card links.
 
-This task starts from the current worktree. The immediate priority is to fix backend compile errors, then close the runtime drift risks found during review.
+Only admin-level users may bypass maintenance mode. Normal teacher, student, supervisor, and permissioned non-admin accounts must be blocked from any module that is currently marked as under maintenance.
 
-## Current Build Status
-`npm run build` in `backend` currently fails with 23 TypeScript errors.
+## Current Issue
+The current maintenance implementation blocks some protected pages, but the task workflow can still reach maintained destinations.
 
-Main failing areas:
-- `backend/src/academic-record/academic-record.service.ts:223` reads `currentSummary.class_id`, but `SummaryPoint` has no `class_id` field.
-- `backend/src/evaluation-detail/evaluation-detail.service.ts:885-932` still contains unreachable legacy delete logic after a new `BadRequestException`, and that block references removed variables such as `deletedDetail` and `detailIndex`.
-- `backend/src/summaries-point/summaries-point.service.ts` changed `recomputeTotalScore()` to return `Promise<any>`, but the function does not return the saved summary, so callers still receive `undefined`.
+Observed problem:
+- A user opens `/students/tasks`.
+- The user clicks a task card or external-link action.
+- The app navigates to `task.linkedPage`, such as `/students/record`, `/grading/score`, `/grading/categories`, `/students`, `/dormitory`, `/club`, or a custom URL.
+- If the destination module is under maintenance, the user can still access it in some cases.
 
-## Review Findings
+Main suspected causes:
+- `/students/tasks/page.tsx` bypasses `RouteGuard` entirely for student and teacher accounts, so maintenance checks do not run for those users on that page.
+- Maintenance checking is currently page-level, so any dashboard route without `RouteGuard` can bypass maintenance.
+- Task-linked custom destinations may point to routes that are not mapped to a module or are not wrapped by a guard.
+- `/tasks` is a dashboard route but is not mapped to the `events` module.
 
-### 1. Direct evaluation detail delete is now a compile blocker
-`EvaluationDetailService.remove()` throws a `BadRequestException` telling callers to use academic-record intent or delete evidence records, but the old delete implementation remains below that throw.
+## Expected Behavior
+- Admin users can access maintained modules for management and verification.
+- Teacher accounts cannot access a maintained module unless they also have admin-level bypass rights.
+- Student accounts cannot access maintained modules.
+- `/students/tasks` itself must be blocked when the `events` module is under maintenance.
+- A task card must not allow navigation into a maintained destination module.
+- Direct browser access to a maintained route must show the maintenance screen.
+- Navigation from dashboard widgets, sidebar, subsystem popup, tabs, notifications, and task links must obey the same rule.
 
-Required fix:
-- If direct delete is no longer allowed, remove the entire stale code path after the throw.
-- Keep the access checks and locked-summary validation before the explicit rejection.
-- Add a test proving direct `DELETE /evaluation-details/:id` returns the expected 400 response and does not mutate records or summary details.
+## Admin Bypass Rule
+Use the existing `isAdminUser(user)` rule as the only maintenance bypass.
 
-### 2. Realtime event payload reads a field that does not exist
-`syncStudentCriterionScore()` emits `classId: currentSummary.class_id`, but the `SummaryPoint` schema only stores `student_id`, `semester_id`, `period_id`, `details`, and summary/rank fields.
+A user is treated as admin only when at least one of these is true:
+- `role === "Admin"`
+- `roleName === "Admin"`
+- `roleCode === "ADMIN"`
+- `permissions` includes `ADMIN_FULL`
 
-Required fix:
-- Resolve `classId` through the related `Student.class_id`, either by populating `student_id` or by a small helper query.
-- Do not read `class_id` directly from a `SummaryPoint` document unless the schema is explicitly changed.
-- Centralize event payload construction so single sync and batch sync produce the same shape.
-
-### 3. `recomputeTotalScore()` return contract is incomplete
-`AcademicRecordService` expects `recomputeTotalScore()` to return a recomputed summary so it can attach `updatedDetail`, `totalScore`, and `grading` to `academic_record_changed`. The service currently saves the summary and emits `summary_recomputed`, but does not return the summary.
-
-Required fix:
-- Either return the saved summary from `recomputeTotalScore()` or reload the summary after recompute in the caller.
-- Make the return type explicit, for example `Promise<SummaryPointDocument | null>`.
-- Ensure the returned or reloaded document contains the updated `details`, `total_score`, `grading`, `student_id`, and `semester_id` needed by event payloads.
-
-### 4. SSE filtering is unsafe when payload identifiers are missing
-`GradingRealtimeService.getStream()` only rejects a class or semester mismatch when the payload contains that field. Events with missing `classId` or `semesterId` pass through filtered streams.
-
-Required fix:
-- Make backend events include `classId`, `semesterId`, `studentId`, and `summaryId` whenever the event is summary or grading related.
-- When a client subscribes with a filter and an event lacks that identifier, drop the event or use a secure fallback lookup before sending it.
-- Add tests for filtered streams so a class-scoped subscriber never receives events from another class or unscoped academic-record events.
-
-### 5. Batch sync emits weaker events than single sync
-`syncMultipleStudentCriterionScores()` recomputes summaries but emits `academic_record_changed` with only `semesterId`, `studentId`, and `summaryId`.
-
-Required fix:
-- Emit the same enriched payload shape as `syncStudentCriterionScore()`.
-- Include affected `criterionIds`, changed record ids when available, `updatedDetails`, `totalScore`, `grading`, `updatedAt`, and action/source metadata.
-- Avoid sending one noisy event per record when a batch can send one event per affected student/semester summary.
-
-### 6. Locked summaries can still drift from record mutations
-`syncStudentCriterionScore()` skips locked summaries, but `handleScoreIntent()` can mutate or hard-delete `academic_record` rows before it reports `sync_status: 'summary_locked'`. That can leave records and locked details inconsistent.
-
-Required fix:
-- Preflight the affected summary before mutating records for any intent.
-- If the summary is locked, reject the intent before changing records unless the business rule explicitly allows record changes without score sync.
-- If record changes are allowed for locked summaries, return a clear status and do not present it as a successful score sync.
-- Add tests proving locked summaries do not silently drift.
-
-### 7. ObjectId normalization is only partially fixed
-`safeSync()` now handles populated refs, but related paths still use direct `.toString()` on possibly populated documents.
-
-Required fix:
-- Create one helper such as `normalizeObjectId(value): string`.
-- Use it in `safeSync()`, old/new key comparison in `update()`, batch grouping in `syncMultipleStudentCriterionScores()`, event payload creation, and any identity comparisons.
-- Add tests for raw ObjectIds, strings, populated Mongoose documents, and lean populated objects.
-
-### 8. Evaluation detail update guard is inconsistent
-`EvaluationDetailService.update()` rejects `rawDto.log` when it is present, but later still has a branch that writes `details.$.log`.
-
-Required fix:
-- Decide whether direct log updates are allowed for non-score workflows.
-- If record-backed grading logs must be blocked, remove or narrow the later write branch.
-- If non-score logs remain allowed, validate them explicitly and document which fields may bypass academic-record intent.
+A teacher with only teacher permissions must not bypass maintenance mode.
 
 ## Implementation Scope
 
-1. Restore backend build.
-   - Remove unreachable legacy code in `EvaluationDetailService.remove()`.
-   - Stop reading `class_id` directly from `SummaryPoint`.
-   - Fix `recomputeTotalScore()` return behavior and type.
+### 1. Keep maintenance state server-backed
+Continue using backend system settings as the source of truth for module maintenance states.
 
-2. Standardize backend sync helpers.
-   - Add a shared ObjectId normalization helper.
-   - Add a shared grading event payload builder.
-   - Use the helpers in single create, bulk create, update, soft delete, restore, force delete, import commit, daily report sync, and intent flows.
+Required behavior:
+- Any authenticated user can read module maintenance states.
+- Only admin users can update module maintenance states.
+- Frontend must not rely on `localStorage` as the source of truth.
+- Same-tab and cross-tab updates should remain synchronized through the existing update notification mechanism.
 
-3. Harden record-backed grading intent handling.
-   - Validate affected summary existence and locked status before mutating records.
-   - Keep permission-clamped deletes explicit in the response.
-   - Return `actual_count`, `evaluation_detail`, `summary`, `changed_record_ids`, and `sync_status` from the same canonical post-sync snapshot.
+### 2. Enforce maintenance at dashboard route level
+Add a maintenance guard at the dashboard layout level so all dashboard child routes are covered, including routes that do not currently wrap their page content in `RouteGuard`.
 
-4. Fix realtime event scoping.
-   - Enrich `academic_record_changed` and `summary_recomputed` events with `classId`, `semesterId`, `studentId`, `summaryId`, and affected criterion ids.
-   - Make SSE filtering strict when filters are supplied.
-   - Ensure frontend callers can rely on `updatedDetail` or `updatedDetails` when present, and can fall back to refetch when absent.
+Required behavior:
+- The dashboard layout should check the current pathname against the route-to-module map.
+- If the matching module is under maintenance and the user is not admin, show the maintenance screen instead of children.
+- Existing per-page permission guards should continue to handle permission checks.
+- Avoid duplicating permission denial behavior at the layout level.
 
-5. Preserve source-of-truth rules.
-   - `academic_record` remains the source of truth for record-backed counts, selected options, and manual score records.
-   - `evaluation_detail.current_count`, `system_score`, selected option fields, and draft `sv_score`/`gv_score` are derived from active records or explicit academic-record intents.
-   - Direct `evaluation_detail` score mutation stays blocked for record-backed criteria.
+Implementation note:
+- If reusing `RouteGuard` in `frontend/src/app/(dashboard)/layout.tsx`, make sure it does not conflict with nested `RouteGuard` instances.
+- If nested guards cause duplicate loading or duplicate API calls, extract maintenance checking into a focused `MaintenanceGuard` component and use it in the layout.
+
+### 3. Fix `/students/tasks` bypass
+Update `frontend/src/app/(dashboard)/students/tasks/page.tsx` so student and teacher users no longer bypass maintenance checks.
+
+Required behavior:
+- Student and teacher users may bypass only the permission requirement when business rules allow them to view tasks.
+- They must still pass maintenance checks.
+- The page should remain accessible to permitted non-admin users only when the `events` module is not under maintenance.
+
+Suggested approach:
+- Always render through a guard.
+- Pass `anyPermission={undefined}` or no permission props for the student/teacher bypass case.
+- Keep the existing permission requirement for other roles: `STUDENT_PAGE` or `READ_STUDENT_TASK`.
+
+### 4. Expand route-to-module mapping
+Update `frontend/src/utils/module-maintenance.util.ts` so every route reachable from tasks maps to the correct module.
+
+Required mappings:
+- `/students/tasks` -> `events`
+- `/tasks` -> `events`
+- `/students/record` -> `attendance`
+- `/students` -> `sv-profile`
+- `/grading` -> `grading`
+- `/grading/score` -> `grading` through prefix matching
+- `/grading/categories` -> `grading` through prefix matching
+- `/dormitory` -> `dormitory`
+- `/club` -> `club`
+- `/permissions` -> `security`
+- `/system` -> `config`
+- `/reports` -> `reports`
+- `/notifications` -> `notifications`
+
+Mapping must normalize query strings and trailing slashes before matching if the guard receives a full linked URL or query-bearing pathname.
+
+### 5. Block task-linked navigation before route change
+Add a pre-navigation check inside task link handlers so users get immediate feedback instead of briefly entering a blocked page.
+
+Relevant files:
+- `frontend/src/components/students/tasks/StudentTasksTab.tsx`
+- Any dashboard task panel that navigates to `task.linkedPage`
+
+Required behavior:
+- Before `router.push(task.linkedPage)`, resolve the destination module.
+- Read the latest maintenance states or use a short-lived shared cache.
+- If the destination module is under maintenance and the user is not admin, show a maintenance toast or redirect to the maintenance view instead of pushing the route.
+- The route-level guard remains the final enforcement layer even if the pre-navigation check is missed.
+
+### 6. Protect unguarded placeholder routes
+Ensure currently unguarded dashboard pages still obey maintenance mode:
+- `/tasks`
+- `/dormitory`
+- `/club`
+
+Preferred solution:
+- Dashboard-level maintenance guard covers these routes automatically.
+
+Fallback solution:
+- Wrap each route with a dedicated guard, but this is more error-prone and should not be the primary fix.
 
 ## Out of Scope
-- Redesigning `/students/record`, `/grading`, or `/grading/score`.
-- Changing scoring formulas, grading thresholds, category max scores, or role policy unless required to preserve the current contract.
-- Running production data repair.
-- Introducing a new persistence table only for realtime synchronization.
+- Changing permission policy for who can view or manage tasks.
+- Changing task assignment logic, task progress logic, or task-linked page modes.
+- Changing grading, attendance, or student record business rules.
+- Adding a new database table for maintenance state.
+- Blocking global login during maintenance. This scope only blocks maintained modules/pages after login.
 
 ## Acceptance Criteria
-- `npm run build` passes in `backend`.
-- `EvaluationDetailService.remove()` has no unreachable stale code and direct delete returns a controlled 400 response.
-- `recomputeTotalScore()` has a clear return contract and callers no longer receive `undefined` when a summary exists.
-- `academic_record_changed` payloads include enough identifiers and data for class/semester-scoped realtime updates.
-- SSE subscriptions with `classId` and `semesterId` do not receive unrelated or unscoped grading events.
-- Creating, updating, soft deleting, restoring, force deleting, bulk creating, importing, and intent-mutating academic records all rebuild the matching embedded `evaluation_detail`.
-- Updating a record's student, semester, or criterion syncs both the old key and the new key.
-- Locked summaries do not drift silently after grading intents or record mutations.
-- `/students/record`, `/grading`, and `/grading/score` can reconcile from backend responses or realtime events without manual refresh for normal unlocked summaries.
+- A teacher account cannot access `/students/tasks` when the `events` module is under maintenance.
+- A teacher account cannot access `/students/record` from a task link when the `attendance` module is under maintenance.
+- A teacher account cannot access `/grading/score` or `/grading/categories` from a task link when the `grading` module is under maintenance.
+- A student account cannot access maintained modules through direct URL or task card navigation.
+- An admin account can still access maintained modules.
+- Direct URL access and in-app navigation produce the same maintenance behavior.
+- `/tasks`, `/dormitory`, and `/club` are covered by maintenance enforcement even if they do not define their own page-level `RouteGuard`.
+- Maintenance state changes made by admin are reflected in other tabs or sessions without relying on localStorage as the source of truth.
+- Existing permission-denied behavior remains unchanged when a module is not under maintenance.
 
 ## Test Plan
-- Run `npm run build` in `backend`.
-- Add or update backend unit tests for:
-  - `EvaluationDetailService.remove()` direct delete rejection.
-  - `recomputeTotalScore()` return value and persisted totals.
-  - ObjectId normalization for raw ids and populated refs.
-  - single create, bulk create, update old/new key, soft delete, restore, force delete, import commit, and score intent sync.
-  - locked summary preflight behavior.
-  - strict SSE filtering by class and semester.
-- Add integration-style tests for:
-  - count-based criteria syncing `current_count`, `system_score`, `sv_score`, and `gv_score`.
-  - `single_option` criteria syncing selected option fields.
-  - manual score intent syncing the detail and summary total.
-  - permission-clamped delete intents returning the actual count.
-- Manually verify with two browser sessions:
-  - one on `/students/record`;
-  - one on `/grading/score`;
-  - create, edit, delete, restore, select option, clear score, and confirm both screens update without reload.
+
+### Automated checks
+- Run frontend typecheck or build.
+- Run backend build if maintenance API changes are touched.
+- Add or update frontend tests for:
+  - `getModuleIdByPath()` matching `/students/tasks`, `/tasks`, `/grading/score`, query strings, and trailing slashes.
+  - non-admin users being blocked when a mapped module is maintained.
+  - admin users bypassing maintenance.
+  - `/students/tasks` using guard-based maintenance checks even when permission props are bypassed.
+
+### Manual verification
+Use at least one admin account and one teacher account.
+
+1. Log in as admin.
+2. Turn on maintenance for `events`.
+3. Log in as teacher in another browser/session.
+4. Open `/students/tasks` directly and confirm the maintenance screen appears.
+5. Turn off `events`, turn on `attendance`.
+6. As teacher, open `/students/tasks`, click a task linked to `/students/record`, and confirm access is blocked.
+7. Turn on `grading`.
+8. As teacher, click a task linked to `/grading/score` or `/grading/categories`, and confirm access is blocked.
+9. Open the same routes as admin and confirm access is allowed.
+10. Test `/tasks`, `/dormitory`, and `/club` directly with their modules under maintenance.
 
 ## Deliverable
-A buildable backend and a consistent realtime sync contract for academic record backed grading, with tests covering the compile blockers and the main drift-prone mutation paths.
+A consistent maintenance-mode enforcement layer that prevents teacher, student, and other non-admin accounts from entering maintained modules through `/students/tasks`, task-linked routes, direct URLs, or unguarded dashboard pages, while preserving admin bypass and existing permission behavior.

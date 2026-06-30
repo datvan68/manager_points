@@ -77,6 +77,7 @@ describe('SystemService', () => {
   let loginLogModel: any;
   let userModel: any;
   let performanceMetricModel: any;
+  let systemSettingModel: any;
 
   beforeEach(async () => {
     // Reset mock status_history
@@ -192,7 +193,12 @@ describe('SystemService', () => {
           provide: getModelToken(SystemSetting.name),
           useValue: {
             findOne: jest.fn().mockReturnValue({
+              lean: jest.fn().mockReturnThis(),
               exec: jest.fn().mockResolvedValue(null),
+            }),
+            findOneAndUpdate: jest.fn().mockReturnValue({
+              lean: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue({ value: { states: {} }, updatedAt: new Date('2026-01-01T00:00:00.000Z') }),
             }),
           },
         },
@@ -244,10 +250,68 @@ describe('SystemService', () => {
     loginLogModel = module.get(getModelToken(LoginLog.name));
     userModel = module.get(getModelToken(User.name));
     performanceMetricModel = module.get(getModelToken(SystemPerformanceMetric.name));
+    systemSettingModel = module.get(getModelToken(SystemSetting.name));
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('should read module maintenance states from system settings', async () => {
+    const updatedAt = new Date('2026-01-01T00:00:00.000Z');
+    systemSettingModel.findOne.mockReturnValueOnce({
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue({
+        value: { states: { grading: true, attendance: false, reports: 'yes' } },
+        updatedAt,
+      }),
+    });
+
+    const result = await service.getModuleMaintenanceStates();
+
+    expect(result).toEqual({
+      states: { grading: true, attendance: false, reports: false },
+      updatedAt,
+    });
+  });
+
+  it('should update one module maintenance flag while preserving other flags', async () => {
+    const updatedAt = new Date('2026-01-01T00:00:00.000Z');
+    systemSettingModel.findOne.mockReturnValueOnce({
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue({ value: { states: { grading: true } } }),
+    });
+    systemSettingModel.findOneAndUpdate.mockReturnValueOnce({
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue({
+        value: { states: { grading: true, attendance: true } },
+        updatedAt,
+      }),
+    });
+
+    const result = await service.updateModuleMaintenanceState(
+      'attendance',
+      { isMaintenance: true },
+      mockUserId,
+    );
+
+    expect(systemSettingModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { key: 'SYSTEM_MODULE_MAINTENANCE' },
+      expect.objectContaining({
+        value: { states: { grading: true, attendance: true } },
+      }),
+      { upsert: true, new: true },
+    );
+    expect(result).toEqual({
+      states: { grading: true, attendance: true },
+      updatedAt,
+    });
+  });
+
+  it('should reject invalid module maintenance ids', async () => {
+    await expect(
+      service.updateModuleMaintenanceState('../bad', { isMaintenance: true }, mockUserId),
+    ).rejects.toThrow(BadRequestException);
   });
 
   describe('getLoginLogs', () => {

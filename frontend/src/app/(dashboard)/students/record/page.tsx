@@ -5149,13 +5149,9 @@ export default function StudentRecordPage() {
         </div>
       }
     >
-      {bypassGuard ? (
+      <RouteGuard requiredPermission={bypassGuard ? undefined : "STUDENT_PAGE"}>
         <StudentRecordPageContent />
-      ) : (
-        <RouteGuard requiredPermission="STUDENT_PAGE">
-          <StudentRecordPageContent />
-        </RouteGuard>
-      )}
+      </RouteGuard>
     </Suspense>
   );
 }

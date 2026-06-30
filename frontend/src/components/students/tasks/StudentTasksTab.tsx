@@ -7,7 +7,8 @@ import {
   CheckCircle2, Clock, ExternalLink, Users, UserCheck, ShieldAlert, X
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/providers/auth-provider';
+import { useAuth, isAdminUser } from '@/providers/auth-provider';
+import { getModuleIdByPath, getMaintenanceStatesWithCache } from '@/utils/module-maintenance.util';
 import AddTaskModal from './AddTaskModal';
 import Action from '@/components/ui/Action';
 import { usePermission } from '@/components/guards/RouteGuard';
@@ -362,6 +363,22 @@ const StudentTasksTab = () => {
     const mode = getLinkedTaskMode(task.linkedPage);
     if (mode === 'none') {
       return;
+    }
+
+    // Pre-navigation check for maintenance mode
+    if (user && !isAdminUser(user)) {
+      const moduleId = getModuleIdByPath(task.linkedPage);
+      if (moduleId) {
+        try {
+          const states = await getMaintenanceStatesWithCache();
+          if (states[moduleId] === true) {
+            toast.error('Phân hệ này đang bảo trì. Vui lòng quay lại sau.');
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to check maintenance state:', err);
+        }
+      }
     }
     
     try {
@@ -822,8 +839,25 @@ const StudentTasksTab = () => {
                         {/* Link to page button */}
                         {linkMode !== 'none' && (
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               const isManager = isAdminOrSupervisor(user) || taskAccess.editTask;
+
+                              // Pre-navigation check for maintenance mode
+                              if (user && !isAdminUser(user)) {
+                                const moduleId = getModuleIdByPath(task.linkedPage);
+                                if (moduleId) {
+                                  try {
+                                    const states = await getMaintenanceStatesWithCache();
+                                    if (states[moduleId] === true) {
+                                      toast.error('Phân hệ này đang bảo trì. Vui lòng quay lại sau.');
+                                      return;
+                                    }
+                                  } catch (err) {
+                                    console.error('Failed to check maintenance state:', err);
+                                  }
+                                }
+                              }
+
                               toast.info(`Đang chuyển hướng sang trang: ${getLinkedPageName(task.linkedPage)}`);
                               if (isManager) {
                                 router.push(task.linkedPage);

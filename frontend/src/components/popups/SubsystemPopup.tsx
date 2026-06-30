@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { authApi } from '@/api/auth-api';
+import { systemApi } from '@/api/system-api';
+import { applyModuleMaintenanceStates, notifyModuleMaintenanceUpdated, subscribeModuleMaintenanceUpdates } from '@/utils/module-maintenance.util';
 
 
 
@@ -144,31 +146,13 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Khởi tạo trạng thái ban đầu từ localStorage đồng bộ nếu có
-  const [modulesState, setModulesState] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('subsystems_maintenance_states');
-        if (stored) {
-          const states = JSON.parse(stored);
-          return INITIAL_MODULES.map(mod => {
-            const isMaint = states[mod.id] === true;
-            return {
-              ...mod,
-              status: isMaint ? 'MAINTENANCE' : (mod.id === 'security' ? 'RESTRICTED' : 'ACTIVE')
-            };
-          });
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return INITIAL_MODULES;
-  });
+  // Initialize modules before server-backed maintenance states are loaded.
+  const [modulesState, setModulesState] = useState(INITIAL_MODULES);
 
   const { user, hasPermission, hasAnyPermission, hasAllPermissions } = useAuth();
   const [routeMappings, setRouteMappings] = useState<any[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [updatingMaintenanceModuleId, setUpdatingMaintenanceModuleId] = useState<string | null>(null);
 
   // Trigger reload on update event
   useEffect(() => {
@@ -201,64 +185,60 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
     fetchMappings();
   }, [refreshTrigger]);
 
-  // Lắng nghe sự kiện storage để đồng bộ trạng thái bảo trì giữa các component
+  // Keep module cards synced with server-backed maintenance states.
   useEffect(() => {
-    const handleStorageChange = () => {
+    if (!isOpen || !user) return;
+
+    let cancelled = false;
+
+    const applyStates = (states: Record<string, boolean>) => {
+      if (cancelled) return;
+      setModulesState((prev) => applyModuleMaintenanceStates(prev, states));
+    };
+
+    const loadMaintenanceStates = async () => {
       try {
-        const stored = localStorage.getItem('subsystems_maintenance_states');
-        if (stored) {
-          const states = JSON.parse(stored);
-          setModulesState(prev => prev.map(mod => {
-            const isMaint = states[mod.id] === true;
-            return {
-              ...mod,
-              status: isMaint ? 'MAINTENANCE' : (mod.id === 'security' ? 'RESTRICTED' : 'ACTIVE')
-            };
-          }));
-        }
-      } catch (e) {
-        console.error(e);
+        const response = await systemApi.getModuleMaintenanceStates();
+        applyStates(response.states || {});
+      } catch (error) {
+        console.error('Failed to fetch module maintenance states:', error);
       }
     };
 
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', handleStorageChange);
-      return () => window.removeEventListener('storage', handleStorageChange);
-    }
-  }, []);
+    loadMaintenanceStates();
+    const unsubscribe = subscribeModuleMaintenanceUpdates(applyStates);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [isOpen, user]);
 
   const getInitials = (name: string) => {
     if (!name || typeof name !== 'string') return '??';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   };
 
-  const toggleMaintenance = (moduleId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const toggleMaintenance = async (moduleId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation();
+    const newState = e.target.checked;
+    setUpdatingMaintenanceModuleId(moduleId);
+
     try {
-      const stored = localStorage.getItem('subsystems_maintenance_states');
-      const states = stored ? JSON.parse(stored) : {};
-      const newState = e.target.checked;
-      states[moduleId] = newState;
-      localStorage.setItem('subsystems_maintenance_states', JSON.stringify(states));
+      const response = await systemApi.updateModuleMaintenanceState(moduleId, {
+        isMaintenance: newState,
+      });
+      const states = response.states || {};
 
-      // Phát sự kiện storage để đồng bộ các component khác
-      window.dispatchEvent(new Event('storage'));
-
-      // Cập nhật local state
-      setModulesState(prev => prev.map(mod => {
-        if (mod.id === moduleId) {
-          return {
-            ...mod,
-            status: newState ? 'MAINTENANCE' : (mod.id === 'security' ? 'RESTRICTED' : 'ACTIVE')
-          };
-        }
-        return mod;
-      }));
+      setModulesState((prev) => applyModuleMaintenanceStates(prev, states));
+      notifyModuleMaintenanceUpdated(states);
 
       toast.success(`Đã ${newState ? 'bật' : 'tắt'} chế độ bảo trì cho phân hệ.`);
     } catch (err) {
       console.error(err);
       toast.error('Không thể cập nhật trạng thái bảo trì.');
+    } finally {
+      setUpdatingMaintenanceModuleId(null);
     }
   };
 
@@ -471,6 +451,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                     type="checkbox" 
                                     checked={mod.status === 'MAINTENANCE'} 
                                     onChange={(e) => toggleMaintenance(mod.id, e)} 
+                                    disabled={updatingMaintenanceModuleId === mod.id}
                                     className="sr-only peer" 
                                   />
                                   <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-xl peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-xl after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-500"></div>
@@ -549,6 +530,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                     type="checkbox" 
                                     checked={mod.status === 'MAINTENANCE'} 
                                     onChange={(e) => toggleMaintenance(mod.id, e)} 
+                                    disabled={updatingMaintenanceModuleId === mod.id}
                                     className="sr-only peer" 
                                   />
                                   <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-xl peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-xl after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-500"></div>
@@ -613,6 +595,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                     type="checkbox" 
                                     checked={mod.status === 'MAINTENANCE'} 
                                     onChange={(e) => toggleMaintenance(mod.id, e)} 
+                                    disabled={updatingMaintenanceModuleId === mod.id}
                                     className="sr-only peer" 
                                   />
                                   <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-xl peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-xl after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-500"></div>
@@ -677,6 +660,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                                     type="checkbox" 
                                     checked={mod.status === 'MAINTENANCE'} 
                                     onChange={(e) => toggleMaintenance(mod.id, e)} 
+                                    disabled={updatingMaintenanceModuleId === mod.id}
                                     className="sr-only peer" 
                                   />
                                   <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-xl peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-xl after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-500"></div>

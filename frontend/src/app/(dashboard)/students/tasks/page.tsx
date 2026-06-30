@@ -112,7 +112,9 @@ export default function StudentTasksPage() {
       }
     >
       {bypassGuard ? (
-        <StudentTasksPageContent />
+        <RouteGuard>
+          <StudentTasksPageContent />
+        </RouteGuard>
       ) : (
         <RouteGuard anyPermission={["STUDENT_PAGE", "READ_STUDENT_TASK"]}>
           <StudentTasksPageContent />
