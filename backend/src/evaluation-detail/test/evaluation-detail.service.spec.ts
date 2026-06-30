@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EvaluationDetailService } from '../evaluation-detail.service';
 import { getModelToken } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { AcademicRecord } from '../../academic-record/schemas/academic-record.schema';
 import { Criterion } from '../../criteria/schemas/criterion.schema';
 import { SummaryPoint } from '../../summaries-point/schemas/summary-point.schema';
@@ -376,16 +376,16 @@ describe('EvaluationDetailService', () => {
           [
             {
               ...mockSummary.details[0],
-              current_count: 2,
-              system_score: 20,
+              current_count: 1,
+              system_score: 5,
               gv_score: 20,
             },
           ],
           {
             id: jest.fn().mockReturnValue({
               ...mockSummary.details[0],
-              current_count: 2,
-              system_score: 20,
+              current_count: 1,
+              system_score: 5,
               gv_score: 20,
             }),
           }
@@ -410,7 +410,6 @@ describe('EvaluationDetailService', () => {
       const result = await service.update(
         detailId.toString(),
         {
-          current_count: 2,
           gv_score: 20,
           gv_reviewed_at: new Date().toISOString(),
           gv_reviewed_by: '507f1f77bcf86cd799439016',
@@ -418,8 +417,8 @@ describe('EvaluationDetailService', () => {
         { userId: '507f1f77bcf86cd799439016', roleName: 'admin' },
       );
 
-      expect(result.current_count).toBe(2);
-      expect(result.system_score).toBe(20);
+      expect(result.current_count).toBe(1);
+      expect(result.system_score).toBe(5);
       expect(result.gv_score).toBe(20);
     });
 
@@ -449,7 +448,6 @@ describe('EvaluationDetailService', () => {
         exec: jest.fn().mockResolvedValue(mockSummary),
       } as any);
       jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
-      jest.spyOn(service as any, 'syncAcademicRecords').mockImplementation(async (_, __, count) => ({ actualCount: count, originalCount: 0, dailyReportCount: 0, permissionLockedCount: 0 }));
 
       mockCriterionModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
@@ -462,53 +460,13 @@ describe('EvaluationDetailService', () => {
         }),
       } as any);
 
-      const updatedSummary = {
-        ...mockSummary,
-        details: Object.assign(
-          [
-            {
-              ...mockSummary.details[0],
-              current_count: 1,
-              system_score: 10,
-              selected_option_id: 'opt2',
-            },
-          ],
-          {
-            id: jest.fn().mockReturnValue({
-              ...mockSummary.details[0],
-              current_count: 1,
-              system_score: 10,
-              selected_option_id: 'opt2',
-            }),
-          }
-        ),
-      };
-
-      mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(updatedSummary),
-      } as any);
-      mockSummaryPointModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(updatedSummary),
-      } as any);
-
-      // Mock aggregation for recomputeTotalScore
-      mockSummaryPointModel.aggregate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ totalScore: 10 }]),
-      } as any);
-      mockSummaryPointModel.updateOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({}),
-      } as any);
-
-      const result = await service.update(
+      await expect(service.update(
         detailId.toString(),
         {
           selected_option_id: 'opt2',
         } as any,
         { userId: 'admin1', roleName: 'admin' },
-      );
-
-      expect(result.system_score).toBe(10);
-      expect(result.selected_option_id).toBe('opt2');
+      )).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if update provides invalid option for single_option', async () => {
@@ -583,11 +541,6 @@ describe('EvaluationDetailService', () => {
         exec: jest.fn().mockResolvedValue(mockSummary),
       } as any);
       jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
-      jest.spyOn(service as any, 'syncAcademicRecords').mockImplementation(async (_, __, count) => ({ actualCount: count, originalCount: 0, dailyReportCount: 0, permissionLockedCount: 0 }));
-      mockAcademicRecordModel.find.mockReturnValue({
-        populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
-      } as any);
 
       mockCriterionModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
@@ -598,56 +551,18 @@ describe('EvaluationDetailService', () => {
         }),
       } as any);
 
-      const updatedSummary = {
-        ...mockSummary,
-        details: Object.assign(
-          [
-            {
-              ...mockSummary.details[0],
-              current_count: 3,
-              system_score: 7,
-            },
-          ],
-          {
-            id: jest.fn().mockReturnValue({
-              ...mockSummary.details[0],
-              current_count: 3,
-              system_score: 7,
-            }),
-          }
-        ),
-      };
-
-      mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(updatedSummary),
-      } as any);
-      mockSummaryPointModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(updatedSummary),
-      } as any);
-
-      mockSummaryPointModel.aggregate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ totalScore: 7 }]),
-      } as any);
-      mockSummaryPointModel.updateOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({}),
-      } as any);
-
-      const result = await service.update(
+      await expect(service.update(
         detailId.toString(),
         {
           current_count: 3,
         } as any,
         { userId: 'admin1', roleName: 'admin' },
-      );
-
-      // max=10, score=-1, count=3 => 7
-      expect(result.system_score).toBe(7);
-      expect(result.current_count).toBe(3);
+      )).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('bulkUpsert', () => {
-    it('should process current_count: 0 and not clamp if records are deletable', async () => {
+    it('should process sv_score/gv_score updates and call findOneAndUpdate', async () => {
       const summaryId = new Types.ObjectId().toString();
       const criterionId = new Types.ObjectId().toString();
 
@@ -662,6 +577,8 @@ describe('EvaluationDetailService', () => {
             criterion_id: criterionId,
             current_count: 1,
             system_score: 10,
+            sv_score: null,
+            gv_score: null,
             status: 'draft',
           },
         ],
@@ -681,13 +598,6 @@ describe('EvaluationDetailService', () => {
         }),
       } as any);
 
-      mockAcademicRecordModel.find.mockReturnValue({
-        populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: 'rec1', recorded_by: 'admin1' }]),
-      } as any);
-
-      jest.spyOn(service as any, 'canRequesterDeleteRecord').mockReturnValue(true);
-
       mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockSummary),
       } as any);
@@ -697,7 +607,8 @@ describe('EvaluationDetailService', () => {
         details: [
           {
             criterion_id: criterionId,
-            current_count: 0,
+            sv_score: 20,
+            gv_score: 20,
           }
         ]
       };
@@ -705,156 +616,12 @@ describe('EvaluationDetailService', () => {
       const result = await service.bulkUpsert(dto, { userId: 'admin1', roleName: 'admin' });
 
       expect(result.success).toBe(true);
-      expect(result.clampResults.length).toBe(0);
-
       expect(mockSummaryPointModel.findOneAndUpdate).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
           $set: expect.objectContaining({
-            'details.$.current_count': 0,
-            'details.$.system_score': 0,
-          })
-        })
-      );
-    });
-
-    it('should NOT clamp and simply update current_count even if record has daily_report_id', async () => {
-      const summaryId = new Types.ObjectId().toString();
-      const criterionId = new Types.ObjectId().toString();
-
-      const mockSummary = {
-        _id: summaryId,
-        student_id: new Types.ObjectId(),
-        semester_id: new Types.ObjectId(),
-        status: 'draft',
-        details: [
-          {
-            _id: new Types.ObjectId(),
-            criterion_id: criterionId,
-            current_count: 1,
-            system_score: 10,
-            status: 'draft',
-          },
-        ],
-      };
-
-      mockSummaryPointModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockSummary),
-      } as any);
-      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
-
-      mockCriterionModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          _id: criterionId,
-          score_per_unit: 10,
-          min_score: 0,
-          max_score: 100,
-        }),
-      } as any);
-
-      mockAcademicRecordModel.find.mockReturnValue({
-        populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: 'rec1', daily_report_id: 'dr1', recorded_by: 'admin1' }]),
-      } as any);
-
-      jest.spyOn(service as any, 'canRequesterDeleteRecord').mockReturnValue(false);
-
-      mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockSummary),
-      } as any);
-
-      const dto: any = {
-        summary_id: summaryId,
-        details: [
-          {
-            criterion_id: criterionId,
-            current_count: 0,
-          }
-        ]
-      };
-
-      const result = await service.bulkUpsert(dto, { userId: 'admin1', roleName: 'admin' });
-
-      expect(result.success).toBe(true);
-      expect(result.clampResults.length).toBe(0);
-
-      expect(mockSummaryPointModel.findOneAndUpdate).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          $set: expect.objectContaining({
-            'details.$.current_count': 0,
-            'details.$.system_score': 0,
-          })
-        })
-      );
-    });
-
-    it('should NOT clamp if record cannot be deleted due to permissions', async () => {
-      const summaryId = new Types.ObjectId().toString();
-      const criterionId = new Types.ObjectId().toString();
-
-      const mockSummary = {
-        _id: summaryId,
-        student_id: new Types.ObjectId(),
-        semester_id: new Types.ObjectId(),
-        status: 'draft',
-        details: [
-          {
-            _id: new Types.ObjectId(),
-            criterion_id: criterionId,
-            current_count: 1,
-            system_score: 10,
-            status: 'draft',
-          },
-        ],
-      };
-
-      mockSummaryPointModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockSummary),
-      } as any);
-      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
-
-      mockCriterionModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          _id: criterionId,
-          score_per_unit: 10,
-          min_score: 0,
-          max_score: 100,
-        }),
-      } as any);
-
-      mockAcademicRecordModel.find.mockReturnValue({
-        populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: 'rec1', recorded_by: { _id: 'admin_id', role: { name: 'admin' } } }]),
-      } as any);
-
-      jest.spyOn(service as any, 'canRequesterDeleteRecord').mockReturnValue(false);
-
-      mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockSummary),
-      } as any);
-
-      const dto: any = {
-        summary_id: summaryId,
-        details: [
-          {
-            criterion_id: criterionId,
-            current_count: 0,
-          }
-        ]
-      };
-
-      const result = await service.bulkUpsert(dto, { userId: 'teacher1', roleName: 'teacher' });
-
-      expect(result.success).toBe(true);
-      expect(result.clampResults.length).toBe(0);
-
-      expect(mockSummaryPointModel.findOneAndUpdate).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          $set: expect.objectContaining({
-            'details.$.current_count': 0,
-            'details.$.system_score': 0,
+            'details.$.sv_score': 20,
+            'details.$.gv_score': 20,
           })
         })
       );
@@ -935,6 +702,54 @@ describe('EvaluationDetailService', () => {
       // It should delete the most recent records first (rec3, rec2)
       expect(mockAcademicRecordModel.findByIdAndDelete).toHaveBeenCalledWith('rec3');
       expect(mockAcademicRecordModel.findByIdAndDelete).toHaveBeenCalledWith('rec2');
+    });
+  });
+
+  describe('remove', () => {
+    it('should throw ForbiddenException if requester is student', async () => {
+      const requester = { roleName: 'Student' };
+      await expect(service.remove(new Types.ObjectId().toString(), requester)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw ForbiddenException if requester is teacher', async () => {
+      const requester = { roleName: 'Teacher' };
+      await expect(service.remove(new Types.ObjectId().toString(), requester)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if evaluation detail not found', async () => {
+      const requester = { roleName: 'Admin' };
+      mockSummaryPointModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null)
+      });
+      await expect(service.remove(new Types.ObjectId().toString(), requester)).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if summary is locked', async () => {
+      const requester = { roleName: 'Admin' };
+      const detailId = new Types.ObjectId();
+      const summary = { _id: new Types.ObjectId(), status: 'locked' };
+      mockSummaryPointModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(summary)
+      });
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+
+      await expect(service.remove(detailId.toString(), requester)).rejects.toThrow(
+        new BadRequestException('Không thể xóa chi tiết chấm điểm của bảng điểm đã chốt')
+      );
+    });
+
+    it('should throw BadRequestException for direct delete rejection on unlocked summary', async () => {
+      const requester = { roleName: 'Admin' };
+      const detailId = new Types.ObjectId();
+      const summary = { _id: new Types.ObjectId(), status: 'draft' };
+      mockSummaryPointModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(summary)
+      });
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+
+      await expect(service.remove(detailId.toString(), requester)).rejects.toThrow(
+        new BadRequestException('Vui lòng sử dụng cơ chế intent (clear_score) hoặc xóa hồ sơ minh chứng để xóa điểm.')
+      );
     });
   });
 });

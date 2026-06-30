@@ -22,7 +22,7 @@ import { getRequesterRoleName, isStudent, isTeacher } from '../auth/utils/role.u
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
 import { gradingEventEmitter } from '../system/grading-event-emitter';
 import { IntentScoreDto } from './dto/intent-score.dto';
-import { calculateCriterionScoreHelper } from './academic-record.utils';
+import { calculateCriterionScoreHelper, normalizeObjectId, buildGradingEventPayload } from './academic-record.utils';
 
 
 export interface AcademicRecordFindAllQuery {
@@ -56,11 +56,22 @@ export class AcademicRecordService {
 
   private importSessions = new Map<string, any>();
 
+  private async checkSummaryLocked(studentId: any, semesterId: any): Promise<void> {
+    if (!studentId || !semesterId) return;
+    const summary = await this.summaryPointModel.findOne({
+      student_id: new Types.ObjectId(normalizeObjectId(studentId)),
+      semester_id: new Types.ObjectId(normalizeObjectId(semesterId)),
+    } as any).exec();
+    if (summary && summary.status === 'locked') {
+      throw new BadRequestException('Không thể thực hiện thao tác do bảng điểm rèn luyện đã chốt.');
+    }
+  }
+
   private async safeSync(record: any): Promise<void> {
     if (!record) return;
-    const studentId = record.student_id ? record.student_id.toString() : '';
-    const semesterId = record.semester_id ? record.semester_id.toString() : '';
-    const criterionId = record.criterion_id ? record.criterion_id.toString() : '';
+    const studentId = normalizeObjectId(record.student_id);
+    const semesterId = normalizeObjectId(record.semester_id);
+    const criterionId = normalizeObjectId(record.criterion_id);
 
     if (studentId && semesterId && criterionId) {
       await this.syncStudentCriterionScore(studentId, semesterId, criterionId);
@@ -206,8 +217,12 @@ export class AcademicRecordService {
             detail.selected_option_score = selectedOptionScore;
             // Also update final_score to systemScore if it hasn't been set by student/gv/admin yet
             if (detail.status === 'draft') {
-              detail.sv_score = systemScore;
-              detail.gv_score = systemScore;
+              if (detail.sv_score === null || detail.sv_score === undefined) {
+                detail.sv_score = systemScore;
+              }
+              if (detail.gv_score === null || detail.gv_score === undefined) {
+                detail.gv_score = systemScore;
+              }
             }
             details[detailIndex] = detail;
           }
@@ -215,14 +230,15 @@ export class AcademicRecordService {
           currentSummary.details = details;
           currentSummary.markModified('details');
           await currentSummary.save();
-          await this.summariesPointService.recomputeTotalScore(currentSummary._id.toString());
-
-          gradingEventEmitter.emit('grading_event', {
+          const recomputed = await this.summariesPointService.recomputeTotalScore(currentSummary._id.toString());
+          const student = await this.studentModel.findById(studentId).exec();
+          const payload = await buildGradingEventPayload({
             type: 'academic_record_changed',
-            semesterId: currentSummary.semester_id?.toString(),
-            studentId: currentSummary.student_id?.toString(),
-            summaryId: currentSummary._id.toString(),
+            summary: recomputed || currentSummary,
+            student,
+            criterionIds: [criterionId],
           });
+          gradingEventEmitter.emit('grading_event', payload);
 
           success = true;
         } catch (err: any) {
@@ -250,9 +266,9 @@ export class AcademicRecordService {
     // Group by student_id and semester_id
     const groups = new Map<string, { studentId: string; semesterId: string; criterionIds: Set<string> }>();
     for (const r of records) {
-      const sId = r.student_id ? r.student_id.toString() : '';
-      const semId = r.semester_id ? r.semester_id.toString() : '';
-      const cId = r.criterion_id ? r.criterion_id.toString() : '';
+      const sId = normalizeObjectId(r.student_id);
+      const semId = normalizeObjectId(r.semester_id);
+      const cId = normalizeObjectId(r.criterion_id);
       if (!sId || !semId || !cId) continue;
       const key = `${sId}_${semId}`;
       if (!groups.has(key)) {
@@ -274,6 +290,8 @@ export class AcademicRecordService {
     for (const [_, group] of groups) {
       const { studentId, semesterId, criterionIds } = group;
       if (!Types.ObjectId.isValid(studentId) || !Types.ObjectId.isValid(semesterId)) continue;
+
+      const student = await this.studentModel.findById(studentId).exec();
 
       // Count active academic records for all criteria of this student/semester in one aggregation
       const activeCounts = await this.academicRecordModel.aggregate([
@@ -425,14 +443,14 @@ export class AcademicRecordService {
             currentSummary.details = details;
             currentSummary.markModified('details');
             await currentSummary.save();
-            await this.summariesPointService.recomputeTotalScore(currentSummary._id.toString(), preloadedMetadata);
-
-            gradingEventEmitter.emit('grading_event', {
+            const recomputed = await this.summariesPointService.recomputeTotalScore(currentSummary._id.toString(), preloadedMetadata);
+            const payload = await buildGradingEventPayload({
               type: 'academic_record_changed',
-              semesterId: currentSummary.semester_id?.toString(),
-              studentId: currentSummary.student_id?.toString(),
-              summaryId: currentSummary._id.toString(),
+              summary: recomputed || currentSummary,
+              student,
+              criterionIds: Array.from(criterionIds),
             });
+            gradingEventEmitter.emit('grading_event', payload);
 
             success = true;
           } catch (err: any) {
@@ -455,6 +473,9 @@ export class AcademicRecordService {
 
   async handleScoreIntent(intentDto: IntentScoreDto, requester?: any) {
     const { student_id, criterion_id, semester_id, intent_type, target_count, manual_score, selected_option_id, note } = intentDto;
+
+    // Preflight check: check if the summary is locked
+    await this.checkSummaryLocked(student_id, semester_id);
 
     // Verify permissions for the requester
     if (requester) {
@@ -793,6 +814,8 @@ export class AcademicRecordService {
     createAcademicRecordDto: CreateAcademicRecordDto,
     requester?: any,
   ): Promise<AcademicRecord> {
+    await this.checkSummaryLocked(createAcademicRecordDto.student_id, createAcademicRecordDto.semester_id);
+
     if (requester) {
       const roleName = (requester.roleName || '').toLowerCase();
       if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
@@ -825,6 +848,19 @@ export class AcademicRecordService {
     requester?: any,
   ): Promise<any> {
     const { records } = bulkCreateDto;
+    if (records && records.length > 0) {
+      const studentSemMap = new Map<string, { studentId: string; semesterId: string }>();
+      for (const record of records) {
+        const sId = record.student_id ? normalizeObjectId(record.student_id) : '';
+        const semId = record.semester_id ? normalizeObjectId(record.semester_id) : '';
+        if (sId && semId) {
+          studentSemMap.set(`${sId}_${semId}`, { studentId: sId, semesterId: semId });
+        }
+      }
+      for (const { studentId, semesterId } of studentSemMap.values()) {
+        await this.checkSummaryLocked(studentId, semesterId);
+      }
+    }
     if (!records || records.length === 0) {
       return { batchId: Date.now().toString(), acceptedCount: 0, insertedCount: 0, duplicatedCount: 0, failedItems: [], createdRecordIds: [], groupsSynced: 0 };
     }
@@ -1292,6 +1328,13 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
+    await this.checkSummaryLocked(oldRecord.student_id, oldRecord.semester_id);
+    if (updateAcademicRecordDto.student_id || updateAcademicRecordDto.semester_id) {
+      const nextStudent = updateAcademicRecordDto.student_id || oldRecord.student_id;
+      const nextSemester = updateAcademicRecordDto.semester_id || oldRecord.semester_id;
+      await this.checkSummaryLocked(nextStudent, nextSemester);
+    }
+
     if (oldRecord.daily_report_id && !bypassDailyReportCheck) {
       throw new BadRequestException(
         'Ghi nhận này thuộc báo cáo điểm danh ngày, không thể chỉnh sửa trực tiếp. Vui lòng chỉnh sửa qua báo cáo ngày tương ứng.',
@@ -1348,6 +1391,8 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
+    await this.checkSummaryLocked(record.student_id, record.semester_id);
+
     if (record.daily_report_id && !bypassDailyReportCheck) {
       throw new BadRequestException(
         'Ghi nhận này thuộc báo cáo điểm danh ngày, không thể xoá trực tiếp. Vui lòng chỉnh sửa hoặc xoá qua báo cáo ngày tương ứng.',
@@ -1396,6 +1441,8 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found trong thùng rác`);
     }
 
+    await this.checkSummaryLocked(record.student_id, record.semester_id);
+
     if (requester) {
       this.checkHierarchyPermission(record, requester);
     }
@@ -1428,6 +1475,8 @@ export class AcademicRecordService {
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found or already deleted`);
     }
+
+    await this.checkSummaryLocked(record.student_id, record.semester_id);
 
     if (!bypassDailyReportCheck && record.status !== 'inactive' && record.is_deleted !== true) {
       throw new BadRequestException('Chỉ có thể xóa vĩnh viễn ghi nhận rèn luyện đã nằm trong thùng rác.');
@@ -1671,6 +1720,16 @@ export class AcademicRecordService {
         semesterId = activeSem._id.toString();
       } else {
         errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: 'Không có học kỳ active để gán mặc định' });
+        continue;
+      }
+
+      // Check if summary is locked
+      const summary = await this.summaryPointModel.findOne({
+        student_id: foundStudent._id,
+        semester_id: new Types.ObjectId(semesterId),
+      } as any).select('status').exec();
+      if (summary && summary.status === 'locked') {
+        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: 'Bảng điểm rèn luyện của học kỳ này đã chốt, không thể nhập thêm điểm.' });
         continue;
       }
 

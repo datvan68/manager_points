@@ -1,3 +1,5 @@
+import { Types } from 'mongoose';
+
 export function calculateCriterionScoreHelper(params: {
   criterion: any;
   count: number;
@@ -90,3 +92,66 @@ export function calculateCriterionScoreHelper(params: {
     currentCount,
   };
 }
+
+export function normalizeObjectId(value: any): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value instanceof Types.ObjectId) {
+    return value.toString();
+  }
+  if (value && typeof value === 'object') {
+    if (value._id) {
+      return normalizeObjectId(value._id);
+    }
+    if (value.id) {
+      return normalizeObjectId(value.id);
+    }
+  }
+  return String(value);
+}
+
+export function buildGradingEventPayload(params: {
+  type: string;
+  summary: any;
+  student: any;
+  criterionIds?: string[];
+  extra?: any;
+}) {
+  const { type, summary, student, criterionIds, extra } = params;
+
+  const classId = student && student.class_id
+    ? normalizeObjectId(student.class_id)
+    : '';
+
+  const payload: any = {
+    type,
+    classId,
+    semesterId: normalizeObjectId(summary.semester_id),
+    studentId: normalizeObjectId(summary.student_id),
+    summaryId: normalizeObjectId(summary._id),
+    updatedAt: new Date(),
+    totalScore: summary.total_score,
+    grading: summary.grading,
+    ...extra,
+  };
+
+  if (criterionIds && criterionIds.length > 0) {
+    payload.criterionIds = criterionIds;
+    if (summary.details) {
+      payload.updatedDetails = summary.details.filter((d: any) =>
+        d.criterion_id && criterionIds.includes(normalizeObjectId(d.criterion_id))
+      );
+      if (criterionIds.length === 1) {
+        payload.criterionId = criterionIds[0];
+        payload.updatedDetail = payload.updatedDetails[0] || null;
+      }
+    }
+  }
+
+  return payload;
+}
+

@@ -5,6 +5,7 @@ import {
   SummaryPoint,
   SummaryPointDocument,
 } from './schemas/summary-point.schema';
+import { normalizeObjectId } from '../academic-record/academic-record.utils';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
@@ -534,14 +535,14 @@ export class SummariesPointService {
    * Đồng thời cập nhật trường `grading` (xếp loại) nếu bảng điểm đã được chốt.
    * 
    * @param summaryId - ID của bảng điểm rèn luyện cần tính toán lại.
-   * @returns Promise<void>
+   * @returns Promise<any>
    */
   async recomputeTotalScore(
     summaryId: string,
     preloadedMetadata?: { categories: any[]; criteria: any[] },
-  ): Promise<void> {
+  ): Promise<SummaryPointDocument | null> {
     const summary = await this.summaryPointModel.findById(summaryId);
-    if (!summary) return;
+    if (!summary) return null;
 
     const details = summary.details || [];
 
@@ -640,13 +641,19 @@ export class SummariesPointService {
 
     await summary.save();
 
+    const student = await this.studentModel.findById(summary.student_id).select('class_id').lean().exec();
+    const classId = student ? normalizeObjectId(student.class_id) : '';
+
     gradingEventEmitter.emit('grading_event', {
       type: 'summary_recomputed',
+      classId,
       semesterId: summary.semester_id?.toString(),
       studentId: summary.student_id?.toString(),
       summaryId: summary._id.toString(),
       data: summary,
     });
+
+    return summary;
   }
 
   async generateSummaryExcel(

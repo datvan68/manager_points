@@ -132,7 +132,9 @@ describe('SummariesPointService', () => {
 
     service = module.get<SummariesPointService>(SummariesPointService);
     mockStudentModel.findById.mockReturnValue({
-      exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', status: 'Studying' }),
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', class_id: 'class-1', status: 'Studying' }),
     });
   });
 

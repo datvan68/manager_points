@@ -689,54 +689,12 @@ export class EvaluationDetailService {
 
     const setObj: any = {};
 
-    if (criterion.scoring_mode === 'single_option' && rawDto.selected_option_id !== undefined) {
-      if (rawDto.selected_option_id) {
-        const option = criterion.options?.find((o) => o.id === rawDto.selected_option_id);
-        if (option) {
-          detail.system_score = option.score;
-          detail.selected_option_id = option.id;
-          detail.selected_option_label = option.label;
-          detail.selected_option_score = option.score;
-          detail.current_count = 1;
-        } else {
-          throw new BadRequestException('Option không hợp lệ');
-        }
-      } else {
-        detail.system_score = (criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false) ? (criterion.max_score || 10) : 0;
-        detail.selected_option_id = null;
-        detail.selected_option_label = null;
-        detail.selected_option_score = null;
-        detail.current_count = 0;
-      }
-
-      const actualCount = detail.current_count;
-
-      // For single_option, we won't clamp systemScore because it's based on option.
-      // But actual count could be different if clamped, though not typical for single_option.
-
-      setObj['details.$.current_count'] = actualCount;
-      setObj['details.$.system_score'] = detail.system_score;
-      setObj['details.$.selected_option_id'] = detail.selected_option_id;
-      setObj['details.$.selected_option_label'] = detail.selected_option_label;
-      setObj['details.$.selected_option_score'] = detail.selected_option_score;
-    } else if (updateEvaluationDetailDto.current_count !== undefined && criterion.scoring_mode !== 'single_option') {
-      let newCount = updateEvaluationDetailDto.current_count;
-
-      // We no longer sync records here
-      detail.current_count = newCount;
-
-      let systemScore = newCount * criterion.score_per_unit;
-      if (criterion.score_per_unit >= 0) {
-        systemScore = Math.max(criterion.min_score || 0, Math.min(criterion.max_score || 100, systemScore));
-      } else {
-        const maxScore = criterion.max_score || 10;
-        const minScore = criterion.min_score || 0;
-        systemScore = Math.max(minScore, Math.min(maxScore, maxScore - newCount * Math.abs(criterion.score_per_unit)));
-      }
-      detail.system_score = systemScore;
-
-      setObj['details.$.current_count'] = detail.current_count;
-      setObj['details.$.system_score'] = detail.system_score;
+    if (
+      rawDto.current_count !== undefined ||
+      rawDto.selected_option_id !== undefined ||
+      (rawDto.log && rawDto.log.length > 0)
+    ) {
+      throw new BadRequestException('Tiêu chí này phải được cập nhật điểm thông qua hồ sơ minh chứng (academic_record) hoặc cơ chế intent.');
     }
     if (updateEvaluationDetailDto.sv_score !== undefined) setObj['details.$.sv_score'] = updateEvaluationDetailDto.sv_score;
     if (updateEvaluationDetailDto.sv_submitted_at !== undefined) setObj['details.$.sv_submitted_at'] = updateEvaluationDetailDto.sv_submitted_at ? new Date(updateEvaluationDetailDto.sv_submitted_at) : null;
@@ -758,9 +716,7 @@ export class EvaluationDetailService {
 
     if (updateEvaluationDetailDto.status !== undefined) setObj['details.$.status'] = updateEvaluationDetailDto.status;
     if (updateEvaluationDetailDto.description !== undefined) setObj['details.$.description'] = updateEvaluationDetailDto.description;
-    if (updateEvaluationDetailDto.log && updateEvaluationDetailDto.log.length > 0) {
-      setObj['details.$.log'] = updateEvaluationDetailDto.log;
-    }
+
 
     const updateQuery: any = {};
     if (Object.keys(setObj).length > 0) {
@@ -922,56 +878,6 @@ export class EvaluationDetailService {
       throw new BadRequestException('Không thể xóa chi tiết chấm điểm của bảng điểm đã chốt');
     }
 
-    const detailIndex = summary.details.findIndex((d: any) => d._id.toString() === id);
-    const deletedDetail = summary.details[detailIndex];
-
-    const criterion = await this.criterionModel.findById(deletedDetail.criterion_id).exec();
-    if (!criterion) {
-      throw new NotFoundException(`Criterion with ID ${deletedDetail.criterion_id} not found`);
-    }
-
-    const records = await this.academicRecordModel.find({
-      student_id: summary.student_id as any,
-      semester_id: summary.semester_id as any,
-      criterion_id: deletedDetail.criterion_id as any,
-      status: 'active',
-      is_deleted: { $ne: true },
-    } as any)
-      .populate({ path: 'recorded_by', populate: { path: 'role' } })
-      .exec();
-
-    const recordsToDelete = records.filter((rec) => this.canRequesterDeleteRecord(rec, requester));
-    await Promise.all(recordsToDelete.map((rec) => this.academicRecordModel.findByIdAndDelete(rec._id).exec()));
-
-    const remainingCount = records.length - recordsToDelete.length;
-    if (remainingCount > 0) {
-      let systemScore = remainingCount * criterion.score_per_unit;
-      if (criterion.score_per_unit >= 0) {
-        systemScore = Math.max(criterion.min_score, Math.min(criterion.max_score, systemScore));
-      } else {
-        systemScore = Math.max(-criterion.max_score, Math.min(criterion.min_score, systemScore));
-      }
-
-      const detail = summary.details[detailIndex];
-      detail.current_count = remainingCount;
-      detail.system_score = systemScore;
-      detail.sv_score = systemScore;
-      detail.gv_score = systemScore;
-      detail.final_score = null;
-      detail.status = 'draft';
-      detail.log = [];
-      summary.markModified('details');
-      await summary.save();
-      await this.summariesPointService.recomputeTotalScore(summary._id.toString());
-      return detail;
-    }
-
-    summary.details.splice(detailIndex, 1);
-    summary.markModified('details');
-    await summary.save();
-
-    await this.summariesPointService.recomputeTotalScore(summary._id.toString());
-
-    return deletedDetail;
+    throw new BadRequestException('Vui lòng sử dụng cơ chế intent (clear_score) hoặc xóa hồ sơ minh chứng để xóa điểm.');
   }
 }

@@ -8,11 +8,13 @@ export interface GradingEventPayload {
   semesterId?: string;
   studentId?: string;
   summaryId?: string;
+  criterionId?: string;
   status?: string;
   totalScore?: number;
   grading?: string;
   updatedAt?: Date;
   updatedBy?: string;
+  updatedDetail?: any;
   data?: any; // The full summary or additional info
 }
 
@@ -37,11 +39,15 @@ export class GradingRealtimeService {
       // 3. Event listener function
       const listener = (payload: GradingEventPayload) => {
         // Filter out events that do not match the requested class/semester
-        if (classId && payload.classId && payload.classId !== classId) {
-          return;
+        if (classId) {
+          if (!payload.classId || payload.classId !== classId) {
+            return;
+          }
         }
-        if (semesterId && payload.semesterId && payload.semesterId !== semesterId) {
-          return;
+        if (semesterId) {
+          if (!payload.semesterId || payload.semesterId !== semesterId) {
+            return;
+          }
         }
 
         // Apply role-based filtering

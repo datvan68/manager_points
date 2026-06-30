@@ -9,6 +9,7 @@ import { Class } from '../classes/schemas/class.schema';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
 import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Types } from 'mongoose';
+import { normalizeObjectId } from './academic-record.utils';
 
 describe('AcademicRecordService - Import Flow', () => {
   let service: AcademicRecordService;
@@ -29,7 +30,10 @@ describe('AcademicRecordService - Import Flow', () => {
 
   const mockSummaryPointModel: any = {
     find: jest.fn(),
-    findOne: jest.fn(),
+    findOne: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(null),
+    }),
   };
 
   const mockCriterionModel: any = {
@@ -38,7 +42,15 @@ describe('AcademicRecordService - Import Flow', () => {
   };
   const mockStudentModel: any = {
     find: jest.fn(),
-    findById: jest.fn(),
+    findById: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue({
+        _id: new Types.ObjectId(),
+        class_id: new Types.ObjectId(),
+        status: 'Studying',
+      }),
+    }),
   };
   const mockClassModel: any = {
     find: jest.fn(),
@@ -888,6 +900,7 @@ describe('AcademicRecordService - Import Flow', () => {
       });
 
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null)
       });
 
@@ -924,6 +937,7 @@ describe('AcademicRecordService - Import Flow', () => {
       };
 
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null)
       });
       mockAcademicRecordModel.create = jest.fn().mockResolvedValue({
@@ -956,6 +970,7 @@ describe('AcademicRecordService - Import Flow', () => {
         save: jest.fn().mockResolvedValue(true)
       };
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(existingRecord)
       });
 
@@ -969,5 +984,118 @@ describe('AcademicRecordService - Import Flow', () => {
   describe('Repair and Migration Scripts (as per taskscope.md)', () => {
     it.todo('repair-from-records reset/xoa detail mo coi va recompute total score');
     it.todo('backfill-records tao bu record tu detail cu khi duoc chon mode nay');
+  });
+
+  describe('normalizeObjectId utility', () => {
+    it('should normalize different types of ObjectId representations to string', () => {
+      const idStr = '507f1f77bcf86cd799439011';
+      const objId = new Types.ObjectId(idStr);
+      
+      expect(normalizeObjectId(null)).toBe('');
+      expect(normalizeObjectId(undefined)).toBe('');
+      expect(normalizeObjectId(idStr)).toBe(idStr);
+      expect(normalizeObjectId(objId)).toBe(idStr);
+      expect(normalizeObjectId({ _id: objId })).toBe(idStr);
+      expect(normalizeObjectId({ id: objId })).toBe(idStr);
+      expect(normalizeObjectId({ _id: idStr })).toBe(idStr);
+      expect(normalizeObjectId({ id: idStr })).toBe(idStr);
+    });
+  });
+
+  describe('Locked Summary Preflight', () => {
+    let studentId: string;
+    let semesterId: string;
+    let criterionId: string;
+
+    beforeEach(() => {
+      studentId = new Types.ObjectId().toString();
+      semesterId = new Types.ObjectId().toString();
+      criterionId = new Types.ObjectId().toString();
+
+      // Mock findOne to return a locked summary
+      mockSummaryPointModel.findOne = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({
+          _id: new Types.ObjectId(),
+          status: 'locked'
+        })
+      });
+    });
+
+    it('should block create when summary is locked', async () => {
+      const dto = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, record_title: 'test' };
+      await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should block bulkCreate when summary is locked', async () => {
+      const dto = {
+        records: [
+          { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, record_title: 'test' }
+        ]
+      };
+      await expect(service.bulkCreate(dto as any)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should block update when summary is locked', async () => {
+      const existingRecord = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+      };
+      mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(existingRecord)
+      });
+      await expect(service.update('507f1f77bcf86cd799439011', {} as any)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should block remove when summary is locked', async () => {
+      const existingRecord = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+      };
+      mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(existingRecord)
+      });
+      await expect(service.remove('507f1f77bcf86cd799439011', {} as any)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should block restore when summary is locked', async () => {
+      const existingRecord = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+      };
+      mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(existingRecord)
+      });
+      await expect(service.restore('507f1f77bcf86cd799439011', {} as any)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should block forceRemove when summary is locked', async () => {
+      const existingRecord = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+      };
+      mockAcademicRecordModel.findById = jest.fn().mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(existingRecord)
+      });
+      await expect(service.forceRemove('507f1f77bcf86cd799439011', {} as any)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should block handleScoreIntent when summary is locked', async () => {
+      const intentDto = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'increase'
+      };
+      await expect(service.handleScoreIntent(intentDto as any)).rejects.toThrow(BadRequestException);
+    });
   });
 });

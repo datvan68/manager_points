@@ -38,6 +38,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { summariesPointApi } from "@/api/summaries-point-api";
 import { criteriaApi } from "@/api/criteria-api";
+import { useGradingRealtime } from "@/hooks/useGradingRealtime";
 import { categoryApi } from "@/api/category-api";
 import { evaluationDetailApi } from "@/api/evaluation-detail-api";
 import { academicRecordApi } from "@/api/academic-record-api";
@@ -706,6 +707,9 @@ function GradingScoreContent() {
 
   const [activeStudentId, setActiveStudentId] = useState<string>("");
   const activeStudentIdRef = useRef<string>("");
+
+
+
   const detailLoadSeqRef = useRef<number>(0);
   useEffect(() => {
     activeStudentIdRef.current = activeStudentId;
@@ -1755,6 +1759,88 @@ function GradingScoreContent() {
     );
   };
 
+  useGradingRealtime({
+    classId: selectedClassId,
+    semesterId: selectedSemesterId,
+    enabled: !!selectedClassId && !!selectedSemesterId,
+    onEvent: (event) => {
+      if (event.type === 'academic_record_changed') {
+        const sid = event.studentId;
+        if (!sid) return;
+
+        // Extract list of details to update
+        const detailsToUpdate: { criterionId: string; detail: any }[] = [];
+        if (event.updatedDetail && event.criterionId) {
+          detailsToUpdate.push({ criterionId: event.criterionId, detail: event.updatedDetail });
+        } else if (event.updatedDetails && event.criterionIds) {
+          event.updatedDetails.forEach((detail: any) => {
+            const criterionId = detail.criterion_id?._id?.toString() || detail.criterion_id?.toString();
+            if (criterionId) {
+              detailsToUpdate.push({ criterionId, detail });
+            }
+          });
+        }
+
+        // Cập nhật điểm cho sinh viên này nếu event chứa thông tin
+        if (detailsToUpdate.length > 0) {
+          setEvaluationCounts(prev => {
+            const studentCounts = prev[sid] ? { ...prev[sid] } : {};
+            detailsToUpdate.forEach(({ criterionId, detail }) => {
+              studentCounts[criterionId] = detail.current_count;
+            });
+            const updated = { ...prev, [sid]: studentCounts };
+            evaluationCountsRef.current = updated;
+            return updated;
+          });
+
+          setSelectedOptionsState(prev => {
+            const studentOptions = prev[sid] ? { ...prev[sid] } : {};
+            detailsToUpdate.forEach(({ criterionId, detail }) => {
+              if (detail.selected_option_id) {
+                studentOptions[criterionId] = detail.selected_option_id;
+              } else {
+                delete studentOptions[criterionId];
+              }
+            });
+            const updated = { ...prev, [sid]: studentOptions };
+            selectedOptionsStateRef.current = updated;
+            return updated;
+          });
+
+          if (sid === activeStudentIdRef.current) {
+            setEvaluationDetailsMap(prev => {
+              const updated = { ...prev };
+              detailsToUpdate.forEach(({ criterionId, detail }) => {
+                updated[criterionId] = detail;
+              });
+              return updated;
+            });
+            
+            // Tính lại điểm
+            calculateRealtimeScore(sid, evaluationCountsRef.current[sid], selectedOptionsStateRef.current[sid]);
+          }
+        }
+
+        // Cập nhật tổng điểm
+        if (event.totalScore !== undefined) {
+          setStudents(prev =>
+            prev.map(std =>
+              std.id === sid ? { ...std, score: event.totalScore } : std
+            )
+          );
+
+          setApiSummariesPoints(prev =>
+            prev.map(s =>
+              s.student_id === sid || s.student_id?._id === sid
+                ? { ...s, total_score: event.totalScore, grading: event.grading }
+                : s
+            )
+          );
+        }
+      }
+    }
+  });
+
   // Hàm đặt lại điểm số
   const handleReset = () => {
     if (!activeStudentId || !activeStudent) return;
@@ -2397,14 +2483,22 @@ function GradingScoreContent() {
         reason: log.reason || "Xóa lịch sử chấm điểm",
       }));
 
-      // 5. Cập nhật detail lên Backend (hoặc xóa detail nếu history trống và current_count = 0)
-      if (cleanLog.length === 0) {
-        await evaluationDetailApi.deleteEvaluationDetail(detail._id);
+      // 5. Sử dụng intent để cập nhật điểm thay vì sửa chi tiết
+      if (newCount === 0 && (!cleanLog || cleanLog.length === 0)) {
+        await academicRecordApi.sendIntent({
+          student_id: activeStudentId,
+          semester_id: selectedSemesterId,
+          criterion_id: detail.criterion_id._id || detail.criterion_id,
+          intent_type: 'clear_score'
+        });
       } else {
-        await evaluationDetailApi.updateEvaluationDetail(detail._id, {
-          current_count: newCount,
-          log: cleanLog,
-          status: "draft", // Chuyển về bản nháp sau khi xóa log cũ
+        await academicRecordApi.sendIntent({
+          student_id: activeStudentId,
+          semester_id: selectedSemesterId,
+          criterion_id: detail.criterion_id._id || detail.criterion_id,
+          intent_type: 'set_target_count',
+          target_count: newCount,
+          note: 'Xóa lịch sử chấm điểm'
         });
       }
 

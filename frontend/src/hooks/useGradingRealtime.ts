@@ -3,8 +3,8 @@ import { API_BASE } from '../api/config';
 import { tokenStorage } from '../api/auth-api';
 
 interface UseGradingRealtimeOptions {
-  classId: string;
-  semesterId: string;
+  classId?: string;
+  semesterId?: string;
   enabled: boolean;
   onEvent: (event: any) => void;
 }
@@ -20,7 +20,7 @@ export function useGradingRealtime({ classId, semesterId, enabled, onEvent }: Us
   }, [onEvent]);
 
   useEffect(() => {
-    if (!enabled || !classId || !semesterId) {
+    if (!enabled) {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -42,7 +42,13 @@ export function useGradingRealtime({ classId, semesterId, enabled, onEvent }: Us
         abortControllerRef.current = new AbortController();
 
         const token = tokenStorage.getAccessToken();
-        const url = `${API_BASE}/summaries-points/realtime?classId=${classId}&semesterId=${semesterId}`;
+        let url = `${API_BASE}/summaries-points/realtime`;
+        const params = new URLSearchParams();
+        if (classId && classId !== 'all') params.append('classId', classId);
+        if (semesterId) params.append('semesterId', semesterId);
+        if (params.toString()) {
+          url += `?${params.toString()}`;
+        }
         
         const response = await fetch(url, {
           headers: {

@@ -74,6 +74,7 @@ import FloatingActionBar from "@/components/ui/FloatingActionBar";
 import ConfirmModal from "@/components/modals/ConfirmModal";
 import { useAuth } from "@/providers/auth-provider";
 import { HeaderCustomMappings } from "@/providers/header-provider";
+import { useGradingRealtime } from "@/hooks/useGradingRealtime";
 
 interface GhiNhanTabProps {
   activeSubTab: "class" | "student";
@@ -628,6 +629,18 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const fetchAcademicRecordsRef = useRef<any>(null);
   useEffect(() => {
     fetchAcademicRecordsRef.current = fetchAcademicRecords;
+  });
+
+  useGradingRealtime({
+    classId: selectedClassIdForStudent !== 'all' ? selectedClassIdForStudent : undefined,
+    enabled: activeSubTab === 'student',
+    onEvent: (event) => {
+      if (event.type === 'academic_record_changed') {
+        if (fetchAcademicRecordsRef.current) {
+          fetchAcademicRecordsRef.current(1, false);
+        }
+      }
+    }
   });
 
   // Intersection Observer for Infinite Scroll
