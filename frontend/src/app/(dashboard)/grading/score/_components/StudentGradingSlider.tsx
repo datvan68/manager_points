@@ -9,6 +9,8 @@ import {
   Loader2,
   Search,
   Trash2,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,7 +26,8 @@ const NormalStudentSliderCard = React.memo(({
   virtualItem,
   measureElement,
   getInitials,
-  renderGradingStatusBadge
+  renderGradingStatusBadge,
+  isAutoSaveEnabled
 }: any) => {
   const initials = getInitials(student.name);
 
@@ -102,11 +105,17 @@ const NormalStudentSliderCard = React.memo(({
             <span className="font-bold text-[#1A73E8] text-[9.5px] tracking-wide shrink-0 flex items-center gap-1">
               {student.score}/100
               <div className="w-[11px] h-[11px] flex items-center justify-center shrink-0">
-                {isDirty || isSaving ? (
+                {isSaving ? (
                   <Loader2 size={11} className="animate-spin text-amber-500" />
-                ) : (
+                ) : isDirty ? (
+                  isAutoSaveEnabled ? (
+                    <Loader2 size={11} className="animate-spin text-amber-500" />
+                  ) : (
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Có thay đổi chưa lưu thủ công" />
+                  )
+                ) : isAutoSaveEnabled ? (
                   <CheckCircle2 size={11} className="text-emerald-500" />
-                )}
+                ) : null}
               </div>
             </span>
           </div>
@@ -127,6 +136,7 @@ const StickyStudentSliderCard = React.memo(({
   virtualItem,
   measureElement,
   getInitials,
+  isAutoSaveEnabled
 }: any) => {
   const initials = getInitials(student.name);
 
@@ -192,11 +202,17 @@ const StickyStudentSliderCard = React.memo(({
               {student.score}
             </span>
             <div className="w-3 h-3 flex items-center justify-center shrink-0">
-              {isDirty || isSaving ? (
-                <Loader2 size={12} className="animate-spin text-amber-500" />
-              ) : (
+              {isSaving ? (
+                <Loader2 size={12} className="animate-spin text-[#F59E0B]" />
+              ) : isDirty ? (
+                isAutoSaveEnabled ? (
+                  <Loader2 size={12} className="animate-spin text-[#F59E0B]" />
+                ) : (
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Có thay đổi chưa lưu thủ công" />
+                )
+              ) : isAutoSaveEnabled ? (
                 <CheckCircle2 size={12} className="text-emerald-500" />
-              )}
+              ) : null}
             </div>
           </div>
         </div>
@@ -222,6 +238,9 @@ interface StudentGradingSliderProps {
   onActiveStudentChange: (studentId: string) => void;
   onOpenDeleteModal: () => void;
   renderGradingStatusBadge: (status: string) => React.ReactNode;
+  isAutoSaveEnabled?: boolean;
+  canToggleAutosave?: boolean;
+  onToggleAutosave?: (enabled: boolean) => void;
 }
 
 export const StudentGradingSlider: React.FC<StudentGradingSliderProps> = React.memo(({
@@ -239,6 +258,9 @@ export const StudentGradingSlider: React.FC<StudentGradingSliderProps> = React.m
   onActiveStudentChange,
   onOpenDeleteModal,
   renderGradingStatusBadge,
+  isAutoSaveEnabled = true,
+  canToggleAutosave = false,
+  onToggleAutosave,
 }) => {
   // Roster Search state
   const [rosterSearch, setRosterSearch] = useState("");
@@ -607,6 +629,30 @@ export const StudentGradingSlider: React.FC<StudentGradingSliderProps> = React.m
                 />
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               </div>
+
+              {/* Switch Toggle Tự động lưu */}
+              <div className="flex items-center gap-1.5 select-none shrink-0">
+                <button
+                  type="button"
+                  onClick={() => canToggleAutosave && onToggleAutosave?.(!isAutoSaveEnabled)}
+                  disabled={!canToggleAutosave}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                    !canToggleAutosave 
+                      ? "bg-slate-50 border-slate-100/50 text-slate-400 cursor-not-allowed opacity-60" 
+                      : isAutoSaveEnabled
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300"
+                        : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200 hover:border-slate-350"
+                  }`}
+                  title={canToggleAutosave ? "Bật/Tắt tự động lưu" : "Chỉ Admin mới có quyền bật/tắt Tự động lưu"}
+                >
+                  {isAutoSaveEnabled ? (
+                    <ToggleRight className="w-4 h-4 text-emerald-600" />
+                  ) : (
+                    <ToggleLeft className="w-4 h-4 text-slate-400" />
+                  )}
+                  <span>Tự động lưu</span>
+                </button>
+              </div>
             </div>
             <div className="flex gap-2 items-center">
               {isAdminOrSupervisor && (
@@ -690,6 +736,7 @@ export const StudentGradingSlider: React.FC<StudentGradingSliderProps> = React.m
                       measureElement={normalStudentVirtualizer.measureElement}
                       getInitials={getInitials}
                       renderGradingStatusBadge={renderGradingStatusBadge}
+                      isAutoSaveEnabled={isAutoSaveEnabled}
                     />
                   );
                 })}
@@ -762,6 +809,7 @@ export const StudentGradingSlider: React.FC<StudentGradingSliderProps> = React.m
                           virtualItem={virtualItem}
                           measureElement={stickyStudentVirtualizer.measureElement}
                           getInitials={getInitials}
+                          isAutoSaveEnabled={isAutoSaveEnabled}
                         />
                       );
                     })}

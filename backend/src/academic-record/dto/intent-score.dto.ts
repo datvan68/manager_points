@@ -41,4 +41,9 @@ export class IntentScoreDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @ApiProperty({ description: 'Giá trị count cũ để chống stale update (destructive write control)', required: false })
+  @IsOptional()
+  @IsNumber()
+  baseline_count?: number;
 }

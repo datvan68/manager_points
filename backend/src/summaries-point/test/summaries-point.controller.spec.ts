@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SummariesPointController } from '../summaries-point.controller';
 import { SummariesPointService } from '../summaries-point.service';
+import { GradingRealtimeService } from '../grading-realtime.service';
 import * as express from 'express';
 
 describe('SummariesPointController', () => {
@@ -18,6 +19,7 @@ describe('SummariesPointController', () => {
     cancelApprovalBulk: jest.fn(),
     findLatestForStudent: jest.fn(),
     generateSummaryExcel: jest.fn(),
+    auditAndRepairDraftScores: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -27,6 +29,10 @@ describe('SummariesPointController', () => {
         {
           provide: SummariesPointService,
           useValue: mockSummariesPointService,
+        },
+        {
+          provide: GradingRealtimeService,
+          useValue: {},
         },
       ],
     }).compile();
@@ -160,6 +166,23 @@ describe('SummariesPointController', () => {
       
       expect(service.findLatestForStudent).toHaveBeenCalledWith('user1', 'sem1', 'period1');
       expect(result).toEqual({ status: 'locked', rank_tier: 'gold' });
+    });
+  });
+
+  describe('repairDraftScores', () => {
+    it('should call auditAndRepairDraftScores on service', async () => {
+      mockSummariesPointService.auditAndRepairDraftScores.mockResolvedValue({
+        repairedSummariesCount: 1,
+        mismatchDetails: []
+      });
+
+      const result = await controller.repairDraftScores();
+      
+      expect(service.auditAndRepairDraftScores).toHaveBeenCalled();
+      expect(result).toEqual({
+        repairedSummariesCount: 1,
+        mismatchDetails: []
+      });
     });
   });
 });

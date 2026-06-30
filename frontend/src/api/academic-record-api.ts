@@ -48,6 +48,7 @@ export interface IntentScoreDto {
   manual_score?: number;
   selected_option_id?: string;
   note?: string;
+  baseline_count?: number;
 }
 
 export interface UpdateAcademicRecordDto {

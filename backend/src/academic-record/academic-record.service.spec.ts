@@ -17,7 +17,11 @@ describe('AcademicRecordService - Import Flow', () => {
   const mockAcademicRecordModel: any = {
     db: { model: jest.fn() },
     bulkWrite: jest.fn(),
-    find: jest.fn(),
+    find: jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      populate: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([]),
+    }),
     countDocuments: jest.fn(),
     findOne: jest.fn().mockReturnValue({
       sort: jest.fn().mockReturnThis(),
@@ -29,7 +33,9 @@ describe('AcademicRecordService - Import Flow', () => {
   };
 
   const mockSummaryPointModel: any = {
-    find: jest.fn(),
+    find: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue([]),
+    }),
     findOne: jest.fn().mockReturnValue({
       select: jest.fn().mockReturnThis(),
       exec: jest.fn().mockResolvedValue(null),
@@ -795,6 +801,114 @@ describe('AcademicRecordService - Import Flow', () => {
 
       await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(BadRequestException);
     });
+
+    it('should throw BadRequestException if baseline_count mismatch when decreasing count', async () => {
+      const requester = { userId: studentId, roleName: 'Admin' };
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'set_target_count',
+        target_count: 1,
+        baseline_count: 5, // Lệch với count thực tế là 2
+      };
+
+      mockCriterionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'count',
+          score_per_unit: 2,
+          max_score: 10,
+        })
+      });
+
+      const currentRecords = [{ _id: new Types.ObjectId() }, { _id: new Types.ObjectId() }]; // count = 2
+      mockAcademicRecordModel.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(currentRecords)
+      });
+
+      await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(
+        expect.objectContaining({
+          message: expect.stringContaining('Dữ liệu chấm điểm trên màn hình không đồng bộ'),
+        })
+      );
+    });
+
+    it('should allow decrease if baseline_count matches currentCount', async () => {
+      const requester = { userId: studentId, roleName: 'Admin' };
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'set_target_count',
+        target_count: 1,
+        baseline_count: 2, // Khớp với count thực tế là 2
+      };
+
+      mockCriterionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'count',
+          score_per_unit: 2,
+          max_score: 10,
+        })
+      });
+
+      const currentRecords = [{ _id: new Types.ObjectId() }, { _id: new Types.ObjectId() }]; // count = 2
+      mockAcademicRecordModel.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(currentRecords)
+      });
+      mockAcademicRecordModel.deleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+
+      const result = await service.handleScoreIntent(intentDto, requester);
+      expect(result.success).toBe(true);
+      expect(mockAcademicRecordModel.deleteOne).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('auditMismatches', () => {
+    it('should scan summaries and trigger syncStudentCriterionScore for mismatched counts', async () => {
+      const semesterId = new Types.ObjectId().toString();
+      const student1 = new Types.ObjectId();
+      const cri1 = new Types.ObjectId();
+
+      mockSummaryPointModel.find = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          {
+            student_id: student1,
+            semester_id: semesterId,
+            details: [
+              {
+                criterion_id: cri1,
+                current_count: 5, // detail count là 5
+              }
+            ]
+          }
+        ])
+      });
+
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          { criterion_id: cri1 }, // actual count chỉ là 1
+        ])
+      });
+
+      mockCriterionModel.find = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          { _id: cri1 }
+        ])
+      });
+
+      const syncSpy = jest.spyOn(service, 'syncStudentCriterionScore').mockResolvedValue(undefined);
+
+      const result = await service.auditMismatches(semesterId);
+
+      expect(syncSpy).toHaveBeenCalledWith(student1.toString(), semesterId, cri1.toString());
+      expect(result.totalScanned).toBe(1);
+      expect(result.totalFixed).toBe(1);
+    });
   });
 
   describe('syncStudentCriterionScore (evaluation_detail sync)', () => {
@@ -805,8 +919,9 @@ describe('AcademicRecordService - Import Flow', () => {
     let mockSummary: any;
 
     beforeEach(() => {
-      mockAcademicRecordModel.countDocuments = jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue(1)
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ selected_option_id: 'opt1' }])
       });
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
@@ -837,15 +952,16 @@ describe('AcademicRecordService - Import Flow', () => {
     it('should set evaluation_detail.current_count to number of active academic_records', async () => {
       await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
       
-      expect(mockAcademicRecordModel.countDocuments).toHaveBeenCalled();
+      expect(mockAcademicRecordModel.find).toHaveBeenCalled();
       expect(mockSummary.details[0].current_count).toBe(1); // 1 active record
       expect(mockSummary.details[0].system_score).toBe(2); // 1 * 2 score
       expect(mockSummary.save).toHaveBeenCalled();
     });
 
     it('should clear orphan evaluation_detail points when no active records exist', async () => {
-      mockAcademicRecordModel.countDocuments = jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue(0) // No active records
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]) // No active records
       });
       
       mockSummary.details[0].current_count = 5;
@@ -859,20 +975,39 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(mockSummariesPointService.recomputeTotalScore).toHaveBeenCalled();
     });
     
-    it('should NOT overwrite sv_score and gv_score with systemScore', async () => {
+    it('should overwrite sv_score and gv_score with systemScore for draft unreviewed details', async () => {
       mockSummary.details[0].sv_score = 5;
       mockSummary.details[0].gv_score = 6;
-      mockAcademicRecordModel.countDocuments = jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue(2) // 2 active records
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{}, {}]) // 2 active records
       });
 
       await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
 
       expect(mockSummary.details[0].current_count).toBe(2);
       expect(mockSummary.details[0].system_score).toBe(4); // 2 * 2 score
-      expect(mockSummary.details[0].sv_score).toBe(5); // NOT overwritten
-      expect(mockSummary.details[0].gv_score).toBe(6); // NOT overwritten
+      expect(mockSummary.details[0].sv_score).toBe(4); // Overwritten because it's draft unreviewed
+      expect(mockSummary.details[0].gv_score).toBe(4); // Overwritten because it's draft unreviewed
       expect(mockSummary.save).toHaveBeenCalled();
+    });
+
+    it('should NOT overwrite sv_score and gv_score with systemScore when detail is reviewed', async () => {
+      mockSummary.details[0].status = 'gv_reviewed';
+      mockSummary.details[0].gv_reviewed_by = 'teacher-1';
+      mockSummary.details[0].sv_score = 5;
+      mockSummary.details[0].gv_score = 6;
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{}, {}]) // 2 active records
+      });
+
+      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+
+      expect(mockSummary.details[0].current_count).toBe(2);
+      expect(mockSummary.details[0].system_score).toBe(4);
+      expect(mockSummary.details[0].sv_score).toBe(5); // Preserved
+      expect(mockSummary.details[0].gv_score).toBe(6); // Preserved
     });
 
     it.todo('should detect evaluation_detail with score but no active academic_record (orphan detection logic)');

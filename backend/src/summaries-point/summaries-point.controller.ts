@@ -237,5 +237,11 @@ export class SummariesPointController {
     return this.summariesPointService.cancelApproval(id, req.user);
   }
 
-
+  @Post('repair-draft-scores')
+  @UseGuards(checkRole('Admin', 'Supervisor'))
+  @ApiOperation({ summary: 'Quét và tự động sửa các điểm nháp cũ (stale draft scores) của tiêu chí thưởng' })
+  @ApiResponse({ status: 200, description: 'Sửa lỗi thành công.' })
+  repairDraftScores() {
+    return this.summariesPointService.auditAndRepairDraftScores();
+  }
 }

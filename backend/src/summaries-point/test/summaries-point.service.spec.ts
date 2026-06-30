@@ -8,6 +8,8 @@ import { Department } from '../../departments/schemas/department.schema';
 import { Semester } from '../../semesters/schemas/semester.schema';
 import { Types } from 'mongoose';
 import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { AcademicRecord } from '../../academic-record/schemas/academic-record.schema';
+import { AcademicRecordService } from '../../academic-record/academic-record.service';
 
 describe('resolveRankTier', () => {
   it('should return unranked if status is not locked', () => {
@@ -91,6 +93,15 @@ describe('SummariesPointService', () => {
     findById: jest.fn(),
   };
 
+  const mockAcademicRecordModel = {
+    find: jest.fn(),
+    countDocuments: jest.fn(),
+  };
+
+  const mockAcademicRecordService = {
+    syncMultipleStudentCriterionScores: jest.fn().mockResolvedValue({ mismatches: [] }),
+  };
+
   jest.mock('../export/pl03-summary-excel.service', () => ({
     generatePl03Excel: jest.fn().mockResolvedValue(Buffer.from('mock excel data')),
   }));
@@ -126,6 +137,14 @@ describe('SummariesPointService', () => {
         {
           provide: getModelToken(Semester.name),
           useValue: mockSemesterModel,
+        },
+        {
+          provide: getModelToken(AcademicRecord.name),
+          useValue: mockAcademicRecordModel,
+        },
+        {
+          provide: AcademicRecordService,
+          useValue: mockAcademicRecordService,
         },
       ],
     }).compile();
@@ -1122,6 +1141,74 @@ describe('SummariesPointService', () => {
       // sum of clamped categories = 20 + 40 + 50 = 110
       // total score clamped to 100
       expect(mockSummary.total_score).toBe(100);
+      expect(mockSummary.save).toHaveBeenCalled();
+    });
+
+    it('should compute score for draft single_option detail by checking options and selected_option_score fallback', async () => {
+      const mockSummary = {
+        _id: 'some-id',
+        status: 'draft',
+        total_score: 0,
+        grading: '',
+        details: [
+          {
+            criterion_id: 'cri-opt-draft',
+            selected_option_id: 'opt-found',
+            selected_option_score: 99, // Should NOT be used since option is found
+            status: 'draft',
+          },
+          {
+            criterion_id: 'cri-opt-fallback',
+            selected_option_id: 'opt-not-found',
+            selected_option_score: 15, // Should be used since option not found in options array
+            status: 'draft',
+          },
+          {
+            criterion_id: 'cri-opt-zero',
+            selected_option_id: 'opt-not-found-no-score',
+            status: 'draft',
+          }
+        ],
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([
+          {
+            _id: 'cri-opt-draft',
+            category_id: 'cat-1',
+            scoring_mode: 'single_option',
+            options: [{ id: 'opt-found', score: 25 }],
+          },
+          {
+            _id: 'cri-opt-fallback',
+            category_id: 'cat-1',
+            scoring_mode: 'single_option',
+            options: [{ id: 'other-opt', score: 30 }],
+          },
+          {
+            _id: 'cri-opt-zero',
+            category_id: 'cat-1',
+            scoring_mode: 'single_option',
+            options: [],
+          }
+        ]),
+      });
+
+      await service.recomputeTotalScore('some-id');
+
+      // cri-opt-draft score should be 25
+      // cri-opt-fallback score should be 15
+      // cri-opt-zero score should be 0
+      // total score: 25 + 15 + 0 = 40
+      expect(mockSummary.total_score).toBe(40);
       expect(mockSummary.save).toHaveBeenCalled();
     });
   });

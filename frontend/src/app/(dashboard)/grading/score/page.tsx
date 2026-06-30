@@ -740,6 +740,16 @@ function GradingScoreContent() {
   const [isDetailsLoading, setIsDetailsLoading] = useState(false);
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isAutoSaveEnabled, setIsAutoSaveEnabled] = useState(true);
+
+  const handleToggleAutosave = (val: boolean) => {
+    setIsAutoSaveEnabled(val);
+    if (val) {
+      toast.success("Đã bật tự động lưu điểm rèn luyện!");
+    } else {
+      toast.info("Đã tắt tự động lưu. Hãy nhớ bấm Lưu thủ công!");
+    }
+  };
 
 
 
@@ -786,11 +796,11 @@ function GradingScoreContent() {
   };
 
   const [selectedOptionsState, _setSelectedOptionsState] = useState<
-    Record<string, Record<string, string>>
+    Record<string, Record<string, string | null>>
   >({});
-  const selectedOptionsStateRef = useRef<Record<string, Record<string, string>>>({});
+  const selectedOptionsStateRef = useRef<Record<string, Record<string, string | null>>>({});
 
-  const setSelectedOptionsState = (action: React.SetStateAction<Record<string, Record<string, string>>>) => {
+  const setSelectedOptionsState = (action: React.SetStateAction<Record<string, Record<string, string | null>>>) => {
     _setSelectedOptionsState((prev) => {
       const nextState = typeof action === "function" ? (action as any)(prev) : action;
       selectedOptionsStateRef.current = nextState;
@@ -1381,6 +1391,7 @@ function GradingScoreContent() {
 
   // Sinh viên đang active
   const activeStudent = students.find((s) => s.id === activeStudentId);
+  const isStudentLocked = activeStudent?.gradingStatus === "locked";
 
   const shouldShowActiveStudentRankCard = isStudentRole(currentUser) || isAdminRole(currentUser);
 
@@ -1750,7 +1761,12 @@ function GradingScoreContent() {
   ) => {
     const options = studentOptions || selectedOptionsState[studentId] || {};
     const actualDetailsMap = detailsMap || (studentId === activeStudentId ? evaluationDetailsMap : undefined);
-    const clampedFinalScore = calculateTotalScore(categories, studentCounts, options, actualDetailsMap);
+    
+    // Lấy trạng thái lock của sinh viên
+    const studentObj = students.find((s) => s.id === studentId);
+    const isLocked = studentObj?.gradingStatus === "locked";
+
+    const clampedFinalScore = calculateTotalScore(categories, studentCounts, options, actualDetailsMap, isLocked);
 
     setStudents((prev) =>
       prev.map((std) =>
@@ -1808,16 +1824,23 @@ function GradingScoreContent() {
           });
 
           if (sid === activeStudentIdRef.current) {
+            let updatedDetailsMap: Record<string, any> = {};
             setEvaluationDetailsMap(prev => {
               const updated = { ...prev };
               detailsToUpdate.forEach(({ criterionId, detail }) => {
                 updated[criterionId] = detail;
               });
+              updatedDetailsMap = updated;
               return updated;
             });
             
-            // Tính lại điểm
-            calculateRealtimeScore(sid, evaluationCountsRef.current[sid], selectedOptionsStateRef.current[sid]);
+            // Tính lại điểm bằng cách truyền updatedDetailsMap trực tiếp để tránh stale state
+            calculateRealtimeScore(
+              sid,
+              evaluationCountsRef.current[sid],
+              selectedOptionsStateRef.current[sid],
+              updatedDetailsMap
+            );
           }
         }
 
@@ -1890,7 +1913,7 @@ function GradingScoreContent() {
     studentId: string,
     summaryId: string,
     counts: Record<string, number>,
-    selectedOptionsSnapshot: Record<string, string>,
+    selectedOptionsSnapshot: Record<string, string | null>,
     reason: string,
     options?: { skipCriterionIds?: Set<string>; source?: string }
   ) => {
@@ -1913,16 +1936,22 @@ function GradingScoreContent() {
           return;
         }
 
-        const count = counts[cri.id] ?? 0;
-        const selectedOptionId = selectedOptionsSnapshot[cri.id] || null;
-
         const existingDetail = (oldDetails || []).find((d) => {
           const detailCriId = typeof d.criterion_id === "object" ? d.criterion_id?._id : d.criterion_id;
           return detailCriId === cri.id;
         });
 
-        const isCountChanged = existingDetail?.current_count !== count;
-        const isOptionChanged = cri.scoring_mode === 'single_option' && existingDetail?.selected_option_id !== selectedOptionId;
+        const count = counts[cri.id];
+        const selectedOptionId = selectedOptionsSnapshot[cri.id];
+
+        // Bỏ qua (no-op) nếu cả count và selectedOptionId đều undefined trong snapshot cục bộ (tránh reset)
+        if (count === undefined && selectedOptionId === undefined) {
+          return;
+        }
+
+        // Cập nhật lại các điều kiện thay đổi
+        const isCountChanged = count !== undefined && existingDetail?.current_count !== count;
+        const isOptionChanged = cri.scoring_mode === 'single_option' && selectedOptionId !== undefined && existingDetail?.selected_option_id !== selectedOptionId;
 
         if (isCountChanged || isOptionChanged) {
           if (cri.scoring_mode === 'single_option') {
@@ -2017,6 +2046,15 @@ function GradingScoreContent() {
       return false;
     }
 
+    const counts = evaluationCountsRef.current[studentId];
+    const selectedOptionsSnapshot = selectedOptionsStateRef.current[studentId];
+
+    if (!counts || !selectedOptionsSnapshot) {
+      if (options?.mode === 'autosave') {
+        return false; // No-op for autosave to prevent saving empty default payload
+      }
+    }
+
     try {
       if (options?.mode === 'autosave') {
         setSavingStudentIds((prev) => {
@@ -2029,14 +2067,14 @@ function GradingScoreContent() {
         toast.loading("Đang lưu kết quả chấm điểm...", { id: "save-loading" });
       }
 
-      const counts = evaluationCountsRef.current[studentId] || {};
-      const selectedOptionsSnapshot = selectedOptionsStateRef.current[studentId] || {};
+      const countsToUse = counts || {};
+      const selectedOptionsSnapshotToUse = selectedOptionsSnapshot || {};
       const requestRev = revisionRef.current[studentId] || 0;
       const result = await persistStudentScore(
         studentId,
         summaryId,
-        counts,
-        selectedOptionsSnapshot,
+        countsToUse,
+        selectedOptionsSnapshotToUse,
         options?.reason || "Cập nhật điểm rèn luyện"
       );
 
@@ -2053,8 +2091,8 @@ function GradingScoreContent() {
       }
 
       let hasMismatch = false;
-      Object.keys(counts).forEach(criId => {
-        if (counts[criId] !== result.freshCounts[criId] && result.freshCounts[criId] !== undefined) {
+      Object.keys(countsToUse).forEach(criId => {
+        if (countsToUse[criId] !== result.freshCounts[criId] && result.freshCounts[criId] !== undefined) {
           hasMismatch = true;
         }
       });
@@ -2126,7 +2164,8 @@ function GradingScoreContent() {
   };
 
   const autosaveStudentIfDirty = async (studentId: string, reason?: string, showToast: boolean = false) => {
-    if (!dirtyStudentIds.has(studentId)) return;
+    if (!isAutoSaveEnabled) return false;
+    if (!dirtyStudentIds.has(studentId)) return false;
 
     // Nếu sinh viên đang có một tiến trình lưu, chỉ cần return.
     // Tiến trình đang chạy sẽ vòng lặp kiểm tra revision và chạy tiếp nếu cần.
@@ -2915,6 +2954,9 @@ function GradingScoreContent() {
                 onActiveStudentChange={handleActiveStudentChange}
                 onOpenDeleteModal={handleOpenDeleteModal}
                 renderGradingStatusBadge={renderGradingStatusBadge}
+                isAutoSaveEnabled={isAutoSaveEnabled}
+                canToggleAutosave={isAdminOrSupervisor}
+                onToggleAutosave={handleToggleAutosave}
               />
             )}
 
@@ -2958,12 +3000,17 @@ function GradingScoreContent() {
                     const studentCounts =
                       evaluationCounts[activeStudentId] || {};
 
-                    const clampedCatScore = calculateCategoryScore(
-                      category,
-                      studentCounts,
-                      selectedOptionsState[activeStudentId] || {},
-                      evaluationDetailsMap
-                    );
+                    // Tính tổng điểm thô của category (chưa clamp) để kiểm tra capped state
+                    let rawCatTotal = 0;
+                    category.items.forEach((cri) => {
+                      const count = studentCounts[cri.id] || 0;
+                      const optId = selectedOptionsState[activeStudentId]?.[cri.id] || null;
+                      const detail = evaluationDetailsMap[cri.id];
+                      rawCatTotal += getResolvedCriterionScore(cri, count, optId, detail, isStudentLocked);
+                    });
+
+                    const clampedCatScore = Math.max(0, Math.min(category.maxPoints, rawCatTotal));
+                    const isCapped = rawCatTotal > category.maxPoints;
 
                     // Xác định màu sắc badge dựa trên tỷ lệ điểm
                     const ratio = clampedCatScore / category.maxPoints;
@@ -2996,9 +3043,15 @@ function GradingScoreContent() {
                             {category.title.length > 35 && <CriteriaTooltip content={category.title} />}
                           </h4>
                           <div
-                            className={`px-4.5 py-1.5 border rounded-xl font-bold text-[12.5px] tracking-wide shrink-0 transition-colors duration-300 ${badgeStyle}`}
+                            className={`px-4.5 py-1.5 border rounded-xl font-bold text-[12.5px] tracking-wide shrink-0 transition-colors duration-300 ${badgeStyle} flex items-center gap-1.5`}
+                            title={isCapped ? `Điểm thực tế đạt ${rawCatTotal}đ, nhưng danh mục giới hạn tối đa ${category.maxPoints}đ` : undefined}
                           >
-                            {clampedCatScore} / {category.maxPoints}đ
+                            <span>{clampedCatScore} / {category.maxPoints}đ</span>
+                            {isCapped && (
+                              <span className="text-[10px] bg-amber-500/20 text-amber-700 px-1.5 py-0.5 rounded-md font-extrabold animate-pulse shrink-0">
+                                Tối đa
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -3016,17 +3069,8 @@ function GradingScoreContent() {
                               detail?.status === "locked",
                             );
                             const selectedOptionId = selectedOptionsState[activeStudentId]?.[item.id] || null;
-                            const isStudentLocked = activeStudent?.gradingStatus === "locked";
-                            const criterionScore = item.is_locked
-                              ? getRecordDerivedRawCriterionScore(item, count, selectedOptionId, detail)
-                              : isStudentLocked
-                                ? getResolvedRawCriterionScore(item, count, selectedOptionId, detail)
-                                : calculateCriterionScore(item, count, selectedOptionId);
-                            const achievedPoints = item.is_locked
-                              ? getRecordDerivedCriterionScore(item, count, selectedOptionId, detail)
-                              : isStudentLocked
-                                ? getResolvedCriterionScore(item, count, selectedOptionId, detail)
-                                : getCriterionContributionScore(item, count, selectedOptionId);
+                            const criterionScore = getResolvedRawCriterionScore(item, count, selectedOptionId, detail, isStudentLocked);
+                            const achievedPoints = getResolvedCriterionScore(item, count, selectedOptionId, detail, isStudentLocked);
 
                             const minCount = 0;
                             const maxScore = item.maxScore ?? 10;

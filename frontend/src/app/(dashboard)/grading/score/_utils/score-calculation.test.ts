@@ -324,5 +324,73 @@ describe("score-calculation helper", () => {
 
       expect(calculateTotalScore(categories, counts, {}, detailsMap)).toBe(45);
     });
+
+    it("9. Sẽ ưu tiên live count-derived score cho editable draft reward detail có sv_score/gv_score là stale 0", () => {
+      const criterion: Criteria = {
+        id: "cri-reward-stale",
+        name: "Tham gia phong trao",
+        maxScore: 10,
+        minScore: 0,
+        pointsPerUnit: 5,
+        type: "reward"
+      };
+
+      const detail = {
+        status: "draft",
+        sv_score: 0,
+        gv_score: 0,
+        final_score: null,
+        system_score: 0
+      };
+
+      // Draft, unreviewed -> Ưu tiên live count-derived (1 * 5 = 5)
+      expect(getResolvedRawCriterionScore(criterion, 1, null, detail, false)).toBe(5);
+      expect(getResolvedCriterionScore(criterion, 1, null, detail, false)).toBe(5);
+    });
+
+    it("10. Sẽ giữ nguyên final_score cho locked detail (isStudentLocked = true hoặc detail.status = 'locked')", () => {
+      const criterion: Criteria = {
+        id: "cri-reward-stale",
+        name: "Tham gia phong trao",
+        maxScore: 10,
+        minScore: 0,
+        pointsPerUnit: 5,
+        type: "reward"
+      };
+
+      const detail = {
+        status: "locked",
+        sv_score: 0,
+        gv_score: 0,
+        final_score: 0,
+        system_score: 5
+      };
+
+      expect(getResolvedRawCriterionScore(criterion, 1, null, detail, true)).toBe(0);
+      expect(getResolvedCriterionScore(criterion, 1, null, detail, true)).toBe(0);
+    });
+
+    it("11. Sẽ giữ nguyên gv_score cho reviewed detail (detail.status = 'gv_reviewed')", () => {
+      const criterion: Criteria = {
+        id: "cri-reward-stale",
+        name: "Tham gia phong trao",
+        maxScore: 10,
+        minScore: 0,
+        pointsPerUnit: 5,
+        type: "reward"
+      };
+
+      const detail = {
+        status: "gv_reviewed",
+        sv_score: 0,
+        gv_score: 8,
+        final_score: null,
+        system_score: 5,
+        gv_reviewed_by: "gv-1"
+      };
+
+      expect(getResolvedRawCriterionScore(criterion, 1, null, detail, false)).toBe(8);
+      expect(getResolvedCriterionScore(criterion, 1, null, detail, false)).toBe(8);
+    });
   });
 });

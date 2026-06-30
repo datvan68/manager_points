@@ -1,11 +1,11 @@
-import { ForbiddenException, Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, BadRequestException, ConflictException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
   SummaryPoint,
   SummaryPointDocument,
 } from './schemas/summary-point.schema';
-import { normalizeObjectId } from '../academic-record/academic-record.utils';
+import { normalizeObjectId, calculateCriterionScoreHelper } from '../academic-record/academic-record.utils';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
@@ -17,6 +17,8 @@ import { Semester, SemesterDocument } from '../semesters/schemas/semester.schema
 import { ExportSummaryExcelDto } from './dto/export-summary-excel.dto';
 import { generatePl03Excel } from './export/pl03-summary-excel.service';
 import { gradingEventEmitter } from '../system/grading-event-emitter';
+import { AcademicRecordService } from '../academic-record/academic-record.service';
+import { AcademicRecord, AcademicRecordDocument } from '../academic-record/schemas/academic-record.schema';
 
 /**
  * Tính toán hạng (rank tier) và nhãn hạng (rank label) dựa trên tổng điểm và trạng thái của bảng điểm.
@@ -79,6 +81,10 @@ export class SummariesPointService {
     private readonly departmentModel: Model<DepartmentDocument>,
     @InjectModel(Semester.name)
     private readonly semesterModel: Model<SemesterDocument>,
+    @InjectModel(AcademicRecord.name)
+    private readonly academicRecordModel: Model<AcademicRecordDocument>,
+    @Inject(forwardRef(() => AcademicRecordService))
+    private readonly academicRecordService: AcademicRecordService,
   ) {}
 
   private isTeacher(requester?: any) {
@@ -453,8 +459,30 @@ export class SummariesPointService {
     };
   }
 
+  async syncSummaryWithAcademicRecords(summaryId: string): Promise<any> {
+    if (!Types.ObjectId.isValid(summaryId)) return null;
+
+    const summary = await this.summaryPointModel.findById(summaryId).exec();
+    if (!summary || summary.status === 'locked') return null;
+
+    const criteria = await this.criterionModel.find().lean().exec();
+    if (!criteria || criteria.length === 0) return null;
+
+    const batch = criteria.map(cri => ({
+      student_id: summary.student_id,
+      semester_id: summary.semester_id,
+      criterion_id: cri._id,
+    }));
+
+    return this.academicRecordService.syncMultipleStudentCriterionScores(batch);
+  }
+
   async findOne(id: string, requester?: any): Promise<SummaryPoint> {
     await this.assertCanAccessSummary(id, requester);
+    
+    // Tự động đồng bộ hóa với academic records trước khi load chi tiết
+    await this.syncSummaryWithAcademicRecords(id);
+
     const summaryPoint = await this.summaryPointModel
       .findById(id)
       .populate('student_id')
@@ -581,26 +609,77 @@ export class SummariesPointService {
         const isDiscipline = cri.score_per_unit < 0 || cri.criterion_type === 'ky_luat';
         
         if (detail) {
-           let rawScore = detail.final_score !== null && detail.final_score !== undefined
-            ? detail.final_score
-            : (detail.gv_score !== null && detail.gv_score !== undefined
+          const isSummaryLocked = summary.status === 'locked';
+          const isDetailLocked = detail.status === 'locked' || !!detail.locked_at;
+          const isReviewed = detail.status === 'gv_reviewed' || !!detail.gv_reviewed_by || !!detail.gv_reviewed_at;
+
+          let rawScore = 0;
+          if (isSummaryLocked || isDetailLocked) {
+            // For locked summaries or locked details, final_score is authoritative
+            rawScore = detail.final_score !== null && detail.final_score !== undefined
+              ? detail.final_score
+              : detail.gv_score !== null && detail.gv_score !== undefined
                 ? detail.gv_score
-                : (detail.sv_score !== null && detail.sv_score !== undefined
-                    ? detail.sv_score
-                    : (detail.selected_option_score !== null && detail.selected_option_score !== undefined
-                        ? detail.selected_option_score
-                        : (detail.system_score !== null && detail.system_score !== undefined ? detail.system_score : 0))));
+                : detail.sv_score !== null && detail.sv_score !== undefined
+                  ? detail.sv_score
+                  : detail.system_score !== null && detail.system_score !== undefined
+                    ? detail.system_score
+                    : 0;
+          } else if (isReviewed) {
+            // For reviewed but not locked, gv_score is authoritative
+            rawScore = detail.gv_score !== null && detail.gv_score !== undefined
+              ? detail.gv_score
+              : detail.sv_score !== null && detail.sv_score !== undefined
+                ? detail.sv_score
+                : detail.system_score !== null && detail.system_score !== undefined
+                  ? detail.system_score
+                  : 0;
+          } else {
+            // Draft, unreviewed detail
+            if (cri.scoring_mode === 'single_option') {
+              const option = cri.options?.find((o: any) => o.id === detail.selected_option_id);
+              if (option) {
+                rawScore = option.score;
+              } else if (detail.selected_option_score !== null && detail.selected_option_score !== undefined) {
+                rawScore = detail.selected_option_score;
+              } else {
+                rawScore = isDiscipline ? (cri.max_score || 10) : 0;
+              }
+            } else {
+              if (detail.system_score !== null && detail.system_score !== undefined) {
+                rawScore = detail.system_score;
+              } else if (detail.current_count !== null && detail.current_count !== undefined) {
+                // If system_score is missing but current_count is available, recompute fallback
+                const fallbackResult = calculateCriterionScoreHelper({
+                  criterion: cri,
+                  count: detail.current_count,
+                  selectedOptionId: detail.selected_option_id,
+                  isSyncPath: true,
+                });
+                rawScore = fallbackResult.systemScore;
+              } else {
+                // If both system_score and current_count are missing, fallback to detail scores
+                rawScore = detail.final_score !== null && detail.final_score !== undefined
+                  ? detail.final_score
+                  : detail.gv_score !== null && detail.gv_score !== undefined
+                    ? detail.gv_score
+                    : detail.sv_score !== null && detail.sv_score !== undefined
+                      ? detail.sv_score
+                      : 0;
+              }
+            }
+          }
            
-           if (isDiscipline) {
-             const maxScore = cri.max_score || 10;
-             const count = detail.current_count ?? 0;
-             if (rawScore < 0) {
-               rawScore = maxScore - Math.abs(rawScore);
-             } else if (rawScore === 0 && count === 0) {
-               rawScore = maxScore;
-             }
-           }
-           criterionScore = rawScore;
+          if (isDiscipline) {
+            const maxScore = cri.max_score || 10;
+            const count = detail.current_count ?? 0;
+            if (rawScore < 0) {
+              rawScore = maxScore - Math.abs(rawScore);
+            } else if (rawScore === 0 && count === 0) {
+              rawScore = maxScore;
+            }
+          }
+          criterionScore = rawScore;
         } else {
           // If no detail, score depends on criterion type.
           // For violation (discipline), count = 0, meaning full base score (max_score).
@@ -1321,5 +1400,184 @@ export class SummariesPointService {
       </body>
       </html>
     `;
+  }
+
+  async auditAndRepairDraftScores(): Promise<any> {
+    const activeSummaries = await this.summaryPointModel.find({ status: { $ne: 'locked' } }).exec();
+    const criteria = await this.criterionModel.find().lean().exec();
+    
+    let repairedCount = 0;
+    const mismatches = [];
+
+    for (const summary of activeSummaries) {
+      let isModified = false;
+      const details = summary.details || [];
+      const studentId = summary.student_id.toString();
+      const semesterId = summary.semester_id.toString();
+
+      // Đọc active academic records cho student và semester này
+      const activeRecords = await this.academicRecordModel.find({
+        student_id: summary.student_id,
+        semester_id: summary.semester_id,
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any).lean().exec();
+
+      // Group records by criterion
+      const recordCountsByCriterion = new Map<string, number>();
+      const latestRecordByCriterion = new Map<string, any>();
+      activeRecords.forEach(rec => {
+        const criId = rec.criterion_id.toString();
+        recordCountsByCriterion.set(criId, (recordCountsByCriterion.get(criId) || 0) + 1);
+        
+        const existingLatest = latestRecordByCriterion.get(criId);
+        if (!existingLatest || new Date((rec as any).createdAt) > new Date((existingLatest as any).createdAt)) {
+          latestRecordByCriterion.set(criId, rec);
+        }
+      });
+
+      // Duyệt qua tất cả criteria để kiểm tra mismatch và repair
+      for (const cri of criteria) {
+        const criId = cri._id.toString();
+        const activeCount = recordCountsByCriterion.get(criId) || 0;
+        const latestRecord = latestRecordByCriterion.get(criId);
+
+        const detailIndex = details.findIndex((d: any) => d.criterion_id && d.criterion_id.toString() === criId);
+        const detail = detailIndex !== -1 ? details[detailIndex] : null;
+
+        const detailCount = detail ? detail.current_count : 0;
+        
+        const hasActiveRecords = activeCount > 0;
+        const isCountZeroOrMissing = !detail || detailCount === 0;
+
+        if (hasActiveRecords && isCountZeroOrMissing) {
+          // Tính computed score
+          let optId: string | null = null;
+          let optLabel: string | null = null;
+          let optScore: number | null = null;
+          let manualScore: number | null = null;
+
+          if (latestRecord) {
+            if (cri.scoring_mode === 'single_option') {
+              if (latestRecord.selected_option_id) {
+                optId = latestRecord.selected_option_id;
+                optLabel = latestRecord.selected_option_label || null;
+                optScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
+              } else if (latestRecord.record_title && latestRecord.record_title.startsWith('Lựa chọn option ')) {
+                optId = latestRecord.record_title.replace('Lựa chọn option ', '');
+              }
+            } else {
+              if (latestRecord.record_title && latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
+                const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
+                manualScore = parseFloat(manualScoreStr) || 0;
+              }
+            }
+          }
+
+          const result = calculateCriterionScoreHelper({
+            criterion: cri,
+            count: activeCount,
+            selectedOptionId: optId,
+            selectedOptionLabel: optLabel,
+            selectedOptionScore: optScore,
+            manualScore,
+            isSyncPath: true,
+          });
+
+          const expectedScore = result.systemScore;
+
+          const isReward = cri.score_per_unit > 0 || cri.criterion_type === 'reward' || cri.criterion_type === 'bonus';
+          const isViolation = cri.score_per_unit < 0 || cri.criterion_type === 'violation';
+
+          const isTargetCriterion = (isReward || isViolation) && expectedScore > 0;
+
+          if (isTargetCriterion) {
+            const isDetailLocked = detail && (detail.status === 'locked' || !!detail.locked_at);
+            const isDetailReviewed = detail && (detail.status === 'gv_reviewed' || !!detail.gv_reviewed_by || !!detail.gv_reviewed_at);
+            const isDetailApproved = detail && (detail.final_score !== null && detail.final_score !== undefined);
+            
+            const isManuallyReviewed = isDetailLocked || isDetailReviewed || isDetailApproved;
+
+            if (isManuallyReviewed) {
+              mismatches.push({
+                student_id: studentId,
+                semester_id: semesterId,
+                criterion_id: criId,
+                active_record_count: activeCount,
+                old_detail_count: detailCount,
+                old_score_fields: detail ? { sv: detail.sv_score, gv: detail.gv_score, final: detail.final_score } : null,
+                repaired_detail_count: detailCount,
+                repaired_system_score: detail ? detail.system_score : 0,
+                repaired: false,
+                skip_reason: isDetailLocked ? 'Detail is locked' : isDetailApproved ? 'Detail has finalized/approved score' : 'Detail is manually reviewed',
+              });
+              continue;
+            }
+
+            const oldScoreFields = detail ? { sv: detail.sv_score, gv: detail.gv_score, final: detail.final_score } : null;
+            const repairedDetailCount = result.currentCount;
+
+            if (!detail) {
+              const newDetail: any = {
+                criterion_id: new Types.ObjectId(criId),
+                current_count: repairedDetailCount,
+                system_score: expectedScore,
+                selected_option_id: optId,
+                selected_option_label: optLabel,
+                selected_option_score: optScore,
+                sv_score: expectedScore,
+                sv_submitted_at: null,
+                gv_score: expectedScore,
+                gv_reviewed_at: null,
+                gv_reviewed_by: null,
+                final_score: null,
+                locked_at: null,
+                locked_by: null,
+                status: 'draft',
+                description: '',
+                log: [],
+              };
+              details.push(newDetail);
+            } else {
+              detail.current_count = repairedDetailCount;
+              detail.system_score = expectedScore;
+              detail.selected_option_id = optId;
+              detail.selected_option_label = optLabel;
+              detail.selected_option_score = optScore;
+              detail.sv_score = expectedScore;
+              detail.gv_score = expectedScore;
+              detail.final_score = null;
+            }
+
+            mismatches.push({
+              student_id: studentId,
+              semester_id: semesterId,
+              criterion_id: criId,
+              active_record_count: activeCount,
+              old_detail_count: detailCount,
+              old_score_fields: oldScoreFields,
+              repaired_detail_count: repairedDetailCount,
+              repaired_system_score: expectedScore,
+              repaired: true,
+            });
+
+            isModified = true;
+          }
+        }
+      }
+
+      if (isModified) {
+        summary.details = details;
+        summary.markModified('details');
+        await summary.save();
+        await this.recomputeTotalScore(summary._id.toString());
+        repairedCount++;
+      }
+    }
+
+    return {
+      repairedSummariesCount: repairedCount,
+      mismatchDetails: mismatches,
+    };
   }
 }

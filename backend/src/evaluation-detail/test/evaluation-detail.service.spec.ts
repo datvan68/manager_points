@@ -20,7 +20,8 @@ describe('EvaluationDetailService', () => {
     })),
     {
       find: jest.fn(),
-      countDocuments: jest.fn(),
+      countDocuments: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(0) }),
+      findOne: jest.fn().mockReturnValue({ sort: jest.fn().mockReturnThis(), exec: jest.fn().mockResolvedValue(null) }),
       aggregate: jest.fn(),
       findByIdAndDelete: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
       findByIdAndUpdate: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
@@ -622,6 +623,135 @@ describe('EvaluationDetailService', () => {
           $set: expect.objectContaining({
             'details.$.sv_score': 20,
             'details.$.gv_score': 20,
+          })
+        })
+      );
+    });
+
+    it('should skip mutation if detail is manually reviewed and log to clampResults', async () => {
+      const summaryId = new Types.ObjectId().toString();
+      const criterionId = new Types.ObjectId().toString();
+
+      const mockSummary = {
+        _id: summaryId,
+        student_id: new Types.ObjectId(),
+        semester_id: new Types.ObjectId(),
+        status: 'draft',
+        details: [
+          {
+            _id: new Types.ObjectId(),
+            criterion_id: criterionId,
+            current_count: 1,
+            system_score: 10,
+            sv_score: 10,
+            gv_score: 10,
+            status: 'gv_reviewed', // Reviewed!
+            gv_reviewed_at: new Date(),
+            gv_reviewed_by: new Types.ObjectId(),
+          },
+        ],
+      };
+
+      mockSummaryPointModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      } as any);
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+
+      const dto: any = {
+        summary_id: summaryId,
+        details: [
+          {
+            criterion_id: criterionId,
+            sv_score: 20,
+            gv_score: 20,
+          }
+        ]
+      };
+
+      const result = await service.bulkUpsert(dto, { userId: 'admin1', roleName: 'admin' });
+
+      expect(result.success).toBe(true);
+      expect(result.clampResults.length).toBe(1);
+      expect(result.clampResults[0]).toMatchObject({
+        criterion_id: criterionId,
+        status: 'skipped',
+        reason: expect.stringContaining('locked, reviewed, or approved'),
+      });
+      expect(mockSummaryPointModel.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should repair stale values from frontend when active academic records exist', async () => {
+      const summaryId = new Types.ObjectId().toString();
+      const criterionId = new Types.ObjectId().toString();
+
+      const mockSummary = {
+        _id: summaryId,
+        student_id: new Types.ObjectId(),
+        semester_id: new Types.ObjectId(),
+        status: 'draft',
+        details: [
+          {
+            _id: new Types.ObjectId(),
+            criterion_id: criterionId,
+            current_count: 0,
+            system_score: 0,
+            status: 'draft',
+          },
+        ],
+      };
+
+      mockSummaryPointModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      } as any);
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+
+      mockCriterionModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          score_per_unit: 10,
+          min_score: 0,
+          max_score: 100,
+          criterion_type: 'reward',
+        }),
+      } as any);
+
+      // Giả lập có 1 active record trong db
+      mockAcademicRecordModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(1),
+      } as any);
+      mockAcademicRecordModel.findOne.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({ selected_option_id: null, record_title: 'Title' }),
+      } as any);
+
+      mockSummaryPointModel.findOneAndUpdate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      } as any);
+
+      const dto: any = {
+        summary_id: summaryId,
+        details: [
+          {
+            criterion_id: criterionId,
+            current_count: 0, // frontend stale value
+            sv_score: 0,      // frontend stale value
+            gv_score: 0,      // frontend stale value
+          }
+        ]
+      };
+
+      const result = await service.bulkUpsert(dto, { userId: 'admin1', roleName: 'admin' });
+
+      expect(result.success).toBe(true);
+      // findOneAndUpdate phải nhận setObj với current_count=1 và sv_score/gv_score=10 (realSystemScore)
+      expect(mockSummaryPointModel.findOneAndUpdate).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            'details.$.current_count': 1,
+            'details.$.system_score': 10,
+            'details.$.sv_score': 10,
+            'details.$.gv_score': 10,
           })
         })
       );

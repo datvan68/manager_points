@@ -635,6 +635,10 @@ export class EvaluationDetailService {
     }
 
     await this.assertCanAccessSummary(summaryId, requester);
+
+    // Tự động đồng bộ hóa với academic records trước khi load chi tiết
+    await this.summariesPointService.syncSummaryWithAcademicRecords(summaryId);
+
     let query = this.summaryPointModel.findById(summaryId);
     if (!fetchLogs) {
       query = query.select({
@@ -771,30 +775,139 @@ export class EvaluationDetailService {
         (d) => d.criterion_id && d.criterion_id.toString() === criterion_id
       );
 
+      const detail = existingIndex !== -1 ? summary.details[existingIndex] : null;
+
+      if (detail) {
+        const isReviewed = detail.status === 'gv_reviewed' || !!detail.gv_reviewed_by || !!detail.gv_reviewed_at;
+        const isLocked = detail.status === 'locked' || !!detail.locked_at || !!detail.locked_by;
+        const isApproved = detail.final_score !== null && detail.final_score !== undefined;
+        const isManuallyReviewed = isReviewed || isLocked || isApproved;
+
+        if (isManuallyReviewed) {
+          clampResults.push({
+            criterion_id,
+            status: 'skipped',
+            reason: 'Detail is already locked, reviewed, or approved.',
+          });
+          continue;
+        }
+      }
+
+      // Đếm active academic records cho student/semester của summary này và criterion này
+      const activeCount = await this.academicRecordModel.countDocuments({
+        student_id: summary.student_id,
+        semester_id: summary.semester_id,
+        criterion_id: new Types.ObjectId(criterion_id),
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any).exec();
+
+      // Tính system_score từ records
+      let optId: string | null = null;
+      let optLabel: string | null = null;
+      let optScore: number | null = null;
+      let manualScore: number | null = null;
+      if (activeCount > 0) {
+        const latestRecord = await this.academicRecordModel.findOne({
+          student_id: summary.student_id,
+          semester_id: summary.semester_id,
+          criterion_id: new Types.ObjectId(criterion_id),
+          status: 'active',
+          is_deleted: { $ne: true },
+        } as any).sort({ createdAt: -1 }).exec();
+
+        if (latestRecord) {
+          if (criterion.scoring_mode === 'single_option') {
+            if (latestRecord.selected_option_id) {
+              optId = latestRecord.selected_option_id;
+              optLabel = latestRecord.selected_option_label || null;
+              optScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
+            } else if (latestRecord.record_title && latestRecord.record_title.startsWith('Lựa chọn option ')) {
+              optId = latestRecord.record_title.replace('Lựa chọn option ', '');
+            }
+          } else {
+            if (latestRecord.record_title && latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
+              const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
+              manualScore = parseFloat(manualScoreStr) || 0;
+            }
+          }
+        }
+      }
+
       const scoringResult = calculateCriterionScoreHelper({
         criterion,
-        count: current_count ?? 0,
-        selectedOptionId: selected_option_id,
-        selectedOptionLabel: detailDto.selected_option_label,
-        selectedOptionScore: detailDto.selected_option_score,
-        isSyncPath: false,
+        count: activeCount,
+        selectedOptionId: optId,
+        selectedOptionLabel: optLabel,
+        selectedOptionScore: optScore,
+        manualScore,
+        isSyncPath: true,
       });
+      const realSystemScore = scoringResult.systemScore;
 
-      let countVal = scoringResult.currentCount;
-      let systemScore = scoringResult.systemScore;
-      let optId = scoringResult.selectedOptionId;
-      let optLabel = scoringResult.selectedOptionLabel;
-      let optScore = scoringResult.selectedOptionScore;
+      // Bảo vệ chống ghi đè stale zero/null values từ frontend khi có active academic records
+      if (activeCount > 0) {
+        detailDto.current_count = scoringResult.currentCount;
+        detailDto.selected_option_id = scoringResult.selectedOptionId ?? undefined;
 
-      const firstLog = detailDto.log && detailDto.log.length > 0 ? detailDto.log[0] : null;
-      const fallbackUserId = detailDto.gv_reviewed_by || firstLog?.updated_by;
-      const effectiveRequester = requester || { userId: fallbackUserId };
+        const isRewardOrViolation = criterion.score_per_unit > 0 || criterion.criterion_type === 'reward' || criterion.criterion_type === 'bonus' || criterion.score_per_unit < 0 || criterion.criterion_type === 'violation';
+        if (realSystemScore > 0 && isRewardOrViolation) {
+          if (detailDto.sv_score === undefined || detailDto.sv_score === 0 || detailDto.sv_score === null) {
+            detailDto.sv_score = realSystemScore;
+          }
+          if (detailDto.gv_score === undefined || detailDto.gv_score === 0 || detailDto.gv_score === null) {
+            detailDto.gv_score = realSystemScore;
+          }
+        }
+      }
 
-      // current_count, system_score, selected_option_* should NOT be overwritten by bulkUpsert
-      // because they are now strictly managed by academic_record and syncStudentCriterionScore.
       const setObj: any = {
         criterion_id: new Types.ObjectId(criterion_id),
       };
+
+      // Đồng bộ thông tin đếm và điểm số thật vào setObj
+      if (activeCount > 0) {
+        setObj.current_count = scoringResult.currentCount;
+        setObj.system_score = realSystemScore;
+        setObj.selected_option_id = scoringResult.selectedOptionId;
+        setObj.selected_option_label = scoringResult.selectedOptionLabel;
+        setObj.selected_option_score = scoringResult.selectedOptionScore;
+      } else {
+        // Đảm bảo option chỉ được xóa khi có intent rõ ràng, không được tự động xóa do payload gửi thiếu
+        if (detailDto.selected_option_id !== undefined) {
+          setObj.selected_option_id = detailDto.selected_option_id;
+          if (detailDto.selected_option_id === null) {
+            setObj.selected_option_label = null;
+            setObj.selected_option_score = 0;
+          } else {
+            const option = criterion.options?.find((o: any) => o.id === detailDto.selected_option_id);
+            if (option) {
+              setObj.selected_option_label = option.label;
+              setObj.selected_option_score = option.score;
+            }
+          }
+        } else if (detail) {
+          setObj.selected_option_id = detail.selected_option_id;
+          setObj.selected_option_label = detail.selected_option_label;
+          setObj.selected_option_score = detail.selected_option_score;
+        }
+
+        if (detailDto.current_count !== undefined) {
+          setObj.current_count = detailDto.current_count;
+        } else if (detail) {
+          setObj.current_count = detail.current_count;
+        } else {
+          setObj.current_count = 0;
+        }
+
+        if ((detailDto as any).system_score !== undefined) {
+          setObj.system_score = (detailDto as any).system_score;
+        } else if (detail) {
+          setObj.system_score = detail.system_score;
+        } else {
+          setObj.system_score = 0;
+        }
+      }
 
       if (detailDto.sv_score !== undefined) setObj.sv_score = detailDto.sv_score;
       if (detailDto.sv_submitted_at !== undefined) setObj.sv_submitted_at = detailDto.sv_submitted_at ? new Date(detailDto.sv_submitted_at) : null;
@@ -810,8 +923,7 @@ export class EvaluationDetailService {
       if (detailDto.log && detailDto.log.length > 0) setObj.log = detailDto.log;
 
       if (existingIndex !== -1) {
-        const detail = summary.details[existingIndex];
-        if (isGVScoreCleared && !detail.gv_reviewed_at && !detail.gv_reviewed_by) {
+        if (detail && isGVScoreCleared && !detail.gv_reviewed_at && !detail.gv_reviewed_by) {
           setObj.gv_score = null;
         }
 
@@ -827,11 +939,11 @@ export class EvaluationDetailService {
         const newDetail: any = {
           _id: new Types.ObjectId(),
           ...setObj,
-          current_count: 0,
-          system_score: 0,
-          sv_score: setObj.sv_score !== undefined ? setObj.sv_score : null,
+          current_count: activeCount > 0 ? scoringResult.currentCount : (setObj.current_count ?? 0),
+          system_score: activeCount > 0 ? realSystemScore : (setObj.system_score ?? 0),
+          sv_score: setObj.sv_score !== undefined ? setObj.sv_score : (activeCount > 0 ? realSystemScore : null),
           sv_submitted_at: setObj.sv_submitted_at || null,
-          gv_score: setObj.gv_score !== undefined ? setObj.gv_score : null,
+          gv_score: setObj.gv_score !== undefined ? setObj.gv_score : (activeCount > 0 ? realSystemScore : null),
           gv_reviewed_at: setObj.gv_reviewed_at || null,
           gv_reviewed_by: setObj.gv_reviewed_by || null,
           final_score: null,
