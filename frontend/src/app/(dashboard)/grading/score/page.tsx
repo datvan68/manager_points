@@ -30,6 +30,7 @@ import {
 import CopyScoreModal from "./_components/CopyScoreModal";
 import DeleteSummaryModal from "./_components/DeleteSummaryModal";
 import { buildTargetSafeCounts } from "./_utils/copy-score";
+import { mergeRealtimeEvent } from "./_utils/realtime-event";
 import { motion, AnimatePresence } from "framer-motion";
 import { CustomPagination } from "@/components/ui/pagination";
 import { toast } from "sonner";
@@ -768,6 +769,10 @@ function GradingScoreContent() {
   const [evaluationDetailsMap, setEvaluationDetailsMap] = useState<
     Record<string, any>
   >({});
+  const evaluationDetailsMapRef = useRef<Record<string, any>>({});
+  useEffect(() => {
+    evaluationDetailsMapRef.current = evaluationDetailsMap;
+  }, [evaluationDetailsMap]);
   const [apiSummariesPoints, setApiSummariesPoints] = useState<any[]>([]);
 
   // Mapping từ MSSV/Student ID sang ID của SummaryPoint
@@ -1265,15 +1270,24 @@ function GradingScoreContent() {
             const merged = mergeDetailsWithPreExistingCounts(details, isLocked);
 
             setEvaluationDetailsMap(merged.detailsMap);
+            evaluationDetailsMapRef.current = merged.detailsMap;
 
-            setEvaluationCounts((prev) => ({
-              ...prev,
-              [targetActiveId]: merged.counts,
-            }));
-            setSelectedOptionsState((prev) => ({
-              ...prev,
-              [targetActiveId]: merged.optionsMap,
-            }));
+            setEvaluationCounts((prev) => {
+              const next = {
+                ...prev,
+                [targetActiveId]: merged.counts,
+              };
+              evaluationCountsRef.current = next;
+              return next;
+            });
+            setSelectedOptionsState((prev) => {
+              const next = {
+                ...prev,
+                [targetActiveId]: merged.optionsMap,
+              };
+              selectedOptionsStateRef.current = next;
+              return next;
+            });
 
             setHistoryRecords([]);
             loadedHistoryStudentIdRef.current = "";
@@ -1333,15 +1347,24 @@ function GradingScoreContent() {
         const merged = mergeDetailsWithPreExistingCounts(details, isLocked);
 
         setEvaluationDetailsMap(merged.detailsMap);
+        evaluationDetailsMapRef.current = merged.detailsMap;
 
-        setEvaluationCounts((prev) => ({
-          ...prev,
-          [studentIdAtRequest]: merged.counts,
-        }));
-        setSelectedOptionsState((prev) => ({
-          ...prev,
-          [studentIdAtRequest]: merged.optionsMap,
-        }));
+        setEvaluationCounts((prev) => {
+          const next = {
+            ...prev,
+            [studentIdAtRequest]: merged.counts,
+          };
+          evaluationCountsRef.current = next;
+          return next;
+        });
+        setSelectedOptionsState((prev) => {
+          const next = {
+            ...prev,
+            [studentIdAtRequest]: merged.optionsMap,
+          };
+          selectedOptionsStateRef.current = next;
+          return next;
+        });
 
         if (shouldIncludeLogs) {
           const activeHistory = mapDetailsToHistoryRecords(details, studentIdAtRequest, categories);
@@ -1755,18 +1778,25 @@ function GradingScoreContent() {
   // Tính điểm thời gian thực dựa trên các lần thực hiện tiêu chí
   const calculateRealtimeScore = (
     studentId: string,
-    studentCounts: Record<string, number>,
-    studentOptions?: Record<string, string>,
+    studentCounts?: Record<string, number>,
+    studentOptions?: Record<string, string | null>,
     detailsMap?: Record<string, any>
   ) => {
-    const options = studentOptions || selectedOptionsState[studentId] || {};
+    const counts = studentCounts ?? evaluationCountsRef.current[studentId] ?? {};
+    const options = studentOptions ?? selectedOptionsStateRef.current[studentId] ?? {};
+
+    if (!categories || categories.length === 0) return;
+
+    const studentExists = students.some((s) => s.id === studentId);
+    if (!studentExists) return;
+
     const actualDetailsMap = detailsMap || (studentId === activeStudentId ? evaluationDetailsMap : undefined);
     
     // Lấy trạng thái lock của sinh viên
     const studentObj = students.find((s) => s.id === studentId);
     const isLocked = studentObj?.gradingStatus === "locked";
 
-    const clampedFinalScore = calculateTotalScore(categories, studentCounts, options, actualDetailsMap, isLocked);
+    const clampedFinalScore = calculateTotalScore(categories, counts, options, actualDetailsMap, isLocked);
 
     setStudents((prev) =>
       prev.map((std) =>
@@ -1775,7 +1805,7 @@ function GradingScoreContent() {
     );
   };
 
-  useGradingRealtime({
+  const { status: realtimeStatus } = useGradingRealtime({
     classId: selectedClassId,
     semesterId: selectedSemesterId,
     enabled: !!selectedClassId && !!selectedSemesterId,
@@ -1784,76 +1814,92 @@ function GradingScoreContent() {
         const sid = event.studentId;
         if (!sid) return;
 
-        // Extract list of details to update
-        const detailsToUpdate: { criterionId: string; detail: any }[] = [];
-        if (event.updatedDetail && event.criterionId) {
-          detailsToUpdate.push({ criterionId: event.criterionId, detail: event.updatedDetail });
-        } else if (event.updatedDetails && event.criterionIds) {
-          event.updatedDetails.forEach((detail: any) => {
-            const criterionId = detail.criterion_id?._id?.toString() || detail.criterion_id?.toString();
-            if (criterionId) {
-              detailsToUpdate.push({ criterionId, detail });
-            }
-          });
+        // Guard stale class/semester context (Task 6)
+        if (event.classId && event.classId !== selectedClassId) return;
+        if (event.semesterId && event.semesterId !== selectedSemesterId) return;
+
+        // Verify student exists in the current roster (Task 6)
+        const studentExists = students.some((s) => s.id === sid);
+        if (!studentExists) return;
+
+        // Clear dirty flag when backend summary is confirmed (Task 4)
+        if (dirtyStudentIdsRef.current.has(sid)) {
+          dirtyStudentIdsRef.current.delete(sid);
+          setDirtyStudentIds(new Set(dirtyStudentIdsRef.current));
         }
 
-        // Cập nhật điểm cho sinh viên này nếu event chứa thông tin
-        if (detailsToUpdate.length > 0) {
-          setEvaluationCounts(prev => {
-            const studentCounts = prev[sid] ? { ...prev[sid] } : {};
-            detailsToUpdate.forEach(({ criterionId, detail }) => {
-              studentCounts[criterionId] = detail.current_count;
-            });
-            const updated = { ...prev, [sid]: studentCounts };
-            evaluationCountsRef.current = updated;
-            return updated;
-          });
+        // Compute local snapshots using the extracted utility (Task 2 & 4)
+        const {
+          nextCountsByStudent,
+          nextOptionsByStudent,
+          nextDetailsMap,
+          detailsToUpdate,
+          normalizedCounts,
+          normalizedOptions
+        } = mergeRealtimeEvent({
+          event,
+          currentCounts: evaluationCountsRef.current,
+          currentOptions: selectedOptionsStateRef.current,
+          currentDetailsMap: evaluationDetailsMapRef.current,
+          activeStudentId: activeStudentIdRef.current
+        });
 
-          setSelectedOptionsState(prev => {
-            const studentOptions = prev[sid] ? { ...prev[sid] } : {};
-            detailsToUpdate.forEach(({ criterionId, detail }) => {
-              if (detail.selected_option_id) {
-                studentOptions[criterionId] = detail.selected_option_id;
-              } else {
-                delete studentOptions[criterionId];
-              }
-            });
-            const updated = { ...prev, [sid]: studentOptions };
-            selectedOptionsStateRef.current = updated;
-            return updated;
-          });
+        // Always update refs and states from snapshot (Task 4)
+        evaluationCountsRef.current = nextCountsByStudent;
+        selectedOptionsStateRef.current = nextOptionsByStudent;
+        setEvaluationCounts(nextCountsByStudent);
+        setSelectedOptionsState(nextOptionsByStudent);
 
-          if (sid === activeStudentIdRef.current) {
-            let updatedDetailsMap: Record<string, any> = {};
-            setEvaluationDetailsMap(prev => {
-              const updated = { ...prev };
-              detailsToUpdate.forEach(({ criterionId, detail }) => {
-                updated[criterionId] = detail;
-              });
-              updatedDetailsMap = updated;
-              return updated;
-            });
-            
-            // Tính lại điểm bằng cách truyền updatedDetailsMap trực tiếp để tránh stale state
-            calculateRealtimeScore(
-              sid,
-              evaluationCountsRef.current[sid],
-              selectedOptionsStateRef.current[sid],
-              updatedDetailsMap
-            );
-          }
+        if (sid === activeStudentIdRef.current) {
+          evaluationDetailsMapRef.current = nextDetailsMap;
+          setEvaluationDetailsMap(nextDetailsMap);
         }
 
-        // Cập nhật tổng điểm
-        if (event.totalScore !== undefined) {
-          setStudents(prev =>
-            prev.map(std =>
+        const isLockedOrReviewed = (detail: any) => {
+          if (!detail) return false;
+          const isLocked = detail.status === 'locked' || !!detail.locked_at;
+          const isReviewed = detail.status === 'gv_reviewed' || !!detail.gv_reviewed_by || !!detail.gv_reviewed_at;
+          const isApproved = detail.final_score !== null && detail.final_score !== undefined;
+          const isFinalized = detail.status === 'finalized';
+          return isLocked || isReviewed || isApproved || isFinalized;
+        };
+
+        const studentObj = students.find((s) => s.id === sid);
+        const isStudentLocked = studentObj?.gradingStatus === "locked";
+        const hasLockedOrReviewedDetail = sid === activeStudentIdRef.current
+          ? Object.values(nextDetailsMap).some((det) => isLockedOrReviewed(det))
+          : false;
+
+        const useBackendTotal = event.totalScore !== undefined && (
+          detailsToUpdate.length === 0 ||
+          isStudentLocked ||
+          hasLockedOrReviewedDetail
+        );
+
+        if (useBackendTotal) {
+          setStudents((prev) =>
+            prev.map((std) =>
               std.id === sid ? { ...std, score: event.totalScore } : std
             )
           );
+        } else {
+          calculateRealtimeScore(
+            sid,
+            normalizedCounts,
+            normalizedOptions,
+            sid === activeStudentIdRef.current ? nextDetailsMap : undefined
+          );
+        }
 
-          setApiSummariesPoints(prev =>
-            prev.map(s =>
+        // Apply totalScore to roster rows and cache summaries if present
+        if (event.totalScore !== undefined) {
+          setStudents((prev) =>
+            prev.map((std) =>
+              std.id === sid ? { ...std, score: event.totalScore } : std
+            )
+          );
+          setApiSummariesPoints((prev) =>
+            prev.map((s) =>
               s.student_id === sid || s.student_id?._id === sid
                 ? { ...s, total_score: event.totalScore, grading: event.grading }
                 : s
@@ -1863,6 +1909,39 @@ function GradingScoreContent() {
       }
     }
   });
+
+  const reloadActiveStudentDetails = async () => {
+    if (!activeStudentIdRef.current || !activeStudentSummaryId) return;
+    try {
+      const isLocked = students.find((s) => s.id === activeStudentIdRef.current)?.gradingStatus === "locked";
+      const details = await evaluationDetailApi.getEvaluationDetailsBySummary(activeStudentSummaryId, false);
+      const merged = mergeDetailsWithPreExistingCounts(details, isLocked);
+      
+      setEvaluationDetailsMap(merged.detailsMap);
+      evaluationDetailsMapRef.current = merged.detailsMap;
+
+      setEvaluationCounts((prev) => {
+        const next = { ...prev, [activeStudentIdRef.current]: merged.counts };
+        evaluationCountsRef.current = next;
+        return next;
+      });
+      setSelectedOptionsState((prev) => {
+        const next = { ...prev, [activeStudentIdRef.current]: merged.optionsMap };
+        selectedOptionsStateRef.current = next;
+        return next;
+      });
+    } catch (e) {
+      console.error("Failed to reload active student details on reconnect", e);
+    }
+  };
+
+  const prevStatusRef = useRef(realtimeStatus);
+  useEffect(() => {
+    if (realtimeStatus === 'connected' && prevStatusRef.current !== 'connected') {
+      reloadActiveStudentDetails();
+    }
+    prevStatusRef.current = realtimeStatus;
+  }, [realtimeStatus, activeStudentId, activeStudentSummaryId]);
 
   // Hàm đặt lại điểm số
   const handleReset = () => {
@@ -3072,6 +3151,11 @@ function GradingScoreContent() {
                             const criterionScore = getResolvedRawCriterionScore(item, count, selectedOptionId, detail, isStudentLocked);
                             const achievedPoints = getResolvedCriterionScore(item, count, selectedOptionId, detail, isStudentLocked);
 
+                            const isLocked = isStudentLocked || detail?.status === "locked" || !!detail?.locked_at;
+                            const isReviewed = detail?.status === "gv_reviewed" || !!detail?.gv_reviewed_by || !!detail?.gv_reviewed_at;
+                            const isApprovedVal = detail?.final_score !== null && detail?.final_score !== undefined;
+                            const isItemEditable = !isLocked;
+
                             const minCount = 0;
                             const maxScore = item.maxScore ?? 10;
                             const pointsPerUnit = Math.abs(item.pointsPerUnit || 1);
@@ -3171,10 +3255,10 @@ function GradingScoreContent() {
                                         <Select
                                           value={selectedOptionsState[activeStudentId]?.[item.id] || ""}
                                           onValueChange={(val: string) => handleOptionSet(item.id, val)}
-                                          disabled={item.is_locked || !canModifyScore || pendingIntentKeys[`${activeStudentId}:${item.id}`]}
+                                          disabled={item.is_locked || !canModifyScore || !isItemEditable || pendingIntentKeys[`${activeStudentId}:${item.id}`]}
                                         >
                                           <SelectTrigger
-                                            className={`w-full h-[40px] text-[13px] font-medium text-[#1E293B] ${item.is_locked || !canModifyScore || pendingIntentKeys[`${activeStudentId}:${item.id}`]
+                                            className={`w-full h-[40px] text-[13px] font-medium text-[#1E293B] ${item.is_locked || !canModifyScore || !isItemEditable || pendingIntentKeys[`${activeStudentId}:${item.id}`]
                                               ? "opacity-60 bg-slate-100/50 cursor-not-allowed pointer-events-none"
                                               : "cursor-pointer hover:bg-white/80"
                                               }`}
@@ -3193,23 +3277,26 @@ function GradingScoreContent() {
                                       </div>
                                     ) : (
                                       <div
-                                        className={`bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-xl py-1 px-2 flex gap-2 items-center shadow-sm ${item.is_locked || !canModifyScore ? "opacity-60 bg-slate-100/50" : ""}`}
+                                        className={`bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-xl py-1 px-2 flex gap-2 items-center shadow-sm ${item.is_locked || !canModifyScore || !isItemEditable ? "opacity-60 bg-slate-100/50" : ""}`}
                                       >
                                         {/* Nút giảm */}
                                         <button
                                           onClick={() =>
                                             !item.is_locked &&
                                             canModifyScore &&
+                                            isItemEditable &&
                                             handleCountChange(item.id, -1)
                                           }
                                           disabled={
                                             count <= minCount ||
                                             item.is_locked ||
-                                            !canModifyScore
+                                            !canModifyScore ||
+                                            !isItemEditable
                                           }
                                           className={`w-8 h-8 md:w-7 md:h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count <= minCount ||
                                             item.is_locked ||
-                                            !canModifyScore
+                                            !canModifyScore ||
+                                            !isItemEditable
                                             ? "opacity-30 cursor-not-allowed text-slate-400"
                                             : "cursor-pointer " +
                                             (hasViolation
@@ -3221,9 +3308,11 @@ function GradingScoreContent() {
                                               ? "Không có quyền sửa đổi trong giai đoạn này"
                                               : item.is_locked
                                                 ? "Tiêu chí đã bị khóa"
-                                                : count <= minCount && minCount > 0
-                                                  ? `Không thể giảm dưới ${minCount} vì còn bản ghi không được phép xóa.`
-                                                  : "Giảm số lần"
+                                                : !isItemEditable
+                                                  ? "Tiêu chí này đã được duyệt hoặc chốt điểm"
+                                                  : count <= minCount && minCount > 0
+                                                    ? `Không thể giảm dưới ${minCount} vì còn bản ghi không được phép xóa.`
+                                                    : "Giảm số lần"
                                           }
                                         >
                                           <Minus className="w-[15px] h-[15px] md:w-[11px] md:h-[11px]" strokeWidth={3} />
@@ -3234,7 +3323,7 @@ function GradingScoreContent() {
                                           minCount={minCount}
                                           maxCount={sliderMax}
                                           onChange={(val) => handleCountSet(item.id, val)}
-                                          isLocked={item.is_locked || false}
+                                          isLocked={item.is_locked || !isItemEditable || false}
                                           canModifyScore={canModifyScore}
                                           hasViolation={hasViolation}
                                         />
@@ -3244,16 +3333,19 @@ function GradingScoreContent() {
                                           onClick={() =>
                                             !item.is_locked &&
                                             canModifyScore &&
+                                            isItemEditable &&
                                             handleCountChange(item.id, 1)
                                           }
                                           disabled={
                                             count >= maxCount ||
                                             item.is_locked ||
-                                            !canModifyScore
+                                            !canModifyScore ||
+                                            !isItemEditable
                                           }
                                           className={`w-8 h-8 md:w-7 md:h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${count >= maxCount ||
                                             item.is_locked ||
-                                            !canModifyScore
+                                            !canModifyScore ||
+                                            !isItemEditable
                                             ? "opacity-30 cursor-not-allowed text-slate-400"
                                             : "cursor-pointer " +
                                             (hasViolation
@@ -3265,9 +3357,11 @@ function GradingScoreContent() {
                                               ? "Không có quyền sửa đổi trong giai đoạn này"
                                               : item.is_locked
                                                 ? "Tiêu chí đã bị khóa"
-                                                : count >= maxCount
-                                                  ? `Đã đạt giới hạn tối đa (${maxCount} lần)`
-                                                  : "Tăng số lần"
+                                                : !isItemEditable
+                                                  ? "Tiêu chí này đã được duyệt hoặc chốt điểm"
+                                                  : count >= maxCount
+                                                    ? `Đã đạt giới hạn tối đa (${maxCount} lần)`
+                                                    : "Tăng số lần"
                                           }
                                         >
                                           <Plus className="w-[15px] h-[15px] md:w-[11px] md:h-[11px]" strokeWidth={3} />

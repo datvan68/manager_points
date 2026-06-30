@@ -1156,17 +1156,20 @@ describe('SummariesPointService', () => {
             selected_option_id: 'opt-found',
             selected_option_score: 99, // Should NOT be used since option is found
             status: 'draft',
+            current_count: 1,
           },
           {
             criterion_id: 'cri-opt-fallback',
             selected_option_id: 'opt-not-found',
             selected_option_score: 15, // Should be used since option not found in options array
             status: 'draft',
+            current_count: 1,
           },
           {
             criterion_id: 'cri-opt-zero',
             selected_option_id: 'opt-not-found-no-score',
             status: 'draft',
+            current_count: 1,
           }
         ],
         save: jest.fn().mockResolvedValue(true),
@@ -1209,6 +1212,141 @@ describe('SummariesPointService', () => {
       // cri-opt-zero score should be 0
       // total score: 25 + 15 + 0 = 40
       expect(mockSummary.total_score).toBe(40);
+      expect(mockSummary.save).toHaveBeenCalled();
+    });
+
+    it('should calculate 0 score for editable draft reward criterion with count = 0 and no options, ignoring stale positive scores', async () => {
+      const mockSummary = {
+        _id: 'some-id',
+        status: 'draft',
+        total_score: 0,
+        grading: '',
+        details: [
+          {
+            criterion_id: 'cri-reward-stale',
+            current_count: 0,
+            system_score: 10,
+            sv_score: 10,
+            gv_score: 10,
+            status: 'draft',
+          }
+        ],
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([
+          {
+            _id: 'cri-reward-stale',
+            category_id: 'cat-1',
+            scoring_mode: 'count',
+            score_per_unit: 5,
+            max_score: 10,
+            criterion_type: 'reward',
+          }
+        ]),
+      });
+
+      await service.recomputeTotalScore('some-id');
+
+      expect(mockSummary.total_score).toBe(0);
+      expect(mockSummary.save).toHaveBeenCalled();
+    });
+
+    it('should calculate 0 score for draft single_option criterion with current_count = 0 and no option selected', async () => {
+      const mockSummary = {
+        _id: 'some-id',
+        status: 'draft',
+        total_score: 0,
+        grading: '',
+        details: [
+          {
+            criterion_id: 'cri-opt-cleared',
+            current_count: 0,
+            selected_option_id: null,
+            selected_option_score: null,
+            system_score: 0,
+            sv_score: 0,
+            gv_score: 0,
+            status: 'draft',
+          }
+        ],
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([
+          {
+            _id: 'cri-opt-cleared',
+            category_id: 'cat-1',
+            scoring_mode: 'single_option',
+            options: [{ id: 'opt-1', label: 'Option 1', score: 10 }],
+          }
+        ]),
+      });
+
+      await service.recomputeTotalScore('some-id');
+
+      expect(mockSummary.total_score).toBe(0);
+      expect(mockSummary.save).toHaveBeenCalled();
+    });
+
+    it('should calculate 0 score for draft single_option with current_count = 0 and stale selected option', async () => {
+      const mockSummary = {
+        _id: 'some-id',
+        status: 'draft',
+        total_score: 0,
+        grading: '',
+        details: [
+          {
+            criterion_id: 'cri-opt-stale',
+            current_count: 0,
+            selected_option_id: 'opt-1',
+            selected_option_score: 10,
+            system_score: 10,
+            sv_score: 10,
+            gv_score: 10,
+            status: 'draft',
+          }
+        ],
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
+      mockCategoryModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+      });
+
+      mockCriterionModel.find.mockReturnValueOnce({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValueOnce([
+          {
+            _id: 'cri-opt-stale',
+            category_id: 'cat-1',
+            scoring_mode: 'single_option',
+            options: [{ id: 'opt-1', label: 'Option 1', score: 10 }],
+          }
+        ]),
+      });
+
+      await service.recomputeTotalScore('some-id');
+
+      expect(mockSummary.total_score).toBe(0);
       expect(mockSummary.save).toHaveBeenCalled();
     });
   });

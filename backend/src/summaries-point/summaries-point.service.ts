@@ -612,9 +612,13 @@ export class SummariesPointService {
           const isSummaryLocked = summary.status === 'locked';
           const isDetailLocked = detail.status === 'locked' || !!detail.locked_at;
           const isReviewed = detail.status === 'gv_reviewed' || !!detail.gv_reviewed_by || !!detail.gv_reviewed_at;
+          const isApproved = detail.final_score !== null && detail.final_score !== undefined;
+          const isEditableDraft = !isSummaryLocked && !isDetailLocked && !isReviewed && !isApproved;
 
           let rawScore = 0;
-          if (isSummaryLocked || isDetailLocked) {
+          if (isEditableDraft && (detail.current_count ?? 0) === 0) {
+            rawScore = isDiscipline ? (cri.max_score || 10) : 0;
+          } else if (isSummaryLocked || isDetailLocked) {
             // For locked summaries or locked details, final_score is authoritative
             rawScore = detail.final_score !== null && detail.final_score !== undefined
               ? detail.final_score

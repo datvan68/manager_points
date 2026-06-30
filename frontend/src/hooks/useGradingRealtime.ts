@@ -81,13 +81,28 @@ export function useGradingRealtime({ classId, semesterId, enabled, onEvent }: Us
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               const dataStr = line.slice(6);
+              let event: any;
               try {
-                const event = JSON.parse(dataStr);
-                if (event.type !== 'ping' && event.type !== 'connected') {
-                  savedHandler.current(event);
-                }
+                event = JSON.parse(dataStr);
               } catch (e) {
                 console.error('Failed to parse SSE data', e);
+                continue;
+              }
+
+              if (event && event.type !== 'ping' && event.type !== 'connected') {
+                try {
+                  savedHandler.current(event);
+                } catch (e) {
+                  const eventType = event.type ?? 'unknown';
+                  const classIdStr = event.classId || '';
+                  const semesterIdStr = event.semesterId || '';
+                  const studentIdStr = event.studentId || '';
+                  const criterionIdStr = event.criterionId || '';
+                  console.error(
+                    `Failed to handle SSE event [type=${eventType}, class=${classIdStr}, semester=${semesterIdStr}, student=${studentIdStr}, criterion=${criterionIdStr}]`,
+                    e
+                  );
+                }
               }
             }
           }

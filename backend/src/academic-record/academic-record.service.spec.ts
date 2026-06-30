@@ -1010,7 +1010,63 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(mockSummary.details[0].gv_score).toBe(6); // Preserved
     });
 
-    it.todo('should detect evaluation_detail with score but no active academic_record (orphan detection logic)');
+    it('should clear selected option fields for editable draft option criteria when no active records exist', async () => {
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]) // No active records
+      });
+
+      mockCriterionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'single_option',
+          options: [{ id: 'opt-1', label: 'Opt 1', score: 5 }]
+        })
+      });
+
+      mockSummary.details[0].selected_option_id = 'opt-1';
+      mockSummary.details[0].selected_option_label = 'Opt 1';
+      mockSummary.details[0].selected_option_score = 5;
+      mockSummary.details[0].status = 'draft';
+
+      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+
+      expect(mockSummary.details[0].selected_option_id).toBeNull();
+      expect(mockSummary.details[0].selected_option_label).toBeNull();
+      expect(mockSummary.details[0].selected_option_score).toBeNull();
+      expect(mockSummary.details[0].current_count).toBe(0);
+      expect(mockSummary.details[0].system_score).toBe(0);
+      expect(mockSummary.save).toHaveBeenCalled();
+    });
+
+    it('should NOT clear selected option fields or manual scores when detail is reviewed/locked', async () => {
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]) // No active records
+      });
+
+      mockCriterionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'single_option',
+          options: [{ id: 'opt-1', label: 'Opt 1', score: 5 }]
+        })
+      });
+
+      mockSummary.details[0].selected_option_id = 'opt-1';
+      mockSummary.details[0].selected_option_label = 'Opt 1';
+      mockSummary.details[0].selected_option_score = 5;
+      mockSummary.details[0].status = 'gv_reviewed';
+      mockSummary.details[0].gv_reviewed_by = 'teacher-1';
+
+      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+
+      expect(mockSummary.details[0].selected_option_id).toBe('opt-1');
+      expect(mockSummary.details[0].selected_option_label).toBe('Opt 1');
+      expect(mockSummary.details[0].selected_option_score).toBe(5);
+      expect(mockSummary.details[0].current_count).toBe(0);
+      expect(mockSummary.details[0].system_score).toBe(0);
+    });
   });
 
   describe('select_option intent validation and sync', () => {
@@ -1231,6 +1287,269 @@ describe('AcademicRecordService - Import Flow', () => {
         intent_type: 'increase'
       };
       await expect(service.handleScoreIntent(intentDto as any)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('Realtime Count Sync And Decrement Score Safety', () => {
+    let studentId: string;
+    let semesterId: string;
+    let criterionId: string;
+    let mockSummary: any;
+
+    beforeEach(() => {
+      studentId = new Types.ObjectId().toString();
+      semesterId = new Types.ObjectId().toString();
+      criterionId = new Types.ObjectId().toString();
+
+      mockSummary = {
+        _id: new Types.ObjectId(),
+        student_id: studentId,
+        semester_id: semesterId,
+        details: [
+          {
+            criterion_id: criterionId,
+            current_count: 2,
+            system_score: 10,
+            sv_score: 10,
+            gv_score: 10,
+            status: 'draft',
+          },
+        ],
+        save: jest.fn().mockResolvedValue(true),
+        markModified: jest.fn(),
+        status: 'draft',
+      };
+
+      mockSummaryPointModel.find = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([mockSummary]),
+      });
+      mockSummaryPointModel.findOne = jest.fn().mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockSummary),
+      });
+      mockSummaryPointModel.db = {
+        model: jest.fn().mockReturnValue({
+          find: jest.fn().mockReturnValue({
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue([
+              { _id: new Types.ObjectId(), max_score: 100 }
+            ]),
+          }),
+        }),
+      };
+      mockStudentModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: studentId, status: 'Studying' }),
+      });
+      mockCriterionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'count',
+          score_per_unit: 5,
+          max_score: 10,
+          criterion_type: 'reward',
+        }),
+      });
+      mockCriterionModel.find = jest.fn().mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: criterionId,
+            scoring_mode: 'count',
+            score_per_unit: 5,
+            max_score: 10,
+            criterion_type: 'reward',
+          },
+        ]),
+      });
+      mockAcademicRecordModel.countDocuments = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(2),
+      });
+      mockSummariesPointService.recomputeTotalScore = jest.fn().mockResolvedValue(mockSummary);
+    });
+
+    it('Deleting the last active reward record sets editable draft current_count = 0, system_score = 0, sv_score = 0, and gv_score = 0', async () => {
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]), // No active records
+      });
+
+      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+
+      expect(mockSummary.details[0].current_count).toBe(0);
+      expect(mockSummary.details[0].system_score).toBe(0);
+      expect(mockSummary.details[0].sv_score).toBe(0);
+      expect(mockSummary.details[0].gv_score).toBe(0);
+      expect(mockSummary.details[0].final_score).toBeNull();
+    });
+
+    it('Reducing active reward records from 2 to 1 lowers current_count and system_score', async () => {
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{}]), // 1 active record
+      });
+
+      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+
+      expect(mockSummary.details[0].current_count).toBe(1);
+      expect(mockSummary.details[0].system_score).toBe(5);
+      expect(mockSummary.details[0].sv_score).toBe(5);
+      expect(mockSummary.details[0].gv_score).toBe(5);
+    });
+
+    it('Clearing the last active option record clears selected option fields for editable draft details', async () => {
+      mockCriterionModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          scoring_mode: 'single_option',
+          options: [{ id: 'opt-1', label: 'Option 1', score: 10 }],
+        }),
+      });
+
+      mockSummary.details[0] = {
+        criterion_id: criterionId,
+        current_count: 1,
+        selected_option_id: 'opt-1',
+        selected_option_label: 'Option 1',
+        selected_option_score: 10,
+        status: 'draft',
+      };
+
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]), // No active records
+      });
+
+      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+
+      expect(mockSummary.details[0].current_count).toBe(0);
+      expect(mockSummary.details[0].selected_option_id).toBeNull();
+      expect(mockSummary.details[0].selected_option_label).toBeNull();
+      expect(mockSummary.details[0].selected_option_score).toBeNull();
+    });
+
+    it('syncMultipleStudentCriterionScores() matches syncStudentCriterionScore() for no-record draft repair', async () => {
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]), // No active records
+      });
+
+      await service.syncMultipleStudentCriterionScores([
+        { student_id: studentId, semester_id: semesterId, criterion_id: criterionId },
+      ]);
+
+      expect(mockSummary.details[0].current_count).toBe(0);
+      expect(mockSummary.details[0].system_score).toBe(0);
+      expect(mockSummary.details[0].sv_score).toBe(0);
+      expect(mockSummary.details[0].gv_score).toBe(0);
+    });
+
+    it('Reviewed, locked, approved, and finalized details are not auto-cleared and are reported as skipped mismatches', async () => {
+      mockSummary.details[0] = {
+        criterion_id: criterionId,
+        current_count: 1,
+        system_score: 5,
+        sv_score: 5,
+        gv_score: 5,
+        status: 'gv_reviewed',
+        gv_reviewed_at: new Date(),
+        gv_reviewed_by: 'teacher-1',
+      };
+
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]), // No active records
+      });
+
+      const res = await service.syncMultipleStudentCriterionScores([
+        { student_id: studentId, semester_id: semesterId, criterion_id: criterionId },
+      ]);
+
+      // Count changes but score lanes must be kept
+      expect(mockSummary.details[0].current_count).toBe(0);
+      expect(mockSummary.details[0].system_score).toBe(0);
+      expect(mockSummary.details[0].sv_score).toBe(5); // Preserved
+      expect(mockSummary.details[0].gv_score).toBe(5); // Preserved
+
+      expect(res.mismatches.length).toBe(1);
+      expect(res.mismatches[0].status).toBe('skipped');
+      expect(res.mismatches[0].skip_reason).toBe('reviewed');
+    });
+
+    it('Decrease/clear operations return the synchronized actual count and detail', async () => {
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), recorded_by: studentId }]), // 1 record
+      });
+
+      mockAcademicRecordModel.deleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+
+      const intentDto = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'decrease' as const,
+        baseline_count: 1,
+      };
+
+      const requester = { userId: studentId, roleName: 'Student' };
+      const result = await service.handleScoreIntent(intentDto, requester);
+
+      expect(result.success).toBe(true);
+      expect(result.actual_count).toBeDefined();
+      expect(result.evaluation_detail).toBeDefined();
+    });
+
+    it('Incomplete deletion due to permissions reports actual remaining count', async () => {
+      // 2 records, one by Admin, one by Student
+      const adminRecord = {
+        _id: new Types.ObjectId(),
+        recorded_by: { _id: new Types.ObjectId(), role: { role_name: 'Admin' } },
+      };
+      const studentRecord = {
+        _id: new Types.ObjectId(),
+        recorded_by: { _id: studentId, role: { role_name: 'Student' } },
+      };
+
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([adminRecord, studentRecord]),
+      });
+
+      mockAcademicRecordModel.deleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+
+      const intentDto = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'decrease' as const,
+        baseline_count: 2,
+      };
+
+      const requester = { userId: studentId, roleName: 'Student' };
+
+      mockAcademicRecordModel.find = jest.fn().mockImplementation(() => {
+        let isPopulateCalled = false;
+        const chain: any = {
+          sort: jest.fn().mockImplementation(() => chain),
+          populate: jest.fn().mockImplementation(() => {
+            isPopulateCalled = true;
+            return chain;
+          }),
+          exec: jest.fn().mockImplementation(() => {
+            if (isPopulateCalled) {
+              return Promise.resolve([adminRecord, studentRecord]);
+            } else {
+              return Promise.resolve([adminRecord]);
+            }
+          }),
+        };
+        return chain;
+      });
+
+      const result = await service.handleScoreIntent(intentDto, requester);
+      expect(result.success).toBe(true);
+      expect(result.actual_count).toBe(1);
     });
   });
 });

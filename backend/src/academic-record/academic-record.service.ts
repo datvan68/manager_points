@@ -78,6 +78,137 @@ export class AcademicRecordService {
     }
   }
 
+  private calculateSyncDetail(params: {
+    criterion: any;
+    activeCount: number;
+    optId: string | null;
+    optLabel: string | null;
+    optScore: number | null;
+    manualScore: number | null;
+    isValidOption: boolean;
+    oldDetail: any | null;
+    options?: { forceRepairLocked?: boolean };
+  }): {
+    status: 'repaired' | 'skipped';
+    skipReason: 'locked' | 'reviewed' | 'approved' | 'invalid_option' | null;
+    detail: any;
+  } {
+    const {
+      criterion,
+      activeCount,
+      optId,
+      optLabel,
+      optScore,
+      manualScore,
+      isValidOption,
+      oldDetail,
+      options,
+    } = params;
+
+    // 1. Determine manually reviewed status of oldDetail
+    const isReviewed = oldDetail && (oldDetail.status === 'gv_reviewed' || !!oldDetail.gv_reviewed_by || !!oldDetail.gv_reviewed_at);
+    const isLocked = oldDetail && (oldDetail.status === 'locked' || !!oldDetail.locked_at || !!oldDetail.locked_by);
+    const isApproved = oldDetail && (oldDetail.final_score !== null && oldDetail.final_score !== undefined);
+    const isManuallyReviewed = isReviewed || isLocked || isApproved;
+
+    // 2. Determine skip status and skip_reason
+    let status: 'repaired' | 'skipped' = 'repaired';
+    let skipReason: 'locked' | 'reviewed' | 'approved' | 'invalid_option' | null = null;
+
+    if (isManuallyReviewed && !options?.forceRepairLocked) {
+      status = 'skipped';
+      if (isApproved) {
+        skipReason = 'approved';
+      } else if (isLocked) {
+        skipReason = 'locked';
+      } else {
+        skipReason = 'reviewed';
+      }
+    } else if (!isValidOption) {
+      status = 'skipped';
+      skipReason = 'invalid_option';
+    }
+
+    // 3. Compute system score and options using the helper
+    const scoringResult = calculateCriterionScoreHelper({
+      criterion,
+      count: activeCount,
+      selectedOptionId: optId,
+      selectedOptionLabel: optLabel,
+      selectedOptionScore: optScore,
+      manualScore,
+      isSyncPath: true,
+    });
+
+    const systemScore = scoringResult.systemScore;
+    const selectedOptionId = scoringResult.selectedOptionId;
+    const selectedOptionLabel = scoringResult.selectedOptionLabel;
+    const selectedOptionScore = scoringResult.selectedOptionScore;
+
+    // 4. Construct / Update detail
+    const detail: any = oldDetail ? (oldDetail.toObject ? oldDetail.toObject() : { ...oldDetail }) : {
+      criterion_id: new Types.ObjectId(criterion._id),
+      sv_score: null,
+      sv_submitted_at: null,
+      gv_score: null,
+      gv_reviewed_at: null,
+      gv_reviewed_by: null,
+      final_score: null,
+      locked_at: null,
+      locked_by: null,
+      status: 'draft',
+      description: '',
+      log: [],
+    };
+
+    if (status === 'skipped') {
+      // If skipped, update only current_count and system_score
+      detail.current_count = criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount;
+      detail.system_score = systemScore;
+      if (activeCount > 0) {
+        detail.selected_option_id = selectedOptionId;
+        detail.selected_option_label = selectedOptionLabel;
+        detail.selected_option_score = selectedOptionScore;
+      }
+    } else {
+      // Repaired / New draft detail
+      const isReward = criterion.criterion_type === 'reward' || criterion.criterion_type === 'bonus' || criterion.score_per_unit > 0 || !(criterion.score_per_unit < 0 || criterion.criterion_type === 'ky_luat');
+
+      detail.status = 'draft';
+      detail.current_count = criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount;
+      detail.final_score = null;
+
+      if (activeCount === 0) {
+        if (criterion.scoring_mode === 'single_option' || isReward) {
+          detail.system_score = 0;
+          detail.sv_score = 0;
+          detail.gv_score = 0;
+          detail.selected_option_id = null;
+          detail.selected_option_label = null;
+          detail.selected_option_score = null;
+        } else {
+          // count discipline
+          detail.system_score = systemScore;
+          detail.sv_score = systemScore;
+          detail.gv_score = systemScore;
+        }
+      } else {
+        detail.system_score = systemScore;
+        detail.sv_score = systemScore;
+        detail.gv_score = systemScore;
+        detail.selected_option_id = selectedOptionId;
+        detail.selected_option_label = selectedOptionLabel;
+        detail.selected_option_score = selectedOptionScore;
+      }
+    }
+
+    return {
+      status,
+      skipReason,
+      detail,
+    };
+  }
+
   /**
    * Helper function to sync student's criterion count and system score in SummaryPoint(s)
    */
@@ -152,30 +283,15 @@ export class AcademicRecordService {
       }
     }
 
-    const scoringResult = calculateCriterionScoreHelper({
-      criterion,
-      count: activeCount,
-      selectedOptionId: optId,
-      selectedOptionLabel: optLabel,
-      selectedOptionScore: optScore,
-      manualScore,
-      isSyncPath: true,
-    });
-
-    const systemScore = scoringResult.systemScore;
-    const selectedOptionId = scoringResult.selectedOptionId;
-    const selectedOptionLabel = scoringResult.selectedOptionLabel;
-    const selectedOptionScore = scoringResult.selectedOptionScore;
-
-
     // 4. Find all SummaryPoints for this student and semester
     let summaries = await this.summaryPointModel.find({
       student_id: new Types.ObjectId(studentId),
       semester_id: new Types.ObjectId(semesterId),
     } as any).exec();
 
-    // If no summaries exist, we don't automatically create one since it should be generated via period/import flow
-    // but just to be safe, if we need to initialize one, we can check.
+    let syncResultStatus: 'repaired' | 'skipped' = 'repaired';
+    let syncResultSkipReason: 'locked' | 'reviewed' | 'approved' | 'invalid_option' | null = null;
+
     for (const summary of summaries) {
       if (summary.status === 'locked') {
         continue;
@@ -196,52 +312,28 @@ export class AcademicRecordService {
             (d: any) => d.criterion_id && d.criterion_id.toString() === criterionId,
           );
 
-          if (detailIndex === -1) {
-            // Add new embedded detail
-            const newDetail: any = {
-              criterion_id: new Types.ObjectId(criterionId),
-              current_count: criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount,
-              system_score: systemScore,
-              selected_option_id: selectedOptionId,
-              selected_option_label: selectedOptionLabel,
-              selected_option_score: selectedOptionScore,
-              sv_score: null,
-              sv_submitted_at: null,
-              gv_score: null,
-              gv_reviewed_at: null,
-              gv_reviewed_by: null,
-              final_score: null,
-              locked_at: null,
-              locked_by: null,
-              status: 'draft',
-              description: '',
-              log: [],
-            };
-            if (newDetail.status === 'draft') {
-              newDetail.sv_score = systemScore;
-              newDetail.gv_score = systemScore;
-            }
-            details.push(newDetail);
-          } else {
-            // Update existing embedded detail
-            const detail = details[detailIndex];
-            detail.current_count = criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount;
-            detail.system_score = systemScore;
-            detail.selected_option_id = selectedOptionId;
-            detail.selected_option_label = selectedOptionLabel;
-            detail.selected_option_score = selectedOptionScore;
-            
-            const isReviewed = detail.status === 'gv_reviewed' || !!detail.gv_reviewed_by || !!detail.gv_reviewed_at;
-            const isLocked = detail.status === 'locked' || !!detail.locked_at || !!detail.locked_by;
-            const isApproved = detail.final_score !== null && detail.final_score !== undefined;
-            const isManuallyReviewed = isReviewed || isLocked || isApproved;
+          const oldDetail = detailIndex !== -1 ? details[detailIndex] : null;
 
-            if (detail.status === 'draft' && !isManuallyReviewed) {
-              detail.sv_score = systemScore;
-              detail.gv_score = systemScore;
-              detail.final_score = null;
+          const syncResult = this.calculateSyncDetail({
+            criterion,
+            activeCount,
+            optId,
+            optLabel,
+            optScore,
+            manualScore,
+            isValidOption,
+            oldDetail,
+          });
+
+          syncResultStatus = syncResult.status;
+          syncResultSkipReason = syncResult.skipReason;
+
+          if (detailIndex === -1) {
+            if (syncResult.status !== 'skipped') {
+              details.push(syncResult.detail);
             }
-            details[detailIndex] = detail;
+          } else {
+            details[detailIndex] = syncResult.detail;
           }
 
           currentSummary.details = details;
@@ -288,12 +380,13 @@ export class AcademicRecordService {
         totalScore: freshSummary.total_score,
         status: freshSummary.status,
         summary: freshSummary,
+        sync_status: syncResultStatus,
+        skip_reason: syncResultSkipReason,
         ...(warnings.length > 0 ? { warnings } : {}),
       };
     }
     return warnings.length > 0 ? { warnings } : null;
   }
-
 
   async syncMultipleStudentCriterionScores(
     records: { student_id: any, semester_id: any, criterion_id: any }[],
@@ -416,38 +509,23 @@ export class AcademicRecordService {
                 }
               }
 
-              let scoringResult: any = null;
-              let systemScore = 0;
-              let selectedOptionId = null;
-              let selectedOptionLabel = null;
-              let selectedOptionScore = null;
-
-              if (isValidOption) {
-                scoringResult = calculateCriterionScoreHelper({
-                  criterion,
-                  count: activeCount,
-                  selectedOptionId: optId,
-                  selectedOptionLabel: optLabel,
-                  selectedOptionScore: optScore,
-                  manualScore,
-                  isSyncPath: true,
-                });
-                systemScore = scoringResult.systemScore;
-                selectedOptionId = scoringResult.selectedOptionId;
-                selectedOptionLabel = scoringResult.selectedOptionLabel;
-                selectedOptionScore = scoringResult.selectedOptionScore;
-              }
-
               const detailIndex = details.findIndex((d: any) => d.criterion_id && d.criterion_id.toString() === criterionId);
               const oldDetail = detailIndex !== -1 ? details[detailIndex] : null;
               const oldDetailCount = oldDetail ? oldDetail.current_count : 0;
               const oldDetailScore = oldDetail ? { sv: oldDetail.sv_score, gv: oldDetail.gv_score, final: oldDetail.final_score } : null;
               const oldDetailOptionId = oldDetail ? oldDetail.selected_option_id : null;
 
-              const isReviewed = oldDetail && (oldDetail.status === 'gv_reviewed' || !!oldDetail.gv_reviewed_by || !!oldDetail.gv_reviewed_at);
-              const isLocked = oldDetail && (oldDetail.status === 'locked' || !!oldDetail.locked_at || !!oldDetail.locked_by);
-              const isApproved = oldDetail && (oldDetail.final_score !== null && oldDetail.final_score !== undefined);
-              const isManuallyReviewed = isReviewed || isLocked || isApproved;
+              const syncResult = this.calculateSyncDetail({
+                criterion,
+                activeCount,
+                optId,
+                optLabel,
+                optScore,
+                manualScore,
+                isValidOption,
+                oldDetail,
+                options,
+              });
 
               let isMismatch = false;
               if (!oldDetail) {
@@ -457,20 +535,9 @@ export class AcademicRecordService {
                   isMismatch = true;
                 } else if (criterion.scoring_mode === 'single_option' && oldDetail.selected_option_id !== optId) {
                   isMismatch = true;
-                } else if (oldDetail.system_score !== systemScore && isValidOption) {
+                } else if (oldDetail.system_score !== syncResult.detail.system_score) {
                   isMismatch = true;
                 }
-              }
-
-              let status: 'repaired' | 'skipped' = 'repaired';
-              let skipReason: string | null = null;
-
-              if (isManuallyReviewed && !options?.forceRepairLocked) {
-                status = 'skipped';
-                skipReason = 'Locked, reviewed, or approved';
-              } else if (!isValidOption) {
-                status = 'skipped';
-                skipReason = 'Invalid option ID validation failed';
               }
 
               if (isMismatch) {
@@ -484,57 +551,20 @@ export class AcademicRecordService {
                   selected_option_id_from_detail: oldDetailOptionId,
                   old_detail_count: oldDetailCount,
                   old_score_fields: oldDetailScore,
-                  repaired_detail_count: status === 'repaired' ? (scoringResult ? scoringResult.currentCount : activeCount) : oldDetailCount,
-                  repaired_selected_option_id: status === 'repaired' ? selectedOptionId : oldDetailOptionId,
-                  repaired_system_score: status === 'repaired' ? systemScore : (oldDetail ? oldDetail.system_score : 0),
-                  status: status,
-                  skip_reason: skipReason,
+                  repaired_detail_count: syncResult.detail.current_count,
+                  repaired_selected_option_id: syncResult.detail.selected_option_id,
+                  repaired_system_score: syncResult.detail.system_score,
+                  status: syncResult.status,
+                  skip_reason: syncResult.skipReason,
                 });
               }
 
-              if (status === 'skipped') {
-                continue;
-              }
-
               if (detailIndex === -1) {
-                const newDetail: any = {
-                  criterion_id: new Types.ObjectId(criterionId) as any,
-                  current_count: scoringResult.currentCount,
-                  system_score: systemScore,
-                  selected_option_id: selectedOptionId,
-                  selected_option_label: selectedOptionLabel,
-                  selected_option_score: selectedOptionScore,
-                  sv_score: null,
-                  sv_submitted_at: null,
-                  gv_score: null,
-                  gv_reviewed_at: null,
-                  gv_reviewed_by: null,
-                  final_score: null,
-                  locked_at: null,
-                  locked_by: null,
-                  status: 'draft',
-                  description: '',
-                  log: [],
-                };
-                if (newDetail.status === 'draft') {
-                  newDetail.sv_score = systemScore;
-                  newDetail.gv_score = systemScore;
+                if (syncResult.status !== 'skipped') {
+                  details.push(syncResult.detail);
                 }
-                details.push(newDetail);
               } else {
-                const detail = details[detailIndex];
-                detail.current_count = scoringResult.currentCount;
-                detail.system_score = systemScore;
-                detail.selected_option_id = selectedOptionId;
-                detail.selected_option_label = selectedOptionLabel;
-                detail.selected_option_score = selectedOptionScore;
-                
-                if (detail.status === 'draft' && !isManuallyReviewed) {
-                  detail.sv_score = systemScore;
-                  detail.gv_score = systemScore;
-                  detail.final_score = null;
-                }
-                details[detailIndex] = detail;
+                details[detailIndex] = syncResult.detail;
               }
             }
 
@@ -822,12 +852,10 @@ export class AcademicRecordService {
             }
           }
 
-          if (!canDelete) {
-            throw new ForbiddenException('Bạn không có quyền xóa điểm do người khác chấm.');
+          if (canDelete) {
+            await this.academicRecordModel.deleteOne({ _id: existingRecord._id });
+            changedRecordIds.push(existingRecord._id.toString());
           }
-
-          await this.academicRecordModel.deleteOne({ _id: existingRecord._id });
-          changedRecordIds.push(existingRecord._id.toString());
         }
       }
     } else if (intent_type === 'set_manual_score') {
@@ -1616,11 +1644,7 @@ export class AcademicRecordService {
     }
 
     // Sync score update
-    try {
-      await this.safeSync(deleted);
-    } catch (err) {
-      console.error(`Error syncing score after soft delete AcademicRecord ${id}:`, err);
-    }
+    await this.safeSync(deleted);
 
     return deleted;
   }
@@ -1695,11 +1719,7 @@ export class AcademicRecordService {
     }
 
     // Sync score update
-    try {
-      await this.safeSync(deleted);
-    } catch (err) {
-      console.error(`Error syncing score after force remove AcademicRecord ${id}:`, err);
-    }
+    await this.safeSync(deleted);
 
     return deleted;
   }

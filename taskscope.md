@@ -1,254 +1,322 @@
-# Taskscope: Academic Record Synchronization For Count And Option Criteria
+# Taskscope: `/grading/score` Realtime Count Sync And Decrement Score Safety
 
 ## Objective
-Fix `/grading/score` so both count-based criteria and single-option criteria are synchronized from existing `academic_record` data before rendering, autosave, realtime updates, and total score recomputation.
+Fix `/grading/score` so academic record changes are synchronized in realtime and every editable criterion score is calculated from the synchronized record count.
 
-The current bug is visible when academic records already exist, but the grading UI still displays `00` or an empty option selection. For count-based reward criteria, this causes valid records to contribute `0`. For `single_option` criteria, this can cause a previously selected option to disappear from the UI and later be saved back as `null`.
+The immediate bug is a hanging score when the number of records decreases. Example: a reward criterion is reduced from `02` to `01` or `00`, but the row score, category score, roster score, or summary total still keeps the old positive points.
 
-This scope treats `academic_record` as the authoritative source for draft grading state, while preserving locked, reviewed, or finalized grading decisions.
+The fix must make the synchronized count the source of truth for editable draft scoring while preserving locked, reviewed, approved, and finalized score authority.
 
-## Problem Statement
-Some criteria have valid active academic records, but the corresponding embedded grading detail is missing, stale, or contains zero/null values.
+## Current Failure Modes
 
-Count-based example:
-- A student has teacher-created records for two green reward criteria.
-- Each criterion is worth `+5` with max `5`.
-- `/grading/score` still shows `00`.
-- The expected visible count is `01`, and the row contribution is `+5`.
+### 1. Count decreases but stale detail state keeps the old score
+- The visible count can decrease from `02` to `01`.
+- `evaluationCounts` shows the new count.
+- `evaluationDetailsMap[criterionId]` can still contain `current_count = 2`, `system_score = 10`, `sv_score = 10`, or `gv_score = 10`.
+- Score resolution can keep using the stale detail value.
+- Result: the row displays `01` but still scores as if it were `02`.
 
-Single-option example:
-- A student has an active academic record for a `single_option` criterion.
-- The record contains `selected_option_id`, `selected_option_label`, and `selected_option_score`, or a legacy option ID inside `record_title`.
-- `/grading/score` must show that selected option immediately.
-- Autosave must not submit the option as empty unless the user explicitly clears it and has permission to do so.
+### 2. Zero active records can still display positive points
+- Backend or sync logic can determine that active record count is `0`.
+- The count control shows `00`.
+- A stale draft detail can still contain `system_score`, `sv_score`, `gv_score`, `selected_option_score`, or `selected_option_id`.
+- Result: the row can show `00` with `+5`, and totals can keep that stale contribution.
 
-The bug is dangerous because autosave or full-detail save can persist stale UI state over valid academic-record state. A user editing one unrelated criterion must not accidentally reset other criteria to `00` or `null`.
+### 3. Realtime payloads can be treated as partial patches instead of synchronized snapshots
+- `academic_record_changed` can include `updatedDetails`, `updatedDetail`, `criterionIds`, and `totalScore`.
+- If a criterion disappears from a synchronized detail snapshot because its count reached `0`, the frontend may not clear the old local count/detail.
+- If `updatedDetails` contains multiple details, using the event-level `criterionId` for every item can map all details to the same criterion.
 
-## Required Source Of Truth Rules
+### 4. Active student totals can be skipped
+- If an event contains `totalScore` but no detail payload, the active student's score can remain stale.
+- Dirty local state can block a backend-confirmed total that belongs to the current intent.
 
-### Count-based criteria
-- Active `academic_record` rows are the source of truth for `current_count`.
-- `current_count` is the source of truth for draft `system_score`.
-- Draft score fields must not let stale zero values override a positive record-derived `system_score`.
-- Deleted, inactive, rejected, voided, or soft-deleted records must not be counted.
-- Duplicate active records must follow criterion business rules:
-  - if the criterion allows multiple occurrences, count all valid active records up to the configured cap;
-  - if the criterion allows only one occurrence, count one and report duplicates for audit.
+### 5. Realtime score calculation can run with missing local maps
+- An SSE event can arrive before `evaluationCountsRef.current[studentId]` or `selectedOptionsStateRef.current[studentId]` exists.
+- Score helpers must not throw when maps are missing or only partially hydrated.
 
-### Single-option criteria
-- Active `academic_record` is the source of truth for the selected option in draft state.
-- The synchronized detail must store:
-  - `current_count = 1` when an active option record exists,
-  - `selected_option_id`,
-  - `selected_option_label`,
-  - `selected_option_score`,
-  - `system_score = selected_option_score`.
-- If the active record has `selected_option_id`, validate it against the criterion's current `options`.
-- If the active record is legacy and only stores `record_title = "Lua chon option <id>"`, parse the option ID as a backward-compatible fallback, then hydrate label and score from the criterion definition.
-- If no active option record exists, draft state should be empty:
-  - `current_count = 0`,
-  - `selected_option_id = null`,
-  - `selected_option_label = null`,
-  - `selected_option_score = null`,
-  - reward option score defaults to `0`,
-  - non-counted violation behavior remains unchanged.
-- A `single_option` criterion must never sum multiple option records. If multiple active option records exist for the same student, semester, and criterion, use one deterministic active option, preferably the latest valid active record, and report the duplicates for audit.
-- Invalid option IDs must not silently score as `0`. They must be returned as a sync warning or repair skip reason unless the business rule allows automatic fallback.
+## Source Of Truth Rules
 
-### Locked and reviewed state
-- Locked summaries, locked details, approved details, finalized details, and explicitly reviewed teacher scores keep their existing authority.
-- Automatic synchronization may report mismatches for locked/reviewed data, but must not overwrite them unless a separate explicit admin repair flow is approved.
+### Backend source of truth
+- Active, non-deleted `AcademicRecord` rows are the source of truth for record counts.
+- A valid active record is scoped by `student_id`, `semester_id`, and `criterion_id`, with `status = active` and `is_deleted != true`.
+- `SummaryPoint.details` is a synchronized projection of active academic records for draft scoring.
+- `SummaryPoint.total_score` must be recomputed only after details have been synchronized from the active-record count.
 
-## Role And Permission Boundary
-Admin grading must continue to work normally.
+### Frontend source of truth
+- `evaluationCounts[studentId][criterionId]` is the local synchronized count used for editable preview scoring.
+- `selectedOptionsState[studentId][criterionId]` is the synchronized selected option for option criteria.
+- `evaluationDetailsMap[criterionId]` stores backend detail metadata, but stale detail fields must not override a newer synchronized count for editable draft criteria.
+- Row score, category score, active student score, roster score, and summary cache must all use the same synchronized snapshot.
 
-Required behavior:
-- Admin users can perform normal `/grading/score` operations: count changes, option selection, manual score updates, save, autosave, and realtime updates.
-- Student-specific approval rules apply only to authenticated users whose effective role is `Student`.
-- Teacher-specific approval rules apply only to authenticated users whose effective role is `Teacher` or advisor-equivalent.
-- Admin users must not be forced through student self-only checks, teacher class-scope checks, student submission approval checks, or teacher input approval gates.
-- Admin users still must pass structural validation: authenticated request, valid `student_id`, valid `semester_id`, valid `criterion_id`, and access to the grading feature.
-- Role detection must use the authenticated requester context, not request-body fields or client-provided role labels.
+### Locked or reviewed state
+- Locked, reviewed, approved, and finalized details keep their persisted score authority.
+- Automatic sync must not silently clear those scores.
+- If active records go to `0` while a detail is locked, reviewed, approved, or finalized, report a skipped/locked mismatch with enough metadata for admin review.
+
+## Affected Areas
+- `frontend/src/app/(dashboard)/grading/score/page.tsx`
+- `frontend/src/app/(dashboard)/grading/score/_utils/realtime-event.ts`
+- `frontend/src/app/(dashboard)/grading/score/_utils/score-calculation.ts`
+- `frontend/src/hooks/useGradingRealtime.ts`
+- `backend/src/academic-record/academic-record.service.ts`
+- `backend/src/summaries-point/summaries-point.service.ts`
+- `backend/src/summaries-point/grading-realtime.service.ts`
+- Related frontend and backend tests for these modules
 
 ## Implementation Scope
 
-### 1. Synchronize before rendering `/grading/score`
-On page load, student switch, semester switch, class switch, and explicit refresh, reconcile active academic records into the grading detail map before controls render.
+### 1. Synchronize backend details before emitting realtime events
+Backend score-changing flows must synchronize from actual active records before returning or emitting.
+
+Required flows:
+- create academic record
+- update academic record
+- restore academic record
+- soft delete academic record
+- hard delete academic record
+- import or bulk create records
+- `increase`, `decrease`, `set_target_count`, `select_option`, and `clear_score` score intents
 
 Required behavior:
-- Fetch or compute synchronized detail state for all criteria in the selected student and semester.
-- Merge synchronized counts into `evaluationCounts`.
-- Merge synchronized option selections into `selectedOptionsState`.
-- Merge synchronized details into `evaluationDetailsMap`.
-- Do not wait for the user to edit a criterion before synchronization runs.
-- Ensure category badges, row scores, roster totals, and realtime previews all read from the same synchronized state.
+- Run `syncStudentCriterionScore()` or `syncMultipleStudentCriterionScores()` after the record mutation.
+- Recompute `SummaryPoint.total_score` after detail sync.
+- Emit `academic_record_changed` only after the synchronized detail and recomputed total are available.
+- Return the actual synchronized count and detail to the caller, not only the requested count.
+- If a delete/decrease intent cannot remove enough records because of permission filtering, return an incomplete-delete status or error with the actual synchronized count.
+- Do not swallow sync failures in destructive flows as if the score is already repaired. Return a visible sync status when sync fails or retries are exhausted.
 
-### 2. Backend single-criterion sync
-Update `backend/src/academic-record/academic-record.service.ts`.
+### 2. Normalize no-record draft details
+When active record count becomes `0`, editable draft details must no longer carry positive score authority.
 
-Required behavior:
-- `syncStudentCriterionScore()` must support both `count` and `single_option` scoring modes.
-- For count criteria, count valid active records and calculate `system_score`.
-- For option criteria, find the active option record, resolve the selected option, and calculate `system_score` from `selected_option_score`.
-- Create a missing draft detail when records exist but detail is missing.
-- Repair draft details when records exist but detail has stale `current_count = 0`, missing option fields, or stale `system_score = 0`.
-- Update draft `sv_score` and `gv_score` only when it is safe and the detail has not been reviewed, locked, or finalized.
-- Return the synchronized `evaluation_detail`, total score, sync status, and mismatch warnings so the frontend can update without a full reload.
+For editable draft count criteria:
+- Set `current_count = 0`.
+- Set `system_score = 0` for reward criteria.
+- Set `sv_score = 0` and `gv_score = 0` only when they are unreviewed draft values.
+- Set `final_score = null`.
+- Preserve existing violation scoring formulas, but calculate them from synchronized count `0`.
 
-### 3. Backend batch sync
-Make `syncMultipleStudentCriterionScores()` match the single sync behavior exactly.
+For editable draft `single_option` criteria with no active option record:
+- Set `current_count = 0`.
+- Set `system_score = 0`.
+- Clear `selected_option_id`.
+- Clear `selected_option_label`.
+- Clear `selected_option_score`.
+- Set unreviewed draft `sv_score` and `gv_score` to `0`.
+- Set `final_score = null`.
 
-Required behavior:
-- Batch sync must produce the same result as running single sync for each criterion.
-- Batch sync must hydrate both count criteria and option criteria.
-- Batch sync must return mismatch entries for:
-  - active count records with detail count `0`,
-  - active option records with missing/empty `selected_option_id`,
-  - invalid option IDs,
-  - duplicate active option records,
-  - locked/reviewed details skipped by sync.
-- Batch sync must be callable during page load, student switch, semester switch, and explicit repair.
+For locked, reviewed, approved, or finalized details:
+- Do not auto-clear persisted score lanes.
+- Update or report the synchronized count according to the existing workflow boundary.
+- Include a skipped mismatch reason such as `locked`, `reviewed`, `approved`, or `finalized`.
 
-### 4. Evaluation detail bulk upsert protection
-Update `backend/src/evaluation-detail/evaluation-detail.service.ts`.
+### 3. Make single and batch sync behavior equivalent
+`syncStudentCriterionScore()` and `syncMultipleStudentCriterionScores()` must apply the same rules.
 
 Required behavior:
-- Bulk upsert must not trust stale frontend `current_count = 0` when active academic records exist.
-- Bulk upsert must not trust stale frontend `selected_option_id = null` when an active option record exists.
-- For draft details, backend must repair stale payload values from active academic records before saving.
-- For locked/reviewed/finalized details, backend must skip mutation and return a skip reason.
-- A user can clear an option only through an explicit `select_option` intent with `selected_option_id = null` and valid permission. A full autosave payload with missing option state must not be treated as an explicit clear.
+- Both paths must use the same active-record filter.
+- Both paths must compute the same `current_count`.
+- Both paths must compute the same `system_score`.
+- Both paths must clear no-record draft option fields the same way.
+- Both paths must report the same skipped mismatch metadata for reviewed or locked details.
+- Batch sync must not skip no-record repair for editable draft details.
 
-### 5. Frontend state hydration
-Update `frontend/src/app/(dashboard)/grading/score/_utils/score-calculation.ts` and `/grading/score/page.tsx`.
+### 4. Emit complete realtime payloads
+`academic_record_changed` payloads must contain enough data for the frontend to update without guessing.
 
-Required behavior:
-- `mergeDetailsWithPreExistingCounts()` must hydrate both:
-  - `counts[criterionId]` from `detail.current_count`,
-  - `optionsMap[criterionId]` from `detail.selected_option_id`.
-- If synchronized detail contains a valid option, the option dropdown must show it immediately.
-- If a realtime event returns `updatedDetail` or `updatedDetails`, update `evaluationCounts`, `selectedOptionsState`, and `evaluationDetailsMap` before recalculating totals.
-- Score helpers must use one consistent effective score path for:
-  - criterion row score,
-  - criterion contribution,
-  - category badge,
-  - roster total,
-  - realtime preview.
-- Draft option criteria should prefer the synchronized selected option and selected option score over stale zero/null detail scores.
-- Locked or reviewed option criteria should keep their persisted reviewed/final score.
-
-### 6. Autosave guard
-Autosave must not reset untouched criteria.
+Required fields when available:
+- `type`
+- `classId`
+- `semesterId`
+- `studentId`
+- `summaryId`
+- `criterionId` for single-criterion events
+- `criterionIds` for multi-criterion events
+- `updatedDetail`
+- `updatedDetails`
+- `totalScore`
+- `grading`
+- `status`
+- `updatedAt`
 
 Required behavior:
-- Autosave should submit only changed criteria where possible.
-- If autosave compares fresh backend detail with local state, option criteria must compare against synchronized `selected_option_id`, not an empty local default.
-- If the frontend does not have a hydrated option map yet, autosave must delay, re-fetch, or submit no-op for that option criterion.
-- Backend must reject or repair stale option-clearing payloads when active option records prove a selected option exists.
-- Editing one count criterion must not clear an unrelated option criterion.
-- Editing one option criterion must not reset unrelated count criteria to `00`.
+- `updatedDetails` should represent synchronized details after backend repair, not stale pre-sync data.
+- If a criterion count becomes `0`, either include its normalized zero detail or include a clear signal through `criterionIds` plus an explicit zero/removed detail contract.
+- If the payload is a full detail snapshot, mark it clearly so the frontend can prune missing stale criteria.
+- If the payload is a partial patch, include enough `criterionIds` for the frontend to clear affected criteria that no longer have details.
 
-### 7. Summary recomputation
-Update `backend/src/summaries-point/summaries-point.service.ts`.
+### 5. Merge realtime events as synchronized state, not stale patches
+Update `mergeRealtimeEvent()` and the `/grading/score` realtime handler.
 
 Required behavior:
-- Recompute totals after academic-record-to-detail synchronization.
-- Draft count criteria use synchronized `system_score` or recomputed count-derived score.
-- Draft option criteria use synchronized `selected_option_score` or recompute from `selected_option_id`.
-- Locked/reviewed/finalized details keep their authoritative score.
-- Category max caps and total score caps still apply.
-- Existing non-counted violation behavior must remain consistent with frontend calculation.
+- Derive `criterionId` from each detail first:
+  - `detail.criterion_id._id`
+  - `detail.criterion_id`
+  - fallback to `event.criterionId` only for single-detail events
+- Do not apply one event-level `criterionId` to every item in an `updatedDetails` array.
+- Normalize `current_count`:
+  - valid number: use it
+  - numeric string: parse it
+  - missing, null, or invalid: use existing count only for patch events; use `0` for explicit clear/no-record events
+- Normalize option state:
+  - non-empty `selected_option_id`: store it
+  - explicit option clear: remove it
+  - absent option field in a patch event: preserve the existing local option
+  - absent option field in an authoritative no-record snapshot: clear it
+- Preserve unrelated criteria on partial patch events.
+- Prune stale criteria when the event declares an authoritative full snapshot.
+- For each `criterionId` included in an event but missing from `updatedDetails`, set the local count to `0` when the event represents deletion, clear, or no active records.
+- Build `nextCountsByStudent`, `nextOptionsByStudent`, and `nextDetailsMap` before calling React setters.
+- Update refs from that snapshot before calculating totals.
+- Pass the same snapshot into score calculation and state setters.
 
-### 8. Audit and repair report
-Add logging or an admin-facing sync report.
+### 6. Recalculate active student and roster consistently
+Realtime updates must update every visible scoring surface from the same synchronized state.
 
-Minimum report fields:
-- `student_id`,
-- `semester_id`,
-- `criterion_id`,
-- `scoring_mode`,
-- active record count,
-- selected option ID from academic record,
-- selected option ID from detail,
-- old detail count,
-- old score fields,
-- repaired detail count,
-- repaired selected option ID,
-- repaired system score,
-- repaired or skipped status,
-- skip reason.
+Required behavior:
+- Recalculate the active student's preview after every valid count sync.
+- Apply `event.totalScore` to the active student when detail data is absent or when backend authority is required.
+- Apply `event.totalScore` to roster rows and summary cache when present.
+- Do not let `dirtyStudentIdsRef` block a backend confirmation that belongs to the current save/intent.
+- Ignore stale class or semester events.
+- Ignore unknown students safely.
+- Do not mutate the active student's detail map for an event belonging to another student.
 
-## Out Of Scope
-- Changing reward, violation, or option scoring formulas unrelated to synchronization.
-- Removing category maximum score caps.
-- Changing who can grade students.
-- Changing lock, approval, or finalization permissions.
-- Rewriting the full `/grading/score` page.
-- Automatically deleting duplicate academic records.
-- Automatically overwriting locked/reviewed/finalized scores.
-- Automatically choosing a different option when the academic record references an invalid option ID, unless a separate product rule is approved.
+### 7. Make score calculation count-first for editable drafts
+Update `score-calculation.ts` so editable draft scoring uses the synchronized count.
+
+Required behavior:
+- Score helpers must tolerate missing maps by defaulting to empty objects.
+- `calculateCategoryScore()` must not throw when `counts`, `selectedOptionsState`, or `detailsMap` is missing.
+- `calculateTotalScore()` must not pass undefined maps into category scoring.
+- For editable draft count criteria, use the local synchronized `count` argument as the effective count.
+- Remove behavior that treats `detail.current_count` as a minimum count, such as `max(detail.current_count, count)`.
+- Keep `0` as a valid count.
+- If an editable draft reward criterion has count `0` and no selected option, its raw score must be `0` even if stale `system_score`, `sv_score`, or `gv_score` exists.
+- For editable draft violation criteria, compute from the synchronized count using the existing violation formula.
+- For locked, reviewed, approved, or finalized details, preserve existing persisted-score authority.
+- `mergeDetailsWithPreExistingCounts()` may hydrate initial counts from backend details, but once a local synchronized count exists, stale detail counts must not block decrements.
+
+### 8. Separate SSE parse errors from handler errors
+Update `useGradingRealtime()`.
+
+Required behavior:
+- Parse JSON inside a parse-only `try/catch`.
+- Run `savedHandler.current(event)` inside a separate handler-only `try/catch`.
+- Log invalid JSON as `Failed to parse SSE data`.
+- Log handler failures as `Failed to handle SSE event` with event type, student ID, class ID, semester ID, and criterion ID when available.
+- One malformed event or handler failure must not close or corrupt the SSE connection.
+
+### 9. Reconcile after missed or reconnect events
+Realtime is best-effort. The page must recover if an event is missed.
+
+Required behavior:
+- On reconnect, student switch, class switch, semester switch, or explicit refresh, reload the synchronized summary/details for the active context.
+- Rebuild `evaluationCounts`, `selectedOptionsState`, and `evaluationDetailsMap` from synchronized backend data.
+- Do not allow autosave to submit stale `00`, stale option null, or stale positive score over a freshly synchronized record state.
 
 ## Acceptance Criteria
-- A count reward criterion with one active academic record shows `01`, not `00`.
-- The reported green reward criteria show record-derived counts and `+5` row contributions.
-- A `single_option` criterion with an active academic record shows the selected option immediately after page load.
-- The option row contribution equals the selected option score.
-- If the active option record was stored with legacy `record_title`, the UI still hydrates the option when the option ID is valid.
-- If multiple active option records exist, sync chooses one deterministic option and reports duplicate records.
-- If an option ID is invalid, sync reports the mismatch instead of silently saving `0`.
-- Page refresh, student switch, semester switch, and realtime events preserve synchronized counts and selected options.
-- Autosave does not clear a valid option because local `selectedOptionsState` was empty.
-- Autosave does not reset valid count records because local `evaluationCounts` was stale.
-- `syncStudentCriterionScore()` and `syncMultipleStudentCriterionScores()` produce the same detail state.
-- Locked, approved, finalized, or reviewed details are not overwritten by automatic sync.
-- Admin users can grade normally.
-- Student and teacher users still follow existing ownership, class-scope, and approval restrictions.
+- Reducing a reward criterion from `02` to `01` immediately changes row score from `+10` to `+5`.
+- Reducing the same reward criterion from `01` to `00` immediately changes row score to `0`.
+- A reward criterion with no active records shows count `00` and score `0`, not stale `+5`.
+- Category totals drop at the same time as the row score.
+- Active student score, roster score, and summary cache agree after a decrement.
+- `academic_record_changed` before local count maps exist does not crash the page.
+- Multi-detail realtime events map each detail to its own criterion.
+- Realtime clear/delete/no-record events remove stale local counts and option selections.
+- Active student receives backend `totalScore` when the event has no detail payload.
+- Partial patch events do not clear unrelated criteria.
+- Full snapshot events prune stale criteria missing from the snapshot.
+- Locked, reviewed, approved, and finalized details are not silently cleared.
+- Skipped locked/reviewed mismatches are reported with enough metadata for admin review.
+- `syncStudentCriterionScore()` and `syncMultipleStudentCriterionScores()` produce equivalent repaired draft details.
+- `recomputeTotalScore()` treats editable draft reward criteria with no active records as zero contribution even if stale draft score fields exist.
+- SSE JSON parse errors and handler errors are logged separately.
+- The SSE connection continues after a malformed or partial event.
 
 ## Test Plan
 
-### Backend automated tests
-- Count criterion with active record and missing detail creates a draft detail with `current_count = 1`.
-- Count criterion with stale detail `current_count = 0` repairs to `1`.
-- Count reward with `score_per_unit = 5` and one active record produces `system_score = 5`.
-- Option criterion with active record hydrates `selected_option_id`, label, score, `current_count = 1`, and `system_score`.
-- Option criterion with legacy `record_title` hydrates the valid option ID.
-- Option criterion with stale detail `selected_option_id = null` repairs from active record.
-- Option criterion with invalid option ID returns a mismatch warning or skip reason.
-- Duplicate active option records are detected and reported.
-- Bulk upsert does not clear an option when the frontend payload omits `selected_option_id`.
-- Explicit option clear works only through authorized `select_option` intent.
-- Single sync and batch sync return equivalent details.
-- Locked, reviewed, and finalized details are skipped.
-- Summary recompute uses synchronized option score for draft option criteria.
-- Admin can select, change, and clear options according to existing permission rules.
-- Student and teacher restrictions remain enforced.
+### Frontend score calculation tests
+Add or update tests in `frontend/src/app/(dashboard)/grading/score/_utils/score-calculation.test.ts`.
 
-### Frontend automated tests
-- `/grading/score` renders `01` for count criteria with active records.
-- `/grading/score` renders the selected dropdown value for option criteria with active records.
-- `mergeDetailsWithPreExistingCounts()` hydrates both counts and option map.
-- Criterion row, category badge, roster total, and realtime preview agree for count criteria.
-- Criterion row, category badge, roster total, and realtime preview agree for option criteria.
-- Student switch clears stale local option state and loads the next student's synchronized option.
-- Realtime `updatedDetail` updates count, option map, detail map, and total calculation.
-- Autosave does not send an unintended option clear for untouched option criteria.
+Required tests:
+- `calculateCategoryScore()` accepts missing count and option maps without throwing.
+- `calculateTotalScore()` accepts missing count and option maps without throwing.
+- Editable draft reward count `2 -> 1 -> 0` recalculates from the local synchronized count.
+- Editable draft reward with local `count = 1` and stale `detail.current_count = 2` scores from `1`.
+- Editable draft reward with local `count = 0` and stale positive `system_score`, `sv_score`, or `gv_score` scores as `0`.
+- Editable draft violation criteria recalculate from the synchronized count after decrement.
+- Locked, reviewed, approved, and finalized details keep persisted-score authority.
+- Category score drops when an editable draft count is decremented.
 
-### Manual verification
-Use a student with existing teacher-created academic records.
+### Frontend realtime merge tests
+Add or update tests in `frontend/src/app/(dashboard)/grading/score/_utils/realtime-event.test.ts`.
 
-1. Open `/grading/score`.
-2. Select the affected student and semester.
-3. Confirm count reward criteria with records display `01`.
-4. Confirm each count reward criterion displays the correct contribution, such as `+5`.
-5. Select a student with an existing `single_option` academic record.
-6. Confirm the option dropdown shows the record-derived option.
-7. Confirm the option row score equals the selected option score.
-8. Edit a different criterion and wait for autosave.
-9. Refresh the page.
-10. Confirm the original count criteria and option criteria remain synchronized.
-11. Confirm valid academic records were not deleted, cleared, or reset.
-12. Repeat as admin and confirm normal grading remains available.
-13. Repeat as student or teacher and confirm existing restrictions still apply.
+Required tests:
+- Active-student event with no existing count map builds a safe count map.
+- `updatedDetails` with multiple criteria derives criterion IDs per detail.
+- Event-level `criterionId` is used only as fallback for a single detail.
+- Explicit `current_count = 0` clears the local count for that criterion.
+- Explicit option clear removes only that criterion option.
+- Missing option field in a partial patch preserves the existing option.
+- Full snapshot mode prunes stale criteria missing from the snapshot.
+- Deletion/no-record event with `criterionIds` but no detail sets affected counts to `0`.
+- Unknown student or stale context event does not throw.
+
+### Frontend page and hook tests
+Add tests where the setup allows page or hook mocking.
+
+Required tests:
+- Active student receives `totalScore` even when event has no detail payload.
+- Dirty local state does not block a backend-confirmed total for the current intent.
+- Reconnect or refresh rebuilds counts/options/details from synchronized data.
+- Invalid SSE JSON logs `Failed to parse SSE data`.
+- Handler exception logs `Failed to handle SSE event`.
+- Later valid events are still processed after one handler exception.
+
+### Backend sync tests
+Add or update tests for `backend/src/academic-record/academic-record.service.ts`.
+
+Required tests:
+- Deleting the last active reward record sets editable draft `current_count = 0`, `system_score = 0`, `sv_score = 0`, and `gv_score = 0`.
+- Reducing active reward records from `2` to `1` lowers `current_count` and `system_score`.
+- Clearing the last active option record clears selected option fields for editable draft details.
+- `syncMultipleStudentCriterionScores()` matches `syncStudentCriterionScore()` for no-record draft repair.
+- Reviewed, locked, approved, and finalized details are not auto-cleared and are reported as skipped mismatches.
+- Decrease/clear operations return the synchronized actual count and detail.
+- Incomplete deletion due to permissions reports actual remaining count.
+
+### Backend summary and realtime tests
+Add or update tests for `backend/src/summaries-point/summaries-point.service.ts` and realtime event payloads.
+
+Required tests:
+- `recomputeTotalScore()` gives editable draft reward criteria with no active records zero contribution even when stale draft score fields exist.
+- Draft `single_option` with no active record and stale selected option does not keep positive contribution after sync.
+- `academic_record_changed` is emitted after recompute.
+- Emitted payload includes normalized detail, `criterionIds`, `totalScore`, `grading`, `studentId`, `semesterId`, `classId`, and `summaryId`.
+- SSE stream filters stale class and semester events.
+
+## Manual Verification
+1. Open `/grading/score` for a class and semester.
+2. Select a student with a reward criterion worth `+5`.
+3. Increase the criterion to `02`; confirm row score is `+10`.
+4. Decrease to `01`; confirm row score, category score, active student score, roster score, and summary cache all drop by `5`.
+5. Decrease to `00`; confirm row score is `0` and no stale positive points remain.
+6. Refresh the page; confirm the same count and score are still correct.
+7. Trigger a record delete from another browser/session; confirm realtime updates the open page.
+8. Trigger an option clear; confirm option state and score clear in realtime.
+9. Trigger an event for another student; confirm only that roster row changes and the active student's detail map is not mutated.
+10. Switch class or semester while realtime is connected; confirm stale context events do not change the current page.
+11. Confirm locked or reviewed criteria are not silently cleared and are reported as skipped/locked mismatches.
+
+## Out Of Scope
+- Changing grading formulas.
+- Changing category maximum caps or total score caps.
+- Changing role permissions.
+- Rewriting the grading workflow outside `/grading/score`.
+- Changing the database schema.
+- Deleting reviewed, locked, approved, or finalized score authority automatically.
+- Replacing the SSE transport layer.
 
 ## Deliverable
-A focused synchronization fix for `/grading/score` and backend scoring services so active academic records are reflected in count controls, option dropdowns, draft details, criterion scores, category totals, autosave payloads, realtime state, and persisted summaries without overwriting locked, reviewed, or finalized grading decisions.
+A focused `/grading/score` fix where realtime academic-record synchronization fully updates counts, options, details, roster totals, and summary totals, and editable draft reward/violation scores are always recalculated from the synchronized count so points cannot hang when records are reduced or cleared.

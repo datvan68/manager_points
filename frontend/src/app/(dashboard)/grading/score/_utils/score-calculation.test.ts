@@ -153,13 +153,13 @@ describe("score-calculation helper", () => {
     });
 
     it("should fallback to gv_score if final_score is missing", () => {
-      const detail = { gv_score: 8, sv_score: 7, system_score: 6 };
+      const detail = { gv_score: 8, sv_score: 7, system_score: 6, status: "gv_reviewed" };
       expect(getResolvedRawCriterionScore(criterion, 3, null, detail)).toBe(8);
       expect(getResolvedCriterionScore(criterion, 3, null, detail)).toBe(8);
     });
 
     it("should fallback to sv_score if gv_score is missing", () => {
-      const detail = { sv_score: 7, system_score: 6 };
+      const detail = { sv_score: 7, system_score: 6, status: "gv_reviewed" };
       expect(getResolvedRawCriterionScore(criterion, 3, null, detail)).toBe(7);
       expect(getResolvedCriterionScore(criterion, 3, null, detail)).toBe(7);
     });
@@ -275,10 +275,10 @@ describe("score-calculation helper", () => {
       const counts = { "c1": 0, "c2": 0 }; // count 0 -> raw score 0
       const detailsMap = {
         "c1": { final_score: 10 },
-        "c2": { sv_score: 8 }
+        "c2": { sv_score: 8, status: 'gv_reviewed', gv_reviewed_by: 'gv-1' }
       };
       // c1: final = 10
-      // c2: sv = 8
+      // c2: sv = 8 (from reviewed detail fallback)
       // sum = 18
       expect(calculateCategoryScore(category, counts, {}, detailsMap)).toBe(18);
     });
@@ -391,6 +391,133 @@ describe("score-calculation helper", () => {
 
       expect(getResolvedRawCriterionScore(criterion, 1, null, detail, false)).toBe(8);
       expect(getResolvedCriterionScore(criterion, 1, null, detail, false)).toBe(8);
+    });
+
+    it("12. should handle undefined maps in calculateCategoryScore and calculateTotalScore without throwing", () => {
+      const category: Category = {
+        id: "cat-1",
+        title: "Danh muc 1",
+        maxPoints: 20,
+        items: [
+          { id: "c1", name: "C1", pointsPerUnit: 10, maxScore: 15, type: "reward" }
+        ]
+      };
+      expect(() => calculateCategoryScore(category, undefined as any, undefined as any)).not.toThrow();
+      expect(calculateCategoryScore(category, undefined as any, undefined as any)).toBe(0);
+
+      expect(() => calculateTotalScore([category], undefined as any, undefined as any)).not.toThrow();
+      expect(calculateTotalScore([category], undefined as any, undefined as any)).toBe(0);
+    });
+
+    it("13. should handle missing count for one criterion defaulting to 0", () => {
+      const category: Category = {
+        id: "cat-1",
+        title: "Danh muc 1",
+        maxPoints: 20,
+        items: [
+          { id: "c1", name: "C1", pointsPerUnit: 10, maxScore: 15, type: "reward" },
+          { id: "c2", name: "C2", pointsPerUnit: 5, maxScore: 10, type: "reward" }
+        ]
+      };
+      // c1 is missing in counts, c2 is 2
+      expect(calculateCategoryScore(category, { "c2": 2 }, {})).toBe(10);
+    });
+
+    it("14. should handle missing option map defaulting to null option selection", () => {
+      const category: Category = {
+        id: "cat-1",
+        title: "Danh muc 1",
+        maxPoints: 20,
+        items: [
+          {
+            id: "c1",
+            name: "C1",
+            pointsPerUnit: 0,
+            maxScore: 15,
+            type: "reward",
+            scoring_mode: "single_option",
+            options: [{ id: "opt-1", label: "Opt 1", score: 10 }]
+          }
+        ]
+      };
+      expect(calculateCategoryScore(category, {}, undefined as any)).toBe(0);
+    });
+
+    it("15. should resolve 0 for editable draft reward detail with zero active record count", () => {
+      const criterion: Criteria = {
+        id: "cri-reward-stale",
+        name: "Tham gia phong trao",
+        maxScore: 10,
+        minScore: 0,
+        pointsPerUnit: 5,
+        type: "reward"
+      };
+
+      // Case 1: unreviewed draft gv_score/sv_score/system_score is positive but count is 0
+      const detailDraft = {
+        status: "draft",
+        sv_score: 5,
+        gv_score: 5,
+        system_score: 5,
+        current_count: 0
+      };
+      expect(getResolvedRawCriterionScore(criterion, 0, null, detailDraft, false)).toBe(0);
+
+      // Case 2: locked/reviewed detail should preserve positive score
+      const detailReviewed = {
+        status: "gv_reviewed",
+        gv_score: 8,
+        system_score: 5,
+        current_count: 0
+      };
+      expect(getResolvedRawCriterionScore(criterion, 0, null, detailReviewed, false)).toBe(8);
+    });
+
+    it("16. should resolve score from local count 1 even if detail.current_count is stale 2 (for editable draft)", () => {
+      const criterion: Criteria = {
+        id: "cri-1",
+        name: "Tham gia phong trao",
+        maxScore: 10,
+        minScore: 0,
+        pointsPerUnit: 5,
+        type: "reward"
+      };
+
+      const detail = {
+        status: "draft",
+        sv_score: 10,
+        gv_score: 10,
+        system_score: 10,
+        current_count: 2
+      };
+
+      expect(getResolvedRawCriterionScore(criterion, 1, null, detail, false)).toBe(5);
+    });
+
+    it("17. should resolve score immediately drop when local count is decremented for editable draft", () => {
+      const criterion: Criteria = {
+        id: "cri-1",
+        name: "Tham gia phong trao",
+        maxScore: 10,
+        minScore: 0,
+        pointsPerUnit: 5,
+        type: "reward"
+      };
+
+      const detail = {
+        status: "draft",
+        sv_score: 10,
+        gv_score: 10,
+        system_score: 10,
+        current_count: 2
+      };
+
+      // Before decrement (count = 2) -> resolved is 10
+      expect(getResolvedRawCriterionScore(criterion, 2, null, detail, false)).toBe(10);
+      // After decrement (count = 1) -> resolved immediately drops to 5
+      expect(getResolvedRawCriterionScore(criterion, 1, null, detail, false)).toBe(5);
+      // Decremented to 0 -> resolved drops to 0
+      expect(getResolvedRawCriterionScore(criterion, 0, null, detail, false)).toBe(0);
     });
   });
 });

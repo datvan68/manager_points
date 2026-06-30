@@ -136,6 +136,7 @@ export function buildGradingEventPayload(params: {
     updatedAt: new Date(),
     totalScore: summary.total_score,
     grading: summary.grading,
+    status: summary.status,
     ...extra,
   };
 

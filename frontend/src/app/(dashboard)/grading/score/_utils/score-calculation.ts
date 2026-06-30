@@ -71,28 +71,23 @@ export const getResolvedRawCriterionScore = (
   }
 
   const isLocked = isStudentLocked || detail?.status === 'locked' || !!detail?.locked_at;
-  const isReviewed = detail?.status === 'gv_reviewed' || !!detail?.gv_reviewed_by || !!detail?.gv_reviewed_at;
-  const isDraft = detail?.status === 'draft' && !isLocked && !isReviewed;
+  const isReviewed = (detail?.status === 'gv_reviewed' || !!detail?.gv_reviewed_by || !!detail?.gv_reviewed_at) && detail?.status !== 'draft' && detail?.status !== 'sv_submitted';
+  const isApproved = detail?.final_score !== null && detail?.final_score !== undefined && detail?.status !== 'draft' && detail?.status !== 'sv_submitted';
+  const isEditableDraft = !isLocked && !isReviewed && !isApproved;
+
+  if (isEditableDraft) {
+    const effectiveCount = count;
+    const effectiveOptionId = selectedOptionId;
+
+    if (criterion.type === 'reward' && effectiveCount === 0 && !effectiveOptionId) {
+      return 0;
+    }
+
+    return calculateCriterionScore(criterion, effectiveCount, effectiveOptionId);
+  }
 
   const effectiveCount = detail && detail.current_count > count ? detail.current_count : count;
   const effectiveOptionId = selectedOptionId || detail?.selected_option_id;
-  const computedScore = calculateCriterionScore(criterion, effectiveCount, effectiveOptionId);
-
-  if (isDraft) {
-    if (criterion.scoring_mode === 'single_option') {
-      const maxScore = criterion.maxScore ?? 10;
-      const minScore = criterion.minScore ?? 0;
-      const option = criterion.options?.find(opt => opt.id === effectiveOptionId);
-      if (option) {
-        return Math.max(minScore, Math.min(maxScore, option.score));
-      }
-      if (detail && detail.selected_option_score !== null && detail.selected_option_score !== undefined) {
-        return detail.selected_option_score;
-      }
-      return criterion.type === "violation" ? maxScore : 0;
-    }
-    return computedScore;
-  }
 
   if (detail) {
     let score = detail.final_score !== null && detail.final_score !== undefined
@@ -116,7 +111,7 @@ export const getResolvedRawCriterionScore = (
       return score;
     }
   }
-  return computedScore;
+  return calculateCriterionScore(criterion, effectiveCount, effectiveOptionId);
 };
 
 export const getResolvedCriterionScore = (
@@ -140,16 +135,20 @@ export const getResolvedCriterionScore = (
 
 export const calculateCategoryScore = (
   category: Category,
-  counts: Record<string, number>,
-  selectedOptionsState: Record<string, string | null>,
+  counts: Record<string, number> = {},
+  selectedOptionsState: Record<string, string | null> = {},
   detailsMap?: Record<string, any>,
   isStudentLocked?: boolean
 ) => {
   let catTotal = 0;
+  const safeCounts = counts ?? {};
+  const safeOptions = selectedOptionsState ?? {};
+  const safeDetails = detailsMap ?? {};
+  if (!category || !category.items) return 0;
   category.items.forEach((cri) => {
-    const count = counts[cri.id] || 0;
-    const optId = selectedOptionsState[cri.id] || null;
-    const detail = detailsMap?.[cri.id];
+    const count = safeCounts[cri.id] ?? 0;
+    const optId = safeOptions[cri.id] ?? null;
+    const detail = safeDetails[cri.id];
     catTotal += getResolvedCriterionScore(cri, count, optId, detail, isStudentLocked);
   });
   return Math.max(0, Math.min(category.maxPoints, catTotal));
@@ -157,14 +156,18 @@ export const calculateCategoryScore = (
 
 export const calculateTotalScore = (
   categories: Category[],
-  counts: Record<string, number>,
-  selectedOptionsState: Record<string, string | null>,
+  counts: Record<string, number> = {},
+  selectedOptionsState: Record<string, string | null> = {},
   detailsMap?: Record<string, any>,
   isStudentLocked?: boolean
 ) => {
   let total = 0;
+  const safeCounts = counts ?? {};
+  const safeOptions = selectedOptionsState ?? {};
+  const safeDetails = detailsMap ?? {};
+  if (!categories || !Array.isArray(categories)) return 0;
   categories.forEach((cat) => {
-    total += calculateCategoryScore(cat, counts, selectedOptionsState, detailsMap, isStudentLocked);
+    total += calculateCategoryScore(cat, safeCounts, safeOptions, safeDetails, isStudentLocked);
   });
   return Math.max(0, Math.min(100, total));
 };
