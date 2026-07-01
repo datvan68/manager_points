@@ -61,6 +61,11 @@ export const studentApi = {
     return handleResponse<Student>(res);
   },
 
+  async resolveStudent(identifier: string): Promise<Student> {
+    const res = await httpClient(`${API_BASE}/students/resolve?identifier=${encodeURIComponent(identifier)}`);
+    return handleResponse<Student>(res);
+  },
+
   async createStudent(dto: Partial<Student>): Promise<Student> {
     const res = await httpClient(`${API_BASE}/students`, {
       method: 'POST',

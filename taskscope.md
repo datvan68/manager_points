@@ -1,322 +1,279 @@
-# Taskscope: `/grading/score` Realtime Count Sync And Decrement Score Safety
+# Taskscope: Fix `/grading/score` Student Identity Resolution
 
 ## Objective
-Fix `/grading/score` so academic record changes are synchronized in realtime and every editable criterion score is calculated from the synchronized record count.
+Fix the `/grading/score` loading flow that logs:
 
-The immediate bug is a hanging score when the number of records decreases. Example: a reward criterion is reduced from `02` to `01` or `00`, but the row score, category score, roster score, or summary total still keeps the old positive points.
+```text
+Error resolving student details: ApiError: Student with ID 1240510009 not found
+```
 
-The fix must make the synchronized count the source of truth for editable draft scoring while preserving locked, reviewed, approved, and finalized score authority.
+The page must support links that arrive with either the canonical MongoDB student `_id` or a legacy/display student code such as `1240510009`, while all grading mutations continue to use the MongoDB ObjectId required by backend APIs.
 
-## Current Failure Modes
+## Problem Summary
+`/grading/score` currently reads `studentId` from the URL and calls:
 
-### 1. Count decreases but stale detail state keeps the old score
-- The visible count can decrease from `02` to `01`.
-- `evaluationCounts` shows the new count.
-- `evaluationDetailsMap[criterionId]` can still contain `current_count = 2`, `system_score = 10`, `sv_score = 10`, or `gv_score = 10`.
-- Score resolution can keep using the stale detail value.
-- Result: the row displays `01` but still scores as if it were `02`.
+```ts
+studentApi.getStudent(studentIdParam)
+```
 
-### 2. Zero active records can still display positive points
-- Backend or sync logic can determine that active record count is `0`.
-- The count control shows `00`.
-- A stale draft detail can still contain `system_score`, `sv_score`, `gv_score`, `selected_option_score`, or `selected_option_id`.
-- Result: the row can show `00` with `+5`, and totals can keep that stale contribution.
+That API maps to:
 
-### 3. Realtime payloads can be treated as partial patches instead of synchronized snapshots
-- `academic_record_changed` can include `updatedDetails`, `updatedDetail`, `criterionIds`, and `totalScore`.
-- If a criterion disappears from a synchronized detail snapshot because its count reached `0`, the frontend may not clear the old local count/detail.
-- If `updatedDetails` contains multiple details, using the event-level `criterionId` for every item can map all details to the same criterion.
+```text
+GET /students/:id
+```
 
-### 4. Active student totals can be skipped
-- If an event contains `totalScore` but no detail payload, the active student's score can remain stale.
-- Dirty local state can block a backend-confirmed total that belongs to the current intent.
+Backend `StudentsService.findOne(id)` validates `id` as a MongoDB ObjectId. A student code like `1240510009` is not a MongoDB ObjectId, so the backend correctly returns `404 Student with ID 1240510009 not found`.
 
-### 5. Realtime score calculation can run with missing local maps
-- An SSE event can arrive before `evaluationCountsRef.current[studentId]` or `selectedOptionsStateRef.current[studentId]` exists.
-- Score helpers must not throw when maps are missing or only partially hydrated.
+The frontend catches the error and falls back, but the page still logs a browser error and may fail to auto-select the intended student.
 
-## Source Of Truth Rules
+## Current Findings
+- `frontend/src/app/(dashboard)/grading/score/page.tsx` resolves `studentIdParam` by directly calling `studentApi.getStudent(studentIdParam)`.
+- The same page later compares `studentIdParam` against `mappedStudents[].id`, where `mappedStudents[].id` is expected to be the MongoDB student `_id`.
+- `frontend/src/app/(dashboard)/grading/page.tsx` builds table rows through `getSummaryStudentKey(summary, idx)`.
+- `getSummaryStudentKey` currently prioritizes `student_code` before `_id`, so the row `student.id` can become a display code instead of the MongoDB ObjectId.
+- The "Grade student" and "View score detail" actions in `/grading` pass `student.id` into the query string:
 
-### Backend source of truth
-- Active, non-deleted `AcademicRecord` rows are the source of truth for record counts.
-- A valid active record is scoped by `student_id`, `semester_id`, and `criterion_id`, with `status = active` and `is_deleted != true`.
-- `SummaryPoint.details` is a synchronized projection of active academic records for draft scoring.
-- `SummaryPoint.total_score` must be recomputed only after details have been synchronized from the active-record count.
+```ts
+query.set("studentId", student.id);
+router.push(`/grading/score?${query.toString()}`);
+```
 
-### Frontend source of truth
-- `evaluationCounts[studentId][criterionId]` is the local synchronized count used for editable preview scoring.
-- `selectedOptionsState[studentId][criterionId]` is the synchronized selected option for option criteria.
-- `evaluationDetailsMap[criterionId]` stores backend detail metadata, but stale detail fields must not override a newer synchronized count for editable draft criteria.
-- Row score, category score, active student score, roster score, and summary cache must all use the same synchronized snapshot.
+- Other frontend flows also store display-level `studentId` values as `student_code`, especially in `/students/record`.
+- Backend already has `StudentsService.findByStudentCode(student_code)`, but it is not exposed through a scoped controller endpoint for this page flow.
+- Backend grading APIs such as `academic-records/intent` require `student_id` to be a MongoDB ObjectId, so the UI must never send `student_code` to score mutation endpoints.
 
-### Locked or reviewed state
-- Locked, reviewed, approved, and finalized details keep their persisted score authority.
-- Automatic sync must not silently clear those scores.
-- If active records go to `0` while a detail is locked, reviewed, approved, or finalized, report a skipped/locked mismatch with enough metadata for admin review.
+## Root Cause
+The codebase mixes two different meanings under the same `studentId` name:
 
-## Affected Areas
+- `student._id`: canonical MongoDB ObjectId used by backend relations and grading mutation APIs.
+- `student.student_code`: display/business identifier shown as MSSV.
+
+The error happens when a display student code is passed through the URL as `studentId` and then treated as a MongoDB ObjectId by `/grading/score`.
+
+## Required Direction
+Separate canonical student identity from display student code.
+
+Recommended naming:
+
+```ts
+studentObjectId // MongoDB _id, used for API relations and score mutations
+studentCode     // MSSV/student_code, used for display and optional lookup
+```
+
+Avoid using a generic `studentId` variable unless the code clearly documents that it is the MongoDB ObjectId.
+
+## Proposed Solution
+
+### 1. Standardize `/grading` table row identity
+Update `frontend/src/app/(dashboard)/grading/page.tsx` so table rows use MongoDB ObjectId as the row/action identity.
+
+Required changes:
+- Replace the current `getSummaryStudentKey` usage for action navigation with an ObjectId-first helper.
+- Keep `studentCode` as a separate display field.
+- Ensure `query.set("studentId", ...)` receives the MongoDB ObjectId whenever available.
+- If only `student_code` is available, either resolve it before navigation or pass it as `studentCode`, not as `studentId`.
+
+Suggested row shape:
+
+```ts
+{
+  id: studentObjectId,
+  studentObjectId,
+  studentCode,
+  name,
+  summaryId,
+  classId,
+  semesterId,
+}
+```
+
+### 2. Add a scoped student identity resolver
+Add a small resolver that accepts either ObjectId or student code and returns the canonical student object.
+
+Preferred backend endpoint:
+
+```text
+GET /students/resolve?identifier=<studentObjectId-or-studentCode>
+```
+
+Alternative endpoint:
+
+```text
+GET /students/by-code/:studentCode
+```
+
+Backend requirements:
+- Protect the endpoint with `JwtAuthGuard`.
+- Reuse the same scope rules as `findOne`:
+  - Admin and supervisor can resolve any student.
+  - Teacher can resolve only students in assigned classes.
+  - Student can resolve only their own student profile.
+- If `identifier` is a valid MongoDB ObjectId, resolve by `_id`.
+- If `identifier` is not a valid ObjectId, resolve by exact `student_code`.
+- Do not expose an unscoped `findByStudentCode` endpoint.
+
+### 3. Update frontend student API
+Update `frontend/src/api/student-api.ts` with a dedicated method:
+
+```ts
+resolveStudent(identifier: string): Promise<Student>
+```
+
+or:
+
+```ts
+getStudentByCode(studentCode: string): Promise<Student>
+```
+
+The score page should use this resolver for URL params, not raw `getStudent`, unless the value has already been validated as a MongoDB ObjectId.
+
+### 4. Update `/grading/score` URL resolution
+Update `frontend/src/app/(dashboard)/grading/score/page.tsx` to normalize the selected student before loading summaries.
+
+Expected behavior:
+- If `studentIdParam` is a valid MongoDB ObjectId, fetch by ObjectId.
+- If `studentIdParam` is not a valid MongoDB ObjectId, treat it as a legacy student code and resolve it to the canonical student `_id`.
+- Store the resolved ObjectId in a local variable such as `resolvedStudentObjectId`.
+- Use `resolvedStudentObjectId` for:
+  - `finalClassId` detection.
+  - summary lookup.
+  - `targetActiveId`.
+  - score mutation payloads.
+  - history/detail loading.
+- Keep `studentCode` only for display and fallback messages.
+
+Important: `studentApi.getStudent` must not be called with non-ObjectId values.
+
+### 5. Preserve active selected student behavior
+After resolving the URL identifier, the page must activate the intended student.
+
+Current comparison:
+
+```ts
+mappedStudents.some((s) => s.id === studentIdParam)
+```
+
+Required comparison:
+
+```ts
+mappedStudents.some((s) => s.id === resolvedStudentObjectId)
+```
+
+This preserves automatic activation for:
+- Links from `/grading`.
+- Legacy links that still pass `student_code` as `studentId`.
+- Student self-view links.
+- Task-linked links that may contain student code.
+
+### 6. Handle not-found as expected state
+When the resolver cannot find the student:
+- Do not log it as an unhandled browser error.
+- Show the existing warning toast.
+- Keep fallback behavior to the selected/default class.
+- Clear active student only when no valid fallback exists.
+
+Use structured handling for expected 404 cases:
+
+```ts
+if (err instanceof ApiError && err.status === 404) {
+  showStudentNotFoundWarning = true;
+  return fallback;
+}
+```
+
+Keep unexpected network or server errors visible for debugging.
+
+## Files In Scope
+
+### Frontend
+- `frontend/src/app/(dashboard)/grading/page.tsx`
 - `frontend/src/app/(dashboard)/grading/score/page.tsx`
-- `frontend/src/app/(dashboard)/grading/score/_utils/realtime-event.ts`
-- `frontend/src/app/(dashboard)/grading/score/_utils/score-calculation.ts`
-- `frontend/src/hooks/useGradingRealtime.ts`
-- `backend/src/academic-record/academic-record.service.ts`
-- `backend/src/summaries-point/summaries-point.service.ts`
-- `backend/src/summaries-point/grading-realtime.service.ts`
-- Related frontend and backend tests for these modules
+- `frontend/src/api/student-api.ts`
+- `frontend/src/app/(dashboard)/grading/score/_utils/summary-matching.ts`
+- Existing `/grading/score` tests and new regression tests as needed.
 
-## Implementation Scope
+### Backend
+- `backend/src/students/students.controller.ts`
+- `backend/src/students/students.service.ts`
+- `backend/src/students/test/students.service.spec.ts`
+- Optional controller test if the project already has controller coverage for students.
 
-### 1. Synchronize backend details before emitting realtime events
-Backend score-changing flows must synchronize from actual active records before returning or emitting.
+## Out Of Scope
+- Changing score formulas.
+- Changing grading permission rules.
+- Refactoring autosave, realtime updates, copy score, delete summary, or history mapping.
+- Renaming database fields.
+- Changing the visual design of `/grading` or `/grading/score`.
+- Making fuzzy student search part of this fix. The resolver should use exact ObjectId or exact `student_code`.
 
-Required flows:
-- create academic record
-- update academic record
-- restore academic record
-- soft delete academic record
-- hard delete academic record
-- import or bulk create records
-- `increase`, `decrease`, `set_target_count`, `select_option`, and `clear_score` score intents
+## Implementation Plan
 
-Required behavior:
-- Run `syncStudentCriterionScore()` or `syncMultipleStudentCriterionScores()` after the record mutation.
-- Recompute `SummaryPoint.total_score` after detail sync.
-- Emit `academic_record_changed` only after the synchronized detail and recomputed total are available.
-- Return the actual synchronized count and detail to the caller, not only the requested count.
-- If a delete/decrease intent cannot remove enough records because of permission filtering, return an incomplete-delete status or error with the actual synchronized count.
-- Do not swallow sync failures in destructive flows as if the score is already repaired. Return a visible sync status when sync fails or retries are exhausted.
+### Phase 1: Fix source navigation identity
+- Update `/grading` table row mapping so `id` is the student MongoDB ObjectId.
+- Add `studentCode` as a separate display field.
+- Update action buttons to pass `studentObjectId` in `studentId`.
+- Confirm row selection, delete summary, and export logic still map summaries correctly.
 
-### 2. Normalize no-record draft details
-When active record count becomes `0`, editable draft details must no longer carry positive score authority.
+### Phase 2: Add resolver for legacy links
+- Add backend scoped resolve method.
+- Add frontend API method.
+- Add ObjectId detection helper in a shared frontend location or local score-page utility.
+- Ensure legacy URLs like `/grading/score?studentId=1240510009` still load the correct student.
 
-For editable draft count criteria:
-- Set `current_count = 0`.
-- Set `system_score = 0` for reward criteria.
-- Set `sv_score = 0` and `gv_score = 0` only when they are unreviewed draft values.
-- Set `final_score = null`.
-- Preserve existing violation scoring formulas, but calculate them from synchronized count `0`.
+### Phase 3: Normalize `/grading/score` active student selection
+- Resolve URL identity once at page-load time.
+- Use `resolvedStudentObjectId` instead of raw `studentIdParam` for roster matching and active student selection.
+- Keep existing warning toasts for inaccessible or missing students.
+- Prevent score mutation if no canonical MongoDB ObjectId exists.
 
-For editable draft `single_option` criteria with no active option record:
-- Set `current_count = 0`.
-- Set `system_score = 0`.
-- Clear `selected_option_id`.
-- Clear `selected_option_label`.
-- Clear `selected_option_score`.
-- Set unreviewed draft `sv_score` and `gv_score` to `0`.
-- Set `final_score = null`.
-
-For locked, reviewed, approved, or finalized details:
-- Do not auto-clear persisted score lanes.
-- Update or report the synchronized count according to the existing workflow boundary.
-- Include a skipped mismatch reason such as `locked`, `reviewed`, `approved`, or `finalized`.
-
-### 3. Make single and batch sync behavior equivalent
-`syncStudentCriterionScore()` and `syncMultipleStudentCriterionScores()` must apply the same rules.
-
-Required behavior:
-- Both paths must use the same active-record filter.
-- Both paths must compute the same `current_count`.
-- Both paths must compute the same `system_score`.
-- Both paths must clear no-record draft option fields the same way.
-- Both paths must report the same skipped mismatch metadata for reviewed or locked details.
-- Batch sync must not skip no-record repair for editable draft details.
-
-### 4. Emit complete realtime payloads
-`academic_record_changed` payloads must contain enough data for the frontend to update without guessing.
-
-Required fields when available:
-- `type`
-- `classId`
-- `semesterId`
-- `studentId`
-- `summaryId`
-- `criterionId` for single-criterion events
-- `criterionIds` for multi-criterion events
-- `updatedDetail`
-- `updatedDetails`
-- `totalScore`
-- `grading`
-- `status`
-- `updatedAt`
-
-Required behavior:
-- `updatedDetails` should represent synchronized details after backend repair, not stale pre-sync data.
-- If a criterion count becomes `0`, either include its normalized zero detail or include a clear signal through `criterionIds` plus an explicit zero/removed detail contract.
-- If the payload is a full detail snapshot, mark it clearly so the frontend can prune missing stale criteria.
-- If the payload is a partial patch, include enough `criterionIds` for the frontend to clear affected criteria that no longer have details.
-
-### 5. Merge realtime events as synchronized state, not stale patches
-Update `mergeRealtimeEvent()` and the `/grading/score` realtime handler.
-
-Required behavior:
-- Derive `criterionId` from each detail first:
-  - `detail.criterion_id._id`
-  - `detail.criterion_id`
-  - fallback to `event.criterionId` only for single-detail events
-- Do not apply one event-level `criterionId` to every item in an `updatedDetails` array.
-- Normalize `current_count`:
-  - valid number: use it
-  - numeric string: parse it
-  - missing, null, or invalid: use existing count only for patch events; use `0` for explicit clear/no-record events
-- Normalize option state:
-  - non-empty `selected_option_id`: store it
-  - explicit option clear: remove it
-  - absent option field in a patch event: preserve the existing local option
-  - absent option field in an authoritative no-record snapshot: clear it
-- Preserve unrelated criteria on partial patch events.
-- Prune stale criteria when the event declares an authoritative full snapshot.
-- For each `criterionId` included in an event but missing from `updatedDetails`, set the local count to `0` when the event represents deletion, clear, or no active records.
-- Build `nextCountsByStudent`, `nextOptionsByStudent`, and `nextDetailsMap` before calling React setters.
-- Update refs from that snapshot before calculating totals.
-- Pass the same snapshot into score calculation and state setters.
-
-### 6. Recalculate active student and roster consistently
-Realtime updates must update every visible scoring surface from the same synchronized state.
-
-Required behavior:
-- Recalculate the active student's preview after every valid count sync.
-- Apply `event.totalScore` to the active student when detail data is absent or when backend authority is required.
-- Apply `event.totalScore` to roster rows and summary cache when present.
-- Do not let `dirtyStudentIdsRef` block a backend confirmation that belongs to the current save/intent.
-- Ignore stale class or semester events.
-- Ignore unknown students safely.
-- Do not mutate the active student's detail map for an event belonging to another student.
-
-### 7. Make score calculation count-first for editable drafts
-Update `score-calculation.ts` so editable draft scoring uses the synchronized count.
-
-Required behavior:
-- Score helpers must tolerate missing maps by defaulting to empty objects.
-- `calculateCategoryScore()` must not throw when `counts`, `selectedOptionsState`, or `detailsMap` is missing.
-- `calculateTotalScore()` must not pass undefined maps into category scoring.
-- For editable draft count criteria, use the local synchronized `count` argument as the effective count.
-- Remove behavior that treats `detail.current_count` as a minimum count, such as `max(detail.current_count, count)`.
-- Keep `0` as a valid count.
-- If an editable draft reward criterion has count `0` and no selected option, its raw score must be `0` even if stale `system_score`, `sv_score`, or `gv_score` exists.
-- For editable draft violation criteria, compute from the synchronized count using the existing violation formula.
-- For locked, reviewed, approved, or finalized details, preserve existing persisted-score authority.
-- `mergeDetailsWithPreExistingCounts()` may hydrate initial counts from backend details, but once a local synchronized count exists, stale detail counts must not block decrements.
-
-### 8. Separate SSE parse errors from handler errors
-Update `useGradingRealtime()`.
-
-Required behavior:
-- Parse JSON inside a parse-only `try/catch`.
-- Run `savedHandler.current(event)` inside a separate handler-only `try/catch`.
-- Log invalid JSON as `Failed to parse SSE data`.
-- Log handler failures as `Failed to handle SSE event` with event type, student ID, class ID, semester ID, and criterion ID when available.
-- One malformed event or handler failure must not close or corrupt the SSE connection.
-
-### 9. Reconcile after missed or reconnect events
-Realtime is best-effort. The page must recover if an event is missed.
-
-Required behavior:
-- On reconnect, student switch, class switch, semester switch, or explicit refresh, reload the synchronized summary/details for the active context.
-- Rebuild `evaluationCounts`, `selectedOptionsState`, and `evaluationDetailsMap` from synchronized backend data.
-- Do not allow autosave to submit stale `00`, stale option null, or stale positive score over a freshly synchronized record state.
+### Phase 4: Add regression coverage
+- Add frontend tests for ObjectId URL and student-code URL.
+- Add backend tests for resolver access scope.
+- Add tests that verify `studentApi.getStudent` is not called with a non-ObjectId in the score-page flow.
 
 ## Acceptance Criteria
-- Reducing a reward criterion from `02` to `01` immediately changes row score from `+10` to `+5`.
-- Reducing the same reward criterion from `01` to `00` immediately changes row score to `0`.
-- A reward criterion with no active records shows count `00` and score `0`, not stale `+5`.
-- Category totals drop at the same time as the row score.
-- Active student score, roster score, and summary cache agree after a decrement.
-- `academic_record_changed` before local count maps exist does not crash the page.
-- Multi-detail realtime events map each detail to its own criterion.
-- Realtime clear/delete/no-record events remove stale local counts and option selections.
-- Active student receives backend `totalScore` when the event has no detail payload.
-- Partial patch events do not clear unrelated criteria.
-- Full snapshot events prune stale criteria missing from the snapshot.
-- Locked, reviewed, approved, and finalized details are not silently cleared.
-- Skipped locked/reviewed mismatches are reported with enough metadata for admin review.
-- `syncStudentCriterionScore()` and `syncMultipleStudentCriterionScores()` produce equivalent repaired draft details.
-- `recomputeTotalScore()` treats editable draft reward criteria with no active records as zero contribution even if stale draft score fields exist.
-- SSE JSON parse errors and handler errors are logged separately.
-- The SSE connection continues after a malformed or partial event.
+- Opening `/grading/score?studentId=<MongoObjectId>` loads the student and activates that student.
+- Opening `/grading/score?studentId=1240510009` resolves the code to the correct MongoDB ObjectId and activates that student.
+- The browser no longer logs `Error resolving student details` for valid student-code links.
+- `/grading` action "Grade student" passes a MongoDB ObjectId as `studentId`.
+- `/grading` action "View score detail" passes a MongoDB ObjectId as `studentId`.
+- Score mutation payloads still send `student_id` as a MongoDB ObjectId.
+- A teacher cannot resolve or grade a student outside assigned classes.
+- A student cannot resolve or grade another student by guessing `student_code`.
+- Admin and supervisor can resolve students according to existing grading access rules.
+- Invalid or missing students show a controlled warning state instead of an unhandled browser error.
+- Existing score totals, autosave behavior, realtime updates, summary delete behavior, and copy-score behavior are unchanged.
 
 ## Test Plan
 
-### Frontend score calculation tests
-Add or update tests in `frontend/src/app/(dashboard)/grading/score/_utils/score-calculation.test.ts`.
+### Backend tests
+- Resolve by valid ObjectId returns the student.
+- Resolve by exact `student_code` returns the same student.
+- Invalid identifier returns 404.
+- Teacher can resolve a student in an assigned class.
+- Teacher cannot resolve a student outside assigned classes.
+- Student can resolve self.
+- Student cannot resolve another student by ObjectId or student code.
+- Admin can resolve by ObjectId and by student code.
 
-Required tests:
-- `calculateCategoryScore()` accepts missing count and option maps without throwing.
-- `calculateTotalScore()` accepts missing count and option maps without throwing.
-- Editable draft reward count `2 -> 1 -> 0` recalculates from the local synchronized count.
-- Editable draft reward with local `count = 1` and stale `detail.current_count = 2` scores from `1`.
-- Editable draft reward with local `count = 0` and stale positive `system_score`, `sv_score`, or `gv_score` scores as `0`.
-- Editable draft violation criteria recalculate from the synchronized count after decrement.
-- Locked, reviewed, approved, and finalized details keep persisted-score authority.
-- Category score drops when an editable draft count is decremented.
+### Frontend tests
+- `/grading` row action builds URL with MongoDB ObjectId.
+- `/grading/score` resolves ObjectId URL and activates the selected student.
+- `/grading/score` resolves legacy student-code URL and activates the selected student.
+- `/grading/score` does not call `studentApi.getStudent` with a non-ObjectId.
+- Missing student code shows warning and does not crash.
+- Score intent is blocked when active student has no canonical ObjectId.
 
-### Frontend realtime merge tests
-Add or update tests in `frontend/src/app/(dashboard)/grading/score/_utils/realtime-event.test.ts`.
-
-Required tests:
-- Active-student event with no existing count map builds a safe count map.
-- `updatedDetails` with multiple criteria derives criterion IDs per detail.
-- Event-level `criterionId` is used only as fallback for a single detail.
-- Explicit `current_count = 0` clears the local count for that criterion.
-- Explicit option clear removes only that criterion option.
-- Missing option field in a partial patch preserves the existing option.
-- Full snapshot mode prunes stale criteria missing from the snapshot.
-- Deletion/no-record event with `criterionIds` but no detail sets affected counts to `0`.
-- Unknown student or stale context event does not throw.
-
-### Frontend page and hook tests
-Add tests where the setup allows page or hook mocking.
-
-Required tests:
-- Active student receives `totalScore` even when event has no detail payload.
-- Dirty local state does not block a backend-confirmed total for the current intent.
-- Reconnect or refresh rebuilds counts/options/details from synchronized data.
-- Invalid SSE JSON logs `Failed to parse SSE data`.
-- Handler exception logs `Failed to handle SSE event`.
-- Later valid events are still processed after one handler exception.
-
-### Backend sync tests
-Add or update tests for `backend/src/academic-record/academic-record.service.ts`.
-
-Required tests:
-- Deleting the last active reward record sets editable draft `current_count = 0`, `system_score = 0`, `sv_score = 0`, and `gv_score = 0`.
-- Reducing active reward records from `2` to `1` lowers `current_count` and `system_score`.
-- Clearing the last active option record clears selected option fields for editable draft details.
-- `syncMultipleStudentCriterionScores()` matches `syncStudentCriterionScore()` for no-record draft repair.
-- Reviewed, locked, approved, and finalized details are not auto-cleared and are reported as skipped mismatches.
-- Decrease/clear operations return the synchronized actual count and detail.
-- Incomplete deletion due to permissions reports actual remaining count.
-
-### Backend summary and realtime tests
-Add or update tests for `backend/src/summaries-point/summaries-point.service.ts` and realtime event payloads.
-
-Required tests:
-- `recomputeTotalScore()` gives editable draft reward criteria with no active records zero contribution even when stale draft score fields exist.
-- Draft `single_option` with no active record and stale selected option does not keep positive contribution after sync.
-- `academic_record_changed` is emitted after recompute.
-- Emitted payload includes normalized detail, `criterionIds`, `totalScore`, `grading`, `studentId`, `semesterId`, `classId`, and `summaryId`.
-- SSE stream filters stale class and semester events.
-
-## Manual Verification
-1. Open `/grading/score` for a class and semester.
-2. Select a student with a reward criterion worth `+5`.
-3. Increase the criterion to `02`; confirm row score is `+10`.
-4. Decrease to `01`; confirm row score, category score, active student score, roster score, and summary cache all drop by `5`.
-5. Decrease to `00`; confirm row score is `0` and no stale positive points remain.
-6. Refresh the page; confirm the same count and score are still correct.
-7. Trigger a record delete from another browser/session; confirm realtime updates the open page.
-8. Trigger an option clear; confirm option state and score clear in realtime.
-9. Trigger an event for another student; confirm only that roster row changes and the active student's detail map is not mutated.
-10. Switch class or semester while realtime is connected; confirm stale context events do not change the current page.
-11. Confirm locked or reviewed criteria are not silently cleared and are reported as skipped/locked mismatches.
-
-## Out Of Scope
-- Changing grading formulas.
-- Changing category maximum caps or total score caps.
-- Changing role permissions.
-- Rewriting the grading workflow outside `/grading/score`.
-- Changing the database schema.
-- Deleting reviewed, locked, approved, or finalized score authority automatically.
-- Replacing the SSE transport layer.
+### Manual verification
+1. Open `/grading`, choose a class and semester.
+2. Click "Grade student" on a row whose MSSV is `1240510009`.
+3. Confirm the URL contains a MongoDB ObjectId in `studentId`.
+4. Confirm `/grading/score` opens with that student active.
+5. Manually open `/grading/score?studentId=1240510009` and confirm the legacy code resolves.
+6. Confirm no browser console error appears for valid student-code links.
+7. Change to a teacher account and verify only assigned-class students resolve.
+8. Change to a student account and verify only the student's own profile resolves.
+9. Perform one score change and confirm the backend receives MongoDB ObjectId in `student_id`.
 
 ## Deliverable
-A focused `/grading/score` fix where realtime academic-record synchronization fully updates counts, options, details, roster totals, and summary totals, and editable draft reward/violation scores are always recalculated from the synchronized count so points cannot hang when records are reduced or cleared.
+A focused identity-resolution fix for `/grading/score` that separates MongoDB student ObjectId from MSSV/student_code, keeps legacy links working, and prevents valid student-code links from producing browser errors or failing active-student selection.

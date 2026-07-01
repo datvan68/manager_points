@@ -945,6 +945,63 @@ export class StudentsService implements OnModuleInit {
     return this.attachAccountStatus(student);
   }
 
+  async resolve(identifier: string, requester?: any): Promise<any> {
+    const isObjectId = Types.ObjectId.isValid(identifier);
+    const isRequesterStudent = isStudent(requester);
+
+    if (isRequesterStudent) {
+      const query = isObjectId
+        ? { _id: identifier }
+        : { student_code: identifier };
+
+      const student = await this.studentModel
+        .findOne(query)
+        .populate({
+          path: 'class_id',
+          populate: { path: 'dept_id', select: 'name code' },
+        })
+        .populate('training_point_id')
+        .populate('user_id', 'user_name email status role')
+        .exec();
+
+      if (!student) {
+        throw new NotFoundException(`Student with identifier ${identifier} not found`);
+      }
+
+      const linkedUserId = this.getLinkedUserId(student);
+      if (linkedUserId !== requester?.userId) {
+        throw new ForbiddenException('Bạn không có quyền truy cập hồ sơ sinh viên này.');
+      }
+
+      return this.attachAccountStatus(student);
+    }
+
+    const teacherClassIds = await this.getTeacherClassIds(requester);
+    const filter: any = isObjectId
+      ? { _id: identifier }
+      : { student_code: identifier };
+
+    if (teacherClassIds) {
+      filter.class_id = { $in: teacherClassIds };
+    }
+
+    const student = await this.studentModel
+      .findOne(filter)
+      .populate({
+        path: 'class_id',
+        populate: { path: 'dept_id', select: 'name code' },
+      })
+      .populate('training_point_id')
+      .populate('user_id', 'user_name email status role')
+      .exec();
+
+    if (!student) {
+      throw new NotFoundException(`Student with identifier ${identifier} not found`);
+    }
+
+    return this.attachAccountStatus(student);
+  }
+
   async findByStudentCode(student_code: string): Promise<any> {
     const student = await this.studentModel
       .findOne({ student_code })

@@ -994,7 +994,8 @@ function GradingPage() {
     : (apiSummariesPoints || [])
       .map((summary, idx) => {
         const studentObj = typeof summary.student_id === 'object' ? summary.student_id : null;
-        const studentId = getSummaryStudentKey(summary, idx);
+        const studentObjectId = getEntityId(summary.student_id) || getEntityId(summary._id);
+        const studentCode = studentObj?.student_code || '';
         const studentName = studentObj?.full_name || studentObj?.name || 'Chưa rõ';
         const studentClassId = studentObj?.class_id?._id || studentObj?.class_id || studentObj?.classId || '';
 
@@ -1006,7 +1007,8 @@ function GradingPage() {
         const studentDob = studentObj?.date_bir || '';
 
         return {
-          id: studentId,
+          id: studentObjectId,
+          studentCode,
           name: studentName,
           score: summary.total_score || 0,
           grading: summary.grading || 'Chưa xếp loại',
@@ -1022,7 +1024,7 @@ function GradingPage() {
       .filter(student => {
         const matchesSearch =
           student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          student.id.toLowerCase().includes(searchTerm.toLowerCase());
+          student.studentCode.toLowerCase().includes(searchTerm.toLowerCase());
         
         return matchesSearch;
       });
@@ -1087,7 +1089,7 @@ function GradingPage() {
 
   const columns: ResponsiveColumn<any>[] = [
     {
-      key: 'id',
+      key: 'studentCode',
       header: 'Mã sinh viên',
       priority: 'secondary',
       className: 'text-sm font-medium text-[#475569]',
@@ -1157,7 +1159,11 @@ function GradingPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  router.push(`/grading/score?studentId=${student.id}`);
+                  const query = new URLSearchParams();
+                  query.set('studentId', student.id);
+                  if (appliedClass) query.set('classId', appliedClass);
+                  if (appliedSemester) query.set('semesterId', appliedSemester);
+                  router.push(`/grading/score?${query.toString()}`);
                 }}
                 className="w-8 h-8 rounded-xl flex items-center justify-center bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 hover:scale-[1.05] transition-all duration-150 ease-out active:scale-95 cursor-pointer shadow-sm"
                 title="Chấm điểm sinh viên"
@@ -1168,7 +1174,12 @@ function GradingPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  router.push(`/grading/score?studentId=${student.id}&view=true`);
+                  const query = new URLSearchParams();
+                  query.set('studentId', student.id);
+                  if (appliedClass) query.set('classId', appliedClass);
+                  if (appliedSemester) query.set('semesterId', appliedSemester);
+                  query.set('view', 'true');
+                  router.push(`/grading/score?${query.toString()}`);
                 }}
                 className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/60 border border-white/80 text-slate-600 hover:bg-white/90 hover:scale-[1.05] transition-all duration-150 ease-out active:scale-95 cursor-pointer shadow-sm"
                 title="Xem chi tiết điểm"
@@ -1227,7 +1238,7 @@ function GradingPage() {
                 {columns.find(c => c.key === 'name')?.render?.(student.name, student)}
               </div>
               <div className="text-xs text-[#64748B] mt-0.5 truncate">
-                {student.id}
+                {student.studentCode}
               </div>
             </div>
           </div>

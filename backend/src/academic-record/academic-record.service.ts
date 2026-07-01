@@ -19,6 +19,7 @@ import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
 import { Student } from '../students/schemas/student.schema';
 import { Class } from '../classes/schemas/class.schema';
 import { getRequesterRoleName, isStudent, isTeacher } from '../auth/utils/role.util';
+import { assertCanAccessStudent, getGradingRole } from '../auth/utils/grading-access.util';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
 import { gradingEventEmitter } from '../system/grading-event-emitter';
 import { IntentScoreDto } from './dto/intent-score.dto';
@@ -63,7 +64,12 @@ export class AcademicRecordService {
       semester_id: new Types.ObjectId(normalizeObjectId(semesterId)),
     } as any).exec();
     if (summary && summary.status === 'locked') {
-      throw new BadRequestException('Không thể thực hiện thao tác do bảng điểm rèn luyện đã chốt.');
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Không thể thực hiện thao tác do bảng điểm rèn luyện đã chốt.',
+        error: 'Bad Request',
+        reasonCode: 'GRADING_SUMMARY_LOCKED',
+      });
     }
   }
 
@@ -611,19 +617,7 @@ export class AcademicRecordService {
 
     // Verify permissions for the requester
     if (requester) {
-      const roleName = (requester.roleName || '').toLowerCase();
-      if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
-        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
-        const classIds = classes.map((c: any) => c._id.toString());
-        const student = await this.studentModel.findById(student_id).select('class_id').exec();
-        if (!student || !student.class_id || !classIds.includes(student.class_id.toString())) {
-          throw new ForbiddenException('Bạn không có quyền đánh giá sinh viên ngoài lớp phụ trách.');
-        }
-      } else if (roleName.includes('student')) {
-        if (requester.userId !== student_id) {
-          throw new ForbiddenException('Bạn không thể thao tác điểm của sinh viên khác.');
-        }
-      }
+      await assertCanAccessStudent(requester, student_id, this.classModel, this.studentModel);
     }
 
     const requesterLevel = this.getRoleLevel(requester?.roleName);
@@ -1042,15 +1036,7 @@ export class AcademicRecordService {
     await this.checkSummaryLocked(createAcademicRecordDto.student_id, createAcademicRecordDto.semester_id);
 
     if (requester) {
-      const roleName = (requester.roleName || '').toLowerCase();
-      if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
-        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
-        const classIds = classes.map(c => c._id.toString());
-        const student = await this.studentModel.findById(createAcademicRecordDto.student_id).select('class_id').exec();
-        if (!student || !student.class_id || !classIds.includes(student.class_id.toString())) {
-          throw new ForbiddenException('Bạn không có quyền đánh giá sinh viên ngoài lớp phụ trách.');
-        }
-      }
+      await assertCanAccessStudent(requester, createAcademicRecordDto.student_id, this.classModel, this.studentModel);
     }
 
     const createdRecord = new this.academicRecordModel(createAcademicRecordDto);
@@ -1092,13 +1078,15 @@ export class AcademicRecordService {
 
     let validStudentIds: Set<string> | null = null;
     if (requester) {
-      const roleName = (requester.roleName || '').toLowerCase();
+      const role = getGradingRole(requester);
       // Nếu là Teacher, chỉ được ghi nhận cho sinh viên lớp mình
-      if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
+      if (role === 'teacher') {
         const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
         const classIds = classes.map(c => c._id);
         const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
         validStudentIds = new Set(students.map(s => s._id.toString()));
+      } else if (role === 'student') {
+        validStudentIds = new Set([requester.userId]);
       }
     }
 

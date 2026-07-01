@@ -19,6 +19,7 @@ import { generatePl03Excel } from './export/pl03-summary-excel.service';
 import { gradingEventEmitter } from '../system/grading-event-emitter';
 import { AcademicRecordService } from '../academic-record/academic-record.service';
 import { AcademicRecord, AcademicRecordDocument } from '../academic-record/schemas/academic-record.schema';
+import { getGradingRole, evaluateGradingAccess, assertCanAccessClass, assertCanAccessStudent } from '../auth/utils/grading-access.util';
 
 /**
  * Tính toán hạng (rank tier) và nhãn hạng (rank label) dựa trên tổng điểm và trạng thái của bảng điểm.
@@ -88,8 +89,7 @@ export class SummariesPointService {
   ) {}
 
   private isTeacher(requester?: any) {
-    const role = (requester?.roleName || '').toLowerCase();
-    return role.includes('teacher') || role.includes('advisor');
+    return getGradingRole(requester) === 'teacher';
   }
 
   private async getTeacherClassIds(requester?: any) {
@@ -267,12 +267,8 @@ export class SummariesPointService {
       throw new NotFoundException(`Lớp học với ID ${classId} không tồn tại.`);
     }
 
-    const roleName = ((requester?.roleName || requester?.role || '') + '').toLowerCase();
-    const isAdminOrSupervisor =
-      roleName.includes('admin') ||
-      roleName.includes('supervisor') ||
-      roleName.includes('quản sinh') ||
-      roleName.includes('quan sinh');
+    const role = getGradingRole(requester);
+    const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
 
     if (!isAdminOrSupervisor && classObj.advisor_id?.toString() !== requester?.userId) {
       throw new ForbiddenException('Bạn không có quyền thao tác trên lớp học này.');
@@ -749,12 +745,8 @@ export class SummariesPointService {
     const classObj = await this.classModel.findById(classId).exec();
     if (!classObj) throw new NotFoundException('Lớp học không tồn tại');
 
-    const roleName = ((requester?.roleName || requester?.role || '') + '').toLowerCase();
-    const isAdminOrSupervisor =
-      roleName.includes('admin') ||
-      roleName.includes('supervisor') ||
-      roleName.includes('quản sinh') ||
-      roleName.includes('quan sinh');
+    const role = getGradingRole(requester);
+    const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
 
     if (!isAdminOrSupervisor && classObj.advisor_id?.toString() !== requester?.userId) {
       throw new ForbiddenException('Bạn không có quyền xuất dữ liệu lớp này.');
@@ -860,12 +852,8 @@ export class SummariesPointService {
    * @returns Promise<SummaryPointDocument> - Bảng điểm sau khi đã cập nhật trạng thái chốt.
    */
   async approveGrading(summaryId: string, requester: any): Promise<SummaryPointDocument> {
-    const roleName = ((requester?.roleName || requester?.role || '') + '').toLowerCase();
-    const isAdminOrSupervisor =
-      roleName.includes('admin') ||
-      roleName.includes('supervisor') ||
-      roleName.includes('quản sinh') ||
-      roleName.includes('quan sinh');
+    const role = getGradingRole(requester);
+    const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
 
     if (!isAdminOrSupervisor) {
       throw new ForbiddenException('Bạn không có quyền phê duyệt bảng điểm rèn luyện.');
@@ -975,12 +963,8 @@ export class SummariesPointService {
    */
   async cancelApproval(summaryId: string, requester: any): Promise<SummaryPointDocument> {
     // 1. Kiểm tra quyền Admin/Supervisor
-    const roleName = ((requester?.roleName || requester?.role || '') + '').toLowerCase();
-    const isAdminOrSupervisor =
-      roleName.includes('admin') ||
-      roleName.includes('supervisor') ||
-      roleName.includes('quản sinh') ||
-      roleName.includes('quan sinh');
+    const role = getGradingRole(requester);
+    const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
 
     if (!isAdminOrSupervisor) {
       throw new ForbiddenException('Bạn không có quyền hủy duyệt bảng điểm rèn luyện.');
@@ -1583,5 +1567,52 @@ export class SummariesPointService {
       repairedSummariesCount: repairedCount,
       mismatchDetails: mismatches,
     };
+  }
+
+  async getGradingAccess(
+    requester: any,
+    context: { classId?: string; studentId?: string; semesterId?: string; summaryId?: string },
+  ): Promise<any> {
+    const decision = evaluateGradingAccess(requester);
+    
+    // Evaluate extra data scope constraints based on target context
+    try {
+      if (context.studentId) {
+        await assertCanAccessStudent(requester, context.studentId, this.classModel, this.studentModel);
+      }
+      if (context.classId) {
+        await assertCanAccessClass(requester, context.classId, this.classModel);
+      }
+      
+      // Check summary lock state if summaryId is provided
+      let summaryObj = null;
+      if (context.summaryId) {
+        summaryObj = await this.summaryPointModel.findById(context.summaryId).exec();
+      } else if (context.studentId && context.semesterId) {
+        summaryObj = await this.summaryPointModel.findOne({
+          student_id: new Types.ObjectId(context.studentId),
+          semester_id: new Types.ObjectId(context.semesterId),
+        } as any).exec();
+      }
+      
+      if (summaryObj) {
+        decision.canReadSummary = true;
+        if (summaryObj.status === 'locked') {
+          decision.canModifyScore = false;
+          decision.canCopyScore = false;
+          decision.reasonCode = 'GRADING_SUMMARY_LOCKED';
+          decision.reason = 'Bảng điểm rèn luyện đã chốt.';
+        }
+      }
+    } catch (err: any) {
+      decision.canModifyScore = false;
+      decision.canCopyScore = false;
+      decision.canReadStudent = false;
+      decision.canReadSummary = false;
+      decision.reasonCode = err.response?.reasonCode || 'GRADING_SCOPE_DENIED';
+      decision.reason = err.message || 'Không có quyền truy cập dữ liệu.';
+    }
+    
+    return decision;
   }
 }

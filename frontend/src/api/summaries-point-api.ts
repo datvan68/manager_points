@@ -204,5 +204,22 @@ export const summariesPointApi = {
     }
 
     return res.blob();
+  },
+
+  async getGradingAccess(params: {
+    classId?: string;
+    studentId?: string;
+    semesterId?: string;
+    summaryId?: string;
+  }): Promise<any> {
+    const query = new URLSearchParams();
+    if (params.classId) query.set('classId', params.classId);
+    if (params.studentId) query.set('studentId', params.studentId);
+    if (params.semesterId) query.set('semesterId', params.semesterId);
+    if (params.summaryId) query.set('summaryId', params.summaryId);
+    const qs = query.toString();
+    const url = `${API_BASE}/summaries-points/access${qs ? `?${qs}` : ''}`;
+    const res = await httpClient(url);
+    return handleResponse<any>(res);
   }
 };

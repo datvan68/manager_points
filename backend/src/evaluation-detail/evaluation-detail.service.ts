@@ -24,6 +24,7 @@ import { Student, StudentDocument } from '../students/schemas/student.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
 import { calculateCriterionScoreHelper } from '../academic-record/academic-record.utils';
+import { getGradingRole } from '../auth/utils/grading-access.util';
 
 
 @Injectable()
@@ -46,13 +47,11 @@ export class EvaluationDetailService {
   ) { }
 
   private isTeacher(requester?: any) {
-    const role = (requester?.roleName || '').toLowerCase();
-    return role.includes('teacher') || role.includes('advisor');
+    return getGradingRole(requester) === 'teacher';
   }
 
   private isStudent(requester?: any) {
-    const role = (requester?.roleName || '').toLowerCase();
-    return role.includes('student');
+    return getGradingRole(requester) === 'student';
   }
 
   private async getTeacherClassIds(requester?: any) {
@@ -102,7 +101,14 @@ export class EvaluationDetailService {
     }
   }
 
-  private getRoleLevel(roleName?: string): number {
+  private getRoleLevel(roleName?: string, requester?: any): number {
+    if (requester) {
+      const role = getGradingRole(requester);
+      if (role === 'admin') return 4;
+      if (role === 'supervisor') return 3;
+      if (role === 'teacher') return 2;
+      if (role === 'student') return 1;
+    }
     if (!roleName) return 1;
     const nameLower = roleName.toLowerCase();
     if (nameLower.includes('admin')) return 4;
@@ -129,11 +135,11 @@ export class EvaluationDetailService {
       ? (typeof recordedBy.role === 'object' ? recordedBy.role.name : recordedBy.role)
       : '';
 
-    return { id, level: this.getRoleLevel(roleName) };
+    return { id, level: this.getRoleLevel(roleName, recordedBy) };
   }
 
   private isAdminRole(requester?: any): boolean {
-    return this.getRoleLevel(requester?.roleName) >= 4;
+    return getGradingRole(requester) === 'admin';
   }
 
   private canRequesterDeleteRecord(record: any, requester?: any): boolean {
@@ -147,7 +153,7 @@ export class EvaluationDetailService {
     // Luôn cho phép nếu chính người tạo thao tác
     if (requester.userId.toString() === creator.id.toString()) return true;
 
-    const requesterLevel = this.getRoleLevel(requester.roleName);
+    const requesterLevel = this.getRoleLevel(requester.roleName, requester);
     // Cho phép nếu role level của requester lớn hơn role level của người tạo
     if (requesterLevel > creator.level) return true;
 
@@ -210,7 +216,7 @@ export class EvaluationDetailService {
     } else if (diff < 0) {
       // Delete excess direct grading records created by the current user
       const excessCount = Math.abs(diff);
-      const requesterLevel = this.getRoleLevel(requester?.roleName);
+      const requesterLevel = this.getRoleLevel(requester?.roleName, requester);
       const deletableRecords = records
         .filter((rec) => this.canRequesterDeleteRecord(rec, requester))
         .sort((a, b) => {

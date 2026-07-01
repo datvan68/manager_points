@@ -100,6 +100,12 @@ export class StudentsController {
     return this.studentsService.findMe(req.user);
   }
 
+  @Get('resolve')
+  @UseGuards(JwtAuthGuard)
+  resolve(@Query('identifier') identifier: string, @Request() req: any) {
+    return this.studentsService.resolve(identifier, req.user);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string, @Request() req: any) {

@@ -51,11 +51,13 @@ import { evaluationPeriodApi } from "@/api/evaluation-period-api";
 import SemesterModal from "@/components/grading/SemesterModal";
 import { RouteGuard } from "@/components/guards/RouteGuard";
 import { useLinkedTaskProgress } from "@/hooks/useLinkedTaskProgress";
+import { useAuth } from "@/providers/auth-provider";
 import { studentTaskApi } from "@/api/task-api";
 import { normalizeLinkedPath, getLinkedTaskMode } from "@/lib/task-linked-page";
 import dynamic from "next/dynamic";
 import { isStudentRole, isAdminRole } from "@/utils/role.util";
 import { StudentGradingSlider } from "./_components/StudentGradingSlider";
+import { useGradingScoreAccess } from "./_hooks/useGradingScoreAccess";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 
@@ -640,6 +642,9 @@ function GradingScoreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const studentIdParam = searchParams.get("studentId");
+  const classIdParam = searchParams.get("classId");
+  const semesterIdParam = searchParams.get("semesterId");
+  const viewParam = searchParams.get("view") === "true";
   const taskId = searchParams.get("taskId");
 
   const { resolvedTaskId } = useLinkedTaskProgress({
@@ -779,6 +784,7 @@ function GradingScoreContent() {
   const [studentSummaryMap, setStudentSummaryMap] = useState<
     Record<string, string>
   >({});
+  const [accessError, setAccessError] = useState<string | null>(null);
 
   const syncLinkedTaskCompleted = async (summaryId: string, studentId: string) => {
     // markCompleted has been removed from useLinkedTaskProgress because 
@@ -854,19 +860,26 @@ function GradingScoreContent() {
     setActivePeriod(period || null);
   }, [selectedSemesterId, apiEvaluationPeriods]);
 
-  const currentUser = tokenStorage.getUser();
-  const currentUserRoleLegacy = (() => {
-    const role = currentUser?.role?.toLowerCase() || "";
-    if (role.includes("admin")) return "admin";
-    if (role.includes("supervisor") || role.includes("quản sinh"))
-      return "supervisor";
-    if (role.includes("teacher") || role.includes("advisor")) return "teacher";
-    return "student";
-  })();
-  void currentUserRoleLegacy;
-  const currentUserRole = getRoleKey(currentUser?.role);
-  const isAdminOrSupervisor =
-    currentUserRole === "admin" || currentUserRole === "supervisor";
+  const { user } = useAuth();
+  const currentUser = user || tokenStorage.getUser();
+
+  const access = useGradingScoreAccess({
+    classId: selectedClassId,
+    studentId: activeStudentId,
+    semesterId: selectedSemesterId,
+    summaryId: studentSummaryMap[activeStudentId],
+  });
+
+  const currentUserRole = access.role;
+  const isAdminOrSupervisor = access.isAdminOrSupervisor;
+
+  useEffect(() => {
+    if (access.backendDeniedReason && access.backendReasonCode !== 'GRADING_SUMMARY_LOCKED') {
+      setAccessError(access.backendDeniedReason);
+    } else {
+      setAccessError(null);
+    }
+  }, [access.backendDeniedReason, access.backendReasonCode]);
   const gradingTabs = [
     ...(currentUserRole === "student"
       ? []
@@ -901,6 +914,7 @@ function GradingScoreContent() {
 
   // Kiểm tra quyền chấm điểm theo vai trò và trạng thái kỳ đánh giá
   const canModifyScore = (() => {
+    if (viewParam) return false;
     if (isInitialLoading || isDetailsLoading || isFetching || isRosterLoading) return false;
 
     if (!isSemesterActive) return false;
@@ -918,18 +932,18 @@ function GradingScoreContent() {
     if (activePeriod.status === "closed" || activePeriod.status === "pending")
       return false;
 
-    const role = currentUser?.role?.toLowerCase() || "";
+    if (!access.canModifyScoreByRole) return false;
 
-    if (role.includes("admin")) {
+    if (access.isAdmin) {
       return true; // Admin có quyền chấm trong kỳ đánh giá
     }
 
-    if (role.includes("teacher") || role.includes("advisor")) {
+    if (access.isTeacher) {
       // Cố vấn học tập chấm điểm ở giai đoạn gv_phase
       return activePeriod.status === "gv_phase";
     }
 
-    if (role.includes("student")) {
+    if (access.isStudent) {
       return activePeriod.status === "sv_phase" && summaryStatus === "draft";
     }
 
@@ -1091,19 +1105,79 @@ function GradingScoreContent() {
           backendSemesters[0]?._id ||
           "";
         const savedClass = sessionStorage.getItem("grading_appliedClass") || "";
-        const effectiveClassId =
-          currentUserRole === "student"
-            ? ""
-            : currentUserRole === "teacher"
-              ? roleScopedClasses.some((cls) => cls._id === savedClass)
-                ? savedClass
-                : roleScopedClasses[0]?._id || ""
-              : savedClass;
 
-        setSelectedSemesterId(savedSem);
-        setSelectedClassId(effectiveClassId);
+        // Ưu tiên URL context hơn sessionStorage
+        const isValidSemester = (backendSemesters || []).some((sem) => sem._id === semesterIdParam);
+        const effectiveSemesterId = isValidSemester ? semesterIdParam! : savedSem;
+        if (isValidSemester) {
+          sessionStorage.setItem("grading_appliedSem", effectiveSemesterId);
+        }
 
-        // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên savedSem và effectiveClassId
+        const isValidClass = (roleScopedClasses || []).some((cls) => cls._id === classIdParam);
+        let baseClassId = "";
+        if (currentUserRole === "student") {
+          baseClassId = "";
+        } else {
+          baseClassId = isValidClass
+            ? classIdParam!
+            : roleScopedClasses.some((cls) => cls._id === savedClass)
+              ? savedClass
+              : roleScopedClasses[0]?._id || "";
+          
+          if (isValidClass) {
+            sessionStorage.setItem("grading_appliedClass", baseClassId);
+          }
+        }
+
+        let finalClassId = baseClassId;
+        let showStudentNotFoundWarning = false;
+        let resolvedStudentObjectId = "";
+
+        if (studentIdParam) {
+          const isObjectId = /^[a-f\d]{24}$/i.test(studentIdParam);
+          try {
+            const studentInfo = isObjectId
+              ? await studentApi.getStudent(studentIdParam)
+              : await studentApi.resolveStudent(studentIdParam);
+
+            if (studentInfo) {
+              resolvedStudentObjectId = studentInfo._id || (studentInfo as any).id || "";
+              const studentClassId = getEntityId(studentInfo.class_id);
+
+              if (currentUserRole === "student") {
+                const myStudent = await studentApi.getMyStudent();
+                const myStudentId = myStudent?._id || (myStudent as any)?.id || "";
+                if (resolvedStudentObjectId !== myStudentId) {
+                  showStudentNotFoundWarning = true;
+                  finalClassId = "";
+                } else {
+                  finalClassId = "";
+                }
+              } else {
+                const isStudentClassAllowed = (roleScopedClasses || []).some((cls) => cls._id === studentClassId);
+                if (isStudentClassAllowed) {
+                  finalClassId = studentClassId;
+                  sessionStorage.setItem("grading_appliedClass", finalClassId);
+                } else {
+                  showStudentNotFoundWarning = true;
+                  finalClassId = baseClassId;
+                }
+              }
+            } else {
+              showStudentNotFoundWarning = true;
+              finalClassId = baseClassId;
+            }
+          } catch (err) {
+            console.error("Error resolving student details:", err);
+            showStudentNotFoundWarning = true;
+            finalClassId = baseClassId;
+          }
+        }
+
+        setSelectedSemesterId(effectiveSemesterId);
+        setSelectedClassId(finalClassId);
+
+        // Tải bảng điểm rèn luyện phân trang đầy đủ dựa trên effectiveSemesterId và finalClassId
         const fetchAllSummaries = async (sem: string, clsId?: string, resolvedStudentId?: string) => {
           const params: any = {
             semesterId: sem,
@@ -1145,6 +1219,9 @@ function GradingScoreContent() {
             if (myStudent) {
               filteredStudents = [myStudent];
               resolvedStudentIdForSummaryLookup = myStudent._id || (myStudent as any).id || "";
+              if (!resolvedStudentObjectId) {
+                resolvedStudentObjectId = resolvedStudentIdForSummaryLookup;
+              }
             }
           } catch (err) {
             console.error("Failed to load current student profile:", err);
@@ -1152,9 +1229,9 @@ function GradingScoreContent() {
             filteredStudents = [];
           }
         } else {
-          if (effectiveClassId) {
+          if (finalClassId) {
             try {
-              const rosterResult = await studentApi.getStudents({ classId: effectiveClassId, fields: 'slider' } as any);
+              const rosterResult = await studentApi.getStudents({ classId: finalClassId, fields: 'slider' } as any);
               filteredStudents = Array.isArray(rosterResult)
                 ? rosterResult
                 : rosterResult?.data || [];
@@ -1162,13 +1239,13 @@ function GradingScoreContent() {
               console.error("Failed to fetch class roster:", err);
             }
           } else {
-            // Nếu không có effectiveClassId (nghĩa là non-student chưa chọn class)
+            // Nếu không có finalClassId (nghĩa là non-student chưa chọn class)
             filteredStudents = [];
           }
         }
 
         // Tải summaries
-        const summariesRaw = await fetchAllSummaries(savedSem, effectiveClassId, resolvedStudentIdForSummaryLookup);
+        const summariesRaw = await fetchAllSummaries(effectiveSemesterId, finalClassId, resolvedStudentIdForSummaryLookup);
         // Lọc chỉ giữ summaries của học kỳ (period_id: null hoặc undefined)
         const summariesData = summariesRaw.filter((sum) => !sum.period_id || sum.period_id === null);
         setApiSummariesPoints(summariesData);
@@ -1240,16 +1317,22 @@ function GradingScoreContent() {
         // Thiết lập Active Student
         let targetActiveId = "";
         if (
-          studentIdParam &&
-          mappedStudents.some((s) => s.id === studentIdParam)
+          resolvedStudentObjectId &&
+          mappedStudents.some((s) => s.id === resolvedStudentObjectId)
         ) {
-          targetActiveId = studentIdParam;
+          targetActiveId = resolvedStudentObjectId;
         } else if (currentUserRole === "student" && mappedStudents.length > 0) {
           targetActiveId = mappedStudents[0].id;
         } else if (mappedStudents.length > 0) {
           targetActiveId = mappedStudents[0].id;
         }
         setActiveStudentId(targetActiveId);
+
+        if (showStudentNotFoundWarning) {
+          toast.warning("Không tìm thấy sinh viên hoặc bạn không có quyền chấm điểm cho sinh viên này trong học kỳ hiện tại.");
+        } else if (studentIdParam && (!resolvedStudentObjectId || !mappedStudents.some((s) => s.id === resolvedStudentObjectId))) {
+          toast.warning("Sinh viên được chọn không thuộc lớp hoặc kỳ học hiện tại.");
+        }
 
         if (currentUserRole === "student" && !targetActiveId) {
           toast.error("Không thể xác định thông tin sinh viên của bạn để chấm điểm!");
@@ -1416,7 +1499,7 @@ function GradingScoreContent() {
   const activeStudent = students.find((s) => s.id === activeStudentId);
   const isStudentLocked = activeStudent?.gradingStatus === "locked";
 
-  const shouldShowActiveStudentRankCard = isStudentRole(currentUser) || isAdminRole(currentUser);
+  const shouldShowActiveStudentRankCard = access.isStudent || access.isAdmin;
 
 
   const isMongoObjectId = (value: string) => /^[a-f\d]{24}$/i.test(value);
@@ -2670,6 +2753,24 @@ function GradingScoreContent() {
       setIsFetching(false);
     }
   };
+
+  if (accessError) {
+    return (
+      <div className="flex h-[calc(100vh-4rem)] items-center justify-center p-4">
+        <div className="bg-white/90 backdrop-blur-md p-8 rounded-2xl border border-slate-200 max-w-md w-full text-center shadow-sm flex flex-col items-center gap-4">
+          <div className="p-4 bg-rose-500/10 text-rose-600 rounded-xl">
+            <AlertTriangle size={32} />
+          </div>
+          <h3 className="font-bold text-slate-800 text-[17px]">
+            Truy cập bị từ chối
+          </h3>
+          <p className="text-slate-500 text-[13.5px] leading-relaxed">
+            {accessError}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

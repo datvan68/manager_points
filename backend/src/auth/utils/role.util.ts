@@ -6,6 +6,14 @@ import { Types } from 'mongoose';
  */
 export function getRequesterRoleName(requester?: any): string {
   if (!requester) return 'User';
+
+  // Safe override: if has admin signals, return Admin immediately
+  const roleCode = requester.roleCode || (requester.role && requester.role.role_code);
+  const permissions = requester.permissions || [];
+  if (roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL')) {
+    return 'Admin';
+  }
+
   let rawRole = '';
   if (typeof requester.roleName === 'string') {
     rawRole = requester.roleName;

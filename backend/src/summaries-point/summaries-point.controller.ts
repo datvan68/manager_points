@@ -155,6 +155,23 @@ export class SummariesPointController {
     });
   }
 
+  @Get('access')
+  @ApiOperation({ summary: 'Lấy trạng thái phân quyền chấm điểm' })
+  async getAccessState(
+    @Request() req: any,
+    @Query('classId') classId?: string,
+    @Query('studentId') studentId?: string,
+    @Query('semesterId') semesterId?: string,
+    @Query('summaryId') summaryId?: string,
+  ) {
+    return this.summariesPointService.getGradingAccess(req.user, {
+      classId,
+      studentId,
+      semesterId,
+      summaryId,
+    });
+  }
+
   // New endpoint: get latest locked summary for the logged‑in student
   @Get('me/latest')
   @ApiOperation({ summary: 'Lấy điểm rèn luyện mới nhất của sinh viên hiện tại' })

@@ -65,6 +65,7 @@ describe('StudentsService', () => {
             {
               find: jest.fn().mockImplementation(() => ({
                 populate: jest.fn().mockReturnThis(),
+                select: jest.fn().mockReturnThis(),
                 exec: jest.fn().mockResolvedValue([getCloneMockStudent()]),
               })),
               findById: jest.fn().mockImplementation(() => ({
@@ -84,6 +85,11 @@ describe('StudentsService', () => {
               insertMany: jest.fn().mockImplementation(() => Promise.resolve([getCloneMockStudent()])),
               bulkWrite: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
               updateOne: jest.fn().mockResolvedValue({}),
+              countDocuments: jest.fn().mockImplementation(() => {
+                const query = Promise.resolve(1) as any;
+                query.exec = jest.fn().mockResolvedValue(1);
+                return query;
+              }),
             },
           ),
         },
@@ -120,6 +126,11 @@ describe('StudentsService', () => {
               exec: jest.fn().mockResolvedValue(null),
             })),
             deleteOne: jest.fn().mockResolvedValue({ deletedCount: 1 }),
+            countDocuments: jest.fn().mockImplementation(() => {
+              const query = Promise.resolve(1) as any;
+              query.exec = jest.fn().mockResolvedValue(1);
+              return query;
+            }),
           },
         },
         {
@@ -503,6 +514,42 @@ describe('StudentsService', () => {
       await expect(service.findByStudentCode('invalid-code')).rejects.toThrow(
         NotFoundException,
       );
+  });
+});
+
+  describe('resolve', () => {
+    it('should resolve a student by valid ObjectId', async () => {
+      const result = await service.resolve('507f1f77bcf86cd799439011');
+      expect(result).toBeDefined();
+      expect(result.full_name).toEqual('Nguyễn Văn A');
+    });
+
+    it('should resolve a student by student code', async () => {
+      const result = await service.resolve('SV-2023-001');
+      expect(result).toBeDefined();
+      expect(result.student_code).toEqual('SV-2023-001');
+    });
+
+    it('should throw NotFoundException if student not found by ObjectId or code', async () => {
+      model.findOne.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(null),
+      });
+      await expect(service.resolve('invalid-id-or-code')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should return student profile if requester is Student and resolves their own profile', async () => {
+      const requester = { userId: '507f1f77bcf86cd799439013', roleName: 'Student' };
+      const result = await service.resolve(mockStudent._id, requester);
+      expect(result).toBeDefined();
+      expect(result.full_name).toEqual('Nguyễn Văn A');
+    });
+
+    it('should throw ForbiddenException if requester is Student and resolves another profile', async () => {
+      const requester = { userId: '507f1f77bcf86cd799439019', roleName: 'Student' };
+      await expect(service.resolve(mockStudent._id, requester)).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -1120,6 +1167,13 @@ describe('StudentsService', () => {
     });
 
     it('should return correct summary on preview', async () => {
+      const studentModel = service['studentModel'];
+      const student = getCloneMockStudent();
+      student.user_id = null;
+      jest.spyOn(studentModel, 'find').mockReturnValue({
+        exec: jest.fn().mockResolvedValue([student]),
+      } as any);
+
       const userModel = service['userModel'];
       jest.spyOn(userModel, 'find').mockReturnValue({
         exec: jest.fn().mockResolvedValue([]),
