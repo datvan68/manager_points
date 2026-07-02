@@ -25,8 +25,9 @@ export const buildSummaryIndex = (summaries: any[]): Map<string, any> => {
     const studentIdVal = summary.student_id;
     if (studentIdVal) {
       if (typeof studentIdVal === "object") {
-        const id = studentIdVal._id || studentIdVal.id;
-        if (id) index.set(String(id).trim().toLowerCase(), summary);
+        if (studentIdVal._id) index.set(String(studentIdVal._id).trim().toLowerCase(), summary);
+        if (studentIdVal.id) index.set(String(studentIdVal.id).trim().toLowerCase(), summary);
+        if (studentIdVal.student_code) index.set(String(studentIdVal.student_code).trim().toLowerCase(), summary);
       } else if (typeof studentIdVal === "string") {
         index.set(studentIdVal.trim().toLowerCase(), summary);
       }

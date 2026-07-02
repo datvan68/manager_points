@@ -163,7 +163,39 @@ Mỗi agent chỉ được dùng skill trong danh sách được giao (xem `orch
 
 ---
 
-## 8. Thứ Tự Ưu Tiên Khi Xung Đột
+## 8. ENG Loop — Cơ Chế Vòng Lặp Tối Đa Hoá Xử Lý
+
+> Mục tiêu: agent tự lực giải quyết vấn đề trong phạm vi một step, giảm số lần phải dừng chờ orchestrator can thiệp cho những việc nhỏ (sửa lỗi code, chỉnh lại output không đạt). **Không thay thế, không bỏ qua** bất kỳ human-gate nào ở `safety.md §7` — các gate đó vẫn áp dụng nguyên vẹn dù đang ở giữa loop.
+
+### 8.1 Chu trình
+
+```
+PLAN → EXECUTE → VERIFY → (pass? DONE : REFINE → EXECUTE → VERIFY → ...)
+```
+
+| Bước | Nội dung |
+|---|---|
+| `PLAN` | Agent tự phân tích task, lập kế hoạch step ngắn gọn (không cần orchestrator duyệt từng bước nhỏ trong plan) |
+| `EXECUTE` | Thực thi bằng skill đã được cấp phép (mục 6) |
+| `VERIFY` | Tự kiểm tra kết quả bằng tiêu chí khách quan: test pass, lint clean, `security_scan` không có finding mức cao, hoặc tiêu chí do `pipeline.md` định nghĩa cho step đó |
+| `REFINE` | Nếu `VERIFY` fail: agent tự sửa dựa trên lỗi cụ thể, không đoán mò ngoài phạm vi lỗi đã phát hiện |
+
+### 8.2 Giới hạn vòng lặp
+
+- `max_loop_iterations: 3` (mặc định — xem `safety.md §3`, tách biệt với `max_retry_attempts` vốn dành cho `API_ERROR`/`TOOL_TIMEOUT`).
+- Mỗi iteration phải log: `task_id`, `step`, `iteration`, `verify_result` — tránh loop chạy im lặng không theo dõi được.
+- Hết `max_loop_iterations` mà `VERIFY` vẫn fail → dừng ngay, trả `status: error`, `error_code: LOGIC_ERROR`, escalate lên orchestrator. **Không tự ý lặp thêm.**
+
+### 8.3 Ranh giới không được vượt qua
+
+- Loop chỉ áp dụng cho hành động nằm trong `allowed_actions` của môi trường hiện tại (`safety.md §5`).
+- Bất kỳ iteration nào chạm vào hành động thuộc danh sách Human-in-the-Loop (`safety.md §7`) → dừng loop ngay tại đó, gửi `approval_required`, chờ người dùng — kể cả khi đang ở giữa vòng lặp dở dang.
+- Loop không được dùng để "thử nhiều cách" vượt qua một `SAFETY_VIOLATION` đã bị chặn — vi phạm safety không retry, không refine, theo đúng `safety.md §6`.
+- `next_action` trong output schema (mục 3.3) dùng để agent báo cho orchestrator biết đang ở iteration nào nếu cần orchestrator theo dõi.
+
+---
+
+## 9. Thứ Tự Ưu Tiên Khi Xung Đột
 
 ```
 safety.md  >  global.md  >  orchestrator.md  >  pipeline.md  >  agent-specific files

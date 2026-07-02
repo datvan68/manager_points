@@ -1,8 +1,9 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import AddTaskModal from './AddTaskModal';
 import { studentTaskApi } from '@/api/task-api';
+import { act } from 'react';
 
 // Mock dependencies
 vi.mock('@/api/task-api', () => ({
@@ -50,28 +51,36 @@ vi.mock('@/components/calendar/CustomCalendar', () => ({
 
 describe('AddTaskModal auto fill deadline', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('should auto fill deadline when selecting a linked page that has a deadline', async () => {
     const mockDeadline = new Date('2026-06-27T00:00:00.000Z').toISOString();
     (studentTaskApi.getLinkedDeadline as any).mockResolvedValue({ deadline: mockDeadline });
 
-    render(
-      <AddTaskModal 
-        isOpen={true} 
-        onClose={vi.fn()} 
-        onSave={vi.fn()} 
-      />
-    );
+    await act(async () => {
+      render(
+        <AddTaskModal 
+          isOpen={true} 
+          onClose={vi.fn()} 
+          onSave={vi.fn()} 
+        />
+      );
+    });
 
     const selectElements = screen.getAllByTestId('mock-select');
     
     // The second select is Linked Page (first is Task Type, second is Priority, third is Status, fourth is Target Scope, fifth is Linked Page...)
-    // Wait, let's just trigger the one we know handles the page selection:
     const linkedPageSelect = selectElements.find(el => el.innerHTML.includes('/grading/score')) || selectElements[4]; 
     if(linkedPageSelect) {
-        linkedPageSelect.click();
+        await act(async () => {
+          linkedPageSelect.click();
+        });
     }
 
     await waitFor(() => {

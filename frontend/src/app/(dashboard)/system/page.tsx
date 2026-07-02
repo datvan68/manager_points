@@ -159,6 +159,7 @@ function SystemAdminDashboard() {
   const isRestoreRunning = systemActivity?.hasActiveRestore || false;
   const hasStaleJobs = systemActivity?.hasStaleJobs || false;
   const [isConfirmBackupOpen, setIsConfirmBackupOpen] = useState(false);
+  const [backupFormat, setBackupFormat] = useState<'auto' | 'archive' | 'ndjson'>('auto');
   const [isConfirmDeleteBackupOpen, setIsConfirmDeleteBackupOpen] = useState(false);
   const [backupToDelete, setBackupToDelete] = useState<string | null>(null);
   const [isConfirmForceCancelOpen, setIsConfirmForceCancelOpen] = useState(false);
@@ -507,7 +508,7 @@ function SystemAdminDashboard() {
     if (!canCreateBackup) return;
     try {
       setIsConfirmBackupOpen(false);
-      await systemPerformance.trackApi('create-backup', () => systemApi.createBackup());
+      await systemPerformance.trackApi('create-backup', () => systemApi.createBackup(backupFormat));
       toast.success("Tiến trình sao lưu đã được lập lịch khởi chạy.");
       fetchBackups(1);
     } catch (err: any) {
@@ -2044,6 +2045,56 @@ function SystemAdminDashboard() {
               <br />
               <span className="font-semibold text-[#1E293B]">Lưu ý:</span> Tiến trình này có thể làm tăng nhẹ độ trễ truy vấn database trong chốc lát tùy thuộc vào độ lớn của dữ liệu.
             </p>
+
+            {/* Backup Format Selector */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider block">Định dạng sao lưu</label>
+              <div className="space-y-1.5">
+                <label className="flex items-start gap-2.5 cursor-pointer p-2 rounded-xl hover:bg-white/60 transition-colors">
+                  <input
+                    type="radio"
+                    name="backupFormat"
+                    value="auto"
+                    checked={backupFormat === 'auto'}
+                    onChange={() => setBackupFormat('auto')}
+                    className="mt-0.5 accent-[#1A73E8]"
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-[#1E293B]">Tự động</span>
+                    <p className="text-[10px] text-[#64748B] mt-0.5">Ưu tiên Archive (nhanh), tự chuyển sang NDJSON nếu không có công cụ.</p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2.5 cursor-pointer p-2 rounded-xl hover:bg-white/60 transition-colors">
+                  <input
+                    type="radio"
+                    name="backupFormat"
+                    value="ndjson"
+                    checked={backupFormat === 'ndjson'}
+                    onChange={() => setBackupFormat('ndjson')}
+                    className="mt-0.5 accent-[#1A73E8]"
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-[#1E293B]">NDJSON</span>
+                    <span className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded text-[9px] font-bold border border-emerald-200 ml-1.5">Tương thích mọi nơi</span>
+                    <p className="text-[10px] text-[#64748B] mt-0.5">Khôi phục được trên mọi môi trường mà không cần cài thêm công cụ.</p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2.5 cursor-pointer p-2 rounded-xl hover:bg-white/60 transition-colors">
+                  <input
+                    type="radio"
+                    name="backupFormat"
+                    value="archive"
+                    checked={backupFormat === 'archive'}
+                    onChange={() => setBackupFormat('archive')}
+                    className="mt-0.5 accent-[#1A73E8]"
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-[#1E293B]">Archive</span>
+                    <p className="text-[10px] text-[#64748B] mt-0.5">Dùng mongodump, hiệu suất cao. Cần MongoDB Tools để khôi phục.</p>
+                  </div>
+                </label>
+              </div>
+            </div>
 
             <div className="flex justify-end gap-2 text-xs pt-2">
               <button

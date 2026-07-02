@@ -48,7 +48,17 @@ resume_from_last_success: true
   type: human_gate
   condition: "biểu thức kích hoạt"
   message: "Nội dung yêu cầu xác nhận"
+
+# Override số vòng lặp ENG Loop cho step cụ thể (mặc định 3, xem global.md §8)
+- step: N
+  agent: agent-id
+  skill: skill_id
+  loop_iterations: 5        # step rủi ro cao / cần refine nhiều (vd: fix bug phức tạp)
+  # hoặc
+  loop_iterations: 0        # tắt loop, step chỉ đọc/phân tích, không có gì để refine
 ```
+
+> **ENG Loop trong pipeline:** mỗi step do sub-agent thực thi tự chạy nội bộ `PLAN → EXECUTE → VERIFY → REFINE` (tối đa `loop_iterations`, mặc định 3) trước khi trả kết quả về orchestrator — xem `global.md §8`. `on_failure` của step chỉ kích hoạt **sau khi** loop nội bộ đã hết, không phải cho từng iteration riêng lẻ. Step thuộc loại `type: human_gate` hoặc có `gate:` luôn nằm **ngoài** vòng lặp — sub-agent không được tự ý lặp lại để né gate.
 
 ---
 
@@ -139,6 +149,7 @@ steps:
     input_from: user
     output_to: step_2
     on_failure: stop
+    loop_iterations: 0        # step chỉ phân tích/đọc, không có kết quả để tự refine
     checkpoint: after
 
   - step: 2
@@ -148,6 +159,7 @@ steps:
     input_from: step_1
     output_to: step_3
     on_failure: stop
+    loop_iterations: 5        # ưu tiên cho code-agent tự refine fix trước khi escalate — bug fix thường cần nhiều vòng thử hơn mặc định
     checkpoint: after
 
   - step: 3
@@ -294,6 +306,8 @@ steps:
 8. Orchestrator thông báo người dùng khi pipeline hoàn thành, bị gián đoạn, hoặc cần approval
 9. on_failure=warn_only phải kèm notify_on_failure schema — không được warn ngầm
 10. Orchestrator KHÔNG thực thi skill nào trong bất kỳ pipeline nào
+11. Mỗi step có thể tự lặp nội bộ theo ENG Loop (`global.md §8`, mặc định 3 vòng, override qua `loop_iterations`); `on_failure` chỉ áp dụng sau khi loop nội bộ đã hết — không phải cho từng iteration
+12. Step `type: human_gate` hoặc có `gate:` luôn đứng ngoài ENG Loop — không sub-agent nào được tự lặp để né qua gate
 ```
 
 ---

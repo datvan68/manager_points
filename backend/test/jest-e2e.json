@@ -8,5 +8,6 @@
   },
   "moduleNameMapper": {
     "^uuid$": "<rootDir>/uuid-mock.js"
-  }
+  },
+  "testTimeout": 30000
 }

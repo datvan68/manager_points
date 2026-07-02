@@ -43,6 +43,8 @@ describe('StudentTasks Status Route (e2e)', () => {
   let teacherToken: string;
   let otherToken: string;
 
+  let progressModel: Model<any>;
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -56,6 +58,7 @@ describe('StudentTasks Status Route (e2e)', () => {
     studentModel = moduleFixture.get<Model<any>>(getModelToken(Student.name));
     classModel = moduleFixture.get<Model<any>>(getModelToken(Class.name));
     studentTaskModel = moduleFixture.get<Model<any>>(getModelToken(StudentTask.name));
+    progressModel = moduleFixture.get<Model<any>>(getModelToken(StudentTaskProgress.name));
     jwtService = moduleFixture.get<JwtService>(JwtService);
 
     await app.init();
@@ -107,6 +110,7 @@ describe('StudentTasks Status Route (e2e)', () => {
       class_name: 'E2E Task Class',
       class_year: '2023-2027',
       class_type: 'Cao đẳng',
+      dept_id: new Types.ObjectId(),
     });
 
     studentProfile = await studentModel.create({
@@ -143,7 +147,7 @@ describe('StudentTasks Status Route (e2e)', () => {
       createdBy: teacherUser._id,
     });
 
-    const progressService = moduleFixture.get<StudentTaskProgressService>(StudentTaskProgressService);
+    const progressService = app.get(StudentTaskProgressService);
     await progressService.syncProgressForTask(testTask._id.toString());
   });
 
@@ -161,8 +165,9 @@ describe('StudentTasks Status Route (e2e)', () => {
     if (studentTaskModel) {
       await studentTaskModel.deleteMany({ _id: testTask?._id });
     }
-    const progressModel = moduleFixture.get<Model<any>>(getModelToken(StudentTaskProgress.name));
-    await progressModel.deleteMany({ taskId: testTask?._id });
+    if (progressModel) {
+      await progressModel.deleteMany({ taskId: testTask?._id });
+    }
     await app.close();
   });
 

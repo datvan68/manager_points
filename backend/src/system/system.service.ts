@@ -528,7 +528,7 @@ export class SystemService {
     return job;
   }
 
-  async createBackup(userId: string) {
+  async createBackup(userId: string, format?: 'auto' | 'archive' | 'ndjson') {
     const activity = await this.getSystemActivity();
 
     if (activity.hasActiveBackup || activity.hasActiveRestore) {
@@ -543,17 +543,17 @@ export class SystemService {
       requested_by: this.toObjectId(userId),
     });
 
-    this.logger.log(`AUDIT: User ${userId} requested backup creation. Job ID: ${job._id}`);
+    this.logger.log(`AUDIT: User ${userId} requested backup creation. Job ID: ${job._id}, format: ${format || 'auto'}`);
 
     // Run async backup
-    this.runBackupAsync(job._id.toString()).catch((err) => {
+    this.runBackupAsync(job._id.toString(), format || 'auto').catch((err) => {
       this.logger.error(`Error running backup job ${job._id}:`, err);
     });
 
     return job;
   }
 
-  private async runBackupAsync(jobId: string) {
+  private async runBackupAsync(jobId: string, format: 'auto' | 'archive' | 'ndjson' = 'auto') {
     const job = await this.backupJobModel.findById(jobId).exec();
     if (!job) return;
 
@@ -583,20 +583,33 @@ export class SystemService {
         throw new Error('Không tìm thấy bất kỳ collection nào để sao lưu.');
       }
 
-      // Safe child process execution with execFile (no shell injection)
-      this.logger.log(`Starting mongodump execFile for backup job ${jobId}`);
-      try {
-        // execFile args are passed safely as an array
+      if (format === 'ndjson') {
+        // User explicitly requested NDJSON format — skip mongodump entirely
+        this.logger.log(`Using NDJSON format as requested for backup job ${jobId}`);
+        await this.runMongooseBackupFallback(filePath, collections);
+        this.logger.log(`NDJSON streaming backup completed for job ${jobId}`);
+        job.backup_format = 'ndjson_gzip';
+      } else if (format === 'archive') {
+        // User explicitly requested Archive format — fail if mongodump not available
+        this.logger.log(`Starting mongodump (archive mode) for backup job ${jobId}`);
         await execFileAsync('mongodump', [`--uri=${mongoUri}`, `--archive=${filePath}`, '--gzip']);
         this.logger.log(`mongodump completed successfully for job ${jobId}`);
         job.backup_format = 'mongodump_archive';
-      } catch (err) {
-        const maskedMsg = this.maskUri(err.message || '');
-        this.logger.warn(`mongodump failed, trying fallback mongoose stream: ${maskedMsg}`);
-        // Fallback to Mongoose custom NDJSON stream
-        await this.runMongooseBackupFallback(filePath, collections);
-        this.logger.log(`Fallback mongoose streaming backup completed for job ${jobId}`);
-        job.backup_format = 'ndjson_gzip';
+      } else {
+        // Auto mode: try mongodump first, fallback to NDJSON
+        this.logger.log(`Starting mongodump execFile for backup job ${jobId}`);
+        try {
+          await execFileAsync('mongodump', [`--uri=${mongoUri}`, `--archive=${filePath}`, '--gzip']);
+          this.logger.log(`mongodump completed successfully for job ${jobId}`);
+          job.backup_format = 'mongodump_archive';
+        } catch (err) {
+          const maskedMsg = this.maskUri(err.message || '');
+          this.logger.warn(`mongodump failed, trying fallback mongoose stream: ${maskedMsg}`);
+          // Fallback to Mongoose custom NDJSON stream
+          await this.runMongooseBackupFallback(filePath, collections);
+          this.logger.log(`Fallback mongoose streaming backup completed for job ${jobId}`);
+          job.backup_format = 'ndjson_gzip';
+        }
       }
 
       const stat = fs.statSync(filePath);

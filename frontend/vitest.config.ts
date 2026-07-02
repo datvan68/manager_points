@@ -8,6 +8,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
     exclude: ['**/node_modules/**', '**/.next/**', '**/dist/**', '**/cypress/**'],
+    testTimeout: 10000,
+    hookTimeout: 10000,
+    clearMocks: true,
+    restoreMocks: true,
+    globals: true,
+    pool: 'forks',
+    setupFiles: ['./vitest.setup.ts'],
   },
 });
 

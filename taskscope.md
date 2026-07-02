@@ -1,279 +1,157 @@
-# Taskscope: Fix `/grading/score` Student Identity Resolution
+# Taskscope: Fix Long-Hanging Test Execution
 
 ## Objective
-Fix the `/grading/score` loading flow that logs:
+Investigate and fix the issue where project tests do not execute normally or hang for a very long time.
 
-```text
-Error resolving student details: ApiError: Student with ID 1240510009 not found
-```
+The test workflow must become deterministic:
+- Tests should start running quickly.
+- Focused tests should complete within a predictable timeout.
+- Hanging tests must fail with actionable diagnostics instead of blocking indefinitely.
+- Open handles, timers, unresolved promises, app servers, database connections, and mocked network calls must be cleaned up correctly.
 
-The page must support links that arrive with either the canonical MongoDB student `_id` or a legacy/display student code such as `1240510009`, while all grading mutations continue to use the MongoDB ObjectId required by backend APIs.
-
-## Problem Summary
-`/grading/score` currently reads `studentId` from the URL and calls:
-
-```ts
-studentApi.getStudent(studentIdParam)
-```
-
-That API maps to:
-
-```text
-GET /students/:id
-```
-
-Backend `StudentsService.findOne(id)` validates `id` as a MongoDB ObjectId. A student code like `1240510009` is not a MongoDB ObjectId, so the backend correctly returns `404 Student with ID 1240510009 not found`.
-
-The frontend catches the error and falls back, but the page still logs a browser error and may fail to auto-select the intended student.
-
-## Current Findings
-- `frontend/src/app/(dashboard)/grading/score/page.tsx` resolves `studentIdParam` by directly calling `studentApi.getStudent(studentIdParam)`.
-- The same page later compares `studentIdParam` against `mappedStudents[].id`, where `mappedStudents[].id` is expected to be the MongoDB student `_id`.
-- `frontend/src/app/(dashboard)/grading/page.tsx` builds table rows through `getSummaryStudentKey(summary, idx)`.
-- `getSummaryStudentKey` currently prioritizes `student_code` before `_id`, so the row `student.id` can become a display code instead of the MongoDB ObjectId.
-- The "Grade student" and "View score detail" actions in `/grading` pass `student.id` into the query string:
-
-```ts
-query.set("studentId", student.id);
-router.push(`/grading/score?${query.toString()}`);
-```
-
-- Other frontend flows also store display-level `studentId` values as `student_code`, especially in `/students/record`.
-- Backend already has `StudentsService.findByStudentCode(student_code)`, but it is not exposed through a scoped controller endpoint for this page flow.
-- Backend grading APIs such as `academic-records/intent` require `student_id` to be a MongoDB ObjectId, so the UI must never send `student_code` to score mutation endpoints.
-
-## Root Cause
-The codebase mixes two different meanings under the same `studentId` name:
-
-- `student._id`: canonical MongoDB ObjectId used by backend relations and grading mutation APIs.
-- `student.student_code`: display/business identifier shown as MSSV.
-
-The error happens when a display student code is passed through the URL as `studentId` and then treated as a MongoDB ObjectId by `/grading/score`.
-
-## Required Direction
-Separate canonical student identity from display student code.
-
-Recommended naming:
-
-```ts
-studentObjectId // MongoDB _id, used for API relations and score mutations
-studentCode     // MSSV/student_code, used for display and optional lookup
-```
-
-Avoid using a generic `studentId` variable unless the code clearly documents that it is the MongoDB ObjectId.
-
-## Proposed Solution
-
-### 1. Standardize `/grading` table row identity
-Update `frontend/src/app/(dashboard)/grading/page.tsx` so table rows use MongoDB ObjectId as the row/action identity.
-
-Required changes:
-- Replace the current `getSummaryStudentKey` usage for action navigation with an ObjectId-first helper.
-- Keep `studentCode` as a separate display field.
-- Ensure `query.set("studentId", ...)` receives the MongoDB ObjectId whenever available.
-- If only `student_code` is available, either resolve it before navigation or pass it as `studentCode`, not as `studentId`.
-
-Suggested row shape:
-
-```ts
-{
-  id: studentObjectId,
-  studentObjectId,
-  studentCode,
-  name,
-  summaryId,
-  classId,
-  semesterId,
-}
-```
-
-### 2. Add a scoped student identity resolver
-Add a small resolver that accepts either ObjectId or student code and returns the canonical student object.
-
-Preferred backend endpoint:
-
-```text
-GET /students/resolve?identifier=<studentObjectId-or-studentCode>
-```
-
-Alternative endpoint:
-
-```text
-GET /students/by-code/:studentCode
-```
-
-Backend requirements:
-- Protect the endpoint with `JwtAuthGuard`.
-- Reuse the same scope rules as `findOne`:
-  - Admin and supervisor can resolve any student.
-  - Teacher can resolve only students in assigned classes.
-  - Student can resolve only their own student profile.
-- If `identifier` is a valid MongoDB ObjectId, resolve by `_id`.
-- If `identifier` is not a valid ObjectId, resolve by exact `student_code`.
-- Do not expose an unscoped `findByStudentCode` endpoint.
-
-### 3. Update frontend student API
-Update `frontend/src/api/student-api.ts` with a dedicated method:
-
-```ts
-resolveStudent(identifier: string): Promise<Student>
-```
-
-or:
-
-```ts
-getStudentByCode(studentCode: string): Promise<Student>
-```
-
-The score page should use this resolver for URL params, not raw `getStudent`, unless the value has already been validated as a MongoDB ObjectId.
-
-### 4. Update `/grading/score` URL resolution
-Update `frontend/src/app/(dashboard)/grading/score/page.tsx` to normalize the selected student before loading summaries.
-
-Expected behavior:
-- If `studentIdParam` is a valid MongoDB ObjectId, fetch by ObjectId.
-- If `studentIdParam` is not a valid MongoDB ObjectId, treat it as a legacy student code and resolve it to the canonical student `_id`.
-- Store the resolved ObjectId in a local variable such as `resolvedStudentObjectId`.
-- Use `resolvedStudentObjectId` for:
-  - `finalClassId` detection.
-  - summary lookup.
-  - `targetActiveId`.
-  - score mutation payloads.
-  - history/detail loading.
-- Keep `studentCode` only for display and fallback messages.
-
-Important: `studentApi.getStudent` must not be called with non-ObjectId values.
-
-### 5. Preserve active selected student behavior
-After resolving the URL identifier, the page must activate the intended student.
-
-Current comparison:
-
-```ts
-mappedStudents.some((s) => s.id === studentIdParam)
-```
-
-Required comparison:
-
-```ts
-mappedStudents.some((s) => s.id === resolvedStudentObjectId)
-```
-
-This preserves automatic activation for:
-- Links from `/grading`.
-- Legacy links that still pass `student_code` as `studentId`.
-- Student self-view links.
-- Task-linked links that may contain student code.
-
-### 6. Handle not-found as expected state
-When the resolver cannot find the student:
-- Do not log it as an unhandled browser error.
-- Show the existing warning toast.
-- Keep fallback behavior to the selected/default class.
-- Clear active student only when no valid fallback exists.
-
-Use structured handling for expected 404 cases:
-
-```ts
-if (err instanceof ApiError && err.status === 404) {
-  showStudentNotFoundWarning = true;
-  return fallback;
-}
-```
-
-Keep unexpected network or server errors visible for debugging.
-
-## Files In Scope
+## Current Test Setup
 
 ### Frontend
-- `frontend/src/app/(dashboard)/grading/page.tsx`
-- `frontend/src/app/(dashboard)/grading/score/page.tsx`
-- `frontend/src/api/student-api.ts`
-- `frontend/src/app/(dashboard)/grading/score/_utils/summary-matching.ts`
-- Existing `/grading/score` tests and new regression tests as needed.
+- Package: `frontend/package.json`
+- Test command: `npm test`
+- Script: `vitest run`
+- Test runner: Vitest
+- Environment: `jsdom`
+- Config file: `frontend/vitest.config.ts`
+
+Current frontend config defines:
+- `environment: 'jsdom'`
+- alias `@ -> frontend/src`
+- basic excludes for `node_modules`, `.next`, `dist`, and `cypress`
+
+The config does not currently define explicit test timeouts, hook timeouts, setup cleanup, or hang diagnostics.
 
 ### Backend
-- `backend/src/students/students.controller.ts`
-- `backend/src/students/students.service.ts`
-- `backend/src/students/test/students.service.spec.ts`
-- Optional controller test if the project already has controller coverage for students.
+- Package: `backend/package.json`
+- Unit test command: `npm test`
+- Script: `jest`
+- Test runner: Jest
+- Unit test root: `backend/src`
+- Test regex: `.*\\.spec\\.ts$`
+- E2E test command: `npm run test:e2e`
+- E2E config file: `backend/test/jest-e2e.json`
 
-## Out Of Scope
-- Changing score formulas.
-- Changing grading permission rules.
-- Refactoring autosave, realtime updates, copy score, delete summary, or history mapping.
-- Renaming database fields.
-- Changing the visual design of `/grading` or `/grading/score`.
-- Making fuzzy student search part of this fix. The resolver should use exact ObjectId or exact `student_code`.
+Backend tests may hang if Nest applications, Mongoose connections, timers, queues, file streams, or mocked async dependencies are not closed in `afterAll` / `afterEach`.
 
-## Implementation Plan
+## Problem Statement
+Running tests can appear to stall or hang for a long time without useful output.
 
-### Phase 1: Fix source navigation identity
-- Update `/grading` table row mapping so `id` is the student MongoDB ObjectId.
-- Add `studentCode` as a separate display field.
-- Update action buttons to pass `studentObjectId` in `studentId`.
-- Confirm row selection, delete summary, and export logic still map summaries correctly.
+Likely causes to verify:
+- A test starts a timer, interval, server, Nest app, database connection, or async job and does not close it.
+- A component test waits for UI that never appears because a mocked API call never resolves or a mocked router/auth provider is incomplete.
+- A backend spec uses a chainable Mongoose mock that never resolves.
+- A test imports application code that starts side effects at module load time.
+- Full test suite execution hides which specific test file is hanging.
+- Runner config does not enforce reasonable timeouts or diagnostics.
 
-### Phase 2: Add resolver for legacy links
-- Add backend scoped resolve method.
-- Add frontend API method.
-- Add ObjectId detection helper in a shared frontend location or local score-page utility.
-- Ensure legacy URLs like `/grading/score?studentId=1240510009` still load the correct student.
+## Required Behavior
 
-### Phase 3: Normalize `/grading/score` active student selection
-- Resolve URL identity once at page-load time.
-- Use `resolvedStudentObjectId` instead of raw `studentIdParam` for roster matching and active student selection.
-- Keep existing warning toasts for inaccessible or missing students.
-- Prevent score mutation if no canonical MongoDB ObjectId exists.
+### Test execution
+- Running a focused frontend test file must complete or fail with a clear timeout.
+- Running a focused backend spec file must complete or fail with a clear timeout.
+- The test command must not hang indefinitely without naming the active test file.
+- Test suites must clean up all open handles before process exit.
 
-### Phase 4: Add regression coverage
-- Add frontend tests for ObjectId URL and student-code URL.
-- Add backend tests for resolver access scope.
-- Add tests that verify `studentApi.getStudent` is not called with a non-ObjectId in the score-page flow.
+### Diagnostics
+- Add or document a reliable command to identify hanging backend tests using Jest open-handle detection.
+- Add or document a reliable command to identify hanging frontend tests using Vitest verbose and single-file execution.
+- Keep normal test commands reasonably fast; heavier diagnostics can live in separate scripts if they slow down normal runs.
+
+### Cleanup rules
+- Frontend tests must cleanup rendered React trees after each test.
+- Frontend tests must clear mocks and restore timers after each test.
+- Backend tests must close Nest apps, HTTP servers, database connections, and module refs created during setup.
+- Tests that use fake timers must always restore real timers.
+- Tests that mock long-running API calls must return resolved or rejected promises explicitly.
+
+## Implementation Scope
+
+### Frontend changes
+Review and update:
+- `frontend/vitest.config.ts`
+- frontend test setup file if one is added
+- hanging or long-running frontend test files found during diagnosis
+
+Expected frontend improvements:
+- Add explicit `testTimeout` and `hookTimeout` values.
+- Add a setup file for `@testing-library/react` cleanup if not already present.
+- Clear mocks after each test.
+- Restore real timers after each test.
+- Avoid unbounded `waitFor`, unresolved mocked promises, and module-level side effects.
+- Prefer running focused test files before running the entire frontend suite.
+
+Suggested diagnostic commands:
+```bash
+cd frontend
+npm test -- --reporter=verbose --fileParallelism=false
+npm test -- "src/app/(dashboard)/grading/score/page.test.tsx" --reporter=verbose
+```
+
+If the installed Vitest version does not support `--fileParallelism=false`, use the closest supported single-file or single-worker Vitest option instead. The important requirement is to isolate the hanging file and print the active test output.
+
+### Backend changes
+Review and update:
+- `backend/package.json`
+- backend Jest config in `backend/package.json`
+- `backend/test/jest-e2e.json`
+- hanging or long-running backend spec files found during diagnosis
+
+Expected backend improvements:
+- Add explicit Jest `testTimeout` for unit tests.
+- Add a separate diagnostic script for open handles, for example `jest --runInBand --detectOpenHandles --logHeapUsage`.
+- Ensure Nest testing modules and app instances are closed.
+- Ensure Mongoose connections and model mocks resolve properly.
+- Ensure timers, intervals, streams, and async jobs are stopped in `afterEach` or `afterAll`.
+- Avoid running E2E tests through the unit test command.
+
+Suggested diagnostic commands:
+```bash
+cd backend
+npm test -- --runInBand --detectOpenHandles
+npm test -- academic-record/academic-record.service.spec.ts --runInBand --detectOpenHandles
+npm run test:e2e -- --runInBand --detectOpenHandles
+```
+
+### Test selection workflow
+Use this order when diagnosing the hang:
+1. Run the smallest focused test file related to the current change.
+2. Run the same focused test with verbose output.
+3. Run with open-handle diagnostics.
+4. Fix cleanup or unresolved async work in that test file.
+5. Run the related folder or feature tests.
+6. Run the full suite only after focused tests are stable.
+
+## Out of Scope
+- Changing business logic unrelated to the test hang.
+- Rewriting the test framework.
+- Removing tests only to make the suite pass.
+- Increasing timeouts to hide real hangs.
+- Running long E2E/database tests as part of normal unit test verification unless explicitly required.
+- Changing production runtime behavior only for test convenience.
 
 ## Acceptance Criteria
-- Opening `/grading/score?studentId=<MongoObjectId>` loads the student and activates that student.
-- Opening `/grading/score?studentId=1240510009` resolves the code to the correct MongoDB ObjectId and activates that student.
-- The browser no longer logs `Error resolving student details` for valid student-code links.
-- `/grading` action "Grade student" passes a MongoDB ObjectId as `studentId`.
-- `/grading` action "View score detail" passes a MongoDB ObjectId as `studentId`.
-- Score mutation payloads still send `student_id` as a MongoDB ObjectId.
-- A teacher cannot resolve or grade a student outside assigned classes.
-- A student cannot resolve or grade another student by guessing `student_code`.
-- Admin and supervisor can resolve students according to existing grading access rules.
-- Invalid or missing students show a controlled warning state instead of an unhandled browser error.
-- Existing score totals, autosave behavior, realtime updates, summary delete behavior, and copy-score behavior are unchanged.
+- A focused frontend test file completes or fails within the configured timeout.
+- A focused backend spec file completes or fails within the configured timeout.
+- The previous hanging test command now identifies the active hanging test or exits with a useful timeout.
+- No React component test leaves mounted UI, fake timers, or unresolved mocked promises behind.
+- No backend unit test leaves Nest apps, database connections, timers, or async handles open.
+- Normal test commands remain usable for day-to-day development.
+- Diagnostic commands are documented in this scope or added as package scripts.
 
-## Test Plan
-
-### Backend tests
-- Resolve by valid ObjectId returns the student.
-- Resolve by exact `student_code` returns the same student.
-- Invalid identifier returns 404.
-- Teacher can resolve a student in an assigned class.
-- Teacher cannot resolve a student outside assigned classes.
-- Student can resolve self.
-- Student cannot resolve another student by ObjectId or student code.
-- Admin can resolve by ObjectId and by student code.
-
-### Frontend tests
-- `/grading` row action builds URL with MongoDB ObjectId.
-- `/grading/score` resolves ObjectId URL and activates the selected student.
-- `/grading/score` resolves legacy student-code URL and activates the selected student.
-- `/grading/score` does not call `studentApi.getStudent` with a non-ObjectId.
-- Missing student code shows warning and does not crash.
-- Score intent is blocked when active student has no canonical ObjectId.
-
-### Manual verification
-1. Open `/grading`, choose a class and semester.
-2. Click "Grade student" on a row whose MSSV is `1240510009`.
-3. Confirm the URL contains a MongoDB ObjectId in `studentId`.
-4. Confirm `/grading/score` opens with that student active.
-5. Manually open `/grading/score?studentId=1240510009` and confirm the legacy code resolves.
-6. Confirm no browser console error appears for valid student-code links.
-7. Change to a teacher account and verify only assigned-class students resolve.
-8. Change to a student account and verify only the student's own profile resolves.
-9. Perform one score change and confirm the backend receives MongoDB ObjectId in `student_id`.
+## Verification Plan
+1. Run the suspected hanging frontend test file directly.
+2. Run the suspected hanging backend spec file directly.
+3. Run frontend tests with verbose output.
+4. Run backend tests with `--runInBand --detectOpenHandles`.
+5. Fix any reported open handles or unresolved async operations.
+6. Re-run the focused tests.
+7. Run the related feature test group.
+8. Run the full frontend and backend test suites only after focused tests pass without hanging.
 
 ## Deliverable
-A focused identity-resolution fix for `/grading/score` that separates MongoDB student ObjectId from MSSV/student_code, keeps legacy links working, and prevents valid student-code links from producing browser errors or failing active-student selection.
+A test-stability fix that makes frontend and backend tests execute predictably, exposes hanging tests with useful diagnostics, and prevents test processes from staying alive because of leaked timers, open handles, unresolved promises, or unclosed app/database resources.

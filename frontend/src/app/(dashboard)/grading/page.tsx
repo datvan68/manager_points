@@ -310,7 +310,7 @@ function GradingPage() {
 
     selectedStudentIds.forEach((studentId) => {
       const summary = (apiSummariesPoints || []).find(s => {
-        const sId = getSummaryStudentKey(s);
+        const sId = getEntityId(s.student_id) || getEntityId(s._id);
         return sId === studentId;
       });
 
@@ -451,7 +451,7 @@ function GradingPage() {
 
     selectedStudentIds.forEach((studentId) => {
       const summary = (apiSummariesPoints || []).find(s => {
-        const sId = getSummaryStudentKey(s);
+        const sId = getEntityId(s.student_id) || getEntityId(s._id);
         return sId === studentId;
       });
 
@@ -576,7 +576,7 @@ function GradingPage() {
 
     selectedStudentIds.forEach((studentId) => {
       const summary = (apiSummariesPoints || []).find(s => {
-        const sId = getSummaryStudentKey(s);
+        const sId = getEntityId(s.student_id) || getEntityId(s._id);
         return sId === studentId;
       });
 

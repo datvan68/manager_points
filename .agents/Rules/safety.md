@@ -113,6 +113,7 @@ forbidden_read_write:
 max_execution_time: 300s        # Tối đa 5 phút mỗi task (hard limit)
 max_output_tokens: 8192         # Giới hạn output mỗi lần gọi model
 max_retry_attempts: 2           # Số lần retry khi API_ERROR hoặc TOOL_TIMEOUT
+max_loop_iterations: 3          # Số vòng lặp PLAN-EXECUTE-VERIFY-REFINE tối đa (ENG Loop, xem global.md §8) — tách biệt với max_retry_attempts
 max_concurrent_subagents: 5     # Số sub-agent chạy đồng thời (nhất quán với orchestrator.md)
 max_file_size_write: 10MB       # Kích thước file tối đa được ghi
 max_pipeline_duration: 600s     # Tổng thời gian tối đa một pipeline (10 phút)
@@ -225,7 +226,7 @@ Khi bất kỳ agent nào phát hiện hành động vi phạm safety:
 
 ## 7. Human-in-the-Loop (Bắt Buộc)
 
-Các tình huống **bắt buộc phải dừng pipeline và hỏi người dùng** trước khi thực hiện:
+Các tình huống **bắt buộc phải dừng pipeline và hỏi người dùng** trước khi thực hiện — áp dụng cả khi agent đang chạy trong ENG Loop (`global.md §8`); loop phải dừng ngay tại iteration đó và gửi `approval_required`, không được tự refine/retry để né gate:
 
 **Môi trường Production:**
 - [ ] Deploy bất kỳ thứ gì lên production (`kubectl apply`, `terraform apply`, ...)

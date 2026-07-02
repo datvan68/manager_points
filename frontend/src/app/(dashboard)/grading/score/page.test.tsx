@@ -14,14 +14,7 @@ import { toast } from "sonner";
 
 // --- Mocks ---
 
-// Mock Lucide
-vi.mock("lucide-react", () => {
-  return new Proxy({}, {
-    get: function(target, prop) {
-      return () => <span data-testid={`icon-${String(prop)}`} />;
-    }
-  });
-});
+
 
 // Mock framer-motion
 vi.mock("framer-motion", () => ({
@@ -78,11 +71,13 @@ vi.mock("next/dynamic", () => ({
     const Component = (props: any) => {
       const [LoadedComponent, setLoadedComponent] = React.useState<any>(null);
       React.useEffect(() => {
+        let mounted = true;
         importFunc().then((mod: any) => {
-          setLoadedComponent(() => mod.default);
+          if (mounted) setLoadedComponent(() => mod.default);
         });
+        return () => { mounted = false; };
       }, []);
-      if (!LoadedComponent) return <div>Loading...</div>;
+      if (!LoadedComponent) return <div data-testid="loading-dynamic">Loading...</div>;
       return <LoadedComponent {...props} />;
     };
     return Component;
@@ -143,9 +138,13 @@ vi.mock("@/api/evaluation-period-api", () => ({
 
 vi.mock("@/providers/auth-provider", () => ({
   useAuth: vi.fn(() => ({
-    user: { id: "user-teacher-1", role: "teacher", email: "teacher@gmail.com" },
+    user: { id: "user-teacher-1", role: "admin", email: "teacher@gmail.com" },
     isLoading: false,
-  })),
+  }))
+}));
+
+vi.mock("@/hooks/useGradingRealtime", () => ({
+  useGradingRealtime: vi.fn(() => ({ status: 'connected' }))
 }));
 
 vi.mock("@/components/guards/RouteGuard", () => ({
@@ -157,11 +156,14 @@ vi.mock("@/components/grading/SemesterModal", () => ({
 }));
 
 vi.mock("@/components/grading/ActiveStudentRankCard", () => ({
-  default: ({ activeStudent }: any) => (
-    <div data-testid="active-student-card">
-      Active Student Card: {activeStudent?.name} ({activeStudent?.id})
-    </div>
-  )
+  default: ({ activeStudent }: any) => {
+    console.log("Mock activeStudent KEYS:", Object.keys(activeStudent || {}), "FULL_NAME:", activeStudent?.full_name, "NAME:", activeStudent?.name);
+    return (
+      <div data-testid="active-student-card">
+        Active Student Card: {activeStudent?.name || activeStudent?.full_name} ({activeStudent?.id})
+      </div>
+    );
+  }
 }));
 
 // Mock sessionStorage
@@ -212,13 +214,20 @@ describe("Grading Score Page URL Context & Initialization", () => {
     vi.clearAllMocks();
     mockSearchParams = new URLSearchParams();
     Object.keys(mockSessionStorage).forEach((key) => delete mockSessionStorage[key]);
+    
+    // Mock ResizeObserver
+    global.ResizeObserver = class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as any;
 
     // Setup default API returns
     vi.mocked(semesterApi.getSemesters).mockResolvedValue(mockSemesters);
     vi.mocked(classApi.getClasses).mockResolvedValue(mockClasses);
     vi.mocked(categoryApi.getCategories).mockResolvedValue([]);
     vi.mocked(criteriaApi.getCriteria).mockResolvedValue([]);
-    vi.mocked(evaluationPeriodApi.getEvaluationPeriods).mockResolvedValue([]);
+    vi.mocked(evaluationPeriodApi.getEvaluationPeriods).mockResolvedValue([{ _id: "period-1", name: "Period 1", semester_id: "sem-1" }]);
     vi.mocked(evaluationDetailApi.getEvaluationDetailsBySummary).mockResolvedValue([]);
     
     vi.mocked(studentApi.getStudents).mockImplementation(async (params: any) => {
@@ -254,6 +263,7 @@ describe("Grading Score Page URL Context & Initialization", () => {
 
   afterEach(() => {
     cleanup();
+    vi.clearAllMocks();
   });
 
   it("loads students from URL context and sets the clicked student as active", async () => {
@@ -366,13 +376,16 @@ describe("Grading Score Page URL Context & Initialization", () => {
 
     render(<ProtectedGradingScorePage />);
 
-    await waitFor(() => {
-      expect(studentApi.resolveStudent).toHaveBeenCalledWith("SV002");
-      expect(studentApi.getStudent).not.toHaveBeenCalled();
-      expect(screen.getByTestId("active-student-card")).toBeDefined();
-      expect(screen.getByText(/Trần Thị B/i)).toBeDefined();
-      expect(screen.getByText(/stud-2/i)).toBeDefined();
-    });
+    await waitFor(() => expect(studentApi.resolveStudent).toHaveBeenCalledWith("SV002"));
+    expect(studentApi.getStudent).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByTestId("active-student-card")).toBeDefined());
+    try {
+      await waitFor(() => expect(screen.getByText(/Trần Thị B/i)).toBeDefined());
+    } catch (e) {
+      console.log("DOM content:", screen.getByTestId("active-student-card").innerHTML);
+      throw e;
+    }
+    await waitFor(() => expect(screen.getByText(/stud-2/i)).toBeDefined());
   });
 
   it("does not call getStudent with non-ObjectId values", async () => {
@@ -388,5 +401,221 @@ describe("Grading Score Page URL Context & Initialization", () => {
       expect(studentApi.resolveStudent).toHaveBeenCalledWith("SV001");
       expect(studentApi.getStudent).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("Score Attribution Badges Rendering", () => {
+  const mockCategories = [
+    { _id: "cat-1", category_code: "CAT1", category_name: "Danh mục 1", max_score: 20, sort_order: 1 }
+  ];
+
+  const mockCriteria = [
+    {
+      _id: "cri-1",
+      criterion_name: "Tiêu chí 1",
+      category_id: "cat-1",
+      score_per_unit: 2,
+      criterion_type: "reward",
+      max_score: 10,
+      min_score: 0,
+      is_locked: false,
+      scoring_mode: "count",
+      options: []
+    }
+  ];
+
+  const mockSemesters = [
+    { _id: "sem-1", name: "Học kỳ I 2025-2026", status: "active" }
+  ];
+
+  const mockClasses = [
+    { _id: "class-1", class_name: "CNTT K19A", advisor_id: "user-teacher-1" }
+  ];
+
+  const mockRoster = [
+    { _id: "stud-1", id: "stud-1", student_code: "SV001", full_name: "Nguyễn Văn A", class_id: "class-1" }
+  ];
+
+  const mockSummaries = [
+    { _id: "sum-1", student_id: "stud-1", semester_id: "sem-1", class_id: "class-1", status: "draft" }
+  ];
+
+  let mockSearchParams = new URLSearchParams();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchParams = new URLSearchParams({
+      studentId: "stud-1",
+      classId: "class-1",
+      semesterId: "sem-1"
+    });
+    
+    // Mock ResizeObserver
+    global.ResizeObserver = class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as any;
+
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue(mockSemesters);
+    vi.mocked(classApi.getClasses).mockResolvedValue(mockClasses);
+    vi.mocked(categoryApi.getCategories).mockResolvedValue(mockCategories);
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue(mockCriteria);
+    vi.mocked(evaluationPeriodApi.getEvaluationPeriods).mockResolvedValue([]);
+    vi.mocked(studentApi.getStudents).mockResolvedValue(mockRoster);
+    vi.mocked(studentApi.getStudent).mockResolvedValue(mockRoster[0] as any);
+    vi.mocked(summariesPointApi.getSummariesPoints).mockResolvedValue({ data: mockSummaries, meta: { total: 1 } });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("renders SV, GV badges and hides P.HSSV for non-locked criteria", async () => {
+    const mockDetails = [
+      {
+        _id: "det-1",
+        criterion_id: "cri-1",
+        sv_score: 6,
+        gv_score: 8,
+        final_score: 10,
+        status: "draft"
+      }
+    ];
+    vi.mocked(evaluationDetailApi.getEvaluationDetailsBySummary).mockResolvedValue(mockDetails);
+
+    render(<ProtectedGradingScorePage />);
+
+    // Chờ cho đến khi danh mục & tiêu chí hiển thị
+    await waitFor(() => {
+      expect(screen.getByText("Tiêu chí 1")).toBeDefined();
+    });
+
+    // Xác nhận badge SV, GV hiển thị đúng điểm số của chúng
+    expect(screen.getByText("SV:")).toBeDefined();
+    expect(screen.getAllByText("+6đ")[0]).toBeDefined(); // detail?.sv_score
+
+    expect(screen.getByText("GV:")).toBeDefined();
+    expect(screen.getAllByText("+8đ")[0]).toBeDefined(); // detail?.gv_score
+
+    // Do is_locked là false, badge P.HSSV: không được hiển thị
+    expect(screen.queryByText("P.HSSV:")).toBeNull();
+
+    // Do status là 'draft' (chưa locked/approved), badge 'Đạt:' không được hiển thị
+    expect(screen.queryByText("Đạt:")).toBeNull();
+  });
+
+  it("renders only P.HSSV badge and hides SV, GV badges for locked criteria", async () => {
+    const lockedCriteria = [
+      {
+        ...mockCriteria[0],
+        is_locked: true
+      }
+    ];
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue(lockedCriteria);
+
+    const mockDetails = [
+      {
+        _id: "det-1",
+        criterion_id: "cri-1",
+        sv_score: 6,
+        gv_score: 8,
+        final_score: 10,
+        status: "draft"
+      }
+    ];
+    vi.mocked(evaluationDetailApi.getEvaluationDetailsBySummary).mockResolvedValue(mockDetails);
+
+    render(<ProtectedGradingScorePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tiêu chí 1")).toBeDefined();
+    });
+
+    // Xác nhận badge P.HSSV hiển thị
+    expect(screen.getByText("P.HSSV:")).toBeDefined();
+    expect(screen.getAllByText("+10đ")[0]).toBeDefined(); // detail?.final_score
+
+    // Xác nhận badge SV và GV bị ẩn
+    expect(screen.queryByText("SV:")).toBeNull();
+    expect(screen.queryByText("GV:")).toBeNull();
+
+    // Do status là 'draft', badge 'Đạt:' không được hiển thị
+    expect(screen.queryByText("Đạt:")).toBeNull();
+  });
+
+  it("renders only P.HSSV and Đạt badges for locked and approved criteria", async () => {
+    const lockedCriteria = [
+      {
+        ...mockCriteria[0],
+        is_locked: true
+      }
+    ];
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue(lockedCriteria);
+
+    const mockDetails = [
+      {
+        _id: "det-1",
+        criterion_id: "cri-1",
+        sv_score: 6,
+        gv_score: 8,
+        final_score: 10,
+        status: "locked" // approved/locked
+      }
+    ];
+    vi.mocked(evaluationDetailApi.getEvaluationDetailsBySummary).mockResolvedValue(mockDetails);
+
+    render(<ProtectedGradingScorePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tiêu chí 1")).toBeDefined();
+    });
+
+    // Chỉ badge P.HSSV và Đạt hiển thị
+    expect(screen.getByText("P.HSSV:")).toBeDefined();
+    expect(screen.getByText("Đạt:")).toBeDefined();
+
+    // SV và GV bị ẩn
+    expect(screen.queryByText("SV:")).toBeNull();
+    expect(screen.queryByText("GV:")).toBeNull();
+  });
+
+  it("renders empty-state 'Chưa chấm' label for P.HSSV when scores are null on locked criteria", async () => {
+    const lockedCriteria = [
+      {
+        ...mockCriteria[0],
+        is_locked: true
+      }
+    ];
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue(lockedCriteria);
+
+    const mockDetails = [
+      {
+        _id: "det-1",
+        criterion_id: "cri-1",
+        sv_score: null,
+        gv_score: null,
+        final_score: null,
+        status: "draft"
+      }
+    ];
+    vi.mocked(evaluationDetailApi.getEvaluationDetailsBySummary).mockResolvedValue(mockDetails);
+
+    render(<ProtectedGradingScorePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tiêu chí 1")).toBeDefined();
+    });
+
+    // Xác nhận badge P.HSSV vẫn hiển thị
+    expect(screen.getByText("P.HSSV:")).toBeDefined();
+    
+    // final_score null nên P.HSSV sẽ hiện "Chưa chấm". SV và GV bị ẩn vì criteria is_locked.
+    const unsubmittedLabels = screen.getAllByText("Chưa chấm");
+    expect(unsubmittedLabels.length).toBeGreaterThanOrEqual(1);
+
+    expect(screen.queryByText("SV:")).toBeNull();
+    expect(screen.queryByText("GV:")).toBeNull();
   });
 });

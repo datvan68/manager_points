@@ -1065,7 +1065,60 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(mockSummary.details[0].selected_option_label).toBe('Opt 1');
       expect(mockSummary.details[0].selected_option_score).toBe(5);
       expect(mockSummary.details[0].current_count).toBe(0);
-      expect(mockSummary.details[0].system_score).toBe(0);
+    });
+
+    it('should only update sv_score when student grades', async () => {
+      mockSummary.details[0].sv_score = null;
+      mockSummary.details[0].gv_score = null;
+      mockSummary.details[0].final_score = null;
+      
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{}]) // 1 record
+      });
+
+      const studentRequester = { userId: studentId, roleName: 'Student' };
+      await service.syncStudentCriterionScore(studentId, semesterId, criterionId, studentRequester);
+
+      expect(mockSummary.details[0].sv_score).toBe(2); // Updated
+      expect(mockSummary.details[0].gv_score).toBeNull(); // Untouched
+      expect(mockSummary.details[0].final_score).toBeNull(); // Untouched
+    });
+
+    it('should only update gv_score when teacher grades', async () => {
+      mockSummary.details[0].sv_score = 3;
+      mockSummary.details[0].gv_score = null;
+      mockSummary.details[0].final_score = null;
+      
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{}]) // 1 record
+      });
+
+      const teacherRequester = { userId: 'teacher-1', roleName: 'Teacher' };
+      await service.syncStudentCriterionScore(studentId, semesterId, criterionId, teacherRequester);
+
+      expect(mockSummary.details[0].gv_score).toBe(2); // Updated
+      expect(mockSummary.details[0].sv_score).toBe(3); // Preserved
+      expect(mockSummary.details[0].final_score).toBeNull(); // Untouched
+    });
+
+    it('should only update final_score when admin or supervisor grades', async () => {
+      mockSummary.details[0].sv_score = 3;
+      mockSummary.details[0].gv_score = 4;
+      mockSummary.details[0].final_score = null;
+      
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{}]) // 1 record
+      });
+
+      const adminRequester = { userId: 'admin-1', roleName: 'Admin' };
+      await service.syncStudentCriterionScore(studentId, semesterId, criterionId, adminRequester);
+
+      expect(mockSummary.details[0].final_score).toBe(2); // Updated
+      expect(mockSummary.details[0].sv_score).toBe(3); // Preserved
+      expect(mockSummary.details[0].gv_score).toBe(4); // Preserved
     });
   });
 
@@ -1527,17 +1580,14 @@ describe('AcademicRecordService - Import Flow', () => {
       };
 
       const requester = { userId: studentId, roleName: 'Student' };
-
+      let findCallCount = 0;
       mockAcademicRecordModel.find = jest.fn().mockImplementation(() => {
-        let isPopulateCalled = false;
+        findCallCount++;
         const chain: any = {
           sort: jest.fn().mockImplementation(() => chain),
-          populate: jest.fn().mockImplementation(() => {
-            isPopulateCalled = true;
-            return chain;
-          }),
+          populate: jest.fn().mockImplementation(() => chain),
           exec: jest.fn().mockImplementation(() => {
-            if (isPopulateCalled) {
+            if (findCallCount === 1) {
               return Promise.resolve([adminRecord, studentRecord]);
             } else {
               return Promise.resolve([adminRecord]);

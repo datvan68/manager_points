@@ -94,6 +94,7 @@ export class AcademicRecordService {
     isValidOption: boolean;
     oldDetail: any | null;
     options?: { forceRepairLocked?: boolean };
+    requester?: any;
   }): {
     status: 'repaired' | 'skipped';
     skipReason: 'locked' | 'reviewed' | 'approved' | 'invalid_option' | null;
@@ -109,6 +110,7 @@ export class AcademicRecordService {
       isValidOption,
       oldDetail,
       options,
+      requester,
     } = params;
 
     // 1. Determine manually reviewed status of oldDetail
@@ -182,29 +184,49 @@ export class AcademicRecordService {
 
       detail.status = 'draft';
       detail.current_count = criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount;
-      detail.final_score = null;
+
+      const targetScore = activeCount === 0
+        ? (criterion.scoring_mode === 'single_option' || isReward ? 0 : systemScore)
+        : systemScore;
+
+      detail.system_score = targetScore;
 
       if (activeCount === 0) {
-        if (criterion.scoring_mode === 'single_option' || isReward) {
-          detail.system_score = 0;
-          detail.sv_score = 0;
-          detail.gv_score = 0;
-          detail.selected_option_id = null;
-          detail.selected_option_label = null;
-          detail.selected_option_score = null;
-        } else {
-          // count discipline
-          detail.system_score = systemScore;
-          detail.sv_score = systemScore;
-          detail.gv_score = systemScore;
-        }
+        detail.selected_option_id = null;
+        detail.selected_option_label = null;
+        detail.selected_option_score = null;
       } else {
-        detail.system_score = systemScore;
-        detail.sv_score = systemScore;
-        detail.gv_score = systemScore;
         detail.selected_option_id = selectedOptionId;
         detail.selected_option_label = selectedOptionLabel;
         detail.selected_option_score = selectedOptionScore;
+      }
+
+      // Phân bổ điểm theo vai trò:
+      const oldSv = oldDetail && oldDetail.sv_score !== undefined ? oldDetail.sv_score : null;
+      const oldGv = oldDetail && oldDetail.gv_score !== undefined ? oldDetail.gv_score : null;
+      const oldFinal = oldDetail && oldDetail.final_score !== undefined ? oldDetail.final_score : null;
+
+      let requesterLevel = 0;
+      if (requester) {
+        requesterLevel = this.getRoleLevel(requester.roleName);
+      }
+
+      if (requesterLevel === 1) { // Student
+        detail.sv_score = targetScore;
+        detail.gv_score = oldGv;
+        detail.final_score = oldFinal;
+      } else if (requesterLevel === 2) { // Teacher
+        detail.gv_score = targetScore;
+        detail.sv_score = oldSv;
+        detail.final_score = oldFinal;
+      } else if (requesterLevel >= 3) { // Admin / Supervisor
+        detail.final_score = targetScore;
+        detail.sv_score = oldSv;
+        detail.gv_score = oldGv;
+      } else { // Fallback (requesterLevel === 0)
+        detail.sv_score = targetScore;
+        detail.gv_score = targetScore;
+        detail.final_score = oldFinal;
       }
     }
 
@@ -222,19 +244,42 @@ export class AcademicRecordService {
     studentId: string,
     semesterId: string,
     criterionId: string,
+    requester?: any,
   ): Promise<any> {
     if (!Types.ObjectId.isValid(studentId) || !Types.ObjectId.isValid(semesterId) || !Types.ObjectId.isValid(criterionId)) {
       return null;
     }
 
     // 1. Fetch all active academic records for this student, semester, and criterion
-    const activeRecords = await this.academicRecordModel.find({
+    let query = this.academicRecordModel.find({
       student_id: new Types.ObjectId(studentId),
       semester_id: new Types.ObjectId(semesterId),
       criterion_id: new Types.ObjectId(criterionId),
       status: 'active',
       is_deleted: { $ne: true },
-    } as any).sort({ createdAt: -1 }).exec();
+    } as any);
+
+    if (query.populate) {
+      query = query.populate({ path: 'recorded_by', populate: { path: 'role' } });
+    }
+    if (query.sort) {
+      query = query.sort({ createdAt: -1 });
+    }
+
+    const activeRecords = await query.exec();
+
+    let resolvedRequester = requester;
+    if (!resolvedRequester && activeRecords.length > 0) {
+      const latestRecord = activeRecords[0];
+      const creator = latestRecord.recorded_by as any;
+      if (creator) {
+        const roleName = creator.role?.name || creator.role?.role_code || creator.role_name || '';
+        resolvedRequester = {
+          userId: creator._id?.toString(),
+          roleName: roleName,
+        };
+      }
+    }
 
     const activeCount = activeRecords.length;
 
@@ -329,6 +374,7 @@ export class AcademicRecordService {
             manualScore,
             isValidOption,
             oldDetail,
+            requester: resolvedRequester,
           });
 
           syncResultStatus = syncResult.status;
@@ -664,7 +710,7 @@ export class AcademicRecordService {
 
         if ((!detail && currentCountReal > 0) || (detail && detailCount !== currentCountReal)) {
           Logger.warn(`[SYNC_ALERT] Phát hiện lệch dữ liệu trước intent: Criterion ID=${criterion_id}, Student ID=${student_id}. Detail count=${detailCount}, Actual active records count=${currentCountReal}. Đang tự động sync...`);
-          await this.syncStudentCriterionScore(student_id, semester_id, criterion_id);
+          await this.syncStudentCriterionScore(student_id, semester_id, criterion_id, requester);
         }
       }
 
@@ -921,7 +967,7 @@ export class AcademicRecordService {
     }
 
     // Rebuild detail
-    await this.syncStudentCriterionScore(student_id, semester_id, criterion_id);
+    await this.syncStudentCriterionScore(student_id, semester_id, criterion_id, requester);
 
     // Return the updated summary and actual count
     const summary = await this.summaryPointModel.findOne({

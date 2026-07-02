@@ -185,6 +185,14 @@ export class GetBackupsQueryDto {
   limit?: number = 20; // Default limit is 20
 }
 
+export class CreateBackupDto {
+  @IsOptional()
+  @IsEnum(['auto', 'archive', 'ndjson'], {
+    message: 'Định dạng backup phải là auto, archive hoặc ndjson',
+  })
+  format?: 'auto' | 'archive' | 'ndjson' = 'auto';
+}
+
 export class ApiBreakdownDto {
   @IsString()
   @IsNotEmpty()

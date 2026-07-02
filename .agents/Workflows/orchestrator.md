@@ -18,6 +18,7 @@ max_concurrent_subagents: 5
 timeout_per_subtask: 120s
 checkpoint_store: redis
 resume_from_last_success: true
+eng_loop_default_max_iterations: 3   # xem global.md §8 — orchestrator có thể override per-step trong pipeline.md
 ```
 
 ---
@@ -202,10 +203,16 @@ Mọi lệnh giao cho sub-agent phải theo format:
     "priority": "high",
     "original_task": "mô tả task gốc từ người dùng"
   },
+  "eng_loop": {
+    "enabled": true,
+    "max_iterations": 3
+  },
   "deadline": "120s",
   "on_failure": "stop | retry_once | warn_only"
 }
 ```
+
+> `eng_loop` mặc định `enabled: true, max_iterations: 3` (theo `global.md §8`). Orchestrator có thể hạ `max_iterations` cho step rủi ro cao, hoặc set `enabled: false` để buộc sub-agent trả kết quả ngay sau 1 lần EXECUTE-VERIFY (dùng cho step chỉ đọc/phân tích, không có gì để refine). Không được tăng vượt `max_loop_iterations` đã khai báo trong `safety.md §3` mà không có lý do ghi rõ trong `instruction`.
 
 > `shared_context` phải được đính kèm trong **mọi** lệnh giao cho sub-agent, kể cả bước cuối — tránh context drift qua pipeline dài.
 
@@ -216,7 +223,8 @@ Mọi lệnh giao cho sub-agent phải theo format:
 | Tình huống | Hành động |
 |---|---|
 | Sub-agent timeout | Retry 1 lần → nếu vẫn fail → lưu checkpoint → báo người dùng |
-| Sub-agent trả `error` | Phân tích `error_code`, thử fallback nếu có; nếu không → dừng và báo |
+| Sub-agent trả `LOGIC_ERROR` (ENG Loop đã hết `max_iterations` — xem `global.md §8`) | **Không** retry thêm ở cấp orchestrator (sub-agent đã tự refine đủ số vòng nội bộ) → dừng theo `on_failure` của step; nếu `stop` → báo người dùng kèm log các iteration đã thử |
+| Sub-agent trả `error` (khác `LOGIC_ERROR`) | Phân tích `error_code`, thử fallback nếu có; nếu không → dừng và báo |
 | 2+ sub-agents kết quả conflict | Ưu tiên `review-agent`, hỏi người dùng xác nhận |
 | Sub-agent vi phạm safety | Dừng toàn bộ pipeline, log incident, **không** retry |
 | Pipeline bị gián đoạn giữa chừng | Lưu checkpoint bước cuối thành công, cho phép resume |

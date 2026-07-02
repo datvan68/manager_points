@@ -384,9 +384,11 @@ export const systemApi = {
     return handleResponse<PaginatedResponse<BackupJob>>(res);
   },
 
-  async createBackup(): Promise<BackupJob> {
+  async createBackup(format?: 'auto' | 'archive' | 'ndjson'): Promise<BackupJob> {
     const res = await httpClient(`${API_BASE}/system/backups`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format: format || 'auto' }),
     });
     return handleResponse<BackupJob>(res);
   },
