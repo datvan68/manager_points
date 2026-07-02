@@ -143,6 +143,7 @@ function GradingPage() {
   const [apiSemesters, setApiSemesters] = useState<any[]>([]);
   const [apiSummariesPoints, setApiSummariesPoints] = useState<any[]>([]);
   const [totalItems, setTotalItems] = useState(0);
+  const [classApprovalMap, setClassApprovalMap] = useState<Record<string, { total: number; locked: number; allApproved: boolean }>>({}); 
   const [apiEvaluationDetails, setApiEvaluationDetails] = useState<any[]>([]);
 
   const [categories, setCategories] = useState<any[]>([]);
@@ -517,6 +518,9 @@ function GradingPage() {
       toast.success(`Đã duyệt điểm rèn luyện thành công cho ${successCount} sinh viên!`);
       setSelectedStudentIds([]);
     }
+
+    // Refresh approval status after bulk approve
+    if (selectedSemester) fetchClassApprovalStatus(selectedSemester);
   };
 
   // Hàm duyệt điểm rèn luyện cho tài khoản Quản sinh (Supervisor) và Admin
@@ -546,6 +550,9 @@ function GradingPage() {
 
       toast.dismiss('approve-loading');
       toast.success(`Đã duyệt rèn luyện thành công cho sinh viên ${studentName}!`);
+
+      // Refresh approval status after single approve
+      if (selectedSemester) fetchClassApprovalStatus(selectedSemester);
     } catch (error: any) {
       toast.dismiss('approve-loading');
       toast.error('Lỗi khi duyệt rèn luyện: ' + error.message);
@@ -658,6 +665,20 @@ function GradingPage() {
       toast.success(`Đã hủy duyệt điểm rèn luyện thành công cho ${successCount} sinh viên!`);
       setSelectedStudentIds([]); // Xóa danh sách đã chọn
     }
+
+    // Refresh approval status after cancel approve
+    if (selectedSemester) fetchClassApprovalStatus(selectedSemester);
+  };
+
+  // Fetch approval status for all classes in a semester
+  const fetchClassApprovalStatus = async (semesterId: string) => {
+    if (!semesterId) return;
+    try {
+      const map = await summariesPointApi.getClassApprovalStatus(semesterId);
+      setClassApprovalMap(map || {});
+    } catch (error) {
+      console.error('Error fetching class approval status:', error);
+    }
   };
 
   // Hàm tải dữ liệu từ database thông qua API
@@ -767,6 +788,14 @@ function GradingPage() {
   };
 
   const { isLoading: authLoading } = useAuth();
+
+  // Fetch class approval status when selectedSemester changes
+  useEffect(() => {
+    if (selectedSemester) {
+      fetchClassApprovalStatus(selectedSemester);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSemester]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -1408,7 +1437,14 @@ function GradingPage() {
                   <SelectContent>
                     <SelectItem value="">-- Không chọn --</SelectItem>
                     {classesForSelectedDepartment.map(cls => (
-                      <SelectItem key={cls._id} value={cls._id}>{cls.class_name}</SelectItem>
+                      <SelectItem key={cls._id} value={cls._id} label={cls.class_name}>
+                        <span className="flex items-center justify-between w-full gap-2">
+                          <span>{cls.class_name}</span>
+                          {classApprovalMap[cls._id]?.allApproved && (
+                            <span className="text-emerald-600 text-[11px] font-bold shrink-0">Đã duyệt</span>
+                          )}
+                        </span>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1577,6 +1613,13 @@ function GradingPage() {
                           setPageSize(size);
                           setCurrentPage(1);
                         }}
+                        extraInfo={
+                          currentClassObj?.advisor_id?.user_name ? (
+                            <span className="text-emerald-600 text-[13px] font-semibold whitespace-nowrap">
+                              GVCN: {currentClassObj.advisor_id.user_name}
+                            </span>
+                          ) : undefined
+                        }
                       />
                     ) : undefined
                   }
@@ -1853,7 +1896,14 @@ function GradingPage() {
                 <SelectContent disablePortal>
                   <SelectItem value="">-- Không chọn --</SelectItem>
                   {classesForSelectedDepartment.map(cls => (
-                    <SelectItem key={cls._id} value={cls._id}>{cls.class_name}</SelectItem>
+                    <SelectItem key={cls._id} value={cls._id} label={cls.class_name}>
+                      <span className="flex items-center justify-between w-full gap-2">
+                        <span>{cls.class_name}</span>
+                        {classApprovalMap[cls._id]?.allApproved && (
+                          <span className="text-emerald-600 text-[11px] font-bold shrink-0">Đã duyệt</span>
+                        )}
+                      </span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

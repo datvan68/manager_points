@@ -334,14 +334,14 @@ export const SelectLabel = React.forwardRef<any, any>(
 SelectLabel.displayName = "SelectLabel";
 
 export const SelectItem = React.forwardRef<any, any>(
-  ({ className, children, value: itemValue, ...props }, ref) => {
+  ({ className, children, value: itemValue, label: customLabel, ...props }, ref) => {
     const context = React.useContext(SelectContext);
     if (!context) throw new Error("SelectItem must be used inside Select");
 
     const { value, onValueChange, setOpen, setSearchQuery, setSelectedLabel } = context;
 
     const isSelected = value !== undefined && value !== null && value !== "" && value === itemValue;
-    const label = React.useMemo(() => getChildText(children), [children]);
+    const label = React.useMemo(() => customLabel || getChildText(children), [customLabel, children]);
 
     // Track active value and update the trigger input display label
     React.useEffect(() => {

@@ -221,5 +221,11 @@ export const summariesPointApi = {
     const url = `${API_BASE}/summaries-points/access${qs ? `?${qs}` : ''}`;
     const res = await httpClient(url);
     return handleResponse<any>(res);
+  },
+
+  async getClassApprovalStatus(semesterId: string): Promise<Record<string, { total: number; locked: number; allApproved: boolean }>> {
+    const url = `${API_BASE}/summaries-points/class-approval-status?semesterId=${encodeURIComponent(semesterId)}`;
+    const res = await httpClient(url);
+    return handleResponse<Record<string, { total: number; locked: number; allApproved: boolean }>>(res);
   }
 };

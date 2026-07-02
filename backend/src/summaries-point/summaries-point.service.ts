@@ -1615,4 +1615,73 @@ export class SummariesPointService {
     
     return decision;
   }
+
+  /**
+   * Get approval status for all classes in a given semester.
+   * Returns a map of classId -> { total, locked, allApproved }.
+   */
+  async getClassApprovalStatus(
+    semesterId: string,
+  ): Promise<Record<string, { total: number; locked: number; allApproved: boolean }>> {
+    const semesterObjectId = new Types.ObjectId(semesterId);
+
+    const pipeline = [
+      // Match summaries for the given semester (semester-level only, no period)
+      {
+        $match: {
+          semester_id: semesterObjectId,
+          $or: [{ period_id: null }, { period_id: { $exists: false } }],
+        },
+      },
+      // Lookup student to get class_id
+      {
+        $lookup: {
+          from: 'students',
+          localField: 'student_id',
+          foreignField: '_id',
+          as: 'student',
+        },
+      },
+      { $unwind: '$student' },
+      // Group by class_id
+      {
+        $group: {
+          _id: '$student.class_id',
+          total: { $sum: 1 },
+          locked: {
+            $sum: { $cond: [{ $eq: ['$status', 'locked'] }, 1, 0] },
+          },
+        },
+      },
+      // Project result
+      {
+        $project: {
+          _id: 1,
+          total: 1,
+          locked: 1,
+          allApproved: {
+            $and: [
+              { $gt: ['$total', 0] },
+              { $eq: ['$total', '$locked'] },
+            ],
+          },
+        },
+      },
+    ];
+
+    const results = await this.summaryPointModel.aggregate(pipeline).exec();
+
+    const map: Record<string, { total: number; locked: number; allApproved: boolean }> = {};
+    for (const row of results) {
+      if (row._id) {
+        map[row._id.toString()] = {
+          total: row.total,
+          locked: row.locked,
+          allApproved: !!row.allApproved,
+        };
+      }
+    }
+
+    return map;
+  }
 }

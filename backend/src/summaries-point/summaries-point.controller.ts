@@ -185,6 +185,15 @@ export class SummariesPointController {
     return this.summariesPointService.findLatestForStudent(userId, semesterId, periodId);
   }
 
+  @Get('class-approval-status')
+  @ApiOperation({ summary: 'Lấy trạng thái duyệt điểm của tất cả lớp trong một học kỳ' })
+  @ApiResponse({ status: 200, description: 'Trả về map classId -> { total, locked, allApproved }.' })
+  async getClassApprovalStatus(
+    @Query('semesterId') semesterId: string,
+  ) {
+    return this.summariesPointService.getClassApprovalStatus(semesterId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Lấy chi tiết điểm tổng kết bằng ID' })
   @ApiResponse({

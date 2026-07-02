@@ -16,6 +16,7 @@ interface PaginationProps {
   isLoading?: boolean
   pageSizeOptions?: number[]
   onPageSizeChange?: (pageSize: number) => void
+  extraInfo?: React.ReactNode
 }
 
 /**
@@ -32,6 +33,7 @@ export function CustomPagination({
   isLoading,
   pageSizeOptions = [5, 10, 20, 50, 100],
   onPageSizeChange,
+  extraInfo,
 }: PaginationProps) {
   const totalPages = Math.ceil(totalItems / pageSize)
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
@@ -100,6 +102,13 @@ export function CustomPagination({
           </div>
         )}
       </div>
+
+      {/* Extra Info */}
+      {extraInfo && (
+        <div className="flex items-center border-l border-white/60 pl-4 h-6">
+          {extraInfo}
+        </div>
+      )}
 
       {/* Navigation */}
       <div className="flex items-center gap-2">
