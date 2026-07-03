@@ -1989,6 +1989,59 @@ function GradingScoreContent() {
             )
           );
         }
+      } else if (event.type === 'summary_approved' || event.type === 'summary_cancelled') {
+        const sid = event.studentId;
+        if (!sid) return;
+        if (event.classId && event.classId !== selectedClassId) return;
+        if (event.semesterId && event.semesterId !== selectedSemesterId) return;
+        const studentExists = students.some((s) => s.id === sid);
+        if (!studentExists) return;
+
+        const isApproved = event.type === 'summary_approved';
+        const freshSummary = event.data;
+
+        // Cập nhật điểm và trạng thái locked/draft của sinh viên trong danh sách bên trái
+        setStudents((prev) =>
+          prev.map((std) =>
+            std.id === sid
+              ? {
+                  ...std,
+                  score: freshSummary?.total_score ?? std.score,
+                  gradingStatus: isApproved ? 'locked' : 'draft',
+                }
+              : std
+          )
+        );
+
+        if (freshSummary) {
+          setApiSummariesPoints((prev) =>
+            prev.map((s) =>
+              s._id === freshSummary._id ? { ...s, ...freshSummary } : s
+            )
+          );
+        }
+
+        // Nếu sinh viên đang được hiển thị chi tiết (activeStudent), thay thế toàn bộ state cục bộ bằng dữ liệu từ backend
+        if (sid === activeStudentIdRef.current && freshSummary) {
+          const merged = mergeDetailsWithPreExistingCounts(freshSummary.details || [], isApproved);
+          
+          evaluationDetailsMapRef.current = merged.detailsMap;
+          setEvaluationDetailsMap(merged.detailsMap);
+
+          const nextCounts = {
+            ...evaluationCountsRef.current,
+            [sid]: merged.counts,
+          };
+          evaluationCountsRef.current = nextCounts;
+          setEvaluationCounts(nextCounts);
+
+          const nextOptions = {
+            ...selectedOptionsStateRef.current,
+            [sid]: merged.optionsMap,
+          };
+          selectedOptionsStateRef.current = nextOptions;
+          setSelectedOptionsState(nextOptions);
+        }
       }
     }
   });

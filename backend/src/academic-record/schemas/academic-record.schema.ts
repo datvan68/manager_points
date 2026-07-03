@@ -64,7 +64,7 @@ export class AcademicRecord {
 
   @Prop({
     type: String,
-    enum: ['active', 'inactive'],
+    enum: ['active', 'inactive', 'cancelled', 'rejected', 'confirmed'],
     default: 'active',
     index: true,
   })
@@ -87,6 +87,56 @@ export class AcademicRecord {
 
   @Prop({ type: Number, required: false })
   selected_option_score?: number;
+
+  // === NEW FIELDS — Role-Aware Academic Record (taskscope §1) ===
+
+  // Who recorded this occurrence — virtual roles 'system'/'import' represent automated sources
+  @Prop({
+    type: String,
+    enum: ['student', 'teacher', 'supervisor', 'admin', 'system', 'import'],
+    default: null,
+    index: true,
+  })
+  recorded_by_role?: string;
+
+  // What type of record this represents
+  @Prop({
+    type: String,
+    enum: ['activity', 'discipline', 'manual_score', 'selected_option', 'adjustment'],
+    default: null,
+  })
+  record_type?: string;
+
+  // What scoring action this record represents
+  @Prop({
+    type: String,
+    enum: ['count', 'select_option', 'manual_score', 'bonus', 'penalty'],
+    default: null,
+  })
+  action_type?: string;
+
+  // Number of occurrences this record represents (default: 1 for count-based)
+  @Prop({ type: Number, default: 1 })
+  quantity: number;
+
+  // Structured source reference — replaces string 'source' field after migration
+  @Prop({ type: String, default: null })
+  source_type?: string;
+
+  @Prop({ type: String, default: null })
+  source_id?: string;
+
+  // Structured data — replaces string-based parsing from record_title
+  @Prop({ type: Object, default: null })
+  payload?: Record<string, unknown>;
+
+  // When the actual occurrence happened (may differ from recorded_at)
+  @Prop({ type: Date, default: null })
+  occurred_at?: Date;
+
+  // Groups records belonging to the same logical occurrence across multiple criteria
+  @Prop({ type: String, default: null })
+  occurrence_key?: string;
 }
 
 export const AcademicRecordSchema =
@@ -97,7 +147,20 @@ AcademicRecordSchema.index(
   { unique: true, sparse: true, name: 'idx_idempotency_key' }
 );
 
+// Legacy index — preserved during migration, will be replaced by idx_role_aware_aggregate
 AcademicRecordSchema.index(
   { student_id: 1, semester_id: 1, criterion_id: 1, status: 1 },
   { name: 'idx_aggregate' },
+);
+
+// Covered index for role-aware count queries (taskscope §Migration step 4)
+AcademicRecordSchema.index(
+  { student_id: 1, semester_id: 1, criterion_id: 1, recorded_by_role: 1, status: 1, is_deleted: 1 },
+  { name: 'idx_role_aware_aggregate' },
+);
+
+// Source-based lookups (taskscope §Migration step 4)
+AcademicRecordSchema.index(
+  { source_type: 1, source_id: 1 },
+  { name: 'idx_source_lookup' },
 );

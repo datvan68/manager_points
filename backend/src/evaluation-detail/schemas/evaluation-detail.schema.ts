@@ -81,6 +81,70 @@ export class EvaluationDetail {
   // Lịch sử thay đổi (EMBEDDED)
   @Prop({ type: [EvaluationLogSchema], default: [] })
   log: EvaluationLog[];
+
+  // === NEW FIELDS — Role-Aware Counts (taskscope §2, §3, §5) ===
+
+  // Role-specific record counts — replaces single ambiguous current_count
+  @Prop({ type: Object, default: null })
+  counts_by_role?: {
+    student?: number;
+    teacher?: number;
+    supervisor?: number;
+    admin?: number;
+    system?: number;
+    import?: number;
+  };
+
+  // === Count Resolution (taskscope §3) ===
+
+  // Approved count after role-aware resolution
+  @Prop({ type: Number, default: null })
+  resolved_count?: number | null;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  })
+  resolved_by_user_id?: MongooseSchema.Types.ObjectId | null;
+
+  // Role of the resolver — students cannot resolve their own counts
+  @Prop({
+    type: String,
+    enum: ['teacher', 'supervisor', 'admin', 'system'],
+    default: null,
+  })
+  resolved_by_role?: string | null;
+
+  @Prop({ type: Date, default: null })
+  resolved_at?: Date | null;
+
+  // How the count was resolved
+  @Prop({
+    type: String,
+    enum: ['teacher_review', 'supervisor_approval', 'admin_override', 'automatic_rule'],
+    default: null,
+  })
+  resolution_source?: string | null;
+
+  // === Audit Reference (taskscope §5) ===
+
+  // Total active records count (lightweight audit reference)
+  @Prop({ type: Number, default: 0 })
+  source_record_count?: number;
+
+  // Most recent record ID (for quick audit lookup)
+  @Prop({ type: String, default: null })
+  last_source_record_id?: string | null;
+
+  @Prop({ type: Date, default: null })
+  last_record_at?: Date | null;
+
+  // === Conflict Indicator (taskscope §3.1) ===
+
+  // True when role counts disagree and no resolution exists
+  @Prop({ type: Boolean, default: false })
+  has_conflict?: boolean;
 }
 
 export const EvaluationDetailSchema =

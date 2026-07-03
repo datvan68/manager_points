@@ -6,6 +6,8 @@ import {
   IsEnum,
   IsDateString,
   IsUrl,
+  IsNumber,
+  IsObject,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -90,12 +92,12 @@ export class CreateAcademicRecordDto {
 
   @ApiProperty({
     example: 'active',
-    enum: ['active', 'inactive'],
+    enum: ['active', 'inactive', 'cancelled', 'rejected', 'confirmed'],
     required: false,
     description: 'Trạng thái hoạt động',
   })
   @IsOptional()
-  @IsEnum(['active', 'inactive'])
+  @IsEnum(['active', 'inactive', 'cancelled', 'rejected', 'confirmed'])
   status?: string;
 
   @ApiProperty({
@@ -110,9 +112,96 @@ export class CreateAcademicRecordDto {
   @ApiProperty({
     example: 'manual',
     required: false,
-    description: 'Nguồn tạo bản ghi (manual, import, bulk_grading, etc.)',
+    description: 'Nguồn tạo bản ghi (manual, import, bulk_grading, etc.) — legacy field',
   })
   @IsOptional()
   @IsString()
   source?: string;
+
+  // === NEW FIELDS — Role-Aware Academic Record ===
+
+  @ApiProperty({
+    example: 'teacher',
+    enum: ['student', 'teacher', 'supervisor', 'admin', 'system', 'import'],
+    required: false,
+    description: 'Vai trò của người ghi nhận bản ghi',
+  })
+  @IsOptional()
+  @IsEnum(['student', 'teacher', 'supervisor', 'admin', 'system', 'import'])
+  recorded_by_role?: string;
+
+  @ApiProperty({
+    example: 'activity',
+    enum: ['activity', 'discipline', 'manual_score', 'selected_option', 'adjustment'],
+    required: false,
+    description: 'Loại bản ghi',
+  })
+  @IsOptional()
+  @IsEnum(['activity', 'discipline', 'manual_score', 'selected_option', 'adjustment'])
+  record_type?: string;
+
+  @ApiProperty({
+    example: 'count',
+    enum: ['count', 'select_option', 'manual_score', 'bonus', 'penalty'],
+    required: false,
+    description: 'Loại hành động tính điểm',
+  })
+  @IsOptional()
+  @IsEnum(['count', 'select_option', 'manual_score', 'bonus', 'penalty'])
+  action_type?: string;
+
+  @ApiProperty({
+    example: 1,
+    required: false,
+    description: 'Số lượng lần xảy ra (mặc định: 1)',
+  })
+  @IsOptional()
+  @IsNumber()
+  quantity?: number;
+
+  @ApiProperty({
+    example: 'daily_report',
+    required: false,
+    description: 'Loại nguồn tạo bản ghi (thay thế source sau migration)',
+  })
+  @IsOptional()
+  @IsString()
+  source_type?: string;
+
+  @ApiProperty({
+    example: '60c72b2f9b1d8b2bad999999',
+    required: false,
+    description: 'ID nguồn cụ thể (ghép cặp với source_type)',
+  })
+  @IsOptional()
+  @IsString()
+  source_id?: string;
+
+  @ApiProperty({
+    example: { manual_score: 8.5 },
+    required: false,
+    description: 'Dữ liệu có cấu trúc — thay thế parsing từ record_title',
+  })
+  @IsOptional()
+  @IsObject()
+  payload?: Record<string, unknown>;
+
+  @ApiProperty({
+    example: '2026-06-04T00:00:00.000Z',
+    required: false,
+    description: 'Thời điểm sự kiện thực tế xảy ra',
+  })
+  @IsOptional()
+  @IsDateString()
+  occurred_at?: string;
+
+  @ApiProperty({
+    example: 'event:abc123',
+    required: false,
+    description: 'Key nhóm các bản ghi thuộc cùng một sự kiện logic',
+  })
+  @IsOptional()
+  @IsString()
+  occurrence_key?: string;
 }
+

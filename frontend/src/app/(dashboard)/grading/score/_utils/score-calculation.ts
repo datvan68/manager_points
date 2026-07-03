@@ -86,8 +86,14 @@ export const getResolvedRawCriterionScore = (
     return calculateCriterionScore(criterion, effectiveCount, effectiveOptionId);
   }
 
-  const effectiveCount = detail && detail.current_count > count ? detail.current_count : count;
-  const effectiveOptionId = selectedOptionId || detail?.selected_option_id;
+  // Khi locked: dùng các giá trị từ backend, tuyệt đối không dùng local count hoặc fallback khác.
+  const effectiveCount = isLocked
+    ? (detail?.current_count !== undefined ? detail.current_count : count)
+    : (detail && detail.current_count > count ? detail.current_count : count);
+
+  const effectiveOptionId = isLocked
+    ? (detail?.selected_option_id !== undefined ? detail.selected_option_id : selectedOptionId)
+    : (selectedOptionId || detail?.selected_option_id);
 
   if (detail) {
     let score = detail.final_score !== null && detail.final_score !== undefined
@@ -251,6 +257,83 @@ export const mergeDetailsWithPreExistingCounts = (
   return { counts, optionsMap, detailsMap };
 };
 
+// === NEW: Role-Aware Helpers ===
+
+export interface CountsByRole {
+  student?: number;
+  teacher?: number;
+  supervisor?: number;
+  admin?: number;
+  system?: number;
+  import?: number;
+}
+
+/**
+ * Check if a detail has role-level conflict (multiple roles with different counts).
+ */
+export const hasRoleConflict = (detail: any): boolean => {
+  if (!detail) return false;
+  // Explicit flag from backend
+  if (detail.has_conflict === true) return true;
+  // Client-side check if counts_by_role exists
+  if (detail.counts_by_role) {
+    const counts = detail.counts_by_role;
+    const nonZero = Object.values(counts).filter((v: any) => (v || 0) > 0);
+    if (nonZero.length > 1) {
+      // Check if any two non-zero values differ
+      const values = nonZero.map(Number);
+      return values.some(v => v !== values[0]);
+    }
+  }
+  return false;
+};
+
+/**
+ * Sum all role counts to get the total.
+ */
+export const getTotalRoleCount = (countsByRole: CountsByRole | null | undefined): number => {
+  if (!countsByRole) return 0;
+  return Object.values(countsByRole).reduce((sum: number, v: any) => sum + (v || 0), 0);
+};
+
+/**
+ * Get the effective count to use for score display.
+ * Priority: resolved_count > current_count > total role counts > 0
+ */
+export const getEffectiveCount = (detail: any): number => {
+  if (!detail) return 0;
+  // Use resolved_count if available and not null
+  if (detail.resolved_count !== null && detail.resolved_count !== undefined) {
+    return detail.resolved_count;
+  }
+  // Fall back to current_count
+  if (detail.current_count !== undefined) {
+    return detail.current_count;
+  }
+  // Fall back to total of role counts
+  if (detail.counts_by_role) {
+    return getTotalRoleCount(detail.counts_by_role);
+  }
+  return 0;
+};
+
+/**
+ * Get the dominant role (role with highest count).
+ */
+export const getDominantRole = (countsByRole: CountsByRole | null | undefined): string | null => {
+  if (!countsByRole) return null;
+  let maxRole: string | null = null;
+  let maxCount = 0;
+  for (const [role, count] of Object.entries(countsByRole)) {
+    const c = count || 0;
+    if (c > maxCount) {
+      maxCount = c;
+      maxRole = role;
+    }
+  }
+  return maxRole;
+};
+
 export default {
   calculateCriterionScore,
   getCriterionContributionScore,
@@ -262,5 +345,11 @@ export default {
   calculateTotalScore,
   mergeDetailsWithPreExistingCounts,
   isNonCountedViolation,
-  getViolationContribution
+  getViolationContribution,
+  // Role-aware helpers
+  hasRoleConflict,
+  getTotalRoleCount,
+  getEffectiveCount,
+  getDominantRole,
 };
+

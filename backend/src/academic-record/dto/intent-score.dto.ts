@@ -46,4 +46,13 @@ export class IntentScoreDto {
   @IsOptional()
   @IsNumber()
   baseline_count?: number;
+
+  @ApiProperty({
+    description: 'Vai trò người ghi nhận (role-aware scoring)',
+    enum: ['student', 'teacher', 'supervisor', 'admin', 'system', 'import'],
+    required: false,
+  })
+  @IsOptional()
+  @IsIn(['student', 'teacher', 'supervisor', 'admin', 'system', 'import'])
+  recorded_by_role?: string;
 }

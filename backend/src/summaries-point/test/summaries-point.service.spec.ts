@@ -344,12 +344,25 @@ describe('SummariesPointService', () => {
   });
 
   describe('approveGrading', () => {
-    const setupApproveGradingMock = (details: any[]) => {
+    const setupApproveGradingMock = (details: any[], activeRecords: any[] = [], criteria: any[] = []) => {
       jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
       jest.spyOn(service as any, 'recomputeTotalScore').mockResolvedValue(undefined);
+      jest.spyOn(service, 'syncSummaryWithAcademicRecords').mockResolvedValue(null);
+
+      mockAcademicRecordModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(activeRecords),
+      });
+
+      mockCriterionModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(criteria),
+      });
 
       const mockSummary = {
         _id: 'some-id',
+        student_id: 'student-1',
+        semester_id: 'semester-1',
         total_score: 85,
         status: 'draft',
         details,
@@ -357,13 +370,15 @@ describe('SummariesPointService', () => {
         save: jest.fn().mockResolvedValue(true),
       };
 
-      mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary); // first findById
-      mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary); // second findById
-      
       const mockPopulatedResult = { ...mockSummary, status: 'locked', rank_tier: 'gold' };
-      mockSummaryPointModel.findById.mockReturnValueOnce({
-        populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce(mockPopulatedResult),
+
+      mockSummaryPointModel.findById.mockImplementation((id: string) => {
+        const queryBuilder = {
+          populate: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue(mockPopulatedResult),
+          then: (resolve: any) => resolve(mockSummary),
+        };
+        return queryBuilder;
       });
 
       return { mockSummary, mockPopulatedResult };
@@ -378,6 +393,7 @@ describe('SummariesPointService', () => {
     it('should throw NotFoundException if summary not found after recompute', async () => {
       jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
       jest.spyOn(service as any, 'recomputeTotalScore').mockResolvedValue(undefined);
+      jest.spyOn(service, 'syncSummaryWithAcademicRecords').mockResolvedValue(null);
       mockSummaryPointModel.findById.mockResolvedValueOnce(null);
 
       await expect(service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' })).rejects.toThrow(NotFoundException);
@@ -386,6 +402,17 @@ describe('SummariesPointService', () => {
     it('should calculate rank_tier, update status to locked and save', async () => {
       jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
       jest.spyOn(service as any, 'recomputeTotalScore').mockResolvedValue(undefined);
+      jest.spyOn(service, 'syncSummaryWithAcademicRecords').mockResolvedValue(null);
+
+      mockAcademicRecordModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+
+      mockCriterionModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
 
       const mockSummary = {
         _id: 'some-id',
@@ -421,6 +448,7 @@ describe('SummariesPointService', () => {
     it('should write detail.final_score from gv_score when gv_score is present', async () => {
       const details = [
         {
+          criterion_id: 'crit-1',
           gv_score: 9,
           sv_score: 8,
           system_score: 7,
@@ -440,6 +468,7 @@ describe('SummariesPointService', () => {
     it('should fallback to sv_score when gv_score is null/undefined', async () => {
       const details = [
         {
+          criterion_id: 'crit-1',
           gv_score: null,
           sv_score: 8,
           system_score: 7,
@@ -448,6 +477,7 @@ describe('SummariesPointService', () => {
           log: [],
         },
         {
+          criterion_id: 'crit-2',
           gv_score: undefined,
           sv_score: 6,
           system_score: 5,
@@ -467,6 +497,7 @@ describe('SummariesPointService', () => {
     it('should fallback to system_score when both gv_score and sv_score are null/undefined', async () => {
       const details = [
         {
+          criterion_id: 'crit-1',
           gv_score: null,
           sv_score: null,
           system_score: 7,
@@ -475,6 +506,7 @@ describe('SummariesPointService', () => {
           log: [],
         },
         {
+          criterion_id: 'crit-2',
           gv_score: undefined,
           sv_score: undefined,
           system_score: 5,
@@ -494,6 +526,7 @@ describe('SummariesPointService', () => {
     it('should preserve 0 as a valid score', async () => {
       const details = [
         {
+          criterion_id: 'crit-1',
           gv_score: 0,
           sv_score: 8,
           system_score: 7,
@@ -502,6 +535,7 @@ describe('SummariesPointService', () => {
           log: [],
         },
         {
+          criterion_id: 'crit-2',
           gv_score: null,
           sv_score: 0,
           system_score: 6,
@@ -510,6 +544,7 @@ describe('SummariesPointService', () => {
           log: [],
         },
         {
+          criterion_id: 'crit-3',
           gv_score: null,
           sv_score: null,
           system_score: 0,
@@ -530,6 +565,7 @@ describe('SummariesPointService', () => {
     it('should be idempotent and approve an already locked summary successfully', async () => {
       const details = [
         {
+          criterion_id: 'crit-1',
           gv_score: 9,
           sv_score: 8,
           system_score: 7,
@@ -546,6 +582,86 @@ describe('SummariesPointService', () => {
       expect(result.status).toBe('locked');
       expect(mockSummary.details[0].final_score).toBe(9);
       expect(mockSummary.details[0].log.length).toBe(1);
+    });
+
+    it('should perform pre-approval sync, reload summary, and throw BadRequestException if active records exist but final_score is 0 (and not reviewed)', async () => {
+      const details = [
+        {
+          criterion_id: 'crit-1',
+          gv_score: null,
+          sv_score: null,
+          system_score: null,
+          status: 'draft',
+          final_score: null,
+          log: [],
+        },
+      ];
+      const activeRecords = [
+        {
+          criterion_id: 'crit-1',
+          student_id: 'student-1',
+          semester_id: 'semester-1',
+          status: 'active',
+          createdAt: new Date(),
+        },
+      ];
+      const criteria = [
+        {
+          _id: 'crit-1',
+          criterion_name: 'Crit 1',
+          score_per_unit: 5,
+          max_score: 10,
+          min_score: 0,
+          scoring_mode: 'count',
+        },
+      ];
+      
+      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+
+      await expect(
+        service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should preserve intentionally reviewed 0 score even when active records exist', async () => {
+      const details = [
+        {
+          criterion_id: 'crit-1',
+          gv_score: 0,
+          sv_score: null,
+          system_score: 5,
+          status: 'gv_reviewed',
+          gv_reviewed_by: '507f1f77bcf86cd799439011',
+          final_score: null,
+          log: [],
+        },
+      ];
+      const activeRecords = [
+        {
+          criterion_id: 'crit-1',
+          student_id: 'student-1',
+          semester_id: 'semester-1',
+          status: 'active',
+          createdAt: new Date(),
+        },
+      ];
+      const criteria = [
+        {
+          _id: 'crit-1',
+          criterion_name: 'Crit 1',
+          score_per_unit: 5,
+          max_score: 10,
+          min_score: 0,
+          scoring_mode: 'count',
+        },
+      ];
+
+      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+
+      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+
+      expect(mockSummary.details[0].final_score).toBe(0);
+      expect(mockSummary.details[0].status).toBe('locked');
     });
   });
 

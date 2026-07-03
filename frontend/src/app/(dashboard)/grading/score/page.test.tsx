@@ -97,6 +97,8 @@ vi.mock("@/api/student-api", () => ({
 vi.mock("@/api/summaries-point-api", () => ({
   summariesPointApi: {
     getSummariesPoints: vi.fn(),
+    getGradingAccess: vi.fn(),
+    getSummariesPoint: vi.fn(),
   }
 }));
 
@@ -229,6 +231,28 @@ describe("Grading Score Page URL Context & Initialization", () => {
     vi.mocked(criteriaApi.getCriteria).mockResolvedValue([]);
     vi.mocked(evaluationPeriodApi.getEvaluationPeriods).mockResolvedValue([{ _id: "period-1", name: "Period 1", semester_id: "sem-1" }]);
     vi.mocked(evaluationDetailApi.getEvaluationDetailsBySummary).mockResolvedValue([]);
+    vi.mocked(summariesPointApi.getGradingAccess).mockResolvedValue({
+      role: 'admin',
+      isAdmin: true,
+      isSupervisor: false,
+      isAdminOrSupervisor: true,
+      isTeacher: false,
+      isStudent: false,
+      canReadRoster: true,
+      canModifyScoreByRole: true,
+      canDeleteSummaryByRole: true,
+      canDeleteHistoryByRole: true,
+      canManageEvaluationPeriod: true,
+    } as any);
+    vi.mocked(summariesPointApi.getSummariesPoint).mockResolvedValue({
+      _id: 'some-summary-id',
+      student_id: 'stud-1',
+      semester_id: 'sem-1',
+      total_score: 80,
+      grading: 'Tốt',
+      status: 'draft',
+      details: [],
+    } as any);
     
     vi.mocked(studentApi.getStudents).mockImplementation(async (params: any) => {
       if (params?.classId === "class-1") return mockRosterClass1;
@@ -278,8 +302,8 @@ describe("Grading Score Page URL Context & Initialization", () => {
     // Kiểm tra xem active student rank card có hiển thị đúng thông tin của Trần Thị B
     await waitFor(() => {
       expect(screen.getByTestId("active-student-card")).toBeDefined();
-      expect(screen.getByText(/Trần Thị B/i)).toBeDefined();
-      expect(screen.getByText(/stud-2/i)).toBeDefined();
+      expect(screen.getAllByText(/Trần Thị B/i)[0]).toBeDefined();
+      expect(screen.getAllByText(/stud-2/i)[0]).toBeDefined();
     });
 
     // Xác nhận context đã được đồng bộ vào sessionStorage
@@ -303,7 +327,7 @@ describe("Grading Score Page URL Context & Initialization", () => {
     // Roster CNTT K19A (class-1) chứa stud-1 sẽ được load thay vì class-2
     await waitFor(() => {
       expect(screen.getByTestId("active-student-card")).toBeDefined();
-      expect(screen.getByText(/Nguyễn Văn A/i)).toBeDefined();
+      expect(screen.getAllByText(/Nguyễn Văn A/i)[0]).toBeDefined();
     });
 
     // Check sessionStorage được cập nhật đè lại
@@ -322,7 +346,7 @@ describe("Grading Score Page URL Context & Initialization", () => {
     // Không có studentId trên URL, mặc định chọn sinh viên đầu tiên của CNTT K19A (stud-1)
     await waitFor(() => {
       expect(screen.getByTestId("active-student-card")).toBeDefined();
-      expect(screen.getByText(/Nguyễn Văn A/i)).toBeDefined();
+      expect(screen.getAllByText(/Nguyễn Văn A/i)[0]).toBeDefined();
     });
   });
 
@@ -338,7 +362,7 @@ describe("Grading Score Page URL Context & Initialization", () => {
     // Fallback về sinh viên đầu tiên của class-1 (Nguyễn Văn A) và hiển thị warning toast
     await waitFor(() => {
       expect(screen.getByTestId("active-student-card")).toBeDefined();
-      expect(screen.getByText(/Nguyễn Văn A/i)).toBeDefined();
+      expect(screen.getAllByText(/Nguyễn Văn A/i)[0]).toBeDefined();
       expect(toast.warning).toHaveBeenCalledWith(
         expect.stringContaining("Không tìm thấy sinh viên hoặc bạn không có quyền")
       );
@@ -358,8 +382,8 @@ describe("Grading Score Page URL Context & Initialization", () => {
     // Sẽ tự động resolve sang class-2 do stud-3 thuộc class-2 và advisor có quyền quản lý cả hai lớp
     await waitFor(() => {
       expect(screen.getByTestId("active-student-card")).toBeDefined();
-      expect(screen.getByText(/Lê Văn C/i)).toBeDefined();
-      expect(screen.getByText(/stud-3/i)).toBeDefined();
+      expect(screen.getAllByText(/Lê Văn C/i)[0]).toBeDefined();
+      expect(screen.getAllByText(/stud-3/i)[0]).toBeDefined();
     });
 
     // Check classId được lưu đè lại sang class-2
@@ -380,12 +404,12 @@ describe("Grading Score Page URL Context & Initialization", () => {
     expect(studentApi.getStudent).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByTestId("active-student-card")).toBeDefined());
     try {
-      await waitFor(() => expect(screen.getByText(/Trần Thị B/i)).toBeDefined());
+      await waitFor(() => expect(screen.getAllByText(/Trần Thị B/i)[0]).toBeDefined());
     } catch (e) {
       console.log("DOM content:", screen.getByTestId("active-student-card").innerHTML);
       throw e;
     }
-    await waitFor(() => expect(screen.getByText(/stud-2/i)).toBeDefined());
+    await waitFor(() => expect(screen.getAllByText(/stud-2/i)[0]).toBeDefined());
   });
 
   it("does not call getStudent with non-ObjectId values", async () => {

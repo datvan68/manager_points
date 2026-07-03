@@ -859,17 +859,48 @@ export class SummariesPointService {
       throw new ForbiddenException('Bạn không có quyền phê duyệt bảng điểm rèn luyện.');
     }
 
-    // Find the summary from DB. If not found, throw NotFoundException.
+    // 1. Pre-approval synchronization step
+    await this.syncSummaryWithAcademicRecords(summaryId);
+
+    // 2. Reload the summary after pre-approval sync before assigning final_score.
     const summary = await this.summaryPointModel.findById(summaryId);
     if (!summary) {
       throw new NotFoundException(`Summary ${summaryId} không tồn tại`);
     }
+
+    // Lấy tất cả active academic records cho học kỳ đó để tính toán và kiểm tra điểm của từng tiêu chí chống chốt điểm 0 sai lệch
+    const activeRecords = await this.academicRecordModel.find({
+      student_id: summary.student_id,
+      semester_id: summary.semester_id,
+      status: 'active',
+      is_deleted: { $ne: true },
+    } as any).lean().exec();
+
+    // Group active records count by criterion
+    const recordCountsByCriterion = new Map<string, number>();
+    const latestRecordByCriterion = new Map<string, any>();
+    activeRecords.forEach(rec => {
+      const criId = rec.criterion_id.toString();
+      recordCountsByCriterion.set(criId, (recordCountsByCriterion.get(criId) || 0) + 1);
+      
+      const existingLatest = latestRecordByCriterion.get(criId);
+      if (!existingLatest || new Date((rec as any).createdAt) > new Date((existingLatest as any).createdAt)) {
+        latestRecordByCriterion.set(criId, rec);
+      }
+    });
+
+    const criteria = await this.criterionModel.find().lean().exec();
+    const criteriaMap = new Map(criteria.map(c => [c._id.toString(), c]));
 
     // Set the status of all details to 'locked' and calculate final_score
     if (summary.details && summary.details.length > 0) {
       const lockedBy = new Types.ObjectId(requester.userId);
       const lockedAt = new Date();
       for (const detail of summary.details) {
+        const criterionIdStr = detail.criterion_id.toString();
+        const criterion = criteriaMap.get(criterionIdStr);
+        const activeCount = recordCountsByCriterion.get(criterionIdStr) || 0;
+
         const oldStatus = detail.status || 'draft';
         detail.status = 'locked';
 
@@ -881,9 +912,70 @@ export class SummariesPointService {
                   ? detail.selected_option_score
                   : (detail.system_score !== null && detail.system_score !== undefined
                       ? detail.system_score
-                      : 0)));
+                      : null)));
 
-        detail.final_score = finalScore;
+        if (activeCount > 0 && criterion) {
+          // Tính điểm thực từ active records dùng helper
+          let optId: string | null = null;
+          let optLabel: string | null = null;
+          let optScore: number | null = null;
+          let manualScore: number | null = null;
+
+          const latestRecord = latestRecordByCriterion.get(criterionIdStr);
+          if (latestRecord) {
+            if (criterion.scoring_mode === 'single_option') {
+              if (latestRecord.selected_option_id) {
+                optId = latestRecord.selected_option_id;
+                optLabel = latestRecord.selected_option_label || null;
+                optScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
+              }
+            } else {
+              if (latestRecord.record_title && latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
+                const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
+                manualScore = parseFloat(manualScoreStr) || 0;
+              }
+            }
+          }
+
+          const scoringResult = calculateCriterionScoreHelper({
+            criterion,
+            count: activeCount,
+            selectedOptionId: optId,
+            selectedOptionLabel: optLabel,
+            selectedOptionScore: optScore,
+            manualScore,
+            isSyncPath: true,
+          });
+
+          const recordDerivedScore = scoringResult.systemScore;
+
+          const isDiscipline = criterion.score_per_unit < 0 || criterion.criterion_type === 'ky_luat';
+          const calculatedExpected = isDiscipline ? (criterion.max_score || 10) - Math.abs(recordDerivedScore) : recordDerivedScore;
+
+          const isResolvedToZero = finalScore === 0 || finalScore === null;
+          const isRealExpectedNotZero = calculatedExpected > 0;
+
+          if (isResolvedToZero && isRealExpectedNotZero) {
+            const isIntentionallyReviewedZero = (oldStatus === 'gv_reviewed' || !!detail.gv_reviewed_by) && detail.gv_score === 0;
+
+            if (isIntentionallyReviewedZero) {
+              detail.final_score = 0;
+            } else {
+              throw new BadRequestException({
+                statusCode: 400,
+                message: `Không thể phê duyệt: Tiêu chí '${criterion.criterion_name}' có bản ghi hoạt động (active records) nhưng điểm phê duyệt tính ra bằng 0. Điểm mong đợi từ bản ghi là ${calculatedExpected}. Vui lòng đồng bộ hóa hoặc cập nhật điểm đánh giá trước khi phê duyệt.`,
+                error: 'Bad Request',
+                reasonCode: 'GRADING_APPROVAL_SCORE_CONFLICT',
+              });
+            }
+          } else {
+            detail.final_score = finalScore !== null ? finalScore : calculatedExpected;
+          }
+        } else {
+          // Không có active records
+          detail.final_score = finalScore !== null ? finalScore : 0;
+        }
+
         detail.locked_at = detail.locked_at || lockedAt;
         detail.locked_by = detail.locked_by || (lockedBy as any);
 
@@ -893,7 +985,7 @@ export class SummariesPointService {
             from_status: oldStatus,
             to_status: 'locked',
             score_before: detail.system_score !== undefined && detail.system_score !== null ? detail.system_score : 0,
-            score_after: finalScore,
+            score_after: detail.final_score,
             count: detail.current_count,
             updated_by: lockedBy as any,
             updated_at: lockedAt,

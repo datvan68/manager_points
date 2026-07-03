@@ -2,6 +2,10 @@ import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AcademicRecordService } from './academic-record.service';
 import { AcademicRecordController } from './academic-record.controller';
+import { ScoreEngineService } from './score-engine.service';
+import { CountResolutionService } from './count-resolution.service';
+import { ProjectionService } from './projection.service';
+import { ProjectionListener } from './projection.listener';
 import {
   AcademicRecord,
   AcademicRecordSchema,
@@ -31,7 +35,7 @@ import { SummariesPointModule } from '../summaries-point/summaries-point.module'
     ]),
   ],
   controllers: [AcademicRecordController],
-  providers: [AcademicRecordService],
-  exports: [AcademicRecordService],
+  providers: [AcademicRecordService, ScoreEngineService, CountResolutionService, ProjectionService, ProjectionListener],
+  exports: [AcademicRecordService, ScoreEngineService, CountResolutionService, ProjectionService],
 })
 export class AcademicRecordModule {}

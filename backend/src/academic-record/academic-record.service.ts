@@ -24,6 +24,8 @@ import { SummariesPointService } from '../summaries-point/summaries-point.servic
 import { gradingEventEmitter } from '../system/grading-event-emitter';
 import { IntentScoreDto } from './dto/intent-score.dto';
 import { calculateCriterionScoreHelper, normalizeObjectId, buildGradingEventPayload } from './academic-record.utils';
+import { ScoreEngineService, extractStructuredData, groupRecordsByRole, CountsByRole } from './score-engine.service';
+import { CountResolutionService, detectConflict } from './count-resolution.service';
 
 
 export interface AcademicRecordFindAllQuery {
@@ -53,6 +55,8 @@ export class AcademicRecordService {
     private readonly classModel: Model<any>,
     @Inject(forwardRef(() => SummariesPointService))
     private readonly summariesPointService: SummariesPointService,
+    private readonly scoreEngineService: ScoreEngineService,
+    private readonly countResolutionService: CountResolutionService,
   ) { }
 
   private importSessions = new Map<string, any>();
@@ -283,11 +287,14 @@ export class AcademicRecordService {
 
     const activeCount = activeRecords.length;
 
+    // === NEW: Role-aware count grouping ===
+    const countsByRole = groupRecordsByRole(activeRecords);
+
     // 2. Fetch the criterion definition to get details
     const criterion = await this.criterionModel.findById(criterionId).exec();
     if (!criterion) return null;
 
-    // 3. Compute system_score
+    // 3. Compute system_score — using extractStructuredData instead of inline parsing
     let optId: string | null = null;
     let optLabel: string | null = null;
     let optScore: number | null = null;
@@ -303,18 +310,14 @@ export class AcademicRecordService {
       const latestRecord = activeRecords[0];
 
       if (latestRecord) {
+        // Use extractStructuredData instead of inline title parsing
+        const structured = extractStructuredData(latestRecord);
+
         if (criterion.scoring_mode === 'single_option') {
-          if (latestRecord.selected_option_id) {
-            optId = latestRecord.selected_option_id;
-            optLabel = latestRecord.selected_option_label || null;
-            optScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
-          } else if (latestRecord.record_title) {
-            const match = latestRecord.record_title.match(/Lu[aạ] ch[oọ]n option (.+)/i);
-            if (match) {
-              optId = match[1].trim();
-            }
-          }
-          
+          optId = structured.selected_option_id;
+          optLabel = structured.selected_option_label;
+          optScore = structured.selected_option_score;
+
           if (optId) {
             const optionExists = criterion.options?.some((o: any) => o.id === optId);
             if (!optionExists) {
@@ -326,13 +329,16 @@ export class AcademicRecordService {
             warnings.push("No option ID found/parsed for single_option criterion.");
           }
         } else {
-          if (latestRecord.record_title && latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
-            const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
-            manualScore = parseFloat(manualScoreStr) || 0;
-          }
+          manualScore = structured.manual_score;
         }
       }
     }
+
+    // === NEW: Count resolution (auto-resolve) ===
+    const resolution = this.countResolutionService.resolve({
+      counts_by_role: countsByRole,
+      context: 'auto',
+    });
 
     // 4. Find all SummaryPoints for this student and semester
     let summaries = await this.summaryPointModel.find({
@@ -380,12 +386,27 @@ export class AcademicRecordService {
           syncResultStatus = syncResult.status;
           syncResultSkipReason = syncResult.skipReason;
 
+          // === NEW: Populate role-aware fields in detail ===
+          const detail = syncResult.detail;
+          detail.counts_by_role = countsByRole;
+          detail.has_conflict = resolution.has_conflict;
+          detail.source_record_count = activeCount;
+          detail.last_record_at = activeRecords.length > 0 ? (activeRecords[0] as any).createdAt || (activeRecords[0] as any).recorded_at : null;
+          detail.last_source_record_id = activeRecords.length > 0 ? (activeRecords[0] as any)._id?.toString() : null;
+
+          // Only populate resolution fields if auto-resolved without conflict
+          if (resolution.auto_resolved && !resolution.has_conflict) {
+            detail.resolved_count = resolution.resolved_count;
+            detail.resolved_by_role = resolution.resolved_by_role;
+            detail.resolution_source = resolution.resolution_source;
+          }
+
           if (detailIndex === -1) {
             if (syncResult.status !== 'skipped') {
-              details.push(syncResult.detail);
+              details.push(detail);
             }
           } else {
-            details[detailIndex] = syncResult.detail;
+            details[detailIndex] = detail;
           }
 
           currentSummary.details = details;
@@ -439,6 +460,7 @@ export class AcademicRecordService {
     }
     return warnings.length > 0 ? { warnings } : null;
   }
+
 
   async syncMultipleStudentCriterionScores(
     records: { student_id: any, semester_id: any, criterion_id: any }[],
@@ -526,6 +548,9 @@ export class AcademicRecordService {
               const activeCount = criRecords.length;
               const latestRecord = criRecords[0] || null;
 
+              // === NEW: Role-aware count grouping per criterion ===
+              const criCountsByRole = groupRecordsByRole(criRecords);
+
               let optId: string | null = null;
               let optLabel: string | null = null;
               let optScore: number | null = null;
@@ -533,18 +558,14 @@ export class AcademicRecordService {
               let isValidOption = true;
 
               if (activeCount > 0 && latestRecord) {
+                // Use extractStructuredData instead of inline title parsing
+                const structured = extractStructuredData(latestRecord);
+
                 if (criterion.scoring_mode === 'single_option') {
-                  if (latestRecord.selected_option_id) {
-                    optId = latestRecord.selected_option_id;
-                    optLabel = latestRecord.selected_option_label || null;
-                    optScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
-                  } else if (latestRecord.record_title) {
-                    const match = latestRecord.record_title.match(/Lu[aạ] ch[oọ]n option (.+)/i);
-                    if (match) {
-                      optId = match[1].trim();
-                    }
-                  }
-                  
+                  optId = structured.selected_option_id;
+                  optLabel = structured.selected_option_label;
+                  optScore = structured.selected_option_score;
+
                   if (optId) {
                     const optionExists = criterion.options?.some((o: any) => o.id === optId);
                     if (!optionExists) {
@@ -554,12 +575,15 @@ export class AcademicRecordService {
                     isValidOption = false;
                   }
                 } else {
-                  if (latestRecord.record_title && latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
-                    const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
-                    manualScore = parseFloat(manualScoreStr) || 0;
-                  }
+                  manualScore = structured.manual_score;
                 }
               }
+
+              // === NEW: Count resolution per criterion ===
+              const criResolution = this.countResolutionService.resolve({
+                counts_by_role: criCountsByRole,
+                context: 'auto',
+              });
 
               const detailIndex = details.findIndex((d: any) => d.criterion_id && d.criterion_id.toString() === criterionId);
               const oldDetail = detailIndex !== -1 ? details[detailIndex] : null;
@@ -611,12 +635,26 @@ export class AcademicRecordService {
                 });
               }
 
+              // === NEW: Populate role-aware fields in detail ===
+              const detail = syncResult.detail;
+              detail.counts_by_role = criCountsByRole;
+              detail.has_conflict = criResolution.has_conflict;
+              detail.source_record_count = activeCount;
+              detail.last_record_at = latestRecord ? (latestRecord as any).createdAt || (latestRecord as any).recorded_at : null;
+              detail.last_source_record_id = latestRecord ? (latestRecord as any)._id?.toString() : null;
+
+              if (criResolution.auto_resolved && !criResolution.has_conflict) {
+                detail.resolved_count = criResolution.resolved_count;
+                detail.resolved_by_role = criResolution.resolved_by_role;
+                detail.resolution_source = criResolution.resolution_source;
+              }
+
               if (detailIndex === -1) {
                 if (syncResult.status !== 'skipped') {
-                  details.push(syncResult.detail);
+                  details.push(detail);
                 }
               } else {
-                details[detailIndex] = syncResult.detail;
+                details[detailIndex] = detail;
               }
             }
 
@@ -656,7 +694,7 @@ export class AcademicRecordService {
 
 
   async handleScoreIntent(intentDto: IntentScoreDto, requester?: any) {
-    const { student_id, criterion_id, semester_id, intent_type, target_count, manual_score, selected_option_id, note } = intentDto;
+    const { student_id, semester_id, criterion_id, intent_type, target_count, manual_score, selected_option_id, note } = intentDto;
 
     // Preflight check: check if the summary is locked
     await this.checkSummaryLocked(student_id, semester_id);
@@ -667,6 +705,8 @@ export class AcademicRecordService {
     }
 
     const requesterLevel = this.getRoleLevel(requester?.roleName);
+    // === NEW: Derive recorded_by_role from requester ===
+    const recordedByRole = intentDto.recorded_by_role || this.deriveRecordedByRole(requester?.roleName);
     let changedRecordIds: string[] = [];
 
     if (intent_type === 'increase' || intent_type === 'decrease' || intent_type === 'set_target_count') {
@@ -759,6 +799,12 @@ export class AcademicRecordService {
             recorded_by: requester?.userId,
             record_title: note || `Được thêm bởi ${requester?.roleName}`,
             status: 'active',
+            // === NEW: Structured fields ===
+            recorded_by_role: recordedByRole,
+            action_type: 'count',
+            record_type: 'activity',
+            quantity: 1,
+            source_type: 'manual',
           });
         }
         const inserted = await this.academicRecordModel.insertMany(newRecords);
@@ -853,6 +899,10 @@ export class AcademicRecordService {
           existingRecord.selected_option_score = option.score;
           existingRecord.record_title = `Lựa chọn option ${selected_option_id}`;
           existingRecord.recorded_by = requester?.userId;
+          // === NEW: Structured fields on update ===
+          (existingRecord as any).recorded_by_role = recordedByRole;
+          (existingRecord as any).action_type = 'select_option';
+          (existingRecord as any).record_type = 'selected_option';
           await existingRecord.save();
           changedRecordIds.push(existingRecord._id.toString());
         } else {
@@ -866,6 +916,12 @@ export class AcademicRecordService {
             selected_option_score: option.score,
             record_title: `Lựa chọn option ${selected_option_id}`,
             status: 'active',
+            // === NEW: Structured fields ===
+            recorded_by_role: recordedByRole,
+            action_type: 'select_option',
+            record_type: 'selected_option',
+            quantity: 1,
+            source_type: 'manual',
           });
           changedRecordIds.push(created._id.toString());
         }
@@ -910,6 +966,11 @@ export class AcademicRecordService {
       if (existingRecord) {
         existingRecord.record_title = `Nhập điểm tay: ${manual_score}`;
         existingRecord.recorded_by = requester?.userId;
+        // === NEW: Structured fields on update ===
+        (existingRecord as any).recorded_by_role = recordedByRole;
+        (existingRecord as any).action_type = 'manual_score';
+        (existingRecord as any).record_type = 'manual_score';
+        (existingRecord as any).payload = { manual_score };
         await existingRecord.save();
         changedRecordIds.push(existingRecord._id.toString());
       } else {
@@ -920,6 +981,13 @@ export class AcademicRecordService {
           recorded_by: requester?.userId,
           record_title: `Nhập điểm tay: ${manual_score}`,
           status: 'active',
+          // === NEW: Structured fields ===
+          recorded_by_role: recordedByRole,
+          action_type: 'manual_score',
+          record_type: 'manual_score',
+          quantity: 1,
+          source_type: 'manual',
+          payload: { manual_score },
         });
         changedRecordIds.push(created._id.toString());
       }
@@ -1073,6 +1141,32 @@ export class AcademicRecordService {
       return 2;
     }
     return 1;
+  }
+
+  /**
+   * Derive the standardized recorded_by_role enum value from a role name string.
+   * Uses the same mapping logic as getRoleLevel but returns the enum value
+   * for the academic_record.recorded_by_role field.
+   */
+  private deriveRecordedByRole(roleName?: string): string {
+    if (!roleName) return 'system';
+    const nameLower = roleName.toLowerCase();
+    if (nameLower.includes('admin')) return 'admin';
+    if (nameLower.includes('supervisor') || nameLower.includes('quản sinh') || nameLower.includes('quan sinh')) return 'supervisor';
+    if (
+      nameLower.includes('teacher') ||
+      nameLower.includes('adviser') ||
+      nameLower.includes('advisor') ||
+      nameLower.includes('giảng viên') ||
+      nameLower.includes('giang vien') ||
+      nameLower.includes('lecturer')
+    ) {
+      return 'teacher';
+    }
+    if (nameLower.includes('student') || nameLower.includes('sinh viên') || nameLower.includes('sinh vien')) {
+      return 'student';
+    }
+    return 'system';
   }
 
   async create(

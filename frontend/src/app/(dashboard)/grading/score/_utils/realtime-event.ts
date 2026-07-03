@@ -13,6 +13,9 @@ export interface EventMergeResult {
   detailsToUpdate: { criterionId: string; detail: any }[];
   normalizedCounts: Record<string, number>;
   normalizedOptions: Record<string, string | null>;
+  // === NEW: Role-aware fields from event ===
+  countsByRoleMap: Record<string, any>; // criterionId -> counts_by_role
+  conflictMap: Record<string, boolean>; // criterionId -> has_conflict
 }
 
 const isLockedOrReviewed = (detail: any) => {
@@ -35,6 +38,8 @@ export function mergeRealtimeEvent(params: EventMergeParams): EventMergeResult {
       detailsToUpdate: [],
       normalizedCounts: {},
       normalizedOptions: {},
+      countsByRoleMap: {},
+      conflictMap: {},
     };
   }
 
@@ -168,6 +173,18 @@ export function mergeRealtimeEvent(params: EventMergeParams): EventMergeResult {
     });
   }
 
+  // === NEW: Extract role-aware data from details ===
+  const countsByRoleMap: Record<string, any> = {};
+  const conflictMap: Record<string, boolean> = {};
+  detailsToUpdate.forEach(({ criterionId, detail }) => {
+    if (detail.counts_by_role) {
+      countsByRoleMap[criterionId] = detail.counts_by_role;
+    }
+    if (detail.has_conflict !== undefined) {
+      conflictMap[criterionId] = !!detail.has_conflict;
+    }
+  });
+
   return {
     nextCountsByStudent,
     nextOptionsByStudent,
@@ -175,5 +192,7 @@ export function mergeRealtimeEvent(params: EventMergeParams): EventMergeResult {
     detailsToUpdate,
     normalizedCounts: studentCounts,
     normalizedOptions: studentOptions,
+    countsByRoleMap,
+    conflictMap,
   };
 }
