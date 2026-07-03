@@ -350,8 +350,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     if (isAppend) {
       setIsLoadingMoreRecords(true);
     } else {
-      setIsLoading(true);
-      setAcademicRecords([]); // Clear old records
+      // Only show full loading skeleton when there's no existing data (first load)
+      // Keep old records visible during SSE-triggered refreshes to prevent UI flash
+      if (academicRecords.length === 0) {
+        setIsLoading(true);
+      }
     }
     setLoadMoreRecordsError(false);
 
@@ -631,17 +634,36 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     fetchAcademicRecordsRef.current = fetchAcademicRecords;
   });
 
+  // Debounce ref: collapse rapid SSE events into a single fetch
+  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useGradingRealtime({
     classId: selectedClassIdForStudent !== 'all' ? selectedClassIdForStudent : undefined,
-    enabled: activeSubTab === 'student',
+    // Disable SSE auto-reload when user is actively searching to prevent flickering
+    enabled: activeSubTab === 'student' && !debouncedSearchTerm,
     onEvent: (event) => {
       if (event.type === 'academic_record_changed') {
-        if (fetchAcademicRecordsRef.current) {
-          fetchAcademicRecordsRef.current(1, false);
+        // Debounce: batch multiple rapid events (e.g. grading 30 students) into 1 fetch
+        if (realtimeDebounceRef.current) {
+          clearTimeout(realtimeDebounceRef.current);
         }
+        realtimeDebounceRef.current = setTimeout(() => {
+          if (fetchAcademicRecordsRef.current) {
+            fetchAcademicRecordsRef.current(1, false);
+          }
+        }, 2000);
       }
     }
   });
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (realtimeDebounceRef.current) {
+        clearTimeout(realtimeDebounceRef.current);
+      }
+    };
+  }, []);
 
   // Intersection Observer for Infinite Scroll
   useEffect(() => {
