@@ -19,7 +19,11 @@ export class TokenService {
     private jwtService: JwtService,
   ) {}
 
-  async createRefreshToken(userId: Types.ObjectId, expirationDays: number, remember: boolean = false) {
+  async createRefreshToken(
+    userId: Types.ObjectId,
+    expirationDays: number,
+    remember: boolean = false,
+  ) {
     const token = uuidv4();
     await this.refreshTokenModel.create({
       user_id: userId,
@@ -38,20 +42,29 @@ export class TokenService {
 
     const user = await this.userModel.findById(storedToken.user_id).exec();
     if (!user || user.status !== 'active') {
-      throw new UnauthorizedException('Tài khoản đã bị khóa hoặc chưa kích hoạt');
+      throw new UnauthorizedException(
+        'Tài khoản đã bị khóa hoặc chưa kích hoạt',
+      );
     }
 
     if (storedToken.is_revoked) {
       const gracePeriodMs = 60000; // 60s grace period
-      const timeSinceRevocation = Date.now() - new Date(storedToken.updatedAt).getTime();
-      
+      const timeSinceRevocation =
+        Date.now() - new Date(storedToken.updatedAt).getTime();
+
       if (timeSinceRevocation < gracePeriodMs && storedToken.replaced_by) {
-        const replacedToken = await this.refreshTokenModel.findOne({ token: storedToken.replaced_by });
-        if (replacedToken && !replacedToken.is_revoked && new Date() <= new Date(replacedToken.expires_at)) {
+        const replacedToken = await this.refreshTokenModel.findOne({
+          token: storedToken.replaced_by,
+        });
+        if (
+          replacedToken &&
+          !replacedToken.is_revoked &&
+          new Date() <= new Date(replacedToken.expires_at)
+        ) {
           const payload = { user_id: replacedToken.user_id.toString() };
           const access_token = this.jwtService.sign(payload);
-          return { 
-            access_token, 
+          return {
+            access_token,
             refresh_token: replacedToken.token,
             expires_at: replacedToken.expires_at,
             remember: replacedToken.remember,
@@ -85,8 +98,8 @@ export class TokenService {
       remember: storedToken.remember, // Inherit from old token
     });
 
-    return { 
-      access_token, 
+    return {
+      access_token,
       refresh_token: new_refresh_token,
       expires_at: storedToken.expires_at,
       remember: storedToken.remember,

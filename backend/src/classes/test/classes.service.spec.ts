@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ClassesService } from '../classes.service';
 import { Class } from '../schemas/class.schema';
 import * as xlsx from 'xlsx';
@@ -108,14 +112,14 @@ describe('ClassesService', () => {
           keyValue: { class_name: 'Class A' },
         }),
       }));
-      
+
       const dto = {
         class_name: 'Class A',
         class_year: '2023-2027',
         dept_id: 'mock-dept-id',
         class_course: 'Cao đẳng',
       };
-      
+
       await expect(service.create(dto)).rejects.toThrow(ConflictException);
     });
 
@@ -182,7 +186,9 @@ describe('ClassesService', () => {
         }),
       });
 
-      await expect(service.update('mock-class-id', { class_name: 'Class A Updated' })).rejects.toThrow(ConflictException);
+      await expect(
+        service.update('mock-class-id', { class_name: 'Class A Updated' }),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should map class_type alias to class_course when updating a class', async () => {
@@ -225,7 +231,10 @@ describe('ClassesService', () => {
   describe('previewImport', () => {
     it('should correctly preview valid data', async () => {
       const mockFile = { buffer: Buffer.from('') } as any;
-      (xlsx.read as jest.Mock).mockReturnValue({ SheetNames: ['Sheet1'], Sheets: { Sheet1: {} } });
+      (xlsx.read as jest.Mock).mockReturnValue({
+        SheetNames: ['Sheet1'],
+        Sheets: { Sheet1: {} },
+      });
       (xlsx.utils.sheet_to_json as jest.Mock).mockReturnValue([
         {
           class_name: 'Class B',
@@ -233,13 +242,29 @@ describe('ClassesService', () => {
           department_code: 'IT',
           advisor_email: 'gv1@example.com',
           class_course: 'Đại học',
-        }
+        },
       ]);
 
       const dbModelMock = model.db.model as jest.Mock;
       dbModelMock.mockImplementation((name: string) => {
-        if (name === 'Department') return { find: () => ({ exec: jest.fn().mockResolvedValue([{ code: 'IT', _id: 'dept-id' }]) }) };
-        if (name === 'User') return { find: () => ({ exec: jest.fn().mockResolvedValue([{ email: 'gv1@example.com', _id: 'user-id' }]) }) };
+        if (name === 'Department')
+          return {
+            find: () => ({
+              exec: jest
+                .fn()
+                .mockResolvedValue([{ code: 'IT', _id: 'dept-id' }]),
+            }),
+          };
+        if (name === 'User')
+          return {
+            find: () => ({
+              exec: jest
+                .fn()
+                .mockResolvedValue([
+                  { email: 'gv1@example.com', _id: 'user-id' },
+                ]),
+            }),
+          };
         return { find: () => ({ exec: jest.fn().mockResolvedValue([]) }) };
       });
       model.find.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue([]) });
@@ -252,14 +277,19 @@ describe('ClassesService', () => {
 
     it('should flag duplicate class in file', async () => {
       const mockFile = { buffer: Buffer.from('') } as any;
-      (xlsx.read as jest.Mock).mockReturnValue({ SheetNames: ['Sheet1'], Sheets: { Sheet1: {} } });
+      (xlsx.read as jest.Mock).mockReturnValue({
+        SheetNames: ['Sheet1'],
+        Sheets: { Sheet1: {} },
+      });
       (xlsx.utils.sheet_to_json as jest.Mock).mockReturnValue([
         { class_name: 'Class B', class_year: '2023', department_code: 'IT' },
         { class_name: 'Class B', class_year: '2023', department_code: 'IT' },
       ]);
 
       const dbModelMock = model.db.model as jest.Mock;
-      dbModelMock.mockImplementation(() => ({ find: () => ({ exec: jest.fn().mockResolvedValue([]) }) }));
+      dbModelMock.mockImplementation(() => ({
+        find: () => ({ exec: jest.fn().mockResolvedValue([]) }),
+      }));
       model.find.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue([]) });
 
       const result = await service.previewImport(mockFile);
@@ -271,15 +301,27 @@ describe('ClassesService', () => {
     it('should successfully import valid rows', async () => {
       const dbModelMock = model.db.model as jest.Mock;
       dbModelMock.mockImplementation((name: string) => {
-        if (name === 'Department') return { find: () => ({ exec: jest.fn().mockResolvedValue([{ code: 'IT', _id: 'dept-id' }]) }) };
-        if (name === 'User') return { find: () => ({ exec: jest.fn().mockResolvedValue([]) }) };
+        if (name === 'Department')
+          return {
+            find: () => ({
+              exec: jest
+                .fn()
+                .mockResolvedValue([{ code: 'IT', _id: 'dept-id' }]),
+            }),
+          };
+        if (name === 'User')
+          return { find: () => ({ exec: jest.fn().mockResolvedValue([]) }) };
         return { find: () => ({ exec: jest.fn().mockResolvedValue([]) }) };
       });
 
-      model.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+      model.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
 
       const dto = {
-        rows: [{ class_name: 'Class B', class_year: '2023', department_code: 'IT' }],
+        rows: [
+          { class_name: 'Class B', class_year: '2023', department_code: 'IT' },
+        ],
         mode: 'skip_duplicates' as const,
       };
 
@@ -290,11 +332,15 @@ describe('ClassesService', () => {
     it('should throw BadRequestException if mode is fail_on_duplicates and duplicates exist', async () => {
       model.countDocuments.mockResolvedValueOnce(1);
       const dto = {
-        rows: [{ class_name: 'Class B', class_year: '2023', department_code: 'IT' }],
+        rows: [
+          { class_name: 'Class B', class_year: '2023', department_code: 'IT' },
+        ],
         mode: 'fail_on_duplicates' as const,
       };
 
-      await expect(service.confirmImport(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.confirmImport(dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

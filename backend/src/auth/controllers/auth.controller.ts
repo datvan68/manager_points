@@ -135,7 +135,10 @@ export class AuthController {
   @Post('password-reset/request')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Yêu cầu đặt lại mật khẩu bằng OTP' })
-  async requestPasswordReset(@Body() dto: PasswordResetRequestDto, @Req() req: any) {
+  async requestPasswordReset(
+    @Body() dto: PasswordResetRequestDto,
+    @Req() req: any,
+  ) {
     const ip = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
     return this.authService.requestPasswordReset(dto, ip);
   }
@@ -180,7 +183,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const token = req.cookies?.[REFRESH_COOKIE_NAME];
-    
+
     if (!token) {
       throw new UnauthorizedException('Phiên làm việc đã kết thúc');
     }
@@ -188,7 +191,10 @@ export class AuthController {
     try {
       const result = await this.authService.refreshToken(token);
 
-      const maxAge = Math.max(0, new Date(result.expires_at).getTime() - Date.now());
+      const maxAge = Math.max(
+        0,
+        new Date(result.expires_at).getTime() - Date.now(),
+      );
 
       // Rotate Cookie
       res.cookie(
@@ -440,7 +446,9 @@ export class AuthController {
   @Get('page-permission-scopes')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all page-permission action scopes (requires login)' })
+  @ApiOperation({
+    summary: 'Get all page-permission action scopes (requires login)',
+  })
   async getPagePermissionScopes() {
     return this.authService.getPagePermissionScopes();
   }
@@ -449,7 +457,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Get all route-permission mappings (requires login for RouteGuard)',
+    summary:
+      'Get all route-permission mappings (requires login for RouteGuard)',
   })
   async getRoutePermissionsPublic() {
     const list = await this.authService.getRoutePermissions();
@@ -536,4 +545,3 @@ export class AuthController {
     return this.authService.deleteRoutePermission(id);
   }
 }
-

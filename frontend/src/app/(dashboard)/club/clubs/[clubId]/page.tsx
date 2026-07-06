@@ -171,7 +171,7 @@ export default function ClubDetailPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto custom-scrollbar overflow-y-auto h-full">
+    <div className="p-6 space-y-6 custom-scrollbar overflow-y-auto h-full">
       {/* Hero Banner Section */}
       <div className="relative overflow-hidden backdrop-blur-md bg-white/45 border border-white/80 rounded-3xl shadow-md shadow-slate-200/50">
         {/* Banner cover */}
@@ -329,6 +329,7 @@ export default function ClubDetailPage() {
                 </h3>
                 <div className="space-y-3.5">
                   <InfoItem label="Chủ nhiệm" value={(club.president_id as any)?.full_name || '—'} />
+                  <InfoItem label="Phòng học hoạt động mặc định" value={club.classroom || 'Chưa xếp phòng'} />
                   <InfoItem label="Học kỳ" value={club.semester_id?.name || '—'} />
                   <InfoItem label="Ngày bắt đầu hoạt động" value={club.activity_start_date ? new Date(club.activity_start_date).toLocaleDateString('vi-VN') : '—'} />
                   <InfoItem label="Ngày kết thúc hoạt động" value={club.activity_end_date ? new Date(club.activity_end_date).toLocaleDateString('vi-VN') : '—'} />
@@ -467,9 +468,9 @@ export default function ClubDetailPage() {
                           <span className="flex items-center gap-1">
                             <Clock size={11} /> {scheduleDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                           </span>
-                          {s.location && (
+                          {(s.location || club.classroom) && (
                             <span className="flex items-center gap-1 truncate">
-                              <MapPin size={11} /> {s.location}
+                              <MapPin size={11} /> {s.location || club.classroom}
                             </span>
                           )}
                         </div>

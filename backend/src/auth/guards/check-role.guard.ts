@@ -18,9 +18,7 @@ import { isAdminUser } from '../utils/role.util';
  * Usage in Controller:
  *   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
  */
-export function checkRole(
-  ...allowedRoles: string[]
-): Type<CanActivate> {
+export function checkRole(...allowedRoles: string[]): Type<CanActivate> {
   @Injectable()
   class CheckRoleGuard extends JwtAuthGuard implements CanActivate {
     async canActivate(context: ExecutionContext): Promise<boolean> {

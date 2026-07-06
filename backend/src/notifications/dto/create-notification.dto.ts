@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, IsOptional, IsEnum, IsObject } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsObject,
+} from 'class-validator';
 
 export class CreateNotificationDto {
   @IsNotEmpty()

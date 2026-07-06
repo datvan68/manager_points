@@ -12,7 +12,11 @@ export enum AssigneeType {
 
 @Schema({ timestamps: true })
 export class StudentTaskProgress {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'StudentTask', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'StudentTask',
+    required: true,
+  })
   taskId: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
@@ -27,7 +31,11 @@ export class StudentTaskProgress {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Class' })
   classId?: Types.ObjectId;
 
-  @Prop({ required: true, enum: StudentTaskStatus, default: StudentTaskStatus.NOT_STARTED })
+  @Prop({
+    required: true,
+    enum: StudentTaskStatus,
+    default: StudentTaskStatus.NOT_STARTED,
+  })
   status: string;
 
   @Prop()
@@ -89,12 +97,16 @@ export class StudentTaskProgress {
   };
 }
 
-export const StudentTaskProgressSchema = SchemaFactory.createForClass(StudentTaskProgress);
+export const StudentTaskProgressSchema =
+  SchemaFactory.createForClass(StudentTaskProgress);
 
 // Indexes (đã loại bỏ unique để hỗ trợ record cũ bị inactive nếu cần thiết, hoặc giữ unique nếu mỗi assignee chỉ có 1 record active)
 // Ở đây ta giữ unique theo (taskId, assigneeUserId) để chống trùng, mỗi người chỉ có max 1 record per task bất kể active/inactive,
 // khi bỏ khỏi phạm vi ta chỉ đánh dấu isActive = false chứ ko xoá, nếu đc add lại thì set isActive = true.
-StudentTaskProgressSchema.index({ taskId: 1, assigneeUserId: 1 }, { unique: true });
+StudentTaskProgressSchema.index(
+  { taskId: 1, assigneeUserId: 1 },
+  { unique: true },
+);
 StudentTaskProgressSchema.index({ isActive: 1, status: 1, updatedAt: -1 });
 StudentTaskProgressSchema.index({ taskId: 1, isActive: 1 });
 StudentTaskProgressSchema.index({ classId: 1, status: 1 });

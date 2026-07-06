@@ -8,13 +8,21 @@ export class ClubAttendance {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Club', required: true })
   club_id: Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'ClubSchedule', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'ClubSchedule',
+    required: true,
+  })
   schedule_id: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', required: true })
   student_id: Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Semester', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Semester',
+    required: true,
+  })
   semester_id: Types.ObjectId;
 
   // Attendance data
@@ -76,10 +84,7 @@ export class ClubAttendance {
 export const ClubAttendanceSchema =
   SchemaFactory.createForClass(ClubAttendance);
 
-ClubAttendanceSchema.index(
-  { schedule_id: 1, student_id: 1 },
-  { unique: true },
-);
+ClubAttendanceSchema.index({ schedule_id: 1, student_id: 1 }, { unique: true });
 ClubAttendanceSchema.index({ club_id: 1, semester_id: 1, approval_status: 1 });
 ClubAttendanceSchema.index({ student_id: 1, semester_id: 1 });
 ClubAttendanceSchema.index({ approval_status: 1 });

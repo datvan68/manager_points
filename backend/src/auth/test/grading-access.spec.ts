@@ -1,4 +1,9 @@
-import { getGradingRole, evaluateGradingAccess, assertCanAccessStudent, assertCanAccessClass } from '../utils/grading-access.util';
+import {
+  getGradingRole,
+  evaluateGradingAccess,
+  assertCanAccessStudent,
+  assertCanAccessClass,
+} from '../utils/grading-access.util';
 import { getRequesterRoleName, isAdminUser } from '../utils/role.util';
 import { ForbiddenException } from '@nestjs/common';
 
@@ -43,7 +48,9 @@ describe('Grading Access and Role Normalization', () => {
 
     it('should map Supervisor indicators to supervisor key', () => {
       expect(getGradingRole({ roleName: 'Supervisor' })).toBe('supervisor');
-      expect(getGradingRole({ role: { role_code: 'SUPERVISOR' } })).toBe('supervisor');
+      expect(getGradingRole({ role: { role_code: 'SUPERVISOR' } })).toBe(
+        'supervisor',
+      );
     });
 
     it('should map Teacher indicators to teacher key', () => {
@@ -76,37 +83,49 @@ describe('Grading Access and Role Normalization', () => {
 
     it('should validate assertCanAccessStudent for student self scope', async () => {
       const studentRequester = { userId: 'student_123', roleCode: 'STUDENT' };
-      
+
       // Self should succeed
-      await expect(assertCanAccessStudent(studentRequester, 'student_123', {}, {})).resolves.not.toThrow();
-      
+      await expect(
+        assertCanAccessStudent(studentRequester, 'student_123', {}, {}),
+      ).resolves.not.toThrow();
+
       // Other student should throw ForbiddenException
-      await expect(assertCanAccessStudent(studentRequester, 'student_456', {}, {})).rejects.toThrow(ForbiddenException);
+      await expect(
+        assertCanAccessStudent(studentRequester, 'student_456', {}, {}),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should validate assertCanAccessClass for teacher class ownership', async () => {
       const teacherRequester = { userId: 'teacher_123', roleName: 'Teacher' };
-      
+
       const mockClassModel = {
         findById: jest.fn().mockReturnValue({
           select: jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue({ advisor_id: 'teacher_123' })
-          })
-        })
+            exec: jest.fn().mockResolvedValue({ advisor_id: 'teacher_123' }),
+          }),
+        }),
       };
 
       // Owner should succeed
-      await expect(assertCanAccessClass(teacherRequester, 'class_123', mockClassModel)).resolves.not.toThrow();
+      await expect(
+        assertCanAccessClass(teacherRequester, 'class_123', mockClassModel),
+      ).resolves.not.toThrow();
 
       // Non-owner should throw ForbiddenException
       const mockClassModelNonOwner = {
         findById: jest.fn().mockReturnValue({
           select: jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue({ advisor_id: 'teacher_456' })
-          })
-        })
+            exec: jest.fn().mockResolvedValue({ advisor_id: 'teacher_456' }),
+          }),
+        }),
       };
-      await expect(assertCanAccessClass(teacherRequester, 'class_123', mockClassModelNonOwner)).rejects.toThrow(ForbiddenException);
+      await expect(
+        assertCanAccessClass(
+          teacherRequester,
+          'class_123',
+          mockClassModelNonOwner,
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

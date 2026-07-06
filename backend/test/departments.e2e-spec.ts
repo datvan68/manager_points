@@ -25,11 +25,13 @@ describe('Departments (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe());
-    departmentModel = moduleFixture.get<Model<any>>(getModelToken(Department.name));
-    
+    departmentModel = moduleFixture.get<Model<any>>(
+      getModelToken(Department.name),
+    );
+
     // Clean up any old test data
     await departmentModel.deleteMany({ code: testDepartment.code });
-    
+
     await app.init();
   });
 
@@ -61,7 +63,9 @@ describe('Departments (e2e)', () => {
       .expect(200)
       .then((res) => {
         expect(Array.isArray(res.body)).toBe(true);
-        const found = res.body.find((dep: any) => dep.code === testDepartment.code);
+        const found = res.body.find(
+          (dep: any) => dep.code === testDepartment.code,
+        );
         expect(found).toBeDefined();
       });
   });

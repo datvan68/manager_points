@@ -78,7 +78,11 @@ export class CreateSummaryPointDto {
   @IsArray()
   details?: any[];
 
-  @ApiProperty({ example: 'diamond', enum: ['diamond', 'gold', 'silver', 'bronze', 'unranked'], required: false })
+  @ApiProperty({
+    example: 'diamond',
+    enum: ['diamond', 'gold', 'silver', 'bronze', 'unranked'],
+    required: false,
+  })
   @IsOptional()
   @IsEnum(['diamond', 'gold', 'silver', 'bronze', 'unranked'])
   rank_tier?: string;

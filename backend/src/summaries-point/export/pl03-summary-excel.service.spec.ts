@@ -7,14 +7,19 @@ describe('pl03-summary-excel.service', () => {
   const departmentInfo = { name: 'KHOA CNTT' };
 
   it('should generate empty excel file with minimum 35 rows and correct layout', async () => {
-    const buffer = await generatePl03Excel([], classInfo, semesterInfo, departmentInfo);
-    
+    const buffer = await generatePl03Excel(
+      [],
+      classInfo,
+      semesterInfo,
+      departmentInfo,
+    );
+
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
     const sheet = workbook.getWorksheet('TT40');
 
     expect(sheet).toBeDefined();
-    
+
     // Check headers
     expect(sheet.getCell('A3').value).toBe('TRƯỜNG CAO ĐẲNG BÁCH KHOA');
     expect(sheet.getCell('A5').value).toContain('KHOA CNTT');
@@ -39,17 +44,22 @@ describe('pl03-summary-excel.service', () => {
       {
         student_id: { full_name: 'Nguyen Van A', student_code: 'SV001' },
         total_score: 95, // XUẤT SẮC
-        status: 'locked'
+        status: 'locked',
       },
       {
         student_id: { full_name: 'Le Thi B', student_code: 'SV002' },
         total_score: 65, // TRUNG BÌNH
-        status: 'draft' // Chua phe duyet
-      }
+        status: 'draft', // Chua phe duyet
+      },
     ];
 
-    const buffer = await generatePl03Excel(mockSummaries, classInfo, semesterInfo, departmentInfo);
-    
+    const buffer = await generatePl03Excel(
+      mockSummaries,
+      classInfo,
+      semesterInfo,
+      departmentInfo,
+    );
+
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
     const sheet = workbook.getWorksheet('TT40');
@@ -72,7 +82,7 @@ describe('pl03-summary-excel.service', () => {
 
     // Check stats. Row 46 is still stat header because min rows is 35
     expect(sheet.getCell('A46').value).toBe('Tổng hợp kết quả rèn luyện');
-    
+
     // xepLoaiRow = 47, slRow = 48, percentRow = 49
     expect(sheet.getCell('A48').value).toBe('Số lượng');
     expect(sheet.getCell('B48').value).toBe(1); // XS
@@ -91,18 +101,23 @@ describe('pl03-summary-excel.service', () => {
     const mockSummaries = Array.from({ length: 40 }).map((_, i) => ({
       student_id: { full_name: `Student ${i}`, student_code: `SV${i}` },
       total_score: 85, // TỐT
-      status: 'locked'
+      status: 'locked',
     }));
 
-    const buffer = await generatePl03Excel(mockSummaries, classInfo, semesterInfo, departmentInfo);
-    
+    const buffer = await generatePl03Excel(
+      mockSummaries,
+      classInfo,
+      semesterInfo,
+      departmentInfo,
+    );
+
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
     const sheet = workbook.getWorksheet('TT40');
 
     // 40 rows means stats start at 11 + 40 = 51
     expect(sheet.getCell('A51').value).toBe('Tổng hợp kết quả rèn luyện');
-    
+
     // slRow = 53
     expect(sheet.getCell('C53').value).toBe(40); // 40 TOT
     expect(sheet.getCell('G53').value).toBe(40); // Total 40
@@ -111,17 +126,29 @@ describe('pl03-summary-excel.service', () => {
   it('should map all grade tiers correctly', async () => {
     const scores = [90, 89, 80, 79, 70, 69, 50, 49];
     const expectedGrades = [
-      'XUẤT SẮC', 'TỐT', 'TỐT', 'KHÁ', 'KHÁ', 'TRUNG BÌNH', 'TRUNG BÌNH', 'YẾU'
+      'XUẤT SẮC',
+      'TỐT',
+      'TỐT',
+      'KHÁ',
+      'KHÁ',
+      'TRUNG BÌNH',
+      'TRUNG BÌNH',
+      'YẾU',
     ];
 
     const mockSummaries = scores.map((score, i) => ({
       student_id: { full_name: `Student ${i}`, student_code: `SV${i}` },
       total_score: score,
-      status: 'locked'
+      status: 'locked',
     }));
 
-    const buffer = await generatePl03Excel(mockSummaries, classInfo, semesterInfo, departmentInfo);
-    
+    const buffer = await generatePl03Excel(
+      mockSummaries,
+      classInfo,
+      semesterInfo,
+      departmentInfo,
+    );
+
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
     const sheet = workbook.getWorksheet('TT40');
@@ -132,7 +159,12 @@ describe('pl03-summary-excel.service', () => {
   });
 
   it('should place signatures in the correct positions', async () => {
-    const buffer = await generatePl03Excel([], classInfo, semesterInfo, departmentInfo);
+    const buffer = await generatePl03Excel(
+      [],
+      classInfo,
+      semesterInfo,
+      departmentInfo,
+    );
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
     const sheet = workbook.getWorksheet('TT40');
@@ -141,7 +173,7 @@ describe('pl03-summary-excel.service', () => {
     // xepLoaiRow = 47, slRow = 48, percentRow = 49
     // signRow1 = 49 + 3 = 52
     const signRow1 = 52;
-    
+
     expect(sheet.getCell(`A${signRow1}`).value).toBe('TRƯỞNG KHOA');
     expect(sheet.getCell(`E${signRow1}`).value).toBe('GVCN/CVHT');
   });

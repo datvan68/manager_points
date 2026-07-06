@@ -39,7 +39,8 @@ export class CreateAcademicRecordDto {
   @ApiProperty({
     example: '60c72b2f9b1d8b2bad445566',
     required: false,
-    description: 'ID báo cáo ngày (DailyClassReport Mongoose ObjectId, optional)',
+    description:
+      'ID báo cáo ngày (DailyClassReport Mongoose ObjectId, optional)',
   })
   @IsOptional()
   @IsMongoId()
@@ -112,7 +113,8 @@ export class CreateAcademicRecordDto {
   @ApiProperty({
     example: 'manual',
     required: false,
-    description: 'Nguồn tạo bản ghi (manual, import, bulk_grading, etc.) — legacy field',
+    description:
+      'Nguồn tạo bản ghi (manual, import, bulk_grading, etc.) — legacy field',
   })
   @IsOptional()
   @IsString()
@@ -132,12 +134,24 @@ export class CreateAcademicRecordDto {
 
   @ApiProperty({
     example: 'activity',
-    enum: ['activity', 'discipline', 'manual_score', 'selected_option', 'adjustment'],
+    enum: [
+      'activity',
+      'discipline',
+      'manual_score',
+      'selected_option',
+      'adjustment',
+    ],
     required: false,
     description: 'Loại bản ghi',
   })
   @IsOptional()
-  @IsEnum(['activity', 'discipline', 'manual_score', 'selected_option', 'adjustment'])
+  @IsEnum([
+    'activity',
+    'discipline',
+    'manual_score',
+    'selected_option',
+    'adjustment',
+  ])
   record_type?: string;
 
   @ApiProperty({
@@ -204,4 +218,3 @@ export class CreateAcademicRecordDto {
   @IsString()
   occurrence_key?: string;
 }
-

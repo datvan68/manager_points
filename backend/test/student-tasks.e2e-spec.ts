@@ -57,8 +57,12 @@ describe('StudentTasks Status Route (e2e)', () => {
     roleModel = moduleFixture.get<Model<any>>(getModelToken(Role.name));
     studentModel = moduleFixture.get<Model<any>>(getModelToken(Student.name));
     classModel = moduleFixture.get<Model<any>>(getModelToken(Class.name));
-    studentTaskModel = moduleFixture.get<Model<any>>(getModelToken(StudentTask.name));
-    progressModel = moduleFixture.get<Model<any>>(getModelToken(StudentTaskProgress.name));
+    studentTaskModel = moduleFixture.get<Model<any>>(
+      getModelToken(StudentTask.name),
+    );
+    progressModel = moduleFixture.get<Model<any>>(
+      getModelToken(StudentTaskProgress.name),
+    );
     jwtService = moduleFixture.get<JwtService>(JwtService);
 
     await app.init();
@@ -66,11 +70,17 @@ describe('StudentTasks Status Route (e2e)', () => {
     // 1. Tạo hoặc lấy Roles
     studentRole = await roleModel.findOne({ role_code: 'STUDENT' });
     if (!studentRole) {
-      studentRole = await roleModel.create({ name: 'Student', role_code: 'STUDENT' });
+      studentRole = await roleModel.create({
+        name: 'Student',
+        role_code: 'STUDENT',
+      });
     }
     teacherRole = await roleModel.findOne({ role_code: 'TEACHER' });
     if (!teacherRole) {
-      teacherRole = await roleModel.create({ name: 'Teacher', role_code: 'TEACHER' });
+      teacherRole = await roleModel.create({
+        name: 'Teacher',
+        role_code: 'TEACHER',
+      });
     }
 
     // 2. Tạo Users
@@ -101,7 +111,9 @@ describe('StudentTasks Status Route (e2e)', () => {
 
     // 3. Tạo Tokens
     studentToken = jwtService.sign({ user_id: studentUser._id.toString() });
-    unassignedStudentToken = jwtService.sign({ user_id: unassignedStudentUser._id.toString() });
+    unassignedStudentToken = jwtService.sign({
+      user_id: unassignedStudentUser._id.toString(),
+    });
     teacherToken = jwtService.sign({ user_id: teacherUser._id.toString() });
     otherToken = jwtService.sign({ user_id: otherUser._id.toString() });
 
@@ -154,10 +166,21 @@ describe('StudentTasks Status Route (e2e)', () => {
   afterAll(async () => {
     // Clean up
     if (userModel) {
-      await userModel.deleteMany({ _id: { $in: [studentUser?._id, unassignedStudentUser?._id, teacherUser?._id, otherUser?._id] } });
+      await userModel.deleteMany({
+        _id: {
+          $in: [
+            studentUser?._id,
+            unassignedStudentUser?._id,
+            teacherUser?._id,
+            otherUser?._id,
+          ],
+        },
+      });
     }
     if (studentModel) {
-      await studentModel.deleteMany({ _id: { $in: [studentProfile?._id, unassignedStudentProfile?._id] } });
+      await studentModel.deleteMany({
+        _id: { $in: [studentProfile?._id, unassignedStudentProfile?._id] },
+      });
     }
     if (classModel) {
       await classModel.deleteMany({ _id: testClass?._id });

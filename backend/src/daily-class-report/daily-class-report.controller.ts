@@ -30,16 +30,23 @@ export class DailyClassReportController {
     summary:
       'Create a new daily class report (requires Admin, Teacher, or Supervisor role)',
   })
-  create(@Body() createDailyClassReportDto: CreateDailyClassReportDto, @Request() req: any) {
+  create(
+    @Body() createDailyClassReportDto: CreateDailyClassReportDto,
+    @Request() req: any,
+  ) {
     const requester = req.user;
-    return this.dailyClassReportService.create(createDailyClassReportDto, requester);
+    return this.dailyClassReportService.create(
+      createDailyClassReportDto,
+      requester,
+    );
   }
 
   @Post('import')
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Validate or commit bulk import of daily class reports and student records',
+    summary:
+      'Validate or commit bulk import of daily class reports and student records',
   })
   importRecords(
     @Body() body: { rows: any[]; commit?: boolean },
@@ -47,7 +54,11 @@ export class DailyClassReportController {
   ) {
     const requester = req.user;
     const commit = body.commit === true;
-    return this.dailyClassReportService.importClassRecords(body.rows, requester, commit);
+    return this.dailyClassReportService.importClassRecords(
+      body.rows,
+      requester,
+      commit,
+    );
   }
 
   @Get()
@@ -108,7 +119,8 @@ export class DailyClassReportController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Update daily class report (requires Admin, Teacher, or Supervisor role)',
+    summary:
+      'Update daily class report (requires Admin, Teacher, or Supervisor role)',
   })
   update(
     @Param('id') id: string,
@@ -116,14 +128,19 @@ export class DailyClassReportController {
     @Request() req: any,
   ) {
     const requester = req.user;
-    return this.dailyClassReportService.update(id, updateDailyClassReportDto, requester);
+    return this.dailyClassReportService.update(
+      id,
+      updateDailyClassReportDto,
+      requester,
+    );
   }
 
   @Delete(':id')
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Delete daily class report (requires Admin, Teacher, or Supervisor role)',
+    summary:
+      'Delete daily class report (requires Admin, Teacher, or Supervisor role)',
   })
   remove(@Param('id') id: string, @Request() req: any) {
     return this.dailyClassReportService.remove(id, req.user);
@@ -133,7 +150,8 @@ export class DailyClassReportController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Restore a soft-deleted daily class report (requires Admin, Teacher, or Supervisor role)',
+    summary:
+      'Restore a soft-deleted daily class report (requires Admin, Teacher, or Supervisor role)',
   })
   restore(@Param('id') id: string, @Request() req: any) {
     const requester = req.user;
@@ -144,7 +162,8 @@ export class DailyClassReportController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Permanently delete daily class report (requires Admin, Teacher, or Supervisor role)',
+    summary:
+      'Permanently delete daily class report (requires Admin, Teacher, or Supervisor role)',
   })
   forceRemove(@Param('id') id: string, @Request() req: any) {
     return this.dailyClassReportService.forceRemove(id, req.user);
@@ -154,7 +173,8 @@ export class DailyClassReportController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Bulk delete daily class reports (requires Admin, Teacher, or Supervisor role)',
+    summary:
+      'Bulk delete daily class reports (requires Admin, Teacher, or Supervisor role)',
   })
   bulkDelete(@Body() body: { ids: string[] }, @Request() req: any) {
     return this.dailyClassReportService.bulkRemove(body.ids, req.user);

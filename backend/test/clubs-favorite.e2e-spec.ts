@@ -49,10 +49,16 @@ describe('Clubs Favorite (e2e)', () => {
 
     userModel = moduleFixture.get<Model<User>>(getModelToken(User.name));
     roleModel = moduleFixture.get<Model<Role>>(getModelToken(Role.name));
-    studentModel = moduleFixture.get<Model<Student>>(getModelToken(Student.name));
+    studentModel = moduleFixture.get<Model<Student>>(
+      getModelToken(Student.name),
+    );
     clubModel = moduleFixture.get<Model<Club>>(getModelToken(Club.name));
-    semesterModel = moduleFixture.get<Model<Semester>>(getModelToken(Semester.name));
-    favoriteModel = moduleFixture.get<Model<ClubFavorite>>(getModelToken(ClubFavorite.name));
+    semesterModel = moduleFixture.get<Model<Semester>>(
+      getModelToken(Semester.name),
+    );
+    favoriteModel = moduleFixture.get<Model<ClubFavorite>>(
+      getModelToken(ClubFavorite.name),
+    );
 
     await app.init();
 
@@ -60,12 +66,16 @@ describe('Clubs Favorite (e2e)', () => {
     await clubModel.deleteMany({ code: 'E2E-FAV-CLUB' });
     await studentModel.deleteMany({ student_code: '20239999' });
     await userModel.deleteMany({
-      email: { $in: ['e2e_fav_student@school.edu.vn', 'e2e_fav_advisor@school.edu.vn'] },
+      email: {
+        $in: ['e2e_fav_student@school.edu.vn', 'e2e_fav_advisor@school.edu.vn'],
+      },
     });
     await semesterModel.deleteMany({ semester_name: 'E2E Fav Semester' });
 
     // Ensure CLUB_READ permission exists
-    const permissionModel = moduleFixture.get<Model<any>>(getModelToken(Permission.name));
+    const permissionModel = moduleFixture.get<Model<any>>(
+      getModelToken(Permission.name),
+    );
     let clubReadPerm = await permissionModel.findOne({ code: 'CLUB_READ' });
     if (!clubReadPerm) {
       clubReadPerm = await permissionModel.create({
@@ -86,7 +96,11 @@ describe('Clubs Favorite (e2e)', () => {
       });
     } else {
       const currentPerms = studentRole.permissions || [];
-      if (!currentPerms.some((p: any) => p.toString() === clubReadPerm._id.toString())) {
+      if (
+        !currentPerms.some(
+          (p: any) => p.toString() === clubReadPerm._id.toString(),
+        )
+      ) {
         studentRole.permissions = [...currentPerms, clubReadPerm._id];
         await studentRole.save();
       }
@@ -110,7 +124,7 @@ describe('Clubs Favorite (e2e)', () => {
       status: UserStatus.ACTIVE,
       role: studentRole._id,
     });
-    testStudentUserId = studentUser._id as Types.ObjectId;
+    testStudentUserId = studentUser._id;
 
     const student = await studentModel.create({
       student_code: '20239999',
@@ -121,7 +135,7 @@ describe('Clubs Favorite (e2e)', () => {
       status: 'Studying',
       user_id: studentUser._id,
     });
-    testStudentId = student._id as Types.ObjectId;
+    testStudentId = student._id;
 
     // 4. Create advisor user
     const advisorUser = await userModel.create({
@@ -131,7 +145,7 @@ describe('Clubs Favorite (e2e)', () => {
       status: UserStatus.ACTIVE,
       role: adminRole._id,
     });
-    testAdvisorUserId = advisorUser._id as Types.ObjectId;
+    testAdvisorUserId = advisorUser._id;
 
     // 5. Create semester
     const semester = await semesterModel.create({
@@ -140,7 +154,7 @@ describe('Clubs Favorite (e2e)', () => {
       end_date: new Date('2026-06-30'),
       status: 'active',
     });
-    testSemesterId = semester._id as Types.ObjectId;
+    testSemesterId = semester._id;
 
     // 6. Create club
     const club = await clubModel.create({
@@ -152,7 +166,7 @@ describe('Clubs Favorite (e2e)', () => {
       status: 'active',
       semester_id: testSemesterId,
     });
-    testClubId = club._id as Types.ObjectId;
+    testClubId = club._id;
 
     // 7. Login student to get Access Token
     const loginRes = await request(app.getHttpServer())

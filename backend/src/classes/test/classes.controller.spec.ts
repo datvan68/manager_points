@@ -3,7 +3,6 @@ import { ClassesController } from '../classes.controller';
 import { ClassesService } from '../classes.service';
 import { BadRequestException } from '@nestjs/common';
 
-
 const mockClass = {
   _id: 'mock-class-id',
   class_name: 'Class A',
@@ -95,11 +94,16 @@ describe('ClassesController', () => {
 
   describe('previewImport', () => {
     it('should throw BadRequestException if file is not provided', () => {
-      expect(() => controller.previewImport(undefined as any)).toThrow(BadRequestException);
+      expect(() => controller.previewImport(undefined as any)).toThrow(
+        BadRequestException,
+      );
     });
 
     it('should call previewImport on service and return result', async () => {
-      const mockFile = { buffer: Buffer.from(''), originalname: 'test.xlsx' } as any;
+      const mockFile = {
+        buffer: Buffer.from(''),
+        originalname: 'test.xlsx',
+      } as any;
       const mockResult = { validRows: 1, invalidRows: 0 };
       mockClassesService.previewImport.mockResolvedValueOnce(mockResult);
 

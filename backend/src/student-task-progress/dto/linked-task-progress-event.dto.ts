@@ -1,4 +1,14 @@
-import { IsNotEmpty, IsOptional, IsString, IsObject, IsMongoId, IsIn, Matches, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsObject,
+  IsMongoId,
+  IsIn,
+  Matches,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class LinkedTaskProgressEventDto {

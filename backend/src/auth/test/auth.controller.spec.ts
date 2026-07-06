@@ -56,7 +56,7 @@ describe('AuthController', () => {
     it('should fallback to 0.0.0.0 if ip is not present in request', async () => {
       const dto: any = {};
       const req: any = { headers: {} };
-      
+
       await controller.createUser(dto, req);
 
       expect(authService.createUser).toHaveBeenCalledWith(dto, '0.0.0.0');
@@ -66,23 +66,39 @@ describe('AuthController', () => {
   describe('createUsersBulk', () => {
     it('should call authService.createUsersBulk with dto and ip', async () => {
       const dto: any = {
-        users: [{ user_name: 'testuser', email: 'test@example.com', password: 'password', role_id: 'some-role-id' }],
+        users: [
+          {
+            user_name: 'testuser',
+            email: 'test@example.com',
+            password: 'password',
+            role_id: 'some-role-id',
+          },
+        ],
       };
       const req: any = { ip: '192.168.1.1' };
-      const expectedResult = { total: 1, successCount: 1, failedCount: 0, successes: [], errors: [] };
+      const expectedResult = {
+        total: 1,
+        successCount: 1,
+        failedCount: 0,
+        successes: [],
+        errors: [],
+      };
 
       mockAuthService.createUsersBulk.mockResolvedValue(expectedResult);
 
       const result = await controller.createUsersBulk(dto, req);
 
-      expect(authService.createUsersBulk).toHaveBeenCalledWith(dto, '192.168.1.1');
+      expect(authService.createUsersBulk).toHaveBeenCalledWith(
+        dto,
+        '192.168.1.1',
+      );
       expect(result).toEqual(expectedResult);
     });
 
     it('should use x-forwarded-for header if ip is not present', async () => {
       const dto: any = { users: [] };
       const req: any = { headers: { 'x-forwarded-for': '10.0.0.1' } };
-      
+
       await controller.createUsersBulk(dto, req);
 
       expect(authService.createUsersBulk).toHaveBeenCalledWith(dto, '10.0.0.1');

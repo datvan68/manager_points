@@ -53,7 +53,7 @@ export class GradingRealtimeService {
         // Apply role-based filtering
         const roleName = (user?.roleName || user?.role || '').toLowerCase();
         const isStudent = roleName.includes('student');
-        
+
         // Students can only receive their own events
         if (isStudent) {
           // Check if payload.studentId matches the user's student ID

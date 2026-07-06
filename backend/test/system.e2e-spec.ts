@@ -47,31 +47,55 @@ describe('System Module (e2e)', () => {
 
     userModel = moduleFixture.get<Model<any>>(getModelToken(User.name));
     roleModel = moduleFixture.get<Model<any>>(getModelToken(Role.name));
-    permissionModel = moduleFixture.get<Model<any>>(getModelToken(Permission.name));
-    backupJobModel = moduleFixture.get<Model<any>>(getModelToken(DatabaseBackupJob.name));
+    permissionModel = moduleFixture.get<Model<any>>(
+      getModelToken(Permission.name),
+    );
+    backupJobModel = moduleFixture.get<Model<any>>(
+      getModelToken(DatabaseBackupJob.name),
+    );
     jwtService = moduleFixture.get<JwtService>(JwtService);
 
     await app.init();
 
     // 1. Tạo permissions
-    let readLogsPerm = await permissionModel.findOne({ code: 'LOGIN_LOG_READ' });
+    let readLogsPerm = await permissionModel.findOne({
+      code: 'LOGIN_LOG_READ',
+    });
     if (!readLogsPerm) {
-      readLogsPerm = await permissionModel.create({ name: 'Read Login Logs', code: 'LOGIN_LOG_READ' });
+      readLogsPerm = await permissionModel.create({
+        name: 'Read Login Logs',
+        code: 'LOGIN_LOG_READ',
+      });
     }
 
-    let readBackupPerm = await permissionModel.findOne({ code: 'DATABASE_BACKUP_READ' });
+    let readBackupPerm = await permissionModel.findOne({
+      code: 'DATABASE_BACKUP_READ',
+    });
     if (!readBackupPerm) {
-      readBackupPerm = await permissionModel.create({ name: 'Read Database Backup', code: 'DATABASE_BACKUP_READ' });
+      readBackupPerm = await permissionModel.create({
+        name: 'Read Database Backup',
+        code: 'DATABASE_BACKUP_READ',
+      });
     }
 
-    let createBackupPerm = await permissionModel.findOne({ code: 'DATABASE_BACKUP_CREATE' });
+    let createBackupPerm = await permissionModel.findOne({
+      code: 'DATABASE_BACKUP_CREATE',
+    });
     if (!createBackupPerm) {
-      createBackupPerm = await permissionModel.create({ name: 'Create Database Backup', code: 'DATABASE_BACKUP_CREATE' });
+      createBackupPerm = await permissionModel.create({
+        name: 'Create Database Backup',
+        code: 'DATABASE_BACKUP_CREATE',
+      });
     }
 
-    let restoreBackupPerm = await permissionModel.findOne({ code: 'DATABASE_BACKUP_RESTORE' });
+    let restoreBackupPerm = await permissionModel.findOne({
+      code: 'DATABASE_BACKUP_RESTORE',
+    });
     if (!restoreBackupPerm) {
-      restoreBackupPerm = await permissionModel.create({ name: 'Restore Database Backup', code: 'DATABASE_BACKUP_RESTORE' });
+      restoreBackupPerm = await permissionModel.create({
+        name: 'Restore Database Backup',
+        code: 'DATABASE_BACKUP_RESTORE',
+      });
     }
 
     // 2. Tạo Roles
@@ -84,7 +108,11 @@ describe('System Module (e2e)', () => {
     backupOperatorRole = await roleModel.create({
       name: 'E2E Backup Operator',
       role_code: 'E2E_BACKUP_OPERATOR',
-      permissions: [readBackupPerm._id, createBackupPerm._id, restoreBackupPerm._id],
+      permissions: [
+        readBackupPerm._id,
+        createBackupPerm._id,
+        restoreBackupPerm._id,
+      ],
     });
 
     guestRole = await roleModel.create({
@@ -133,14 +161,20 @@ describe('System Module (e2e)', () => {
 
   afterAll(async () => {
     // Dọn dẹp DB
-    await userModel.deleteMany({ _id: { $in: [auditUser?._id, backupUser?._id, guestUser?._id] } });
-    await roleModel.deleteMany({ _id: { $in: [auditViewerRole?._id, backupOperatorRole?._id, guestRole?._id] } });
+    await userModel.deleteMany({
+      _id: { $in: [auditUser?._id, backupUser?._id, guestUser?._id] },
+    });
+    await roleModel.deleteMany({
+      _id: {
+        $in: [auditViewerRole?._id, backupOperatorRole?._id, guestRole?._id],
+      },
+    });
     await backupJobModel.deleteOne({ _id: testBackupJobId });
     await app.close();
   });
 
   // ─── LOGIN LOGS API TESTS ─────────────────────────────────────────────
-  
+
   describe('GET /api/system/login-logs', () => {
     it('Nên trả về 401 khi không gửi token', () => {
       return request(app.getHttpServer())
@@ -225,9 +259,9 @@ describe('System Module (e2e)', () => {
         .attach('file', Buffer.from('dummy content'), 'test.txt')
         .expect(400);
     });
-    
-    // Note: To test a valid upload -> preview, we need to bypass or mock the actual parsing, 
-    // or provide a tiny valid .gz payload if the backend tries to parse it. 
+
+    // Note: To test a valid upload -> preview, we need to bypass or mock the actual parsing,
+    // or provide a tiny valid .gz payload if the backend tries to parse it.
     // Since this is e2e, if we pass a valid extension but invalid content, the backend might throw 400 'File không hợp lệ' during parsing.
     it('Nên trả về 400 khi upload file hợp lệ phần mở rộng nhưng dữ liệu hỏng', () => {
       return request(app.getHttpServer())

@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { ClubSchedule, ClubScheduleDocument } from './schemas/club-schedule.schema';
+import {
+  ClubSchedule,
+  ClubScheduleDocument,
+} from './schemas/club-schedule.schema';
 import {
   ScheduleRegistration,
   ScheduleRegistrationDocument,
@@ -14,7 +17,10 @@ import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { QueryScheduleDto } from './dto/query-schedule.dto';
 
-import { Semester, SemesterDocument } from '../semesters/schemas/semester.schema';
+import {
+  Semester,
+  SemesterDocument,
+} from '../semesters/schemas/semester.schema';
 
 @Injectable()
 export class ClubSchedulesService {
@@ -27,27 +33,72 @@ export class ClubSchedulesService {
     private semesterModel: Model<SemesterDocument>,
   ) {}
 
-  async create(dto: CreateScheduleDto, userId: string): Promise<ClubScheduleDocument> {
+  async create(
+    dto: CreateScheduleDto,
+    userId: string,
+  ): Promise<ClubScheduleDocument> {
     if (new Date(dto.end_time) <= new Date(dto.start_time)) {
-      throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
+      throw new BadRequestException(
+        'Thời gian kết thúc phải sau thời gian bắt đầu',
+      );
     }
 
     if (dto.recurrence) {
-      let untilDate = dto.recurrence.until ? new Date(dto.recurrence.until) : null;
+      let untilDate = dto.recurrence.until
+        ? new Date(dto.recurrence.until)
+        : null;
       if (!untilDate) {
-        const semester = await this.semesterModel.findById(dto.semester_id).exec();
+        const semester = await this.semesterModel
+          .findById(dto.semester_id)
+          .exec();
         if (semester) {
           untilDate = new Date(semester.end_date);
         } else {
           // Default to 10 weeks if semester not found
-          untilDate = new Date(new Date(dto.start_time).getTime() + 10 * 7 * 24 * 60 * 60 * 1000);
+          untilDate = new Date(
+            new Date(dto.start_time).getTime() + 10 * 7 * 24 * 60 * 60 * 1000,
+          );
         }
+      }
+
+      const start = new Date(dto.start_time);
+      const end = new Date(dto.end_time);
+
+      // Find Monday of the arranged week containing start_time
+      const day = start.getDay();
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      const monday = new Date(start.getTime() + diffToMonday * 24 * 60 * 60 * 1000);
+      monday.setHours(0, 0, 0, 0);
+
+      let repeatStart = dto.recurrence.start
+        ? new Date(dto.recurrence.start)
+        : null;
+
+      if (repeatStart) {
+        repeatStart.setHours(0, 0, 0, 0);
+        if (repeatStart < monday) {
+          throw new BadRequestException('Ngày bắt đầu lặp lại không được trước tuần xếp lịch');
+        }
+      }
+
+      if (repeatStart && untilDate && untilDate < repeatStart) {
+        throw new BadRequestException('Ngày kết thúc lặp lại phải bằng hoặc sau ngày bắt đầu lặp');
+      }
+
+      if (untilDate && untilDate < start) {
+        throw new BadRequestException(
+          'Ngày kết thúc lặp lại phải bằng hoặc sau ngày bắt đầu buổi sinh hoạt đầu tiên',
+        );
+      }
+
+      if (untilDate && untilDate < monday) {
+        throw new BadRequestException(
+          'Ngày kết thúc lặp lại không được trước tuần xếp lịch đầu tiên',
+        );
       }
 
       const recurrence_id = new Types.ObjectId();
       const schedulesToCreate: any[] = [];
-      const start = new Date(dto.start_time);
-      const end = new Date(dto.end_time);
 
       let i = 0;
       while (true) {
@@ -55,10 +106,14 @@ export class ClubSchedulesService {
         let currentEnd: Date;
 
         if (dto.recurrence.type === 'weekly') {
-          currentStart = new Date(start.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+          currentStart = new Date(
+            start.getTime() + i * 7 * 24 * 60 * 60 * 1000,
+          );
           currentEnd = new Date(end.getTime() + i * 7 * 24 * 60 * 60 * 1000);
         } else if (dto.recurrence.type === 'biweekly') {
-          currentStart = new Date(start.getTime() + i * 14 * 24 * 60 * 60 * 1000);
+          currentStart = new Date(
+            start.getTime() + i * 14 * 24 * 60 * 60 * 1000,
+          );
           currentEnd = new Date(end.getTime() + i * 14 * 24 * 60 * 60 * 1000);
         } else if (dto.recurrence.type === 'monthly') {
           currentStart = new Date(start);
@@ -66,7 +121,9 @@ export class ClubSchedulesService {
           currentEnd = new Date(end);
           currentEnd.setMonth(end.getMonth() + i);
         } else {
-          currentStart = new Date(start.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+          currentStart = new Date(
+            start.getTime() + i * 7 * 24 * 60 * 60 * 1000,
+          );
           currentEnd = new Date(end.getTime() + i * 7 * 24 * 60 * 60 * 1000);
         }
 
@@ -74,18 +131,26 @@ export class ClubSchedulesService {
           break;
         }
 
-        schedulesToCreate.push({
-          ...dto,
-          start_time: currentStart,
-          end_time: currentEnd,
-          club_id: new Types.ObjectId(dto.club_id),
-          semester_id: new Types.ObjectId(dto.semester_id),
-          instructor_id: dto.instructor_id
-            ? new Types.ObjectId(dto.instructor_id)
-            : undefined,
-          created_by: new Types.ObjectId(userId),
-          recurrence_id,
-        });
+        // Only create if it falls on or after repeatStart, or is the anchor session (i === 0)
+        if (i === 0 || !repeatStart || currentStart >= repeatStart) {
+          schedulesToCreate.push({
+            ...dto,
+            start_time: currentStart,
+            end_time: currentEnd,
+            club_id: new Types.ObjectId(dto.club_id),
+            semester_id: new Types.ObjectId(dto.semester_id),
+            instructor_id: dto.instructor_id
+              ? new Types.ObjectId(dto.instructor_id)
+              : undefined,
+            created_by: new Types.ObjectId(userId),
+            recurrence_id,
+            recurrence: {
+              ...dto.recurrence,
+              until: untilDate,
+              start: repeatStart || monday,
+            },
+          });
+        }
 
         i++;
         // Safety break to prevent infinite loops
@@ -93,10 +158,13 @@ export class ClubSchedulesService {
       }
 
       if (schedulesToCreate.length === 0) {
-        throw new BadRequestException('Không thể tạo buổi sinh hoạt nào trong khoảng thời gian này');
+        throw new BadRequestException(
+          'Không thể tạo buổi sinh hoạt nào trong khoảng thời gian này',
+        );
       }
 
-      const createdSchedules = await this.scheduleModel.insertMany(schedulesToCreate);
+      const createdSchedules =
+        await this.scheduleModel.insertMany(schedulesToCreate);
       return createdSchedules[0] as unknown as ClubScheduleDocument;
     }
 
@@ -122,7 +190,8 @@ export class ClubSchedulesService {
     const filter: any = {};
 
     if (query.club_id) filter.club_id = new Types.ObjectId(query.club_id);
-    if (query.semester_id) filter.semester_id = new Types.ObjectId(query.semester_id);
+    if (query.semester_id)
+      filter.semester_id = new Types.ObjectId(query.semester_id);
     if (query.status) filter.status = query.status;
 
     if (query.start_date || query.end_date) {
@@ -138,7 +207,7 @@ export class ClubSchedulesService {
     const [items, total] = await Promise.all([
       this.scheduleModel
         .find(filter)
-        .populate('club_id', 'name code category')
+        .populate('club_id', 'name code category classroom')
         .populate('instructor_id', 'user_name email')
         .populate('created_by', 'user_name')
         .sort({ start_time: 1 })
@@ -176,7 +245,7 @@ export class ClubSchedulesService {
       .populate({
         path: 'schedule_id',
         populate: [
-          { path: 'club_id', select: 'name code category' },
+          { path: 'club_id', select: 'name code category classroom' },
           { path: 'instructor_id', select: 'user_name' },
         ],
       })
@@ -186,7 +255,10 @@ export class ClubSchedulesService {
     return registrations;
   }
 
-  async findUpcoming(clubId?: string, limit = 10): Promise<ClubScheduleDocument[]> {
+  async findUpcoming(
+    clubId?: string,
+    limit = 10,
+  ): Promise<ClubScheduleDocument[]> {
     const filter: any = {
       start_time: { $gte: new Date() },
       status: { $in: ['scheduled', 'ongoing'] },
@@ -195,7 +267,7 @@ export class ClubSchedulesService {
 
     return this.scheduleModel
       .find(filter)
-      .populate('club_id', 'name code category')
+      .populate('club_id', 'name code category classroom')
       .populate('instructor_id', 'user_name')
       .sort({ start_time: 1 })
       .limit(limit)
@@ -206,14 +278,16 @@ export class ClubSchedulesService {
   async findOne(id: string): Promise<any> {
     const schedule = await this.scheduleModel
       .findById(id)
-      .populate('club_id', 'name code category')
+      .populate('club_id', 'name code category classroom')
       .populate('instructor_id', 'user_name email')
       .populate('created_by', 'user_name')
       .populate('semester_id', 'name')
       .exec();
 
     if (!schedule) {
-      throw new NotFoundException(`Không tìm thấy lịch sinh hoạt với ID: ${id}`);
+      throw new NotFoundException(
+        `Không tìm thấy lịch sinh hoạt với ID: ${id}`,
+      );
     }
 
     const registrationCount = await this.registrationModel.countDocuments({
@@ -224,13 +298,68 @@ export class ClubSchedulesService {
     return { ...schedule.toObject(), registration_count: registrationCount };
   }
 
-  async update(id: string, dto: UpdateScheduleDto): Promise<ClubScheduleDocument> {
+  async update(
+    id: string,
+    dto: UpdateScheduleDto,
+  ): Promise<ClubScheduleDocument> {
+    if (dto.end_time && dto.start_time && new Date(dto.end_time) <= new Date(dto.start_time)) {
+      throw new BadRequestException(
+        'Thời gian kết thúc phải sau thời gian bắt đầu',
+      );
+    }
+
+    if (dto.recurrence) {
+      const existing = await this.scheduleModel.findById(id).exec();
+      if (!existing) {
+        throw new NotFoundException(`Không tìm thấy lịch sinh hoạt với ID: ${id}`);
+      }
+
+      const start = dto.start_time ? new Date(dto.start_time) : new Date(existing.start_time);
+      const untilDate = dto.recurrence.until ? new Date(dto.recurrence.until) : null;
+
+      const day = start.getDay();
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      const monday = new Date(start.getTime() + diffToMonday * 24 * 60 * 60 * 1000);
+      monday.setHours(0, 0, 0, 0);
+
+      const repeatStart = dto.recurrence.start ? new Date(dto.recurrence.start) : null;
+
+      if (repeatStart) {
+        repeatStart.setHours(0, 0, 0, 0);
+        if (repeatStart < monday) {
+          throw new BadRequestException('Ngày bắt đầu lặp lại không được trước tuần xếp lịch');
+        }
+      }
+
+      if (repeatStart && untilDate && untilDate < repeatStart) {
+        throw new BadRequestException('Ngày kết thúc lặp lại phải bằng hoặc sau ngày bắt đầu lặp');
+      }
+
+      if (untilDate && untilDate < start) {
+        throw new BadRequestException(
+          'Ngày kết thúc lặp lại phải bằng hoặc sau ngày bắt đầu buổi sinh hoạt đầu tiên',
+        );
+      }
+
+      if (untilDate && untilDate < monday) {
+        throw new BadRequestException(
+          'Ngày kết thúc lặp lại không được trước tuần xếp lịch đầu tiên',
+        );
+      }
+    }
+
     const schedule = await this.scheduleModel
-      .findByIdAndUpdate(id, { $set: dto }, { new: true, runValidators: true })
+      .findByIdAndUpdate(
+        id,
+        { $set: dto },
+        { returnDocument: 'after', runValidators: true },
+      )
       .exec();
 
     if (!schedule) {
-      throw new NotFoundException(`Không tìm thấy lịch sinh hoạt với ID: ${id}`);
+      throw new NotFoundException(
+        `Không tìm thấy lịch sinh hoạt với ID: ${id}`,
+      );
     }
     return schedule;
   }
@@ -242,11 +371,13 @@ export class ClubSchedulesService {
     }
 
     if (deleteSeries && schedule.recurrence_id) {
-      const schedules = await this.scheduleModel.find({
-        recurrence_id: schedule.recurrence_id,
-        start_time: { $gte: schedule.start_time },
-      }).exec();
-      const ids = schedules.map(s => s._id);
+      const schedules = await this.scheduleModel
+        .find({
+          recurrence_id: schedule.recurrence_id,
+          start_time: { $gte: schedule.start_time },
+        })
+        .exec();
+      const ids = schedules.map((s) => s._id);
 
       await this.registrationModel.updateMany(
         { schedule_id: { $in: ids }, status: 'registered' },
@@ -272,6 +403,59 @@ export class ClubSchedulesService {
 
     return { message: 'Đã hủy buổi sinh hoạt' };
   }
+
+  async cancelRecurrence(id: string): Promise<{ message: string }> {
+    const schedule = await this.scheduleModel.findById(id);
+    if (!schedule) {
+      throw new NotFoundException(`Không tìm thấy lịch sinh hoạt`);
+    }
+
+    if (!schedule.recurrence_id) {
+      throw new BadRequestException('Lịch sinh hoạt không phải là chuỗi lặp');
+    }
+
+    const startOfWeek = new Date(schedule.start_time);
+    const day = startOfWeek.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    
+    const monday = new Date(startOfWeek.getTime() + diffToMonday * 24 * 60 * 60 * 1000);
+    monday.setHours(0, 0, 0, 0);
+    
+    const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
+    sunday.setHours(23, 59, 59, 999);
+
+    const futureSchedules = await this.scheduleModel.find({
+      recurrence_id: schedule.recurrence_id,
+      start_time: { $gt: sunday }
+    }).exec();
+
+    const futureIds = futureSchedules.map((s) => s._id);
+
+    if (futureIds.length > 0) {
+      await this.registrationModel.updateMany(
+        { schedule_id: { $in: futureIds }, status: 'registered' },
+        { $set: { status: 'cancelled', cancelled_at: new Date() } },
+      );
+
+      await this.scheduleModel.updateMany(
+        { _id: { $in: futureIds } },
+        { $set: { status: 'cancelled' } },
+      );
+    }
+
+    await this.scheduleModel.updateMany(
+      {
+        recurrence_id: schedule.recurrence_id,
+        start_time: { $lte: sunday }
+      },
+      {
+        $unset: { recurrence: "", recurrence_id: "" }
+      }
+    );
+
+    return { message: 'Đã hủy lặp lại và giữ lại lịch tuần hiện tại' };
+  }
+
 
   // ── Registration ──
 
@@ -355,7 +539,9 @@ export class ClubSchedulesService {
     return { message: 'Đã hủy đăng ký' };
   }
 
-  async getRegistrations(scheduleId: string): Promise<ScheduleRegistrationDocument[]> {
+  async getRegistrations(
+    scheduleId: string,
+  ): Promise<ScheduleRegistrationDocument[]> {
     return this.registrationModel
       .find({
         schedule_id: new Types.ObjectId(scheduleId),
@@ -371,7 +557,7 @@ export class ClubSchedulesService {
     const schedule = await this.scheduleModel.findByIdAndUpdate(
       id,
       { $set: { status: 'completed' } },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!schedule) {

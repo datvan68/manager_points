@@ -15,7 +15,10 @@ import { CreateStudentTaskDto } from './dto/create-student-task.dto';
 import { UpdateStudentTaskDto } from './dto/update-student-task.dto';
 import { QueryStudentTaskDto } from './dto/query-student-task.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { checkAnyPermission, checkPermission } from '../auth/guards/check-permission.guard';
+import {
+  checkAnyPermission,
+  checkPermission,
+} from '../auth/guards/check-permission.guard';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 
 @ApiTags('student-tasks')
@@ -41,25 +44,32 @@ export class StudentTasksController {
   @Get('linked-deadline')
   @ApiOperation({ summary: 'Lấy hạn chót mặc định cho trang liên kết' })
   async getLinkedDeadline(@Query('linkedPage') linkedPage: string) {
-    const deadline = await this.studentTasksService.resolveLinkedTaskDeadline(linkedPage);
+    const deadline =
+      await this.studentTasksService.resolveLinkedTaskDeadline(linkedPage);
     return { deadline };
   }
 
   @Get()
   @UseGuards(checkAnyPermission('READ_STUDENT_TASK', 'STUDENT_PAGE'))
-  @ApiOperation({ summary: 'Lấy danh sách nhiệm vụ học tập có phân trang và bộ lọc' })
+  @ApiOperation({
+    summary: 'Lấy danh sách nhiệm vụ học tập có phân trang và bộ lọc',
+  })
   findAll(@Query() query: QueryStudentTaskDto, @Req() req: any) {
     return this.studentTasksService.findAll(query, req.user);
   }
 
   @Get(':id/access')
-  @ApiOperation({ summary: 'Kiểm tra quyền truy cập nhiệm vụ của user hiện tại' })
+  @ApiOperation({
+    summary: 'Kiểm tra quyền truy cập nhiệm vụ của user hiện tại',
+  })
   checkAccess(@Param('id') id: string, @Req() req: any) {
     return this.studentTasksService.checkAccess(id, req.user);
   }
 
   @Get('resolve-auto')
-  @ApiOperation({ summary: 'Tìm nhiệm vụ auto-linked duy nhất cho route hiện tại' })
+  @ApiOperation({
+    summary: 'Tìm nhiệm vụ auto-linked duy nhất cho route hiện tại',
+  })
   resolveAuto(@Query('linkedPage') linkedPage: string, @Req() req: any) {
     return this.studentTasksService.resolveAutoLinkedTask(linkedPage, req.user);
   }

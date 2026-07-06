@@ -15,7 +15,10 @@ import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class OptionDto {
-  @ApiProperty({ description: 'MongoDB subdocument ID (được thêm tự động)', required: false })
+  @ApiProperty({
+    description: 'MongoDB subdocument ID (được thêm tự động)',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   _id?: string;
@@ -121,7 +124,8 @@ export class CreateCriterionDto {
   is_score_counted?: boolean;
 
   @ApiProperty({
-    description: 'Chế độ chấm điểm: tính lượt (count) hoặc chọn 1 (single_option)',
+    description:
+      'Chế độ chấm điểm: tính lượt (count) hoặc chọn 1 (single_option)',
     enum: ['count', 'single_option'],
     default: 'count',
     required: false,
@@ -131,11 +135,12 @@ export class CreateCriterionDto {
   scoring_mode?: string;
 
   @ApiProperty({
-    description: 'Danh sách các tùy chọn (bắt buộc nếu scoring_mode là single_option)',
+    description:
+      'Danh sách các tùy chọn (bắt buộc nếu scoring_mode là single_option)',
     type: [OptionDto],
     required: false,
   })
-  @ValidateIf(o => o.scoring_mode === 'single_option')
+  @ValidateIf((o) => o.scoring_mode === 'single_option')
   @IsArray()
   @ArrayNotEmpty()
   @ArrayUnique((o: OptionDto) => o.id)

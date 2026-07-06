@@ -6,7 +6,7 @@ import {
   Plus, Search, Filter, Users, MapPin, Compass, Grid, List,
   Sparkles, Download, ArrowRight, BookOpen, Clock, Calendar, CheckCircle2,
   AlertCircle, ShieldAlert, MoreVertical, Edit2, Trash2, Eye, Shield, HelpCircle,
-  X, Upload, Heart
+  X, Upload, Heart, BarChart3
 } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/button';
@@ -122,6 +122,7 @@ export default function ClubsListPage() {
   const [filterCategory, setFilterCategory] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showQuickReports, setShowQuickReports] = useState(false);
   const [todaySchedulesCount, setTodaySchedulesCount] = useState(0);
   const [activeSemesterId, setActiveSemesterId] = useState<string | null>(null);
  
@@ -396,7 +397,7 @@ export default function ClubsListPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto custom-scrollbar overflow-y-auto h-full">
+    <div className="p-6 space-y-6 custom-scrollbar overflow-y-auto h-full">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -405,65 +406,94 @@ export default function ClubsListPage() {
             Tổng số {clubs.length} câu lạc bộ sinh viên đang đăng ký hoạt động
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer"
-        >
-          <Plus size={18} /> Tạo Câu lạc bộ Mới
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowQuickReports(!showQuickReports)}
+            title={showQuickReports ? "Ẩn báo cáo nhanh" : "Hiện báo cáo nhanh"}
+            aria-label={showQuickReports ? "Ẩn báo cáo nhanh" : "Hiện báo cáo nhanh"}
+            className={cn(
+              "flex items-center justify-center h-10 w-10 rounded-xl transition-all border cursor-pointer",
+              showQuickReports
+                ? "bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
+                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            )}
+          >
+            <BarChart3 size={18} />
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer"
+          >
+            <Plus size={18} /> Tạo Câu lạc bộ Mới
+          </button>
+        </div>
       </div>
 
       {/* Bento Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Stat 1 */}
-        <div className="relative overflow-hidden backdrop-blur-md bg-white/40 border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-200/50 flex flex-col justify-between h-32">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
-              <CheckCircle2 size={20} />
+      <div
+        className={cn(
+          "transition-all duration-300 ease-in-out overflow-hidden",
+          showQuickReports
+            ? "max-h-[500px] opacity-100 !mt-6"
+            : "max-h-0 opacity-0 !mt-0 pointer-events-none"
+        )}
+      >
+        <div
+          className={cn(
+            "grid grid-cols-1 md:grid-cols-3 gap-4 transition-transform duration-300 ease-out",
+            showQuickReports ? "translate-x-0" : "translate-x-6"
+          )}
+        >
+          {/* Stat 1 */}
+          <div className="relative overflow-hidden backdrop-blur-md bg-white/40 border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-200/50 flex flex-col justify-between h-32">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
+                <CheckCircle2 size={20} />
+              </div>
+              <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">TỔNG CLB ĐANG HOẠT ĐỘNG</span>
             </div>
-            <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">TỔNG CLB ĐANG HOẠT ĐỘNG</span>
+            <div className="flex items-baseline gap-3 mt-2">
+              <span className="text-3xl font-black text-slate-800 leading-none">{totalActiveClubs}</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600">
+                +2 mới tháng này
+              </span>
+            </div>
+            <div className="absolute bg-gradient-to-br from-blue-500/10 to-transparent blur-xl right-[-20px] top-[-20px] w-24 h-24 rounded-full pointer-events-none" />
           </div>
-          <div className="flex items-baseline gap-3 mt-2">
-            <span className="text-3xl font-black text-slate-800 leading-none">{totalActiveClubs}</span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600">
-              +2 mới tháng này
-            </span>
-          </div>
-          <div className="absolute bg-gradient-to-br from-blue-500/10 to-transparent blur-xl right-[-20px] top-[-20px] w-24 h-24 rounded-full pointer-events-none" />
-        </div>
 
-        {/* Stat 2 */}
-        <div className="relative overflow-hidden backdrop-blur-md bg-white/40 border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-200/50 flex flex-col justify-between h-32">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600">
-              <Users size={20} />
+          {/* Stat 2 */}
+          <div className="relative overflow-hidden backdrop-blur-md bg-white/40 border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-200/50 flex flex-col justify-between h-32">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600">
+                <Users size={20} />
+              </div>
+              <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">TỔNG THÀNH VIÊN</span>
             </div>
-            <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">TỔNG THÀNH VIÊN</span>
+            <div className="flex items-baseline gap-3 mt-2">
+              <span className="text-3xl font-black text-slate-800 leading-none">{totalMembers.toLocaleString('vi-VN')}</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600">
+                +12% tuần này
+              </span>
+            </div>
+            <div className="absolute bg-gradient-to-br from-purple-500/10 to-transparent blur-xl right-[-20px] top-[-20px] w-24 h-24 rounded-full pointer-events-none" />
           </div>
-          <div className="flex items-baseline gap-3 mt-2">
-            <span className="text-3xl font-black text-slate-800 leading-none">{totalMembers.toLocaleString('vi-VN')}</span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600">
-              +12% tuần này
-            </span>
-          </div>
-          <div className="absolute bg-gradient-to-br from-purple-500/10 to-transparent blur-xl right-[-20px] top-[-20px] w-24 h-24 rounded-full pointer-events-none" />
-        </div>
 
-        {/* Stat 3 */}
-        <div className="relative overflow-hidden backdrop-blur-md bg-white/40 border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-200/50 flex flex-col justify-between h-32">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600">
-              <Calendar size={20} />
+          {/* Stat 3 */}
+          <div className="relative overflow-hidden backdrop-blur-md bg-white/40 border border-white/70 rounded-2xl p-5 shadow-sm shadow-slate-200/50 flex flex-col justify-between h-32">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600">
+                <Calendar size={20} />
+              </div>
+              <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">HOẠT ĐỘNG HÔM NAY</span>
             </div>
-            <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">HOẠT ĐỘNG HÔM NAY</span>
+            <div className="flex items-baseline gap-3 mt-2">
+              <span className="text-3xl font-black text-slate-800 leading-none">{todaySchedulesCount}</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-500">
+                sự kiện đang diễn ra
+              </span>
+            </div>
+            <div className="absolute bg-gradient-to-br from-amber-500/10 to-transparent blur-xl right-[-20px] top-[-20px] w-24 h-24 rounded-full pointer-events-none" />
           </div>
-          <div className="flex items-baseline gap-3 mt-2">
-            <span className="text-3xl font-black text-slate-800 leading-none">{todaySchedulesCount}</span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-500">
-              sự kiện đang diễn ra
-            </span>
-          </div>
-          <div className="absolute bg-gradient-to-br from-amber-500/10 to-transparent blur-xl right-[-20px] top-[-20px] w-24 h-24 rounded-full pointer-events-none" />
         </div>
       </div>
 
@@ -740,7 +770,11 @@ export default function ClubsListPage() {
                       </div>
 
                       {/* Stats */}
-                      <div className="flex items-center gap-3 text-slate-500 text-xs font-semibold">
+                      <div className="flex items-center gap-2.5 text-slate-500 text-xs font-semibold">
+                        <div className="flex items-center gap-1 text-slate-500" title={`Phòng: ${club.classroom || 'Chưa xếp phòng'}`}>
+                          <MapPin size={12} className="text-slate-400 shrink-0" />
+                          <span className="truncate max-w-[70px] text-[11px] font-bold">{club.classroom || 'Chưa xếp phòng'}</span>
+                        </div>
                         <div className="flex items-center gap-1" title={`${club.favorite_count || 0} lượt yêu thích`}>
                           <Heart size={12} className={club.is_favorited ? "fill-pink-500 text-pink-500" : "text-slate-400"} />
                           <span>{club.favorite_count || 0}</span>
@@ -804,6 +838,7 @@ export default function ClubsListPage() {
                   </th>
                   <th className="px-4 py-3.5">TÊN CLB</th>
                   <th className="px-4 py-3.5">CHỦ NHIỆM</th>
+                  <th className="px-4 py-3.5">PHÒNG HỌC</th>
                   <th className="px-4 py-3.5">PHÂN LOẠI</th>
                   <th className="px-4 py-3.5">THÀNH VIÊN</th>
                   <th className="px-4 py-3.5">YÊU THÍCH</th>
@@ -849,6 +884,11 @@ export default function ClubsListPage() {
                         <span className="text-slate-850">
                           {club.president_id?.full_name || '—'}
                         </span>
+                      </td>
+                      <td className="px-4 py-4 text-slate-800">
+                        {club.classroom || (
+                          <span className="text-slate-400 italic">Chưa xếp phòng</span>
+                        )}
                       </td>
                       <td className="px-4 py-4">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${conf.bg} ${conf.text}`}>
@@ -1025,6 +1065,7 @@ export default function ClubsListPage() {
 const createClubFormSchema = z.object({
   name: z.string().min(1, { message: 'Tên câu lạc bộ bắt buộc nhập.' }),
   code: z.string().min(1, { message: 'Mã câu lạc bộ bắt buộc nhập.' }).transform(val => val.trim().toUpperCase()),
+  classroom: z.string().min(1, { message: 'Phòng học/Phòng hoạt động mặc định bắt buộc nhập.' }).transform(val => val.trim()),
   category: z.string().min(1, { message: 'Vui lòng chọn loại câu lạc bộ.' }),
   cover_url: z.string().optional().or(z.literal('')),
   logo_url: z.string().optional().or(z.literal('')),
@@ -1032,8 +1073,8 @@ const createClubFormSchema = z.object({
   advisor_id: z.string().min(1, { message: 'Vui lòng chọn giáo viên phụ trách.' }),
   max_members: z.coerce.number().min(1, { message: 'Giới hạn thành viên tối thiểu là 1.' }).optional().or(z.literal(0)).transform(val => val || undefined),
   semester_id: z.string().optional().or(z.literal('')),
-  activity_start_date: z.string().min(1, { message: 'Vui lòng chọn ngày bắt đầu hoạt động.' }),
-  activity_end_date: z.string().min(1, { message: 'Vui lòng chọn ngày kết thúc hoạt động.' }),
+  activity_start_date: z.string().optional().or(z.literal('')),
+  activity_end_date: z.string().optional().or(z.literal('')),
   settings: z.object({
     allow_self_registration: z.boolean(),
     require_approval: z.boolean(),
@@ -1053,6 +1094,7 @@ const createClubFormSchema = z.object({
 interface CreateClubFormValues {
   name: string;
   code: string;
+  classroom: string;
   category: string;
   cover_url?: string;
   logo_url?: string;
@@ -1060,8 +1102,8 @@ interface CreateClubFormValues {
   advisor_id: string;
   max_members?: number;
   semester_id?: string;
-  activity_start_date: string;
-  activity_end_date: string;
+  activity_start_date?: string;
+  activity_end_date?: string;
   settings: {
     allow_self_registration: boolean;
     require_approval: boolean;
@@ -1085,6 +1127,8 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
   const [uploadedLogoUrl, setUploadedLogoUrl] = useState<string>('');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
+  const teachers = users.filter((u: any) => u.role?.role_code === 'TEACHER');
+
   const {
     register,
     control,
@@ -1097,6 +1141,7 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
     defaultValues: {
       name: '',
       code: '',
+      classroom: '',
       category: 'other',
       cover_url: '',
       logo_url: '',
@@ -1104,8 +1149,8 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
       advisor_id: '',
       max_members: undefined,
       semester_id: '',
-      activity_start_date: '',
-      activity_end_date: '',
+      activity_start_date: undefined,
+      activity_end_date: undefined,
       settings: {
         allow_self_registration: true,
         require_approval: true,
@@ -1219,6 +1264,7 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
       const payload = {
         name: values.name.trim(),
         code: values.code.trim().toUpperCase(),
+        classroom: values.classroom.trim(),
         category: values.category,
         description: values.description?.trim() || undefined,
         cover_url: finalCoverUrl || undefined,
@@ -1226,8 +1272,6 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
         advisor_id: values.advisor_id,
         max_members: values.max_members || undefined,
         semester_id: values.semester_id || undefined,
-        activity_start_date: values.activity_start_date,
-        activity_end_date: values.activity_end_date,
         settings: {
           ...values.settings,
           point_per_attendance: values.settings.attendance_point_enabled ? values.settings.point_per_attendance : 0
@@ -1293,6 +1337,18 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
                     }}
                   />
                 </div>
+              </div>
+
+              {/* Phòng học mặc định */}
+              <div>
+                <Input
+                  label="Phòng học hoạt động mặc định"
+                  required
+                  error={errors.classroom?.message}
+                  placeholder="VD: Phòng A101"
+                  disabled={saving}
+                  {...register('classroom')}
+                />
               </div>
 
               {/* Phân loại */}
@@ -1432,9 +1488,9 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
                         <SelectValue placeholder="-- Chọn cố vấn --" />
                       </SelectTrigger>
                       <SelectContent>
-                        {users.map(u => (
+                        {teachers.map(u => (
                           <SelectItem key={u._id || u.id} value={u._id || u.id}>
-                            {`${u.full_name || u.user_name || u.username} (${u.email || 'Không có email'})`}
+                            {`${u.full_name || u.user_name || u.username} (${u.email || 'Không có email'})${u.department ? ` - ${u.department}` : ''}`}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1480,55 +1536,7 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
                 </div>
               </div>
 
-              {/* Thời gian hoạt động (Start & End dates using CustomCalendar) */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[13px] font-bold text-[#1E293B] px-1 flex items-center gap-1">
-                  Thời gian hoạt động <span className="text-red-500">*</span>
-                </label>
-                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      disabled={saving}
-                      className={cn(
-                        "flex h-10 w-full items-center justify-between rounded-xl border border-white/70 bg-white/50 px-3 py-2 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all text-left cursor-pointer disabled:opacity-50",
-                        (errors.activity_start_date || errors.activity_end_date) && "border-red-500"
-                      )}
-                    >
-                      <span className={(watch('activity_start_date') && watch('activity_end_date')) ? 'text-[#1E293B]' : 'text-slate-400'}>
-                        {(watch('activity_start_date') && watch('activity_end_date'))
-                          ? `${format(new Date(watch('activity_start_date')), 'dd/MM/yyyy')} - ${format(new Date(watch('activity_end_date')), 'dd/MM/yyyy')}`
-                          : 'Chọn khoảng thời gian...'}
-                      </span>
-                      <Calendar size={16} className="text-slate-400 shrink-0 ml-2" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 z-[1000] bg-transparent border-none shadow-none overflow-hidden" align="start">
-                    <CustomCalendar
-                      startDate={watch('activity_start_date') ? new Date(watch('activity_start_date')) : null}
-                      endDate={watch('activity_end_date') ? new Date(watch('activity_end_date')) : null}
-                      onRangeSelect={(start, end) => {
-                        const formatYMD = (date: Date) => {
-                          const yyyy = date.getFullYear();
-                          const mm = String(date.getMonth() + 1).padStart(2, '0');
-                          const dd = String(date.getDate()).padStart(2, '0');
-                          return `${yyyy}-${mm}-${dd}`;
-                        };
-                        
-                        setValue('activity_start_date', formatYMD(start));
-                        setValue('activity_end_date', formatYMD(end));
-                      }}
-                      onCancel={() => setIsCalendarOpen(false)}
-                      onConfirm={() => setIsCalendarOpen(false)}
-                    />
-                  </PopoverContent>
-                </Popover>
-                {(errors.activity_start_date || errors.activity_end_date) && (
-                  <p className="px-1 text-[11px] font-medium text-red-500 mt-0.5">
-                    {errors.activity_start_date?.message || errors.activity_end_date?.message}
-                  </p>
-                )}
-              </div>
+
 
               {/* Cấu hình toggles */}
               <div className="bg-slate-50/50 border border-slate-100 p-4 rounded-2xl space-y-3.5 mt-2">

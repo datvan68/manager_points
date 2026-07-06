@@ -13,6 +13,7 @@ export interface Club {
   _id: string;
   name: string;
   code: string;
+  classroom: string;
   description?: string;
   category: string;
   logo_url?: string;
@@ -59,7 +60,7 @@ export interface ClubSchedule {
   location?: string;
   start_time: string;
   end_time: string;
-  recurrence?: { type: string; day_of_week?: number; until?: string };
+  recurrence?: { type: string; day_of_week?: number; until?: string; start?: string };
   recurrence_id?: string;
   semester_id: any;
   instructor_id?: any;
@@ -318,6 +319,16 @@ export const clubScheduleApi = {
     const res = await httpClient(url, { method: 'DELETE' });
     return handleResponse(res);
   },
+
+  async cancelRecurrence(id: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-schedules/${id}/cancel-recurrence`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({}),
+    });
+    return handleResponse(res);
+  },
+
 
   async register(id: string, clubId: string): Promise<any> {
     const res = await httpClient(`${API_BASE}/club-schedules/${id}/register`, {

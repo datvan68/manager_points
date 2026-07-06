@@ -10,7 +10,10 @@ import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Role, RoleSchema } from '../auth/schemas/role.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
-import { EvaluationPeriod, EvaluationPeriodSchema } from '../evaluation-periods/schemas/evaluation-period.schema';
+import {
+  EvaluationPeriod,
+  EvaluationPeriodSchema,
+} from '../evaluation-periods/schemas/evaluation-period.schema';
 
 @Module({
   imports: [

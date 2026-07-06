@@ -49,11 +49,13 @@ export class Criterion {
   scoring_mode: string;
 
   @Prop({
-    type: [{
-      id: { type: String, required: true },
-      label: { type: String, required: true },
-      score: { type: Number, required: true }
-    }],
+    type: [
+      {
+        id: { type: String, required: true },
+        label: { type: String, required: true },
+        score: { type: Number, required: true },
+      },
+    ],
     default: [],
   })
   options: { id: string; label: string; score: number }[];
@@ -63,5 +65,8 @@ export const CriterionSchema = SchemaFactory.createForClass(Criterion);
 
 CriterionSchema.index(
   { criterion_code: 1 },
-  { unique: true, partialFilterExpression: { criterion_code: { $type: 'string' } } },
+  {
+    unique: true,
+    partialFilterExpression: { criterion_code: { $type: 'string' } },
+  },
 );

@@ -51,7 +51,9 @@ export class NotificationsController {
   }
 
   @Get('count-summary')
-  @ApiOperation({ summary: 'Lấy thống kê số lượng thông báo theo từng loại bộ lọc' })
+  @ApiOperation({
+    summary: 'Lấy thống kê số lượng thông báo theo từng loại bộ lọc',
+  })
   getCountSummary(@Req() req: any) {
     return this.notificationsService.getCountSummary(
       req.user?.userId,
@@ -71,7 +73,11 @@ export class NotificationsController {
   @Patch(':id/read')
   @ApiOperation({ summary: 'Đánh dấu đã đọc một thông báo' })
   markRead(@Param('id') id: string, @Req() req: any) {
-    return this.notificationsService.markRead(id, req.user?.userId, req.user?.roleName);
+    return this.notificationsService.markRead(
+      id,
+      req.user?.userId,
+      req.user?.roleName,
+    );
   }
 
   @Patch(':id')
@@ -94,20 +100,32 @@ export class NotificationsController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiOperation({ summary: 'Xóa thông báo (soft delete)' })
   remove(@Param('id') id: string, @Req() req: any) {
-    return this.notificationsService.remove(id, req.user?.userId, req.user?.roleName);
+    return this.notificationsService.remove(
+      id,
+      req.user?.userId,
+      req.user?.roleName,
+    );
   }
 
   @Post('delete-bulk')
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiOperation({ summary: 'Xóa nhiều thông báo (soft delete)' })
   removeBulk(@Body('ids') ids: string[], @Req() req: any) {
-    return this.notificationsService.removeBulk(ids, req.user?.userId, req.user?.roleName);
+    return this.notificationsService.removeBulk(
+      ids,
+      req.user?.userId,
+      req.user?.roleName,
+    );
   }
 
   @Get(':id/readers')
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiOperation({ summary: 'Lấy danh sách người đã xem thông báo' })
   getReaders(@Param('id') id: string, @Req() req: any) {
-    return this.notificationsService.getReaders(id, req.user?.userId, req.user?.roleName);
+    return this.notificationsService.getReaders(
+      id,
+      req.user?.userId,
+      req.user?.roleName,
+    );
   }
 }

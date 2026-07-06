@@ -1,8 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsString, IsOptional, IsNumber } from 'class-validator';
+import {
+  IsArray,
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsNumber,
+} from 'class-validator';
 
 export class ImportAcademicRecordRequestDto {
-  @ApiProperty({ description: 'Danh sách các dòng dữ liệu từ file Excel', type: [Object] })
+  @ApiProperty({
+    description: 'Danh sách các dòng dữ liệu từ file Excel',
+    type: [Object],
+  })
   @IsArray()
   rows: any[];
 }

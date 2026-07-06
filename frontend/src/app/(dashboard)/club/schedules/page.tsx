@@ -1,15 +1,21 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
-  Calendar, Clock, MapPin, Plus, ChevronLeft, ChevronRight,
-  Search, Users, Trash2, Check, AlertCircle, CalendarRange,
-  X, Grid, List, Activity, HelpCircle, Settings, SlidersHorizontal
+  Clock, MapPin, ChevronLeft, ChevronRight,
+  Search, Users, Trash2, AlertCircle, CalendarRange, Calendar,
+  X, Grid, List, Activity, HelpCircle, Settings, SlidersHorizontal,
+  Sunrise, Sun, Moon, Clock3, Copy
 } from 'lucide-react';
 import { clubScheduleApi, clubApi, ClubSchedule, Club } from '@/api/club-api';
 import { semesterApi, Semester } from '@/api/semester-api';
 import { useAuth } from '@/providers/auth-provider';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 
 const typeColors: Record<string, string> = {
   regular: 'bg-blue-500 border-blue-500 text-blue-600',
@@ -25,150 +31,747 @@ const typeLabels: Record<string, string> = {
   meeting: 'Họp',
 };
 
-// --- Timetable constants ---
-const DAY_START_HOUR = 7;
-const DAY_END_HOUR = 18;
-const PIXELS_PER_HOUR = 60;
-const SNAP_MINUTES = 15;
-const MIN_DURATION_MINUTES = 30;
+type AccentColor = 'blue' | 'cyan' | 'emerald' | 'amber' | 'rose' | 'violet' | 'slate';
 
-const GRID_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60;
-const GRID_HEIGHT = (GRID_MINUTES / 60) * PIXELS_PER_HOUR;
-const HOUR_SEPARATOR_CLASS = 'border-slate-200/30';
+const ACCENT_COLORS: AccentColor[] = ['blue', 'cyan', 'emerald', 'amber', 'rose', 'violet', 'slate'];
 
-function getMinutesFromDayStart(value: string | Date): number {
-  const date = new Date(value);
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  return (hours - DAY_START_HOUR) * 60 + minutes;
-}
+const accentStyles: Record<AccentColor, {
+  card: string;
+  title: string;
+  sub: string;
+  icon: string;
+  badge: string;
+  borderL: string;
+}> = {
+  blue: {
+    card: 'bg-blue-500/10 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.06)]',
+    title: 'text-blue-950 font-extrabold dark:text-blue-900',
+    sub: 'text-blue-800/85',
+    icon: 'text-blue-500',
+    badge: 'bg-blue-500/10 text-blue-600',
+    borderL: 'border-l-blue-500'
+  },
+  cyan: {
+    card: 'bg-cyan-500/10 border-cyan-500/20 shadow-[0_2px_8px_rgba(6,182,212,0.06)]',
+    title: 'text-cyan-950 font-extrabold',
+    sub: 'text-cyan-800/85',
+    icon: 'text-cyan-500',
+    badge: 'bg-cyan-500/10 text-cyan-600',
+    borderL: 'border-l-cyan-500'
+  },
+  emerald: {
+    card: 'bg-emerald-500/10 border-emerald-500/20 shadow-[0_2px_8px_rgba(16,185,129,0.06)]',
+    title: 'text-emerald-950 font-extrabold',
+    sub: 'text-emerald-800/85',
+    icon: 'text-emerald-500',
+    badge: 'bg-emerald-500/10 text-emerald-600',
+    borderL: 'border-l-emerald-500'
+  },
+  amber: {
+    card: 'bg-amber-500/10 border-amber-500/20 shadow-[0_2px_8px_rgba(245,158,11,0.06)]',
+    title: 'text-amber-950 font-extrabold',
+    sub: 'text-amber-800/85',
+    icon: 'text-amber-500',
+    badge: 'bg-amber-500/10 text-amber-600',
+    borderL: 'border-l-amber-500'
+  },
+  rose: {
+    card: 'bg-rose-500/10 border-rose-500/20 shadow-[0_2px_8px_rgba(244,63,94,0.06)]',
+    title: 'text-rose-950 font-extrabold',
+    sub: 'text-rose-800/85',
+    icon: 'text-rose-500',
+    badge: 'bg-rose-500/10 text-rose-600',
+    borderL: 'border-l-rose-500'
+  },
+  violet: {
+    card: 'bg-violet-500/10 border-violet-500/20 shadow-[0_2px_8px_rgba(139,92,246,0.06)]',
+    title: 'text-violet-950 font-extrabold',
+    sub: 'text-violet-800/85',
+    icon: 'text-violet-500',
+    badge: 'bg-violet-500/10 text-violet-600',
+    borderL: 'border-l-violet-500'
+  },
+  slate: {
+    card: 'bg-slate-500/10 border-slate-500/20 shadow-[0_2px_8px_rgba(100,116,139,0.06)]',
+    title: 'text-slate-950 font-extrabold',
+    sub: 'text-slate-800/85',
+    icon: 'text-slate-500',
+    badge: 'bg-slate-500/10 text-slate-600',
+    borderL: 'border-l-slate-500'
+  }
+};
 
-function getSchedulePixelLayout(
-  startTime: string | Date,
-  endTime: string | Date
-): { top: number; height: number } {
-  const startMinutes = getMinutesFromDayStart(startTime);
-  const endMinutes = getMinutesFromDayStart(endTime);
-  const clampedStart = clampMinutesToGrid(startMinutes);
-  const clampedEnd = clampMinutesToGrid(endMinutes);
-
-  const top = (clampedStart / 60) * PIXELS_PER_HOUR;
-  const height = ((clampedEnd - clampedStart) / 60) * PIXELS_PER_HOUR;
-
-  return { top, height };
-}
-
-function snapMinutes(minutes: number): number {
-  return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
-}
-
-function clampMinutesToGrid(minutes: number): number {
-  return Math.max(0, Math.min(GRID_MINUTES, minutes));
-}
-
-function getMinutesFromPointer(
-  clientY: number,
-  gridRect: DOMRect,
-  scrollTop: number
-): number {
-  const relativeY = clientY - gridRect.top + scrollTop;
-  const minutes = (relativeY / PIXELS_PER_HOUR) * 60;
-  return clampMinutesToGrid(snapMinutes(minutes));
-}
-
-function getDayIndexFromPointer(
-  clientX: number,
-  daysRect: DOMRect
-): number {
-  const relativeX = clientX - daysRect.left;
-  const colWidth = daysRect.width / 7;
-  const dayIdx = Math.floor(relativeX / colWidth);
-  return Math.max(0, Math.min(6, dayIdx));
-}
-
-function buildDateTimeFromDayAndMinutes(
-  day: Date,
-  minutesFromGridStart: number
-): Date {
-  const date = new Date(day);
-  const hours = Math.floor(minutesFromGridStart / 60) + DAY_START_HOUR;
-  const minutes = minutesFromGridStart % 60;
-  date.setHours(hours, minutes, 0, 0);
-  return date;
-}
-
-interface ScheduleLayout {
-  top: number;
-  height: number;
-  left: number; // percentage
-  width: number; // percentage
-  startDayIndex: number;
-  endDayIndex: number;
-}
-
-function getScheduleLayout(
-  startTime: string,
-  endTime: string,
-  visibleWeekDates: Date[]
-): ScheduleLayout | null {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-
-  const weekStart = new Date(visibleWeekDates[0]);
-  weekStart.setHours(0, 0, 0, 0);
-  const weekEnd = new Date(visibleWeekDates[6]);
-  weekEnd.setHours(23, 59, 59, 999);
-
-  if (end < weekStart || start > weekEnd) {
-    return null;
+function getClubAccentColor(item: any): AccentColor {
+  // Nếu là lịch trình và có loại lịch trình, ưu tiên map màu tương ứng theo loại hoạt động
+  if (item && typeof item === 'object' && 'schedule_type' in item) {
+    const type = item.schedule_type;
+    if (type === 'regular') return 'blue';
+    if (type === 'event') return 'violet';
+    if (type === 'exam') return 'rose';
+    if (type === 'meeting') return 'amber';
   }
 
-  const actualStart = start < weekStart ? new Date(weekStart) : start;
-  const actualEnd = end > weekEnd ? new Date(weekEnd) : end;
+  // Đối với câu lạc bộ hoặc trường hợp khác, dùng giải thuật hash ổn định
+  let id = '';
+  if (item.clubId) {
+    id = item.clubId;
+  } else if (item.club_id) {
+    id = typeof item.club_id === 'object' ? (item.club_id._id || item.club_id.code || item.club_id.name || '') : item.club_id;
+  } else if (item._id) {
+    id = item._id;
+  } else if (item.id) {
+    id = item.id;
+  }
 
-  const getDayIdx = (d: Date) => {
-    return visibleWeekDates.findIndex(wd => wd.toDateString() === d.toDateString());
+  if (!id) {
+    id = item.clubCode || item.code || item.clubName || item.name || item.title || 'default';
+  }
+
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % ACCENT_COLORS.length;
+  return ACCENT_COLORS[index];
+}
+
+// --- Shift Constants and Helpers ---
+export type ShiftType = 'morning' | 'afternoon' | 'evening';
+
+export interface RecurrenceConfig {
+  enabled: boolean;
+  type: 'weekly' | 'biweekly' | 'monthly';
+  untilType: 'semester' | 'weeks' | 'date' | 'none';
+  weeksCount?: number;
+  untilDate?: string;
+  repeatStartDate?: string;
+  repeatEndDate?: string;
+}
+
+export interface PendingSchedule {
+  tempId: string;
+  clubId: string;
+  clubName: string;
+  clubCode: string;
+  clubCategory: string;
+  dateStr: string;
+  shift: ShiftType;
+  startTime: string;
+  endTime: string;
+  recurrence: RecurrenceConfig | null;
+  scheduleId?: string; // ID của lịch đã lưu ban đầu (nếu kéo từ lịch cũ sang)
+  originalData?: ClubSchedule;
+}
+
+const ScrollContainer = ({ children, className }: { children: React.ReactNode; className?: string }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startY, setStartY] = useState(0);
+  const [scrollTop, setScrollTop] = useState(0);
+  const hasMovedRef = useRef(false);
+  const startTouchYRef = useRef(0);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!containerRef.current) return;
+    setIsDragging(true);
+    setStartY(e.pageY);
+    setScrollTop(containerRef.current.scrollTop);
+    hasMovedRef.current = false;
   };
 
-  let startDayIdx = getDayIdx(actualStart);
-  let endDayIdx = getDayIdx(actualEnd);
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !containerRef.current) return;
+    e.preventDefault();
+    const walk = (e.pageY - startY) * 1.5;
+    if (Math.abs(walk) > 3) {
+      hasMovedRef.current = true;
+    }
+    containerRef.current.scrollTop = scrollTop - walk;
+  };
 
-  if (startDayIdx === -1) startDayIdx = 0;
-  if (endDayIdx === -1) endDayIdx = 6;
+  const handleMouseUpOrLeave = () => {
+    setIsDragging(false);
+  };
 
-  const { top, height } = getSchedulePixelLayout(actualStart, actualEnd);
+  return (
+    <div
+      ref={containerRef}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUpOrLeave}
+      onMouseLeave={handleMouseUpOrLeave}
+      onTouchStart={(e) => {
+        if (e.touches.length > 0) {
+          startTouchYRef.current = e.touches[0].pageY;
+          hasMovedRef.current = false;
+        }
+      }}
+      onTouchMove={(e) => {
+        if (e.touches.length > 0) {
+          const diff = Math.abs(e.touches[0].pageY - startTouchYRef.current);
+          if (diff > 5) {
+            hasMovedRef.current = true;
+          }
+        }
+      }}
+      onClickCapture={(e) => {
+        if (hasMovedRef.current) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }}
+      className={cn("overflow-y-auto select-none cursor-grab active:cursor-grabbing", className)}
+    >
+      {children}
+    </div>
+  );
+};
 
-  const left = (startDayIdx / 7) * 100;
-  const width = ((endDayIdx - startDayIdx + 1) / 7) * 100;
+const CustomTimePicker = ({ value, onChange }: { value: string; onChange: (val: string) => void }) => {
+  const [hour, minute] = value.split(':');
+
+  const hours = Array.from({ length: 15 }, (_, i) => String(i + 7).padStart(2, '0')); // 07 to 21
+  const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0')); // 00, 05, 10, ...
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex h-10 w-full items-center justify-center rounded-xl border border-white/70 bg-white/60 backdrop-blur-md px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+        >
+          <Clock className="mr-2 h-4 w-4 text-slate-400" />
+          {value}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-48 p-3 bg-white/75 backdrop-blur-md border border-white/60 shadow-xl rounded-2xl" align="start">
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Giờ</div>
+            <ScrollContainer className="max-h-48 flex flex-col gap-1 pr-1 scrollbar-hover">
+              {hours.map((h) => {
+                const isSelected = h === hour;
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => onChange(`${h}:${minute}`)}
+                    className={cn(
+                      "py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer",
+                      isSelected
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100"
+                    )}
+                  >
+                    {h}
+                  </button>
+                );
+              })}
+            </ScrollContainer>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Phút</div>
+            <ScrollContainer className="max-h-48 flex flex-col gap-1 pr-1 scrollbar-hover">
+              {minutes.map((m) => {
+                const isSelected = m === minute;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => onChange(`${hour}:${m}`)}
+                    className={cn(
+                      "py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer",
+                      isSelected
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100"
+                    )}
+                  >
+                    {m}
+                  </button>
+                );
+              })}
+            </ScrollContainer>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+export interface ShiftDefinition {
+  label: string;
+  range: string;
+  defaultStart: string;
+  defaultEnd: string;
+  icon: string;
+}
+
+export const SHIFT_DEFINITIONS: Record<ShiftType, ShiftDefinition> = {
+  morning: {
+    label: 'Ca Sáng',
+    range: '07:00 - 11:30',
+    defaultStart: '08:00',
+    defaultEnd: '10:00',
+    icon: '☀️',
+  },
+  afternoon: {
+    label: 'Ca Chiều',
+    range: '13:00 - 17:30',
+    defaultStart: '14:00',
+    defaultEnd: '16:00',
+    icon: '🌇',
+  },
+  evening: {
+    label: 'Ca Tối',
+    range: '18:00 - 21:00',
+    defaultStart: '18:00',
+    defaultEnd: '20:00',
+    icon: '🌙',
+  },
+};
+
+function getShiftForDate(dateString: string | Date): ShiftType {
+  const date = new Date(dateString);
+  const hours = date.getHours();
+  if (hours < 13) return 'morning';
+  if (hours < 18) return 'afternoon';
+  return 'evening';
+}
+
+function validateTimeInShift(start: string, end: string, shift: ShiftType): boolean {
+  const parseTimeToMinutes = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const startMin = parseTimeToMinutes(start);
+  const endMin = parseTimeToMinutes(end);
+
+  let shiftStart = 0;
+  let shiftEnd = 0;
+
+  if (shift === 'morning') {
+    shiftStart = 7 * 60;
+    shiftEnd = 11 * 60 + 30;
+  } else if (shift === 'afternoon') {
+    shiftStart = 13 * 60;
+    shiftEnd = 17 * 60 + 30;
+  } else if (shift === 'evening') {
+    shiftStart = 18 * 60;
+    shiftEnd = 21 * 60;
+  } else {
+    return true;
+  }
+
+  return startMin >= shiftStart && endMin <= shiftEnd;
+}
+
+function doesScheduleOverlapRange(
+  scheduleStart: string | Date,
+  scheduleEnd: string | Date,
+  rangeStart: Date,
+  rangeEnd: Date
+): boolean {
+  const start = new Date(scheduleStart);
+  const end = new Date(scheduleEnd);
+  return start <= rangeEnd && end >= rangeStart;
+}
+
+function doesScheduleOccurOnDate(
+  schedule: { start_time: string; end_time: string },
+  date: Date
+): boolean {
+  const start = new Date(schedule.start_time);
+  const end = new Date(schedule.end_time);
+  
+  const dStart = new Date(date);
+  dStart.setHours(0, 0, 0, 0);
+  const dEnd = new Date(date);
+  dEnd.setHours(23, 59, 59, 999);
+  
+  return start <= dEnd && end >= dStart;
+}
+
+function getVisibleScheduleTimesForDate(
+  schedule: { start_time: string; end_time: string },
+  date: Date
+): { start: Date; end: Date } {
+  const originalStart = new Date(schedule.start_time);
+  const originalEnd = new Date(schedule.end_time);
+
+  const start = new Date(date);
+  start.setHours(originalStart.getHours(), originalStart.getMinutes(), originalStart.getSeconds(), originalStart.getMilliseconds());
+
+  const end = new Date(date);
+  end.setHours(originalEnd.getHours(), originalEnd.getMinutes(), originalEnd.getSeconds(), originalEnd.getMilliseconds());
+
+  return { start, end };
+}
+
+function getSchedulesForDayAndShift(
+  dayDate: Date,
+  shift: ShiftType,
+  schedulesList: ClubSchedule[]
+): ClubSchedule[] {
+  return schedulesList
+    .filter(s => {
+      if (!doesScheduleOccurOnDate(s, dayDate)) return false;
+      const { start } = getVisibleScheduleTimesForDate(s, dayDate);
+      return getShiftForDate(start) === shift;
+    })
+    .sort((a, b) => {
+      const aTime = new Date(a.start_time).getTime();
+      const bTime = new Date(b.start_time).getTime();
+      return aTime - bTime;
+    });
+}
+
+interface RecurrenceValidationResult {
+  isValid: boolean;
+  error?: string;
+  effectiveEndDate?: Date;
+  sessionCount?: number;
+}
+
+function validateRecurrenceConfig(
+  config: RecurrenceConfig | null,
+  startDateTime: Date,
+  activeSemester: Semester | null
+): RecurrenceValidationResult {
+  if (!config || !config.enabled) {
+    return { isValid: true, sessionCount: 1 };
+  }
+
+  let repeatStart: Date;
+  if (config.repeatStartDate) {
+    repeatStart = new Date(config.repeatStartDate);
+  } else {
+    // Default to the startDateTime's Monday
+    const startStr = startDateTime.toISOString().split('T')[0];
+    repeatStart = new Date(getMondayDateStr(startStr));
+  }
+  repeatStart.setHours(0, 0, 0, 0);
+
+  let repeatEnd: Date;
+  if (config.repeatEndDate) {
+    repeatEnd = new Date(config.repeatEndDate);
+  } else {
+    // Fallback based on untilType
+    if (config.untilType === 'semester') {
+      if (!activeSemester || !activeSemester.end_date) {
+        return {
+          isValid: false,
+          error: 'Học kỳ hiện tại chưa được cấu hình ngày kết thúc hoặc không có học kỳ hoạt động',
+        };
+      }
+      repeatEnd = new Date(activeSemester.end_date);
+    } else if (config.untilType === 'date') {
+      if (!config.untilDate) {
+        return {
+          isValid: false,
+          error: 'Vui lòng chọn ngày kết thúc cụ thể',
+        };
+      }
+      repeatEnd = new Date(`${config.untilDate}T23:59:59`);
+    } else if (config.untilType === 'weeks') {
+      if (!config.weeksCount) {
+        return {
+          isValid: false,
+          error: 'Vui lòng cấu hình số tuần lặp lại',
+        };
+      }
+      const weeks = Number(config.weeksCount);
+      repeatEnd = new Date(startDateTime.getTime() + weeks * 7 * 24 * 60 * 60 * 1000);
+    } else {
+      return { isValid: true, sessionCount: 1 };
+    }
+  }
+
+  repeatEnd.setHours(23, 59, 59, 999);
+
+  // Validate startDateTime is the first scheduled club session start date
+  const startDay = new Date(startDateTime);
+  startDay.setHours(0, 0, 0, 0);
+
+  if (repeatEnd < startDay) {
+    return {
+      isValid: false,
+      error: 'Ngày kết thúc lặp lại phải bằng hoặc sau ngày bắt đầu buổi sinh hoạt đầu tiên',
+    };
+  }
+
+  if (repeatEnd < repeatStart) {
+    return {
+      isValid: false,
+      error: 'Ngày kết thúc lặp lại phải bằng hoặc sau ngày bắt đầu lặp',
+    };
+  }
+
+  // Count sessions
+  let sessionCount = 0;
+  let i = 0;
+  const start = new Date(startDateTime);
+
+  while (true) {
+    let currentStart: Date;
+    if (config.type === 'weekly') {
+      currentStart = new Date(start.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+    } else if (config.type === 'biweekly') {
+      currentStart = new Date(start.getTime() + i * 14 * 24 * 60 * 60 * 1000);
+    } else if (config.type === 'monthly') {
+      currentStart = new Date(start);
+      currentStart.setMonth(start.getMonth() + i);
+    } else {
+      currentStart = new Date(start.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+    }
+
+    currentStart.setHours(0, 0, 0, 0);
+    if (currentStart > repeatEnd) {
+      break;
+    }
+
+    if (currentStart >= repeatStart) {
+      sessionCount++;
+    }
+
+    i++;
+    if (i > 100) break;
+  }
 
   return {
-    top,
-    height,
-    left,
-    width,
-    startDayIndex: startDayIdx,
-    endDayIndex: endDayIdx,
+    isValid: true,
+    effectiveEndDate: repeatEnd,
+    sessionCount,
   };
 }
 
-export interface DraftSchedule {
-  id: string;
-  club_id: string;
-  title: string;
-  description?: string;
-  location?: string;
-  schedule_type: string;
-  start_time: string; // ISO string
-  end_time: string; // ISO string
-  semester_id?: string;
-  recurrence?: {
-    type: 'weekly' | 'biweekly' | 'monthly';
-    untilType: 'semester' | 'custom' | 'none';
-    weeksCount?: number;
-    untilDate?: string;
-  } | null;
-  max_attendees?: number;
+const getMondayDateStr = (dateStrOrDate: string | Date): string => {
+  const d = new Date(dateStrOrDate);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d.getTime() + diff * 24 * 60 * 60 * 1000);
+  return monday.toISOString().split('T')[0];
+};
+
+const isDateInAnchorWeek = (dateStrOrDate: string | Date, anchorWeekMonday: string): boolean => {
+  return getMondayDateStr(dateStrOrDate) === anchorWeekMonday;
+};
+
+function isDateInRecurrence(
+  dayDate: Date,
+  p: PendingSchedule,
+  activeSemester: Semester | null,
+  defaultRecurrence: RecurrenceConfig
+): boolean {
+  if (!defaultRecurrence || !defaultRecurrence.enabled) return false;
+
+  const anchorDate = new Date(p.dateStr);
+  anchorDate.setHours(0, 0, 0, 0);
+
+  const target = new Date(dayDate);
+  target.setHours(0, 0, 0, 0);
+
+  const anchorMondayStr = getMondayDateStr(p.dateStr);
+  const targetMondayStr = getMondayDateStr(dayDate);
+
+  if (targetMondayStr < anchorMondayStr) {
+    return false;
+  }
+  if (targetMondayStr === anchorMondayStr) {
+    return false;
+  }
+
+  let repeatStart: Date;
+  if (defaultRecurrence.repeatStartDate) {
+    repeatStart = new Date(defaultRecurrence.repeatStartDate);
+  } else {
+    repeatStart = new Date(anchorMondayStr);
+  }
+  repeatStart.setHours(0, 0, 0, 0);
+
+  let repeatEnd: Date | null = null;
+  if (defaultRecurrence.repeatEndDate) {
+    repeatEnd = new Date(defaultRecurrence.repeatEndDate);
+  } else {
+    if (defaultRecurrence.untilType === 'semester') {
+      if (activeSemester && activeSemester.end_date) {
+        repeatEnd = new Date(activeSemester.end_date);
+      } else {
+        repeatEnd = new Date(anchorDate.getTime() + 10 * 7 * 24 * 60 * 60 * 1000);
+      }
+    } else if (defaultRecurrence.untilType === 'date') {
+      if (defaultRecurrence.untilDate) {
+        repeatEnd = new Date(`${defaultRecurrence.untilDate}T23:59:59`);
+      }
+    } else if (defaultRecurrence.untilType === 'weeks') {
+      if (defaultRecurrence.weeksCount) {
+        repeatEnd = new Date(anchorDate.getTime() + defaultRecurrence.weeksCount * 7 * 24 * 60 * 60 * 1000);
+      }
+    }
+  }
+
+  if (!repeatEnd) return false;
+  repeatEnd.setHours(23, 59, 59, 999);
+
+  if (target < repeatStart || target > repeatEnd) return false;
+
+  let i = 0;
+  while (true) {
+    let current: Date;
+    if (defaultRecurrence.type === 'weekly') {
+      current = new Date(anchorDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+    } else if (defaultRecurrence.type === 'biweekly') {
+      current = new Date(anchorDate.getTime() + i * 14 * 24 * 60 * 60 * 1000);
+    } else if (defaultRecurrence.type === 'monthly') {
+      current = new Date(anchorDate);
+      current.setMonth(anchorDate.getMonth() + i);
+    } else {
+      current = new Date(anchorDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+    }
+
+    current.setHours(0, 0, 0, 0);
+    if (current > repeatEnd) {
+      return false;
+    }
+    if (current.getTime() === target.getTime()) {
+      return current >= repeatStart;
+    }
+    i++;
+    if (i > 100) break;
+  }
+
+  return false;
 }
+
+function getCellPendingSchedules(
+  dayDate: Date,
+  cellDateStr: string,
+  shift: ShiftType,
+  pendingSchedules: PendingSchedule[],
+  activeSemester: Semester | null,
+  defaultRecurrence: RecurrenceConfig,
+  anchorWeekMonday: string
+): (PendingSchedule & { isPreview?: boolean; originalTempId?: string })[] {
+  return pendingSchedules.flatMap(p => {
+    if (p.dateStr === cellDateStr && p.shift === shift) {
+      return [p];
+    }
+    const pInAnchor = isDateInAnchorWeek(p.dateStr, anchorWeekMonday);
+    if (pInAnchor && p.shift === shift && isDateInRecurrence(dayDate, p, activeSemester, defaultRecurrence)) {
+      return [{
+        ...p,
+        tempId: `${p.tempId}_preview_${cellDateStr}`,
+        isPreview: true,
+        originalTempId: p.tempId,
+        dateStr: cellDateStr
+      }];
+    }
+    return [];
+  });
+}
+
+const getFirstActivityStartDate = (
+  schedules: ClubSchedule[],
+  pendingSchedules: PendingSchedule[],
+  anchorWeekMonday: string
+): Date | null => {
+  let earliestDate: Date | null = null;
+
+  const savedInAnchor = schedules.filter(s => {
+    if (s.status === 'cancelled') return false;
+    return isDateInAnchorWeek(s.start_time, anchorWeekMonday);
+  });
+  for (const s of savedInAnchor) {
+    const d = new Date(s.start_time);
+    if (!earliestDate || d < earliestDate) {
+      earliestDate = d;
+    }
+  }
+
+  const pendingInAnchor = pendingSchedules.filter(p => {
+    return isDateInAnchorWeek(p.dateStr, anchorWeekMonday);
+  });
+  for (const p of pendingInAnchor) {
+    const d = new Date(`${p.dateStr}T${p.startTime}`);
+    if (!earliestDate || d < earliestDate) {
+      earliestDate = d;
+    }
+  }
+
+  return earliestDate;
+};
+
+const countRecurrenceSessions = (
+  schedules: ClubSchedule[],
+  pendingSchedules: PendingSchedule[],
+  anchorWeekMonday: string,
+  recurrenceType: 'weekly' | 'biweekly' | 'monthly',
+  repeatStart: Date,
+  repeatEnd: Date
+): number => {
+  const savedInAnchor = schedules.filter(s => {
+    if (s.status === 'cancelled') return false;
+    return isDateInAnchorWeek(s.start_time, anchorWeekMonday);
+  });
+
+  const pendingInAnchor = pendingSchedules.filter(p => {
+    return isDateInAnchorWeek(p.dateStr, anchorWeekMonday);
+  });
+
+  let totalSessions = 0;
+
+  const countForAnchor = (anchorDateStr: string) => {
+    const anchorDate = new Date(anchorDateStr);
+    anchorDate.setHours(0, 0, 0, 0);
+
+    const anchorMonday = new Date(anchorWeekMonday);
+    anchorMonday.setHours(0, 0, 0, 0);
+
+    let count = 0;
+    let i = 0;
+    while (true) {
+      let current: Date;
+      if (recurrenceType === 'weekly') {
+        current = new Date(anchorDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+      } else if (recurrenceType === 'biweekly') {
+        current = new Date(anchorDate.getTime() + i * 14 * 24 * 60 * 60 * 1000);
+      } else if (recurrenceType === 'monthly') {
+        current = new Date(anchorDate);
+        current.setMonth(anchorDate.getMonth() + i);
+      } else {
+        current = new Date(anchorDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+      }
+
+      current.setHours(0, 0, 0, 0);
+      if (current > repeatEnd) {
+        break;
+      }
+
+      const currentMonday = new Date(getMondayDateStr(current));
+      currentMonday.setHours(0, 0, 0, 0);
+
+      // Previews are only for future weeks AND within repeat range
+      if (currentMonday > anchorMonday && current >= repeatStart) {
+        count++;
+      }
+
+      i++;
+      if (i > 100) break;
+    }
+    return count;
+  };
+
+  for (const s of savedInAnchor) {
+    const dateStr = s.start_time.split('T')[0];
+    totalSessions += countForAnchor(dateStr);
+  }
+
+  for (const p of pendingInAnchor) {
+    totalSessions += countForAnchor(p.dateStr);
+  }
+
+  return totalSessions;
+};
 
 export default function SchedulesOverview() {
   const { user, hasPermission } = useAuth();
@@ -181,6 +784,123 @@ export default function SchedulesOverview() {
   const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Pending schedules states
+  const [pendingSchedules, setPendingSchedules] = useState<PendingSchedule[]>([]);
+  const [activePendingSchedule, setActivePendingSchedule] = useState<PendingSchedule | null>(null);
+
+  const handlePendingDragStart = (e: React.DragEvent, tempId: string, originDateStr: string, originShift: ShiftType) => {
+    if (!canManage) return;
+    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'pending', tempId, originDateStr, originShift }));
+  };
+
+  const handleConfigurePending = (pending: PendingSchedule & { originalTempId?: string }) => {
+    if (showCreateModal) return;
+    const targetTempId = pending.originalTempId || pending.tempId;
+    const originalPending = pendingSchedules.find(p => p.tempId === targetTempId) || pending;
+    setActivePendingSchedule(originalPending);
+    
+    const clubObj = clubs.find(c => c._id === pending.clubId);
+    const defaultLoc = clubObj?.classroom || 'Phòng sinh hoạt CLB';
+    
+    setFormClubId(pending.clubId);
+    setFormTitle(pending.originalData?.title || `Sinh hoạt CLB ${pending.clubName}`);
+    setFormDesc(pending.originalData?.description || '');
+    setFormLocation(pending.originalData?.location || defaultLoc);
+    setFormType(pending.originalData?.schedule_type || 'regular');
+    setFormDate(pending.dateStr);
+    setFormStartTime(pending.startTime);
+    setFormEndTime(pending.endTime);
+    if (pending.recurrence) {
+      setScheduleRecurrence(pending.recurrence);
+    } else {
+      setScheduleRecurrence({
+        enabled: false,
+        type: 'weekly',
+        untilType: 'none',
+      });
+    }
+    setFormMaxAttendees(pending.originalData?.max_attendees ? String(pending.originalData.max_attendees) : '');
+    setFormScheduleId(pending.scheduleId || null);
+    setFormShift(pending.shift);
+    
+    setIsSimplifiedModal(true);
+    setShowCreateModal(true);
+  };
+
+  const handleConfigureSaved = (schedule: ClubSchedule) => {
+    if (showCreateModal) return;
+    setActivePendingSchedule(null);
+    
+    const cid = typeof schedule.club_id === 'string' ? schedule.club_id : schedule.club_id?._id || '';
+    const clubObj = typeof schedule.club_id === 'object' ? schedule.club_id : clubs.find(c => c._id === cid);
+    
+    setFormClubId(cid);
+    setFormTitle(schedule.title || `Sinh hoạt CLB ${clubObj?.name || ''}`);
+    setFormDesc(schedule.description || '');
+    setFormLocation(schedule.location || 'Phòng sinh hoạt CLB');
+    setFormType(schedule.schedule_type || 'regular');
+
+    const startObj = new Date(schedule.start_time);
+    const endObj = new Date(schedule.end_time);
+    const yyyy = startObj.getFullYear();
+    const mm = String(startObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(startObj.getDate()).padStart(2, '0');
+    setFormDate(`${yyyy}-${mm}-${dd}`);
+
+    const startHour = String(startObj.getHours()).padStart(2, '0');
+    const startMin = String(startObj.getMinutes()).padStart(2, '0');
+    setFormStartTime(`${startHour}:${startMin}`);
+
+    const endHour = String(endObj.getHours()).padStart(2, '0');
+    const endMin = String(endObj.getMinutes()).padStart(2, '0');
+    setFormEndTime(`${endHour}:${endMin}`);
+
+    if (schedule.recurrence) {
+      let untilType: 'semester' | 'weeks' | 'date' | 'none' = 'semester';
+      let weeksCount = 8;
+      let untilDate = '';
+      if (schedule.recurrence.until) {
+        untilType = 'date';
+        const startVal = new Date(schedule.start_time).getTime();
+        const untilVal = new Date(schedule.recurrence.until).getTime();
+        const diffMs = untilVal - startVal;
+        weeksCount = Math.max(1, Math.round(diffMs / (7 * 24 * 60 * 60 * 1000)));
+        
+        const untilObj = new Date(schedule.recurrence.until);
+        const uY = untilObj.getFullYear();
+        const uM = String(untilObj.getMonth() + 1).padStart(2, '0');
+        const uD = String(untilObj.getDate()).padStart(2, '0');
+        untilDate = `${uY}-${uM}-${uD}`;
+      }
+      setScheduleRecurrence({
+        enabled: true,
+        type: (schedule.recurrence.type as any) || 'weekly',
+        untilType,
+        weeksCount,
+        untilDate,
+      });
+    } else {
+      setScheduleRecurrence({
+        enabled: false,
+        type: 'weekly',
+        untilType: 'none',
+      });
+    }
+    setFormMaxAttendees(schedule.max_attendees ? String(schedule.max_attendees) : '');
+    setFormScheduleId(schedule._id);
+
+    const shift = getShiftForDate(schedule.start_time);
+    setFormShift(shift);
+
+    setIsSimplifiedModal(true);
+    setShowCreateModal(true);
+  };
+
+  const handleRemovePending = (tempId: string) => {
+    setPendingSchedules(prev => prev.filter(p => p.tempId !== tempId));
+    toast.success('Đã xóa lịch pending');
+  };
+
   // Navigation & View states
   const [view, setView] = useState<'weekly' | 'daily'>('weekly');
   const [weekOffset, setWeekOffset] = useState(0);
@@ -191,6 +911,10 @@ export default function SchedulesOverview() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<ClubSchedule | null>(null);
+  const [showUpdateSeriesConfirmModal, setShowUpdateSeriesConfirmModal] = useState(false);
+  const [showCancelRecurrenceConfirmModal, setShowCancelRecurrenceConfirmModal] = useState(false);
+  const [pendingUpdatePayload, setPendingUpdatePayload] = useState<any>(null);
+
 
   // Form states
   const [formClubId, setFormClubId] = useState('');
@@ -201,39 +925,91 @@ export default function SchedulesOverview() {
   const [formDate, setFormDate] = useState('');
   const [formStartTime, setFormStartTime] = useState('08:00');
   const [formEndTime, setFormEndTime] = useState('10:00');
-  const [formRecurrenceType, setFormRecurrenceType] = useState<'none' | 'semester' | 'custom'>('none');
-  const [formRecurrenceWeeks, setFormRecurrenceWeeks] = useState(8);
   const [formMaxAttendees, setFormMaxAttendees] = useState('');
+  const [isSimplifiedModal, setIsSimplifiedModal] = useState(false);
+  const [formScheduleId, setFormScheduleId] = useState<string | null>(null);
+  const [formShift, setFormShift] = useState<ShiftType | null>(null);
 
-  // Draft states
-  const [draftSchedules, setDraftSchedules] = useState<DraftSchedule[]>([]);
-  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
-  const [defaultRecurrence, setDefaultRecurrence] = useState<{
-    type: 'weekly' | 'biweekly' | 'monthly';
-    untilType: 'semester' | 'custom' | 'none';
-    weeksCount?: number;
-    untilDate?: string;
-  } | null>({
+  // Recurrence states
+  const [defaultRecurrence, setDefaultRecurrence] = useState<RecurrenceConfig>({
+    enabled: true,
     type: 'weekly',
     untilType: 'semester',
   });
-  const [movingSchedule, setMovingSchedule] = useState<{
-    id: string;
-    start_time: string;
-    end_time: string;
-  } | null>(null);
+
+  const [anchorWeekMonday, setAnchorWeekMonday] = useState<string>(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(today.getTime() + diff * 24 * 60 * 60 * 1000);
+    return monday.toISOString().split('T')[0];
+  });
+
+  const [scheduleRecurrence, setScheduleRecurrence] = useState<RecurrenceConfig>({
+    enabled: false,
+    type: 'weekly',
+    untilType: 'none',
+  });
+
+  const [recurrenceModalTarget, setRecurrenceModalTarget] = useState<'default' | 'form'>('default');
+  const [isUntilCalendarOpen, setIsUntilCalendarOpen] = useState(false);
 
   // Advanced Recurrence Modal states
   const [showRecurrenceModal, setShowRecurrenceModal] = useState(false);
   const [modalRecurrenceType, setModalRecurrenceType] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly');
-  const [modalUntilType, setModalUntilType] = useState<'semester' | 'custom' | 'none'>('semester');
+  const [modalUntilType, setModalUntilType] = useState<'semester' | 'weeks' | 'date' | 'none'>('semester');
   const [modalWeeksCount, setModalWeeksCount] = useState<number>(8);
   const [modalUntilDate, setModalUntilDate] = useState<string>('');
+  const [modalRepeatStartDate, setModalRepeatStartDate] = useState<string>('');
+  const [modalRepeatEndDate, setModalRepeatEndDate] = useState<string>('');
+  const [isRangeCalendarOpen, setIsRangeCalendarOpen] = useState(false);
 
+
+  const renderRecurrenceBadge = (schedule: ClubSchedule, size: 'sm' | 'md' = 'md') => {
+    const isAnchorInRecurrence = isDateInAnchorWeek(schedule.start_time, anchorWeekMonday) && defaultRecurrence.enabled;
+    const isSavedRecurring = !isAnchorInRecurrence && !!schedule.recurrence_id;
+    let badgeText = '';
+    if (isAnchorInRecurrence) {
+      badgeText = 'Lặp (Anchor)';
+    } else if (isSavedRecurring) {
+      badgeText = 'Lặp lại';
+    }
+    if (!badgeText) return null;
+    
+    if (size === 'sm') {
+      return (
+        <div className="text-[7px] font-black text-blue-700 bg-blue-500/10 rounded px-1 py-0.5 mt-1.5 w-fit shrink-0">
+          {badgeText}
+        </div>
+      );
+    }
+    
+    return (
+      <span className="text-[9px] font-black bg-blue-500/10 text-blue-700 px-1.5 py-0.5 rounded ml-2 uppercase tracking-wide">
+        {badgeText}
+      </span>
+    );
+  };
 
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    if (showRecurrenceModal) {
+      if (modalUntilType === 'semester') {
+        setModalRepeatStartDate(anchorWeekMonday);
+        if (activeSemester?.end_date) {
+          setModalRepeatEndDate(activeSemester.end_date.split('T')[0]);
+        }
+      } else if (modalUntilType === 'weeks') {
+        setModalRepeatStartDate(anchorWeekMonday);
+        const start = new Date(anchorWeekMonday);
+        const end = new Date(start.getTime() + modalWeeksCount * 7 * 24 * 60 * 60 * 1000);
+        setModalRepeatEndDate(end.toISOString().split('T')[0]);
+      }
+    }
+  }, [modalUntilType, modalWeeksCount, anchorWeekMonday, showRecurrenceModal, activeSemester]);
 
   const loadInitialData = async () => {
     try {
@@ -296,492 +1072,526 @@ export default function SchedulesOverview() {
     return `${monthName}, Tuần ${weekOffset === 0 ? 'hiện tại' : weekOffset > 0 ? `+${weekOffset}` : weekOffset} (${startStr} - ${endStr})`;
   };
 
+  const startOfWeek = new Date(mondayDate);
+  startOfWeek.setHours(0, 0, 0, 0);
+  const endOfWeek = new Date(sundayDate);
+  endOfWeek.setHours(23, 59, 59, 999);
+
   // Filter schedules that fall in current week
+  const pendingScheduleIds = pendingSchedules.map(p => p.scheduleId).filter(Boolean) as string[];
+  const pendingRecurrenceIds = pendingSchedules
+    .map(p => p.originalData?.recurrence_id)
+    .filter(Boolean) as string[];
+
   const weekSchedules = schedules.filter(s => {
-    const sDate = new Date(s.start_time);
-    const startOfWeek = new Date(mondayDate);
-    startOfWeek.setHours(0, 0, 0, 0);
-    const endOfWeek = new Date(sundayDate);
-    endOfWeek.setHours(23, 59, 59, 999);
-    return sDate >= startOfWeek && sDate <= endOfWeek && s.status !== 'cancelled';
+    if (pendingScheduleIds.includes(s._id)) return false;
+    if (s.recurrence_id && pendingRecurrenceIds.includes(s.recurrence_id)) return false;
+    
+    return s.status !== 'cancelled' && 
+      doesScheduleOverlapRange(s.start_time, s.end_time, startOfWeek, endOfWeek);
   });
 
-  // Filter draft schedules that fall in current week
-  const weekDraftSchedules = draftSchedules.filter(s => {
-    const sDate = new Date(s.start_time);
-    const startOfWeek = new Date(mondayDate);
-    startOfWeek.setHours(0, 0, 0, 0);
-    const endOfWeek = new Date(sundayDate);
-    endOfWeek.setHours(23, 59, 59, 999);
-    return sDate >= startOfWeek && sDate <= endOfWeek;
+  const weekDateStrings = weekDates.map(d => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   });
 
-  // Unscheduled Bucket: Clubs that don't have schedules in the current week
-  const unscheduledClubs = clubs.filter(club => {
-    const hasWeekSchedule = schedules.some(s => {
+  const sourceClubs = clubs.map(club => {
+    const savedCount = schedules.filter(s => {
       if (s.status === 'cancelled') return false;
-      const sDate = new Date(s.start_time);
-      const startOfWeek = new Date(mondayDate);
-      startOfWeek.setHours(0, 0, 0, 0);
-      const endOfWeek = new Date(sundayDate);
-      endOfWeek.setHours(23, 59, 59, 999);
       const matchesClub = (typeof s.club_id === 'string' ? s.club_id : s.club_id?._id) === club._id;
-      return matchesClub && sDate >= startOfWeek && sDate <= endOfWeek;
-    }) || draftSchedules.some(d => {
-      const sDate = new Date(d.start_time);
-      const startOfWeek = new Date(mondayDate);
-      startOfWeek.setHours(0, 0, 0, 0);
-      const endOfWeek = new Date(sundayDate);
-      endOfWeek.setHours(23, 59, 59, 999);
-      const matchesClub = d.club_id === club._id;
-      return matchesClub && sDate >= startOfWeek && sDate <= endOfWeek;
-    });
-    return !hasWeekSchedule;
-  }).filter(club =>
+      return matchesClub && doesScheduleOverlapRange(s.start_time, s.end_time, startOfWeek, endOfWeek);
+    }).length;
+
+    const pendingCount = pendingSchedules.filter(p => {
+      const matchesClub = p.clubId === club._id;
+      return matchesClub && weekDateStrings.includes(p.dateStr);
+    }).length;
+
+    const scheduledCount = savedCount + pendingCount;
+    const isScheduled = scheduledCount > 0;
+
+    return {
+      ...club,
+      isScheduled,
+      scheduledCount
+    };
+  });
+
+  const filteredSourceClubs = sourceClubs.filter(club =>
     club.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     club.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const unscheduledClubs = [...filteredSourceClubs].sort((a, b) => {
+    if (a.isScheduled !== b.isScheduled) {
+      return a.isScheduled ? 1 : -1;
+    }
+    return a.name.localeCompare(b.name, 'vi');
+  });
+
   // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, clubId: string) => {
     if (!canManage) return;
-    e.dataTransfer.setData('text/plain', clubId);
+    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'club', clubId }));
   };
 
-  const handleDrop = (e: React.DragEvent, dayIndex: number) => {
+  const handleScheduleDragStart = (e: React.DragEvent, schedule: ClubSchedule, originDateStr: string, originShift: ShiftType) => {
+    if (!canManage) return;
+    const clubId = typeof schedule.club_id === 'string' ? schedule.club_id : schedule.club_id?._id;
+    e.dataTransfer.setData(
+      'text/plain',
+      JSON.stringify({
+        type: 'schedule',
+        scheduleId: schedule._id,
+        clubId: clubId || '',
+        originDateStr,
+        originShift,
+      })
+    );
+  };
+
+  const handleDrop = (e: React.DragEvent, dayIndex: number, shift: ShiftType) => {
     e.preventDefault();
     if (!canManage) return;
-    const clubId = e.dataTransfer.getData('text/plain');
-    if (!clubId) return;
+    const rawData = e.dataTransfer.getData('text/plain');
+    if (!rawData) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const offsetY = e.clientY - rect.top;
-    
-    // Convert grid offsetY to actual time based on 60px/hour (1px/minute), starting from 07:00.
-    const minutes = (offsetY / PIXELS_PER_HOUR) * 60;
-    const totalMinutes = clampMinutesToGrid(snapMinutes(minutes));
+    let payload: {
+      type: 'club' | 'schedule' | 'pending';
+      clubId?: string;
+      scheduleId?: string;
+      tempId?: string;
+      originDateStr?: string;
+      originShift?: ShiftType;
+    };
+    try {
+      payload = JSON.parse(rawData);
+    } catch {
+      payload = { type: 'club', clubId: rawData };
+    }
 
     const targetDate = weekDates[dayIndex];
-    const startDateTime = buildDateTimeFromDayAndMinutes(targetDate, totalMinutes);
+    const yyyy = targetDate.getFullYear();
+    const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(targetDate.getDate()).padStart(2, '0');
+    const formattedDate = `${yyyy}-${mm}-${dd}`;
 
-    const endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000); // 2 hours default duration
+    const shiftDef = SHIFT_DEFINITIONS[shift];
 
-    const targetClub = clubs.find(c => c._id === clubId);
-    const draftId = `draft-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    const newDraft: DraftSchedule = {
-      id: draftId,
-      club_id: clubId,
-      title: targetClub ? `Sinh hoạt CLB ${targetClub.name}` : 'Sinh hoạt CLB',
-      description: '',
-      location: 'Phòng sinh hoạt CLB',
-      schedule_type: 'regular',
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
-      semester_id: activeSemester?._id || semesters[0]?._id,
-      recurrence: defaultRecurrence ? { ...defaultRecurrence } : null,
-    };
-
-    setDraftSchedules(prev => [...prev, newDraft]);
-    setActiveDraftId(draftId);
-  };
-
-  const handleSaveDraft = async (draftId: string) => {
-    const draft = draftSchedules.find(d => d.id === draftId);
-    if (!draft) return;
-
-    let apiRecurrence = undefined;
-    if (draft.recurrence && draft.recurrence.untilType !== 'none') {
-      const startDateTime = new Date(draft.start_time);
-      if (draft.recurrence.untilType === 'semester') {
-        apiRecurrence = { type: draft.recurrence.type };
-      } else if (draft.recurrence.untilType === 'custom') {
-        let untilStr = undefined;
-        if (draft.recurrence.weeksCount !== undefined) {
-          const until = new Date(startDateTime.getTime() + draft.recurrence.weeksCount * 7 * 24 * 60 * 60 * 1000);
-          untilStr = until.toISOString();
-        } else if (draft.recurrence.untilDate) {
-          const until = new Date(draft.recurrence.untilDate);
-          untilStr = until.toISOString();
+    if (payload.type === 'pending') {
+      if (payload.originDateStr === formattedDate && payload.originShift === shift) {
+        return;
+      }
+      const tempId = payload.tempId;
+      setPendingSchedules(prev => prev.map(p => {
+        if (p.tempId === tempId) {
+          return {
+            ...p,
+            dateStr: formattedDate,
+            shift,
+            startTime: shiftDef.defaultStart,
+            endTime: shiftDef.defaultEnd
+          };
         }
-        apiRecurrence = { 
-          type: draft.recurrence.type,
-          until: untilStr
+        return p;
+      }));
+      toast.success('Đã di chuyển lịch pending');
+    } else if (payload.type === 'schedule') {
+      if (payload.originDateStr === formattedDate && payload.originShift === shift) {
+        return;
+      }
+      const existing = schedules.find(s => s._id === payload.scheduleId);
+      if (!existing) return;
+
+      const startObj = new Date(existing.start_time);
+      const endObj = new Date(existing.end_time);
+      
+      const startHour = startObj.getHours();
+      const startMin = startObj.getMinutes();
+      const endHour = endObj.getHours();
+      const endMin = endObj.getMinutes();
+
+      const startMinutes = startHour * 60 + startMin;
+      const endMinutes = endHour * 60 + endMin;
+
+      let shiftRangeStart = 0;
+      let shiftRangeEnd = 0;
+      if (shift === 'morning') {
+        shiftRangeStart = 7 * 60;
+        shiftRangeEnd = 11 * 60 + 30;
+      } else if (shift === 'afternoon') {
+        shiftRangeStart = 13 * 60;
+        shiftRangeEnd = 17 * 60 + 30;
+      } else {
+        shiftRangeStart = 18 * 60;
+        shiftRangeEnd = 21 * 60;
+      }
+
+      const formatTimeStr = (hour: number, min: number) => {
+        return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+      };
+
+      let startTime = shiftDef.defaultStart;
+      let endTime = shiftDef.defaultEnd;
+
+      if (startMinutes >= shiftRangeStart && startMinutes <= shiftRangeEnd &&
+          endMinutes >= shiftRangeStart && endMinutes <= shiftRangeEnd &&
+          startMinutes <= endMinutes) {
+        startTime = formatTimeStr(startHour, startMin);
+        endTime = formatTimeStr(endHour, endMin);
+      }
+
+      const cid = typeof existing.club_id === 'string' ? existing.club_id : existing.club_id?._id || '';
+      const clubObj = typeof existing.club_id === 'object' ? existing.club_id : clubs.find(c => c._id === cid);
+
+      let recurrence: RecurrenceConfig | null = null;
+      if (existing.recurrence) {
+        let untilType: 'semester' | 'weeks' | 'date' | 'none' = 'semester';
+        let weeksCount = 8;
+        let untilDate = '';
+        if (existing.recurrence.until) {
+          untilType = 'date';
+          const startVal = new Date(existing.start_time).getTime();
+          const untilVal = new Date(existing.recurrence.until).getTime();
+          const diffMs = untilVal - startVal;
+          weeksCount = Math.max(1, Math.round(diffMs / (7 * 24 * 60 * 60 * 1000)));
+          
+          const untilObj = new Date(existing.recurrence.until);
+          const uY = untilObj.getFullYear();
+          const uM = String(untilObj.getMonth() + 1).padStart(2, '0');
+          const uD = String(untilObj.getDate()).padStart(2, '0');
+          untilDate = `${uY}-${uM}-${uD}`;
+        }
+        recurrence = {
+          enabled: true,
+          type: (existing.recurrence.type as any) || 'weekly',
+          untilType,
+          weeksCount,
+          untilDate,
         };
       }
-    }
 
-    const payload = {
-      club_id: draft.club_id,
-      title: draft.title,
-      description: draft.description || '',
-      location: draft.location || 'Phòng sinh hoạt CLB',
-      schedule_type: draft.schedule_type,
-      start_time: draft.start_time,
-      end_time: draft.end_time,
-      semester_id: draft.semester_id || activeSemester?._id || semesters[0]?._id,
-      recurrence: apiRecurrence,
-      max_attendees: draft.max_attendees,
-    };
+      const newPending: PendingSchedule = {
+        tempId: 'temp_' + Math.random().toString(36).substring(2, 9),
+        clubId: cid,
+        clubName: clubObj?.name || 'Club',
+        clubCode: clubObj?.code || '',
+        clubCategory: clubObj?.category || '',
+        dateStr: formattedDate,
+        shift,
+        startTime,
+        endTime,
+        recurrence,
+        scheduleId: existing._id,
+        originalData: existing
+      };
 
-    try {
-      await clubScheduleApi.create(payload);
-      toast.success(apiRecurrence ? 'Đã xếp chuỗi lịch sinh hoạt thành công' : 'Đã xếp lịch sinh hoạt thành công');
-      setDraftSchedules(prev => prev.filter(d => d.id !== draftId));
-      if (activeDraftId === draftId) {
-        setActiveDraftId(null);
-      }
-      reloadSchedules();
-    } catch (err: any) {
-      toast.error(err?.message || 'Không thể lưu lịch nháp');
-    }
-  };
-
-  const handleCancelDraft = (draftId: string) => {
-    setDraftSchedules(prev => prev.filter(d => d.id !== draftId));
-    if (activeDraftId === draftId) {
-      setActiveDraftId(null);
-    }
-  };
-
-  const handleOpenAdvancedSettings = (draft: DraftSchedule) => {
-    setFormClubId(draft.club_id);
-    setFormTitle(draft.title);
-    setFormDesc(draft.description || '');
-    setFormLocation(draft.location || 'Phòng sinh hoạt CLB');
-    setFormType(draft.schedule_type);
-    
-    const startDateTime = new Date(draft.start_time);
-    const endDateTime = new Date(draft.end_time);
-    
-    const yyyy = startDateTime.getFullYear();
-    const mm = String(startDateTime.getMonth() + 1).padStart(2, '0');
-    const dd = String(startDateTime.getDate()).padStart(2, '0');
-    setFormDate(`${yyyy}-${mm}-${dd}`);
-    
-    const startH = String(startDateTime.getHours()).padStart(2, '0');
-    const startM = String(startDateTime.getMinutes()).padStart(2, '0');
-    setFormStartTime(`${startH}:${startM}`);
-    
-    const endH = String(endDateTime.getHours()).padStart(2, '0');
-    const endM = String(endDateTime.getMinutes()).padStart(2, '0');
-    setFormEndTime(`${endH}:${endM}`);
-    
-    if (draft.recurrence) {
-      setFormRecurrenceType(
-        draft.recurrence.untilType === 'semester' 
-          ? 'semester' 
-          : draft.recurrence.untilType === 'custom' 
-            ? 'custom' 
-            : 'none'
-      );
-      setFormRecurrenceWeeks(draft.recurrence.weeksCount || 8);
+      setPendingSchedules(prev => [...prev, newPending]);
+      toast.success('Đã thêm lịch vào trạng thái pending');
     } else {
-      setFormRecurrenceType('none');
+      const clubId = payload.clubId || '';
+      const targetClub = clubs.find(c => c._id === clubId);
+      if (!targetClub) return;
+
+      const newPending: PendingSchedule = {
+        tempId: 'temp_' + Math.random().toString(36).substring(2, 9),
+        clubId: clubId,
+        clubName: targetClub.name,
+        clubCode: targetClub.code,
+        clubCategory: targetClub.category,
+        dateStr: formattedDate,
+        shift,
+        startTime: shiftDef.defaultStart,
+        endTime: shiftDef.defaultEnd,
+        recurrence: defaultRecurrence && defaultRecurrence.enabled ? { ...defaultRecurrence } : null
+      };
+
+      setPendingSchedules(prev => [...prev, newPending]);
+      toast.success('Đã thêm lịch mới vào trạng thái pending');
     }
-    
-    setFormMaxAttendees(draft.max_attendees ? String(draft.max_attendees) : '');
-    
-    setActiveDraftId(draft.id);
-    setShowCreateModal(true);
   };
 
-  const handlePointerDown = (
-    e: React.PointerEvent,
-    id: string,
-    mode: 'dragging' | 'resizing-top' | 'resizing-bottom' | 'resizing-left' | 'resizing-right',
-    isDraft: boolean
-  ) => {
-    if (!canManage) return;
-    e.preventDefault();
-
-    const startY = e.clientY;
-    const startX = e.clientX;
-
-    const originalItem = isDraft
-      ? draftSchedules.find(d => d.id === id)
-      : schedules.find(s => s._id === id);
-    if (!originalItem) return;
-
-    const startOriginal = new Date(originalItem.start_time);
-    const endOriginal = new Date(originalItem.end_time);
-
-    const originalStartDateStr = startOriginal.toDateString();
-    const originalEndDateStr = endOriginal.toDateString();
-
-    const startDayIdxOriginal = weekDates.findIndex(d => d.toDateString() === originalStartDateStr);
-    const endDayIdxOriginal = weekDates.findIndex(d => d.toDateString() === originalEndDateStr);
-
-    const gridElement = document.getElementById('schedule-grid-body');
-    const daysContainer = document.getElementById('schedule-days-container');
-    if (!gridElement || !daysContainer) return;
-
-    const gridRect = daysContainer.getBoundingClientRect();
-    const initialScrollTop = gridElement.scrollTop;
-
-    // Neo tọa độ dọc
-    const initialMinutesClicked = getMinutesFromPointer(startY, gridRect, initialScrollTop);
-    const originalStartMinutes = getMinutesFromDayStart(startOriginal);
-    const verticalOffsetMinutes = initialMinutesClicked - originalStartMinutes;
-
-    // Neo cột ngày
-    const initialDayIdxClicked = getDayIndexFromPointer(startX, gridRect);
-
-    // Thiết lập movingSchedule ban đầu
-    setMovingSchedule({
-      id,
-      start_time: originalItem.start_time,
-      end_time: originalItem.end_time
-    });
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const currentScrollTop = gridElement.scrollTop;
-      const minutesCurrent = getMinutesFromPointer(moveEvent.clientY, gridRect, currentScrollTop);
-      const dayIdxCurrent = getDayIndexFromPointer(moveEvent.clientX, gridRect);
-
-      let newStart = new Date(startOriginal);
-      let newEnd = new Date(endOriginal);
-
-      if (mode === 'dragging') {
-        // Di chuyển ngày (ngang)
-        const dayDiff = dayIdxCurrent - initialDayIdxClicked;
-        const originalSpan = endDayIdxOriginal - startDayIdxOriginal;
-        let newStartDayIdx = startDayIdxOriginal + dayDiff;
-        let newEndDayIdx = endDayIdxOriginal + dayDiff;
-
-        if (newStartDayIdx < 0) {
-          newStartDayIdx = 0;
-          newEndDayIdx = newStartDayIdx + originalSpan;
-        }
-        if (newEndDayIdx > 6) {
-          newEndDayIdx = 6;
-          newStartDayIdx = newEndDayIdx - originalSpan;
-        }
-
-        const targetStartDate = weekDates[newStartDayIdx];
-        const targetEndDate = weekDates[newEndDayIdx];
-        newStart.setFullYear(targetStartDate.getFullYear(), targetStartDate.getMonth(), targetStartDate.getDate());
-        newEnd.setFullYear(targetEndDate.getFullYear(), targetEndDate.getMonth(), targetEndDate.getDate());
-        // Di chuyển giờ (dọc)
-        let newStartMinutes = minutesCurrent - verticalOffsetMinutes;
-        const durationMinutes = getMinutesFromDayStart(endOriginal) - getMinutesFromDayStart(startOriginal);
-        
-        newStartMinutes = clampMinutesToGrid(snapMinutes(newStartMinutes));
-        let newEndMinutes = newStartMinutes + durationMinutes;
-
-        if (newEndMinutes > GRID_MINUTES) {
-          newEndMinutes = GRID_MINUTES;
-          newStartMinutes = newEndMinutes - durationMinutes;
-        }
-
-        newStart = buildDateTimeFromDayAndMinutes(newStart, newStartMinutes);
-        newEnd = buildDateTimeFromDayAndMinutes(newEnd, newEndMinutes);
-
-      } else if (mode === 'resizing-top') {
-        const currentEndMinutes = getMinutesFromDayStart(endOriginal);
-        let newStartMinutes = clampMinutesToGrid(snapMinutes(minutesCurrent));
-        
-        newStartMinutes = Math.min(newStartMinutes, currentEndMinutes - MIN_DURATION_MINUTES);
-        newStart = buildDateTimeFromDayAndMinutes(startOriginal, newStartMinutes);
-
-      } else if (mode === 'resizing-bottom') {
-        const currentStartMinutes = getMinutesFromDayStart(startOriginal);
-        let newEndMinutes = clampMinutesToGrid(snapMinutes(minutesCurrent));
-        
-        newEndMinutes = Math.max(newEndMinutes, currentStartMinutes + MIN_DURATION_MINUTES);
-        newEnd = buildDateTimeFromDayAndMinutes(endOriginal, newEndMinutes);
-
-      } else if (mode === 'resizing-left') {
-        const dayDiff = dayIdxCurrent - initialDayIdxClicked;
-        const newStartDayIdx = Math.max(0, Math.min(endDayIdxOriginal, startDayIdxOriginal + dayDiff));
-        const targetDate = weekDates[newStartDayIdx];
-        newStart.setFullYear(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-
-      } else if (mode === 'resizing-right') {
-        const dayDiff = dayIdxCurrent - initialDayIdxClicked;
-        const newEndDayIdx = Math.max(startDayIdxOriginal, Math.min(6, endDayIdxOriginal + dayDiff));
-        const targetDate = weekDates[newEndDayIdx];
-        newEnd.setFullYear(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-      }
-
-      setMovingSchedule({
-        id,
-        start_time: newStart.toISOString(),
-        end_time: newEnd.toISOString()
-      });
-    };
-
-    const handlePointerUp = async (upEvent: PointerEvent) => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-
-      const currentScrollTop = gridElement.scrollTop;
-      const minutesCurrent = getMinutesFromPointer(upEvent.clientY, gridRect, currentScrollTop);
-      const dayIdxCurrent = getDayIndexFromPointer(upEvent.clientX, gridRect);
-
-      let newStart = new Date(startOriginal);
-      let newEnd = new Date(endOriginal);
-
-      if (mode === 'dragging') {
-        const dayDiff = dayIdxCurrent - initialDayIdxClicked;
-        const originalSpan = endDayIdxOriginal - startDayIdxOriginal;
-        let newStartDayIdx = startDayIdxOriginal + dayDiff;
-        let newEndDayIdx = endDayIdxOriginal + dayDiff;
-
-        if (newStartDayIdx < 0) {
-          newStartDayIdx = 0;
-          newEndDayIdx = newStartDayIdx + originalSpan;
-        }
-        if (newEndDayIdx > 6) {
-          newEndDayIdx = 6;
-          newStartDayIdx = newEndDayIdx - originalSpan;
-        }
-
-        const targetStartDate = weekDates[newStartDayIdx];
-        const targetEndDate = weekDates[newEndDayIdx];
-        newStart.setFullYear(targetStartDate.getFullYear(), targetStartDate.getMonth(), targetStartDate.getDate());
-        newEnd.setFullYear(targetEndDate.getFullYear(), targetEndDate.getMonth(), targetEndDate.getDate());
-
-        // Di chuyển giờ (dọc)
-        let newStartMinutes = minutesCurrent - verticalOffsetMinutes;
-        const durationMinutes = getMinutesFromDayStart(endOriginal) - getMinutesFromDayStart(startOriginal);
-        
-        newStartMinutes = clampMinutesToGrid(snapMinutes(newStartMinutes));
-        let newEndMinutes = newStartMinutes + durationMinutes;
-
-        if (newEndMinutes > GRID_MINUTES) {
-          newEndMinutes = GRID_MINUTES;
-          newStartMinutes = newEndMinutes - durationMinutes;
-        }
-
-        newStart = buildDateTimeFromDayAndMinutes(newStart, newStartMinutes);
-        newEnd = buildDateTimeFromDayAndMinutes(newEnd, newEndMinutes);
-
-      } else if (mode === 'resizing-top') {
-        const currentEndMinutes = getMinutesFromDayStart(endOriginal);
-        let newStartMinutes = clampMinutesToGrid(snapMinutes(minutesCurrent));
-        newStartMinutes = Math.min(newStartMinutes, currentEndMinutes - MIN_DURATION_MINUTES);
-        newStart = buildDateTimeFromDayAndMinutes(startOriginal, newStartMinutes);
-
-      } else if (mode === 'resizing-bottom') {
-        const currentStartMinutes = getMinutesFromDayStart(startOriginal);
-        let newEndMinutes = clampMinutesToGrid(snapMinutes(minutesCurrent));
-        newEndMinutes = Math.max(newEndMinutes, currentStartMinutes + MIN_DURATION_MINUTES);
-        newEnd = buildDateTimeFromDayAndMinutes(endOriginal, newEndMinutes);
-
-      } else if (mode === 'resizing-left') {
-        const dayDiff = dayIdxCurrent - initialDayIdxClicked;
-        const newStartDayIdx = Math.max(0, Math.min(endDayIdxOriginal, startDayIdxOriginal + dayDiff));
-        const targetDate = weekDates[newStartDayIdx];
-        newStart.setFullYear(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-
-      } else if (mode === 'resizing-right') {
-        const dayDiff = dayIdxCurrent - initialDayIdxClicked;
-        const newEndDayIdx = Math.max(startDayIdxOriginal, Math.min(6, endDayIdxOriginal + dayDiff));
-        const targetDate = weekDates[newEndDayIdx];
-        newEnd.setFullYear(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-      }
-
-      setMovingSchedule(null);
-
-      const finalStart = newStart.toISOString();
-      const finalEnd = newEnd.toISOString();
-
-      const hasChanged = finalStart !== originalItem.start_time || finalEnd !== originalItem.end_time;
-      if (!hasChanged) return;
-
-      if (isDraft) {
-        setDraftSchedules(prev => prev.map(d => {
-          if (d.id === id) {
-            return {
-              ...d,
-              start_time: finalStart,
-              end_time: finalEnd
-            };
-          }
-          return d;
-        }));
-      } else {
-        const previousSchedules = [...schedules];
-        setSchedules(prev => prev.map(s => {
-          if (s._id === id) {
-            return {
-              ...s,
-              start_time: finalStart,
-              end_time: finalEnd
-            };
-          }
-          return s;
-        }));
-
-        try {
-          await clubScheduleApi.update(id, {
-            start_time: finalStart,
-            end_time: finalEnd
-          });
-          toast.success('Đã cập nhật thời gian hoạt động');
-          reloadSchedules();
-        } catch (err: any) {
-          toast.error(err?.message || 'Không thể cập nhật thời gian hoạt động');
-          setSchedules(previousSchedules);
-        }
-      }
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-  };
-
-  const handleOpenRecurrenceModal = (draftId: string | null) => {
-    setActiveDraftId(draftId);
+  const handleOpenRecurrenceModal = (target: 'default' | 'form', currentConfig: RecurrenceConfig | null) => {
+    const currentMondayStr = mondayDate.toISOString().split('T')[0];
+    const firstActivityDate = getFirstActivityStartDate(schedules, pendingSchedules, currentMondayStr);
     
-    let currentRecurrence = null;
-    if (draftId) {
-      const draft = draftSchedules.find(d => d.id === draftId);
-      currentRecurrence = draft?.recurrence;
-    } else {
-      currentRecurrence = defaultRecurrence;
+    if (!firstActivityDate) {
+      toast.error('Không có buổi sinh hoạt nào được xếp trong tuần hiện tại để thiết lập lặp lại.');
+      return;
     }
 
-    if (currentRecurrence) {
-      setModalRecurrenceType(currentRecurrence.type);
-      setModalUntilType(currentRecurrence.untilType);
-      setModalWeeksCount(currentRecurrence.weeksCount || 8);
-      setModalUntilDate(currentRecurrence.untilDate || '');
+    setRecurrenceModalTarget(target);
+    setIsUntilCalendarOpen(false);
+    setIsRangeCalendarOpen(false);
+    
+    if (currentConfig && currentConfig.enabled) {
+      setModalRecurrenceType(currentConfig.type);
+      setModalUntilType('date');
+      setModalWeeksCount(currentConfig.weeksCount || 8);
+      setModalUntilDate(currentConfig.untilDate || currentConfig.repeatEndDate || '');
+      setModalRepeatStartDate(currentConfig.repeatStartDate || currentMondayStr);
+      setModalRepeatEndDate(currentConfig.repeatEndDate || '');
     } else {
       setModalRecurrenceType('weekly');
-      setModalUntilType('none');
+      setModalUntilType('date');
       setModalWeeksCount(8);
       setModalUntilDate('');
+      setModalRepeatStartDate(currentMondayStr);
+      
+      let endD = '';
+      if (activeSemester?.end_date) {
+        endD = activeSemester.end_date.split('T')[0];
+      } else {
+        const fallbackEnd = new Date(firstActivityDate.getTime() + 8 * 7 * 24 * 60 * 60 * 1000);
+        endD = fallbackEnd.toISOString().split('T')[0];
+      }
+      setModalRepeatEndDate(endD);
+      setModalUntilDate(endD);
     }
     setShowRecurrenceModal(true);
   };
 
-  const handleConfirmRecurrence = () => {
-    const updatedRecurrence = modalUntilType === 'none' ? null : {
-      type: modalRecurrenceType,
+  const handleConfirmRecurrence = async () => {
+    const enabled = modalUntilType !== 'none';
+    const config: RecurrenceConfig = {
+      enabled,
+      type: enabled ? modalRecurrenceType : 'weekly',
       untilType: modalUntilType,
-      weeksCount: modalUntilType === 'custom' ? modalWeeksCount : undefined,
-      untilDate: modalUntilType === 'custom' ? modalUntilDate : undefined,
+      weeksCount: enabled && modalUntilType === 'weeks' ? modalWeeksCount : undefined,
+      untilDate: enabled && modalUntilType === 'date' ? modalUntilDate : undefined,
+      repeatStartDate: enabled ? modalRepeatStartDate : undefined,
+      repeatEndDate: enabled ? modalRepeatEndDate : undefined,
     };
 
-    if (activeDraftId !== null) {
-      setDraftSchedules(prev => prev.map(d => {
-        if (d.id === activeDraftId) {
-          return {
-            ...d,
-            recurrence: updatedRecurrence
-          };
-        }
-        return d;
-      }));
-      toast.success('Đã cập nhật cấu hình lặp lại cho lịch nháp');
-    } else {
-      setDefaultRecurrence(updatedRecurrence);
-      toast.success('Đã cập nhật cấu hình lặp lại mặc định');
+    // Fast validation inside recurrence config modal
+    if (enabled) {
+      if (!modalRepeatStartDate) {
+        toast.error('Vui lòng chọn ngày bắt đầu lặp');
+        return;
+      }
+      if (!modalRepeatEndDate) {
+        toast.error('Vui lòng chọn ngày kết thúc lặp');
+        return;
+      }
+
+      const currentMondayStr = mondayDate.toISOString().split('T')[0];
+      const startOfWeekDate = new Date(currentMondayStr);
+      startOfWeekDate.setHours(0, 0, 0, 0);
+
+      const repeatStart = new Date(modalRepeatStartDate);
+      repeatStart.setHours(0, 0, 0, 0);
+
+      const repeatEnd = new Date(modalRepeatEndDate);
+      repeatEnd.setHours(23, 59, 59, 999);
+
+      // Rule 6 & 9: repeat start date must be on or after arranged schedule week
+      if (repeatStart < startOfWeekDate) {
+        toast.error('Ngày bắt đầu lặp lại không được trước tuần xếp lịch');
+        return;
+      }
+
+      // Find first scheduled club session start date in anchor week
+      const firstActivityDate = getFirstActivityStartDate(schedules, pendingSchedules, currentMondayStr);
+      if (!firstActivityDate) {
+        toast.error('Không có buổi sinh hoạt nào được xếp trong tuần hiện tại để thiết lập lặp lại.');
+        return;
+      }
+
+      const firstActivityDay = new Date(firstActivityDate);
+      firstActivityDay.setHours(0, 0, 0, 0);
+
+      // Rule 7 & 11: repeatEnd must be on or after the first activity start date
+      if (repeatEnd < firstActivityDay) {
+        toast.error('Ngày kết thúc lặp lại phải bằng hoặc sau ngày bắt đầu buổi sinh hoạt đầu tiên');
+        return;
+      }
+
+      // Rule 8: repeatEnd must be on or after repeatStart
+      if (repeatEnd < repeatStart) {
+        toast.error('Ngày kết thúc lặp lại phải bằng hoặc sau ngày bắt đầu lặp');
+        return;
+      }
+
+      // Rule 12: If range contains no valid future occurrence, alert and do not confirm
+      const sessionCount = countRecurrenceSessions(
+        schedules,
+        pendingSchedules,
+        currentMondayStr,
+        config.type,
+        repeatStart,
+        repeatEnd
+      );
+
+      if (sessionCount === 0) {
+        toast.error('Không thể tạo được buổi sinh hoạt nào trong khoảng thời gian này. Vui lòng kiểm tra lại ngày kết thúc lặp.');
+        return;
+      }
     }
 
+    if (recurrenceModalTarget === 'default') {
+      const currentMondayStr = mondayDate.toISOString().split('T')[0];
+      
+      if (enabled) {
+        // Set board-level settings
+        setDefaultRecurrence(config);
+        setAnchorWeekMonday(currentMondayStr);
+
+        // 1. Propagate to pending schedules in the anchor week
+        setPendingSchedules(prev => prev.map(p => {
+          if (isDateInAnchorWeek(p.dateStr, currentMondayStr)) {
+            return {
+              ...p,
+              recurrence: { ...config }
+            };
+          }
+          return p;
+        }));
+
+        // 2. Apply recurrence to all saved schedules in the anchor week
+        const savedInAnchor = schedules.filter(s => {
+          if (s.status === 'cancelled') return false;
+          const d = new Date(s.start_time);
+          const time = d.getTime();
+          return time >= startOfWeek.getTime() && time <= endOfWeek.getTime();
+        });
+
+        if (savedInAnchor.length > 0) {
+          try {
+            await Promise.all(savedInAnchor.map(async (s) => {
+              const startDateTime = new Date(s.start_time);
+              const validation = validateRecurrenceConfig(config, startDateTime, activeSemester);
+              if (!validation.isValid) return;
+              
+              let untilIso: string | undefined = undefined;
+              if (validation.effectiveEndDate) {
+                untilIso = validation.effectiveEndDate.toISOString();
+              }
+              
+              const recurrencePayload = {
+                type: config.type,
+                until: untilIso,
+                start: config.repeatStartDate ? new Date(config.repeatStartDate).toISOString() : undefined,
+              };
+              
+              const payload = {
+                club_id: typeof s.club_id === 'string' ? s.club_id : s.club_id?._id,
+                title: s.title,
+                description: s.description,
+                location: s.location,
+                schedule_type: s.schedule_type,
+                start_time: s.start_time,
+                end_time: s.end_time,
+                semester_id: s.semester_id?._id || s.semester_id,
+                recurrence: recurrencePayload,
+                max_attendees: s.max_attendees || undefined,
+              };
+
+              // Delete old series if it was recurring, or single session if one-time
+              await clubScheduleApi.delete(s._id, !!s.recurrence_id);
+              // Create new series
+              await clubScheduleApi.create(payload);
+            }));
+            
+            toast.success(`Đã thiết lập chuỗi lặp ${config.type === 'weekly' ? 'hàng tuần' : config.type === 'biweekly' ? '2 tuần/lần' : 'hàng tháng'} thành công`);
+          } catch (err: any) {
+            toast.error(err?.message || 'Không thể thiết lập chuỗi lặp cho một số lịch đã lưu');
+          }
+        } else {
+          toast.success(`Đã cấu hình chuỗi lặp ${config.type === 'weekly' ? 'hàng tuần' : config.type === 'biweekly' ? '2 tuần/lần' : 'hàng tháng'} cho tuần hiện tại`);
+        }
+      } else {
+        // Recurrence disabled
+        setDefaultRecurrence(config);
+        setAnchorWeekMonday(currentMondayStr);
+
+        // 1. Remove recurrence from pending schedules in the anchor week
+        setPendingSchedules(prev => prev.map(p => {
+          if (isDateInAnchorWeek(p.dateStr, currentMondayStr)) {
+            return {
+              ...p,
+              recurrence: null
+            };
+          }
+          return p;
+        }));
+
+        // 2. Call cancelRecurrence API for saved recurring schedules in the anchor week
+        const savedRecurringInAnchor = schedules.filter(s => {
+          if (s.status === 'cancelled' || !s.recurrence_id) return false;
+          const d = new Date(s.start_time);
+          const time = d.getTime();
+          return time >= startOfWeek.getTime() && time <= endOfWeek.getTime();
+        });
+
+        if (savedRecurringInAnchor.length > 0) {
+          try {
+            await Promise.all(savedRecurringInAnchor.map(s => clubScheduleApi.cancelRecurrence(s._id)));
+            toast.success('Đã hủy chuỗi lặp lại và giữ lại lịch tuần hiện tại');
+          } catch (err: any) {
+            toast.error(err?.message || 'Không thể hủy chuỗi lặp của lịch đã lưu');
+          }
+        } else {
+          toast.success('Đã hủy chuỗi lặp cho tuần hiện tại');
+        }
+      }
+      
+      reloadSchedules();
+    } else {
+      setScheduleRecurrence(config);
+      toast.success('Đã cấu hình chuỗi lặp cho lịch hiện tại');
+    }
     setShowRecurrenceModal(false);
+  };
+
+  const handleCancelAllRecurrence = async () => {
+    try {
+      const currentMondayStr = mondayDate.toISOString().split('T')[0];
+      const startOfWeek = new Date(currentMondayStr);
+      startOfWeek.setHours(0, 0, 0, 0);
+      const endOfWeek = new Date(startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000);
+      endOfWeek.setHours(23, 59, 59, 999);
+
+      // 1. Find all saved recurring schedules in the anchor week (having recurrence_id)
+      const savedInAnchor = schedules.filter(s => {
+        if (!s.recurrence_id) return false;
+        const d = new Date(s.start_time);
+        const time = d.getTime();
+        return time >= startOfWeek.getTime() && time <= endOfWeek.getTime();
+      });
+
+      if (savedInAnchor.length > 0) {
+        await Promise.all(savedInAnchor.map(async (s) => {
+          await clubScheduleApi.cancelRecurrence(s._id);
+        }));
+      }
+
+      // 2. Remove recurrence config from pending schedules in the anchor week
+      setPendingSchedules(prev => prev.map(p => {
+        if (isDateInAnchorWeek(p.dateStr, currentMondayStr)) {
+          return {
+            ...p,
+            recurrence: null
+          };
+        }
+        return p;
+      }));
+
+      // 3. Reset defaultRecurrence to disabled
+      setDefaultRecurrence({
+        enabled: false,
+        type: 'weekly',
+        untilType: 'none',
+      });
+
+      toast.success('Đã hủy toàn bộ lịch lặp thành công');
+      setShowRecurrenceModal(false);
+      reloadSchedules();
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể hủy toàn bộ lịch lặp');
+    }
   };
 
   const handleOpenCreateModal = (dayIndex?: number, hourSlot?: number) => {
@@ -792,16 +1602,26 @@ export default function SchedulesOverview() {
     const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
     const dd = String(targetDate.getDate()).padStart(2, '0');
     
-    setFormClubId(clubs[0]?._id || '');
-    setFormTitle(clubs[0] ? `Sinh hoạt CLB ${clubs[0].name}` : '');
+    const defaultClub = clubs[0];
+    const defaultLoc = defaultClub?.classroom || 'Phòng sinh hoạt CLB';
+    
+    setFormClubId(defaultClub?._id || '');
+    setFormTitle(defaultClub ? `Sinh hoạt CLB ${defaultClub.name}` : '');
     setFormDesc('');
-    setFormLocation('Phòng sinh hoạt CLB');
+    setFormLocation(defaultLoc);
     setFormType('regular');
     setFormDate(`${yyyy}-${mm}-${dd}`);
     setFormStartTime(hourSlot !== undefined ? String(hourSlot).padStart(2, '0') + ':00' : '08:00');
     setFormEndTime(hourSlot !== undefined ? String(hourSlot + 2).padStart(2, '0') + ':00' : '10:00');
-    setFormRecurrenceType('none');
+    setScheduleRecurrence({
+      enabled: false,
+      type: 'weekly',
+      untilType: 'none',
+    });
     setFormMaxAttendees('');
+    setFormScheduleId(null);
+    setFormShift(null);
+    setIsSimplifiedModal(false);
     setShowCreateModal(true);
   };
 
@@ -820,12 +1640,30 @@ export default function SchedulesOverview() {
       return;
     }
 
-    let recurrence = undefined;
-    if (formRecurrenceType === 'semester') {
-      recurrence = { type: 'weekly' }; // until date will be populated by backend using semester end date
-    } else if (formRecurrenceType === 'custom') {
-      const until = new Date(startDateTime.getTime() + formRecurrenceWeeks * 7 * 24 * 60 * 60 * 1000);
-      recurrence = { type: 'weekly', until: until.toISOString() };
+    if (formShift) {
+      if (!validateTimeInShift(formStartTime, formEndTime, formShift)) {
+        const shiftRange = SHIFT_DEFINITIONS[formShift]?.range || '';
+        toast.error(`Thời gian chọn phải nằm trong khung giờ của ca: ${shiftRange}`);
+        return;
+      }
+    }
+
+    // Determine recurrence configuration to save
+    let recurrencePayload = undefined;
+    
+    // Only keep recurrence payload if editing an existing schedule
+    const isEdit = !!(formScheduleId || activePendingSchedule?.scheduleId);
+    
+    if (isEdit) {
+      const targetId = formScheduleId || activePendingSchedule?.scheduleId;
+      const existing = schedules.find(s => s._id === targetId);
+      if (existing && existing.recurrence) {
+        recurrencePayload = {
+          type: existing.recurrence.type,
+          until: existing.recurrence.until,
+          start: existing.recurrence.start
+        };
+      }
     }
 
     const payload = {
@@ -837,21 +1675,80 @@ export default function SchedulesOverview() {
       start_time: startDateTime.toISOString(),
       end_time: endDateTime.toISOString(),
       semester_id: activeSemester?._id || semesters[0]?._id,
-      recurrence,
+      recurrence: recurrencePayload,
       max_attendees: formMaxAttendees ? parseInt(formMaxAttendees) : undefined,
     };
 
+    const targetScheduleId = formScheduleId || activePendingSchedule?.scheduleId;
+    const existing = targetScheduleId ? schedules.find(s => s._id === targetScheduleId) : null;
+
+    if (existing && existing.recurrence_id) {
+      setPendingUpdatePayload({
+        payload,
+        scheduleId: targetScheduleId,
+        activePendingSchedule
+      });
+      setShowUpdateSeriesConfirmModal(true);
+      return;
+    }
+
     try {
-      await clubScheduleApi.create(payload);
-      toast.success(recurrence ? 'Đã xếp chuỗi lịch sinh hoạt thành công' : 'Đã xếp lịch sinh hoạt thành công');
-      setShowCreateModal(false);
-      if (activeDraftId) {
-        setDraftSchedules(prev => prev.filter(d => d.id !== activeDraftId));
-        setActiveDraftId(null);
+      if (activePendingSchedule) {
+        if (activePendingSchedule.scheduleId) {
+          const singlePayload = { ...payload, recurrence: undefined };
+          await clubScheduleApi.update(activePendingSchedule.scheduleId, singlePayload);
+          toast.success('Đã cập nhật lịch sinh hoạt thành công');
+        } else {
+          await clubScheduleApi.create(payload);
+          toast.success(recurrencePayload ? 'Đã xếp chuỗi lịch sinh hoạt thành công' : 'Đã xếp lịch sinh hoạt thành công');
+        }
+        setPendingSchedules(prev => prev.filter(p => p.tempId !== activePendingSchedule.tempId));
+        setShowCreateModal(false);
+        setActivePendingSchedule(null);
+        reloadSchedules();
+      } else {
+        if (formScheduleId) {
+          const singlePayload = { ...payload, recurrence: undefined };
+          await clubScheduleApi.update(formScheduleId, singlePayload);
+          toast.success('Đã cập nhật lịch sinh hoạt thành công');
+        } else {
+          await clubScheduleApi.create(payload);
+          toast.success(recurrencePayload ? 'Đã xếp chuỗi lịch sinh hoạt thành công' : 'Đã xếp lịch sinh hoạt thành công');
+        }
+        setShowCreateModal(false);
+        reloadSchedules();
       }
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể tạo/cập nhật lịch hoạt động');
+    }
+  };
+
+  const handleUpdateConfirm = async (updateSeries: boolean) => {
+    if (!pendingUpdatePayload) return;
+    const { payload, scheduleId, activePendingSchedule } = pendingUpdatePayload;
+
+    try {
+      if (updateSeries) {
+        await clubScheduleApi.delete(scheduleId, true);
+        await clubScheduleApi.create(payload);
+        toast.success('Đã cập nhật chuỗi lịch sinh hoạt thành công');
+      } else {
+        const singlePayload = { ...payload, recurrence: undefined };
+        await clubScheduleApi.update(scheduleId, singlePayload);
+        toast.success('Đã cập nhật buổi sinh hoạt thành công');
+      }
+
+      if (activePendingSchedule) {
+        setPendingSchedules(prev => prev.filter(p => p.tempId !== activePendingSchedule.tempId));
+      }
+
+      setShowUpdateSeriesConfirmModal(false);
+      setPendingUpdatePayload(null);
+      setShowCreateModal(false);
+      setActivePendingSchedule(null);
       reloadSchedules();
     } catch (err: any) {
-      toast.error(err?.message || 'Không thể tạo lịch hoạt động');
+      toast.error(err?.message || 'Không thể cập nhật lịch hoạt động');
     }
   };
 
@@ -873,18 +1770,297 @@ export default function SchedulesOverview() {
     }
   };
 
-  // Timeline view calculations
-  const selectedDaySchedules = schedules.filter(s => {
-    if (s.status === 'cancelled') return false;
-    const sDate = new Date(s.start_time);
-    return sDate.toDateString() === selectedDate.toDateString();
-  }).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  const handleCancelRecurrenceConfirm = async () => {
+    if (!formScheduleId) return;
+    try {
+      await clubScheduleApi.cancelRecurrence(formScheduleId);
+      toast.success('Đã hủy chuỗi lặp lại và giữ lại lịch tuần hiện tại');
+      setShowCancelRecurrenceConfirmModal(false);
+      setShowCreateModal(false);
+      reloadSchedules();
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể hủy chuỗi lặp lại');
+    }
+  };
 
-  const morningSchedules = selectedDaySchedules.filter(s => new Date(s.start_time).getHours() < 13);
-  const afternoonSchedules = selectedDaySchedules.filter(s => new Date(s.start_time).getHours() >= 13);
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportWeeklySchedule = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+
+    // Wait a brief moment to ensure fonts/layout are stable
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const element = document.getElementById('schedule-board-export');
+    if (!element) {
+      toast.error('Không tìm thấy vùng dữ liệu lịch tuần để xuất');
+      setIsExporting(false);
+      return;
+    }
+
+    try {
+      const { toBlob } = await import('html-to-image');
+
+      const blob = await toBlob(element, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+        }
+      });
+
+      if (!blob) {
+        throw new Error('Image generation returned empty blob');
+      }
+
+      const yyyy = mondayDate.getFullYear();
+      const mm = String(mondayDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(mondayDate.getDate()).padStart(2, '0');
+      const filename = `club-weekly-schedule-${yyyy}-${mm}-${dd}.png`;
+
+      // Copy to clipboard or fallback to download
+      if (navigator.clipboard && navigator.clipboard.write) {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              [blob.type]: blob
+            })
+          ]);
+          toast.success('Đã sao chép hình ảnh lịch tuần vào bộ nhớ tạm');
+        } catch (clipErr) {
+          console.warn('Clipboard write failed, falling back to download:', clipErr);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          toast.info('Đã tự động tải xuống hình ảnh lịch tuần (Trình duyệt không cho phép sao chép trực tiếp)');
+        }
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.info('Trình duyệt không hỗ trợ sao chép ảnh, đã tải xuống file PNG thay thế');
+      }
+    } catch (err) {
+      console.error('Lỗi khi xuất ảnh lịch tuần:', err);
+      toast.error('Không thể xuất ảnh lịch tuần. Vui lòng thử lại.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Timeline view calculations
+  const selectedDaySchedules = schedules
+    .filter(s => {
+      if (pendingScheduleIds.includes(s._id)) return false;
+      if (s.recurrence_id && pendingRecurrenceIds.includes(s.recurrence_id)) return false;
+      return s.status !== 'cancelled' && doesScheduleOccurOnDate(s, selectedDate);
+    })
+    .map(s => {
+      const { start, end } = getVisibleScheduleTimesForDate(s, selectedDate);
+      return {
+        ...s,
+        visibleStart: start,
+        visibleEnd: end
+      };
+    })
+    .sort((a, b) => {
+      const timeDiff = a.visibleStart.getTime() - b.visibleStart.getTime();
+      if (timeDiff !== 0) return timeDiff;
+      const endTimeDiff = a.visibleEnd.getTime() - b.visibleEnd.getTime();
+      if (endTimeDiff !== 0) return endTimeDiff;
+      return a.title.localeCompare(b.title);
+    });
+
+  const morningSchedules = selectedDaySchedules.filter(s => s.visibleStart.getHours() < 13);
+  const afternoonSchedules = selectedDaySchedules.filter(s => s.visibleStart.getHours() >= 13 && s.visibleStart.getHours() < 18);
+  const eveningSchedules = selectedDaySchedules.filter(s => s.visibleStart.getHours() >= 18);
+
+
 
   return (
     <div className="p-6 space-y-6 animate-fadeIn">
+      {/* Hidden schedule board for image export */}
+      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+        <div id="schedule-board-export" className="bg-white p-6 rounded-2xl border border-slate-200 w-[1200px] flex flex-col gap-4 text-slate-800">
+          {/* Title & Date Range */}
+          <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+              <CalendarRange size={22} />
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-slate-800 tracking-tight">Lịch biểu hoạt động CLB</h1>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">{getHeaderDateRangeString()}</p>
+            </div>
+          </div>
+
+          {/* The grid board */}
+          <div className="border border-slate-200 rounded-2xl overflow-hidden flex flex-col bg-white">
+            {/* Board Header */}
+            <div className="grid border-b border-slate-200 bg-slate-50" style={{ gridTemplateColumns: '120px repeat(7, 1fr)' }}>
+              <div className="p-3 text-center border-r border-slate-200 flex items-center justify-center gap-1.5">
+                <Clock3 className="h-4 w-4 text-slate-500" />
+                <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Ca hoạt động</p>
+              </div>
+              {weekDates.map((date, idx) => {
+                const isToday = new Date().toDateString() === date.toDateString();
+                return (
+                  <div key={idx} className={`p-3 text-center border-r border-slate-200 last:border-0 ${isToday ? 'bg-blue-50/50' : ''}`}>
+                    <p className={`text-xs font-extrabold ${isToday ? 'text-blue-600' : 'text-slate-700'}`}>
+                      {idx === 6 ? 'CN' : `Thứ ${idx + 2}`}
+                    </p>
+                    <p className={`text-[10px] font-bold mt-0.5 ${isToday ? 'text-blue-500' : 'text-slate-400'}`}>
+                      {date.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Board Body */}
+            <div className="flex flex-col divide-y divide-slate-200 bg-white">
+              {(['morning', 'afternoon', 'evening'] as ShiftType[]).map((shift) => {
+                const shiftDef = SHIFT_DEFINITIONS[shift];
+                return (
+                  <div key={shift} className="grid divide-x divide-slate-200" style={{ gridTemplateColumns: '120px repeat(7, 1fr)' }}>
+                    <div className="p-3 flex flex-col justify-center items-center text-center bg-slate-50 border-r border-slate-200 gap-1 select-none">
+                      <span>
+                        {shift === 'morning' && <Sunrise className="h-5 w-5 text-amber-500" />}
+                        {shift === 'afternoon' && <Sun className="h-5 w-5 text-orange-500" />}
+                        {shift === 'evening' && <Moon className="h-5 w-5 text-blue-600" />}
+                      </span>
+                      <span className="text-xs font-black text-slate-700 uppercase tracking-wide">{shiftDef.label}</span>
+                      <span className="text-[10px] font-bold text-slate-400/80">{shiftDef.range}</span>
+                    </div>
+
+                    {weekDates.map((dayDate, dayIdx) => {
+                      const isToday = new Date().toDateString() === dayDate.toDateString();
+                      const shiftSchedules = getSchedulesForDayAndShift(dayDate, shift, weekSchedules);
+
+                      const yyyy = dayDate.getFullYear();
+                      const mm = String(dayDate.getMonth() + 1).padStart(2, '0');
+                      const dd = String(dayDate.getDate()).padStart(2, '0');
+                      const cellDateStr = `${yyyy}-${mm}-${dd}`;
+
+                      const cellPendingSchedules = getCellPendingSchedules(
+                        dayDate,
+                        cellDateStr,
+                        shift,
+                        pendingSchedules,
+                        activeSemester,
+                        defaultRecurrence,
+                        anchorWeekMonday
+                      );
+
+                      return (
+                        <div
+                          key={dayIdx}
+                          className={`p-2 min-h-[140px] bg-white border border-slate-100 flex flex-col gap-1.5 ${isToday ? 'bg-blue-50/10' : ''}`}
+                        >
+                          {shiftSchedules.length === 0 && cellPendingSchedules.length === 0 ? (
+                            <div className="flex-1 flex items-center justify-center text-[9px] font-semibold text-slate-300 text-center py-6 select-none">
+                              Trống
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1.5">
+                              {shiftSchedules.map((schedule) => {
+                                const { start, end } = getVisibleScheduleTimesForDate(schedule, dayDate);
+                                const timeStr = `${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+                                const accent = getClubAccentColor(schedule);
+                                const styles = accentStyles[accent];
+
+                                return (
+                                  <div
+                                    key={schedule._id}
+                                    className={cn(
+                                      "p-2 backdrop-blur-md rounded-lg shadow-sm flex flex-col justify-between overflow-hidden border border-l-[4px] relative text-left transition-all",
+                                      styles.card,
+                                      styles.borderL
+                                    )}
+                                  >
+                                    <div className="min-h-0 flex-1 overflow-hidden select-none">
+                                      <p className={cn("text-[10px] font-extrabold leading-tight line-clamp-2 break-words", styles.title)} title={schedule.title}>
+                                        {schedule.title}
+                                      </p>
+                                      <div className={cn("flex flex-col gap-0.5 mt-1.5 text-[8px] font-bold", styles.sub)}>
+                                        <div className="flex items-center gap-1 shrink-0 opacity-90">
+                                          <Clock size={8} className={cn("shrink-0", styles.icon)} />
+                                          <span>{timeStr}</span>
+                                        </div>
+                                        {(schedule.location || (typeof schedule.club_id === 'object' && schedule.club_id?.classroom)) && (
+                                          <div className="flex items-center gap-1 truncate opacity-90" title={schedule.location || (typeof schedule.club_id === 'object' ? schedule.club_id?.classroom : '')}>
+                                            <MapPin size={8} className={cn("shrink-0", styles.icon)} />
+                                            <span className="truncate">{schedule.location || (typeof schedule.club_id === 'object' ? schedule.club_id?.classroom : '')}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      {renderRecurrenceBadge(schedule, 'sm')}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {cellPendingSchedules.map((pending) => {
+                                return (
+                                  <div
+                                    key={pending.tempId}
+                                    className="p-2 bg-amber-500/15 backdrop-blur-md border border-amber-500/35 border-l-[4px] border-l-amber-600 rounded-lg shadow-sm flex flex-col justify-between overflow-hidden relative text-left transition-all"
+                                  >
+                                    <div className="min-h-0 flex-1 overflow-hidden select-none">
+                                      <p className="text-[10px] font-black text-amber-950 leading-tight line-clamp-2 break-words" title={pending.originalData?.title || pending.clubName}>
+                                        {pending.originalData?.title || pending.clubName}
+                                      </p>
+                                      <div className="flex flex-col gap-0.5 mt-1.5 text-[8px] text-amber-900/90 font-extrabold">
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <Clock size={8} className="text-amber-600 shrink-0" />
+                                          <span className="truncate">
+                                            {pending.startTime} - {pending.endTime}
+                                          </span>
+                                        </div>
+                                        {pending.originalData?.location && (
+                                          <div className="flex items-center gap-1 truncate opacity-90" title={pending.originalData.location}>
+                                            <MapPin size={8} className="text-amber-600 shrink-0" />
+                                            <span className="truncate">{pending.originalData.location}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="text-[7px] font-black text-amber-700 bg-amber-500/20 rounded px-1 py-0.5 mt-1.5 w-fit shrink-0">
+                                        {pending.isPreview 
+                                          ? 'Preview lặp' 
+                                          : isDateInAnchorWeek(pending.dateStr, anchorWeekMonday) && defaultRecurrence.enabled
+                                            ? 'Chưa lưu (Lặp)'
+                                            : 'Chưa lưu'}
+                                      </div>
+                                    </div>
+
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
       {/* Header controls matching Figma header style */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white/50 backdrop-blur-md border border-white/60 p-4 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3">
@@ -921,9 +2097,23 @@ export default function SchedulesOverview() {
             </button>
           </div>
 
+          <button
+            onClick={handleExportWeeklySchedule}
+            disabled={isExporting}
+            className="flex items-center gap-1.5 px-3 py-1.5 h-10 bg-white hover:bg-slate-50 border border-slate-200/60 text-slate-700 hover:text-slate-800 disabled:opacity-50 text-xs font-bold rounded-xl shadow-sm cursor-pointer transition-all shrink-0"
+            title="Sao chép hình ảnh lịch tuần"
+          >
+            {isExporting ? (
+              <span className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin shrink-0" />
+            ) : (
+              <Copy size={14} className="shrink-0 text-slate-500" />
+            )}
+            <span>Sao chép lịch tuần</span>
+          </button>
+
           {canManage && (
             <button 
-              onClick={() => handleOpenRecurrenceModal(null)} 
+              onClick={() => handleOpenRecurrenceModal('default', defaultRecurrence)} 
               aria-label="Open advanced schedule settings"
               title="Cấu hình lặp lại mặc định"
               className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/10 hover:shadow-lg transition-all cursor-pointer"
@@ -940,14 +2130,14 @@ export default function SchedulesOverview() {
           <div className="h-[400px] bg-white/40 rounded-xl animate-pulse" />
         </div>
       ) : view === 'weekly' ? (
-        /* Weekly timetable grid view with Left sidebar (Unscheduled Bucket) */
+        /* Weekly shift board view with Left sidebar (Unscheduled Bucket) */
         <div className="flex flex-col lg:flex-row gap-6">
           
           {/* Left panel: Unscheduled Bucket */}
           <div className="w-full lg:w-[280px] shrink-0 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm flex flex-col max-h-[700px] overflow-hidden">
             <div className="p-4 border-b border-white/50 flex justify-between items-center bg-white/30">
               <h2 className="text-sm font-bold text-blue-900 flex items-center gap-1.5">
-                <Activity size={16} className="text-blue-500" /> Chưa xếp lịch
+                <Activity size={16} className="text-blue-500" /> Câu lạc bộ
               </h2>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600">
                 {unscheduledClubs.length}
@@ -973,371 +2163,272 @@ export default function SchedulesOverview() {
                   Tần suất xếp lịch đã đủ tuần này
                 </div>
               ) : (
-                unscheduledClubs.map(club => (
-                  <div
-                    key={club._id}
-                    draggable={canManage}
-                    onDragStart={(e) => handleDragStart(e, club._id)}
-                    className={`p-3 bg-white/60 border border-white/80 rounded-xl shadow-sm hover:shadow-md transition-all group ${canManage ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <p className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{club.name}</p>
-                      <span className="text-[9px] font-black tracking-wider text-slate-400 uppercase">{club.code}</span>
+                unscheduledClubs.map(club => {
+                  const accent = 'blue';
+                  const styles = accentStyles[accent];
+                  return (
+                    <div
+                      key={club._id}
+                      draggable={canManage}
+                      onDragStart={(e) => handleDragStart(e, club._id)}
+                      className={cn(
+                        "p-3 border border-l-[4px] rounded-xl shadow-sm hover:shadow-md transition-all group text-left backdrop-blur-sm",
+                        canManage ? "cursor-grab active:cursor-grabbing" : "",
+                        styles.borderL,
+                        club.isScheduled
+                          ? "opacity-50 bg-slate-100/50 border-slate-200/40"
+                          : cn("bg-white/60 border-slate-200/60", styles.card)
+                      )}
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex flex-col gap-1">
+                          <p className={cn("text-xs font-bold transition-colors leading-tight", club.isScheduled ? "text-slate-500" : styles.title)}>{club.name}</p>
+                          {club.isScheduled && (
+                            <span className="w-fit text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-600">
+                              Đã xếp lịch ({club.scheduledCount})
+                            </span>
+                          )}
+                        </div>
+                        <span className={cn("text-[9px] font-black tracking-wider uppercase shrink-0", club.isScheduled ? "text-slate-400" : styles.icon)}>{club.code}</span>
+                      </div>
+                      <div className={cn("flex items-center gap-2 text-[10px] mt-2 font-medium", club.isScheduled ? "text-slate-400" : styles.sub)}>
+                        <span className="flex items-center gap-0.5"><Clock size={10} /> 2 tiếng/tuần</span>
+                        <span>·</span>
+                        <span className="capitalize">{club.category}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-2 font-medium">
-                      <span className="flex items-center gap-0.5"><Clock size={10} /> 2 tiếng/tuần</span>
-                      <span>·</span>
-                      <span className="capitalize">{club.category}</span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
 
-          {/* Right Area: Timetable Grid */}
+          {/* Right Area: Shift-Based Board */}
           <div className="flex-1 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-            {/* Grid Header */}
-            <div className="grid grid-cols-8 border-b border-slate-200/60 bg-white/60">
-              <div className="p-3 text-center text-[11px] font-bold text-slate-400 border-r border-slate-200/40">Giờ</div>
-              {weekDates.map((date, idx) => {
-                const isToday = new Date().toDateString() === date.toDateString();
-                return (
-                  <div key={idx} className={`p-3 text-center border-r border-slate-200/40 last:border-0 ${isToday ? 'bg-blue-500/5' : ''}`}>
-                    <p className={`text-xs font-extrabold ${isToday ? 'text-blue-600' : 'text-slate-700'}`}>
-                      {idx === 6 ? 'CN' : `Thứ ${idx + 2}`}
-                    </p>
-                    <p className={`text-[10px] font-bold mt-0.5 ${isToday ? 'text-blue-500' : 'text-slate-400'}`}>
-                      {date.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })}
-                    </p>
+            <div className="overflow-x-auto w-full">
+              <div className="min-w-[1000px] flex flex-col">
+                {/* Board Header */}
+                <div className="grid border-b border-slate-200/60 bg-white/60" style={{ gridTemplateColumns: '120px repeat(7, 1fr)' }}>
+                  <div className="p-3 text-center border-r border-slate-200/40 flex items-center justify-center gap-1.5">
+                    <Clock3 className="h-4 w-4 text-slate-500" />
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Ca hoạt động</p>
                   </div>
-                );
-              })}
-            </div>
+                  {weekDates.map((date, idx) => {
+                    const isToday = new Date().toDateString() === date.toDateString();
+                    return (
+                      <div key={idx} className={`p-3 text-center border-r border-slate-200/40 last:border-0 ${isToday ? 'bg-blue-500/5' : ''}`}>
+                        <p className={`text-xs font-extrabold ${isToday ? 'text-blue-600' : 'text-slate-700'}`}>
+                          {idx === 6 ? 'CN' : `Thứ ${idx + 2}`}
+                        </p>
+                        <p className={`text-[10px] font-bold mt-0.5 ${isToday ? 'text-blue-500' : 'text-slate-400'}`}>
+                          {date.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
 
-            {/* Grid Body */}
-            <div id="schedule-grid-body" className="relative grid grid-cols-8 max-h-[660px] overflow-y-auto" style={{ height: `${GRID_HEIGHT}px` }}>
-              {/* Hour marker column */}
-              <div className="border-r border-slate-200/40 bg-white/30">
-                {Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }).map((_, h) => (
-                  <div key={h} style={{ height: `${PIXELS_PER_HOUR}px` }} className={`flex items-center justify-center text-[10px] font-bold text-slate-400/80 border-b ${HOUR_SEPARATOR_CLASS} last:border-0 box-border`}>
-                    {String(h + DAY_START_HOUR).padStart(2, '0')}:00
-                  </div>
-                ))}
-              </div>
+                {/* Board Body */}
+                <div id="schedule-grid-body" className="flex flex-col divide-y divide-slate-200/40 max-h-[700px] overflow-y-auto bg-slate-50/30">
+                  {(['morning', 'afternoon', 'evening'] as ShiftType[]).map((shift) => {
+                    const shiftDef = SHIFT_DEFINITIONS[shift];
+                    return (
+                      <div key={shift} className="grid divide-x divide-slate-200/40" style={{ gridTemplateColumns: '120px repeat(7, 1fr)' }}>
+                        <div className="p-3 flex flex-col justify-center items-center text-center bg-white/50 border-r border-slate-200/40 select-none gap-1">
+                          <span>
+                            {shift === 'morning' && <Sunrise className="h-5 w-5 text-amber-500" />}
+                            {shift === 'afternoon' && <Sun className="h-5 w-5 text-orange-500" />}
+                            {shift === 'evening' && <Moon className="h-5 w-5 text-blue-600" />}
+                          </span>
+                          <span className="text-xs font-black text-slate-700 uppercase tracking-wide">{shiftDef.label}</span>
+                          <span className="text-[10px] font-bold text-slate-400/80">{shiftDef.range}</span>
+                        </div>
 
-              {/* 7 Day Columns Container */}
-              <div id="schedule-days-container" className="col-span-7 relative grid grid-cols-7 h-full">
-                {/* Background Day Columns (for lines & drops) */}
-                {weekDates.map((dayDate, dayIdx) => (
-                  <div
-                    key={dayIdx}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      handleDrop(e, dayIdx);
-                    }}
-                    className="relative border-r border-slate-200/40 last:border-0 hover:bg-slate-500/[0.01] transition-colors"
-                  >
-                    {/* Background hour lines */}
-                    {Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }).map((_, h) => (
-                      <div
-                        key={h}
-                        style={{ height: `${PIXELS_PER_HOUR}px` }}
-                        className={`w-full border-b ${HOUR_SEPARATOR_CLASS} last:border-0 box-border transition-all`}
-                      />
-                    ))}
+                        {weekDates.map((dayDate, dayIdx) => {
+                          const isToday = new Date().toDateString() === dayDate.toDateString();
+                          const shiftSchedules = getSchedulesForDayAndShift(dayDate, shift, weekSchedules);
 
-                    {/* Absolute Overlay Layer for this specific day column */}
-                    <div className="absolute inset-0 pointer-events-none z-10">
-                      {[
-                        ...weekSchedules.map(s => ({ ...s, isDraft: false })),
-                        ...weekDraftSchedules.map(d => ({ ...d, _id: d.id, isDraft: true }))
-                      ]
-                        .filter(item => {
-                          const startTime = movingSchedule?.id === item._id ? new Date(movingSchedule.start_time) : new Date(item.start_time);
-                          const endTime = movingSchedule?.id === item._id ? new Date(movingSchedule.end_time) : new Date(item.end_time);
-                          const layout = getScheduleLayout(startTime.toISOString(), endTime.toISOString(), weekDates);
-                          return layout && layout.startDayIndex === dayIdx;
-                        })
-                        .map(item => {
-                          const startTime = movingSchedule?.id === item._id ? new Date(movingSchedule.start_time) : new Date(item.start_time);
-                          const endTime = movingSchedule?.id === item._id ? new Date(movingSchedule.end_time) : new Date(item.end_time);
+                          const yyyy = dayDate.getFullYear();
+                          const mm = String(dayDate.getMonth() + 1).padStart(2, '0');
+                          const dd = String(dayDate.getDate()).padStart(2, '0');
+                          const cellDateStr = `${yyyy}-${mm}-${dd}`;
 
-                          const layout = getScheduleLayout(startTime.toISOString(), endTime.toISOString(), weekDates);
-                          if (!layout) return null;
+                          const cellPendingSchedules = getCellPendingSchedules(
+                            dayDate,
+                            cellDateStr,
+                            shift,
+                            pendingSchedules,
+                            activeSemester,
+                            defaultRecurrence,
+                            anchorWeekMonday
+                          );
 
-                          const typeColor = typeColors[item.schedule_type] || 'bg-slate-400 border-slate-400 text-slate-500';
-                          const colorParts = typeColor.split(' ');
-
-                          const isSelected = activeDraftId === item._id;
-                          const isMoving = movingSchedule?.id === item._id;
-
-                          if (item.isDraft) {
-                            // RENDER DRAFT CARD
-                            return (
-                              <div
-                                key={item._id}
-                                style={{
-                                  top: `${layout.top}px`,
-                                  height: `${layout.height}px`,
-                                  left: '4px',
-                                  width: 'calc(100% - 8px)',
-                                  boxSizing: 'border-box'
-                                }}
-                                onPointerDown={(e) => {
-                                  if (!canManage) return;
-                                  if ((e.target as HTMLElement).closest('button')) return;
-                                  e.stopPropagation();
-                                  handlePointerDown(e, item._id, 'dragging', true);
-                                }}
-                                onDoubleClick={(e) => {
-                                  if (!canManage) return;
-                                  e.stopPropagation();
-                                  handleOpenAdvancedSettings(item as unknown as DraftSchedule);
-                                }}
-                                className={`absolute rounded-xl border-2 border-dashed border-amber-400 bg-amber-50/95 backdrop-blur-[2px] shadow-md hover:shadow-lg flex flex-col justify-between overflow-hidden group border-l-[6px] border-l-amber-500 pointer-events-auto transition-all ${
-                                  layout.height < 60 ? 'p-1' : layout.height < 90 ? 'p-1.5' : 'p-2.5'
-                                } ${
-                                  isSelected ? 'ring-2 ring-amber-500/70 border-amber-500 bg-amber-50/100' : ''
-                                } ${
-                                  isMoving ? 'transition-none z-30 opacity-90 shadow-xl border-blue-500 border-l-blue-500' : ''
-                                }`}
-                              >
-                                {/* Resize handles */}
-                                {canManage && !isMoving && (
+                          return (
+                            <div
+                              key={dayIdx}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => handleDrop(e, dayIdx, shift)}
+                              className={`p-2 min-h-[160px] bg-white/40 hover:bg-blue-500/[0.02] border border-dashed border-slate-200/60 rounded-xl transition-colors flex flex-col space-y-1.5 ${isToday ? 'bg-blue-50/5' : ''}`}
+                            >
+                              <div className="flex-1 flex flex-col gap-1.5 overflow-y-auto max-h-[220px]">
+                                {shiftSchedules.length === 0 && cellPendingSchedules.length === 0 ? (
+                                  <div className="flex-1 flex items-center justify-center text-[9px] font-semibold text-slate-300 text-center py-6 select-none">
+                                    Trống
+                                  </div>
+                                ) : (
                                   <>
-                                    <div
-                                      className="absolute top-0 bottom-0 left-0 w-2 cursor-ew-resize z-20"
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        handlePointerDown(e, item._id, 'resizing-left', true);
-                                      }}
-                                    />
-                                    <div
-                                      className="absolute top-0 bottom-0 right-0 w-2 cursor-ew-resize z-20"
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        handlePointerDown(e, item._id, 'resizing-right', true);
-                                      }}
-                                    />
-                                    <div
-                                      className="absolute top-0 left-2 right-2 h-1.5 cursor-ns-resize z-20"
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        handlePointerDown(e, item._id, 'resizing-top', true);
-                                      }}
-                                    />
-                                    <div
-                                      className="absolute bottom-0 left-2 right-2 h-1.5 cursor-ns-resize z-20"
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        handlePointerDown(e, item._id, 'resizing-bottom', true);
-                                      }}
-                                    />
+                                    {shiftSchedules.map((schedule) => {
+                                      const { start, end } = getVisibleScheduleTimesForDate(schedule, dayDate);
+                                      const timeStr = `${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+                                      const accent = getClubAccentColor(schedule);
+                                      const styles = accentStyles[accent];
+
+                                      return (
+                                        <div
+                                          key={schedule._id}
+                                          draggable={canManage}
+                                          onDragStart={(e) => handleScheduleDragStart(e, schedule, cellDateStr, shift)}
+                                          onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
+                                          className={cn(
+                                            "p-2 backdrop-blur-md rounded-lg shadow-sm hover:shadow-md flex flex-col justify-between overflow-hidden border border-l-[4px] relative group transition-all text-left",
+                                            canManage ? 'cursor-grab active:cursor-grabbing' : '',
+                                            styles.card,
+                                            styles.borderL
+                                          )}
+                                        >
+                                          <div className="min-h-0 flex-1 overflow-hidden select-none">
+                                            <p className={cn("text-[10px] font-extrabold leading-tight line-clamp-2 break-words pr-5", styles.title)} title={schedule.title}>
+                                              {schedule.title}
+                                            </p>
+                                            <div className={cn("flex flex-col gap-0.5 mt-1.5 text-[8px] font-bold", styles.sub)}>
+                                              <div className="flex items-center gap-1 shrink-0 opacity-90">
+                                                <Clock size={8} className={cn("shrink-0", styles.icon)} />
+                                                <span>{timeStr}</span>
+                                              </div>
+                                              {(schedule.location || (typeof schedule.club_id === 'object' && schedule.club_id?.classroom)) && (
+                                                <div className="flex items-center gap-1 truncate opacity-90" title={schedule.location || (typeof schedule.club_id === 'object' ? schedule.club_id?.classroom : '')}>
+                                                  <MapPin size={8} className={cn("shrink-0", styles.icon)} />
+                                                  <span className="truncate">{schedule.location || (typeof schedule.club_id === 'object' ? schedule.club_id?.classroom : '')}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                            {renderRecurrenceBadge(schedule, 'sm')}
+                                          </div>
+                                          {canManage && (
+                                            <div className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleConfigureSaved(schedule);
+                                                }}
+                                                title="Configure"
+                                                className="p-0.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded transition-all cursor-pointer"
+                                              >
+                                                <Settings size={9} />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleDeleteClick(schedule);
+                                                }}
+                                                title="Delete"
+                                                className="p-0.5 bg-white border border-slate-200 hover:bg-red-50 text-red-500 rounded transition-all cursor-pointer"
+                                              >
+                                                <Trash2 size={9} />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+
+                                    {cellPendingSchedules.map((pending) => {
+                                      const isPreview = pending.isPreview;
+                                      return (
+                                        <div
+                                          key={pending.tempId}
+                                          draggable={canManage && !isPreview}
+                                          onDragStart={(e) => {
+                                            if (isPreview) return;
+                                            handlePendingDragStart(e, pending.tempId, pending.dateStr, pending.shift);
+                                          }}
+                                          onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigurePending(pending); }}
+                                          className={cn(
+                                            "p-2 backdrop-blur-md rounded-lg shadow-sm hover:shadow-md flex flex-col justify-between overflow-hidden relative group transition-all text-left",
+                                            isPreview
+                                              ? "bg-amber-500/5 border border-dashed border-amber-500/25 border-l-[4px] border-l-amber-500/50"
+                                              : "bg-amber-500/15 border border-amber-500/35 border-l-[4px] border-l-amber-600",
+                                            canManage && !isPreview ? 'cursor-grab active:cursor-grabbing' : ''
+                                          )}
+                                        >
+                                          <div className="min-h-0 flex-1 overflow-hidden select-none">
+                                            <p className="text-[10px] font-black text-amber-950 leading-tight line-clamp-2 break-words pr-8" title={pending.originalData?.title || pending.clubName}>
+                                              {pending.originalData?.title || pending.clubName}
+                                            </p>
+                                            <div className="flex flex-col gap-0.5 mt-1.5 text-[8px] text-amber-900/90 font-extrabold">
+                                              <div className="flex items-center gap-1 shrink-0">
+                                                <Clock size={8} className="text-amber-600 shrink-0" />
+                                                <span className="truncate">
+                                                  {pending.startTime} - {pending.endTime}
+                                                </span>
+                                              </div>
+                                              {pending.originalData?.location && (
+                                                <div className="flex items-center gap-1 truncate opacity-90" title={pending.originalData.location}>
+                                                  <MapPin size={8} className="text-amber-600 shrink-0" />
+                                                  <span className="truncate">{pending.originalData.location}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                            <div className="text-[7px] font-black text-amber-700 bg-amber-500/20 rounded px-1 py-0.5 mt-1.5 w-fit shrink-0">
+                                              {isPreview 
+                                                ? 'Preview lặp' 
+                                                : isDateInAnchorWeek(pending.dateStr, anchorWeekMonday) && defaultRecurrence.enabled
+                                                  ? 'Chưa lưu (Lặp)'
+                                                  : 'Chưa lưu'}
+                                            </div>
+                                          </div>
+
+                                          {canManage && (
+                                            <div className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleConfigurePending(pending);
+                                                }}
+                                                title="Configure"
+                                                className="p-0.5 bg-white border border-amber-200 hover:bg-amber-100 text-amber-700 rounded transition-all cursor-pointer"
+                                              >
+                                                <Settings size={9} />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleRemovePending(pending.originalTempId || pending.tempId);
+                                                }}
+                                                title="Remove"
+                                                className="p-0.5 bg-white border border-amber-200 hover:bg-red-50 text-red-500 rounded transition-all cursor-pointer"
+                                              >
+                                                <X size={9} />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </>
                                 )}
-
-                                <div className="min-h-0 flex-1 overflow-hidden space-y-1 select-none">
-                                  <div className="flex justify-between items-start gap-1">
-                                    <div className="flex items-center gap-1 min-w-0 flex-1">
-                                      {layout.height >= 65 && (
-                                        <span className="shrink-0 text-[8px] font-black px-1 py-0.5 rounded bg-amber-500 text-white uppercase tracking-wider">
-                                          Nháp
-                                        </span>
-                                      )}
-                                      <p className="text-[10px] font-extrabold text-slate-800 leading-tight truncate">
-                                        {item.title}
-                                      </p>
-                                    </div>
-                                    {layout.height >= 60 && (
-                                      <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorParts[0]}`} />
-                                    )}
-                                    
-                                    {/* Compact buttons in header if height < 55px */}
-                                    {layout.height < 55 && canManage && (
-                                      <div className="flex items-center gap-0.5 shrink-0">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSaveDraft(item._id);
-                                          }}
-                                          title="Lưu lịch sinh hoạt"
-                                          className="p-0.5 hover:bg-green-100 text-green-700 rounded transition-all cursor-pointer"
-                                        >
-                                          <Check size={10} />
-                                        </button>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleCancelDraft(item._id);
-                                          }}
-                                          title="Hủy bản nháp"
-                                          className="p-0.5 hover:bg-red-100 text-red-700 rounded transition-all cursor-pointer"
-                                        >
-                                          <X size={10} />
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                  
-                                  {layout.height >= 75 && (
-                                    <p className="text-[9px] font-medium text-slate-500 flex items-center gap-0.5 truncate">
-                                      <MapPin size={8} className="shrink-0" /> {item.location || 'Phòng học'}
-                                    </p>
-                                  )}
-                                  
-                                  {layout.height >= 90 && item.recurrence && (item.recurrence as any).untilType !== 'none' && (
-                                    <span className="inline-block text-[8px] font-bold px-1 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">
-                                      Lặp: {(item.recurrence as any).type === 'weekly' ? 'Hàng tuần' : (item.recurrence as any).type === 'biweekly' ? '2 tuần/lần' : 'Hàng tháng'}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {layout.height >= 55 && (
-                                  <div className="shrink-0 flex justify-between items-center mt-1 pt-1 border-t border-amber-200/50">
-                                    <span className="text-[8px] font-black text-slate-500">
-                                      {startTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {endTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                    {canManage && (
-                                      <div className="flex items-center gap-1">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSaveDraft(item._id);
-                                          }}
-                                          title="Lưu lịch sinh hoạt"
-                                          className="p-1 hover:bg-green-100 text-green-700 rounded transition-all cursor-pointer"
-                                        >
-                                          <Check size={11} />
-                                        </button>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleOpenRecurrenceModal(item._id);
-                                          }}
-                                          title="Cấu hình lặp lại"
-                                          className="p-1 hover:bg-slate-100 text-slate-600 rounded transition-all cursor-pointer"
-                                        >
-                                          <Settings size={11} />
-                                        </button>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleCancelDraft(item._id);
-                                          }}
-                                          title="Hủy bản nháp"
-                                          className="p-1 hover:bg-red-100 text-red-700 rounded transition-all cursor-pointer"
-                                        >
-                                          <X size={11} />
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
                               </div>
-                            );
-                          } else {
-                            // RENDER PERSISTED CARD
-                            return (
-                              <div
-                                key={item._id}
-                                style={{
-                                  top: `${layout.top}px`,
-                                  height: `${layout.height}px`,
-                                  left: '4px',
-                                  width: 'calc(100% - 8px)',
-                                  boxSizing: 'border-box'
-                                }}
-                                onPointerDown={(e) => {
-                                  if (!canManage) return;
-                                  if ((e.target as HTMLElement).closest('button')) return;
-                                  e.stopPropagation();
-                                  handlePointerDown(e, item._id, 'dragging', false);
-                                }}
-                                className={`absolute rounded-xl border border-slate-200 bg-white/90 backdrop-blur-[2px] shadow-sm hover:shadow-md hover:bg-white flex flex-col justify-between overflow-hidden group border-l-[6px] pointer-events-auto transition-all ${
-                                  layout.height < 60 ? 'p-1' : layout.height < 90 ? 'p-1.5' : 'p-2.5'
-                                } ${
-                                  colorParts[1].replace('border-', 'border-l-')
-                                } ${
-                                  isMoving ? 'transition-none z-30 opacity-90 shadow-xl border-blue-500 border-l-blue-500' : ''
-                                }`}
-                              >
-                                {/* Resize handles */}
-                                {canManage && !isMoving && (
-                                  <>
-                                    <div
-                                      className="absolute top-0 bottom-0 left-0 w-2 cursor-ew-resize z-20"
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        handlePointerDown(e, item._id, 'resizing-left', false);
-                                      }}
-                                    />
-                                    <div
-                                      className="absolute top-0 bottom-0 right-0 w-2 cursor-ew-resize z-20"
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        handlePointerDown(e, item._id, 'resizing-right', false);
-                                      }}
-                                    />
-                                    <div
-                                      className="absolute top-0 left-2 right-2 h-1.5 cursor-ns-resize z-20"
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        handlePointerDown(e, item._id, 'resizing-top', false);
-                                      }}
-                                    />
-                                    <div
-                                      className="absolute bottom-0 left-2 right-2 h-1.5 cursor-ns-resize z-20"
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        handlePointerDown(e, item._id, 'resizing-bottom', false);
-                                      }}
-                                    />
-                                  </>
-                                )}
-
-                                <div className="min-h-0 flex-1 overflow-hidden space-y-1 select-none">
-                                  <div className="flex justify-between items-start gap-1">
-                                    <p className="text-[10px] font-extrabold text-slate-800 leading-tight truncate group-hover:text-blue-600 transition-colors">
-                                      {item.title}
-                                    </p>
-                                    {layout.height >= 60 && (
-                                      <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorParts[0]}`} />
-                                    )}
-                                  </div>
-                                  
-                                  {layout.height >= 75 && (
-                                    <p className="text-[9px] font-medium text-slate-400 flex items-center gap-0.5 truncate">
-                                      <MapPin size={8} className="shrink-0" /> {item.location || 'Phòng học'}
-                                    </p>
-                                  )}
-                                </div>
-
-                                {layout.height >= 55 && (
-                                  <div className="shrink-0 flex justify-between items-center mt-1 pt-1 border-t border-slate-100">
-                                    <span className="text-[8px] font-black text-slate-400">
-                                      {startTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {endTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                    {canManage && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDeleteClick(item as any);
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 text-red-500 hover:text-red-600 rounded transition-all cursor-pointer"
-                                      >
-                                        <Trash2 size={11} />
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
+                            </div>
+                          );
                         })}
-                    </div>
-                  </div>
-                ))}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -1381,12 +2472,12 @@ export default function SchedulesOverview() {
           </div>
 
           {/* Timeline lists grouped by Shift */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             {/* Morning Shift */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/70 p-3 rounded-xl shadow-sm w-fit">
-                <span className="text-amber-500">☀️</span>
+                <Sunrise className="h-5 w-5 text-amber-500" />
                 <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Ca Sáng</span>
                 <span className="text-[10px] font-bold text-slate-400">07:00 - 11:30</span>
               </div>
@@ -1399,41 +2490,73 @@ export default function SchedulesOverview() {
                   </div>
                 ) : (
                   morningSchedules.map(schedule => {
-                    const start = new Date(schedule.start_time);
-                    const end = new Date(schedule.end_time);
-                    const typeColor = typeColors[schedule.schedule_type] || 'bg-slate-400 border-slate-400 text-slate-500';
-                    const colorParts = typeColor.split(' ');
+                    const start = schedule.visibleStart;
+                    const end = schedule.visibleEnd;
+                    const accent = getClubAccentColor(schedule);
+                    const styles = accentStyles[accent];
 
                     return (
                       <div key={schedule._id} className="relative group">
                         {/* Timeline Node dot */}
-                        <span className={`absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white ${colorParts[0]}`} />
+                        <span className={cn("absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white", styles.icon.replace('text-', 'border-'))} />
                         
                         {/* Event Card */}
-                        <div className={`p-4 bg-white/70 border border-slate-200/50 rounded-2xl shadow-sm hover:shadow-md transition-all flex justify-between items-start border-l-4 ${colorParts[1].replace('border-', 'border-l-')}`}>
+                        <div
+                          onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
+                          className={cn(
+                            "p-4 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all flex justify-between items-start border border-l-4",
+                            styles.card,
+                            styles.borderL
+                          )}
+                        >
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-extrabold text-slate-800">{schedule.title}</h3>
+                              <h3 className={cn("text-sm font-extrabold", styles.title)}>{schedule.title}</h3>
                               <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">
                                 {typeLabels[schedule.schedule_type]}
                               </span>
+                              {renderRecurrenceBadge(schedule)}
                             </div>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
-                              <span className="flex items-center gap-1"><Clock size={11} /> {start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
-                              <span className="flex items-center gap-1"><MapPin size={11} /> {schedule.location}</span>
-                              {schedule.max_attendees && <span className="flex items-center gap-1"><Users size={11} /> Hạn mức: {schedule.max_attendees}</span>}
+                            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold", styles.sub)}>
+                              <span className="flex items-center gap-1"><Clock size={11} className={styles.icon} /> {start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="flex items-center gap-1">
+                                <MapPin size={11} className={styles.icon} />{' '}
+                                {schedule.location ||
+                                  (typeof schedule.club_id === 'object'
+                                    ? schedule.club_id?.classroom
+                                    : '')}
+                              </span>
+                              {schedule.max_attendees && <span className="flex items-center gap-1"><Users size={11} className={styles.icon} /> Hạn mức: {schedule.max_attendees}</span>}
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold px-2.5 py-1 rounded bg-blue-500/10 text-blue-600">Upcoming</span>
+                            <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded", styles.badge)}>Upcoming</span>
                             {canManage && (
-                              <button
-                                onClick={() => handleDeleteClick(schedule)}
-                                className="p-1.5 hover:bg-red-50 text-red-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleConfigureSaved(schedule);
+                                  }}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
+                                  title="Configure"
+                                >
+                                  <Settings size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteClick(schedule);
+                                  }}
+                                  className="p-1.5 hover:bg-red-50 text-red-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
@@ -1447,7 +2570,7 @@ export default function SchedulesOverview() {
             {/* Afternoon Shift */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/70 p-3 rounded-xl shadow-sm w-fit">
-                <span className="text-orange-500">🌇</span>
+                <Sun className="h-5 w-5 text-orange-500" />
                 <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Ca Chiều</span>
                 <span className="text-[10px] font-bold text-slate-400">13:00 - 17:30</span>
               </div>
@@ -1460,41 +2583,166 @@ export default function SchedulesOverview() {
                   </div>
                 ) : (
                   afternoonSchedules.map(schedule => {
-                    const start = new Date(schedule.start_time);
-                    const end = new Date(schedule.end_time);
-                    const typeColor = typeColors[schedule.schedule_type] || 'bg-slate-400 border-slate-400 text-slate-500';
-                    const colorParts = typeColor.split(' ');
+                    const start = schedule.visibleStart;
+                    const end = schedule.visibleEnd;
+                    const accent = getClubAccentColor(schedule);
+                    const styles = accentStyles[accent];
 
                     return (
                       <div key={schedule._id} className="relative group">
                         {/* Timeline Node dot */}
-                        <span className={`absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white ${colorParts[0]}`} />
+                        <span className={cn("absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white", styles.icon.replace('text-', 'border-'))} />
                         
                         {/* Event Card */}
-                        <div className={`p-4 bg-white/70 border border-slate-200/50 rounded-2xl shadow-sm hover:shadow-md transition-all flex justify-between items-start border-l-4 ${colorParts[1].replace('border-', 'border-l-')}`}>
+                        <div
+                          onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
+                          className={cn(
+                            "p-4 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all flex justify-between items-start border border-l-4",
+                            styles.card,
+                            styles.borderL
+                          )}
+                        >
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-extrabold text-slate-800">{schedule.title}</h3>
+                              <h3 className={cn("text-sm font-extrabold", styles.title)}>{schedule.title}</h3>
                               <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">
                                 {typeLabels[schedule.schedule_type]}
                               </span>
+                              {renderRecurrenceBadge(schedule)}
                             </div>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
-                              <span className="flex items-center gap-1"><Clock size={11} /> {start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
-                              <span className="flex items-center gap-1"><MapPin size={11} /> {schedule.location}</span>
-                              {schedule.max_attendees && <span className="flex items-center gap-1"><Users size={11} /> Hạn mức: {schedule.max_attendees}</span>}
+                            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold", styles.sub)}>
+                              <span className="flex items-center gap-1"><Clock size={11} className={styles.icon} /> {start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="flex items-center gap-1">
+                                <MapPin size={11} className={styles.icon} />{' '}
+                                {schedule.location ||
+                                  (typeof schedule.club_id === 'object'
+                                    ? schedule.club_id?.classroom
+                                    : '')}
+                              </span>
+                              {schedule.max_attendees && <span className="flex items-center gap-1"><Users size={11} className={styles.icon} /> Hạn mức: {schedule.max_attendees}</span>}
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold px-2.5 py-1 rounded bg-blue-500/10 text-blue-600">Upcoming</span>
+                            <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded", styles.badge)}>Upcoming</span>
                             {canManage && (
-                              <button
-                                onClick={() => handleDeleteClick(schedule)}
-                                className="p-1.5 hover:bg-red-50 text-red-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleConfigureSaved(schedule);
+                                  }}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
+                                  title="Configure"
+                                >
+                                  <Settings size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteClick(schedule);
+                                  }}
+                                  className="p-1.5 hover:bg-red-50 text-red-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Evening Shift */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/70 p-3 rounded-xl shadow-sm w-fit">
+                <Moon className="h-5 w-5 text-blue-600" />
+                <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Ca Tối</span>
+                <span className="text-[10px] font-bold text-slate-400">18:00 - 21:00</span>
+              </div>
+
+              <div className="relative pl-6 space-y-4 border-l border-slate-200/80 ml-4 py-2">
+                {eveningSchedules.length === 0 ? (
+                  <div className="relative p-6 border border-dashed border-slate-300 rounded-2xl bg-white/20 text-center">
+                    <span className="absolute left-[-29px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-slate-300 bg-white" />
+                    <p className="text-xs font-semibold text-slate-400">Không có lịch hoạt động ca tối</p>
+                  </div>
+                ) : (
+                  eveningSchedules.map(schedule => {
+                    const start = schedule.visibleStart;
+                    const end = schedule.visibleEnd;
+                    const accent = getClubAccentColor(schedule);
+                    const styles = accentStyles[accent];
+
+                    return (
+                      <div key={schedule._id} className="relative group">
+                        {/* Timeline Node dot */}
+                        <span className={cn("absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white", styles.icon.replace('text-', 'border-'))} />
+                        
+                        {/* Event Card */}
+                        <div
+                          onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
+                          className={cn(
+                            "p-4 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all flex justify-between items-start border border-l-4",
+                            styles.card,
+                            styles.borderL
+                          )}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <h3 className={cn("text-sm font-extrabold", styles.title)}>{schedule.title}</h3>
+                              <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">
+                                {typeLabels[schedule.schedule_type]}
+                              </span>
+                              {renderRecurrenceBadge(schedule)}
+                            </div>
+                            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold", styles.sub)}>
+                              <span className="flex items-center gap-1"><Clock size={11} className={styles.icon} /> {start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="flex items-center gap-1">
+                                <MapPin size={11} className={styles.icon} />{' '}
+                                {schedule.location ||
+                                  (typeof schedule.club_id === 'object'
+                                    ? schedule.club_id?.classroom
+                                    : '')}
+                              </span>
+                              {schedule.max_attendees && <span className="flex items-center gap-1"><Users size={11} className={styles.icon} /> Hạn mức: {schedule.max_attendees}</span>}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded", styles.badge)}>Upcoming</span>
+                            {canManage && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleConfigureSaved(schedule);
+                                  }}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
+                                  title="Configure"
+                                >
+                                  <Settings size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteClick(schedule);
+                                  }}
+                                  className="p-1.5 hover:bg-red-50 text-red-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
@@ -1531,91 +2779,101 @@ export default function SchedulesOverview() {
                 <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">
                   Chế độ lặp
                 </label>
-                <select
+                <Select
                   value={modalUntilType === 'none' ? 'none' : modalRecurrenceType}
-                  onChange={(e) => {
-                    const val = e.target.value;
+                  onValueChange={(val: any) => {
                     if (val === 'none') {
                       setModalUntilType('none');
                     } else {
-                      setModalRecurrenceType(val as any);
-                      if (modalUntilType === 'none') {
-                        setModalUntilType('semester'); // Default when turning recurrence back on
-                      }
+                      setModalRecurrenceType(val);
+                      setModalUntilType('date');
                     }
                   }}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
                 >
-                  <option value="none">Một lần (Không lặp)</option>
-                  <option value="weekly">Hàng tuần</option>
-                  <option value="biweekly">2 tuần/lần</option>
-                  <option value="monthly">Hàng tháng</option>
-                </select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Chọn chế độ lặp..." />
+                  </SelectTrigger>
+                  <SelectContent disablePortal={true}>
+                    <SelectItem value="none">Một lần (Không lặp)</SelectItem>
+                    <SelectItem value="weekly">Hàng tuần</SelectItem>
+                    <SelectItem value="biweekly">2 tuần/lần</SelectItem>
+                    <SelectItem value="monthly">Hàng tháng</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {modalUntilType !== 'none' && (
-                <>
-                  <div>
-                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                      Điểm kết thúc lặp
-                    </label>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="modalUntilType"
-                          checked={modalUntilType === 'semester'}
-                          onChange={() => setModalUntilType('semester')}
-                          className="text-blue-500 focus:ring-0"
-                        />
-                        Hết học kỳ {activeSemester ? `(${activeSemester.semester_name})` : ''}
-                      </label>
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="modalUntilType"
-                          checked={modalUntilType === 'custom'}
-                          onChange={() => setModalUntilType('custom')}
-                          className="text-blue-500 focus:ring-0"
-                        />
-                        Số tuần custom hoặc chọn ngày cụ thể
-                      </label>
-                    </div>
-                  </div>
+                <div className="flex flex-col gap-1 pt-1 animate-fadeIn">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Khoảng thời gian lặp
+                  </label>
+                  <Popover open={isRangeCalendarOpen} onOpenChange={setIsRangeCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 focus:border-blue-500 transition-all text-left flex items-center justify-between cursor-pointer h-10"
+                      >
+                        <span>
+                          {modalRepeatStartDate
+                            ? `${new Date(modalRepeatStartDate).toLocaleDateString('vi-VN')} - ${modalRepeatEndDate ? new Date(modalRepeatEndDate).toLocaleDateString('vi-VN') : 'Mặc định cuối tháng'}`
+                            : 'Chọn khoảng thời gian lặp'}
+                        </span>
+                        <Calendar size={14} className="text-slate-400" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent 
+                      className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden" 
+                      align="start"
+                      side="bottom"
+                      sideOffset={6}
+                    >
+                      <CustomCalendar
+                        startDate={modalRepeatStartDate ? new Date(modalRepeatStartDate) : null}
+                        endDate={modalRepeatEndDate ? new Date(modalRepeatEndDate) : null}
+                        minDate={new Date(anchorWeekMonday)}
+                        onRangeSelect={(start, end) => {
+                          // Required prop, can leave empty
+                        }}
+                        onRangeConfirm={(start, end) => {
+                          const yStart = start.getFullYear();
+                          const mStart = String(start.getMonth() + 1).padStart(2, '0');
+                          const dStart = String(start.getDate()).padStart(2, '0');
+                          setModalRepeatStartDate(`${yStart}-${mStart}-${dStart}`);
 
-                  {modalUntilType === 'custom' && (
-                    <div className="grid grid-cols-2 gap-4 pt-1 animate-fadeIn">
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                          Số tuần áp dụng
-                        </label>
-                        <input
-                          type="number"
-                          min="2"
-                          max="24"
-                          value={modalWeeksCount}
-                          onChange={(e) => setModalWeeksCount(parseInt(e.target.value) || 8)}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                          Hoặc chọn ngày cụ thể
-                        </label>
-                        <input
-                          type="date"
-                          value={modalUntilDate}
-                          onChange={(e) => setModalUntilDate(e.target.value)}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </>
+                          let targetEnd = end;
+                          if (!targetEnd) {
+                            // Default end date: last day of the selected start date's month
+                            targetEnd = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+                          }
+                          
+                          const yEnd = targetEnd.getFullYear();
+                          const mEnd = String(targetEnd.getMonth() + 1).padStart(2, '0');
+                          const dEnd = String(targetEnd.getDate()).padStart(2, '0');
+                          
+                          setModalRepeatEndDate(`${yEnd}-${mEnd}-${dEnd}`);
+                          setModalUntilDate(`${yEnd}-${mEnd}-${dEnd}`);
+                        }}
+                        onCancel={() => {
+                          setIsRangeCalendarOpen(false);
+                        }}
+                        onConfirm={() => setIsRangeCalendarOpen(false)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               )}
             </div>
 
             <div className="flex justify-end gap-3 px-6 py-4 bg-slate-50 border-t border-slate-100">
+              {defaultRecurrence.enabled && (
+                <button
+                  type="button"
+                  onClick={handleCancelAllRecurrence}
+                  className="mr-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer transition-colors"
+                >
+                  Hủy chuỗi lặp
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowRecurrenceModal(false)}
@@ -1636,202 +2894,264 @@ export default function SchedulesOverview() {
       )}
 
       {/* Scheduling Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-extrabold text-slate-800 flex items-center gap-2">
-                <CalendarRange className="text-blue-500" size={18} />
-                Xếp lịch hoạt động CLB
-              </h3>
-              <button onClick={() => setShowCreateModal(false)} className="p-1 hover:bg-slate-200/80 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer">
-                <X size={16} />
-              </button>
-            </div>
+      <Dialog open={showCreateModal} onOpenChange={(open) => {
+        if (!open) {
+          setShowCreateModal(false);
+          setActivePendingSchedule(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg w-full overflow-hidden p-0 gap-0 bg-white border border-slate-100 rounded-2xl shadow-xl">
+          <DialogHeader className="px-6 py-4 border-b border-slate-100 flex flex-row items-center justify-between bg-slate-50">
+            <DialogTitle className="font-extrabold text-slate-800 flex items-center gap-2 text-base">
+              <CalendarRange className="text-blue-500" size={18} />
+              {formScheduleId ? 'Cập nhật lịch hoạt động CLB' : 'Xếp lịch hoạt động CLB'}
+            </DialogTitle>
+          </DialogHeader>
 
-            <form onSubmit={handleCreateSchedule} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Câu lạc bộ</label>
-                  <select
-                    value={formClubId}
-                    onChange={(e) => {
-                      setFormClubId(e.target.value);
-                      const club = clubs.find(c => c._id === e.target.value);
-                      if (club) setFormTitle(`Sinh hoạt CLB ${club.name}`);
-                    }}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
-                  >
-                    {clubs.map(c => <option key={c._id} value={c._id}>{c.name} ({c.code})</option>)}
-                  </select>
+          <form onSubmit={handleCreateSchedule} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+            {isSimplifiedModal ? (
+              <>
+                <div className="bg-blue-50/70 border border-blue-100 p-4 rounded-2xl space-y-2">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Câu lạc bộ</p>
+                    <p className="text-sm font-extrabold text-slate-800">
+                      {(() => {
+                        const currentClub = clubs.find(c => c._id === formClubId);
+                        return currentClub ? `${currentClub.name} (${currentClub.code})` : 'Câu lạc bộ';
+                      })()}
+                    </p>
+                  </div>
+                  <div className="h-px bg-slate-200/60 my-2" />
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Ngày hoạt động</p>
+                    <p className="text-sm font-bold text-slate-700">
+                      {formDate ? new Date(formDate).toLocaleDateString('vi-VN', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      }) : ''}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Tiêu đề buổi hoạt động</label>
-                  <input
-                    type="text"
-                    value={formTitle}
-                    onChange={(e) => setFormTitle(e.target.value)}
-                    placeholder="Nhập tiêu đề sinh hoạt..."
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Địa điểm</label>
-                  <input
-                    type="text"
-                    value={formLocation}
-                    onChange={(e) => setFormLocation(e.target.value)}
-                    placeholder="Văn phòng CLB, Sân vận động..."
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Loại hoạt động</label>
-                  <select
-                    value={formType}
-                    onChange={(e) => setFormType(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="regular">Sinh hoạt</option>
-                    <option value="event">Sự kiện</option>
-                    <option value="exam">Kiểm tra</option>
-                    <option value="meeting">Họp</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Hạn mức tham gia</label>
-                  <input
-                    type="number"
-                    value={formMaxAttendees}
-                    onChange={(e) => setFormMaxAttendees(e.target.value)}
-                    placeholder="Không giới hạn"
-                    min="1"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Ngày bắt đầu</label>
-                  <input
-                    type="date"
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Giờ bắt đầu</label>
-                    <input
-                      type="time"
+                    <CustomTimePicker
                       value={formStartTime}
-                      onChange={(e) => setFormStartTime(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
+                      onChange={(val) => setFormStartTime(val)}
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Giờ kết thúc</label>
-                    <input
-                      type="time"
+                    <CustomTimePicker
                       value={formEndTime}
-                      onChange={(e) => setFormEndTime(e.target.value)}
+                      onChange={(val) => setFormEndTime(val)}
+                    />
+                  </div>
+                </div>
+
+
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => { setShowCreateModal(false); setActivePendingSchedule(null); }}
+                    className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 cursor-pointer"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer"
+                  >
+                    {formScheduleId ? 'Xác nhận cập nhật' : 'Xác nhận xếp lịch'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Câu lạc bộ</label>
+                    <Select
+                      value={formClubId}
+                      onValueChange={(val) => {
+                        setFormClubId(val);
+                        const club = clubs.find(c => c._id === val);
+                        if (club) {
+                          setFormTitle(`Sinh hoạt CLB ${club.name}`);
+                          const isDefaultLoc = !formLocation || formLocation === 'Phòng sinh hoạt CLB' || clubs.some(c => c.classroom === formLocation);
+                          if (isDefaultLoc && club.classroom) {
+                            setFormLocation(club.classroom);
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Chọn câu lạc bộ..." />
+                      </SelectTrigger>
+                      <SelectContent disablePortal={true}>
+                        {clubs.map(c => (
+                          <SelectItem key={c._id} value={c._id}>
+                            {c.name} ({c.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Tiêu đề buổi hoạt động</label>
+                    <input
+                      type="text"
+                      value={formTitle}
+                      onChange={(e) => setFormTitle(e.target.value)}
+                      placeholder="Nhập tiêu đề sinh hoạt..."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Địa điểm</label>
+                    <input
+                      type="text"
+                      value={formLocation}
+                      onChange={(e) => setFormLocation(e.target.value)}
+                      placeholder="Văn phòng CLB, Sân vận động..."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Loại hoạt động</label>
+                    <Select
+                      value={formType}
+                      onValueChange={(val) => setFormType(val)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Chọn loại..." />
+                      </SelectTrigger>
+                      <SelectContent disablePortal={true}>
+                        <SelectItem value="regular">Sinh hoạt</SelectItem>
+                        <SelectItem value="event">Sự kiện</SelectItem>
+                        <SelectItem value="exam">Kiểm tra</SelectItem>
+                        <SelectItem value="meeting">Họp</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Hạn mức tham gia</label>
+                    <input
+                      type="number"
+                      value={formMaxAttendees}
+                      onChange={(e) => setFormMaxAttendees(e.target.value)}
+                      placeholder="Không giới hạn"
+                      min="1"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Ngày bắt đầu</label>
+                    <input
+                      type="date"
+                      value={formDate}
+                      onChange={(e) => setFormDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Giờ bắt đầu</label>
+                      <CustomTimePicker
+                        value={formStartTime}
+                        onChange={(val) => setFormStartTime(val)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Giờ kết thúc</label>
+                      <CustomTimePicker
+                        value={formEndTime}
+                        onChange={(val) => setFormEndTime(val)}
+                      />
+                    </div>
+                  </div>
+
+
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Mô tả chi tiết</label>
+                    <textarea
+                      value={formDesc}
+                      onChange={(e) => setFormDesc(e.target.value)}
+                      placeholder="Mô tả nội dung buổi sinh hoạt..."
+                      rows={2}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
 
-                {/* Recurrence Setup */}
-                <div className="col-span-2 bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
-                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">Chế độ lặp lại (Cố định chuỗi)</label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="recurrence"
-                        checked={formRecurrenceType === 'none'}
-                        onChange={() => setFormRecurrenceType('none')}
-                        className="text-blue-500 focus:ring-0"
-                      />
-                      Một lần
-                    </label>
-                    <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="recurrence"
-                        checked={formRecurrenceType === 'semester'}
-                        onChange={() => setFormRecurrenceType('semester')}
-                        className="text-blue-500 focus:ring-0"
-                      />
-                      Hết học kỳ
-                    </label>
-                    <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="recurrence"
-                        checked={formRecurrenceType === 'custom'}
-                        onChange={() => setFormRecurrenceType('custom')}
-                        className="text-blue-500 focus:ring-0"
-                      />
-                      Số tuần custom
-                    </label>
-                  </div>
-
-                  {formRecurrenceType === 'custom' && (
-                    <div className="flex items-center gap-3 pt-2">
-                      <span className="text-xs text-slate-500 font-bold">Số tuần áp dụng:</span>
-                      <input
-                        type="number"
-                        min="2"
-                        max="24"
-                        value={formRecurrenceWeeks}
-                        onChange={(e) => setFormRecurrenceWeeks(parseInt(e.target.value) || 8)}
-                        className="w-20 px-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-blue-500"
-                      />
-                      <span className="text-xs text-slate-400 font-medium">(tuần)</span>
-                    </div>
-                  )}
-
-                  {formRecurrenceType === 'semester' && activeSemester && (
-                    <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
-                      <AlertCircle size={12} className="text-blue-400" />
-                      Lặp lại hàng tuần cho đến hết {activeSemester.semester_name} ({new Date(activeSemester.end_date).toLocaleDateString('vi-VN')})
-                    </div>
-                  )}
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => { setShowCreateModal(false); setActivePendingSchedule(null); }}
+                    className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 cursor-pointer"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer"
+                  >
+                    {formScheduleId ? 'Xác nhận cập nhật' : 'Xác nhận xếp lịch'}
+                  </button>
                 </div>
+              </>
+            )}
+          </form>
+        </DialogContent>
+      </Dialog>
 
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Mô tả chi tiết</label>
-                  <textarea
-                    value={formDesc}
-                    onChange={(e) => setFormDesc(e.target.value)}
-                    placeholder="Mô tả nội dung buổi sinh hoạt..."
-                    rows={2}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
+      {/* Update Series Confirm Modal */}
+      {showUpdateSeriesConfirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-sm w-full p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-blue-600">
+              <HelpCircle size={24} />
+              <h3 className="font-extrabold text-slate-800 text-base">Cập nhật lịch định kỳ</h3>
+            </div>
+            
+            <p className="text-slate-500 text-xs mt-3 font-medium leading-relaxed">
+              Buổi sinh hoạt này thuộc một chuỗi lịch định kỳ. Bạn muốn áp dụng thay đổi này như thế nào?
+            </p>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 cursor-pointer"
-                >
-                  Đóng
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer"
-                >
-                  Xác nhận xếp lịch
-                </button>
-              </div>
-            </form>
+            <div className="flex flex-col gap-2 mt-6">
+              <button
+                type="button"
+                onClick={() => handleUpdateConfirm(false)}
+                className="w-full py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Chỉ cập nhật buổi sinh hoạt này
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUpdateConfirm(true)}
+                className="w-full py-2 bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+              >
+                Cập nhật từ buổi này và các buổi tiếp theo
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowUpdateSeriesConfirmModal(false); setPendingUpdatePayload(null); }}
+                className="w-full py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs font-semibold rounded-xl transition-all mt-1 cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1881,6 +3201,39 @@ export default function SchedulesOverview() {
           </div>
         </div>
       )}
+      {/* Cancel Recurrence Confirm Modal */}
+      {showCancelRecurrenceConfirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-sm w-full p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-red-500">
+              <AlertCircle size={24} />
+              <h3 className="font-extrabold text-slate-800 text-base">Hủy chuỗi lặp lại</h3>
+            </div>
+            
+            <p className="text-slate-500 text-xs mt-3 font-medium leading-relaxed">
+              Bạn có chắc chắn muốn hủy lặp cho lịch này? Lịch của tuần hiện tại sẽ được giữ lại làm lịch một lần, còn các buổi lặp ở các tuần khác sẽ bị hủy.
+            </p>
+
+            <div className="flex flex-col gap-2 mt-6">
+              <button
+                type="button"
+                onClick={handleCancelRecurrenceConfirm}
+                className="w-full py-2 bg-red-600 text-white hover:bg-red-700 text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+              >
+                Xác nhận hủy chuỗi lặp
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCancelRecurrenceConfirmModal(false)}
+                className="w-full py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs font-semibold rounded-xl transition-all mt-1 cursor-pointer"
+              >
+                Bỏ qua
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

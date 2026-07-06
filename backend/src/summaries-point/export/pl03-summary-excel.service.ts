@@ -4,33 +4,40 @@ export async function generatePl03Excel(
   summaries: any[],
   classInfo: any,
   semesterInfo: any,
-  departmentInfo: any
+  departmentInfo: any,
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('TT40');
 
   // --- Page setup ---
   sheet.pageSetup.margins = {
-    left: 0.25, right: 0.25,
-    top: 0.75, bottom: 0.75,
-    header: 0.3, footer: 0.3
+    left: 0.25,
+    right: 0.25,
+    top: 0.75,
+    bottom: 0.75,
+    header: 0.3,
+    footer: 0.3,
   };
 
   // --- Define columns width ---
   sheet.columns = [
-    { width: 5 },   // A - TT
-    { width: 20 },  // B - HO VA TEN DEM
-    { width: 10 },  // C - TEN
-    { width: 15 },  // D - MSSV
-    { width: 12 },  // E - DIEM
-    { width: 18 },  // F - XEP LOAI
-    { width: 15 }   // G - GHI CHU
+    { width: 5 }, // A - TT
+    { width: 20 }, // B - HO VA TEN DEM
+    { width: 10 }, // C - TEN
+    { width: 15 }, // D - MSSV
+    { width: 12 }, // E - DIEM
+    { width: 18 }, // F - XEP LOAI
+    { width: 15 }, // G - GHI CHU
   ];
 
   // --- Header section ---
   sheet.mergeCells('G1:G1');
   sheet.getCell('G1').value = 'Phụ lục 03';
-  sheet.getCell('G1').font = { name: 'Times New Roman', size: 12, italic: true };
+  sheet.getCell('G1').font = {
+    name: 'Times New Roman',
+    size: 12,
+    italic: true,
+  };
   sheet.getCell('G1').alignment = { horizontal: 'right' };
 
   sheet.mergeCells('A3:C3');
@@ -50,28 +57,41 @@ export async function generatePl03Excel(
 
   sheet.mergeCells('D4:G4');
   sheet.getCell('D4').value = 'Độc lập - Tự do - Hạnh phúc';
-  sheet.getCell('D4').font = { name: 'Times New Roman', size: 12, bold: true, underline: true };
+  sheet.getCell('D4').font = {
+    name: 'Times New Roman',
+    size: 12,
+    bold: true,
+    underline: true,
+  };
   sheet.getCell('D4').alignment = { horizontal: 'center' };
 
   sheet.mergeCells('A5:C5');
-  sheet.getCell('A5').value = `KHOA: ${departmentInfo?.name || '...........................................'}`.toUpperCase();
-  sheet.getCell('A5').font = { name: 'Times New Roman', size: 12, bold: true, underline: true };
+  sheet.getCell('A5').value =
+    `KHOA: ${departmentInfo?.name || '...........................................'}`.toUpperCase();
+  sheet.getCell('A5').font = {
+    name: 'Times New Roman',
+    size: 12,
+    bold: true,
+    underline: true,
+  };
   sheet.getCell('A5').alignment = { horizontal: 'center' };
 
   sheet.mergeCells('A7:G7');
-  sheet.getCell('A7').value = 'BẢNG TỔNG HỢP KẾT QUẢ RÈN LUYỆN HỌC SINH SINH VIÊN';
+  sheet.getCell('A7').value =
+    'BẢNG TỔNG HỢP KẾT QUẢ RÈN LUYỆN HỌC SINH SINH VIÊN';
   sheet.getCell('A7').font = { name: 'Times New Roman', size: 14, bold: true };
   sheet.getCell('A7').alignment = { horizontal: 'center' };
 
   sheet.mergeCells('A8:G8');
-  sheet.getCell('A8').value = `LỚP: ${classInfo?.class_name || '.............'} HỌC KỲ: ${semesterInfo?.semester_name || '.............'} - NĂM HỌC ${semesterInfo?.year || '.............'}`;
+  sheet.getCell('A8').value =
+    `LỚP: ${classInfo?.class_name || '.............'} HỌC KỲ: ${semesterInfo?.semester_name || '.............'} - NĂM HỌC ${semesterInfo?.year || '.............'}`;
   sheet.getCell('A8').font = { name: 'Times New Roman', size: 12, bold: true };
   sheet.getCell('A8').alignment = { horizontal: 'center' };
 
   // --- Table Header ---
   const headerRow = sheet.getRow(10);
   headerRow.height = 30;
-  
+
   sheet.mergeCells('B10:C10');
 
   const headers = [
@@ -80,36 +100,43 @@ export async function generatePl03Excel(
     { cell: 'D10', value: 'MSSV' },
     { cell: 'E10', value: 'ĐIỂM RÈN LUYỆN (bằng số)' },
     { cell: 'F10', value: 'XẾP LOẠI RÈN LUYỆN' },
-    { cell: 'G10', value: 'GHI CHÚ' }
+    { cell: 'G10', value: 'GHI CHÚ' },
   ];
 
-  headers.forEach(h => {
+  headers.forEach((h) => {
     const cell = sheet.getCell(h.cell);
     cell.value = h.value;
     cell.font = { name: 'Times New Roman', size: 11, bold: true };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    };
     cell.border = {
       top: { style: 'thin' },
       left: { style: 'thin' },
       bottom: { style: 'thin' },
-      right: { style: 'thin' }
+      right: { style: 'thin' },
     };
   });
-  
-  sheet.getCell('C10').border = { top: { style: 'thin' }, bottom: { style: 'thin' } }; // Fix merge border
+
+  sheet.getCell('C10').border = {
+    top: { style: 'thin' },
+    bottom: { style: 'thin' },
+  }; // Fix merge border
 
   // --- Data Rows ---
   let currentRow = 11;
   const totalStudents = summaries.length;
   // Ensure at least 35 rows for layout
   const rowsCount = Math.max(totalStudents, 35);
-  
+
   const stats = {
     XS: 0,
     TOT: 0,
     KHA: 0,
     TB: 0,
-    YEU: 0
+    YEU: 0,
   };
 
   for (let i = 0; i < rowsCount; i++) {
@@ -127,7 +154,7 @@ export async function generatePl03Excel(
 
     if (summary) {
       tt = (i + 1).toString();
-      
+
       const fullName = summary.student_id?.full_name || '';
       const parts = fullName.trim().split(' ');
       if (parts.length > 1) {
@@ -139,14 +166,25 @@ export async function generatePl03Excel(
 
       mssv = summary.student_id?.student_code || '';
       diem = summary.total_score ?? 0;
-      
+
       // Calculate grade
       const score = Number(diem);
-      if (score >= 90) { xepLoai = 'XUẤT SẮC'; stats.XS++; }
-      else if (score >= 80) { xepLoai = 'TỐT'; stats.TOT++; }
-      else if (score >= 70) { xepLoai = 'KHÁ'; stats.KHA++; }
-      else if (score >= 50) { xepLoai = 'TRUNG BÌNH'; stats.TB++; }
-      else { xepLoai = 'YẾU'; stats.YEU++; }
+      if (score >= 90) {
+        xepLoai = 'XUẤT SẮC';
+        stats.XS++;
+      } else if (score >= 80) {
+        xepLoai = 'TỐT';
+        stats.TOT++;
+      } else if (score >= 70) {
+        xepLoai = 'KHÁ';
+        stats.KHA++;
+      } else if (score >= 50) {
+        xepLoai = 'TRUNG BÌNH';
+        stats.TB++;
+      } else {
+        xepLoai = 'YẾU';
+        stats.YEU++;
+      }
 
       if (summary.status !== 'locked') {
         ghiChu = 'Chưa phê duyệt';
@@ -168,28 +206,28 @@ export async function generatePl03Excel(
         top: { style: 'thin' },
         left: { style: 'thin' },
         bottom: { style: 'thin' },
-        right: { style: 'thin' }
+        right: { style: 'thin' },
       };
       cell.alignment = { vertical: 'middle' };
       if (col === 1 || col === 5 || col === 6) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
       if (col === 4) {
-         cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
       if (col === 2) {
-          cell.border = {
-            top: { style: 'thin' },
-            left: { style: 'thin' },
-            bottom: { style: 'thin' }
-          };
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+        };
       }
       if (col === 3) {
-          cell.border = {
-            top: { style: 'thin' },
-            right: { style: 'thin' },
-            bottom: { style: 'thin' }
-          };
+        cell.border = {
+          top: { style: 'thin' },
+          right: { style: 'thin' },
+          bottom: { style: 'thin' },
+        };
       }
     }
 
@@ -198,19 +236,24 @@ export async function generatePl03Excel(
 
   // --- Statistics Section ---
   const startStatRow = currentRow;
-  
+
   // Header Stat
   sheet.mergeCells(`A${startStatRow}:G${startStatRow}`);
   const statHeaderCell = sheet.getCell(`A${startStatRow}`);
   statHeaderCell.value = 'Tổng hợp kết quả rèn luyện';
-  statHeaderCell.font = { name: 'Times New Roman', size: 11, bold: true, italic: true };
+  statHeaderCell.font = {
+    name: 'Times New Roman',
+    size: 11,
+    bold: true,
+    italic: true,
+  };
   statHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
   statHeaderCell.fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFD9D9D9' }
+    fgColor: { argb: 'FFD9D9D9' },
   };
-  
+
   // Xep Loai Row
   const xepLoaiRow = startStatRow + 1;
   sheet.getCell(`A${xepLoaiRow}`).value = 'Xếp loại';
@@ -234,15 +277,16 @@ export async function generatePl03Excel(
   // Ti le Row
   const percentRow = startStatRow + 3;
   sheet.getCell(`A${percentRow}`).value = 'Tỉ lệ %';
-  const getPercent = (count: number) => totalStudents > 0 ? (count / totalStudents) : 0;
-  
+  const getPercent = (count: number) =>
+    totalStudents > 0 ? count / totalStudents : 0;
+
   sheet.getCell(`B${percentRow}`).value = getPercent(stats.XS);
   sheet.getCell(`C${percentRow}`).value = getPercent(stats.TOT);
   sheet.getCell(`D${percentRow}`).value = getPercent(stats.KHA);
   sheet.getCell(`E${percentRow}`).value = getPercent(stats.TB);
   sheet.getCell(`F${percentRow}`).value = getPercent(stats.YEU);
   sheet.getCell(`G${percentRow}`).value = totalStudents > 0 ? 1 : 0;
-  
+
   // Format stats block
   for (let r = startStatRow; r <= percentRow; r++) {
     const row = sheet.getRow(r);
@@ -250,18 +294,22 @@ export async function generatePl03Excel(
     for (let c = 1; c <= 7; c++) {
       const cell = row.getCell(c);
       if (r > startStatRow) {
-          cell.border = {
-            top: { style: 'thin' },
-            left: { style: 'thin' },
-            bottom: { style: 'thin' },
-            right: { style: 'thin' }
-          };
-          cell.font = { name: 'Times New Roman', size: 11, bold: r === xepLoaiRow };
-          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+        cell.font = {
+          name: 'Times New Roman',
+          size: 11,
+          bold: r === xepLoaiRow,
+        };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
-      
+
       if (r === percentRow && c > 1) {
-          cell.numFmt = '0.00%';
+        cell.numFmt = '0.00%';
       }
     }
   }

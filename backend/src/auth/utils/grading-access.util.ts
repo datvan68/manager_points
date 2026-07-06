@@ -1,7 +1,12 @@
 import { ForbiddenException } from '@nestjs/common';
 import { isAdminUser } from './role.util';
 
-export type GradingRoleKey = 'admin' | 'supervisor' | 'teacher' | 'student' | 'unknown';
+export type GradingRoleKey =
+  | 'admin'
+  | 'supervisor'
+  | 'teacher'
+  | 'student'
+  | 'unknown';
 
 export interface GradingAccessDecision {
   role: GradingRoleKey;
@@ -37,15 +42,20 @@ export function getGradingRole(requester?: any): GradingRoleKey {
     rawRole = requester.roleName;
   } else if (typeof requester.role === 'string') {
     rawRole = requester.role;
-  } else if (requester.role && typeof requester.role === 'object' && requester.role.name) {
+  } else if (
+    requester.role &&
+    typeof requester.role === 'object' &&
+    requester.role.name
+  ) {
     rawRole = requester.role.name;
   }
 
-  const roleCode = requester.roleCode || (requester.role && requester.role.role_code);
+  const roleCode =
+    requester.roleCode || (requester.role && requester.role.role_code);
   const roleLower = (rawRole || '').toLowerCase();
 
   if (roleLower.includes('admin') || roleCode === 'ADMIN') return 'admin';
-  
+
   if (
     roleLower.includes('supervisor') ||
     roleLower.includes('quản sinh') ||
@@ -54,7 +64,7 @@ export function getGradingRole(requester?: any): GradingRoleKey {
   ) {
     return 'supervisor';
   }
-  
+
   if (
     roleLower.includes('teacher') ||
     roleLower.includes('advisor') ||
@@ -64,7 +74,7 @@ export function getGradingRole(requester?: any): GradingRoleKey {
   ) {
     return 'teacher';
   }
-  
+
   if (
     roleLower.includes('student') ||
     roleLower.includes('sinh viên') ||
@@ -82,7 +92,7 @@ export function getGradingRole(requester?: any): GradingRoleKey {
  */
 export function evaluateGradingAccess(requester?: any): GradingAccessDecision {
   const role = getGradingRole(requester);
-  
+
   const decision: GradingAccessDecision = {
     role,
     scope: 'none',
@@ -178,10 +188,20 @@ export async function assertCanAccessStudent(
   }
 
   if (role === 'teacher') {
-    const classes = await classModel.find({ advisor_id: requester?.userId }).select('_id').exec();
+    const classes = await classModel
+      .find({ advisor_id: requester?.userId })
+      .select('_id')
+      .exec();
     const classIds = classes.map((c: any) => c._id.toString());
-    const student = await studentModel.findById(studentId).select('class_id').exec();
-    if (!student || !student.class_id || !classIds.includes(student.class_id.toString())) {
+    const student = await studentModel
+      .findById(studentId)
+      .select('class_id')
+      .exec();
+    if (
+      !student ||
+      !student.class_id ||
+      !classIds.includes(student.class_id.toString())
+    ) {
       throw new ForbiddenException({
         statusCode: 403,
         message: 'Bạn không có quyền đánh giá sinh viên ngoài lớp phụ trách.',
@@ -214,8 +234,14 @@ export async function assertCanAccessClass(
   }
 
   if (role === 'teacher') {
-    const classObj = await classModel.findById(classId).select('advisor_id').exec();
-    if (!classObj || classObj.advisor_id?.toString() !== requester?.userId?.toString()) {
+    const classObj = await classModel
+      .findById(classId)
+      .select('advisor_id')
+      .exec();
+    if (
+      !classObj ||
+      classObj.advisor_id?.toString() !== requester?.userId?.toString()
+    ) {
       throw new ForbiddenException({
         statusCode: 403,
         message: 'Bạn không có quyền thao tác trên lớp học này.',

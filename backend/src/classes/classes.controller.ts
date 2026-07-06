@@ -16,7 +16,11 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import {
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
 import { ImportClassConfirmDto } from './dto/import-class.dto';
 
 @ApiTags('Classes')
@@ -67,7 +71,9 @@ export class ClassesController {
   @Get('summary')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get summary of all classes (student count, avatars)' })
+  @ApiOperation({
+    summary: 'Get summary of all classes (student count, avatars)',
+  })
   getClassSummary(@Request() req?: any) {
     return this.classesService.getClassSummary(req?.user);
   }

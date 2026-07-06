@@ -8,7 +8,8 @@ export interface PermissionSeed {
 export const UNGROUPED_PERMISSION_GROUP = {
   code: 'G_UNGROUPED',
   name: 'Chưa phân nhóm',
-  description: 'Các quyền được khai báo trong hệ thống nhưng chưa được phân nhóm nghiệp vụ.',
+  description:
+    'Các quyền được khai báo trong hệ thống nhưng chưa được phân nhóm nghiệp vụ.',
   status: 'Active',
 };
 
@@ -29,7 +30,8 @@ export const STUDENT_MANAGER_GROUP = {
 export const GRADING_MANAGER_GROUP = {
   code: 'G_GRADING',
   name: 'Quản lý Điểm Rèn Luyện',
-  description: 'Quản lý ghi nhận rèn luyện cá nhân, ghi nhận lớp và cấu hình điểm rèn luyện.',
+  description:
+    'Quản lý ghi nhận rèn luyện cá nhân, ghi nhận lớp và cấu hình điểm rèn luyện.',
   status: 'Active',
 };
 
@@ -43,7 +45,8 @@ export const TASK_MANAGER_GROUP = {
 export const SYSTEM_OPERATIONS_GROUP = {
   code: 'G_SYSTEM_OPERATIONS',
   name: 'Quản trị vận hành hệ thống',
-  description: 'Các quyền quản trị vận hành hệ thống, xem log đăng nhập, quản lý yêu cầu và sao lưu cơ sở dữ liệu.',
+  description:
+    'Các quyền quản trị vận hành hệ thống, xem log đăng nhập, quản lý yêu cầu và sao lưu cơ sở dữ liệu.',
   status: 'Active',
 };
 
@@ -57,14 +60,16 @@ export const REPORT_MANAGER_GROUP = {
 export const CLUB_MANAGER_GROUP = {
   code: 'G_CLUB',
   name: 'Quản lý Câu lạc bộ',
-  description: 'Quản lý câu lạc bộ, lịch sinh hoạt, điểm danh và cấu hình điểm rèn luyện.',
+  description:
+    'Quản lý câu lạc bộ, lịch sinh hoạt, điểm danh và cấu hình điểm rèn luyện.',
   status: 'Active',
 };
 
 export const PROPOSED_PERMISSION_GROUP = {
   code: 'G_PROPOSED',
   name: 'Đề xuất bổ sung',
-  description: 'Nhóm các quyền được đề xuất để bổ sung cho chức năng tương lai (chưa có guard thực tế).',
+  description:
+    'Nhóm các quyền được đề xuất để bổ sung cho chức năng tương lai (chưa có guard thực tế).',
   status: 'Active',
 };
 
@@ -74,7 +79,8 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'admin',
     name: 'Truy cập trang quản trị phân quyền',
     module: SYSTEM_PERMISSIONS_GROUP.name,
-    description: 'Quyền truy cập trang quản lý phân quyền (RBAC), quản lý người dùng, vai trò và route mappings.',
+    description:
+      'Quyền truy cập trang quản lý phân quyền (RBAC), quản lý người dùng, vai trò và route mappings.',
   },
 
   // 2. Nhóm Quản lý Học Sinh Sinh Viên
@@ -82,13 +88,15 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'STUDENT_PAGE',
     name: 'Truy cập trang quản lý sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
-    description: 'Cho phép truy cập menu và giao diện quản lý thông tin sinh viên, lớp học, khoa.',
+    description:
+      'Cho phép truy cập menu và giao diện quản lý thông tin sinh viên, lớp học, khoa.',
   },
   {
     code: 'STUDENT_READ',
     name: 'Xem sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
-    description: 'Cho phép xem thông tin chi tiết và hồ sơ cá nhân của sinh viên trong hệ thống.',
+    description:
+      'Cho phép xem thông tin chi tiết và hồ sơ cá nhân của sinh viên trong hệ thống.',
   },
   {
     code: 'STUDENT_CREATE',
@@ -124,19 +132,22 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'STUDENT_ACCOUNT_ACTIVATE',
     name: 'Kích hoạt tài khoản sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
-    description: 'Cho phép kích hoạt hoặc tạm khóa tài khoản đăng nhập của sinh viên.',
+    description:
+      'Cho phép kích hoạt hoặc tạm khóa tài khoản đăng nhập của sinh viên.',
   },
   {
     code: 'STUDENT_ACCOUNT_RESET_PASSWORD',
     name: 'Reset mật khẩu sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
-    description: 'Cho phép đặt lại mật khẩu của sinh viên về ngày sinh mặc định.',
+    description:
+      'Cho phép đặt lại mật khẩu của sinh viên về ngày sinh mặc định.',
   },
   {
     code: 'STUDENT_TRANSFER',
     name: 'Chuyển lớp sinh viên',
     module: STUDENT_MANAGER_GROUP.name,
-    description: 'Cho phép thực hiện chuyển lớp sinh viên từ lớp này sang lớp khác.',
+    description:
+      'Cho phép thực hiện chuyển lớp sinh viên từ lớp này sang lớp khác.',
   },
   {
     code: 'DEPT_CREATE',
@@ -154,7 +165,8 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'DEPT_DELETE',
     name: 'Xóa khoa',
     module: STUDENT_MANAGER_GROUP.name,
-    description: 'Cho phép xóa khoa đào tạo (chỉ khi không còn lớp học thuộc khoa).',
+    description:
+      'Cho phép xóa khoa đào tạo (chỉ khi không còn lớp học thuộc khoa).',
   },
   {
     code: 'CLASS_CREATE',
@@ -180,13 +192,15 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'GRADING_PAGE',
     name: 'Truy cập trang rèn luyện',
     module: GRADING_MANAGER_GROUP.name,
-    description: 'Cho phép truy cập menu và giao diện quản lý rèn luyện sinh viên.',
+    description:
+      'Cho phép truy cập menu và giao diện quản lý rèn luyện sinh viên.',
   },
   {
     code: 'READ_STUDENT_RECORD',
     name: 'Xem ghi nhận sinh viên',
     module: GRADING_MANAGER_GROUP.name,
-    description: 'Cho phép xem lịch sử ghi nhận điểm rèn luyện cá nhân của sinh viên.',
+    description:
+      'Cho phép xem lịch sử ghi nhận điểm rèn luyện cá nhân của sinh viên.',
   },
   {
     code: 'CREATE_STUDENT_RECORD',
@@ -242,13 +256,15 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'READ_STUDENT_TASK',
     name: 'Xem nhiệm vụ học tập',
     module: TASK_MANAGER_GROUP.name,
-    description: 'Cho phép xem danh sách nhiệm vụ rèn luyện, học tập được giao.',
+    description:
+      'Cho phép xem danh sách nhiệm vụ rèn luyện, học tập được giao.',
   },
   {
     code: 'CREATE_STUDENT_TASK',
     name: 'Tạo nhiệm vụ học tập',
     module: TASK_MANAGER_GROUP.name,
-    description: 'Cho phép tạo mới và phân công nhiệm vụ rèn luyện cho sinh viên/lớp.',
+    description:
+      'Cho phép tạo mới và phân công nhiệm vụ rèn luyện cho sinh viên/lớp.',
   },
   {
     code: 'UPDATE_STUDENT_TASK',
@@ -268,55 +284,64 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'SYSTEM_ADMIN',
     name: 'Truy cập trang quản trị hệ thống',
     module: SYSTEM_OPERATIONS_GROUP.name,
-    description: 'Cho phép truy cập menu và giao diện tổng quan Quản trị vận hành hệ thống.',
+    description:
+      'Cho phép truy cập menu và giao diện tổng quan Quản trị vận hành hệ thống.',
   },
   {
     code: 'LOGIN_LOG_READ',
     name: 'Xem lịch sử đăng nhập',
     module: SYSTEM_OPERATIONS_GROUP.name,
-    description: 'Cho phép xem nhật ký hoạt động đăng nhập và thay đổi bảo mật hệ thống.',
+    description:
+      'Cho phép xem nhật ký hoạt động đăng nhập và thay đổi bảo mật hệ thống.',
   },
   {
     code: 'SYSTEM_REQUEST_READ',
     name: 'Xem request hệ thống',
     module: SYSTEM_OPERATIONS_GROUP.name,
-    description: 'Cho phép xem các yêu cầu thay đổi dữ liệu/hỗ trợ kỹ thuật hệ thống.',
+    description:
+      'Cho phép xem các yêu cầu thay đổi dữ liệu/hỗ trợ kỹ thuật hệ thống.',
   },
   {
     code: 'SYSTEM_REQUEST_MANAGE',
     name: 'Quản lý request hệ thống',
     module: SYSTEM_OPERATIONS_GROUP.name,
-    description: 'Cho phép phê duyệt, từ chối, phân công và xóa các yêu cầu vận hành hệ thống.',
+    description:
+      'Cho phép phê duyệt, từ chối, phân công và xóa các yêu cầu vận hành hệ thống.',
   },
   {
     code: 'DATABASE_BACKUP_READ',
     name: 'Xem danh sách backup',
     module: SYSTEM_OPERATIONS_GROUP.name,
-    description: 'Cho phép xem danh sách và trạng thái các bản sao lưu cơ sở dữ liệu hệ thống.',
+    description:
+      'Cho phép xem danh sách và trạng thái các bản sao lưu cơ sở dữ liệu hệ thống.',
   },
   {
     code: 'DATABASE_BACKUP_CREATE',
     name: 'Tạo backup database',
     module: SYSTEM_OPERATIONS_GROUP.name,
-    description: 'Cho phép kích hoạt tiến trình tạo bản sao lưu cơ sở dữ liệu tức thời.',
+    description:
+      'Cho phép kích hoạt tiến trình tạo bản sao lưu cơ sở dữ liệu tức thời.',
   },
   {
     code: 'DATABASE_BACKUP_DOWNLOAD',
     name: 'Tải backup database',
     module: SYSTEM_OPERATIONS_GROUP.name,
-    description: '⚠️ QUYỀN HẠN NGUY HIỂM: Cho phép tải xuống tệp sao lưu chứa toàn bộ cơ sở dữ liệu của hệ thống về máy cá nhân.',
+    description:
+      '⚠️ QUYỀN HẠN NGUY HIỂM: Cho phép tải xuống tệp sao lưu chứa toàn bộ cơ sở dữ liệu của hệ thống về máy cá nhân.',
   },
   {
     code: 'DATABASE_BACKUP_DELETE',
     name: 'Xóa backup database',
     module: SYSTEM_OPERATIONS_GROUP.name,
-    description: '⚠️ QUYỀN HẠN NHẠY CẢM: Cho phép xóa vĩnh viễn tệp sao lưu dữ liệu trên server, không thể khôi phục.',
+    description:
+      '⚠️ QUYỀN HẠN NHẠY CẢM: Cho phép xóa vĩnh viễn tệp sao lưu dữ liệu trên server, không thể khôi phục.',
   },
   {
     code: 'DATABASE_BACKUP_RESTORE',
     name: 'Khôi phục backup database',
     module: SYSTEM_OPERATIONS_GROUP.name,
-    description: '⚠️ QUYỀN HẠN CỰC KỲ NGUY HIỂM: Cho phép import, xem trước và thực hiện khôi phục ghi đè dữ liệu từ bản sao lưu.',
+    description:
+      '⚠️ QUYỀN HẠN CỰC KỲ NGUY HIỂM: Cho phép import, xem trước và thực hiện khôi phục ghi đè dữ liệu từ bản sao lưu.',
   },
   {
     code: 'SYSTEM_PERFORMANCE_READ',
@@ -328,7 +353,8 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'SYSTEM_MAIL_CONFIG_MANAGE',
     name: 'Cấu hình MAIL SMTP',
     module: SYSTEM_OPERATIONS_GROUP.name,
-    description: 'Cho phép xem, sửa và kiểm tra kết nối cấu hình MAIL SMTP của hệ thống.',
+    description:
+      'Cho phép xem, sửa và kiểm tra kết nối cấu hình MAIL SMTP của hệ thống.',
   },
 
   // Nhóm Báo cáo
@@ -380,13 +406,15 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'CLUB_MEMBER_MANAGE',
     name: 'Quản lý thành viên CLB',
     module: CLUB_MANAGER_GROUP.name,
-    description: 'Cho phép thêm, xóa, duyệt thành viên và phân vai trò trong CLB.',
+    description:
+      'Cho phép thêm, xóa, duyệt thành viên và phân vai trò trong CLB.',
   },
   {
     code: 'CLUB_SCHEDULE_READ',
     name: 'Xem lịch sinh hoạt CLB',
     module: CLUB_MANAGER_GROUP.name,
-    description: 'Cho phép xem lịch sinh hoạt và danh sách đăng ký buổi sinh hoạt CLB.',
+    description:
+      'Cho phép xem lịch sinh hoạt và danh sách đăng ký buổi sinh hoạt CLB.',
   },
   {
     code: 'CLUB_SCHEDULE_MANAGE',
@@ -410,7 +438,8 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'CLUB_ATTENDANCE_CREATE',
     name: 'Ghi nhận điểm danh CLB',
     module: CLUB_MANAGER_GROUP.name,
-    description: 'Cho phép ghi nhận điểm danh sinh viên tại buổi sinh hoạt CLB.',
+    description:
+      'Cho phép ghi nhận điểm danh sinh viên tại buổi sinh hoạt CLB.',
   },
   {
     code: 'CLUB_ATTENDANCE_UPDATE',
@@ -434,7 +463,8 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'CLUB_CONFIG_READ',
     name: 'Xem cấu hình điểm CLB',
     module: CLUB_MANAGER_GROUP.name,
-    description: 'Cho phép xem cấu hình mapping điểm danh CLB sang điểm rèn luyện.',
+    description:
+      'Cho phép xem cấu hình mapping điểm danh CLB sang điểm rèn luyện.',
   },
   {
     code: 'CLUB_CONFIG_MANAGE',
@@ -456,19 +486,94 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
   },
 
   // Nhóm Đề xuất bổ sung (Các quyền CRUD cho trang /permissions chưa có guard)
-  { code: 'USER_CREATE', name: 'Thêm người dùng', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Thêm mới người dùng' },
-  { code: 'USER_UPDATE', name: 'Cập nhật người dùng', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Chỉnh sửa thông tin người dùng' },
-  { code: 'USER_DELETE', name: 'Xóa người dùng', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Xóa người dùng' },
-  { code: 'ROLE_CREATE', name: 'Thêm vai trò', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Tạo mới vai trò' },
-  { code: 'ROLE_UPDATE', name: 'Cập nhật vai trò', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Chỉnh sửa vai trò' },
-  { code: 'ROLE_DELETE', name: 'Xóa vai trò', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Xóa vai trò' },
-  { code: 'PERMISSION_CREATE', name: 'Thêm quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Thêm mới mã quyền' },
-  { code: 'PERMISSION_UPDATE', name: 'Cập nhật quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Cập nhật thông tin quyền' },
-  { code: 'PERMISSION_DELETE', name: 'Xóa quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Xóa mã quyền' },
-  { code: 'PERMISSION_GROUP_CREATE', name: 'Thêm nhóm quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Thêm nhóm quyền' },
-  { code: 'PERMISSION_GROUP_UPDATE', name: 'Cập nhật nhóm quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Cập nhật nhóm quyền' },
-  { code: 'PERMISSION_GROUP_DELETE', name: 'Xóa nhóm quyền', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Xóa nhóm quyền' },
-  { code: 'ROUTE_PERMISSION_CREATE', name: 'Thêm Route Permission', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Thêm mapping route permission' },
-  { code: 'ROUTE_PERMISSION_UPDATE', name: 'Cập nhật Route Permission', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Cập nhật mapping route permission' },
-  { code: 'ROUTE_PERMISSION_DELETE', name: 'Xóa Route Permission', module: PROPOSED_PERMISSION_GROUP.name, description: 'Đề xuất: Xóa mapping route permission' },
+  {
+    code: 'USER_CREATE',
+    name: 'Thêm người dùng',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Thêm mới người dùng',
+  },
+  {
+    code: 'USER_UPDATE',
+    name: 'Cập nhật người dùng',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Chỉnh sửa thông tin người dùng',
+  },
+  {
+    code: 'USER_DELETE',
+    name: 'Xóa người dùng',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Xóa người dùng',
+  },
+  {
+    code: 'ROLE_CREATE',
+    name: 'Thêm vai trò',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Tạo mới vai trò',
+  },
+  {
+    code: 'ROLE_UPDATE',
+    name: 'Cập nhật vai trò',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Chỉnh sửa vai trò',
+  },
+  {
+    code: 'ROLE_DELETE',
+    name: 'Xóa vai trò',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Xóa vai trò',
+  },
+  {
+    code: 'PERMISSION_CREATE',
+    name: 'Thêm quyền',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Thêm mới mã quyền',
+  },
+  {
+    code: 'PERMISSION_UPDATE',
+    name: 'Cập nhật quyền',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Cập nhật thông tin quyền',
+  },
+  {
+    code: 'PERMISSION_DELETE',
+    name: 'Xóa quyền',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Xóa mã quyền',
+  },
+  {
+    code: 'PERMISSION_GROUP_CREATE',
+    name: 'Thêm nhóm quyền',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Thêm nhóm quyền',
+  },
+  {
+    code: 'PERMISSION_GROUP_UPDATE',
+    name: 'Cập nhật nhóm quyền',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Cập nhật nhóm quyền',
+  },
+  {
+    code: 'PERMISSION_GROUP_DELETE',
+    name: 'Xóa nhóm quyền',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Xóa nhóm quyền',
+  },
+  {
+    code: 'ROUTE_PERMISSION_CREATE',
+    name: 'Thêm Route Permission',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Thêm mapping route permission',
+  },
+  {
+    code: 'ROUTE_PERMISSION_UPDATE',
+    name: 'Cập nhật Route Permission',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Cập nhật mapping route permission',
+  },
+  {
+    code: 'ROUTE_PERMISSION_DELETE',
+    name: 'Xóa Route Permission',
+    module: PROPOSED_PERMISSION_GROUP.name,
+    description: 'Đề xuất: Xóa mapping route permission',
+  },
 ];

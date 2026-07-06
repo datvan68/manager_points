@@ -1,7 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken, getConnectionToken } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  ConflictException,
+} from '@nestjs/common';
 import { SystemService } from './system.service';
 import { SystemRequest } from './schemas/system-request.schema';
 import { DatabaseBackupJob } from './schemas/database-backup-job.schema';
@@ -157,7 +162,7 @@ describe('SystemService', () => {
               _id: new Types.ObjectId(),
               status: 'queued',
               preview_session_id: 'some-session',
-              save: jest.fn().mockResolvedValue(true)
+              save: jest.fn().mockResolvedValue(true),
             }),
           },
         },
@@ -198,7 +203,10 @@ describe('SystemService', () => {
             }),
             findOneAndUpdate: jest.fn().mockReturnValue({
               lean: jest.fn().mockReturnThis(),
-              exec: jest.fn().mockResolvedValue({ value: { states: {} }, updatedAt: new Date('2026-01-01T00:00:00.000Z') }),
+              exec: jest.fn().mockResolvedValue({
+                value: { states: {} },
+                updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+              }),
             }),
           },
         },
@@ -243,13 +251,15 @@ describe('SystemService', () => {
       objectIds: ['_id', 'role'],
       dates: ['createdAt', 'updatedAt'],
     });
-    
+
     requestModel = module.get(getModelToken(SystemRequest.name));
     backupJobModel = module.get(getModelToken(DatabaseBackupJob.name));
     restoreJobModel = module.get(getModelToken(DatabaseRestoreJob.name));
     loginLogModel = module.get(getModelToken(LoginLog.name));
     userModel = module.get(getModelToken(User.name));
-    performanceMetricModel = module.get(getModelToken(SystemPerformanceMetric.name));
+    performanceMetricModel = module.get(
+      getModelToken(SystemPerformanceMetric.name),
+    );
     systemSettingModel = module.get(getModelToken(SystemSetting.name));
   });
 
@@ -279,7 +289,9 @@ describe('SystemService', () => {
     const updatedAt = new Date('2026-01-01T00:00:00.000Z');
     systemSettingModel.findOne.mockReturnValueOnce({
       lean: jest.fn().mockReturnThis(),
-      exec: jest.fn().mockResolvedValue({ value: { states: { grading: true } } }),
+      exec: jest
+        .fn()
+        .mockResolvedValue({ value: { states: { grading: true } } }),
     });
     systemSettingModel.findOneAndUpdate.mockReturnValueOnce({
       lean: jest.fn().mockReturnThis(),
@@ -300,7 +312,7 @@ describe('SystemService', () => {
       expect.objectContaining({
         value: { states: { grading: true, attendance: true } },
       }),
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: 'after' },
     );
     expect(result).toEqual({
       states: { grading: true, attendance: true },
@@ -310,7 +322,11 @@ describe('SystemService', () => {
 
   it('should reject invalid module maintenance ids', async () => {
     await expect(
-      service.updateModuleMaintenanceState('../bad', { isMaintenance: true }, mockUserId),
+      service.updateModuleMaintenanceState(
+        '../bad',
+        { isMaintenance: true },
+        mockUserId,
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -347,7 +363,9 @@ describe('SystemService', () => {
     it('should filter by search using text matching or userIds', async () => {
       userModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(mockUserId) }]),
+        exec: jest
+          .fn()
+          .mockResolvedValue([{ _id: new Types.ObjectId(mockUserId) }]),
       });
       loginLogModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
@@ -361,15 +379,17 @@ describe('SystemService', () => {
       });
 
       await service.getLoginLogs({ search: 'test' });
-      
+
       expect(userModel.find).toHaveBeenCalled();
-      expect(loginLogModel.find).toHaveBeenCalledWith(expect.objectContaining({
-        $or: [
-          { ip_address: { $regex: 'test', $options: 'i' } },
-          { details: { $regex: 'test', $options: 'i' } },
-          { user_id: { $in: [new Types.ObjectId(mockUserId)] } },
-        ],
-      }));
+      expect(loginLogModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          $or: [
+            { ip_address: { $regex: 'test', $options: 'i' } },
+            { details: { $regex: 'test', $options: 'i' } },
+            { user_id: { $in: [new Types.ObjectId(mockUserId)] } },
+          ],
+        }),
+      );
     });
   });
 
@@ -386,7 +406,7 @@ describe('SystemService', () => {
       const fromDate = '2023-10-01T00:00:00.000Z';
       const toDate = '2023-10-31T23:59:59.000Z';
       await service.getLoginLogsSummary({ from: fromDate, to: toDate });
-      
+
       expect(loginLogModel.aggregate).toHaveBeenCalledWith(
         expect.arrayContaining([
           {
@@ -397,7 +417,7 @@ describe('SystemService', () => {
               },
             },
           },
-        ])
+        ]),
       );
     });
   });
@@ -417,27 +437,31 @@ describe('SystemService', () => {
 
       await service.getRequests({ from: '2023-01-01', to: '2023-01-31' });
 
-      expect(requestModel.find).toHaveBeenCalledWith(expect.objectContaining({
-        createdAt: {
-          $gte: new Date('2023-01-01'),
-          $lte: new Date('2023-01-31'),
-        },
-      }));
+      expect(requestModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          createdAt: {
+            $gte: new Date('2023-01-01'),
+            $lte: new Date('2023-01-31'),
+          },
+        }),
+      );
     });
   });
 
   describe('normalizeMongoTypes', () => {
     it('should throw error for invalid object ids', () => {
       const doc = {
-        _id: 'invalid-id'
+        _id: 'invalid-id',
       };
-      expect(() => service.normalizeMongoTypes('users', doc)).toThrow(/Invalid ObjectId format/);
+      expect(() => service.normalizeMongoTypes('users', doc)).toThrow(
+        /Invalid ObjectId format/,
+      );
     });
 
     it('should not cast unknown fields', () => {
       const doc = {
         _id: new Types.ObjectId().toString(),
-        unknownField: 'value'
+        unknownField: 'value',
       };
       const normalized = service.normalizeMongoTypes('users', doc);
       expect(normalized.unknownField).toBe('value');
@@ -549,10 +573,12 @@ describe('SystemService', () => {
 
     it('should throw ConflictException if another job is running or queued', async () => {
       backupJobModel.find.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue([{
-          _id: new Types.ObjectId(),
-          status: 'queued',
-        }]),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            status: 'queued',
+          },
+        ]),
       });
       await expect(service.createBackup(mockUserId)).rejects.toThrow(
         ConflictException,
@@ -601,7 +627,11 @@ describe('SystemService', () => {
     });
 
     it('should throw ForbiddenException if file path is outside backup directory (Path Traversal)', async () => {
-      const traversalPath = path.resolve(process.cwd(), 'storage', 'secret.txt');
+      const traversalPath = path.resolve(
+        process.cwd(),
+        'storage',
+        'secret.txt',
+      );
       backupJobModel.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue({
           status: 'success',
@@ -615,7 +645,12 @@ describe('SystemService', () => {
     });
 
     it('should throw ForbiddenException if file path has same prefix but is outside backup directory (Path Traversal prefix bypass)', async () => {
-      const evilPath = path.resolve(process.cwd(), 'storage', 'backups_evil', 'backup.gz');
+      const evilPath = path.resolve(
+        process.cwd(),
+        'storage',
+        'backups_evil',
+        'backup.gz',
+      );
       backupJobModel.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue({
           status: 'success',
@@ -628,14 +663,20 @@ describe('SystemService', () => {
       );
     });
 
-
     it('should not throw 403 Forbidden when drive letter case differs on Windows (Path Traversal regression)', async () => {
-      const validPath = path.join(process.cwd(), 'storage', 'backups', 'backup_123.gz');
+      const validPath = path.join(
+        process.cwd(),
+        'storage',
+        'backups',
+        'backup_123.gz',
+      );
       const backupDir = path.dirname(validPath);
       const originalBackupDir = (service as any).backupDir;
-      
+
       // Force the backup directory to use a different case for the drive letter if on Windows
-      (service as any).backupDir = backupDir.replace(/^[a-z]:/i, (m) => m === m.toUpperCase() ? m.toLowerCase() : m.toUpperCase());
+      (service as any).backupDir = backupDir.replace(/^[a-z]:/i, (m) =>
+        m === m.toUpperCase() ? m.toLowerCase() : m.toUpperCase(),
+      );
 
       backupJobModel.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue({
@@ -646,14 +687,22 @@ describe('SystemService', () => {
       });
       jest.spyOn(fs, 'existsSync').mockReturnValueOnce(true);
 
-      const result = await service.downloadBackup(mockBackupJobId, 'mockUserId');
+      const result = await service.downloadBackup(
+        mockBackupJobId,
+        'mockUserId',
+      );
       expect(result).toBeDefined();
 
       (service as any).backupDir = originalBackupDir;
     });
 
     it('should return path and filename if validation passes', async () => {
-      const validPath = path.join(process.cwd(), 'storage', 'backups', 'backup_123.gz');
+      const validPath = path.join(
+        process.cwd(),
+        'storage',
+        'backups',
+        'backup_123.gz',
+      );
       backupJobModel.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue({
           status: 'success',
@@ -687,7 +736,11 @@ describe('SystemService', () => {
     });
 
     it('should throw ForbiddenException if file path is outside backup directory (Path Traversal)', async () => {
-      const traversalPath = path.resolve(process.cwd(), 'storage', 'secret.txt');
+      const traversalPath = path.resolve(
+        process.cwd(),
+        'storage',
+        'secret.txt',
+      );
       backupJobModel.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue({
           file_path: traversalPath,
@@ -699,7 +752,12 @@ describe('SystemService', () => {
     });
 
     it('should throw ForbiddenException if file path has same prefix but is outside backup directory (Path Traversal prefix bypass)', async () => {
-      const evilPath = path.resolve(process.cwd(), 'storage', 'backups_evil', 'backup.gz');
+      const evilPath = path.resolve(
+        process.cwd(),
+        'storage',
+        'backups_evil',
+        'backup.gz',
+      );
       backupJobModel.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue({
           file_path: evilPath,
@@ -710,14 +768,20 @@ describe('SystemService', () => {
       );
     });
 
-
     it('should not throw 403 Forbidden when drive letter case differs on Windows (Path Traversal regression)', async () => {
-      const validPath = path.join(process.cwd(), 'storage', 'backups', 'backup_123.gz');
+      const validPath = path.join(
+        process.cwd(),
+        'storage',
+        'backups',
+        'backup_123.gz',
+      );
       const backupDir = path.dirname(validPath);
       const originalBackupDir = (service as any).backupDir;
-      
+
       // Force the backup directory to use a different case for the drive letter if on Windows
-      (service as any).backupDir = backupDir.replace(/^[a-z]:/i, (m) => m === m.toUpperCase() ? m.toLowerCase() : m.toUpperCase());
+      (service as any).backupDir = backupDir.replace(/^[a-z]:/i, (m) =>
+        m === m.toUpperCase() ? m.toLowerCase() : m.toUpperCase(),
+      );
 
       backupJobModel.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue({
@@ -735,7 +799,12 @@ describe('SystemService', () => {
     });
 
     it('should delete file and document successfully', async () => {
-      const validPath = path.join(process.cwd(), 'storage', 'backups', 'backup_123.gz');
+      const validPath = path.join(
+        process.cwd(),
+        'storage',
+        'backups',
+        'backup_123.gz',
+      );
       backupJobModel.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue({
           _id: new Types.ObjectId(mockBackupJobId),
@@ -743,7 +812,9 @@ describe('SystemService', () => {
         }),
       });
       jest.spyOn(fs, 'existsSync').mockReturnValueOnce(true);
-      const unlinkSpy = jest.spyOn(fs, 'unlinkSync').mockImplementationOnce(() => {});
+      const unlinkSpy = jest
+        .spyOn(fs, 'unlinkSync')
+        .mockImplementationOnce(() => {});
 
       const result = await service.deleteBackup(mockBackupJobId);
       expect(result).toBeDefined();
@@ -753,13 +824,17 @@ describe('SystemService', () => {
 
   describe('maskUri helper / log masking', () => {
     it('should mask the configured MONGO_URI in messages', () => {
-      const message = 'Error connecting to mongodb://localhost:27017/test with error code 123';
+      const message =
+        'Error connecting to mongodb://localhost:27017/test with error code 123';
       const result = (service as any).maskUri(message);
-      expect(result).toBe('Error connecting to ***MONGO_URI_REDACTED*** with error code 123');
+      expect(result).toBe(
+        'Error connecting to ***MONGO_URI_REDACTED*** with error code 123',
+      );
     });
 
     it('should mask generic mongodb URI credentials', () => {
-      const message = 'mongodb://admin:supersecret@127.0.0.1:27017/mydb?authSource=admin';
+      const message =
+        'mongodb://admin:supersecret@127.0.0.1:27017/mydb?authSource=admin';
       const result = (service as any).maskUri(message);
       expect(result).toBe('mongodb://***REDACTED***/mydb?authSource=admin');
     });
@@ -783,11 +858,11 @@ describe('SystemService', () => {
           ttfb_ms: -100, // negative should be clamped to 0
           api_total_ms: 2500, // > 2000 -> warning
           api_breakdown: [
-            { name: 'login-logs', duration_ms: 1500 } // > 1200 -> warning
-          ]
+            { name: 'login-logs', duration_ms: 1500 }, // > 1200 -> warning
+          ],
         };
         const user = { userId: mockUserId, roleName: 'Admin' };
-        
+
         // Mock the constructor behavior implicitly via spy/assertions
         const result = await service.createPerformanceMetric(dto, user);
         expect(result.success).toBe(true);
@@ -803,17 +878,20 @@ describe('SystemService', () => {
       });
 
       it('should properly clamp negative duration values to 0', async () => {
-         const dto = {
-           route: '/system',
-           device_type: 'mobile' as const,
-           ttfb_ms: -500,
-           api_breakdown: [{ name: 'test-api', duration_ms: -100 }]
-         };
-         // To verify the clamping, we could spy on the class constructor.
-         // Since we already mocked `save` inside `MockPerformanceMetricModel`, 
-         // we can just check if saving succeeded without errors.
-         const result = await service.createPerformanceMetric(dto, { userId: mockUserId, roleName: 'Admin' });
-         expect(result.success).toBe(true);
+        const dto = {
+          route: '/system',
+          device_type: 'mobile' as const,
+          ttfb_ms: -500,
+          api_breakdown: [{ name: 'test-api', duration_ms: -100 }],
+        };
+        // To verify the clamping, we could spy on the class constructor.
+        // Since we already mocked `save` inside `MockPerformanceMetricModel`,
+        // we can just check if saving succeeded without errors.
+        const result = await service.createPerformanceMetric(dto, {
+          userId: mockUserId,
+          roleName: 'Admin',
+        });
+        expect(result.success).toBe(true);
       });
     });
 
@@ -834,7 +912,9 @@ describe('SystemService', () => {
           }),
         });
 
-        const result = await service.getPerformanceSummary({ route: '/system' });
+        const result = await service.getPerformanceSummary({
+          route: '/system',
+        });
 
         expect(result.total_samples).toBe(5);
         expect(result.average.load_event_ms).toBeDefined();
@@ -851,7 +931,7 @@ describe('SystemService', () => {
         // load_event_ms p75 is 4000 > 3000 -> should generate SYSTEM_LOAD_P75_HIGH
         // lcp_ms p75 is 4000 > 2500 -> should generate SYSTEM_LCP_P75_HIGH
         expect(result.recommendations).toBeDefined();
-        const recCodes = result.recommendations.map(r => r.code);
+        const recCodes = result.recommendations.map((r) => r.code);
         expect(recCodes).toContain('SYSTEM_LOAD_P75_HIGH');
         expect(recCodes).toContain('SYSTEM_LCP_P75_HIGH');
       });
@@ -862,7 +942,9 @@ describe('SystemService', () => {
             exec: jest.fn().mockResolvedValue([]),
           }),
         });
-        const result = await service.getPerformanceSummary({ route: '/system' });
+        const result = await service.getPerformanceSummary({
+          route: '/system',
+        });
         expect(result.total_samples).toBe(0);
         expect(result.average.load_event_ms).toBeNull();
         expect(result.p50.load_event_ms).toBeNull();
@@ -876,7 +958,12 @@ describe('SystemService', () => {
         const mockMetrics = [
           { api_breakdown: [{ name: 'login-logs', duration_ms: 1000 }] },
           { api_breakdown: [{ name: 'login-logs', duration_ms: 2000 }] },
-          { api_breakdown: [{ name: 'login-logs', duration_ms: 3000 }, { name: 'requests', duration_ms: 500 }] },
+          {
+            api_breakdown: [
+              { name: 'login-logs', duration_ms: 3000 },
+              { name: 'requests', duration_ms: 500 },
+            ],
+          },
         ];
 
         performanceMetricModel.find.mockReturnValueOnce({
@@ -885,18 +972,22 @@ describe('SystemService', () => {
           }),
         });
 
-        const result = await service.getPerformanceSummary({ route: '/system' });
-        
+        const result = await service.getPerformanceSummary({
+          route: '/system',
+        });
+
         expect(result.slow_apis).toBeDefined();
-        const loginLogsApi = result.slow_apis.find(a => a.name === 'login-logs');
+        const loginLogsApi = result.slow_apis.find(
+          (a) => a.name === 'login-logs',
+        );
         expect(loginLogsApi).toBeDefined();
         expect(loginLogsApi.samples).toBe(3);
         // avg: (1000+2000+3000)/3 = 2000
         expect(loginLogsApi.avg).toBe(2000);
         // p75 of [1000, 2000, 3000] index ceil(0.75*3)-1 = 3-1 = 2 -> 3000
         expect(loginLogsApi.p75).toBe(3000);
-        
-        const requestsApi = result.slow_apis.find(a => a.name === 'requests');
+
+        const requestsApi = result.slow_apis.find((a) => a.name === 'requests');
         expect(requestsApi).toBeDefined();
         expect(requestsApi.samples).toBe(1);
         expect(requestsApi.avg).toBe(500);
@@ -907,25 +998,41 @@ describe('SystemService', () => {
   describe('previewBackupImport', () => {
     it('should throw BadRequestException if file format is invalid', async () => {
       const file = { originalname: 'test.txt' } as any;
-      await expect(service.previewBackupImport(file, mockUserId)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.previewBackupImport(file, mockUserId),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException when file parsing fails (invalid data)', async () => {
-      const file = { originalname: 'test.gz', buffer: Buffer.from('bad data'), size: 10 } as any;
+      const file = {
+        originalname: 'test.gz',
+        buffer: Buffer.from('bad data'),
+        size: 10,
+      } as any;
       const importDir = path.join(process.cwd(), 'storage', 'backup-imports');
       if (!fs.existsSync(importDir)) {
         fs.mkdirSync(importDir, { recursive: true });
       }
-      
-      await expect(service.previewBackupImport(file, mockUserId)).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.previewBackupImport(file, mockUserId),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should detect ndjson_gzip successfully', async () => {
-      const ndjsonContent = '{"__collection":"users"}\n{"_id":{"$oid":"5f9f1b9b9b9b9b9b9b9b9b9b"},"name":"User1"}\n';
+      const ndjsonContent =
+        '{"__collection":"users"}\n{"_id":{"$oid":"5f9f1b9b9b9b9b9b9b9b9b9b"},"name":"User1"}\n';
       const gzBuffer = zlib.gzipSync(ndjsonContent);
-      const file = { originalname: 'backup.gz', buffer: gzBuffer, size: gzBuffer.length } as any;
-      restoreJobModel.create.mockResolvedValueOnce({ _id: new Types.ObjectId(), status: 'preview' } as any);
-      
+      const file = {
+        originalname: 'backup.gz',
+        buffer: gzBuffer,
+        size: gzBuffer.length,
+      } as any;
+      restoreJobModel.create.mockResolvedValueOnce({
+        _id: new Types.ObjectId(),
+        status: 'preview',
+      } as any);
+
       const result = await service.previewBackupImport(file, mockUserId);
       expect(result.format).toBe('ndjson_gzip');
       expect(result.collections.length).toBeGreaterThan(0);
@@ -933,18 +1040,30 @@ describe('SystemService', () => {
     });
 
     it('should detect ndjson_gzip successfully even if mongorestore is not installed', async () => {
-      const ndjsonContent = '{"__collection":"users"}\n{"_id":{"$oid":"5f9f1b9b9b9b9b9b9b9b9b9b"},"name":"User1"}\n';
+      const ndjsonContent =
+        '{"__collection":"users"}\n{"_id":{"$oid":"5f9f1b9b9b9b9b9b9b9b9b9b"},"name":"User1"}\n';
       const gzBuffer = zlib.gzipSync(ndjsonContent);
-      const file = { originalname: 'backup.gz', buffer: gzBuffer, size: gzBuffer.length } as any;
-      restoreJobModel.create.mockResolvedValueOnce({ _id: new Types.ObjectId(), status: 'preview' } as any);
-      
+      const file = {
+        originalname: 'backup.gz',
+        buffer: gzBuffer,
+        size: gzBuffer.length,
+      } as any;
+      restoreJobModel.create.mockResolvedValueOnce({
+        _id: new Types.ObjectId(),
+        status: 'preview',
+      } as any);
+
       // Simulate mongorestore not being available on system
-      const execSpy = jest.spyOn(cp, 'execFile').mockImplementation(((cmd: string, args: any[], cb: any) => {
+      const execSpy = jest.spyOn(cp, 'execFile').mockImplementation(((
+        cmd: string,
+        args: any[],
+        cb: any,
+      ) => {
         const err: any = new Error('mongorestore ENOENT');
         err.code = 'ENOENT';
         if (cb) cb(err, '', '');
       }) as any);
-      
+
       const result = await service.previewBackupImport(file, mockUserId);
       expect(result.format).toBe('ndjson_gzip');
       expect(result.collections.length).toBeGreaterThan(0);
@@ -954,69 +1073,139 @@ describe('SystemService', () => {
     });
 
     it('should detect mongodump_archive and mock success', async () => {
-      const archiveContent = 'BSON_ARCHIVE_BINARY_DATA_DUMMY_THAT_DOES_NOT_START_WITH_BRACKET';
+      const archiveContent =
+        'BSON_ARCHIVE_BINARY_DATA_DUMMY_THAT_DOES_NOT_START_WITH_BRACKET';
       const gzBuffer = zlib.gzipSync(archiveContent);
-      const file = { originalname: 'backup.gz', buffer: gzBuffer, size: gzBuffer.length } as any;
-      
+      const file = {
+        originalname: 'backup.gz',
+        buffer: gzBuffer,
+        size: gzBuffer.length,
+      } as any;
+
       // Override execFile to simulate mongorestore --dryRun success
-      jest.spyOn(cp, 'execFile').mockImplementationOnce(((cmd: string, args: any[], cb: any) => {
+      jest.spyOn(cp, 'execFile').mockImplementationOnce(((
+        cmd: string,
+        args: any[],
+        cb: any,
+      ) => {
         if (cb) cb(null, 'done', '');
       }) as any);
 
-      restoreJobModel.create.mockResolvedValueOnce({ _id: new Types.ObjectId(), status: 'preview' } as any);
+      restoreJobModel.create.mockResolvedValueOnce({
+        _id: new Types.ObjectId(),
+        status: 'preview',
+      } as any);
 
       const result = await service.previewBackupImport(file, mockUserId);
       expect(result.format).toBe('mongodump_archive');
-      expect(result.collections[0].name).toBe('Archive Content (Full Restore Available)');
+      expect(result.collections[0].name).toBe(
+        'Archive Content (Full Restore Available)',
+      );
     });
 
     it('should throw error when mongodump_archive validation fails', async () => {
-      const archiveContent = 'BSON_ARCHIVE_BINARY_DATA_DUMMY_THAT_DOES_NOT_START_WITH_BRACKET';
+      const archiveContent =
+        'BSON_ARCHIVE_BINARY_DATA_DUMMY_THAT_DOES_NOT_START_WITH_BRACKET';
       const gzBuffer = zlib.gzipSync(archiveContent);
-      const file = { originalname: 'backup.gz', buffer: gzBuffer, size: gzBuffer.length } as any;
-      
+      const file = {
+        originalname: 'backup.gz',
+        buffer: gzBuffer,
+        size: gzBuffer.length,
+      } as any;
+
       // Override execFile to simulate mongorestore --dryRun failure
-      jest.spyOn(cp, 'execFile').mockImplementationOnce(((cmd: string, args: any[], cb: any) => {
+      jest.spyOn(cp, 'execFile').mockImplementationOnce(((
+        cmd: string,
+        args: any[],
+        cb: any,
+      ) => {
         if (cb) cb(new Error('mongorestore failed'), '', '');
       }) as any);
 
-      await expect(service.previewBackupImport(file, mockUserId)).rejects.toThrow('Lỗi xác thực file archive bằng mongorestore. File có thể bị hỏng hoặc không đúng định dạng mongodump.');
+      await expect(
+        service.previewBackupImport(file, mockUserId),
+      ).rejects.toThrow(
+        'Lỗi xác thực file archive bằng mongorestore. File có thể bị hỏng hoặc không đúng định dạng mongodump.',
+      );
     });
 
     it('should throw ENOENT error when mongorestore is not installed', async () => {
-      const archiveContent = 'BSON_ARCHIVE_BINARY_DATA_DUMMY_THAT_DOES_NOT_START_WITH_BRACKET';
+      const archiveContent =
+        'BSON_ARCHIVE_BINARY_DATA_DUMMY_THAT_DOES_NOT_START_WITH_BRACKET';
       const gzBuffer = zlib.gzipSync(archiveContent);
-      const file = { originalname: 'backup.gz', buffer: gzBuffer, size: gzBuffer.length } as any;
-      
+      const file = {
+        originalname: 'backup.gz',
+        buffer: gzBuffer,
+        size: gzBuffer.length,
+      } as any;
+
       // Override execFile to simulate mongorestore --dryRun ENOENT failure
-      jest.spyOn(cp, 'execFile').mockImplementationOnce(((cmd: string, args: any[], cb: any) => {
+      jest.spyOn(cp, 'execFile').mockImplementationOnce(((
+        cmd: string,
+        args: any[],
+        cb: any,
+      ) => {
         const err: any = new Error('mongorestore ENOENT');
         err.code = 'ENOENT';
         if (cb) cb(err, '', '');
       }) as any);
 
-      await expect(service.previewBackupImport(file, mockUserId)).rejects.toThrow('Lỗi thiếu công cụ hệ thống: Phát hiện định dạng Archive backup, nhưng MongoDB Database Tools chưa được cài đặt. Để khôi phục, vui lòng cài đặt mongorestore hoặc sử dụng server có sẵn bộ công cụ này. Nếu không thể cài đặt, hãy sử dụng tính năng sao lưu với định dạng fallback (NDJSON) thay vì Archive.');
+      await expect(
+        service.previewBackupImport(file, mockUserId),
+      ).rejects.toThrow(
+        'Lỗi thiếu công cụ hệ thống: Phát hiện định dạng Archive backup, nhưng MongoDB Database Tools chưa được cài đặt. Để khôi phục, vui lòng cài đặt mongorestore hoặc sử dụng server có sẵn bộ công cụ này. Nếu không thể cài đặt, hãy sử dụng tính năng sao lưu với định dạng fallback (NDJSON) thay vì Archive.',
+      );
     });
   });
 
   describe('restoreBackupImport', () => {
     it('should throw BadRequestException if confirmationText is not RESTORE', async () => {
-      const dto = { previewSessionId: 'sess', collections: ['users'], mode: 'replace_selected_collections' as any, confirmationText: 'WRONG' };
-      await expect(service.restoreBackupImport(dto, mockUserId)).rejects.toThrow(BadRequestException);
+      const dto = {
+        previewSessionId: 'sess',
+        collections: ['users'],
+        mode: 'replace_selected_collections' as any,
+        confirmationText: 'WRONG',
+      };
+      await expect(
+        service.restoreBackupImport(dto, mockUserId),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw NotFoundException if preview session does not exist', async () => {
-      const dto = { previewSessionId: 'invalid-sess', collections: ['users'], mode: 'replace_selected_collections' as any, confirmationText: 'RESTORE' };
-      restoreJobModel.findOne.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(null) });
-      await expect(service.restoreBackupImport(dto, mockUserId)).rejects.toThrow(NotFoundException);
+      const dto = {
+        previewSessionId: 'invalid-sess',
+        collections: ['users'],
+        mode: 'replace_selected_collections' as any,
+        confirmationText: 'RESTORE',
+      };
+      restoreJobModel.findOne.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+      await expect(
+        service.restoreBackupImport(dto, mockUserId),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ConflictException if concurrent backup/restore job is running', async () => {
-      const dto = { previewSessionId: 'sess', collections: ['users'], mode: 'replace_selected_collections' as any, confirmationText: 'RESTORE' };
-      const mockJob = { status: 'queued', save: jest.fn().mockResolvedValue(true) };
-      restoreJobModel.findOne.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(mockJob) });
-      backupJobModel.findOne.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue({ status: 'running' }) });
-      await expect(service.restoreBackupImport(dto, mockUserId)).rejects.toThrow(ConflictException);
+      const dto = {
+        previewSessionId: 'sess',
+        collections: ['users'],
+        mode: 'replace_selected_collections' as any,
+        confirmationText: 'RESTORE',
+      };
+      const mockJob = {
+        status: 'queued',
+        save: jest.fn().mockResolvedValue(true),
+      };
+      restoreJobModel.findOne.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(mockJob),
+      });
+      backupJobModel.findOne.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue({ status: 'running' }),
+      });
+      await expect(
+        service.restoreBackupImport(dto, mockUserId),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -1039,7 +1228,7 @@ describe('SystemService', () => {
         status: 'success',
         error_message: '',
       };
-      
+
       jest.spyOn(service as any, 'runBackupAsync').mockResolvedValue(undefined);
       backupJobModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockPreBackupJob),
@@ -1058,8 +1247,11 @@ describe('SystemService', () => {
 {"title":"p1"}
 {"__collection":"users"}
 {"name":"u3"}`;
-      
-      const filePath = path.resolve((service as any).importDir, `import_sess_test.gz`);
+
+      const filePath = path.resolve(
+        (service as any).importDir,
+        `import_sess_test.gz`,
+      );
       fs.writeFileSync(filePath, zlib.gzipSync(Buffer.from(ndjsonData)));
 
       // 2. Mock execFile to simulate mongorestore dryRun failure (triggering ndjson fallback)
@@ -1071,29 +1263,49 @@ describe('SystemService', () => {
       });
 
       // 3. Spy on insertDocsSafe
-      const insertSpy = jest.spyOn(service as any, 'insertDocsSafe').mockResolvedValue(undefined);
+      const insertSpy = jest
+        .spyOn(service as any, 'insertDocsSafe')
+        .mockResolvedValue(undefined);
 
       // 4. Run restore
       await (service as any).runBackupAndRestoreAsync(
         mockRestoreJob._id.toString(),
-        mockPreBackupJob._id.toString()
+        mockPreBackupJob._id.toString(),
       );
 
       // 5. Assertions
       expect(insertSpy).toHaveBeenCalledTimes(3);
       // First flush: users (u1, u2)
-      expect(insertSpy).toHaveBeenNthCalledWith(1, 'users', [{name: 'u1'}, {name: 'u2'}], 'replace_selected_collections');
+      expect(insertSpy).toHaveBeenNthCalledWith(
+        1,
+        'users',
+        [{ name: 'u1' }, { name: 'u2' }],
+        'replace_selected_collections',
+      );
       // Second flush: posts (p1)
-      expect(insertSpy).toHaveBeenNthCalledWith(2, 'posts', [{title: 'p1'}], 'replace_selected_collections');
+      expect(insertSpy).toHaveBeenNthCalledWith(
+        2,
+        'posts',
+        [{ title: 'p1' }],
+        'replace_selected_collections',
+      );
       // Third flush: users (u3)
-      expect(insertSpy).toHaveBeenNthCalledWith(3, 'users', [{name: 'u3'}], 'replace_selected_collections');
-      
+      expect(insertSpy).toHaveBeenNthCalledWith(
+        3,
+        'users',
+        [{ name: 'u3' }],
+        'replace_selected_collections',
+      );
+
       expect(mockRestoreJob.status).toBe('success');
     });
 
     it('should include --nsFrom and --nsTo in mongorestore arguments to prevent wrong database mapping', async () => {
       // 1. Prepare dummy file so fs.existsSync passes
-      const filePath = path.resolve((service as any).importDir, `import_sess_test.gz`);
+      const filePath = path.resolve(
+        (service as any).importDir,
+        `import_sess_test.gz`,
+      );
       fs.writeFileSync(filePath, Buffer.from('fake'));
 
       // 2. Mock execFile to simulate mongorestore dryRun success (triggering mongorestore)
@@ -1108,7 +1320,7 @@ describe('SystemService', () => {
       // 4. Run restore
       await (service as any).runBackupAndRestoreAsync(
         mockRestoreJob._id.toString(),
-        mockPreBackupJob._id.toString()
+        mockPreBackupJob._id.toString(),
       );
 
       // 5. Assertions
@@ -1116,16 +1328,18 @@ describe('SystemService', () => {
       expect(cp.execFile).toHaveBeenCalledTimes(2);
 
       const actualRestoreArgs = (cp.execFile as any).mock.calls[1][1]; // second call, second arg
-      
+
       expect(actualRestoreArgs).toContain('--nsFrom=*.*');
       // 'test' is from the mock ConfigService mongodb://localhost:27017/test
       expect(actualRestoreArgs).toContain('--nsTo=test.*');
       expect(actualRestoreArgs).toContain('--nsInclude=*.users');
       expect(actualRestoreArgs).toContain('--nsInclude=*.posts');
-      
+
       expect(mockRestoreJob.status).toBe('success');
-      
-      try { fs.unlinkSync(filePath); } catch (e) {}
+
+      try {
+        fs.unlinkSync(filePath);
+      } catch (e) {}
     });
   });
 });

@@ -8,7 +8,8 @@ export function getRequesterRoleName(requester?: any): string {
   if (!requester) return 'User';
 
   // Safe override: if has admin signals, return Admin immediately
-  const roleCode = requester.roleCode || (requester.role && requester.role.role_code);
+  const roleCode =
+    requester.roleCode || (requester.role && requester.role.role_code);
   const permissions = requester.permissions || [];
   if (roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL')) {
     return 'Admin';
@@ -19,7 +20,11 @@ export function getRequesterRoleName(requester?: any): string {
     rawRole = requester.roleName;
   } else if (typeof requester.role === 'string') {
     rawRole = requester.role;
-  } else if (requester.role && typeof requester.role === 'object' && requester.role.name) {
+  } else if (
+    requester.role &&
+    typeof requester.role === 'object' &&
+    requester.role.name
+  ) {
     rawRole = requester.role.name;
   }
 
@@ -75,7 +80,8 @@ export function isAdmin(requester?: any): boolean {
 
 export function isAdminUser(requester?: any): boolean {
   if (!requester) return false;
-  const roleCode = requester.roleCode || (requester.role && requester.role.role_code);
+  const roleCode =
+    requester.roleCode || (requester.role && requester.role.role_code);
   const permissions = requester.permissions || [];
   return (
     roleCode === 'ADMIN' ||
@@ -83,4 +89,3 @@ export function isAdminUser(requester?: any): boolean {
     getRequesterRoleName(requester) === 'Admin'
   );
 }
-

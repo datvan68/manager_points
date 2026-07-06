@@ -8,8 +8,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Club, ClubDocument } from './schemas/club.schema';
 import { ClubMember, ClubMemberDocument } from './schemas/club-member.schema';
-import { ClubFavorite, ClubFavoriteDocument } from './schemas/club-favorite.schema';
+import {
+  ClubFavorite,
+  ClubFavoriteDocument,
+} from './schemas/club-favorite.schema';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
+import { User, UserDocument } from '../auth/schemas/user.schema';
+import { Role, RoleDocument } from '../auth/schemas/role.schema';
 import { CreateClubDto } from './dto/create-club.dto';
 import { UpdateClubDto } from './dto/update-club.dto';
 import {
@@ -24,21 +29,48 @@ import { isAdminUser } from '../auth/utils/role.util';
 export class ClubsService {
   constructor(
     @InjectModel(Club.name) private clubModel: Model<ClubDocument>,
-    @InjectModel(ClubMember.name) private memberModel: Model<ClubMemberDocument>,
-    @InjectModel(ClubFavorite.name) private favoriteModel: Model<ClubFavoriteDocument>,
+    @InjectModel(ClubMember.name)
+    private memberModel: Model<ClubMemberDocument>,
+    @InjectModel(ClubFavorite.name)
+    private favoriteModel: Model<ClubFavoriteDocument>,
     @InjectModel(Student.name) private studentModel: Model<StudentDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
   ) {}
 
+  private async validateAdvisor(advisorId: string): Promise<void> {
+    const user = await this.userModel.findById(advisorId).populate('role').exec();
+    if (!user) {
+      throw new BadRequestException('Cố vấn được chọn không tồn tại trong hệ thống');
+    }
+    const userRole = user.role as any;
+    if (!userRole || userRole.role_code !== 'TEACHER') {
+      throw new BadRequestException('Người dùng được chọn làm cố vấn phải có vai trò Giảng viên (TEACHER)');
+    }
+  }
+
   async create(dto: CreateClubDto, userId: string): Promise<ClubDocument> {
-    const existing = await this.clubModel.findOne({ code: dto.code.toUpperCase() });
+    const existing = await this.clubModel.findOne({
+      code: dto.code.toUpperCase(),
+    });
     if (existing) {
       throw new BadRequestException(`CLB với mã "${dto.code}" đã tồn tại`);
     }
+    if (!dto.classroom || dto.classroom.trim() === '') {
+      throw new BadRequestException('Phòng học/phòng hoạt động mặc định không được để trống');
+    }
     if (dto.activity_start_date && dto.activity_end_date) {
       if (new Date(dto.activity_end_date) < new Date(dto.activity_start_date)) {
-        throw new BadRequestException('Ngày kết thúc hoạt động không thể trước ngày bắt đầu');
+        throw new BadRequestException(
+          'Ngày kết thúc hoạt động không thể trước ngày bắt đầu',
+        );
       }
     }
+
+    if (dto.advisor_id) {
+      await this.validateAdvisor(dto.advisor_id);
+    }
+
     const club = new this.clubModel({ ...dto, code: dto.code.toUpperCase() });
     return club.save();
   }
@@ -85,15 +117,35 @@ export class ClubsService {
       throw new NotFoundException(`Không tìm thấy CLB với ID: ${id}`);
     }
 
-    const start = dto.activity_start_date !== undefined ? dto.activity_start_date : currentClub.activity_start_date;
-    const end = dto.activity_end_date !== undefined ? dto.activity_end_date : currentClub.activity_end_date;
+    if (dto.classroom !== undefined && dto.classroom.trim() === '') {
+      throw new BadRequestException('Phòng học/phòng hoạt động mặc định không được để trống');
+    }
+
+    const start =
+      dto.activity_start_date !== undefined
+        ? dto.activity_start_date
+        : currentClub.activity_start_date;
+    const end =
+      dto.activity_end_date !== undefined
+        ? dto.activity_end_date
+        : currentClub.activity_end_date;
 
     if (start && end && new Date(end) < new Date(start)) {
-      throw new BadRequestException('Ngày kết thúc hoạt động không thể trước ngày bắt đầu');
+      throw new BadRequestException(
+        'Ngày kết thúc hoạt động không thể trước ngày bắt đầu',
+      );
+    }
+
+    if (dto.advisor_id) {
+      await this.validateAdvisor(dto.advisor_id);
     }
 
     const club = await this.clubModel
-      .findByIdAndUpdate(id, { $set: dto }, { new: true, runValidators: true })
+      .findByIdAndUpdate(
+        id,
+        { $set: dto },
+        { returnDocument: 'after', runValidators: true },
+      )
       .populate('advisor_id', 'user_name email')
       .populate('president_id', 'full_name student_code')
       .exec();
@@ -125,7 +177,8 @@ export class ClubsService {
   ): Promise<ClubMemberDocument[]> {
     const filter: any = { club_id: new Types.ObjectId(clubId) };
     if (query?.status) filter.status = query.status;
-    if (query?.semester_id) filter.semester_id = new Types.ObjectId(query.semester_id);
+    if (query?.semester_id)
+      filter.semester_id = new Types.ObjectId(query.semester_id);
 
     return this.memberModel
       .find(filter)
@@ -136,7 +189,10 @@ export class ClubsService {
       .exec();
   }
 
-  async addMember(clubId: string, dto: AddClubMemberDto): Promise<ClubMemberDocument> {
+  async addMember(
+    clubId: string,
+    dto: AddClubMemberDto,
+  ): Promise<ClubMemberDocument> {
     const club = await this.clubModel.findById(clubId);
     if (!club) {
       throw new NotFoundException(`Không tìm thấy CLB`);
@@ -150,7 +206,9 @@ export class ClubsService {
         semester_id: new Types.ObjectId(dto.semester_id),
       });
       if (activeCount >= club.max_members) {
-        throw new BadRequestException(`CLB đã đạt giới hạn ${club.max_members} thành viên`);
+        throw new BadRequestException(
+          `CLB đã đạt giới hạn ${club.max_members} thành viên`,
+        );
       }
     }
 
@@ -161,7 +219,9 @@ export class ClubsService {
       semester_id: new Types.ObjectId(dto.semester_id),
     });
     if (existing) {
-      throw new BadRequestException('Sinh viên đã là thành viên CLB trong học kỳ này');
+      throw new BadRequestException(
+        'Sinh viên đã là thành viên CLB trong học kỳ này',
+      );
     }
 
     const member = new this.memberModel({
@@ -183,7 +243,9 @@ export class ClubsService {
   ): Promise<ClubMemberDocument> {
     let studentId = studentIdOrUserId;
     if (studentIdOrUserId && Types.ObjectId.isValid(studentIdOrUserId)) {
-      const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(studentIdOrUserId) }).exec();
+      const student = await this.studentModel
+        .findOne({ user_id: new Types.ObjectId(studentIdOrUserId) })
+        .exec();
       if (student) {
         studentId = student._id.toString();
       }
@@ -221,12 +283,16 @@ export class ClubsService {
     if (existing) {
       if (existing.status === 'rejected' || existing.status === 'left') {
         // Allow re-join
-        existing.status = club.settings?.require_approval ? 'pending' : 'active';
+        existing.status = club.settings?.require_approval
+          ? 'pending'
+          : 'active';
         existing.joined_at = new Date();
         existing.left_at = undefined;
         return existing.save();
       }
-      throw new BadRequestException('Bạn đã đăng ký CLB này trong học kỳ hiện tại');
+      throw new BadRequestException(
+        'Bạn đã đăng ký CLB này trong học kỳ hiện tại',
+      );
     }
 
     const member = new this.memberModel({
@@ -279,7 +345,7 @@ export class ClubsService {
         club_id: new Types.ObjectId(clubId),
       },
       { $set: dto },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!member) {
@@ -288,14 +354,17 @@ export class ClubsService {
     return member;
   }
 
-  async removeMember(clubId: string, memberId: string): Promise<{ message: string }> {
+  async removeMember(
+    clubId: string,
+    memberId: string,
+  ): Promise<{ message: string }> {
     const member = await this.memberModel.findOneAndUpdate(
       {
         _id: new Types.ObjectId(memberId),
         club_id: new Types.ObjectId(clubId),
       },
       { $set: { status: 'left', left_at: new Date() } },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!member) {
@@ -307,7 +376,9 @@ export class ClubsService {
   async getMyClubs(studentIdOrUserId: string): Promise<any[]> {
     let studentId = studentIdOrUserId;
     if (studentIdOrUserId && Types.ObjectId.isValid(studentIdOrUserId)) {
-      const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(studentIdOrUserId) }).exec();
+      const student = await this.studentModel
+        .findOne({ user_id: new Types.ObjectId(studentIdOrUserId) })
+        .exec();
       if (student) {
         studentId = student._id.toString();
       }
@@ -344,7 +415,9 @@ export class ClubsService {
           },
         },
       ]),
-      this.favoriteModel.countDocuments({ club_id: new Types.ObjectId(clubId) }),
+      this.favoriteModel.countDocuments({
+        club_id: new Types.ObjectId(clubId),
+      }),
     ]);
 
     if (!club) {
@@ -367,7 +440,14 @@ export class ClubsService {
     return stats;
   }
 
-  async favoriteClub(clubId: string, userId: string): Promise<{ club_id: string; is_favorited: boolean; favorite_count: number }> {
+  async favoriteClub(
+    clubId: string,
+    userId: string,
+  ): Promise<{
+    club_id: string;
+    is_favorited: boolean;
+    favorite_count: number;
+  }> {
     const club = await this.clubModel.findById(clubId);
     if (!club) {
       throw new NotFoundException(`Không tìm thấy CLB với ID: ${clubId}`);
@@ -396,16 +476,25 @@ export class ClubsService {
     };
   }
 
-  async unfavoriteClub(clubId: string, userId: string): Promise<{ club_id: string; is_favorited: boolean; favorite_count: number }> {
+  async unfavoriteClub(
+    clubId: string,
+    userId: string,
+  ): Promise<{
+    club_id: string;
+    is_favorited: boolean;
+    favorite_count: number;
+  }> {
     const club = await this.clubModel.findById(clubId);
     if (!club) {
       throw new NotFoundException(`Không tìm thấy CLB với ID: ${clubId}`);
     }
 
-    await this.favoriteModel.findOneAndDelete({
-      club_id: new Types.ObjectId(clubId),
-      user_id: new Types.ObjectId(userId),
-    }).exec();
+    await this.favoriteModel
+      .findOneAndDelete({
+        club_id: new Types.ObjectId(clubId),
+        user_id: new Types.ObjectId(userId),
+      })
+      .exec();
 
     const favoriteCount = await this.favoriteModel.countDocuments({
       club_id: new Types.ObjectId(clubId),
@@ -419,12 +508,15 @@ export class ClubsService {
   }
 
   async getMyFavoriteClubIds(userId: string): Promise<{ club_ids: string[] }> {
-    const favorites = await this.favoriteModel.find({
-      user_id: new Types.ObjectId(userId),
-    }).lean().exec();
+    const favorites = await this.favoriteModel
+      .find({
+        user_id: new Types.ObjectId(userId),
+      })
+      .lean()
+      .exec();
 
     return {
-      club_ids: favorites.map(f => f.club_id.toString()),
+      club_ids: favorites.map((f) => f.club_id.toString()),
     };
   }
 

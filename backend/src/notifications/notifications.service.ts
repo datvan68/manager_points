@@ -1,7 +1,15 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Notification, NotificationDocument } from './schemas/notification.schema';
+import {
+  Notification,
+  NotificationDocument,
+} from './schemas/notification.schema';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { QueryNotificationDto } from './dto/query-notification.dto';
@@ -30,7 +38,10 @@ export class NotificationsService {
     if (creatorId && !Types.ObjectId.isValid(creatorId)) {
       throw new BadRequestException('Mã định dạng người tạo không hợp lệ');
     }
-    if (createDto.recipientUserId && !Types.ObjectId.isValid(createDto.recipientUserId)) {
+    if (
+      createDto.recipientUserId &&
+      !Types.ObjectId.isValid(createDto.recipientUserId)
+    ) {
       throw new BadRequestException('Mã định dạng người nhận không hợp lệ');
     }
 
@@ -56,7 +67,11 @@ export class NotificationsService {
     if (currentUserId && !Types.ObjectId.isValid(currentUserId)) {
       throw new BadRequestException('Mã định dạng người dùng không hợp lệ');
     }
-    if (query.recipientUserId && query.recipientUserId !== 'null' && !Types.ObjectId.isValid(query.recipientUserId)) {
+    if (
+      query.recipientUserId &&
+      query.recipientUserId !== 'null' &&
+      !Types.ObjectId.isValid(query.recipientUserId)
+    ) {
       throw new BadRequestException('Mã định dạng người nhận không hợp lệ');
     }
 
@@ -142,7 +157,10 @@ export class NotificationsService {
 
     // Apply search filter (title or description)
     if (query.search) {
-      const escapedSearch = query.search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const escapedSearch = query.search.replace(
+        /[-\/\\^$*+?.()|[\]{}]/g,
+        '\\$&',
+      );
       const searchRegex = { $regex: escapedSearch, $options: 'i' };
       if (filter.$or) {
         // If there's already an $or query (e.g. from role filtering), we must group it
@@ -151,17 +169,11 @@ export class NotificationsService {
         filter.$and = [
           { $or: originalOr },
           {
-            $or: [
-              { title: searchRegex },
-              { description: searchRegex },
-            ],
+            $or: [{ title: searchRegex }, { description: searchRegex }],
           },
         ];
       } else {
-        filter.$or = [
-          { title: searchRegex },
-          { description: searchRegex },
-        ];
+        filter.$or = [{ title: searchRegex }, { description: searchRegex }];
       }
     }
 
@@ -182,7 +194,8 @@ export class NotificationsService {
     // Dynamic mapping of isRead based on currentUserId
     const mappedItems = items.map((item) => {
       const isRead = currentUserId
-        ? item.readByUserIds?.some((id) => id.toString() === currentUserId) || false
+        ? item.readByUserIds?.some((id) => id.toString() === currentUserId) ||
+          false
         : false;
       const plain = item.toObject();
       return {
@@ -257,15 +270,25 @@ export class NotificationsService {
     const [all, unread, warning, success, info, system] = await Promise.all([
       this.notificationModel.countDocuments(baseFilter).exec(),
       userIdObj
-        ? this.notificationModel.countDocuments({
-            ...baseFilter,
-            readByUserIds: { $ne: userIdObj },
-          }).exec()
+        ? this.notificationModel
+            .countDocuments({
+              ...baseFilter,
+              readByUserIds: { $ne: userIdObj },
+            })
+            .exec()
         : Promise.resolve(0),
-      this.notificationModel.countDocuments({ ...baseFilter, type: 'warning' }).exec(),
-      this.notificationModel.countDocuments({ ...baseFilter, type: 'success' }).exec(),
-      this.notificationModel.countDocuments({ ...baseFilter, type: 'info' }).exec(),
-      this.notificationModel.countDocuments({ ...baseFilter, type: 'system' }).exec(),
+      this.notificationModel
+        .countDocuments({ ...baseFilter, type: 'warning' })
+        .exec(),
+      this.notificationModel
+        .countDocuments({ ...baseFilter, type: 'success' })
+        .exec(),
+      this.notificationModel
+        .countDocuments({ ...baseFilter, type: 'info' })
+        .exec(),
+      this.notificationModel
+        .countDocuments({ ...baseFilter, type: 'system' })
+        .exec(),
     ]);
 
     return { all, unread, warning, success, info, system };
@@ -283,10 +306,14 @@ export class NotificationsService {
 
     const isPrivileged = this.isPrivilegedRole(currentUserRole);
     if (!isPrivileged) {
-      throw new ForbiddenException('Bạn không có quyền chỉnh sửa thông báo này');
+      throw new ForbiddenException(
+        'Bạn không có quyền chỉnh sửa thông báo này',
+      );
     }
 
-    const notification = await this.notificationModel.findOne({ _id: new Types.ObjectId(id), deletedAt: null }).exec();
+    const notification = await this.notificationModel
+      .findOne({ _id: new Types.ObjectId(id), deletedAt: null })
+      .exec();
     if (!notification) {
       throw new NotFoundException(`Không tìm thấy thông báo với ID ${id}`);
     }
@@ -301,7 +328,8 @@ export class NotificationsService {
 
     const plain = updated.toObject();
     const mappedIsRead = currentUserId
-      ? plain.readByUserIds?.some((uid) => uid.toString() === currentUserId) || false
+      ? plain.readByUserIds?.some((uid) => uid.toString() === currentUserId) ||
+        false
       : false;
 
     return {
@@ -323,7 +351,9 @@ export class NotificationsService {
       throw new BadRequestException('Mã định dạng người dùng không hợp lệ');
     }
 
-    const notification = await this.notificationModel.findOne({ _id: new Types.ObjectId(id), deletedAt: null }).exec();
+    const notification = await this.notificationModel
+      .findOne({ _id: new Types.ObjectId(id), deletedAt: null })
+      .exec();
     if (!notification) {
       throw new NotFoundException(`Không tìm thấy thông báo với ID ${id}`);
     }
@@ -331,7 +361,9 @@ export class NotificationsService {
     // Ownership/access check
     const isPrivileged = this.isPrivilegedRole(currentUserRole);
     if (!isPrivileged && currentUserId) {
-      const isRecipient = notification.recipientUserId && notification.recipientUserId.toString() === currentUserId;
+      const isRecipient =
+        notification.recipientUserId &&
+        notification.recipientUserId.toString() === currentUserId;
       const isGlobal = !notification.recipientUserId;
       if (!isRecipient && !isGlobal) {
         throw new ForbiddenException('Bạn không có quyền đọc thông báo này');
@@ -385,9 +417,11 @@ export class NotificationsService {
         ];
       }
 
-      return this.notificationModel.updateMany(filter, {
-        $addToSet: { readByUserIds: new Types.ObjectId(currentUserId) }
-      }).exec();
+      return this.notificationModel
+        .updateMany(filter, {
+          $addToSet: { readByUserIds: new Types.ObjectId(currentUserId) },
+        })
+        .exec();
     }
 
     return { modifiedCount: 0 };
@@ -407,7 +441,9 @@ export class NotificationsService {
       throw new ForbiddenException('Bạn không có quyền xóa thông báo này');
     }
 
-    const notification = await this.notificationModel.findOne({ _id: new Types.ObjectId(id), deletedAt: null }).exec();
+    const notification = await this.notificationModel
+      .findOne({ _id: new Types.ObjectId(id), deletedAt: null })
+      .exec();
     if (!notification) {
       throw new NotFoundException(`Không tìm thấy thông báo với ID ${id}`);
     }
@@ -426,7 +462,8 @@ export class NotificationsService {
 
     const plain = updated.toObject();
     const mappedIsRead = currentUserId
-      ? plain.readByUserIds?.some((uid) => uid.toString() === currentUserId) || false
+      ? plain.readByUserIds?.some((uid) => uid.toString() === currentUserId) ||
+        false
       : false;
 
     return {
@@ -452,7 +489,9 @@ export class NotificationsService {
 
     const objectIds = ids.map((id) => {
       if (!Types.ObjectId.isValid(id)) {
-        throw new BadRequestException(`Mã định dạng thông báo ${id} không hợp lệ`);
+        throw new BadRequestException(
+          `Mã định dạng thông báo ${id} không hợp lệ`,
+        );
       }
       return new Types.ObjectId(id);
     });
@@ -481,7 +520,9 @@ export class NotificationsService {
 
     const isPrivileged = this.isPrivilegedRole(currentUserRole);
     if (!isPrivileged) {
-      throw new ForbiddenException('Bạn không có quyền xem danh sách người đã đọc');
+      throw new ForbiddenException(
+        'Bạn không có quyền xem danh sách người đã đọc',
+      );
     }
 
     const notification = await this.notificationModel

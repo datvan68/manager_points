@@ -1,4 +1,13 @@
-import { IsOptional, IsString, IsEnum, IsNumber, Min, Max, IsBoolean, IsMongoId } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsNumber,
+  Min,
+  Max,
+  IsBoolean,
+  IsMongoId,
+} from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { AssigneeType } from '../schemas/student-task-progress.schema';
 import { StudentTaskStatus } from '../../student-tasks/schemas/student-task.schema';

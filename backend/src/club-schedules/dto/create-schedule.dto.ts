@@ -13,7 +13,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class RecurrenceDto {
-  @ApiProperty({ description: 'Recurrence type', enum: ['weekly', 'biweekly', 'monthly'] })
+  @ApiProperty({
+    description: 'Recurrence type',
+    enum: ['weekly', 'biweekly', 'monthly'],
+  })
   @IsEnum(['weekly', 'biweekly', 'monthly'])
   type: string;
 
@@ -29,6 +32,12 @@ export class RecurrenceDto {
   @Type(() => Date)
   @IsDate()
   until?: Date;
+
+  @ApiPropertyOptional({ description: 'Recurrence start date' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  start?: Date;
 }
 
 export class CreateScheduleDto {

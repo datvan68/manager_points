@@ -31,6 +31,9 @@ export class Club {
   @Prop({ required: true, unique: true, uppercase: true, trim: true })
   code: string;
 
+  @Prop({ required: true, trim: true })
+  classroom: string;
+
   @Prop({ trim: true })
   description: string;
 

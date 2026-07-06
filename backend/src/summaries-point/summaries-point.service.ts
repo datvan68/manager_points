@@ -1,30 +1,61 @@
-import { ForbiddenException, Injectable, NotFoundException, BadRequestException, ConflictException, Inject, forwardRef } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
   SummaryPoint,
   SummaryPointDocument,
 } from './schemas/summary-point.schema';
-import { normalizeObjectId, calculateCriterionScoreHelper } from '../academic-record/academic-record.utils';
+import {
+  normalizeObjectId,
+  calculateCriterionScoreHelper,
+} from '../academic-record/academic-record.utils';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
-import { Category, CategoryDocument } from '../categories/schemas/category.schema';
-import { Criterion, CriterionDocument } from '../criteria/schemas/criterion.schema';
-import { Department, DepartmentDocument } from '../departments/schemas/department.schema';
-import { Semester, SemesterDocument } from '../semesters/schemas/semester.schema';
+import {
+  Category,
+  CategoryDocument,
+} from '../categories/schemas/category.schema';
+import {
+  Criterion,
+  CriterionDocument,
+} from '../criteria/schemas/criterion.schema';
+import {
+  Department,
+  DepartmentDocument,
+} from '../departments/schemas/department.schema';
+import {
+  Semester,
+  SemesterDocument,
+} from '../semesters/schemas/semester.schema';
 import { ExportSummaryExcelDto } from './dto/export-summary-excel.dto';
 import { generatePl03Excel } from './export/pl03-summary-excel.service';
 import { gradingEventEmitter } from '../system/grading-event-emitter';
 import { AcademicRecordService } from '../academic-record/academic-record.service';
-import { AcademicRecord, AcademicRecordDocument } from '../academic-record/schemas/academic-record.schema';
-import { getGradingRole, evaluateGradingAccess, assertCanAccessClass, assertCanAccessStudent } from '../auth/utils/grading-access.util';
+import {
+  AcademicRecord,
+  AcademicRecordDocument,
+} from '../academic-record/schemas/academic-record.schema';
+import {
+  getGradingRole,
+  evaluateGradingAccess,
+  assertCanAccessClass,
+  assertCanAccessStudent,
+} from '../auth/utils/grading-access.util';
 
 /**
  * Tính toán hạng (rank tier) và nhãn hạng (rank label) dựa trên tổng điểm và trạng thái của bảng điểm.
  * Chỉ thực hiện xếp hạng khi trạng thái bảng điểm là 'locked' (đã chốt).
- * 
+ *
  * @param totalScore - Tổng điểm rèn luyện của sinh viên (từ 0 đến 100).
  * @param status - Trạng thái của bảng điểm (vd: 'draft', 'locked').
  * @returns Object chứa `rank_tier` (diamond, gold, silver, bronze, unranked) và `rank_label`.
@@ -39,7 +70,8 @@ export function resolveRankTier(
   if (totalScore >= 90) return { rank_tier: 'diamond', rank_label: 'Xuất sắc' };
   if (totalScore >= 80) return { rank_tier: 'gold', rank_label: 'Tốt' };
   if (totalScore >= 70) return { rank_tier: 'silver', rank_label: 'Khá' };
-  if (totalScore >= 50) return { rank_tier: 'bronze', rank_label: 'Trung Bình' };
+  if (totalScore >= 50)
+    return { rank_tier: 'bronze', rank_label: 'Trung Bình' };
   return { rank_tier: 'unranked', rank_label: 'Yếu' };
 }
 
@@ -128,7 +160,9 @@ export class SummariesPointService {
       .exec();
 
     if (!student) {
-      throw new ForbiddenException('Bạn không có quyền thao tác bảng điểm của sinh viên ngoài lớp GVCN.');
+      throw new ForbiddenException(
+        'Bạn không có quyền thao tác bảng điểm của sinh viên ngoài lớp GVCN.',
+      );
     }
   }
 
@@ -137,13 +171,18 @@ export class SummariesPointService {
     if (!teacherStudentIds) return;
 
     const summary = await this.summaryPointModel
-      .findOne({ _id: summaryId, student_id: { $in: teacherStudentIds } } as any)
+      .findOne({
+        _id: summaryId,
+        student_id: { $in: teacherStudentIds },
+      } as any)
       .select('_id')
       .lean()
       .exec();
 
     if (!summary) {
-      throw new ForbiddenException('Bạn không có quyền thao tác bảng điểm ngoài lớp GVCN.');
+      throw new ForbiddenException(
+        'Bạn không có quyền thao tác bảng điểm ngoài lớp GVCN.',
+      );
     }
   }
 
@@ -168,7 +207,10 @@ export class SummariesPointService {
     return {
       student_id: new Types.ObjectId(studentId),
       semester_id: new Types.ObjectId(semesterId),
-      period_id: (periodId && Types.ObjectId.isValid(periodId)) ? new Types.ObjectId(periodId) : null,
+      period_id:
+        periodId && Types.ObjectId.isValid(periodId)
+          ? new Types.ObjectId(periodId)
+          : null,
     };
   }
 
@@ -176,14 +218,23 @@ export class SummariesPointService {
     createSummaryPointDto: CreateSummaryPointDto,
     requester?: any,
   ): Promise<SummaryPoint> {
-    await this.assertCanAccessStudent(createSummaryPointDto.student_id, requester);
+    await this.assertCanAccessStudent(
+      createSummaryPointDto.student_id,
+      requester,
+    );
 
-    const student = await this.studentModel.findById(createSummaryPointDto.student_id).exec();
+    const student = await this.studentModel
+      .findById(createSummaryPointDto.student_id)
+      .exec();
     if (!student) {
-      throw new NotFoundException(`Student with ID ${createSummaryPointDto.student_id} not found`);
+      throw new NotFoundException(
+        `Student with ID ${createSummaryPointDto.student_id} not found`,
+      );
     }
     if (student.status !== 'Studying') {
-      throw new BadRequestException('Chỉ sinh viên đang học mới được tạo bảng điểm rèn luyện.');
+      throw new BadRequestException(
+        'Chỉ sinh viên đang học mới được tạo bảng điểm rèn luyện.',
+      );
     }
 
     const identity = this.buildSummaryIdentity(
@@ -220,8 +271,9 @@ export class SummariesPointService {
         .populate('period_id')
         .populate('details.criterion_id')
         .exec();
-      if (!result) throw new NotFoundException('SummaryPoint not found after save');
-      
+      if (!result)
+        throw new NotFoundException('SummaryPoint not found after save');
+
       gradingEventEmitter.emit('grading_event', {
         type: 'summary_created',
         classId: student?.class_id?.toString(),
@@ -244,7 +296,9 @@ export class SummariesPointService {
         if (raceExisting) {
           return raceExisting;
         }
-        throw new ConflictException('Bảng điểm cho học kỳ/kỳ đánh giá này đã tồn tại.');
+        throw new ConflictException(
+          'Bảng điểm cho học kỳ/kỳ đánh giá này đã tồn tại.',
+        );
       }
       throw error;
     }
@@ -270,41 +324,55 @@ export class SummariesPointService {
     const role = getGradingRole(requester);
     const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
 
-    if (!isAdminOrSupervisor && classObj.advisor_id?.toString() !== requester?.userId) {
-      throw new ForbiddenException('Bạn không có quyền thao tác trên lớp học này.');
+    if (
+      !isAdminOrSupervisor &&
+      classObj.advisor_id?.toString() !== requester?.userId
+    ) {
+      throw new ForbiddenException(
+        'Bạn không có quyền thao tác trên lớp học này.',
+      );
     }
 
-    const students = await this.studentModel.find({
-      class_id: new Types.ObjectId(classId),
-      status: 'Studying'
-    }).exec();
+    const students = await this.studentModel
+      .find({
+        class_id: new Types.ObjectId(classId),
+        status: 'Studying',
+      })
+      .exec();
 
     if (students.length === 0) {
       return { success: true, createdCount: 0 };
     }
 
-    const studentIds = students.map(s => s._id);
-    const existingSummaries = await this.summaryPointModel.find({
-      student_id: { $in: studentIds },
-      semester_id: new Types.ObjectId(semesterId),
-      period_id: null
-    } as any).select('student_id').exec();
+    const studentIds = students.map((s) => s._id);
+    const existingSummaries = await this.summaryPointModel
+      .find({
+        student_id: { $in: studentIds },
+        semester_id: new Types.ObjectId(semesterId),
+        period_id: null,
+      } as any)
+      .select('student_id')
+      .exec();
 
-    const existingStudentIds = new Set(existingSummaries.map(s => s.student_id.toString()));
+    const existingStudentIds = new Set(
+      existingSummaries.map((s) => s.student_id.toString()),
+    );
 
-    const studentsToInit = students.filter(s => !existingStudentIds.has(s._id.toString()));
+    const studentsToInit = students.filter(
+      (s) => !existingStudentIds.has(s._id.toString()),
+    );
 
     if (studentsToInit.length === 0) {
       return { success: true, createdCount: 0 };
     }
 
-    const insertPayloads = studentsToInit.map(s => ({
+    const insertPayloads = studentsToInit.map((s) => ({
       student_id: s._id,
       semester_id: new Types.ObjectId(semesterId),
       period_id: null,
       total_score: 0,
       grading: 'CHUA XEP LOAI',
-      status: 'draft'
+      status: 'draft',
     }));
 
     await this.summaryPointModel.insertMany(insertPayloads);
@@ -317,7 +385,7 @@ export class SummariesPointService {
 
     return {
       success: true,
-      createdCount: studentsToInit.length
+      createdCount: studentsToInit.length,
     };
   }
 
@@ -368,15 +436,18 @@ export class SummariesPointService {
       if (Array.isArray(query.studentIds)) {
         studentIdsList = query.studentIds;
       } else if (typeof query.studentIds === 'string') {
-        studentIdsList = query.studentIds.split(',').map(id => id.trim()).filter(Boolean);
+        studentIdsList = query.studentIds
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean);
       }
     }
 
     if (studentIdsList.length > 0) {
       const validObjectIds = studentIdsList
-        .filter(id => Types.ObjectId.isValid(id))
-        .map(id => new Types.ObjectId(id));
-      
+        .filter((id) => Types.ObjectId.isValid(id))
+        .map((id) => new Types.ObjectId(id));
+
       if (filter.student_id && filter.student_id.$in) {
         filter.student_id.$in = filter.student_id.$in.filter((id: any) =>
           validObjectIds.some((sId: any) => sId.toString() === id.toString()),
@@ -414,8 +485,12 @@ export class SummariesPointService {
     const rawPage = query?.page ? Number(query.page) : 1;
     const rawLimit = query?.limit ? Number(query.limit) : 10;
     const page = Math.max(1, isNaN(rawPage) ? 1 : rawPage);
-    const maxLimit = isSliderMode || rawLimit === 1000 || rawLimit > 100 ? 1000 : 100;
-    const limit = Math.max(1, Math.min(maxLimit, isNaN(rawLimit) ? 10 : rawLimit));
+    const maxLimit =
+      isSliderMode || rawLimit === 1000 || rawLimit > 100 ? 1000 : 100;
+    const limit = Math.max(
+      1,
+      Math.min(maxLimit, isNaN(rawLimit) ? 10 : rawLimit),
+    );
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
@@ -464,7 +539,7 @@ export class SummariesPointService {
     const criteria = await this.criterionModel.find().lean().exec();
     if (!criteria || criteria.length === 0) return null;
 
-    const batch = criteria.map(cri => ({
+    const batch = criteria.map((cri) => ({
       student_id: summary.student_id,
       semester_id: summary.semester_id,
       criterion_id: cri._id,
@@ -475,7 +550,7 @@ export class SummariesPointService {
 
   async findOne(id: string, requester?: any): Promise<SummaryPoint> {
     await this.assertCanAccessSummary(id, requester);
-    
+
     // Tự động đồng bộ hóa với academic records trước khi load chi tiết
     await this.syncSummaryWithAcademicRecords(id);
 
@@ -505,11 +580,15 @@ export class SummariesPointService {
     }
 
     if (updateSummaryPointDto.status === 'locked') {
-      throw new BadRequestException('Để phê duyệt điểm rèn luyện, vui lòng sử dụng chức năng phê duyệt.');
+      throw new BadRequestException(
+        'Để phê duyệt điểm rèn luyện, vui lòng sử dụng chức năng phê duyệt.',
+      );
     }
 
     if (existingSummary.status === 'locked') {
-      throw new BadRequestException('Không thể sửa bảng điểm đã chốt. Vui lòng sử dụng chức năng hủy phê duyệt.');
+      throw new BadRequestException(
+        'Không thể sửa bảng điểm đã chốt. Vui lòng sử dụng chức năng hủy phê duyệt.',
+      );
     }
 
     if (updateSummaryPointDto.status === 'draft') {
@@ -520,7 +599,10 @@ export class SummariesPointService {
     }
 
     if (updateSummaryPointDto.student_id) {
-      await this.assertCanAccessStudent(updateSummaryPointDto.student_id, requester);
+      await this.assertCanAccessStudent(
+        updateSummaryPointDto.student_id,
+        requester,
+      );
     }
 
     const updated = await this.summaryPointModel
@@ -537,8 +619,12 @@ export class SummariesPointService {
     gradingEventEmitter.emit('grading_event', {
       type: 'summary_updated',
       classId: (updated.student_id as any)?.class_id?.toString(),
-      semesterId: (updated.semester_id as any)?._id?.toString() || updated.semester_id?.toString(),
-      studentId: (updated.student_id as any)?._id?.toString() || updated.student_id?.toString(),
+      semesterId:
+        (updated.semester_id as any)?._id?.toString() ||
+        updated.semester_id?.toString(),
+      studentId:
+        (updated.student_id as any)?._id?.toString() ||
+        updated.student_id?.toString(),
       summaryId: updated._id.toString(),
       data: updated,
     });
@@ -547,7 +633,8 @@ export class SummariesPointService {
   }
 
   private getCriterionContributionForTotal(cri: any, rawScore: number): number {
-    const isDiscipline = cri.criterion_type === 'ky_luat' || cri.score_per_unit < 0;
+    const isDiscipline =
+      cri.criterion_type === 'ky_luat' || cri.score_per_unit < 0;
     if (isDiscipline && cri.is_score_counted === false) {
       return rawScore - (cri.max_score || 10);
     }
@@ -557,7 +644,7 @@ export class SummariesPointService {
   /**
    * Tính toán lại tổng điểm rèn luyện của một bảng điểm dựa trên các tiêu chí và danh mục.
    * Đồng thời cập nhật trường `grading` (xếp loại) nếu bảng điểm đã được chốt.
-   * 
+   *
    * @param summaryId - ID của bảng điểm rèn luyện cần tính toán lại.
    * @returns Promise<any>
    */
@@ -570,8 +657,12 @@ export class SummariesPointService {
 
     const details = summary.details || [];
 
-    const categories = preloadedMetadata?.categories || await this.categoryModel.find().lean().exec();
-    const criteria = preloadedMetadata?.criteria || await this.criterionModel.find().lean().exec();
+    const categories =
+      preloadedMetadata?.categories ||
+      (await this.categoryModel.find().lean().exec());
+    const criteria =
+      preloadedMetadata?.criteria ||
+      (await this.criterionModel.find().lean().exec());
 
     // Map categories by ID
     const categoryMap = new Map<string, any>();
@@ -598,57 +689,79 @@ export class SummariesPointService {
       for (const cri of catCriteria) {
         // Find matching detail
         const detail = details.find(
-          (d) => d.criterion_id.toString() === cri._id.toString()
+          (d) => d.criterion_id.toString() === cri._id.toString(),
         );
 
         let criterionScore = 0;
-        const isDiscipline = cri.score_per_unit < 0 || cri.criterion_type === 'ky_luat';
-        
+        const isDiscipline =
+          cri.score_per_unit < 0 || cri.criterion_type === 'ky_luat';
+
         if (detail) {
           const isSummaryLocked = summary.status === 'locked';
-          const isDetailLocked = detail.status === 'locked' || !!detail.locked_at;
-          const isReviewed = detail.status === 'gv_reviewed' || !!detail.gv_reviewed_by || !!detail.gv_reviewed_at;
-          const isApproved = detail.final_score !== null && detail.final_score !== undefined;
-          const isEditableDraft = !isSummaryLocked && !isDetailLocked && !isReviewed && !isApproved;
+          const isDetailLocked =
+            detail.status === 'locked' || !!detail.locked_at;
+          const isReviewed =
+            detail.status === 'gv_reviewed' ||
+            !!detail.gv_reviewed_by ||
+            !!detail.gv_reviewed_at;
+          const isApproved =
+            detail.final_score !== null && detail.final_score !== undefined;
+          const isEditableDraft =
+            !isSummaryLocked && !isDetailLocked && !isReviewed && !isApproved;
 
           let rawScore = 0;
           if (isEditableDraft && (detail.current_count ?? 0) === 0) {
-            rawScore = isDiscipline ? (cri.max_score || 10) : 0;
+            rawScore = isDiscipline ? cri.max_score || 10 : 0;
           } else if (isSummaryLocked || isDetailLocked) {
             // For locked summaries or locked details, final_score is authoritative
-            rawScore = detail.final_score !== null && detail.final_score !== undefined
-              ? detail.final_score
-              : detail.gv_score !== null && detail.gv_score !== undefined
+            rawScore =
+              detail.final_score !== null && detail.final_score !== undefined
+                ? detail.final_score
+                : detail.gv_score !== null && detail.gv_score !== undefined
+                  ? detail.gv_score
+                  : detail.sv_score !== null && detail.sv_score !== undefined
+                    ? detail.sv_score
+                    : detail.system_score !== null &&
+                        detail.system_score !== undefined
+                      ? detail.system_score
+                      : 0;
+          } else if (isReviewed) {
+            // For reviewed but not locked, gv_score is authoritative
+            rawScore =
+              detail.gv_score !== null && detail.gv_score !== undefined
                 ? detail.gv_score
                 : detail.sv_score !== null && detail.sv_score !== undefined
                   ? detail.sv_score
-                  : detail.system_score !== null && detail.system_score !== undefined
+                  : detail.system_score !== null &&
+                      detail.system_score !== undefined
                     ? detail.system_score
                     : 0;
-          } else if (isReviewed) {
-            // For reviewed but not locked, gv_score is authoritative
-            rawScore = detail.gv_score !== null && detail.gv_score !== undefined
-              ? detail.gv_score
-              : detail.sv_score !== null && detail.sv_score !== undefined
-                ? detail.sv_score
-                : detail.system_score !== null && detail.system_score !== undefined
-                  ? detail.system_score
-                  : 0;
           } else {
             // Draft, unreviewed detail
             if (cri.scoring_mode === 'single_option') {
-              const option = cri.options?.find((o: any) => o.id === detail.selected_option_id);
+              const option = cri.options?.find(
+                (o: any) => o.id === detail.selected_option_id,
+              );
               if (option) {
                 rawScore = option.score;
-              } else if (detail.selected_option_score !== null && detail.selected_option_score !== undefined) {
+              } else if (
+                detail.selected_option_score !== null &&
+                detail.selected_option_score !== undefined
+              ) {
                 rawScore = detail.selected_option_score;
               } else {
-                rawScore = isDiscipline ? (cri.max_score || 10) : 0;
+                rawScore = isDiscipline ? cri.max_score || 10 : 0;
               }
             } else {
-              if (detail.system_score !== null && detail.system_score !== undefined) {
+              if (
+                detail.system_score !== null &&
+                detail.system_score !== undefined
+              ) {
                 rawScore = detail.system_score;
-              } else if (detail.current_count !== null && detail.current_count !== undefined) {
+              } else if (
+                detail.current_count !== null &&
+                detail.current_count !== undefined
+              ) {
                 // If system_score is missing but current_count is available, recompute fallback
                 const fallbackResult = calculateCriterionScoreHelper({
                   criterion: cri,
@@ -659,17 +772,20 @@ export class SummariesPointService {
                 rawScore = fallbackResult.systemScore;
               } else {
                 // If both system_score and current_count are missing, fallback to detail scores
-                rawScore = detail.final_score !== null && detail.final_score !== undefined
-                  ? detail.final_score
-                  : detail.gv_score !== null && detail.gv_score !== undefined
-                    ? detail.gv_score
-                    : detail.sv_score !== null && detail.sv_score !== undefined
-                      ? detail.sv_score
-                      : 0;
+                rawScore =
+                  detail.final_score !== null &&
+                  detail.final_score !== undefined
+                    ? detail.final_score
+                    : detail.gv_score !== null && detail.gv_score !== undefined
+                      ? detail.gv_score
+                      : detail.sv_score !== null &&
+                          detail.sv_score !== undefined
+                        ? detail.sv_score
+                        : 0;
               }
             }
           }
-           
+
           if (isDiscipline) {
             const maxScore = cri.max_score || 10;
             const count = detail.current_count ?? 0;
@@ -685,13 +801,16 @@ export class SummariesPointService {
           // For violation (discipline), count = 0, meaning full base score (max_score).
           // Otherwise 0.
           if (isDiscipline) {
-             criterionScore = cri.max_score || 10;
+            criterionScore = cri.max_score || 10;
           } else {
-             criterionScore = 0;
+            criterionScore = 0;
           }
         }
-        
-        const countedScore = this.getCriterionContributionForTotal(cri, criterionScore);
+
+        const countedScore = this.getCriterionContributionForTotal(
+          cri,
+          criterionScore,
+        );
         catInfo.currentScore += countedScore;
       }
     }
@@ -720,7 +839,11 @@ export class SummariesPointService {
 
     await summary.save();
 
-    const student = await this.studentModel.findById(summary.student_id).select('class_id').lean().exec();
+    const student = await this.studentModel
+      .findById(summary.student_id)
+      .select('class_id')
+      .lean()
+      .exec();
     const classId = student ? normalizeObjectId(student.class_id) : '';
 
     gradingEventEmitter.emit('grading_event', {
@@ -748,7 +871,10 @@ export class SummariesPointService {
     const role = getGradingRole(requester);
     const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
 
-    if (!isAdminOrSupervisor && classObj.advisor_id?.toString() !== requester?.userId) {
+    if (
+      !isAdminOrSupervisor &&
+      classObj.advisor_id?.toString() !== requester?.userId
+    ) {
       throw new ForbiddenException('Bạn không có quyền xuất dữ liệu lớp này.');
     }
 
@@ -768,9 +894,12 @@ export class SummariesPointService {
     if (mode === 'selected' && studentIds && studentIds.length > 0) {
       const validObjectIds: Types.ObjectId[] = [];
       const mssvList: string[] = [];
-      studentIds.forEach(id => {
+      studentIds.forEach((id) => {
         // Only parse as ObjectId if it's a 24-char hex string
-        if (Types.ObjectId.isValid(id) && (new Types.ObjectId(id).toString() === id)) {
+        if (
+          Types.ObjectId.isValid(id) &&
+          new Types.ObjectId(id).toString() === id
+        ) {
           validObjectIds.push(new Types.ObjectId(id));
         } else {
           mssvList.push(id);
@@ -786,20 +915,26 @@ export class SummariesPointService {
       }
 
       if (queryOr.length > 0) {
-        studentsToFetch = await this.studentModel.find({
-          class_id: new Types.ObjectId(classId),
-          $or: queryOr
-        }).select('_id').exec();
+        studentsToFetch = await this.studentModel
+          .find({
+            class_id: new Types.ObjectId(classId),
+            $or: queryOr,
+          })
+          .select('_id')
+          .exec();
       }
     } else {
       // all_filtered or no studentIds
-      studentsToFetch = await this.studentModel.find({
-        class_id: new Types.ObjectId(classId)
-      }).select('_id').exec();
+      studentsToFetch = await this.studentModel
+        .find({
+          class_id: new Types.ObjectId(classId),
+        })
+        .select('_id')
+        .exec();
     }
 
     if (studentsToFetch.length > 0) {
-      filter.student_id = { $in: studentsToFetch.map(s => s._id) };
+      filter.student_id = { $in: studentsToFetch.map((s) => s._id) };
     } else {
       filter.student_id = null; // No students to find
     }
@@ -810,7 +945,7 @@ export class SummariesPointService {
         .find(filter)
         .populate({
           path: 'student_id',
-          select: 'full_name student_code'
+          select: 'full_name student_code',
         })
         .exec();
     }
@@ -823,7 +958,12 @@ export class SummariesPointService {
       return nameA.localeCompare(nameB, 'vi');
     });
 
-    const buffer = await generatePl03Excel(summaries, classObj, semesterObj, departmentObj);
+    const buffer = await generatePl03Excel(
+      summaries,
+      classObj,
+      semesterObj,
+      departmentObj,
+    );
 
     // Sanitize filename
     const normalizeFilenamePart = (value: string, fallback: string) => {
@@ -846,17 +986,22 @@ export class SummariesPointService {
   /**
    * Phê duyệt bảng điểm rèn luyện: khóa các chi tiết điểm, tính toán lại tổng điểm (total_score), xếp loại (grading), và hạng (rank_tier).
    * Yêu cầu: Người dùng thực hiện phải có vai trò Admin hoặc Supervisor.
-   * 
+   *
    * @param summaryId - ID của bảng điểm cần phê duyệt.
    * @param requester - Thông tin của người dùng đang thực hiện request (chứa userId, roleName).
    * @returns Promise<SummaryPointDocument> - Bảng điểm sau khi đã cập nhật trạng thái chốt.
    */
-  async approveGrading(summaryId: string, requester: any): Promise<SummaryPointDocument> {
+  async approveGrading(
+    summaryId: string,
+    requester: any,
+  ): Promise<SummaryPointDocument> {
     const role = getGradingRole(requester);
     const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
 
     if (!isAdminOrSupervisor) {
-      throw new ForbiddenException('Bạn không có quyền phê duyệt bảng điểm rèn luyện.');
+      throw new ForbiddenException(
+        'Bạn không có quyền phê duyệt bảng điểm rèn luyện.',
+      );
     }
 
     // 1. Pre-approval synchronization step
@@ -869,28 +1014,37 @@ export class SummariesPointService {
     }
 
     // Lấy tất cả active academic records cho học kỳ đó để tính toán và kiểm tra điểm của từng tiêu chí chống chốt điểm 0 sai lệch
-    const activeRecords = await this.academicRecordModel.find({
-      student_id: summary.student_id,
-      semester_id: summary.semester_id,
-      status: 'active',
-      is_deleted: { $ne: true },
-    } as any).lean().exec();
+    const activeRecords = await this.academicRecordModel
+      .find({
+        student_id: summary.student_id,
+        semester_id: summary.semester_id,
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any)
+      .lean()
+      .exec();
 
     // Group active records count by criterion
     const recordCountsByCriterion = new Map<string, number>();
     const latestRecordByCriterion = new Map<string, any>();
-    activeRecords.forEach(rec => {
+    activeRecords.forEach((rec) => {
       const criId = rec.criterion_id.toString();
-      recordCountsByCriterion.set(criId, (recordCountsByCriterion.get(criId) || 0) + 1);
-      
+      recordCountsByCriterion.set(
+        criId,
+        (recordCountsByCriterion.get(criId) || 0) + 1,
+      );
+
       const existingLatest = latestRecordByCriterion.get(criId);
-      if (!existingLatest || new Date((rec as any).createdAt) > new Date((existingLatest as any).createdAt)) {
+      if (
+        !existingLatest ||
+        new Date((rec as any).createdAt) > new Date(existingLatest.createdAt)
+      ) {
         latestRecordByCriterion.set(criId, rec);
       }
     });
 
     const criteria = await this.criterionModel.find().lean().exec();
-    const criteriaMap = new Map(criteria.map(c => [c._id.toString(), c]));
+    const criteriaMap = new Map(criteria.map((c) => [c._id.toString(), c]));
 
     // Set the status of all details to 'locked' and calculate final_score
     if (summary.details && summary.details.length > 0) {
@@ -904,15 +1058,18 @@ export class SummariesPointService {
         const oldStatus = detail.status || 'draft';
         detail.status = 'locked';
 
-        const finalScore = detail.gv_score !== null && detail.gv_score !== undefined
-          ? detail.gv_score
-          : (detail.sv_score !== null && detail.sv_score !== undefined
+        const finalScore =
+          detail.gv_score !== null && detail.gv_score !== undefined
+            ? detail.gv_score
+            : detail.sv_score !== null && detail.sv_score !== undefined
               ? detail.sv_score
-              : (detail.selected_option_score !== null && detail.selected_option_score !== undefined
-                  ? detail.selected_option_score
-                  : (detail.system_score !== null && detail.system_score !== undefined
-                      ? detail.system_score
-                      : null)));
+              : detail.selected_option_score !== null &&
+                  detail.selected_option_score !== undefined
+                ? detail.selected_option_score
+                : detail.system_score !== null &&
+                    detail.system_score !== undefined
+                  ? detail.system_score
+                  : null;
 
         if (activeCount > 0 && criterion) {
           // Tính điểm thực từ active records dùng helper
@@ -927,11 +1084,20 @@ export class SummariesPointService {
               if (latestRecord.selected_option_id) {
                 optId = latestRecord.selected_option_id;
                 optLabel = latestRecord.selected_option_label || null;
-                optScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
+                optScore =
+                  latestRecord.selected_option_score !== undefined
+                    ? latestRecord.selected_option_score
+                    : null;
               }
             } else {
-              if (latestRecord.record_title && latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
-                const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
+              if (
+                latestRecord.record_title &&
+                latestRecord.record_title.startsWith('Nhập điểm tay: ')
+              ) {
+                const manualScoreStr = latestRecord.record_title.replace(
+                  'Nhập điểm tay: ',
+                  '',
+                );
                 manualScore = parseFloat(manualScoreStr) || 0;
               }
             }
@@ -955,7 +1121,9 @@ export class SummariesPointService {
           const isRealExpectedNotZero = calculatedExpected > 0;
 
           if (isResolvedToZero && isRealExpectedNotZero) {
-            const isIntentionallyReviewedZero = (oldStatus === 'gv_reviewed' || !!detail.gv_reviewed_by) && detail.gv_score === 0;
+            const isIntentionallyReviewedZero =
+              (oldStatus === 'gv_reviewed' || !!detail.gv_reviewed_by) &&
+              detail.gv_score === 0;
 
             if (isIntentionallyReviewedZero) {
               detail.final_score = 0;
@@ -968,7 +1136,8 @@ export class SummariesPointService {
               });
             }
           } else {
-            detail.final_score = finalScore !== null ? finalScore : calculatedExpected;
+            detail.final_score =
+              finalScore !== null ? finalScore : calculatedExpected;
           }
         } else {
           // Không có active records
@@ -983,12 +1152,19 @@ export class SummariesPointService {
           detail.log.push({
             from_status: oldStatus,
             to_status: 'locked',
-            score_before: detail.system_score !== undefined && detail.system_score !== null ? detail.system_score : 0,
+            score_before:
+              detail.system_score !== undefined && detail.system_score !== null
+                ? detail.system_score
+                : 0,
             score_after: detail.final_score,
             count: detail.current_count,
             updated_by: lockedBy as any,
             updated_at: lockedAt,
-            reason: 'Phê duyệt rèn luyện bởi ' + (requester.roleName?.toLowerCase().includes('supervisor') ? 'Quản sinh' : 'Admin'),
+            reason:
+              'Phê duyệt rèn luyện bởi ' +
+              (requester.roleName?.toLowerCase().includes('supervisor')
+                ? 'Quản sinh'
+                : 'Admin'),
           });
         }
       }
@@ -1010,7 +1186,10 @@ export class SummariesPointService {
     }
 
     // Compute rank_tier and rank_label from resolveRankTier(recomputedSummary.total_score, 'locked')
-    const { rank_tier, rank_label } = resolveRankTier(recomputedSummary.total_score, 'locked');
+    const { rank_tier, rank_label } = resolveRankTier(
+      recomputedSummary.total_score,
+      'locked',
+    );
 
     // Update recomputedSummary fields
     recomputedSummary.rank_tier = rank_tier;
@@ -1034,8 +1213,12 @@ export class SummariesPointService {
     gradingEventEmitter.emit('grading_event', {
       type: 'summary_approved',
       classId: (result.student_id as any)?.class_id?.toString(),
-      semesterId: (result.semester_id as any)?._id?.toString() || result.semester_id?.toString(),
-      studentId: (result.student_id as any)?._id?.toString() || result.student_id?.toString(),
+      semesterId:
+        (result.semester_id as any)?._id?.toString() ||
+        result.semester_id?.toString(),
+      studentId:
+        (result.student_id as any)?._id?.toString() ||
+        result.student_id?.toString(),
       summaryId: result._id.toString(),
       data: result,
     });
@@ -1044,21 +1227,26 @@ export class SummariesPointService {
   }
 
   /**
-   * Hủy phê duyệt bảng điểm rèn luyện: chuyển trạng thái bảng điểm và các chi tiết về 'draft', 
+   * Hủy phê duyệt bảng điểm rèn luyện: chuyển trạng thái bảng điểm và các chi tiết về 'draft',
    * reset các trường liên quan đến hạng, và tính toán lại tổng điểm.
    * Yêu cầu: Người dùng thực hiện phải có vai trò Admin hoặc Supervisor.
-   * 
+   *
    * @param summaryId - ID của bảng điểm cần hủy duyệt.
    * @param requester - Thông tin của người dùng đang thực hiện request.
    * @returns Promise<SummaryPointDocument> - Bảng điểm sau khi đã hủy chốt và trở về bản nháp.
    */
-  async cancelApproval(summaryId: string, requester: any): Promise<SummaryPointDocument> {
+  async cancelApproval(
+    summaryId: string,
+    requester: any,
+  ): Promise<SummaryPointDocument> {
     // 1. Kiểm tra quyền Admin/Supervisor
     const role = getGradingRole(requester);
     const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
 
     if (!isAdminOrSupervisor) {
-      throw new ForbiddenException('Bạn không có quyền hủy duyệt bảng điểm rèn luyện.');
+      throw new ForbiddenException(
+        'Bạn không có quyền hủy duyệt bảng điểm rèn luyện.',
+      );
     }
 
     // 2. Kiểm tra quyền truy cập summary
@@ -1072,7 +1260,9 @@ export class SummariesPointService {
 
     // 4. Kiểm tra trạng thái hiện tại
     if (summary.status !== 'locked') {
-      throw new BadRequestException('Chỉ có thể hủy duyệt bảng điểm rèn luyện đã chốt.');
+      throw new BadRequestException(
+        'Chỉ có thể hủy duyệt bảng điểm rèn luyện đã chốt.',
+      );
     }
 
     // 5. Cập nhật trạng thái locked + rank
@@ -1088,7 +1278,7 @@ export class SummariesPointService {
       for (const detail of summary.details) {
         const oldStatus = detail.status || 'locked';
         const oldFinalScore = detail.final_score;
-        
+
         detail.status = 'draft';
         detail.final_score = null;
         detail.locked_at = null;
@@ -1129,8 +1319,12 @@ export class SummariesPointService {
     gradingEventEmitter.emit('grading_event', {
       type: 'summary_cancelled',
       classId: (result.student_id as any)?.class_id?.toString(),
-      semesterId: (result.semester_id as any)?._id?.toString() || result.semester_id?.toString(),
-      studentId: (result.student_id as any)?._id?.toString() || result.student_id?.toString(),
+      semesterId:
+        (result.semester_id as any)?._id?.toString() ||
+        result.semester_id?.toString(),
+      studentId:
+        (result.student_id as any)?._id?.toString() ||
+        result.student_id?.toString(),
       summaryId: result._id.toString(),
       data: result,
     });
@@ -1141,7 +1335,10 @@ export class SummariesPointService {
   /**
    * Hủy duyệt điểm rèn luyện hàng loạt.
    */
-  async cancelApprovalBulk(summaryIds: string[], requester: any): Promise<any[]> {
+  async cancelApprovalBulk(
+    summaryIds: string[],
+    requester: any,
+  ): Promise<any[]> {
     if (!summaryIds || summaryIds.length === 0) {
       throw new BadRequestException('Danh sách ID bảng điểm không được trống.');
     }
@@ -1218,7 +1415,8 @@ export class SummariesPointService {
       grading: summary.grading,
       rank_tier: summary.rank_tier,
       rank_label: summary.rank_label,
-      semester: semester?.semester_name || semester?.name || semester?.title || 'N/A',
+      semester:
+        semester?.semester_name || semester?.name || semester?.title || 'N/A',
       period: summary.period_id,
       locked_at: summary.rank_locked_at || (summary as any).updatedAt,
       studentName: student.full_name || 'Sinh viên',
@@ -1244,7 +1442,9 @@ export class SummariesPointService {
       throw new NotFoundException(`SummaryPoint with ID ${id} not found`);
     }
     if (existingSummary.status === 'locked') {
-      throw new BadRequestException('Không thể xóa điểm rèn luyện đã phê duyệt');
+      throw new BadRequestException(
+        'Không thể xóa điểm rèn luyện đã phê duyệt',
+      );
     }
 
     const deleted = await this.summaryPointModel.findByIdAndDelete(id).exec();
@@ -1255,8 +1455,12 @@ export class SummariesPointService {
     gradingEventEmitter.emit('grading_event', {
       type: 'summary_deleted',
       classId: (existingSummary.student_id as any)?.class_id?.toString(),
-      semesterId: (existingSummary.semester_id as any)?._id?.toString() || existingSummary.semester_id?.toString(),
-      studentId: (existingSummary.student_id as any)?._id?.toString() || existingSummary.student_id?.toString(),
+      semesterId:
+        (existingSummary.semester_id as any)?._id?.toString() ||
+        existingSummary.semester_id?.toString(),
+      studentId:
+        (existingSummary.student_id as any)?._id?.toString() ||
+        existingSummary.student_id?.toString(),
       summaryId: existingSummary._id.toString(),
     });
 
@@ -1304,7 +1508,13 @@ export class SummariesPointService {
     let studentsHtml = '';
 
     payloads.forEach((payload) => {
-      const { student, categories: mappedCategories, summary, semesterName, className } = payload;
+      const {
+        student,
+        categories: mappedCategories,
+        summary,
+        semesterName,
+        className,
+      } = payload;
       let tableRowsHtml = '';
 
       mappedCategories.forEach((cat: any) => {
@@ -1482,9 +1692,11 @@ export class SummariesPointService {
   }
 
   async auditAndRepairDraftScores(): Promise<any> {
-    const activeSummaries = await this.summaryPointModel.find({ status: { $ne: 'locked' } }).exec();
+    const activeSummaries = await this.summaryPointModel
+      .find({ status: { $ne: 'locked' } })
+      .exec();
     const criteria = await this.criterionModel.find().lean().exec();
-    
+
     let repairedCount = 0;
     const mismatches = [];
 
@@ -1495,22 +1707,31 @@ export class SummariesPointService {
       const semesterId = summary.semester_id.toString();
 
       // Đọc active academic records cho student và semester này
-      const activeRecords = await this.academicRecordModel.find({
-        student_id: summary.student_id,
-        semester_id: summary.semester_id,
-        status: 'active',
-        is_deleted: { $ne: true },
-      } as any).lean().exec();
+      const activeRecords = await this.academicRecordModel
+        .find({
+          student_id: summary.student_id,
+          semester_id: summary.semester_id,
+          status: 'active',
+          is_deleted: { $ne: true },
+        } as any)
+        .lean()
+        .exec();
 
       // Group records by criterion
       const recordCountsByCriterion = new Map<string, number>();
       const latestRecordByCriterion = new Map<string, any>();
-      activeRecords.forEach(rec => {
+      activeRecords.forEach((rec) => {
         const criId = rec.criterion_id.toString();
-        recordCountsByCriterion.set(criId, (recordCountsByCriterion.get(criId) || 0) + 1);
-        
+        recordCountsByCriterion.set(
+          criId,
+          (recordCountsByCriterion.get(criId) || 0) + 1,
+        );
+
         const existingLatest = latestRecordByCriterion.get(criId);
-        if (!existingLatest || new Date((rec as any).createdAt) > new Date((existingLatest as any).createdAt)) {
+        if (
+          !existingLatest ||
+          new Date((rec as any).createdAt) > new Date(existingLatest.createdAt)
+        ) {
           latestRecordByCriterion.set(criId, rec);
         }
       });
@@ -1521,11 +1742,13 @@ export class SummariesPointService {
         const activeCount = recordCountsByCriterion.get(criId) || 0;
         const latestRecord = latestRecordByCriterion.get(criId);
 
-        const detailIndex = details.findIndex((d: any) => d.criterion_id && d.criterion_id.toString() === criId);
+        const detailIndex = details.findIndex(
+          (d: any) => d.criterion_id && d.criterion_id.toString() === criId,
+        );
         const detail = detailIndex !== -1 ? details[detailIndex] : null;
 
         const detailCount = detail ? detail.current_count : 0;
-        
+
         const hasActiveRecords = activeCount > 0;
         const isCountZeroOrMissing = !detail || detailCount === 0;
 
@@ -1541,13 +1764,28 @@ export class SummariesPointService {
               if (latestRecord.selected_option_id) {
                 optId = latestRecord.selected_option_id;
                 optLabel = latestRecord.selected_option_label || null;
-                optScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
-              } else if (latestRecord.record_title && latestRecord.record_title.startsWith('Lựa chọn option ')) {
-                optId = latestRecord.record_title.replace('Lựa chọn option ', '');
+                optScore =
+                  latestRecord.selected_option_score !== undefined
+                    ? latestRecord.selected_option_score
+                    : null;
+              } else if (
+                latestRecord.record_title &&
+                latestRecord.record_title.startsWith('Lựa chọn option ')
+              ) {
+                optId = latestRecord.record_title.replace(
+                  'Lựa chọn option ',
+                  '',
+                );
               }
             } else {
-              if (latestRecord.record_title && latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
-                const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
+              if (
+                latestRecord.record_title &&
+                latestRecord.record_title.startsWith('Nhập điểm tay: ')
+              ) {
+                const manualScoreStr = latestRecord.record_title.replace(
+                  'Nhập điểm tay: ',
+                  '',
+                );
                 manualScore = parseFloat(manualScoreStr) || 0;
               }
             }
@@ -1565,17 +1803,31 @@ export class SummariesPointService {
 
           const expectedScore = result.systemScore;
 
-          const isReward = cri.score_per_unit > 0 || cri.criterion_type === 'reward' || cri.criterion_type === 'bonus';
-          const isViolation = cri.score_per_unit < 0 || cri.criterion_type === 'violation';
+          const isReward =
+            cri.score_per_unit > 0 ||
+            cri.criterion_type === 'reward' ||
+            cri.criterion_type === 'bonus';
+          const isViolation =
+            cri.score_per_unit < 0 || cri.criterion_type === 'violation';
 
-          const isTargetCriterion = (isReward || isViolation) && expectedScore > 0;
+          const isTargetCriterion =
+            (isReward || isViolation) && expectedScore > 0;
 
           if (isTargetCriterion) {
-            const isDetailLocked = detail && (detail.status === 'locked' || !!detail.locked_at);
-            const isDetailReviewed = detail && (detail.status === 'gv_reviewed' || !!detail.gv_reviewed_by || !!detail.gv_reviewed_at);
-            const isDetailApproved = detail && (detail.final_score !== null && detail.final_score !== undefined);
-            
-            const isManuallyReviewed = isDetailLocked || isDetailReviewed || isDetailApproved;
+            const isDetailLocked =
+              detail && (detail.status === 'locked' || !!detail.locked_at);
+            const isDetailReviewed =
+              detail &&
+              (detail.status === 'gv_reviewed' ||
+                !!detail.gv_reviewed_by ||
+                !!detail.gv_reviewed_at);
+            const isDetailApproved =
+              detail &&
+              detail.final_score !== null &&
+              detail.final_score !== undefined;
+
+            const isManuallyReviewed =
+              isDetailLocked || isDetailReviewed || isDetailApproved;
 
             if (isManuallyReviewed) {
               mismatches.push({
@@ -1584,16 +1836,32 @@ export class SummariesPointService {
                 criterion_id: criId,
                 active_record_count: activeCount,
                 old_detail_count: detailCount,
-                old_score_fields: detail ? { sv: detail.sv_score, gv: detail.gv_score, final: detail.final_score } : null,
+                old_score_fields: detail
+                  ? {
+                      sv: detail.sv_score,
+                      gv: detail.gv_score,
+                      final: detail.final_score,
+                    }
+                  : null,
                 repaired_detail_count: detailCount,
                 repaired_system_score: detail ? detail.system_score : 0,
                 repaired: false,
-                skip_reason: isDetailLocked ? 'Detail is locked' : isDetailApproved ? 'Detail has finalized/approved score' : 'Detail is manually reviewed',
+                skip_reason: isDetailLocked
+                  ? 'Detail is locked'
+                  : isDetailApproved
+                    ? 'Detail has finalized/approved score'
+                    : 'Detail is manually reviewed',
               });
               continue;
             }
 
-            const oldScoreFields = detail ? { sv: detail.sv_score, gv: detail.gv_score, final: detail.final_score } : null;
+            const oldScoreFields = detail
+              ? {
+                  sv: detail.sv_score,
+                  gv: detail.gv_score,
+                  final: detail.final_score,
+                }
+              : null;
             const repairedDetailCount = result.currentCount;
 
             if (!detail) {
@@ -1662,30 +1930,44 @@ export class SummariesPointService {
 
   async getGradingAccess(
     requester: any,
-    context: { classId?: string; studentId?: string; semesterId?: string; summaryId?: string },
+    context: {
+      classId?: string;
+      studentId?: string;
+      semesterId?: string;
+      summaryId?: string;
+    },
   ): Promise<any> {
     const decision = evaluateGradingAccess(requester);
-    
+
     // Evaluate extra data scope constraints based on target context
     try {
       if (context.studentId) {
-        await assertCanAccessStudent(requester, context.studentId, this.classModel, this.studentModel);
+        await assertCanAccessStudent(
+          requester,
+          context.studentId,
+          this.classModel,
+          this.studentModel,
+        );
       }
       if (context.classId) {
         await assertCanAccessClass(requester, context.classId, this.classModel);
       }
-      
+
       // Check summary lock state if summaryId is provided
       let summaryObj = null;
       if (context.summaryId) {
-        summaryObj = await this.summaryPointModel.findById(context.summaryId).exec();
+        summaryObj = await this.summaryPointModel
+          .findById(context.summaryId)
+          .exec();
       } else if (context.studentId && context.semesterId) {
-        summaryObj = await this.summaryPointModel.findOne({
-          student_id: new Types.ObjectId(context.studentId),
-          semester_id: new Types.ObjectId(context.semesterId),
-        } as any).exec();
+        summaryObj = await this.summaryPointModel
+          .findOne({
+            student_id: new Types.ObjectId(context.studentId),
+            semester_id: new Types.ObjectId(context.semesterId),
+          } as any)
+          .exec();
       }
-      
+
       if (summaryObj) {
         decision.canReadSummary = true;
         if (summaryObj.status === 'locked') {
@@ -1703,7 +1985,7 @@ export class SummariesPointService {
       decision.reasonCode = err.response?.reasonCode || 'GRADING_SCOPE_DENIED';
       decision.reason = err.message || 'Không có quyền truy cập dữ liệu.';
     }
-    
+
     return decision;
   }
 
@@ -1713,7 +1995,9 @@ export class SummariesPointService {
    */
   async getClassApprovalStatus(
     semesterId: string,
-  ): Promise<Record<string, { total: number; locked: number; allApproved: boolean }>> {
+  ): Promise<
+    Record<string, { total: number; locked: number; allApproved: boolean }>
+  > {
     const semesterObjectId = new Types.ObjectId(semesterId);
 
     const pipeline = [
@@ -1751,10 +2035,7 @@ export class SummariesPointService {
           total: 1,
           locked: 1,
           allApproved: {
-            $and: [
-              { $gt: ['$total', 0] },
-              { $eq: ['$total', '$locked'] },
-            ],
+            $and: [{ $gt: ['$total', 0] }, { $eq: ['$total', '$locked'] }],
           },
         },
       },
@@ -1762,7 +2043,10 @@ export class SummariesPointService {
 
     const results = await this.summaryPointModel.aggregate(pipeline).exec();
 
-    const map: Record<string, { total: number; locked: number; allApproved: boolean }> = {};
+    const map: Record<
+      string,
+      { total: number; locked: number; allApproved: boolean }
+    > = {};
     for (const row of results) {
       if (row._id) {
         map[row._id.toString()] = {

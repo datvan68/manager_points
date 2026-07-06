@@ -18,9 +18,17 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { existsSync, mkdirSync } from 'fs';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { checkPermission, checkAnyPermission } from '../auth/guards/check-permission.guard';
+import {
+  checkPermission,
+  checkAnyPermission,
+} from '../auth/guards/check-permission.guard';
 import { ClubsService } from './clubs.service';
 import { CreateClubDto } from './dto/create-club.dto';
 import { UpdateClubDto } from './dto/update-club.dto';
@@ -41,7 +49,10 @@ export class ClubsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo câu lạc bộ mới' })
   create(@Body() dto: CreateClubDto, @Request() req: any) {
-    return this.clubsService.create(dto, req.user.userId || req.user._id || req.user.id);
+    return this.clubsService.create(
+      dto,
+      req.user.userId || req.user._id || req.user.id,
+    );
   }
 
   @Post('media/upload')
@@ -66,7 +77,10 @@ export class ClubsController {
         if (file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
           cb(null, true);
         } else {
-          cb(new BadRequestException('Chỉ chấp nhận file ảnh (PNG, JPEG, WebP)'), false);
+          cb(
+            new BadRequestException('Chỉ chấp nhận file ảnh (PNG, JPEG, WebP)'),
+            false,
+          );
         }
       },
       limits: {
@@ -107,7 +121,8 @@ export class ClubsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'CLB của sinh viên đang đăng nhập' })
   getMyClubs(@Request() req: any) {
-    const studentIdOrUserId = req.user.studentId || req.user.userId || req.user._id || req.user.id;
+    const studentIdOrUserId =
+      req.user.studentId || req.user.userId || req.user._id || req.user.id;
     return this.clubsService.getMyClubs(studentIdOrUserId);
   }
 
@@ -215,10 +230,7 @@ export class ClubsController {
   @UseGuards(checkPermission('CLUB_MEMBER_MANAGE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa thành viên khỏi CLB' })
-  removeMember(
-    @Param('id') id: string,
-    @Param('memberId') memberId: string,
-  ) {
+  removeMember(@Param('id') id: string, @Param('memberId') memberId: string) {
     return this.clubsService.removeMember(id, memberId);
   }
 

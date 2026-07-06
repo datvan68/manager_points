@@ -36,7 +36,7 @@ export class DepartmentsService {
     if (!Types.ObjectId.isValid(requester.userId)) return [];
 
     const classes = await this.classModel
-      .find({ advisor_id: requester.userId as any })
+      .find({ advisor_id: requester.userId })
       .select('dept_id')
       .lean()
       .exec();

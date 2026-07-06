@@ -23,13 +23,15 @@ describe('GradingRealtimeService', () => {
     const semesterId = 'semester-1';
 
     const events: any[] = [];
-    const subscription = service.getStream(user, classId, semesterId).subscribe({
-      next: (val) => {
-        if (val.data.type !== 'ping' && val.data.type !== 'connected') {
-          events.push(val.data);
-        }
-      }
-    });
+    const subscription = service
+      .getStream(user, classId, semesterId)
+      .subscribe({
+        next: (val) => {
+          if (val.data.type !== 'ping' && val.data.type !== 'connected') {
+            events.push(val.data);
+          }
+        },
+      });
 
     // 1. Event with matching classId and semesterId -> should be received
     gradingEventEmitter.emit('grading_event', {

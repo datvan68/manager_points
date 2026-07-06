@@ -14,12 +14,12 @@ import { AcademicRecordService } from './academic-record.service';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
 import { BulkCreateAcademicRecordDto } from './dto/bulk-create-academic-record.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
-import { 
-  ImportAcademicRecordRequestDto, 
+import {
+  ImportAcademicRecordRequestDto,
   ImportAcademicRecordCommitDto,
   ImportAcademicRecordPreviewResultDto,
   ImportAcademicRecordCommitResultDto,
-  ImportAcademicRecordProgressDto 
+  ImportAcademicRecordProgressDto,
 } from './dto/import-academic-record.dto';
 import { IntentScoreDto } from './dto/intent-score.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
@@ -35,24 +35,29 @@ export class AcademicRecordController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Create a new academic record (requires Admin, Teacher, or Supervisor role)',
+    summary:
+      'Create a new academic record (requires Admin, Teacher, or Supervisor role)',
   })
-  create(@Body() createAcademicRecordDto: CreateAcademicRecordDto, @Request() req: any) {
+  create(
+    @Body() createAcademicRecordDto: CreateAcademicRecordDto,
+    @Request() req: any,
+  ) {
     const requester = req.user;
-    return this.academicRecordService.create(createAcademicRecordDto, requester);
+    return this.academicRecordService.create(
+      createAcademicRecordDto,
+      requester,
+    );
   }
 
   @Post('intent')
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Xử lý ý định thao tác điểm (tăng/giảm đếm, chọn option, nhập điểm tay)',
+    summary:
+      'Xử lý ý định thao tác điểm (tăng/giảm đếm, chọn option, nhập điểm tay)',
   })
   @ApiBody({ type: IntentScoreDto })
-  async handleIntent(
-    @Body() intentDto: IntentScoreDto,
-    @Request() req: any,
-  ) {
+  async handleIntent(@Body() intentDto: IntentScoreDto, @Request() req: any) {
     const requester = req.user;
     return this.academicRecordService.handleScoreIntent(intentDto, requester);
   }
@@ -61,7 +66,8 @@ export class AcademicRecordController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Bulk create academic records (requires Admin, Teacher, or Supervisor role)',
+    summary:
+      'Bulk create academic records (requires Admin, Teacher, or Supervisor role)',
   })
   @ApiBody({ type: BulkCreateAcademicRecordDto })
   bulkCreate(
@@ -75,7 +81,9 @@ export class AcademicRecordController {
   @Post('import/preview')
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Preview and validate bulk import of student academic records' })
+  @ApiOperation({
+    summary: 'Preview and validate bulk import of student academic records',
+  })
   @ApiBody({ type: ImportAcademicRecordRequestDto })
   async importPreview(
     @Body() body: ImportAcademicRecordRequestDto,
@@ -102,14 +110,18 @@ export class AcademicRecordController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get progress of a bulk import session' })
-  getImportProgress(@Param('sessionId') sessionId: string): ImportAcademicRecordProgressDto {
+  getImportProgress(
+    @Param('sessionId') sessionId: string,
+  ): ImportAcademicRecordProgressDto {
     return this.academicRecordService.getImportProgress(sessionId);
   }
 
   @Get()
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all academic records with pagination and filters' })
+  @ApiOperation({
+    summary: 'Get all academic records with pagination and filters',
+  })
   findAll(
     @Request() req: any,
     @Query('page') page?: string,
@@ -175,7 +187,8 @@ export class AcademicRecordController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Update academic record (requires Admin, Teacher, or Supervisor role)',
+    summary:
+      'Update academic record (requires Admin, Teacher, or Supervisor role)',
   })
   update(
     @Param('id') id: string,
@@ -185,14 +198,20 @@ export class AcademicRecordController {
   ) {
     const bypass = bypassDailyReportCheck === 'true';
     const requester = req.user;
-    return this.academicRecordService.update(id, updateAcademicRecordDto, requester, bypass);
+    return this.academicRecordService.update(
+      id,
+      updateAcademicRecordDto,
+      requester,
+      bypass,
+    );
   }
 
   @Delete(':id')
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Delete academic record (requires Admin, Teacher, Supervisor, or Student role)',
+    summary:
+      'Delete academic record (requires Admin, Teacher, Supervisor, or Student role)',
   })
   remove(
     @Param('id') id: string,
@@ -208,7 +227,8 @@ export class AcademicRecordController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Restore a soft-deleted academic record (requires Admin, Teacher, or Supervisor role)',
+    summary:
+      'Restore a soft-deleted academic record (requires Admin, Teacher, or Supervisor role)',
   })
   restore(@Param('id') id: string, @Request() req: any) {
     const requester = req.user;
@@ -219,7 +239,8 @@ export class AcademicRecordController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Permanently delete academic record (requires Admin, Teacher, or Supervisor role)',
+    summary:
+      'Permanently delete academic record (requires Admin, Teacher, or Supervisor role)',
   })
   forceRemove(
     @Param('id') id: string,

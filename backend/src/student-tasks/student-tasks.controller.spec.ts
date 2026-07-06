@@ -104,11 +104,18 @@ describe('StudentTasksController', () => {
     it('should call service.update with id, dto, and updaterId', async () => {
       const dto: UpdateStudentTaskDto = { title: 'Updated Title' };
       const req = { user: { userId: 'user-updater' } };
-      mockStudentTasksService.update.mockResolvedValue({ ...mockTask, title: 'Updated Title' });
+      mockStudentTasksService.update.mockResolvedValue({
+        ...mockTask,
+        title: 'Updated Title',
+      });
 
       const result = await controller.update('task-123', dto, req);
 
-      expect(service.update).toHaveBeenCalledWith('task-123', dto, 'user-updater');
+      expect(service.update).toHaveBeenCalledWith(
+        'task-123',
+        dto,
+        'user-updater',
+      );
       expect(result.title).toEqual('Updated Title');
     });
   });
@@ -119,9 +126,17 @@ describe('StudentTasksController', () => {
       const updatedMockTask = { ...mockTask, status: 'completed' };
       mockStudentTasksService.updateStatus.mockResolvedValue(updatedMockTask);
 
-      const result = await controller.updateStatus('task-123', 'completed', req);
+      const result = await controller.updateStatus(
+        'task-123',
+        'completed',
+        req,
+      );
 
-      expect(service.updateStatus).toHaveBeenCalledWith('task-123', 'completed', req.user);
+      expect(service.updateStatus).toHaveBeenCalledWith(
+        'task-123',
+        'completed',
+        req.user,
+      );
       expect(result.status).toEqual('completed');
     });
   });
@@ -129,7 +144,10 @@ describe('StudentTasksController', () => {
   describe('remove', () => {
     it('should call service.remove with id and deleterId', async () => {
       const req = { user: { userId: 'admin-789' } };
-      mockStudentTasksService.remove.mockResolvedValue({ ...mockTask, deletedAt: new Date() });
+      mockStudentTasksService.remove.mockResolvedValue({
+        ...mockTask,
+        deletedAt: new Date(),
+      });
 
       const result = await controller.remove('task-123', req);
 

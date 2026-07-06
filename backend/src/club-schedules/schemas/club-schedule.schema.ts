@@ -13,6 +13,9 @@ export class ScheduleRecurrence {
 
   @Prop()
   until: Date;
+
+  @Prop()
+  start: Date;
 }
 
 export const ScheduleRecurrenceSchema =
@@ -51,7 +54,11 @@ export class ClubSchedule {
   @Prop({ type: MongooseSchema.Types.ObjectId })
   recurrence_id: Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Semester', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Semester',
+    required: true,
+  })
   semester_id: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })

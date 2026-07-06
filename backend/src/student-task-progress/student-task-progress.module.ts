@@ -2,13 +2,22 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { StudentTaskProgressController } from './student-task-progress.controller';
 import { StudentTaskProgressService } from './student-task-progress.service';
-import { StudentTaskProgress, StudentTaskProgressSchema } from './schemas/student-task-progress.schema';
-import { StudentTask, StudentTaskSchema } from '../student-tasks/schemas/student-task.schema';
+import {
+  StudentTaskProgress,
+  StudentTaskProgressSchema,
+} from './schemas/student-task-progress.schema';
+import {
+  StudentTask,
+  StudentTaskSchema,
+} from '../student-tasks/schemas/student-task.schema';
 import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Role, RoleSchema } from '../auth/schemas/role.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
-import { SummaryPoint, SummaryPointSchema } from '../summaries-point/schemas/summary-point.schema';
+import {
+  SummaryPoint,
+  SummaryPointSchema,
+} from '../summaries-point/schemas/summary-point.schema';
 
 @Module({
   imports: [

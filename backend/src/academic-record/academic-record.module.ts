@@ -35,7 +35,18 @@ import { SummariesPointModule } from '../summaries-point/summaries-point.module'
     ]),
   ],
   controllers: [AcademicRecordController],
-  providers: [AcademicRecordService, ScoreEngineService, CountResolutionService, ProjectionService, ProjectionListener],
-  exports: [AcademicRecordService, ScoreEngineService, CountResolutionService, ProjectionService],
+  providers: [
+    AcademicRecordService,
+    ScoreEngineService,
+    CountResolutionService,
+    ProjectionService,
+    ProjectionListener,
+  ],
+  exports: [
+    AcademicRecordService,
+    ScoreEngineService,
+    CountResolutionService,
+    ProjectionService,
+  ],
 })
 export class AcademicRecordModule {}

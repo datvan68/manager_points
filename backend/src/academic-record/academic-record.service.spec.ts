@@ -7,7 +7,11 @@ import { Criterion } from '../criteria/schemas/criterion.schema';
 import { Student } from '../students/schemas/student.schema';
 import { Class } from '../classes/schemas/class.schema';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
-import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Types } from 'mongoose';
 import { normalizeObjectId } from './academic-record.utils';
 
@@ -111,38 +115,69 @@ describe('AcademicRecordService - Import Flow', () => {
   describe('importPreview', () => {
     it('should filter rows and handle teacher permissions correctly', async () => {
       // Setup Teacher context
-      const requester = { userId: new Types.ObjectId().toString(), roleName: 'Teacher' };
+      const requester = {
+        userId: new Types.ObjectId().toString(),
+        roleName: 'Teacher',
+      };
       const classId = new Types.ObjectId();
       mockClassModel.find.mockReturnValue({
         select: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([{ _id: classId }]),
       });
-      
-      const studentInClass = { _id: new Types.ObjectId(), student_code: 'SV_IN', class_id: classId };
-      const studentOutClass = { _id: new Types.ObjectId(), student_code: 'SV_OUT', class_id: new Types.ObjectId() };
-      
+
+      const studentInClass = {
+        _id: new Types.ObjectId(),
+        student_code: 'SV_IN',
+        class_id: classId,
+      };
+      const studentOutClass = {
+        _id: new Types.ObjectId(),
+        student_code: 'SV_OUT',
+        class_id: new Types.ObjectId(),
+      };
+
       mockStudentModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: studentInClass._id }]) // only SV_IN is in teacher's class
+        exec: jest.fn().mockResolvedValue([{ _id: studentInClass._id }]), // only SV_IN is in teacher's class
       });
       mockStudentModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([studentInClass, studentOutClass])
+        exec: jest.fn().mockResolvedValue([studentInClass, studentOutClass]),
       });
 
       mockCriterionModel.find.mockReturnValue({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Criteria 1', criterion_code: 'C1' }])
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            criterion_name: 'Criteria 1',
+            criterion_code: 'C1',
+          },
+        ]),
       });
 
       mockSemesterModel.find.mockReturnValue({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            semester_name: 'HK1',
+            status: 'active',
+          },
+        ]),
       });
 
       const rows = [
-        { 'Ma SV': 'SV_IN', 'Tieu chi': 'Criteria 1', 'Ngay ghi nhan': '2023-01-01' },
-        { 'Ma SV': 'SV_OUT', 'Tieu chi': 'Criteria 1', 'Ngay ghi nhan': '2023-01-01' }, // Expected error: Không có quyền ghi nhận
+        {
+          'Ma SV': 'SV_IN',
+          'Tieu chi': 'Criteria 1',
+          'Ngay ghi nhan': '2023-01-01',
+        },
+        {
+          'Ma SV': 'SV_OUT',
+          'Tieu chi': 'Criteria 1',
+          'Ngay ghi nhan': '2023-01-01',
+        }, // Expected error: Không có quyền ghi nhận
       ];
 
       const result = await service.importPreview(rows, requester);
@@ -154,55 +189,96 @@ describe('AcademicRecordService - Import Flow', () => {
     });
 
     it('should detect duplicate idempotency keys within the same file', async () => {
-        const studentId = new Types.ObjectId();
-        mockStudentModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1' }])
-        });
-        mockCriterionModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Criteria 1', criterion_code: 'C1' }])
-        });
-        mockSemesterModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
-        });
+      const studentId = new Types.ObjectId();
+      mockStudentModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest
+          .fn()
+          .mockResolvedValue([{ _id: studentId, student_code: 'SV1' }]),
+      });
+      mockCriterionModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            criterion_name: 'Criteria 1',
+            criterion_code: 'C1',
+          },
+        ]),
+      });
+      mockSemesterModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            semester_name: 'HK1',
+            status: 'active',
+          },
+        ]),
+      });
 
-        const rows = [
-            { 'Ma SV': 'SV1', 'Tieu chi': 'Criteria 1', 'Ngay ghi nhan': '2023-01-01' },
-            { 'Ma SV': 'SV1', 'Tieu chi': 'Criteria 1', 'Ngay ghi nhan': '2023-01-01' }, // Duplicate
-        ];
+      const rows = [
+        {
+          'Ma SV': 'SV1',
+          'Tieu chi': 'Criteria 1',
+          'Ngay ghi nhan': '2023-01-01',
+        },
+        {
+          'Ma SV': 'SV1',
+          'Tieu chi': 'Criteria 1',
+          'Ngay ghi nhan': '2023-01-01',
+        }, // Duplicate
+      ];
 
-        const result = await service.importPreview(rows, null);
+      const result = await service.importPreview(rows, null);
 
-        expect(result.validCount).toBe(1);
-        expect(result.errorCount).toBe(1);
-        expect(result.errors[0].reason).toContain('Bản ghi trùng lặp trong file');
+      expect(result.validCount).toBe(1);
+      expect(result.errorCount).toBe(1);
+      expect(result.errors[0].reason).toContain('Bản ghi trùng lặp trong file');
     });
 
     it('should validate correctly for valid new row', async () => {
-        const studentId = new Types.ObjectId();
-        mockStudentModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1' }])
-        });
-        mockCriterionModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Criteria 1', criterion_code: 'C1' }])
-        });
-        mockSemesterModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
-        });
+      const studentId = new Types.ObjectId();
+      mockStudentModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest
+          .fn()
+          .mockResolvedValue([{ _id: studentId, student_code: 'SV1' }]),
+      });
+      mockCriterionModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            criterion_name: 'Criteria 1',
+            criterion_code: 'C1',
+          },
+        ]),
+      });
+      mockSemesterModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            semester_name: 'HK1',
+            status: 'active',
+          },
+        ]),
+      });
 
-        const rows = [
-            { 'Ma SV': 'SV1', 'Tieu chi': 'Criteria 1', 'Ngay ghi nhan': '2023-01-01', 'Trang thai': 'active' },
-        ];
+      const rows = [
+        {
+          'Ma SV': 'SV1',
+          'Tieu chi': 'Criteria 1',
+          'Ngay ghi nhan': '2023-01-01',
+          'Trang thai': 'active',
+        },
+      ];
 
-        const result = await service.importPreview(rows, null);
+      const result = await service.importPreview(rows, null);
 
-        expect(result.validCount).toBe(1);
-        expect(result.errorCount).toBe(0);
+      expect(result.validCount).toBe(1);
+      expect(result.errorCount).toBe(0);
     });
 
     it('should report error for missing required fields', async () => {
@@ -215,110 +291,201 @@ describe('AcademicRecordService - Import Flow', () => {
 
       expect(result.validCount).toBe(0);
       expect(result.errorCount).toBe(2);
-      expect(result.errors[0].reason).toMatch(/Thiếu Mã SV|Thiếu Tiêu chí|Thiếu Mã tiêu chí/i);
+      expect(result.errors[0].reason).toMatch(
+        /Thiếu Mã SV|Thiếu Tiêu chí|Thiếu Mã tiêu chí/i,
+      );
     });
 
     it('should resolve correctly using criterion_code (Ma tieu chi)', async () => {
-        const studentId = new Types.ObjectId();
-        mockStudentModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' }])
-        });
-        mockCriterionModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Test Name', criterion_code: 'I.A' }])
-        });
-        mockSemesterModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
-        });
+      const studentId = new Types.ObjectId();
+      mockStudentModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest
+          .fn()
+          .mockResolvedValue([
+            { _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' },
+          ]),
+      });
+      mockCriterionModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            criterion_name: 'Test Name',
+            criterion_code: 'I.A',
+          },
+        ]),
+      });
+      mockSemesterModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            semester_name: 'HK1',
+            status: 'active',
+          },
+        ]),
+      });
 
-        const rows = [
-            { 'Ma SV': 'SV1', 'Ma tieu chi': 'I.A', 'Ngay ghi nhan': '2023-01-01', 'Trang thai': 'active' },
-        ];
+      const rows = [
+        {
+          'Ma SV': 'SV1',
+          'Ma tieu chi': 'I.A',
+          'Ngay ghi nhan': '2023-01-01',
+          'Trang thai': 'active',
+        },
+      ];
 
-        const result = await service.importPreview(rows, null);
-        expect(result.validCount).toBe(1);
-        expect(result.errorCount).toBe(0);
+      const result = await service.importPreview(rows, null);
+      expect(result.validCount).toBe(1);
+      expect(result.errorCount).toBe(0);
     });
 
     it('should resolve using criterion_code even if criterion_name is not provided or different', async () => {
-        const studentId = new Types.ObjectId();
-        mockStudentModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' }])
-        });
-        mockCriterionModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Criteria Actual', criterion_code: 'C.1' }])
-        });
-        mockSemesterModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
-        });
+      const studentId = new Types.ObjectId();
+      mockStudentModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest
+          .fn()
+          .mockResolvedValue([
+            { _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' },
+          ]),
+      });
+      mockCriterionModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            criterion_name: 'Criteria Actual',
+            criterion_code: 'C.1',
+          },
+        ]),
+      });
+      mockSemesterModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            semester_name: 'HK1',
+            status: 'active',
+          },
+        ]),
+      });
 
-        const rows = [
-            { 'Ma SV': 'SV1', 'Ma tieu chi': '  c.1  ', 'Tieu chi': 'Criteria Wrong', 'Ngay ghi nhan': '2023-01-01', 'Trang thai': 'active' },
-        ];
+      const rows = [
+        {
+          'Ma SV': 'SV1',
+          'Ma tieu chi': '  c.1  ',
+          'Tieu chi': 'Criteria Wrong',
+          'Ngay ghi nhan': '2023-01-01',
+          'Trang thai': 'active',
+        },
+      ];
 
-        const result = await service.importPreview(rows, null);
-        expect(result.validCount).toBe(1);
-        expect(result.errorCount).toBe(0);
+      const result = await service.importPreview(rows, null);
+      expect(result.validCount).toBe(1);
+      expect(result.errorCount).toBe(0);
     });
 
     it('should report error when criterion_code is not found', async () => {
-        const studentId = new Types.ObjectId();
-        mockStudentModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' }])
-        });
-        mockCriterionModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Test Name', criterion_code: 'I.A' }])
-        });
-        mockSemesterModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
-        });
+      const studentId = new Types.ObjectId();
+      mockStudentModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest
+          .fn()
+          .mockResolvedValue([
+            { _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' },
+          ]),
+      });
+      mockCriterionModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            criterion_name: 'Test Name',
+            criterion_code: 'I.A',
+          },
+        ]),
+      });
+      mockSemesterModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            semester_name: 'HK1',
+            status: 'active',
+          },
+        ]),
+      });
 
-        const rows = [
-            { 'Ma SV': 'SV1', 'Ma tieu chi': 'INVALID', 'Ngay ghi nhan': '2023-01-01', 'Trang thai': 'active' },
-        ];
+      const rows = [
+        {
+          'Ma SV': 'SV1',
+          'Ma tieu chi': 'INVALID',
+          'Ngay ghi nhan': '2023-01-01',
+          'Trang thai': 'active',
+        },
+      ];
 
-        const result = await service.importPreview(rows, null);
-        expect(result.validCount).toBe(0);
-        expect(result.errorCount).toBe(1);
-        expect(result.errors[0].reason).toContain('Không tìm thấy tiêu chí theo mã: INVALID');
+      const result = await service.importPreview(rows, null);
+      expect(result.validCount).toBe(0);
+      expect(result.errorCount).toBe(1);
+      expect(result.errors[0].reason).toContain(
+        'Không tìm thấy tiêu chí theo mã: INVALID',
+      );
     });
 
     it('should fallback to criterion_name (Tieu chi) if Ma tieu chi is not provided', async () => {
-        const studentId = new Types.ObjectId();
-        mockStudentModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' }])
-        });
-        mockCriterionModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), criterion_name: 'Test Name', criterion_code: 'I.A' }])
-        });
-        mockSemesterModel.find.mockReturnValue({
-            lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), semester_name: 'HK1', status: 'active' }])
-        });
+      const studentId = new Types.ObjectId();
+      mockStudentModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest
+          .fn()
+          .mockResolvedValue([
+            { _id: studentId, student_code: 'SV1', full_name: 'Nguyen Van A' },
+          ]),
+      });
+      mockCriterionModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            criterion_name: 'Test Name',
+            criterion_code: 'I.A',
+          },
+        ]),
+      });
+      mockSemesterModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          {
+            _id: new Types.ObjectId(),
+            semester_name: 'HK1',
+            status: 'active',
+          },
+        ]),
+      });
 
-        const rows = [
-            { 'Ma SV': 'SV1', 'Tieu chi': 'Test Name', 'Ngay ghi nhan': '2023-01-01', 'Trang thai': 'active' },
-        ];
+      const rows = [
+        {
+          'Ma SV': 'SV1',
+          'Tieu chi': 'Test Name',
+          'Ngay ghi nhan': '2023-01-01',
+          'Trang thai': 'active',
+        },
+      ];
 
-        const result = await service.importPreview(rows, null);
-        expect(result.validCount).toBe(1);
-        expect(result.errorCount).toBe(0);
+      const result = await service.importPreview(rows, null);
+      expect(result.validCount).toBe(1);
+      expect(result.errorCount).toBe(0);
     });
   });
 
   describe('importCommit', () => {
     it('should throw BadRequestException if session is invalid', async () => {
-      await expect(service.importCommit('invalid_session', null)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.importCommit('invalid_session', null),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should mark session as committing and start process', async () => {
@@ -334,154 +501,178 @@ describe('AcademicRecordService - Import Flow', () => {
         processedCount: 0,
         insertedCount: 0,
         duplicatedCount: 0,
-        commitErrors: []
+        commitErrors: [],
       });
 
-      const processSpy = jest.spyOn(service as any, 'processImportBatch').mockResolvedValue(undefined);
+      const processSpy = jest
+        .spyOn(service as any, 'processImportBatch')
+        .mockResolvedValue(undefined);
 
       const result = await service.importCommit(sessionId, null);
 
       expect(result.success).toBe(true);
-      expect((service as any).importSessions.get(sessionId).status).toBe('committing');
+      expect((service as any).importSessions.get(sessionId).status).toBe(
+        'committing',
+      );
       expect(processSpy).toHaveBeenCalledWith(sessionId, null);
     });
   });
 
   describe('processImportBatch (batch execution)', () => {
-      it('should handle duplicate key errors properly without failing the whole batch', async () => {
-        const sessionId = 'test_session_batch';
-        const validItems = [
-            { student_id: new Types.ObjectId(), criterion_id: new Types.ObjectId() },
-            { student_id: new Types.ObjectId(), criterion_id: new Types.ObjectId() }
-        ];
-        
-        (service as any).importSessions.set(sessionId, {
-            id: sessionId,
-            status: 'committing',
-            validItems,
-            errors: [],
-            totalRows: 2,
-            progress: 0,
-            processedCount: 0,
-            insertedCount: 0,
-            duplicatedCount: 0,
-            commitErrors: []
-        });
+    it('should handle duplicate key errors properly without failing the whole batch', async () => {
+      const sessionId = 'test_session_batch';
+      const validItems = [
+        {
+          student_id: new Types.ObjectId(),
+          criterion_id: new Types.ObjectId(),
+        },
+        {
+          student_id: new Types.ObjectId(),
+          criterion_id: new Types.ObjectId(),
+        },
+      ];
 
-        // Mock bulkWrite to simulate partial failure (duplicate)
-        mockAcademicRecordModel.bulkWrite.mockRejectedValue({
-            code: 11000,
-            writeErrors: [{ index: 1 }],
-            result: { nInserted: 1, insertedCount: 1 }
-        });
-
-        // Mock sync
-        jest.spyOn(service, 'syncMultipleStudentCriterionScores').mockResolvedValue(undefined);
-
-        await (service as any).processImportBatch(sessionId, null);
-
-        const session = (service as any).importSessions.get(sessionId);
-        expect(session.status).toBe('completed');
-        expect(session.insertedCount).toBe(1);
-        expect(session.duplicatedCount).toBe(1);
-        expect(session.processedCount).toBe(2);
+      (service as any).importSessions.set(sessionId, {
+        id: sessionId,
+        status: 'committing',
+        validItems,
+        errors: [],
+        totalRows: 2,
+        progress: 0,
+        processedCount: 0,
+        insertedCount: 0,
+        duplicatedCount: 0,
+        commitErrors: [],
       });
 
-      it('should commit successfully with insertedCount matching validCount', async () => {
-        const sessionId = 'test_session_batch_success';
-        const validItems = [
-            { student_id: new Types.ObjectId(), criterion_id: new Types.ObjectId() }
-        ];
-        
-        (service as any).importSessions.set(sessionId, {
-            id: sessionId,
-            status: 'committing',
-            validItems,
-            errors: [],
-            totalRows: 1,
-            progress: 0,
-            processedCount: 0,
-            insertedCount: 0,
-            duplicatedCount: 0,
-            commitErrors: []
-        });
-
-        mockAcademicRecordModel.bulkWrite.mockResolvedValue({
-            insertedCount: 1
-        });
-
-        jest.spyOn(service, 'syncMultipleStudentCriterionScores').mockResolvedValue(undefined);
-
-        await (service as any).processImportBatch(sessionId, null);
-
-        const session = (service as any).importSessions.get(sessionId);
-        expect(session.status).toBe('completed');
-        expect(session.insertedCount).toBe(1);
-        expect(session.duplicatedCount).toBe(0);
-        expect(session.commitErrors.length).toBe(0);
+      // Mock bulkWrite to simulate partial failure (duplicate)
+      mockAcademicRecordModel.bulkWrite.mockRejectedValue({
+        code: 11000,
+        writeErrors: [{ index: 1 }],
+        result: { nInserted: 1, insertedCount: 1 },
       });
 
-      it('should handle all rows duplicated with insertedCount = 0', async () => {
-        const sessionId = 'test_session_batch_all_dup';
-        const validItems = [
-            { student_id: new Types.ObjectId(), criterion_id: new Types.ObjectId() }
-        ];
-        
-        (service as any).importSessions.set(sessionId, {
-            id: sessionId,
-            status: 'committing',
-            validItems,
-            errors: [],
-            totalRows: 1,
-            progress: 0,
-            processedCount: 0,
-            insertedCount: 0,
-            duplicatedCount: 0,
-            commitErrors: []
-        });
+      // Mock sync
+      jest
+        .spyOn(service, 'syncMultipleStudentCriterionScores')
+        .mockResolvedValue(undefined);
 
-        mockAcademicRecordModel.bulkWrite.mockRejectedValue({
-            code: 11000,
-            writeErrors: [{ index: 0 }],
-            result: { nInserted: 0, insertedCount: 0 }
-        });
+      await (service as any).processImportBatch(sessionId, null);
 
-        jest.spyOn(service, 'syncMultipleStudentCriterionScores').mockResolvedValue(undefined);
+      const session = (service as any).importSessions.get(sessionId);
+      expect(session.status).toBe('completed');
+      expect(session.insertedCount).toBe(1);
+      expect(session.duplicatedCount).toBe(1);
+      expect(session.processedCount).toBe(2);
+    });
 
-        await (service as any).processImportBatch(sessionId, null);
+    it('should commit successfully with insertedCount matching validCount', async () => {
+      const sessionId = 'test_session_batch_success';
+      const validItems = [
+        {
+          student_id: new Types.ObjectId(),
+          criterion_id: new Types.ObjectId(),
+        },
+      ];
 
-        const session = (service as any).importSessions.get(sessionId);
-        expect(session.status).toBe('completed');
-        expect(session.insertedCount).toBe(0);
-        expect(session.duplicatedCount).toBe(1);
+      (service as any).importSessions.set(sessionId, {
+        id: sessionId,
+        status: 'committing',
+        validItems,
+        errors: [],
+        totalRows: 1,
+        progress: 0,
+        processedCount: 0,
+        insertedCount: 0,
+        duplicatedCount: 0,
+        commitErrors: [],
       });
+
+      mockAcademicRecordModel.bulkWrite.mockResolvedValue({
+        insertedCount: 1,
+      });
+
+      jest
+        .spyOn(service, 'syncMultipleStudentCriterionScores')
+        .mockResolvedValue(undefined);
+
+      await (service as any).processImportBatch(sessionId, null);
+
+      const session = (service as any).importSessions.get(sessionId);
+      expect(session.status).toBe('completed');
+      expect(session.insertedCount).toBe(1);
+      expect(session.duplicatedCount).toBe(0);
+      expect(session.commitErrors.length).toBe(0);
+    });
+
+    it('should handle all rows duplicated with insertedCount = 0', async () => {
+      const sessionId = 'test_session_batch_all_dup';
+      const validItems = [
+        {
+          student_id: new Types.ObjectId(),
+          criterion_id: new Types.ObjectId(),
+        },
+      ];
+
+      (service as any).importSessions.set(sessionId, {
+        id: sessionId,
+        status: 'committing',
+        validItems,
+        errors: [],
+        totalRows: 1,
+        progress: 0,
+        processedCount: 0,
+        insertedCount: 0,
+        duplicatedCount: 0,
+        commitErrors: [],
+      });
+
+      mockAcademicRecordModel.bulkWrite.mockRejectedValue({
+        code: 11000,
+        writeErrors: [{ index: 0 }],
+        result: { nInserted: 0, insertedCount: 0 },
+      });
+
+      jest
+        .spyOn(service, 'syncMultipleStudentCriterionScores')
+        .mockResolvedValue(undefined);
+
+      await (service as any).processImportBatch(sessionId, null);
+
+      const session = (service as any).importSessions.get(sessionId);
+      expect(session.status).toBe('completed');
+      expect(session.insertedCount).toBe(0);
+      expect(session.duplicatedCount).toBe(1);
+    });
   });
 
   describe('getImportProgress', () => {
-      it('should return NotFoundException if session not found', () => {
-          expect(() => service.getImportProgress('missing')).toThrow(NotFoundException);
+    it('should return NotFoundException if session not found', () => {
+      expect(() => service.getImportProgress('missing')).toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should return session progress', () => {
+      const sessionId = 'progress_session';
+      (service as any).importSessions.set(sessionId, {
+        status: 'completed',
+        progress: 100,
+        processedCount: 10,
+        insertedCount: 9,
+        duplicatedCount: 1,
+        totalRows: 12,
+        commitErrors: [],
       });
 
-      it('should return session progress', () => {
-          const sessionId = 'progress_session';
-          (service as any).importSessions.set(sessionId, {
-              status: 'completed',
-              progress: 100,
-              processedCount: 10,
-              insertedCount: 9,
-              duplicatedCount: 1,
-              totalRows: 12,
-              commitErrors: []
-          });
-
-          const result = service.getImportProgress(sessionId);
-          expect(result).toMatchObject({
-              status: 'completed',
-              progress: 100,
-              insertedCount: 9,
-              duplicatedCount: 1
-          });
+      const result = service.getImportProgress(sessionId);
+      expect(result).toMatchObject({
+        status: 'completed',
+        progress: 100,
+        insertedCount: 9,
+        duplicatedCount: 1,
       });
+    });
   });
   describe('findAll date filters', () => {
     it('should apply startDate and endDate filters with correct time boundaries', async () => {
@@ -494,7 +685,9 @@ describe('AcademicRecordService - Import Flow', () => {
         exec: mockExec,
       };
       mockAcademicRecordModel.find.mockReturnValue(mockQueryObj);
-      mockAcademicRecordModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) });
+      mockAcademicRecordModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(0),
+      });
 
       await service.findAll({
         startDate: '2023-10-01',
@@ -506,12 +699,22 @@ describe('AcademicRecordService - Import Flow', () => {
           $and: expect.arrayContaining([
             {
               $or: [
-                { recorded_at: { $gte: new Date('2023-10-01T00:00:00.000Z'), $lte: new Date('2023-10-31T23:59:59.999Z') } },
-                { date_record: { $gte: new Date('2023-10-01T00:00:00.000Z'), $lte: new Date('2023-10-31T23:59:59.999Z') } }
-              ]
-            }
-          ])
-        })
+                {
+                  recorded_at: {
+                    $gte: new Date('2023-10-01T00:00:00.000Z'),
+                    $lte: new Date('2023-10-31T23:59:59.999Z'),
+                  },
+                },
+                {
+                  date_record: {
+                    $gte: new Date('2023-10-01T00:00:00.000Z'),
+                    $lte: new Date('2023-10-31T23:59:59.999Z'),
+                  },
+                },
+              ],
+            },
+          ]),
+        }),
       );
     });
   });
@@ -526,7 +729,6 @@ describe('AcademicRecordService - Import Flow', () => {
       semesterId = new Types.ObjectId().toString();
       criterionId = new Types.ObjectId().toString();
 
-
       mockSummaryPointModel.findOne = jest.fn().mockReturnValue({
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue({
@@ -538,90 +740,120 @@ describe('AcademicRecordService - Import Flow', () => {
             {
               criterion_id: criterionId,
               current_count: 2,
-            }
-          ]
-        })
+            },
+          ],
+        }),
       });
 
       mockClassModel.find = jest.fn().mockReturnValue({
         select: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId() }])
+        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId() }]),
       });
 
       mockStudentModel.findById = jest.fn().mockReturnValue({
         select: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue({ class_id: mockClassModel.find().exec()[0]?._id }) // Just needs to not throw and match class_id roughly, actually wait we need to match the class_id
+        exec: jest.fn().mockResolvedValue({
+          class_id: mockClassModel.find().exec()[0]?._id,
+        }), // Just needs to not throw and match class_id roughly, actually wait we need to match the class_id
       });
       // A better way is to use a consistent class_id
       const classId = new Types.ObjectId();
       mockClassModel.find.mockReturnValue({
         select: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: classId }])
+        exec: jest.fn().mockResolvedValue([{ _id: classId }]),
       });
       mockStudentModel.findById.mockReturnValue({
         select: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue({ class_id: classId })
+        exec: jest.fn().mockResolvedValue({ class_id: classId }),
       });
 
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           _id: criterionId,
           scoring_mode: 'single_option',
-          options: [
-            { id: 'opt1', label: 'Option 1', score: 10 }
-          ]
-        })
+          options: [{ id: 'opt1', label: 'Option 1', score: 10 }],
+        }),
       });
 
-      jest.spyOn(service, 'syncStudentCriterionScore').mockResolvedValue(undefined);
+      jest
+        .spyOn(service, 'syncStudentCriterionScore')
+        .mockResolvedValue(undefined);
     });
 
     it('should throw ForbiddenException if student tries to evaluate another student', async () => {
-      const requester = { userId: new Types.ObjectId().toString(), roleName: 'Student' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'increase' };
-      
-      await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(ForbiddenException);
+      const requester = {
+        userId: new Types.ObjectId().toString(),
+        roleName: 'Student',
+      };
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'increase',
+      };
+
+      await expect(
+        service.handleScoreIntent(intentDto, requester),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should handle increase intent and create 1 record when current count = 0', async () => {
       const requester = { userId: studentId, roleName: 'Student' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'increase' };
-      
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'increase',
+      };
+
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]) // current count = 0
+        exec: jest.fn().mockResolvedValue([]), // current count = 0
       });
-      mockAcademicRecordModel.insertMany = jest.fn().mockResolvedValue([{ _id: new Types.ObjectId() }]);
+      mockAcademicRecordModel.insertMany = jest
+        .fn()
+        .mockResolvedValue([{ _id: new Types.ObjectId() }]);
 
       const result = await service.handleScoreIntent(intentDto, requester);
       expect(mockAcademicRecordModel.insertMany).toHaveBeenCalledTimes(1);
-      expect(mockAcademicRecordModel.insertMany.mock.calls[0][0].length).toBe(1);
+      expect(mockAcademicRecordModel.insertMany.mock.calls[0][0].length).toBe(
+        1,
+      );
       expect(result.success).toBe(true);
     });
 
     it('should handle increase intent and create additional record when current count > 0', async () => {
       const requester = { userId: studentId, roleName: 'Student' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'increase' };
-      
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'increase',
+      };
+
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           _id: criterionId,
           scoring_mode: 'count',
           score_per_unit: 2,
           max_score: 10,
-        })
+        }),
       });
 
       const currentRecords = [{ _id: new Types.ObjectId() }];
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(currentRecords) // current count > 0
+        exec: jest.fn().mockResolvedValue(currentRecords), // current count > 0
       });
-      mockAcademicRecordModel.insertMany = jest.fn().mockResolvedValue([{ _id: new Types.ObjectId() }]);
+      mockAcademicRecordModel.insertMany = jest
+        .fn()
+        .mockResolvedValue([{ _id: new Types.ObjectId() }]);
 
       const result = await service.handleScoreIntent(intentDto, requester);
       expect(mockAcademicRecordModel.insertMany).toHaveBeenCalledTimes(1);
-      expect(mockAcademicRecordModel.insertMany.mock.calls[0][0].length).toBe(1);
+      expect(mockAcademicRecordModel.insertMany.mock.calls[0][0].length).toBe(
+        1,
+      );
       expect(result.success).toBe(true);
     });
 
@@ -630,176 +862,272 @@ describe('AcademicRecordService - Import Flow', () => {
       const loggerSpy = jest.spyOn(Logger, 'log');
 
       const requester = { userId: studentId, roleName: 'Admin' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'decrease' };
-      
-      const currentRecords = [{ 
-        _id: new Types.ObjectId(), 
-        record_title: 'Added by Teacher', 
-        recorded_by: { _id: new Types.ObjectId(), role: { role_name: 'Teacher' } } 
-      }];
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'decrease',
+      };
+
+      const currentRecords = [
+        {
+          _id: new Types.ObjectId(),
+          record_title: 'Added by Teacher',
+          recorded_by: {
+            _id: new Types.ObjectId(),
+            role: { role_name: 'Teacher' },
+          },
+        },
+      ];
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(currentRecords)
+        exec: jest.fn().mockResolvedValue(currentRecords),
       });
-      mockAcademicRecordModel.deleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+      mockAcademicRecordModel.deleteOne = jest
+        .fn()
+        .mockResolvedValue({ deletedCount: 1 });
 
       const result = await service.handleScoreIntent(intentDto, requester);
       expect(mockAcademicRecordModel.deleteOne).toHaveBeenCalledTimes(1);
-      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('[AUDIT_LOG] Hard-delete academic_record'));
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[AUDIT_LOG] Hard-delete academic_record'),
+      );
       expect(result.success).toBe(true);
     });
 
     it('should NOT delete record if requester has lower role level despite spoofed title', async () => {
-      const requester = { userId: new Types.ObjectId().toString(), roleName: 'Teacher' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'decrease' };
-      
-      const currentRecords = [{ 
-        _id: new Types.ObjectId(), 
-        record_title: 'Added by Teacher', // Title says Teacher, but actual role is Admin
-        recorded_by: { _id: new Types.ObjectId(), role: { role_name: 'Admin' } } 
-      }];
+      const requester = {
+        userId: new Types.ObjectId().toString(),
+        roleName: 'Teacher',
+      };
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'decrease',
+      };
+
+      const currentRecords = [
+        {
+          _id: new Types.ObjectId(),
+          record_title: 'Added by Teacher', // Title says Teacher, but actual role is Admin
+          recorded_by: {
+            _id: new Types.ObjectId(),
+            role: { role_name: 'Admin' },
+          },
+        },
+      ];
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(currentRecords)
+        exec: jest.fn().mockResolvedValue(currentRecords),
       });
-      mockAcademicRecordModel.deleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+      mockAcademicRecordModel.deleteOne = jest
+        .fn()
+        .mockResolvedValue({ deletedCount: 1 });
 
       await service.handleScoreIntent(intentDto, requester);
-      
+
       // Teacher cannot delete Admin's record
       expect(mockAcademicRecordModel.deleteOne).not.toHaveBeenCalled();
     });
 
     it('should allow student to only delete their own records on decrease', async () => {
       const requester = { userId: studentId, roleName: 'Student' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'decrease' };
-      
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'decrease',
+      };
+
       const otherStudentId = new Types.ObjectId().toString();
-      const currentRecords = [{ 
-        _id: new Types.ObjectId(), 
-        recorded_by: otherStudentId // Not the requester
-      }];
+      const currentRecords = [
+        {
+          _id: new Types.ObjectId(),
+          recorded_by: otherStudentId, // Not the requester
+        },
+      ];
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(currentRecords)
+        exec: jest.fn().mockResolvedValue(currentRecords),
       });
       mockAcademicRecordModel.deleteOne = jest.fn();
 
       await service.handleScoreIntent(intentDto, requester);
-      
+
       // Student cannot delete another user's record
       expect(mockAcademicRecordModel.deleteOne).not.toHaveBeenCalled();
     });
 
     it('should handle set_target_count intent correctly', async () => {
       const requester = { userId: studentId, roleName: 'Student' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'set_target_count', target_count: 3 };
-      
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'set_target_count',
+        target_count: 3,
+      };
+
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           _id: criterionId,
           scoring_mode: 'count',
           score_per_unit: 2,
           max_score: 10,
-        })
+        }),
       });
 
       const currentRecords = [{ _id: new Types.ObjectId() }];
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(currentRecords)
+        exec: jest.fn().mockResolvedValue(currentRecords),
       });
-      mockAcademicRecordModel.insertMany = jest.fn().mockResolvedValue([{ _id: new Types.ObjectId() }, { _id: new Types.ObjectId() }]);
+      mockAcademicRecordModel.insertMany = jest
+        .fn()
+        .mockResolvedValue([
+          { _id: new Types.ObjectId() },
+          { _id: new Types.ObjectId() },
+        ]);
 
       await service.handleScoreIntent(intentDto, requester);
       expect(mockAcademicRecordModel.insertMany).toHaveBeenCalledTimes(1);
-      expect(mockAcademicRecordModel.insertMany.mock.calls[0][0].length).toBe(2);
+      expect(mockAcademicRecordModel.insertMany.mock.calls[0][0].length).toBe(
+        2,
+      );
     });
 
     it('should handle select_option intent', async () => {
       const requester = { userId: studentId, roleName: 'Student' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'select_option', selected_option_id: 'opt1' };
-      
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'select_option',
+        selected_option_id: 'opt1',
+      };
+
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(null)
+        exec: jest.fn().mockResolvedValue(null),
       });
-      mockAcademicRecordModel.create = jest.fn().mockResolvedValue({ _id: new Types.ObjectId() });
+      mockAcademicRecordModel.create = jest
+        .fn()
+        .mockResolvedValue({ _id: new Types.ObjectId() });
 
       await service.handleScoreIntent(intentDto, requester);
-      expect(mockAcademicRecordModel.create).toHaveBeenCalledWith(expect.objectContaining({ record_title: 'Lựa chọn option opt1' }));
+      expect(mockAcademicRecordModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({ record_title: 'Lựa chọn option opt1' }),
+      );
     });
 
     it('should handle clear_score intent and only delete permitted records', async () => {
       const { Logger } = require('@nestjs/common');
       const loggerSpy = jest.spyOn(Logger, 'log');
 
-      const requester = { userId: new Types.ObjectId().toString(), roleName: 'Teacher' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'clear_score' };
-      
+      const requester = {
+        userId: new Types.ObjectId().toString(),
+        roleName: 'Teacher',
+      };
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'clear_score',
+      };
+
       const adminRecordId = new Types.ObjectId();
       const studentRecordId = new Types.ObjectId();
 
       const currentRecords = [
-        { 
-          _id: adminRecordId, 
-          recorded_by: { _id: new Types.ObjectId(), role: { role_name: 'Admin' } } 
+        {
+          _id: adminRecordId,
+          recorded_by: {
+            _id: new Types.ObjectId(),
+            role: { role_name: 'Admin' },
+          },
         },
-        { 
-          _id: studentRecordId, 
-          recorded_by: { _id: new Types.ObjectId(), role: { role_name: 'Student' } } 
-        }
+        {
+          _id: studentRecordId,
+          recorded_by: {
+            _id: new Types.ObjectId(),
+            role: { role_name: 'Student' },
+          },
+        },
       ];
 
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(currentRecords)
+        exec: jest.fn().mockResolvedValue(currentRecords),
       });
-      mockAcademicRecordModel.deleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+      mockAcademicRecordModel.deleteOne = jest
+        .fn()
+        .mockResolvedValue({ deletedCount: 1 });
 
       await service.handleScoreIntent(intentDto, requester);
-      
+
       // Teacher can delete Student's record but not Admin's record
       expect(mockAcademicRecordModel.deleteOne).toHaveBeenCalledTimes(1);
-      expect(mockAcademicRecordModel.deleteOne).toHaveBeenCalledWith({ _id: studentRecordId });
-      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('clear_score'));
+      expect(mockAcademicRecordModel.deleteOne).toHaveBeenCalledWith({
+        _id: studentRecordId,
+      });
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining('clear_score'),
+      );
     });
 
     it('should throw BadRequestException if desiredCount > maxCount', async () => {
       const requester = { userId: studentId, roleName: 'Student' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'increase' };
-      
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'increase',
+      };
+
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           _id: criterionId,
           scoring_mode: 'count',
           score_per_unit: 5,
           max_score: 10, // maxCount = 2
-        })
+        }),
       });
 
-      const currentRecords = [{ _id: new Types.ObjectId() }, { _id: new Types.ObjectId() }]; // currentCount = 2
+      const currentRecords = [
+        { _id: new Types.ObjectId() },
+        { _id: new Types.ObjectId() },
+      ]; // currentCount = 2
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(currentRecords)
+        exec: jest.fn().mockResolvedValue(currentRecords),
       });
 
-      await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.handleScoreIntent(intentDto, requester),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if score_per_unit is 0 in count mode', async () => {
       const requester = { userId: studentId, roleName: 'Student' };
-      const intentDto: any = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, intent_type: 'increase' };
-      
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'increase',
+      };
+
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           _id: criterionId,
           scoring_mode: 'count',
           score_per_unit: 0,
           max_score: 10,
-        })
+        }),
       });
 
-      await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.handleScoreIntent(intentDto, requester),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if baseline_count mismatch when decreasing count', async () => {
@@ -819,19 +1147,26 @@ describe('AcademicRecordService - Import Flow', () => {
           scoring_mode: 'count',
           score_per_unit: 2,
           max_score: 10,
-        })
+        }),
       });
 
-      const currentRecords = [{ _id: new Types.ObjectId() }, { _id: new Types.ObjectId() }]; // count = 2
+      const currentRecords = [
+        { _id: new Types.ObjectId() },
+        { _id: new Types.ObjectId() },
+      ]; // count = 2
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(currentRecords)
+        exec: jest.fn().mockResolvedValue(currentRecords),
       });
 
-      await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(
+      await expect(
+        service.handleScoreIntent(intentDto, requester),
+      ).rejects.toThrow(
         expect.objectContaining({
-          message: expect.stringContaining('Dữ liệu chấm điểm trên màn hình không đồng bộ'),
-        })
+          message: expect.stringContaining(
+            'Dữ liệu chấm điểm trên màn hình không đồng bộ',
+          ),
+        }),
       );
     });
 
@@ -852,15 +1187,20 @@ describe('AcademicRecordService - Import Flow', () => {
           scoring_mode: 'count',
           score_per_unit: 2,
           max_score: 10,
-        })
+        }),
       });
 
-      const currentRecords = [{ _id: new Types.ObjectId() }, { _id: new Types.ObjectId() }]; // count = 2
+      const currentRecords = [
+        { _id: new Types.ObjectId() },
+        { _id: new Types.ObjectId() },
+      ]; // count = 2
       mockAcademicRecordModel.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(currentRecords)
+        exec: jest.fn().mockResolvedValue(currentRecords),
       });
-      mockAcademicRecordModel.deleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+      mockAcademicRecordModel.deleteOne = jest
+        .fn()
+        .mockResolvedValue({ deletedCount: 1 });
 
       const result = await service.handleScoreIntent(intentDto, requester);
       expect(result.success).toBe(true);
@@ -883,29 +1223,33 @@ describe('AcademicRecordService - Import Flow', () => {
               {
                 criterion_id: cri1,
                 current_count: 5, // detail count là 5
-              }
-            ]
-          }
-        ])
+              },
+            ],
+          },
+        ]),
       });
 
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue([
           { criterion_id: cri1 }, // actual count chỉ là 1
-        ])
+        ]),
       });
 
       mockCriterionModel.find = jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue([
-          { _id: cri1 }
-        ])
+        exec: jest.fn().mockResolvedValue([{ _id: cri1 }]),
       });
 
-      const syncSpy = jest.spyOn(service, 'syncStudentCriterionScore').mockResolvedValue(undefined);
+      const syncSpy = jest
+        .spyOn(service, 'syncStudentCriterionScore')
+        .mockResolvedValue(undefined);
 
       const result = await service.auditMismatches(semesterId);
 
-      expect(syncSpy).toHaveBeenCalledWith(student1.toString(), semesterId, cri1.toString());
+      expect(syncSpy).toHaveBeenCalledWith(
+        student1.toString(),
+        semesterId,
+        cri1.toString(),
+      );
       expect(result.totalScanned).toBe(1);
       expect(result.totalFixed).toBe(1);
     });
@@ -921,37 +1265,55 @@ describe('AcademicRecordService - Import Flow', () => {
     beforeEach(() => {
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ selected_option_id: 'opt1' }])
+        exec: jest.fn().mockResolvedValue([{ selected_option_id: 'opt1' }]),
       });
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(null)
+        exec: jest.fn().mockResolvedValue(null),
       });
       mockSummary = {
         _id: summaryId,
         student_id: studentId,
         semester_id: semesterId,
-        details: [{ criterion_id: criterionId, current_count: 0, system_score: 0, status: 'draft' }],
+        details: [
+          {
+            criterion_id: criterionId,
+            current_count: 0,
+            system_score: 0,
+            status: 'draft',
+          },
+        ],
         save: jest.fn().mockResolvedValue(true),
         markModified: jest.fn(),
-        status: 'draft'
+        status: 'draft',
       };
       mockSummaryPointModel.find = jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue([mockSummary])
+        exec: jest.fn().mockResolvedValue([mockSummary]),
       });
       mockSummaryPointModel.findOne = jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockSummary)
+        exec: jest.fn().mockResolvedValue(mockSummary),
       });
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue({ _id: criterionId, score_per_unit: 2, max_score: 10, min_score: 0 })
+        exec: jest.fn().mockResolvedValue({
+          _id: criterionId,
+          score_per_unit: 2,
+          max_score: 10,
+          min_score: 0,
+        }),
       });
-      mockSummariesPointService.recomputeTotalScore = jest.fn().mockResolvedValue(true);
+      mockSummariesPointService.recomputeTotalScore = jest
+        .fn()
+        .mockResolvedValue(true);
     });
 
     it('should set evaluation_detail.current_count to number of active academic_records', async () => {
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
-      
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+      );
+
       expect(mockAcademicRecordModel.find).toHaveBeenCalled();
       expect(mockSummary.details[0].current_count).toBe(1); // 1 active record
       expect(mockSummary.details[0].system_score).toBe(2); // 1 * 2 score
@@ -961,29 +1323,37 @@ describe('AcademicRecordService - Import Flow', () => {
     it('should clear orphan evaluation_detail points when no active records exist', async () => {
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]) // No active records
+        exec: jest.fn().mockResolvedValue([]), // No active records
       });
-      
+
       mockSummary.details[0].current_count = 5;
       mockSummary.details[0].system_score = 10;
 
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
-      
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+      );
+
       expect(mockSummary.details[0].current_count).toBe(0);
       expect(mockSummary.details[0].system_score).toBe(0); // cleared
       expect(mockSummary.save).toHaveBeenCalled();
       expect(mockSummariesPointService.recomputeTotalScore).toHaveBeenCalled();
     });
-    
+
     it('should overwrite sv_score and gv_score with systemScore for draft unreviewed details', async () => {
       mockSummary.details[0].sv_score = 5;
       mockSummary.details[0].gv_score = 6;
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{}, {}]) // 2 active records
+        exec: jest.fn().mockResolvedValue([{}, {}]), // 2 active records
       });
 
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+      );
 
       expect(mockSummary.details[0].current_count).toBe(2);
       expect(mockSummary.details[0].system_score).toBe(4); // 2 * 2 score
@@ -999,10 +1369,14 @@ describe('AcademicRecordService - Import Flow', () => {
       mockSummary.details[0].gv_score = 6;
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{}, {}]) // 2 active records
+        exec: jest.fn().mockResolvedValue([{}, {}]), // 2 active records
       });
 
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+      );
 
       expect(mockSummary.details[0].current_count).toBe(2);
       expect(mockSummary.details[0].system_score).toBe(4);
@@ -1013,15 +1387,15 @@ describe('AcademicRecordService - Import Flow', () => {
     it('should clear selected option fields for editable draft option criteria when no active records exist', async () => {
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]) // No active records
+        exec: jest.fn().mockResolvedValue([]), // No active records
       });
 
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           _id: criterionId,
           scoring_mode: 'single_option',
-          options: [{ id: 'opt-1', label: 'Opt 1', score: 5 }]
-        })
+          options: [{ id: 'opt-1', label: 'Opt 1', score: 5 }],
+        }),
       });
 
       mockSummary.details[0].selected_option_id = 'opt-1';
@@ -1029,7 +1403,11 @@ describe('AcademicRecordService - Import Flow', () => {
       mockSummary.details[0].selected_option_score = 5;
       mockSummary.details[0].status = 'draft';
 
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+      );
 
       expect(mockSummary.details[0].selected_option_id).toBeNull();
       expect(mockSummary.details[0].selected_option_label).toBeNull();
@@ -1042,15 +1420,15 @@ describe('AcademicRecordService - Import Flow', () => {
     it('should NOT clear selected option fields or manual scores when detail is reviewed/locked', async () => {
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]) // No active records
+        exec: jest.fn().mockResolvedValue([]), // No active records
       });
 
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           _id: criterionId,
           scoring_mode: 'single_option',
-          options: [{ id: 'opt-1', label: 'Opt 1', score: 5 }]
-        })
+          options: [{ id: 'opt-1', label: 'Opt 1', score: 5 }],
+        }),
       });
 
       mockSummary.details[0].selected_option_id = 'opt-1';
@@ -1059,7 +1437,11 @@ describe('AcademicRecordService - Import Flow', () => {
       mockSummary.details[0].status = 'gv_reviewed';
       mockSummary.details[0].gv_reviewed_by = 'teacher-1';
 
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+      );
 
       expect(mockSummary.details[0].selected_option_id).toBe('opt-1');
       expect(mockSummary.details[0].selected_option_label).toBe('Opt 1');
@@ -1071,14 +1453,19 @@ describe('AcademicRecordService - Import Flow', () => {
       mockSummary.details[0].sv_score = null;
       mockSummary.details[0].gv_score = null;
       mockSummary.details[0].final_score = null;
-      
+
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{}]) // 1 record
+        exec: jest.fn().mockResolvedValue([{}]), // 1 record
       });
 
       const studentRequester = { userId: studentId, roleName: 'Student' };
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId, studentRequester);
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+        studentRequester,
+      );
 
       expect(mockSummary.details[0].sv_score).toBe(2); // Updated
       expect(mockSummary.details[0].gv_score).toBeNull(); // Untouched
@@ -1089,14 +1476,19 @@ describe('AcademicRecordService - Import Flow', () => {
       mockSummary.details[0].sv_score = 3;
       mockSummary.details[0].gv_score = null;
       mockSummary.details[0].final_score = null;
-      
+
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{}]) // 1 record
+        exec: jest.fn().mockResolvedValue([{}]), // 1 record
       });
 
       const teacherRequester = { userId: 'teacher-1', roleName: 'Teacher' };
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId, teacherRequester);
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+        teacherRequester,
+      );
 
       expect(mockSummary.details[0].gv_score).toBe(2); // Updated
       expect(mockSummary.details[0].sv_score).toBe(3); // Preserved
@@ -1107,14 +1499,19 @@ describe('AcademicRecordService - Import Flow', () => {
       mockSummary.details[0].sv_score = 3;
       mockSummary.details[0].gv_score = 4;
       mockSummary.details[0].final_score = null;
-      
+
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{}]) // 1 record
+        exec: jest.fn().mockResolvedValue([{}]), // 1 record
       });
 
       const adminRequester = { userId: 'admin-1', roleName: 'Admin' };
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId, adminRequester);
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+        adminRequester,
+      );
 
       expect(mockSummary.details[0].final_score).toBe(2); // Updated
       expect(mockSummary.details[0].sv_score).toBe(3); // Preserved
@@ -1138,22 +1535,28 @@ describe('AcademicRecordService - Import Flow', () => {
           scoring_mode: 'single_option',
           options: [
             { id: 'opt_1', label: 'Option 1', score: 10 },
-            { id: 'opt_2', label: 'Option 2', score: 20 }
-          ]
-        })
+            { id: 'opt_2', label: 'Option 2', score: 20 },
+          ],
+        }),
       });
 
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(null)
+        exec: jest.fn().mockResolvedValue(null),
       });
 
       mockSummaryPointModel.findOne = jest.fn().mockReturnValue({
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue({
           _id: new Types.ObjectId(),
-          details: [{ criterion_id: criterionId, current_count: 1, selected_option_id: 'opt_1' }]
-        })
+          details: [
+            {
+              criterion_id: criterionId,
+              current_count: 1,
+              selected_option_id: 'opt_1',
+            },
+          ],
+        }),
       });
     });
 
@@ -1164,10 +1567,12 @@ describe('AcademicRecordService - Import Flow', () => {
         semester_id: semesterId,
         criterion_id: criterionId,
         intent_type: 'select_option',
-        selected_option_id: 'opt_invalid'
+        selected_option_id: 'opt_invalid',
       };
 
-      await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.handleScoreIntent(intentDto, requester),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should create new academic_record if none exists', async () => {
@@ -1177,23 +1582,25 @@ describe('AcademicRecordService - Import Flow', () => {
         semester_id: semesterId,
         criterion_id: criterionId,
         intent_type: 'select_option',
-        selected_option_id: 'opt_1'
+        selected_option_id: 'opt_1',
       };
 
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(null)
+        exec: jest.fn().mockResolvedValue(null),
       });
       mockAcademicRecordModel.create = jest.fn().mockResolvedValue({
         _id: new Types.ObjectId(),
         selected_option_id: 'opt_1',
-        save: jest.fn()
+        save: jest.fn(),
       });
 
       const result = await service.handleScoreIntent(intentDto, requester);
-      expect(mockAcademicRecordModel.create).toHaveBeenCalledWith(expect.objectContaining({
-        selected_option_id: 'opt_1'
-      }));
+      expect(mockAcademicRecordModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          selected_option_id: 'opt_1',
+        }),
+      );
       expect(result.success).toBe(true);
     });
 
@@ -1204,18 +1611,18 @@ describe('AcademicRecordService - Import Flow', () => {
         semester_id: semesterId,
         criterion_id: criterionId,
         intent_type: 'select_option',
-        selected_option_id: 'opt_2'
+        selected_option_id: 'opt_2',
       };
 
       const existingRecord = {
         _id: new Types.ObjectId(),
         recorded_by: studentId,
         selected_option_id: 'opt_1',
-        save: jest.fn().mockResolvedValue(true)
+        save: jest.fn().mockResolvedValue(true),
       };
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(existingRecord)
+        exec: jest.fn().mockResolvedValue(existingRecord),
       });
 
       const result = await service.handleScoreIntent(intentDto, requester);
@@ -1226,15 +1633,19 @@ describe('AcademicRecordService - Import Flow', () => {
   });
 
   describe('Repair and Migration Scripts (as per taskscope.md)', () => {
-    it.todo('repair-from-records reset/xoa detail mo coi va recompute total score');
-    it.todo('backfill-records tao bu record tu detail cu khi duoc chon mode nay');
+    it.todo(
+      'repair-from-records reset/xoa detail mo coi va recompute total score',
+    );
+    it.todo(
+      'backfill-records tao bu record tu detail cu khi duoc chon mode nay',
+    );
   });
 
   describe('normalizeObjectId utility', () => {
     it('should normalize different types of ObjectId representations to string', () => {
       const idStr = '507f1f77bcf86cd799439011';
       const objId = new Types.ObjectId(idStr);
-      
+
       expect(normalizeObjectId(null)).toBe('');
       expect(normalizeObjectId(undefined)).toBe('');
       expect(normalizeObjectId(idStr)).toBe(idStr);
@@ -1261,23 +1672,37 @@ describe('AcademicRecordService - Import Flow', () => {
         select: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue({
           _id: new Types.ObjectId(),
-          status: 'locked'
-        })
+          status: 'locked',
+        }),
       });
     });
 
     it('should block create when summary is locked', async () => {
-      const dto = { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, record_title: 'test' };
-      await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
+      const dto = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        record_title: 'test',
+      };
+      await expect(service.create(dto as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should block bulkCreate when summary is locked', async () => {
       const dto = {
         records: [
-          { student_id: studentId, semester_id: semesterId, criterion_id: criterionId, record_title: 'test' }
-        ]
+          {
+            student_id: studentId,
+            semester_id: semesterId,
+            criterion_id: criterionId,
+            record_title: 'test',
+          },
+        ],
       };
-      await expect(service.bulkCreate(dto as any)).rejects.toThrow(BadRequestException);
+      await expect(service.bulkCreate(dto as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should block update when summary is locked', async () => {
@@ -1288,9 +1713,11 @@ describe('AcademicRecordService - Import Flow', () => {
       };
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(existingRecord)
+        exec: jest.fn().mockResolvedValue(existingRecord),
       });
-      await expect(service.update('507f1f77bcf86cd799439011', {} as any)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.update('507f1f77bcf86cd799439011', {} as any),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should block remove when summary is locked', async () => {
@@ -1301,9 +1728,11 @@ describe('AcademicRecordService - Import Flow', () => {
       };
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(existingRecord)
+        exec: jest.fn().mockResolvedValue(existingRecord),
       });
-      await expect(service.remove('507f1f77bcf86cd799439011', {} as any)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.remove('507f1f77bcf86cd799439011', {} as any),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should block restore when summary is locked', async () => {
@@ -1314,9 +1743,11 @@ describe('AcademicRecordService - Import Flow', () => {
       };
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(existingRecord)
+        exec: jest.fn().mockResolvedValue(existingRecord),
       });
-      await expect(service.restore('507f1f77bcf86cd799439011', {} as any)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.restore('507f1f77bcf86cd799439011', {} as any),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should block forceRemove when summary is locked', async () => {
@@ -1327,9 +1758,11 @@ describe('AcademicRecordService - Import Flow', () => {
       };
       mockAcademicRecordModel.findById = jest.fn().mockReturnValue({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(existingRecord)
+        exec: jest.fn().mockResolvedValue(existingRecord),
       });
-      await expect(service.forceRemove('507f1f77bcf86cd799439011', {} as any)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.forceRemove('507f1f77bcf86cd799439011', {} as any),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should block handleScoreIntent when summary is locked', async () => {
@@ -1337,9 +1770,11 @@ describe('AcademicRecordService - Import Flow', () => {
         student_id: studentId,
         semester_id: semesterId,
         criterion_id: criterionId,
-        intent_type: 'increase'
+        intent_type: 'increase',
       };
-      await expect(service.handleScoreIntent(intentDto as any)).rejects.toThrow(BadRequestException);
+      await expect(service.handleScoreIntent(intentDto as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -1384,14 +1819,18 @@ describe('AcademicRecordService - Import Flow', () => {
         model: jest.fn().mockReturnValue({
           find: jest.fn().mockReturnValue({
             lean: jest.fn().mockReturnThis(),
-            exec: jest.fn().mockResolvedValue([
-              { _id: new Types.ObjectId(), max_score: 100 }
-            ]),
+            exec: jest
+              .fn()
+              .mockResolvedValue([
+                { _id: new Types.ObjectId(), max_score: 100 },
+              ]),
           }),
         }),
       };
       mockStudentModel.findById = jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ _id: studentId, status: 'Studying' }),
+        exec: jest
+          .fn()
+          .mockResolvedValue({ _id: studentId, status: 'Studying' }),
       });
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({
@@ -1417,7 +1856,9 @@ describe('AcademicRecordService - Import Flow', () => {
       mockAcademicRecordModel.countDocuments = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue(2),
       });
-      mockSummariesPointService.recomputeTotalScore = jest.fn().mockResolvedValue(mockSummary);
+      mockSummariesPointService.recomputeTotalScore = jest
+        .fn()
+        .mockResolvedValue(mockSummary);
     });
 
     it('Deleting the last active reward record sets editable draft current_count = 0, system_score = 0, sv_score = 0, and gv_score = 0', async () => {
@@ -1426,7 +1867,11 @@ describe('AcademicRecordService - Import Flow', () => {
         exec: jest.fn().mockResolvedValue([]), // No active records
       });
 
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+      );
 
       expect(mockSummary.details[0].current_count).toBe(0);
       expect(mockSummary.details[0].system_score).toBe(0);
@@ -1441,7 +1886,11 @@ describe('AcademicRecordService - Import Flow', () => {
         exec: jest.fn().mockResolvedValue([{}]), // 1 active record
       });
 
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+      );
 
       expect(mockSummary.details[0].current_count).toBe(1);
       expect(mockSummary.details[0].system_score).toBe(5);
@@ -1472,7 +1921,11 @@ describe('AcademicRecordService - Import Flow', () => {
         exec: jest.fn().mockResolvedValue([]), // No active records
       });
 
-      await service.syncStudentCriterionScore(studentId, semesterId, criterionId);
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+      );
 
       expect(mockSummary.details[0].current_count).toBe(0);
       expect(mockSummary.details[0].selected_option_id).toBeNull();
@@ -1487,7 +1940,11 @@ describe('AcademicRecordService - Import Flow', () => {
       });
 
       await service.syncMultipleStudentCriterionScores([
-        { student_id: studentId, semester_id: semesterId, criterion_id: criterionId },
+        {
+          student_id: studentId,
+          semester_id: semesterId,
+          criterion_id: criterionId,
+        },
       ]);
 
       expect(mockSummary.details[0].current_count).toBe(0);
@@ -1514,7 +1971,11 @@ describe('AcademicRecordService - Import Flow', () => {
       });
 
       const res = await service.syncMultipleStudentCriterionScores([
-        { student_id: studentId, semester_id: semesterId, criterion_id: criterionId },
+        {
+          student_id: studentId,
+          semester_id: semesterId,
+          criterion_id: criterionId,
+        },
       ]);
 
       // Count changes but score lanes must be kept
@@ -1532,10 +1993,16 @@ describe('AcademicRecordService - Import Flow', () => {
       mockAcademicRecordModel.find = jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnThis(),
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), recorded_by: studentId }]), // 1 record
+        exec: jest
+          .fn()
+          .mockResolvedValue([
+            { _id: new Types.ObjectId(), recorded_by: studentId },
+          ]), // 1 record
       });
 
-      mockAcademicRecordModel.deleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+      mockAcademicRecordModel.deleteOne = jest
+        .fn()
+        .mockResolvedValue({ deletedCount: 1 });
 
       const intentDto = {
         student_id: studentId,
@@ -1557,7 +2024,10 @@ describe('AcademicRecordService - Import Flow', () => {
       // 2 records, one by Admin, one by Student
       const adminRecord = {
         _id: new Types.ObjectId(),
-        recorded_by: { _id: new Types.ObjectId(), role: { role_name: 'Admin' } },
+        recorded_by: {
+          _id: new Types.ObjectId(),
+          role: { role_name: 'Admin' },
+        },
       };
       const studentRecord = {
         _id: new Types.ObjectId(),
@@ -1569,7 +2039,9 @@ describe('AcademicRecordService - Import Flow', () => {
         exec: jest.fn().mockResolvedValue([adminRecord, studentRecord]),
       });
 
-      mockAcademicRecordModel.deleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+      mockAcademicRecordModel.deleteOne = jest
+        .fn()
+        .mockResolvedValue({ deletedCount: 1 });
 
       const intentDto = {
         student_id: studentId,

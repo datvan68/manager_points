@@ -18,10 +18,19 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { Semester } from '../semesters/schemas/semester.schema';
 import { SummaryPoint } from '../summaries-point/schemas/summary-point.schema';
 import { User, UserDocument, UserStatus } from '../auth/schemas/user.schema';
-import { RefreshToken, RefreshTokenDocument } from '../auth/schemas/refresh-token.schema';
+import {
+  RefreshToken,
+  RefreshTokenDocument,
+} from '../auth/schemas/refresh-token.schema';
 import { Role, RoleDocument } from '../auth/schemas/role.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
-import { getRequesterRoleName, isStudent, isTeacher, isSupervisor, isAdmin } from '../auth/utils/role.util';
+import {
+  getRequesterRoleName,
+  isStudent,
+  isTeacher,
+  isSupervisor,
+  isAdmin,
+} from '../auth/utils/role.util';
 
 export interface StudentImportSession {
   id: string;
@@ -57,7 +66,8 @@ export class StudentsService implements OnModuleInit {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
     @InjectModel(Class.name) private classModel: Model<ClassDocument>,
-    @InjectModel(RefreshToken.name) private refreshTokenModel: Model<RefreshTokenDocument>,
+    @InjectModel(RefreshToken.name)
+    private refreshTokenModel: Model<RefreshTokenDocument>,
     private configService: ConfigService,
   ) {}
 
@@ -95,9 +105,11 @@ export class StudentsService implements OnModuleInit {
     }
 
     try {
-      const syncConfig = this.configService.get<string>('STUDENT_ACCOUNT_STARTUP_SYNC') || 'off';
+      const syncConfig =
+        this.configService.get<string>('STUDENT_ACCOUNT_STARTUP_SYNC') || 'off';
       const isProduction = process.env.NODE_ENV === 'production';
-      const allowRepair = this.configService.get<string>('ALLOW_STARTUP_DB_REPAIR') === 'true';
+      const allowRepair =
+        this.configService.get<string>('ALLOW_STARTUP_DB_REPAIR') === 'true';
 
       const studentsCount = await this.studentModel.countDocuments();
       const usersCount = await this.userModel.countDocuments();
@@ -110,7 +122,9 @@ export class StudentsService implements OnModuleInit {
 
       if (syncConfig === 'apply') {
         if (isProduction && !allowRepair) {
-          this.logger.warn('STUDENT_ACCOUNT_STARTUP_SYNC is "apply" but ALLOW_STARTUP_DB_REPAIR is not "true" in production. Skipping sync.');
+          this.logger.warn(
+            'STUDENT_ACCOUNT_STARTUP_SYNC is "apply" but ALLOW_STARTUP_DB_REPAIR is not "true" in production. Skipping sync.',
+          );
         } else {
           await this.syncLegacyStudentsAccounts('apply');
         }
@@ -133,7 +147,10 @@ export class StudentsService implements OnModuleInit {
     try {
       await this.remediateStalePasswords();
     } catch (remediateErr) {
-      this.logger.error('Failed to remediate stale student passwords:', remediateErr);
+      this.logger.error(
+        'Failed to remediate stale student passwords:',
+        remediateErr,
+      );
     }
   }
 
@@ -164,7 +181,9 @@ export class StudentsService implements OnModuleInit {
     email?: string;
     student_code: string;
   }): string {
-    return (student.email || `${student.student_code}@school.edu.vn`).toLowerCase();
+    return (
+      student.email || `${student.student_code}@school.edu.vn`
+    ).toLowerCase();
   }
 
   private getLinkedUserId(student: any): string {
@@ -181,7 +200,8 @@ export class StudentsService implements OnModuleInit {
 
   private async ensureStudentUserLink(student: any, fallbackUser?: any) {
     const normalizedDtoUserId = this.normalizeStudentUserId(student?.user_id);
-    const linkedUserId = normalizedDtoUserId || fallbackUser?._id || fallbackUser;
+    const linkedUserId =
+      normalizedDtoUserId || fallbackUser?._id || fallbackUser;
     if (!linkedUserId) return;
 
     if (this.getLinkedUserId(student) === linkedUserId.toString()) {
@@ -233,11 +253,12 @@ export class StudentsService implements OnModuleInit {
   private async attachAccountStatus(student: any, accountStatusMap?: any) {
     const statusMap =
       accountStatusMap || (await this.getAccountStatusMap([student]));
-    const studentObj = typeof student.toObject === 'function' ? student.toObject() : student;
+    const studentObj =
+      typeof student.toObject === 'function' ? student.toObject() : student;
     const linkedUserId = this.getLinkedUserId(studentObj);
     const emailKey = this.getStudentEmail(studentObj);
 
-    (studentObj as any).account_status =
+    studentObj.account_status =
       statusMap.byId.get(linkedUserId) ||
       statusMap.byEmail.get(emailKey) ||
       'inactive';
@@ -254,7 +275,9 @@ export class StudentsService implements OnModuleInit {
       .exec();
     if (students.length === 0) return;
 
-    const studentEmails = students.map((student) => this.getStudentEmail(student));
+    const studentEmails = students.map((student) =>
+      this.getStudentEmail(student),
+    );
     const users = await this.userModel
       .find({ email: { $in: studentEmails } })
       .select('_id email')
@@ -295,27 +318,36 @@ export class StudentsService implements OnModuleInit {
 
   async syncLegacyStudentsAccounts(mode: 'preview' | 'apply' = 'preview') {
     const students = await this.studentModel.find().exec();
-    if (students.length === 0) return { scanned: 0, created: 0, linked: 0, orphaned: 0, skipped: 0 };
+    if (students.length === 0)
+      return { scanned: 0, created: 0, linked: 0, orphaned: 0, skipped: 0 };
 
     let created = 0;
     let linked = 0;
     let orphaned = 0;
     let skipped = 0;
 
-    const studentEmails = students.map((student) => this.getStudentEmail(student));
+    const studentEmails = students.map((student) =>
+      this.getStudentEmail(student),
+    );
     const existingUsers = await this.userModel
       .find({ email: { $in: studentEmails } })
       .exec();
     const existingEmails = new Set(existingUsers.map((user) => user.email));
-    
-    // To check orphan link, we should find all users by student user_id, but to avoid many queries, 
-    // we can gather all user_ids from students
-    const studentUserIds = students.map(s => s.user_id).filter(id => !!id) as Types.ObjectId[];
-    const existingUsersById = await this.userModel.find({ _id: { $in: studentUserIds } }).exec();
-    const existingUserIds = new Set(existingUsersById.map(u => u._id.toString()));
 
-    const legacyNameUsers = existingUsers.filter((user) =>
-      !/^\d+$/.test(user.user_name),
+    // To check orphan link, we should find all users by student user_id, but to avoid many queries,
+    // we can gather all user_ids from students
+    const studentUserIds = students
+      .map((s) => s.user_id)
+      .filter((id) => !!id) as Types.ObjectId[];
+    const existingUsersById = await this.userModel
+      .find({ _id: { $in: studentUserIds } })
+      .exec();
+    const existingUserIds = new Set(
+      existingUsersById.map((u) => u._id.toString()),
+    );
+
+    const legacyNameUsers = existingUsers.filter(
+      (user) => !/^\d+$/.test(user.user_name),
     );
     if (legacyNameUsers.length > 0 && mode === 'apply') {
       this.logger.log(
@@ -337,54 +369,67 @@ export class StudentsService implements OnModuleInit {
     for (const student of students) {
       const email = this.getStudentEmail(student);
       const hasEmailLink = existingEmails.has(email);
-      const hasOrphanLink = student.user_id && !existingUserIds.has(student.user_id.toString());
+      const hasOrphanLink =
+        student.user_id && !existingUserIds.has(student.user_id.toString());
 
       if (hasEmailLink) {
         linked++;
       } else if (hasOrphanLink) {
         orphaned++;
         if (mode === 'apply') {
-           try {
-             const plainPassword = this.getDefaultPasswordFromDob(student.date_bir);
-             const linkedUser = await this.generateStudentUser(student, plainPassword, false);
-             await this.ensureStudentUserLink(student, linkedUser);
-             created++;
-           } catch (error) {
-             skipped++;
-           }
+          try {
+            const plainPassword = this.getDefaultPasswordFromDob(
+              student.date_bir,
+            );
+            const linkedUser = await this.generateStudentUser(
+              student,
+              plainPassword,
+              false,
+            );
+            await this.ensureStudentUserLink(student, linkedUser);
+            created++;
+          } catch (error) {
+            skipped++;
+          }
         } else {
-           if (previewSamples.length < 5) {
-             previewSamples.push({
-               student_code: student.student_code,
-               email: email.replace(/(.{2})(.*)(?=@)/, (gp1, gp2, gp3) => {
-                 return gp1 + '*'.repeat(gp2.length);
-               }),
-               reason: 'orphan_user_link'
-             });
-           }
+          if (previewSamples.length < 5) {
+            previewSamples.push({
+              student_code: student.student_code,
+              email: email.replace(/(.{2})(.*)(?=@)/, (gp1, gp2, gp3) => {
+                return gp1 + '*'.repeat(gp2.length);
+              }),
+              reason: 'orphan_user_link',
+            });
+          }
         }
       } else {
         // Missing user completely
         if (mode === 'apply') {
-           try {
-             const plainPassword = this.getDefaultPasswordFromDob(student.date_bir);
-             const linkedUser = await this.generateStudentUser(student, plainPassword, false);
-             await this.ensureStudentUserLink(student, linkedUser);
-             created++;
-           } catch (error) {
-             skipped++;
-           }
+          try {
+            const plainPassword = this.getDefaultPasswordFromDob(
+              student.date_bir,
+            );
+            const linkedUser = await this.generateStudentUser(
+              student,
+              plainPassword,
+              false,
+            );
+            await this.ensureStudentUserLink(student, linkedUser);
+            created++;
+          } catch (error) {
+            skipped++;
+          }
         } else {
-           created++; // Will be created
-           if (previewSamples.length < 5) {
-             previewSamples.push({
-               student_code: student.student_code,
-               email: email.replace(/(.{2})(.*)(?=@)/, (gp1, gp2, gp3) => {
-                 return gp1 + '*'.repeat(gp2.length);
-               }),
-               reason: 'missing_user'
-             });
-           }
+          created++; // Will be created
+          if (previewSamples.length < 5) {
+            previewSamples.push({
+              student_code: student.student_code,
+              email: email.replace(/(.{2})(.*)(?=@)/, (gp1, gp2, gp3) => {
+                return gp1 + '*'.repeat(gp2.length);
+              }),
+              reason: 'missing_user',
+            });
+          }
         }
       }
     }
@@ -395,7 +440,7 @@ export class StudentsService implements OnModuleInit {
       linked,
       orphaned,
       skipped,
-      samples: mode === 'preview' ? previewSamples : undefined
+      samples: mode === 'preview' ? previewSamples : undefined,
     };
 
     if (mode === 'apply') {
@@ -407,7 +452,11 @@ export class StudentsService implements OnModuleInit {
     return summary;
   }
 
-  private async generateStudentUser(student: any, plainPasswordDob: string, logCreation: boolean = true) {
+  private async generateStudentUser(
+    student: any,
+    plainPasswordDob: string,
+    logCreation: boolean = true,
+  ) {
     const defaultRole = await this.roleModel.findOne({ name: 'Student' });
     const pw_hash = await bcrypt.hash(plainPasswordDob, 12);
     const studentEmail = this.getStudentEmail(student);
@@ -427,7 +476,7 @@ export class StudentsService implements OnModuleInit {
       role: defaultRole?._id,
       date_birth: student.date_bir,
     });
-    
+
     if (logCreation) {
       this.logger.log(
         `Auto-created login account for student ${student.full_name} (${student.student_code}).`,
@@ -437,7 +486,10 @@ export class StudentsService implements OnModuleInit {
     return createdUser;
   }
 
-  async create(createStudentDto: CreateStudentDto, requester?: any): Promise<Student> {
+  async create(
+    createStudentDto: CreateStudentDto,
+    requester?: any,
+  ): Promise<Student> {
     if (requester && isStudent(requester)) {
       throw new ForbiddenException('Bạn không có quyền tạo hồ sơ sinh viên.');
     }
@@ -451,7 +503,9 @@ export class StudentsService implements OnModuleInit {
       const createdStudent = await new this.studentModel(payload).save();
 
       try {
-        const plainPassword = this.getDefaultPasswordFromDob(createdStudent.date_bir);
+        const plainPassword = this.getDefaultPasswordFromDob(
+          createdStudent.date_bir,
+        );
 
         const linkedUser = await this.generateStudentUser(
           createdStudent,
@@ -503,7 +557,10 @@ export class StudentsService implements OnModuleInit {
             );
           }
         } catch (sumErr: any) {
-          const isDupKey = sumErr.code === 11000 || (sumErr.writeErrors && sumErr.writeErrors.some((e: any) => e.code === 11000));
+          const isDupKey =
+            sumErr.code === 11000 ||
+            (sumErr.writeErrors &&
+              sumErr.writeErrors.some((e: any) => e.code === 11000));
           if (isDupKey) {
             this.logger.warn(
               `Summary points already existed for student ${createStudentDto.full_name} (${createdStudent.student_code}).`,
@@ -517,7 +574,7 @@ export class StudentsService implements OnModuleInit {
         }
       }
 
-      return (await this.findOne((createdStudent as any)._id.toString())) as any;
+      return await this.findOne((createdStudent as any)._id.toString());
     } catch (error: any) {
       if (error.code === 11000) {
         const duplicateField = Object.keys(error.keyPattern || {})[0];
@@ -539,7 +596,9 @@ export class StudentsService implements OnModuleInit {
 
   async createBulk(createStudentDtos: CreateStudentDto[], requester?: any) {
     if (requester && isStudent(requester)) {
-      throw new ForbiddenException('Bạn không có quyền import hồ sơ sinh viên.');
+      throw new ForbiddenException(
+        'Bạn không có quyền import hồ sơ sinh viên.',
+      );
     }
     try {
       const payloads = createStudentDtos.map((dto) => ({
@@ -552,9 +611,14 @@ export class StudentsService implements OnModuleInit {
 
       try {
         for (const student of createdStudents) {
-          const plainPassword = this.getDefaultPasswordFromDob(student.date_bir);
+          const plainPassword = this.getDefaultPasswordFromDob(
+            student.date_bir,
+          );
 
-          const linkedUser = await this.generateStudentUser(student, plainPassword);
+          const linkedUser = await this.generateStudentUser(
+            student,
+            plainPassword,
+          );
           await this.ensureStudentUserLink(student, linkedUser);
         }
       } catch (userErr) {
@@ -608,7 +672,10 @@ export class StudentsService implements OnModuleInit {
           );
         }
       } catch (sumErr: any) {
-        const isDupKey = sumErr.code === 11000 || (sumErr.writeErrors && sumErr.writeErrors.some((e: any) => e.code === 11000));
+        const isDupKey =
+          sumErr.code === 11000 ||
+          (sumErr.writeErrors &&
+            sumErr.writeErrors.some((e: any) => e.code === 11000));
         if (isDupKey) {
           this.logger.warn(
             `Summary points already existed for some of the bulk imported students.`,
@@ -634,8 +701,9 @@ export class StudentsService implements OnModuleInit {
     } catch (error: any) {
       if (error.code === 11000) {
         const writeError = error.writeErrors?.[0]?.err;
-        const duplicateField =
-          Object.keys(writeError?.keyPattern || error.keyPattern || {})[0];
+        const duplicateField = Object.keys(
+          writeError?.keyPattern || error.keyPattern || {},
+        )[0];
         if (duplicateField === 'user_id') {
           throw new ConflictException(
             'Có tài khoản đã được liên kết với sinh viên khác trong danh sách import.',
@@ -658,7 +726,9 @@ export class StudentsService implements OnModuleInit {
     requester?: any,
   ): Promise<{ student_code: string; full_name: string }[]> {
     if (requester && isStudent(requester)) {
-      throw new ForbiddenException('Bạn không có quyền kiểm tra trùng lặp sinh viên.');
+      throw new ForbiddenException(
+        'Bạn không có quyền kiểm tra trùng lặp sinh viên.',
+      );
     }
     const existing = await this.studentModel
       .find({ student_code: { $in: studentCodes } })
@@ -691,7 +761,13 @@ export class StudentsService implements OnModuleInit {
     let fields: string | undefined;
     let actualRequester = requester;
 
-    if (query && ('roleName' in query || 'userId' in query || 'role' in query || 'username' in query)) {
+    if (
+      query &&
+      ('roleName' in query ||
+        'userId' in query ||
+        'role' in query ||
+        'username' in query)
+    ) {
       actualRequester = query;
       classId = undefined;
     } else if (query) {
@@ -708,9 +784,20 @@ export class StudentsService implements OnModuleInit {
     const isRequesterStudent = isStudent(actualRequester);
 
     if (isRequesterStudent) {
-      if (!actualRequester?.userId || !Types.ObjectId.isValid(actualRequester.userId)) {
+      if (
+        !actualRequester?.userId ||
+        !Types.ObjectId.isValid(actualRequester.userId)
+      ) {
         return isPaginationRequested
-          ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+          ? {
+              data: [],
+              meta: {
+                total: 0,
+                page: page || 1,
+                limit: limit || 10,
+                totalPages: 0,
+              },
+            }
           : [];
       }
       const student = await this.studentModel
@@ -724,7 +811,15 @@ export class StudentsService implements OnModuleInit {
         .exec();
       if (!student) {
         return isPaginationRequested
-          ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+          ? {
+              data: [],
+              meta: {
+                total: 0,
+                page: page || 1,
+                limit: limit || 10,
+                totalPages: 0,
+              },
+            }
           : [];
       }
       const attached = await this.attachAccountStatus(student);
@@ -732,21 +827,46 @@ export class StudentsService implements OnModuleInit {
       if (classId) {
         if (!Types.ObjectId.isValid(classId)) {
           return isPaginationRequested
-            ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+            ? {
+                data: [],
+                meta: {
+                  total: 0,
+                  page: page || 1,
+                  limit: limit || 10,
+                  totalPages: 0,
+                },
+              }
             : [];
         }
-        const studentClassId = typeof student.class_id === 'object'
-          ? (student.class_id as any)?._id?.toString()
-          : (student.class_id as any)?.toString();
+        const studentClassId =
+          typeof student.class_id === 'object'
+            ? (student.class_id as any)?._id?.toString()
+            : (student.class_id as any)?.toString();
         if (studentClassId !== classId) {
           return isPaginationRequested
-            ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+            ? {
+                data: [],
+                meta: {
+                  total: 0,
+                  page: page || 1,
+                  limit: limit || 10,
+                  totalPages: 0,
+                },
+              }
             : [];
         }
       }
 
       return isPaginationRequested
-        ? { data: [attached], meta: { total: 1, page: page || 1, limit: limit || 10, totalPages: 1 } }
+        ? {
+            data: [attached],
+            meta: {
+              total: 1,
+              page: page || 1,
+              limit: limit || 10,
+              totalPages: 1,
+            },
+          }
         : [attached];
     }
 
@@ -756,15 +876,33 @@ export class StudentsService implements OnModuleInit {
     if (classId) {
       if (!Types.ObjectId.isValid(classId)) {
         return isPaginationRequested
-          ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+          ? {
+              data: [],
+              meta: {
+                total: 0,
+                page: page || 1,
+                limit: limit || 10,
+                totalPages: 0,
+              },
+            }
           : [];
       }
 
       if (teacherClassIds) {
-        const isAssigned = teacherClassIds.some((id) => id.toString() === classId);
+        const isAssigned = teacherClassIds.some(
+          (id) => id.toString() === classId,
+        );
         if (!isAssigned) {
           return isPaginationRequested
-            ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+            ? {
+                data: [],
+                meta: {
+                  total: 0,
+                  page: page || 1,
+                  limit: limit || 10,
+                  totalPages: 0,
+                },
+              }
             : [];
         }
       }
@@ -772,10 +910,22 @@ export class StudentsService implements OnModuleInit {
     } else if (departmentId) {
       if (!Types.ObjectId.isValid(departmentId)) {
         return isPaginationRequested
-          ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } }
+          ? {
+              data: [],
+              meta: {
+                total: 0,
+                page: page || 1,
+                limit: limit || 10,
+                totalPages: 0,
+              },
+            }
           : [];
       }
-      const deptClasses = await this.classModel.find({ dept_id: new Types.ObjectId(departmentId) } as any).select('_id').lean().exec();
+      const deptClasses = await this.classModel
+        .find({ dept_id: new Types.ObjectId(departmentId) } as any)
+        .select('_id')
+        .lean()
+        .exec();
       const deptClassIds = deptClasses.map((c) => c._id);
       if (teacherClassIds) {
         const allowedClassIds = teacherClassIds.filter((id) =>
@@ -814,7 +964,9 @@ export class StudentsService implements OnModuleInit {
         const [students, total] = await Promise.all([
           this.studentModel
             .find(filter)
-            .select('_id student_code full_name status class_id user_id date_bir sex email')
+            .select(
+              '_id student_code full_name status class_id user_id date_bir sex email',
+            )
             .populate({
               path: 'class_id',
               select: 'class_name _id',
@@ -870,7 +1022,9 @@ export class StudentsService implements OnModuleInit {
       if (isSliderMode) {
         return this.studentModel
           .find(filter)
-          .select('_id student_code full_name status class_id user_id date_bir sex email')
+          .select(
+            '_id student_code full_name status class_id user_id date_bir sex email',
+          )
           .populate({
             path: 'class_id',
             select: 'class_name _id',
@@ -911,7 +1065,9 @@ export class StudentsService implements OnModuleInit {
       .exec();
 
     if (!student) {
-      throw new NotFoundException('Tài khoản chưa liên kết với hồ sơ sinh viên');
+      throw new NotFoundException(
+        'Tài khoản chưa liên kết với hồ sơ sinh viên',
+      );
     }
 
     return this.attachAccountStatus(student);
@@ -941,7 +1097,9 @@ export class StudentsService implements OnModuleInit {
 
       const linkedUserId = this.getLinkedUserId(student);
       if (linkedUserId !== requester?.userId) {
-        throw new ForbiddenException('Bạn không có quyền truy cập hồ sơ sinh viên này.');
+        throw new ForbiddenException(
+          'Bạn không có quyền truy cập hồ sơ sinh viên này.',
+        );
       }
 
       return this.attachAccountStatus(student);
@@ -988,12 +1146,16 @@ export class StudentsService implements OnModuleInit {
         .exec();
 
       if (!student) {
-        throw new NotFoundException(`Student with identifier ${identifier} not found`);
+        throw new NotFoundException(
+          `Student with identifier ${identifier} not found`,
+        );
       }
 
       const linkedUserId = this.getLinkedUserId(student);
       if (linkedUserId !== requester?.userId) {
-        throw new ForbiddenException('Bạn không có quyền truy cập hồ sơ sinh viên này.');
+        throw new ForbiddenException(
+          'Bạn không có quyền truy cập hồ sơ sinh viên này.',
+        );
       }
 
       return this.attachAccountStatus(student);
@@ -1019,7 +1181,9 @@ export class StudentsService implements OnModuleInit {
       .exec();
 
     if (!student) {
-      throw new NotFoundException(`Student with identifier ${identifier} not found`);
+      throw new NotFoundException(
+        `Student with identifier ${identifier} not found`,
+      );
     }
 
     return this.attachAccountStatus(student);
@@ -1053,19 +1217,28 @@ export class StudentsService implements OnModuleInit {
       throw new NotFoundException(`Student with ID ${id} not found`);
     }
     if (requester && isStudent(requester)) {
-      throw new ForbiddenException('Bạn không có quyền chỉnh sửa hồ sơ sinh viên.');
+      throw new ForbiddenException(
+        'Bạn không có quyền chỉnh sửa hồ sơ sinh viên.',
+      );
     }
     const oldStudent = await this.studentModel.findById(id).exec();
     if (!oldStudent) {
       throw new NotFoundException(`Student with ID ${id} not found`);
     }
 
-    const isTransitionFromStudying = oldStudent.status === 'Studying' && updateStudentDto.status !== 'Studying' && updateStudentDto.status !== undefined;
+    const isTransitionFromStudying =
+      oldStudent.status === 'Studying' &&
+      updateStudentDto.status !== 'Studying' &&
+      updateStudentDto.status !== undefined;
     if (isTransitionFromStudying) {
       if (!updateStudentDto.deleteTrainingScoresConfirmed) {
-        throw new BadRequestException('Chuyển đổi trạng thái yêu cầu xác nhận xóa bảng điểm rèn luyện.');
+        throw new BadRequestException(
+          'Chuyển đổi trạng thái yêu cầu xác nhận xóa bảng điểm rèn luyện.',
+        );
       }
-      await this.summaryPointModel.deleteMany({ student_id: new Types.ObjectId(id) }).exec();
+      await this.summaryPointModel
+        .deleteMany({ student_id: new Types.ObjectId(id) })
+        .exec();
     }
 
     try {
@@ -1084,7 +1257,7 @@ export class StudentsService implements OnModuleInit {
       if (!updatedStudent) {
         throw new NotFoundException(`Student with ID ${id} not found`);
       }
-      return (await this.findOne(id, requester)) as any;
+      return await this.findOne(id, requester);
     } catch (error: any) {
       if (error.code === 11000) {
         const duplicateField = Object.keys(error.keyPattern || {})[0];
@@ -1108,7 +1281,9 @@ export class StudentsService implements OnModuleInit {
 
   async activateStudentAccount(id: string, requester?: any) {
     if (requester && isStudent(requester)) {
-      throw new ForbiddenException('Bạn không có quyền kích hoạt tài khoản sinh viên.');
+      throw new ForbiddenException(
+        'Bạn không có quyền kích hoạt tài khoản sinh viên.',
+      );
     }
 
     const student = await this.studentModel.findById(id);
@@ -1132,7 +1307,9 @@ export class StudentsService implements OnModuleInit {
       user = await this.userModel.findOne({ email: studentEmail }).exec();
     }
 
-    const defaultRole = await this.roleModel.findOne({ name: 'Student' }).exec();
+    const defaultRole = await this.roleModel
+      .findOne({ name: 'Student' })
+      .exec();
 
     if (user) {
       // Nếu user đã tồn tại, cập nhật status sang active, gán role Student nếu chưa có
@@ -1143,7 +1320,7 @@ export class StudentsService implements OnModuleInit {
         user.role = defaultRole._id;
       }
       await user.save();
-      
+
       // Đảm bảo student.user_id trỏ tới user này
       await this.ensureStudentUserLink(student, user);
     } else {
@@ -1167,7 +1344,9 @@ export class StudentsService implements OnModuleInit {
 
   async bulkActivateStudentAccounts(ids: string[], requester?: any) {
     if (requester && isStudent(requester)) {
-      throw new ForbiddenException('Bạn không có quyền kích hoạt tài khoản sinh viên.');
+      throw new ForbiddenException(
+        'Bạn không có quyền kích hoạt tài khoản sinh viên.',
+      );
     }
 
     let successCount = 0;
@@ -1193,7 +1372,9 @@ export class StudentsService implements OnModuleInit {
 
   async resetStudentAccountPassword(id: string, requester?: any) {
     if (requester && isStudent(requester)) {
-      throw new ForbiddenException('Bạn không có quyền reset mật khẩu sinh viên.');
+      throw new ForbiddenException(
+        'Bạn không có quyền reset mật khẩu sinh viên.',
+      );
     }
 
     const student = await this.studentModel.findById(id).exec();
@@ -1203,12 +1384,16 @@ export class StudentsService implements OnModuleInit {
 
     const linkedUserId = this.getLinkedUserId(student);
     if (!linkedUserId) {
-      throw new BadRequestException('Sinh viên chưa được liên kết tài khoản login.');
+      throw new BadRequestException(
+        'Sinh viên chưa được liên kết tài khoản login.',
+      );
     }
 
     const user = await this.userModel.findById(linkedUserId).exec();
     if (!user) {
-      throw new BadRequestException('Không tìm thấy tài khoản người dùng liên kết.');
+      throw new BadRequestException(
+        'Không tìm thấy tài khoản người dùng liên kết.',
+      );
     }
 
     // Reset password sang DOB mặc định ddmmyyyy
@@ -1234,7 +1419,9 @@ export class StudentsService implements OnModuleInit {
 
   async lockStudentAccount(id: string, requester?: any) {
     if (requester && isStudent(requester)) {
-      throw new ForbiddenException('Bạn không có quyền khóa tài khoản sinh viên.');
+      throw new ForbiddenException(
+        'Bạn không có quyền khóa tài khoản sinh viên.',
+      );
     }
 
     const student = await this.studentModel.findById(id).exec();
@@ -1244,12 +1431,16 @@ export class StudentsService implements OnModuleInit {
 
     const linkedUserId = this.getLinkedUserId(student);
     if (!linkedUserId) {
-      throw new BadRequestException('Sinh viên chưa được liên kết tài khoản login.');
+      throw new BadRequestException(
+        'Sinh viên chưa được liên kết tài khoản login.',
+      );
     }
 
     const user = await this.userModel.findById(linkedUserId).exec();
     if (!user) {
-      throw new BadRequestException('Không tìm thấy tài khoản người dùng liên kết.');
+      throw new BadRequestException(
+        'Không tìm thấy tài khoản người dùng liên kết.',
+      );
     }
 
     user.status = UserStatus.LOCKED;
@@ -1267,7 +1458,9 @@ export class StudentsService implements OnModuleInit {
 
   async unlockStudentAccount(id: string, requester?: any) {
     if (requester && isStudent(requester)) {
-      throw new ForbiddenException('Bạn không có quyền mở khóa tài khoản sinh viên.');
+      throw new ForbiddenException(
+        'Bạn không có quyền mở khóa tài khoản sinh viên.',
+      );
     }
 
     const student = await this.studentModel.findById(id).exec();
@@ -1277,12 +1470,16 @@ export class StudentsService implements OnModuleInit {
 
     const linkedUserId = this.getLinkedUserId(student);
     if (!linkedUserId) {
-      throw new BadRequestException('Sinh viên chưa được liên kết tài khoản login.');
+      throw new BadRequestException(
+        'Sinh viên chưa được liên kết tài khoản login.',
+      );
     }
 
     const user = await this.userModel.findById(linkedUserId).exec();
     if (!user) {
-      throw new BadRequestException('Không tìm thấy tài khoản người dùng liên kết.');
+      throw new BadRequestException(
+        'Không tìm thấy tài khoản người dùng liên kết.',
+      );
     }
 
     user.status = UserStatus.ACTIVE;
@@ -1334,7 +1531,7 @@ export class StudentsService implements OnModuleInit {
     if (!dateBir) return '';
     const dob = new Date(dateBir);
     if (isNaN(dob.getTime())) return '';
-    
+
     // Convert to GMT+7 timezone (Vietnam) before extracting components
     const dobGmt7 = new Date(dob.getTime() + 7 * 60 * 60 * 1000);
     const day = String(dobGmt7.getUTCDate()).padStart(2, '0');
@@ -1346,49 +1543,66 @@ export class StudentsService implements OnModuleInit {
   private async remediateStalePasswords() {
     const mode = process.env.PASSWORD_REMEDIATION_MODE || 'off';
     if (mode === 'off') {
-      this.logger.log('Student password remediation is disabled (PASSWORD_REMEDIATION_MODE is "off").');
+      this.logger.log(
+        'Student password remediation is disabled (PASSWORD_REMEDIATION_MODE is "off").',
+      );
       return;
     }
 
     const isDryRun = mode !== 'apply';
-    this.logger.log(`Starting student password remediation in ${isDryRun ? 'DRY-RUN' : 'APPLY'} mode...`);
+    this.logger.log(
+      `Starting student password remediation in ${isDryRun ? 'DRY-RUN' : 'APPLY'} mode...`,
+    );
 
     const students = await this.studentModel.find().exec();
-    const studentEmails = students.map((student) => this.getStudentEmail(student));
-    const studentCodes = students.map((student) => student.student_code).filter(Boolean);
-    
-    const users = await this.userModel.find({
-      $or: [
-        { email: { $in: studentEmails } },
-        { user_name: { $in: studentCodes } }
-      ]
-    }).exec();
+    const studentEmails = students.map((student) =>
+      this.getStudentEmail(student),
+    );
+    const studentCodes = students
+      .map((student) => student.student_code)
+      .filter(Boolean);
+
+    const users = await this.userModel
+      .find({
+        $or: [
+          { email: { $in: studentEmails } },
+          { user_name: { $in: studentCodes } },
+        ],
+      })
+      .exec();
     let affectedCount = 0;
     let remediatedCount = 0;
     const affectedCodes: string[] = [];
-    
+
     for (const user of users) {
       const student = students.find(
-        (s) => this.getStudentEmail(s) === user.email || s.student_code === user.user_name
+        (s) =>
+          this.getStudentEmail(s) === user.email ||
+          s.student_code === user.user_name,
       );
       if (!student || !student.date_bir) continue;
-      
+
       const dob = new Date(student.date_bir);
       const wrongDay = String(dob.getUTCDate()).padStart(2, '0');
       const wrongMonth = String(dob.getUTCMonth() + 1).padStart(2, '0');
       const wrongYear = dob.getUTCFullYear();
       const wrongPassword = `${wrongDay}${wrongMonth}${wrongYear}`;
-      
+
       const correctPassword = this.getDefaultPasswordFromDob(student.date_bir);
-      
+
       if (wrongPassword === correctPassword) continue;
-      
+
       const passwordHash = user.pw_hash || (user as any).password_hash;
       if (passwordHash) {
-        const isWrongPassword = await bcrypt.compare(wrongPassword, passwordHash);
+        const isWrongPassword = await bcrypt.compare(
+          wrongPassword,
+          passwordHash,
+        );
         if (isWrongPassword) {
           affectedCount++;
-          const maskedCode = student.student_code ? `${student.student_code.slice(0, 3)}***${student.student_code.slice(-2)}` : 'unknown';
+          const maskedCode = student.student_code
+            ? `${student.student_code.slice(0, 3)}***${student.student_code.slice(-2)}`
+            : 'unknown';
           affectedCodes.push(maskedCode);
 
           if (!isDryRun) {
@@ -1400,11 +1614,15 @@ export class StudentsService implements OnModuleInit {
         }
       }
     }
-    
+
     if (isDryRun) {
-      this.logger.log(`[DRY-RUN] Found ${affectedCount} student accounts with incorrect timezone DOB passwords. Affected: [${affectedCodes.join(', ')}]. No changes applied.`);
+      this.logger.log(
+        `[DRY-RUN] Found ${affectedCount} student accounts with incorrect timezone DOB passwords. Affected: [${affectedCodes.join(', ')}]. No changes applied.`,
+      );
     } else {
-      this.logger.log(`[APPLY] Successfully remediated ${remediatedCount}/${affectedCount} student accounts. Remediated: [${affectedCodes.join(', ')}].`);
+      this.logger.log(
+        `[APPLY] Successfully remediated ${remediatedCount}/${affectedCount} student accounts. Remediated: [${affectedCodes.join(', ')}].`,
+      );
     }
   }
 
@@ -1427,7 +1645,7 @@ export class StudentsService implements OnModuleInit {
       normalizedRow[normKey] = row[key];
     }
 
-    const normalizedAliases = aliases.map(a => this.normalizeImportHeader(a));
+    const normalizedAliases = aliases.map((a) => this.normalizeImportHeader(a));
     for (const alias of normalizedAliases) {
       if (normalizedRow[alias] !== undefined && normalizedRow[alias] !== null) {
         return normalizedRow[alias];
@@ -1439,7 +1657,9 @@ export class StudentsService implements OnModuleInit {
       if (row[key] !== undefined && row[key] !== null) {
         return row[key];
       }
-      const foundKey = Object.keys(row).find(k => k.toLowerCase().trim() === key.toLowerCase());
+      const foundKey = Object.keys(row).find(
+        (k) => k.toLowerCase().trim() === key.toLowerCase(),
+      );
       if (foundKey) {
         return row[foundKey];
       }
@@ -1449,38 +1669,95 @@ export class StudentsService implements OnModuleInit {
   }
 
   private extractStudentFields(row: any) {
-    const student_code = this.findImportValue(row, ['student_code', 'studentCode', 'Mã sinh viên', 'Mã SV', 'Ma SV', 'Mã số sinh viên']);
-    
+    const student_code = this.findImportValue(row, [
+      'student_code',
+      'studentCode',
+      'Mã sinh viên',
+      'Mã SV',
+      'Ma SV',
+      'Mã số sinh viên',
+    ]);
+
     // Check combined name first
-    const combinedName = this.findImportValue(row, ['full_name', 'fullName', 'Họ và tên', 'Ho va ten', 'Họ tên', 'Ho ten']);
-    
+    const combinedName = this.findImportValue(row, [
+      'full_name',
+      'fullName',
+      'Họ và tên',
+      'Ho va ten',
+      'Họ tên',
+      'Ho ten',
+    ]);
+
     // Check split names
-    const familyName = this.findImportValue(row, ['Ho dem', 'Họ đệm', 'Ho', 'Họ', 'last_name', 'lastName']);
-    const givenName = this.findImportValue(row, ['Ten', 'Tên', 'first_name', 'firstName']);
+    const familyName = this.findImportValue(row, [
+      'Ho dem',
+      'Họ đệm',
+      'Ho',
+      'Họ',
+      'last_name',
+      'lastName',
+    ]);
+    const givenName = this.findImportValue(row, [
+      'Ten',
+      'Tên',
+      'first_name',
+      'firstName',
+    ]);
 
     let full_name: any = undefined;
-    const combinedVal = combinedName !== undefined && combinedName !== null ? String(combinedName).trim() : '';
+    const combinedVal =
+      combinedName !== undefined && combinedName !== null
+        ? String(combinedName).trim()
+        : '';
     if (combinedVal) {
       full_name = combinedVal;
     } else {
-      const familyVal = familyName !== undefined && familyName !== null ? String(familyName).trim() : '';
-      const givenVal = givenName !== undefined && givenName !== null ? String(givenName).trim() : '';
+      const familyVal =
+        familyName !== undefined && familyName !== null
+          ? String(familyName).trim()
+          : '';
+      const givenVal =
+        givenName !== undefined && givenName !== null
+          ? String(givenName).trim()
+          : '';
       if (familyVal && givenVal) {
         full_name = `${familyVal} ${givenVal}`;
       }
     }
 
-    const date_bir = this.findImportValue(row, ['date_bir', 'dateOfBirth', 'date_of_birth', 'Ngày sinh', 'Ngay sinh']);
-    const sex = this.findImportValue(row, ['sex', 'gender', 'Giới tính', 'Gioi tinh']);
+    const date_bir = this.findImportValue(row, [
+      'date_bir',
+      'dateOfBirth',
+      'date_of_birth',
+      'Ngày sinh',
+      'Ngay sinh',
+    ]);
+    const sex = this.findImportValue(row, [
+      'sex',
+      'gender',
+      'Giới tính',
+      'Gioi tinh',
+    ]);
     const email = this.findImportValue(row, ['email', 'Email']);
-    const user_id = this.findImportValue(row, ['user_id', 'userId', 'User ID', 'Tài khoản']);
+    const user_id = this.findImportValue(row, [
+      'user_id',
+      'userId',
+      'User ID',
+      'Tài khoản',
+    ]);
 
     return { student_code, full_name, date_bir, sex, email, user_id };
   }
 
-  async importPreview(classId: string, rows: any[], requester: any): Promise<any> {
+  async importPreview(
+    classId: string,
+    rows: any[],
+    requester: any,
+  ): Promise<any> {
     if (requester && isStudent(requester)) {
-      throw new ForbiddenException('Bạn không có quyền import hồ sơ sinh viên.');
+      throw new ForbiddenException(
+        'Bạn không có quyền import hồ sơ sinh viên.',
+      );
     }
 
     const targetClass = await this.classModel.findById(classId).exec();
@@ -1489,7 +1766,12 @@ export class StudentsService implements OnModuleInit {
     }
 
     const validItems: any[] = [];
-    const errors: Array<{ row: number; studentCode?: string; fullName?: string; reason: string }> = [];
+    const errors: Array<{
+      row: number;
+      studentCode?: string;
+      fullName?: string;
+      reason: string;
+    }> = [];
 
     const extractedRows = rows.map((row, index) => {
       const extracted = this.extractStudentFields(row);
@@ -1499,7 +1781,7 @@ export class StudentsService implements OnModuleInit {
       if (student_code !== undefined && student_code !== null) {
         student_code = String(student_code).trim();
       }
-      
+
       let user_id = extracted.user_id;
       if (user_id !== undefined && user_id !== null) {
         user_id = String(user_id).trim();
@@ -1512,36 +1794,52 @@ export class StudentsService implements OnModuleInit {
           ...extracted,
           student_code,
           user_id,
-        }
+        },
       };
     });
 
     const allStudentCodes = extractedRows
-      .map(r => r.extracted.student_code)
+      .map((r) => r.extracted.student_code)
       .filter(Boolean) as string[];
 
     const allUserIds = extractedRows
-      .map(r => r.extracted.user_id)
+      .map((r) => r.extracted.user_id)
       .filter(Boolean) as string[];
 
-    const existingStudentsInDb = await this.studentModel.find({
-      student_code: { $in: allStudentCodes }
-    }).select('student_code').lean().exec();
-    const existingDbCodes = new Set(existingStudentsInDb.map(s => s.student_code));
-
-    const validMongoUserIds = allUserIds.filter(id => Types.ObjectId.isValid(id));
-    const studentsWithUsersInDb = await this.studentModel.find({
-      user_id: { $in: validMongoUserIds.map(id => new Types.ObjectId(id)) }
-    }).select('user_id student_code').lean().exec();
-    
-    const dbLinkedUserIds = new Set(
-      studentsWithUsersInDb.map(s => s.user_id ? s.user_id.toString() : '')
+    const existingStudentsInDb = await this.studentModel
+      .find({
+        student_code: { $in: allStudentCodes },
+      })
+      .select('student_code')
+      .lean()
+      .exec();
+    const existingDbCodes = new Set(
+      existingStudentsInDb.map((s) => s.student_code),
     );
 
-    const usersInDb = await this.userModel.find({
-      _id: { $in: validMongoUserIds.map(id => new Types.ObjectId(id)) }
-    }).select('_id').lean().exec();
-    const dbUserIds = new Set(usersInDb.map(u => u._id.toString()));
+    const validMongoUserIds = allUserIds.filter((id) =>
+      Types.ObjectId.isValid(id),
+    );
+    const studentsWithUsersInDb = await this.studentModel
+      .find({
+        user_id: { $in: validMongoUserIds.map((id) => new Types.ObjectId(id)) },
+      })
+      .select('user_id student_code')
+      .lean()
+      .exec();
+
+    const dbLinkedUserIds = new Set(
+      studentsWithUsersInDb.map((s) => (s.user_id ? s.user_id.toString() : '')),
+    );
+
+    const usersInDb = await this.userModel
+      .find({
+        _id: { $in: validMongoUserIds.map((id) => new Types.ObjectId(id)) },
+      })
+      .select('_id')
+      .lean()
+      .exec();
+    const dbUserIds = new Set(usersInDb.map((u) => u._id.toString()));
 
     const seenStudentCodesInFile = new Set<string>();
 
@@ -1554,7 +1852,9 @@ export class StudentsService implements OnModuleInit {
       } else {
         const code = extracted.student_code;
         if (seenStudentCodesInFile.has(code.toLowerCase())) {
-          rowErrors.push(`Mã sinh viên "${code}" bị trùng lặp trong file Excel`);
+          rowErrors.push(
+            `Mã sinh viên "${code}" bị trùng lặp trong file Excel`,
+          );
         } else {
           seenStudentCodesInFile.add(code.toLowerCase());
         }
@@ -1593,7 +1893,9 @@ export class StudentsService implements OnModuleInit {
       }
 
       let mappedSex = 'Other';
-      const s = String(extracted.sex || '').trim().toLowerCase();
+      const s = String(extracted.sex || '')
+        .trim()
+        .toLowerCase();
       if (s === 'nam' || s === 'male' || s === 'm') {
         mappedSex = 'Male';
       } else if (s === 'nữ' || s === 'nu' || s === 'female' || s === 'f') {
@@ -1604,7 +1906,9 @@ export class StudentsService implements OnModuleInit {
         mappedSex = 'Other';
       }
 
-      let emailVal = extracted.email ? String(extracted.email).trim() : undefined;
+      const emailVal = extracted.email
+        ? String(extracted.email).trim()
+        : undefined;
       if (emailVal) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(emailVal)) {
@@ -1648,7 +1952,8 @@ export class StudentsService implements OnModuleInit {
       }
     }
 
-    const sessionId = Date.now().toString() + Math.random().toString(36).substring(2, 7);
+    const sessionId =
+      Date.now().toString() + Math.random().toString(36).substring(2, 7);
     this.importSessions.set(sessionId, {
       id: sessionId,
       status: 'ready_to_commit',
@@ -1682,7 +1987,9 @@ export class StudentsService implements OnModuleInit {
 
   async importConfirm(sessionId: string, requester: any): Promise<any> {
     if (requester && isStudent(requester)) {
-      throw new ForbiddenException('Bạn không có quyền import hồ sơ sinh viên.');
+      throw new ForbiddenException(
+        'Bạn không có quyền import hồ sơ sinh viên.',
+      );
     }
 
     const session = this.importSessions.get(sessionId);
@@ -1690,13 +1997,18 @@ export class StudentsService implements OnModuleInit {
       throw new BadRequestException('Session không tồn tại hoặc đã hết hạn');
     }
     if (session.status !== 'ready_to_commit') {
-      throw new BadRequestException('Session đang ở trạng thái không hợp lệ: ' + session.status);
+      throw new BadRequestException(
+        'Session đang ở trạng thái không hợp lệ: ' + session.status,
+      );
     }
 
     session.status = 'committing';
 
-    this.processStudentImportBatch(sessionId, requester).catch(err => {
-      this.logger.error(`Import student batch error for session ${sessionId}:`, err);
+    this.processStudentImportBatch(sessionId, requester).catch((err) => {
+      this.logger.error(
+        `Import student batch error for session ${sessionId}:`,
+        err,
+      );
       session.status = 'failed';
       session.commitErrors.push({ reason: err.message });
     });
@@ -1712,7 +2024,9 @@ export class StudentsService implements OnModuleInit {
     const batchSize = 50;
 
     try {
-      let semesters = await this.semesterModel.find({ status: 'active' }).exec();
+      let semesters = await this.semesterModel
+        .find({ status: 'active' })
+        .exec();
       if (semesters.length === 0) {
         semesters = await this.semesterModel.find().exec();
       }
@@ -1726,14 +2040,24 @@ export class StudentsService implements OnModuleInit {
               ...item,
               class_id: new Types.ObjectId(classId),
             };
-            const studentDoc = await new this.studentModel(studentPayload).save();
+            const studentDoc = await new this.studentModel(
+              studentPayload,
+            ).save();
 
             try {
-              const plainPassword = this.getDefaultPasswordFromDob(studentDoc.date_bir);
-              const linkedUser = await this.generateStudentUser(studentDoc, plainPassword);
+              const plainPassword = this.getDefaultPasswordFromDob(
+                studentDoc.date_bir,
+              );
+              const linkedUser = await this.generateStudentUser(
+                studentDoc,
+                plainPassword,
+              );
               await this.ensureStudentUserLink(studentDoc, linkedUser);
             } catch (userErr: any) {
-              this.logger.error(`Failed to auto-create user for student ${studentDoc.student_code}:`, userErr);
+              this.logger.error(
+                `Failed to auto-create user for student ${studentDoc.student_code}:`,
+                userErr,
+              );
             }
 
             if (studentDoc.status === 'Studying') {
@@ -1760,10 +2084,15 @@ export class StudentsService implements OnModuleInit {
                   },
                 }));
                 if (bulkOps.length > 0) {
-                  await this.summaryPointModel.bulkWrite(bulkOps, { ordered: false });
+                  await this.summaryPointModel.bulkWrite(bulkOps, {
+                    ordered: false,
+                  });
                 }
               } catch (sumErr: any) {
-                this.logger.error(`Failed to auto-create summary points for student ${studentDoc.student_code}:`, sumErr);
+                this.logger.error(
+                  `Failed to auto-create summary points for student ${studentDoc.student_code}:`,
+                  sumErr,
+                );
               }
             }
 
@@ -1773,11 +2102,17 @@ export class StudentsService implements OnModuleInit {
             session.failedCount++;
             session.commitErrors.push({
               studentCode: item.student_code,
-              reason: err.code === 11000 ? 'Mã sinh viên đã tồn tại trong hệ thống' : err.message,
+              reason:
+                err.code === 11000
+                  ? 'Mã sinh viên đã tồn tại trong hệ thống'
+                  : err.message,
             });
           } finally {
             session.processedCount++;
-            session.progress = session.totalRows > 0 ? Math.floor((session.processedCount / session.totalRows) * 100) : 100;
+            session.progress =
+              session.totalRows > 0
+                ? Math.floor((session.processedCount / session.totalRows) * 100)
+                : 100;
           }
         });
 
@@ -1811,4 +2146,3 @@ export class StudentsService implements OnModuleInit {
     };
   }
 }
-

@@ -50,7 +50,11 @@ export class StudentTask {
   @Prop({ required: true, enum: StudentTaskPriority })
   priority: string;
 
-  @Prop({ required: true, enum: StudentTaskStatus, default: StudentTaskStatus.NOT_STARTED })
+  @Prop({
+    required: true,
+    enum: StudentTaskStatus,
+    default: StudentTaskStatus.NOT_STARTED,
+  })
   status: string;
 
   @Prop({ default: '' })
@@ -59,7 +63,11 @@ export class StudentTask {
   @Prop({ required: true, enum: StudentTaskTargetType })
   targetType: string;
 
-  @Prop({ required: true, enum: StudentTaskTargetScope, default: StudentTaskTargetScope.ALL })
+  @Prop({
+    required: true,
+    enum: StudentTaskTargetScope,
+    default: StudentTaskTargetScope.ALL,
+  })
   targetScope: string;
 
   @Prop()
@@ -91,5 +99,5 @@ StudentTaskSchema.index({ deletedAt: 1, createdAt: -1 });
 StudentTaskSchema.index({ targetType: 1, status: 1, deadline: 1 });
 StudentTaskSchema.index(
   { title: 'text', subject: 'text', targetDetail: 'text' },
-  { weights: { title: 10, subject: 5, targetDetail: 2 } }
+  { weights: { title: 10, subject: 5, targetDetail: 2 } },
 );

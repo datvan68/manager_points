@@ -89,7 +89,10 @@ export class AuthService implements OnModuleInit {
             updateData[path] = doc.get(path);
           }
           if (Object.keys(updateData).length > 0) {
-            await doc.constructor.updateOne({ _id: doc._id }, { $set: updateData });
+            await doc.constructor.updateOne(
+              { _id: doc._id },
+              { $set: updateData },
+            );
           }
         }
       } else {
@@ -112,7 +115,9 @@ export class AuthService implements OnModuleInit {
     if (existingEmail) throw new ConflictException('Email đã được sử dụng');
 
     const pw_hash = await this.passwordService.hashPassword(dto.password);
-    const defaultRole = await this.roleModel.findOne({ name: 'User' }) || await this.roleModel.findOne({ name: 'Student' });
+    const defaultRole =
+      (await this.roleModel.findOne({ name: 'User' })) ||
+      (await this.roleModel.findOne({ name: 'Student' }));
 
     await this.userModel.create({
       user_name: dto.user_name,
@@ -154,7 +159,9 @@ export class AuthService implements OnModuleInit {
         'login_failure',
         `Inactive user login attempt: ${maskLoginKey(dto.email)}`,
       );
-      throw new ForbiddenException('Tài khoản chưa được kích hoạt bởi quản trị viên.');
+      throw new ForbiddenException(
+        'Tài khoản chưa được kích hoạt bởi quản trị viên.',
+      );
     }
 
     // Check account lock
@@ -225,7 +232,9 @@ export class AuthService implements OnModuleInit {
       `Remember: ${!!dto.remember}`,
     );
 
-    const student = await this.studentModel.findOne({ user_id: user._id }).exec();
+    const student = await this.studentModel
+      .findOne({ user_id: user._id })
+      .exec();
     const displayName = student ? student.full_name : user.user_name;
 
     return {
@@ -298,7 +307,12 @@ export class AuthService implements OnModuleInit {
     if (ip) {
       const storedToken = await this.tokenService.findToken(token);
       if (storedToken) {
-        await this.logAction(storedToken.user_id, ip, 'logout', 'Logged out by user');
+        await this.logAction(
+          storedToken.user_id,
+          ip,
+          'logout',
+          'Logged out by user',
+        );
       }
     }
     return this.tokenService.revokeToken(token);
@@ -367,7 +381,7 @@ export class AuthService implements OnModuleInit {
           'DATABASE_BACKUP_CREATE',
           'DATABASE_BACKUP_DOWNLOAD',
           'DATABASE_BACKUP_DELETE',
-          'DATABASE_BACKUP_RESTORE'
+          'DATABASE_BACKUP_RESTORE',
         ],
         action_permissions: [
           'SYSTEM_PERFORMANCE_READ',
@@ -378,8 +392,8 @@ export class AuthService implements OnModuleInit {
           'DATABASE_BACKUP_CREATE',
           'DATABASE_BACKUP_DOWNLOAD',
           'DATABASE_BACKUP_DELETE',
-          'DATABASE_BACKUP_RESTORE'
-        ]
+          'DATABASE_BACKUP_RESTORE',
+        ],
       },
       {
         route_path: '/permissions',
@@ -402,9 +416,9 @@ export class AuthService implements OnModuleInit {
           'PERMISSION_GROUP_DELETE',
           'ROUTE_PERMISSION_CREATE',
           'ROUTE_PERMISSION_UPDATE',
-          'ROUTE_PERMISSION_DELETE'
+          'ROUTE_PERMISSION_DELETE',
         ],
-        notes: ['Chưa tách CRUD permission riêng']
+        notes: ['Chưa tách CRUD permission riêng'],
       },
       {
         route_path: '/students',
@@ -424,8 +438,8 @@ export class AuthService implements OnModuleInit {
           'DEPT_DELETE',
           'CLASS_CREATE',
           'CLASS_UPDATE',
-          'CLASS_DELETE'
-        ]
+          'CLASS_DELETE',
+        ],
       },
       {
         route_path: '/grading',
@@ -444,16 +458,14 @@ export class AuthService implements OnModuleInit {
           'READ_STUDENT_TASK',
           'CREATE_STUDENT_TASK',
           'UPDATE_STUDENT_TASK',
-          'DELETE_STUDENT_TASK'
-        ]
+          'DELETE_STUDENT_TASK',
+        ],
       },
       {
         route_path: '/reports',
         access_permissions: ['REPORTS_PAGE'],
-        action_permissions: [
-          'REPORTS_READ'
-        ]
-      }
+        action_permissions: ['REPORTS_READ'],
+      },
     ];
   }
   async createRoutePermission(dto: any) {
@@ -482,7 +494,9 @@ export class AuthService implements OnModuleInit {
     const role = user.role as any;
     const permissions = role?.permissions?.map((p: any) => p.code) || [];
 
-    const student = await this.studentModel.findOne({ user_id: user._id }).exec();
+    const student = await this.studentModel
+      .findOne({ user_id: user._id })
+      .exec();
     const displayName = student ? student.full_name : user.user_name;
 
     return {
@@ -496,17 +510,21 @@ export class AuthService implements OnModuleInit {
       status: user.status,
       roleName: role?.name || 'User',
       roleCode: role?.role_code || 'USER',
-      role: role ? {
-        _id: role._id.toString(),
-        name: role.name,
-        role_code: role.role_code,
-        permissions: role.permissions || [],
-      } : null,
+      role: role
+        ? {
+            _id: role._id.toString(),
+            name: role.name,
+            role_code: role.role_code,
+            permissions: role.permissions || [],
+          }
+        : null,
       permissions,
-      advisor_classes: (await this.classModel.find({ advisor_id: user._id }).exec()).map(c => ({
+      advisor_classes: (
+        await this.classModel.find({ advisor_id: user._id }).exec()
+      ).map((c) => ({
         _id: c._id,
         class_name: c.class_name,
-        class_year: c.class_year
+        class_year: c.class_year,
       })),
     };
   }
@@ -532,26 +550,33 @@ export class AuthService implements OnModuleInit {
 
     if (dto.phone_number !== undefined) user.phone_number = dto.phone_number;
     if (dto.department !== undefined) user.department = dto.department;
-    if (dto.date_birth !== undefined) user.date_birth = new Date(dto.date_birth);
+    if (dto.date_birth !== undefined)
+      user.date_birth = new Date(dto.date_birth);
 
     await user.save();
     return this.getMe(userId);
   }
 
   async getUsers() {
-    const users = await this.userModel.find().populate('role').select('-pw_hash').exec();
-    
-    const userIds = users.map(u => u._id);
-    const students = await this.studentModel.find({ user_id: { $in: userIds } }).exec();
-    
+    const users = await this.userModel
+      .find()
+      .populate('role')
+      .select('-pw_hash')
+      .exec();
+
+    const userIds = users.map((u) => u._id);
+    const students = await this.studentModel
+      .find({ user_id: { $in: userIds } })
+      .exec();
+
     const studentMap = new Map();
     for (const student of students) {
       if (student.user_id) {
         studentMap.set(student.user_id.toString(), student);
       }
     }
-    
-    return users.map(user => {
+
+    return users.map((user) => {
       const userObj = user.toObject() as any;
       const student = studentMap.get(user._id.toString());
       if (student) {
@@ -625,12 +650,18 @@ export class AuthService implements OnModuleInit {
       }
       if (user.status !== dto.status) {
         user.status = dto.status as UserStatus;
-        if (dto.status === UserStatus.LOCKED || dto.status === UserStatus.INACTIVE) {
+        if (
+          dto.status === UserStatus.LOCKED ||
+          dto.status === UserStatus.INACTIVE
+        ) {
           shouldRevokeTokens = true;
         }
       }
       // If status changes to Active or Inactive, clear locking properties
-      if (dto.status === UserStatus.ACTIVE || dto.status === UserStatus.INACTIVE) {
+      if (
+        dto.status === UserStatus.ACTIVE ||
+        dto.status === UserStatus.INACTIVE
+      ) {
         user.failed_login_attempts = 0;
         user.locked_until = null;
       }
@@ -638,7 +669,8 @@ export class AuthService implements OnModuleInit {
 
     if (dto.phone_number !== undefined) user.phone_number = dto.phone_number;
     if (dto.department !== undefined) user.department = dto.department;
-    if (dto.date_birth !== undefined) user.date_birth = new Date(dto.date_birth);
+    if (dto.date_birth !== undefined)
+      user.date_birth = new Date(dto.date_birth);
 
     if (dto.password) {
       user.pw_hash = await this.passwordService.hashPassword(dto.password);
@@ -657,28 +689,44 @@ export class AuthService implements OnModuleInit {
     await user.save();
 
     if (dto.advisor_class_ids !== undefined) {
-      const roleObj = user.role ? await this.roleModel.findById(user.role) : null;
-      const isTeacher = roleObj && (roleObj.role_code === 'TEACHER' || !!roleObj.name.match(/Teacher|Giảng viên|GVCN/i));
-      
+      const roleObj = user.role
+        ? await this.roleModel.findById(user.role)
+        : null;
+      const isTeacher =
+        roleObj &&
+        (roleObj.role_code === 'TEACHER' ||
+          !!roleObj.name.match(/Teacher|Giảng viên|GVCN/i));
+
       if (dto.advisor_class_ids.length > 0 && !isTeacher) {
-        throw new BadRequestException('Chỉ người dùng có vai trò Giảng viên/GVCN mới được gán làm GVCN');
+        throw new BadRequestException(
+          'Chỉ người dùng có vai trò Giảng viên/GVCN mới được gán làm GVCN',
+        );
       }
 
       if (isTeacher && dto.advisor_class_ids.length > 0) {
         for (const classId of dto.advisor_class_ids) {
           const classObj = await this.classModel.findById(classId);
           if (!classObj) throw new BadRequestException('Lớp không tồn tại');
-          if (classObj.advisor_id && classObj.advisor_id.toString() !== user._id.toString()) {
+          if (
+            classObj.advisor_id &&
+            classObj.advisor_id.toString() !== user._id.toString()
+          ) {
             throw new BadRequestException(`Lớp đã có GVCN khác`);
           }
         }
       }
 
-      await this.classModel.updateMany({ advisor_id: user._id }, { $unset: { advisor_id: "" } });
+      await this.classModel.updateMany(
+        { advisor_id: user._id },
+        { $unset: { advisor_id: '' } },
+      );
 
       if (isTeacher && dto.advisor_class_ids.length > 0) {
         for (const classId of dto.advisor_class_ids) {
-          await this.classModel.updateOne({ _id: classId }, { advisor_id: user._id });
+          await this.classModel.updateOne(
+            { _id: classId },
+            { advisor_id: user._id },
+          );
         }
       }
     }
@@ -731,24 +779,31 @@ export class AuthService implements OnModuleInit {
     });
 
     if (dto.advisor_class_ids && dto.advisor_class_ids.length > 0) {
-      const isTeacher = role.role_code === 'TEACHER' || !!role.name.match(/Teacher|Giảng viên|GVCN/i);
+      const isTeacher =
+        role.role_code === 'TEACHER' ||
+        !!role.name.match(/Teacher|Giảng viên|GVCN/i);
       if (!isTeacher) {
-         await this.userModel.deleteOne({ _id: newUser._id });
-         throw new BadRequestException('Chỉ người dùng có vai trò Giảng viên/GVCN mới được gán làm GVCN');
+        await this.userModel.deleteOne({ _id: newUser._id });
+        throw new BadRequestException(
+          'Chỉ người dùng có vai trò Giảng viên/GVCN mới được gán làm GVCN',
+        );
       }
       for (const classId of dto.advisor_class_ids) {
         const classObj = await this.classModel.findById(classId);
         if (!classObj) {
-           await this.userModel.deleteOne({ _id: newUser._id });
-           throw new BadRequestException('Lớp không tồn tại');
+          await this.userModel.deleteOne({ _id: newUser._id });
+          throw new BadRequestException('Lớp không tồn tại');
         }
         if (classObj.advisor_id) {
-           await this.userModel.deleteOne({ _id: newUser._id });
-           throw new BadRequestException('Lớp đã có GVCN');
+          await this.userModel.deleteOne({ _id: newUser._id });
+          throw new BadRequestException('Lớp đã có GVCN');
         }
       }
       for (const classId of dto.advisor_class_ids) {
-        await this.classModel.updateOne({ _id: classId }, { advisor_id: newUser._id });
+        await this.classModel.updateOne(
+          { _id: classId },
+          { advisor_id: newUser._id },
+        );
       }
     }
 
@@ -774,7 +829,7 @@ export class AuthService implements OnModuleInit {
    */
   async createUsersBulk(dto: any, ip?: string) {
     const { users, commonPassword } = dto;
-    
+
     if (!users || users.length === 0) {
       throw new BadRequestException('Danh sách người dùng không được rỗng');
     }
@@ -789,7 +844,9 @@ export class AuthService implements OnModuleInit {
       const u = users[i];
       try {
         if (!u.user_name || !u.email || !u.role_id) {
-          throw new BadRequestException('Thiếu trường bắt buộc (user_name, email, role_id)');
+          throw new BadRequestException(
+            'Thiếu trường bắt buộc (user_name, email, role_id)',
+          );
         }
 
         const password = commonPassword || u.password;
@@ -797,10 +854,15 @@ export class AuthService implements OnModuleInit {
           throw new BadRequestException('Thiếu mật khẩu');
         }
 
-        const existingUsername = await this.userModel.findOne({ user_name: u.user_name });
-        if (existingUsername) throw new ConflictException('Username đã tồn tại');
+        const existingUsername = await this.userModel.findOne({
+          user_name: u.user_name,
+        });
+        if (existingUsername)
+          throw new ConflictException('Username đã tồn tại');
 
-        const existingEmail = await this.userModel.findOne({ email: u.email.toLowerCase() });
+        const existingEmail = await this.userModel.findOne({
+          email: u.email.toLowerCase(),
+        });
         if (existingEmail) throw new ConflictException('Email đã được sử dụng');
 
         let roleId = rolesCache.get(u.role_id);
@@ -810,7 +872,7 @@ export class AuthService implements OnModuleInit {
             roleId = null;
           } else {
             const role = await this.roleModel.findById(u.role_id);
-            roleId = role ? role._id as Types.ObjectId : null;
+            roleId = role ? role._id : null;
             rolesCache.set(u.role_id, roleId);
           }
         }
@@ -829,10 +891,18 @@ export class AuthService implements OnModuleInit {
           role: roleId,
         });
 
-        const classIds = u.advisor_class_ids && u.advisor_class_ids.length > 0 ? u.advisor_class_ids : (u.advisor_class_id ? [u.advisor_class_id] : []);
+        const classIds =
+          u.advisor_class_ids && u.advisor_class_ids.length > 0
+            ? u.advisor_class_ids
+            : u.advisor_class_id
+              ? [u.advisor_class_id]
+              : [];
         if (classIds.length > 0) {
           const roleObj = await this.roleModel.findById(roleId);
-          const isTeacher = roleObj && (roleObj.role_code === 'TEACHER' || !!roleObj.name.match(/Teacher|Giảng viên|GVCN/i));
+          const isTeacher =
+            roleObj &&
+            (roleObj.role_code === 'TEACHER' ||
+              !!roleObj.name.match(/Teacher|Giảng viên|GVCN/i));
           if (isTeacher) {
             for (const classId of classIds) {
               const classObj = await this.classModel.findById(classId);
@@ -846,11 +916,16 @@ export class AuthService implements OnModuleInit {
               }
             }
             for (const classId of classIds) {
-              await this.classModel.updateOne({ _id: classId }, { advisor_id: newUser._id });
+              await this.classModel.updateOne(
+                { _id: classId },
+                { advisor_id: newUser._id },
+              );
             }
           } else {
-             await this.userModel.deleteOne({ _id: newUser._id });
-             throw new BadRequestException('Chỉ người dùng có vai trò Giảng viên mới được gán làm GVCN');
+            await this.userModel.deleteOne({ _id: newUser._id });
+            throw new BadRequestException(
+              'Chỉ người dùng có vai trò Giảng viên mới được gán làm GVCN',
+            );
           }
         }
 
@@ -869,7 +944,6 @@ export class AuthService implements OnModuleInit {
           user_name: newUser.user_name,
           email: newUser.email,
         });
-
       } catch (err: any) {
         errors.push({
           index: i,
@@ -945,7 +1019,9 @@ export class AuthService implements OnModuleInit {
         populate: { path: 'role', select: 'name role_code' },
       });
       // Dynamically load to prevent circular imports
-      const { systemEventEmitter } = require('../../system/system-event-emitter');
+      const {
+        systemEventEmitter,
+      } = require('../../system/system-event-emitter');
       systemEventEmitter.emit('login_log', populatedLog);
     } catch (err) {
       console.error('Failed to emit login_log event:', err);
@@ -956,13 +1032,23 @@ export class AuthService implements OnModuleInit {
 
   private async migrateLegacyRoleCodes() {
     // 1. Rename 'Giảng viên chính' / LECTURER to 'Teacher' / TEACHER
-    await this.roleModel.updateOne(
-      { $or: [{ name: 'Giảng viên chính' }, { role_code: 'LECTURER' }] },
-      { $set: { name: 'Teacher', role_code: 'TEACHER', description: 'Giảng viên cố vấn học tập' } }
-    ).exec();
+    await this.roleModel
+      .updateOne(
+        { $or: [{ name: 'Giảng viên chính' }, { role_code: 'LECTURER' }] },
+        {
+          $set: {
+            name: 'Teacher',
+            role_code: 'TEACHER',
+            description: 'Giảng viên cố vấn học tập',
+          },
+        },
+      )
+      .exec();
 
     // 2. Assign default role_code for roles that don't have one
-    const roles = await this.roleModel.find({ role_code: { $exists: false } }).exec();
+    const roles = await this.roleModel
+      .find({ role_code: { $exists: false } })
+      .exec();
     if (roles.length > 0) {
       for (const role of roles) {
         let code = '';
@@ -983,10 +1069,12 @@ export class AuthService implements OnModuleInit {
         let count = 0;
         while (true) {
           const checkCode = `${code}${suffix}`;
-          const existing = await this.roleModel.findOne({
-            role_code: checkCode,
-            _id: { $ne: role._id },
-          }).exec();
+          const existing = await this.roleModel
+            .findOne({
+              role_code: checkCode,
+              _id: { $ne: role._id },
+            })
+            .exec();
           if (!existing) {
             code = checkCode;
             break;
@@ -998,15 +1086,26 @@ export class AuthService implements OnModuleInit {
         (role as any).role_code = code;
         await role.save();
       }
-      console.log(`✅ Successfully migrated role_code for ${roles.length} roles.`);
+      console.log(
+        `✅ Successfully migrated role_code for ${roles.length} roles.`,
+      );
     }
   }
 
   private async seedRbac() {
     // Clean up G_ACADEMIC group and deleted permissions from DB
-    await this.permissionModel.deleteMany({
-      code: { $in: ['view_course', 'create_course', 'edit_content', 'delete_course'] }
-    }).exec();
+    await this.permissionModel
+      .deleteMany({
+        code: {
+          $in: [
+            'view_course',
+            'create_course',
+            'edit_content',
+            'delete_course',
+          ],
+        },
+      })
+      .exec();
     await this.permissionGroupModel.deleteOne({ code: 'G_ACADEMIC' }).exec();
 
     // Load all existing permissions from database first (including declared permissions from registry)
@@ -1033,7 +1132,8 @@ export class AuthService implements OnModuleInit {
         code: 'ADMIN_FULL',
         name: 'Toàn quyền Admin',
         module: 'Hệ thống',
-        description: '⚠️ QUYỀN HẠN TỐI CAO: Toàn quyền quản trị và bypass tất cả các cơ chế bảo mật hệ thống.',
+        description:
+          '⚠️ QUYỀN HẠN TỐI CAO: Toàn quyền quản trị và bypass tất cả các cơ chế bảo mật hệ thống.',
       },
       {
         code: 'view_revenue',
@@ -1050,11 +1150,13 @@ export class AuthService implements OnModuleInit {
     ];
 
     for (const p of permissions) {
-      const perm = await this.permissionModel.findOneAndUpdate(
-        { code: p.code },
-        { $set: p },
-        { upsert: true, returnDocument: 'after' },
-      ).exec();
+      const perm = await this.permissionModel
+        .findOneAndUpdate(
+          { code: p.code },
+          { $set: p },
+          { upsert: true, returnDocument: 'after' },
+        )
+        .exec();
       createdPerms[p.code] = perm._id;
     }
 
@@ -1124,14 +1226,13 @@ export class AuthService implements OnModuleInit {
         name: 'Audit Viewer',
         role_code: 'AUDIT_VIEWER',
         description: 'Chỉ xem nhật ký hệ thống',
-        permissions: [
-          createdPerms['LOGIN_LOG_READ'],
-        ].filter(Boolean),
+        permissions: [createdPerms['LOGIN_LOG_READ']].filter(Boolean),
       },
       {
         name: 'Backup Operator',
         role_code: 'BACKUP_OPERATOR',
-        description: 'Vận hành sao lưu hệ thống (không có quyền xóa/tải backup)',
+        description:
+          'Vận hành sao lưu hệ thống (không có quyền xóa/tải backup)',
         permissions: [
           createdPerms['DATABASE_BACKUP_READ'],
           createdPerms['DATABASE_BACKUP_CREATE'],
@@ -1140,20 +1241,22 @@ export class AuthService implements OnModuleInit {
     ];
 
     for (const r of roles) {
-      await this.roleModel.findOneAndUpdate(
-        { role_code: r.role_code },
-        {
-          $set: {
-            name: r.name,
-            role_code: r.role_code,
-            description: r.description,
+      await this.roleModel
+        .findOneAndUpdate(
+          { role_code: r.role_code },
+          {
+            $set: {
+              name: r.name,
+              role_code: r.role_code,
+              description: r.description,
+            },
+            $setOnInsert: {
+              permissions: r.permissions,
+            },
           },
-          $setOnInsert: {
-            permissions: r.permissions,
-          },
-        },
-        { upsert: true },
-      ).exec();
+          { upsert: true },
+        )
+        .exec();
     }
 
     const groups = [
@@ -1172,7 +1275,8 @@ export class AuthService implements OnModuleInit {
       {
         code: 'G_SYSTEM_OPERATIONS',
         name: 'Quản trị vận hành hệ thống',
-        description: 'Các quyền quản trị vận hành hệ thống, xem log đăng nhập, quản lý yêu cầu và sao lưu cơ sở dữ liệu.',
+        description:
+          'Các quyền quản trị vận hành hệ thống, xem log đăng nhập, quản lý yêu cầu và sao lưu cơ sở dữ liệu.',
         permissions: [
           createdPerms['SYSTEM_ADMIN'],
           createdPerms['LOGIN_LOG_READ'],
@@ -1187,7 +1291,8 @@ export class AuthService implements OnModuleInit {
       {
         code: 'G_PROPOSED',
         name: 'Đề xuất bổ sung',
-        description: 'Nhóm các quyền được đề xuất để bổ sung cho chức năng tương lai (chưa có guard thực tế).',
+        description:
+          'Nhóm các quyền được đề xuất để bổ sung cho chức năng tương lai (chưa có guard thực tế).',
         permissions: [
           createdPerms['USER_CREATE'],
           createdPerms['USER_UPDATE'],
@@ -1210,20 +1315,22 @@ export class AuthService implements OnModuleInit {
 
     for (const g of groups) {
       const validPerms = g.permissions.filter((p) => !!p);
-      await this.permissionGroupModel.findOneAndUpdate(
-        { code: g.code },
-        {
-          $set: {
-            code: g.code,
-            name: g.name,
-            description: g.description,
+      await this.permissionGroupModel
+        .findOneAndUpdate(
+          { code: g.code },
+          {
+            $set: {
+              code: g.code,
+              name: g.name,
+              description: g.description,
+            },
+            $setOnInsert: {
+              permissions: validPerms,
+            },
           },
-          $setOnInsert: {
-            permissions: validPerms,
-          },
-        },
-        { upsert: true },
-      ).exec();
+          { upsert: true },
+        )
+        .exec();
     }
 
     // Seed default route permissions
@@ -1286,42 +1393,53 @@ export class AuthService implements OnModuleInit {
       },
     ];
 
-
     for (const mapping of routeMappings) {
       const validPerms = mapping.permissions.filter((p) => !!p);
       if (validPerms.length > 0) {
-        await this.routePermissionModel.findOneAndUpdate(
-          { route_path: mapping.route_path },
-          {
-            $set: {
-              route_path: mapping.route_path,
-              route_name: mapping.route_name,
-              description: mapping.description,
-              check_type: mapping.check_type,
-              is_active: mapping.is_active,
-              type: mapping.type,
+        await this.routePermissionModel
+          .findOneAndUpdate(
+            { route_path: mapping.route_path },
+            {
+              $set: {
+                route_path: mapping.route_path,
+                route_name: mapping.route_name,
+                description: mapping.description,
+                check_type: mapping.check_type,
+                is_active: mapping.is_active,
+                type: mapping.type,
+              },
+              $setOnInsert: {
+                permissions: validPerms,
+              },
             },
-            $setOnInsert: {
-              permissions: validPerms,
-            },
-          },
-          { upsert: true },
-        ).exec();
+            { upsert: true },
+          )
+          .exec();
       }
     }
 
     // Dọn dẹp nhóm G_UNGROUPED: loại bỏ các quyền đã được phân vào nhóm nghiệp vụ khác
     try {
-      const otherGroups = await this.permissionGroupModel.find({ code: { $ne: 'G_UNGROUPED' } }).exec();
+      const otherGroups = await this.permissionGroupModel
+        .find({ code: { $ne: 'G_UNGROUPED' } })
+        .exec();
       const groupedPermissionIds = otherGroups.reduce((acc, g) => {
-        return acc.concat(g.permissions.map(p => p.toString()));
+        return acc.concat(g.permissions.map((p) => p.toString()));
       }, [] as string[]);
-      
+
       if (groupedPermissionIds.length > 0) {
-        await this.permissionGroupModel.updateOne(
-          { code: 'G_UNGROUPED' },
-          { $pull: { permissions: { $in: groupedPermissionIds.map(id => new Types.ObjectId(id)) } } }
-        ).exec();
+        await this.permissionGroupModel
+          .updateOne(
+            { code: 'G_UNGROUPED' },
+            {
+              $pull: {
+                permissions: {
+                  $in: groupedPermissionIds.map((id) => new Types.ObjectId(id)),
+                },
+              },
+            },
+          )
+          .exec();
         console.log('🧹 Cleaned up G_UNGROUPED permissions successfully');
       }
     } catch (err) {
@@ -1329,43 +1447,51 @@ export class AuthService implements OnModuleInit {
     }
 
     // Clean up old /settings route mapping if any
-    await this.routePermissionModel.deleteOne({ route_path: '/settings' }).exec();
+    await this.routePermissionModel
+      .deleteOne({ route_path: '/settings' })
+      .exec();
 
     console.log('✅ RBAC Data Seeded Successfully');
   }
 
   private async seedDeclaredPermissions() {
-    const group = await this.permissionGroupModel.findOneAndUpdate(
-      {
-        $or: [
-          { code: UNGROUPED_PERMISSION_GROUP.code },
-          { name: UNGROUPED_PERMISSION_GROUP.name },
-        ],
-      },
-      {
-        $set: UNGROUPED_PERMISSION_GROUP,
-        $setOnInsert: { permissions: [] },
-      },
-      { upsert: true, returnDocument: 'after' },
-    ).exec();
+    const group = await this.permissionGroupModel
+      .findOneAndUpdate(
+        {
+          $or: [
+            { code: UNGROUPED_PERMISSION_GROUP.code },
+            { name: UNGROUPED_PERMISSION_GROUP.name },
+          ],
+        },
+        {
+          $set: UNGROUPED_PERMISSION_GROUP,
+          $setOnInsert: { permissions: [] },
+        },
+        { upsert: true, returnDocument: 'after' },
+      )
+      .exec();
 
     const permissionIds: Types.ObjectId[] = [];
 
     for (const permissionSeed of DECLARED_PERMISSION_SEEDS) {
-      const permission = await this.permissionModel.findOneAndUpdate(
-        { code: permissionSeed.code },
-        { $set: permissionSeed },
-        { upsert: true, returnDocument: 'after' },
-      ).exec();
+      const permission = await this.permissionModel
+        .findOneAndUpdate(
+          { code: permissionSeed.code },
+          { $set: permissionSeed },
+          { upsert: true, returnDocument: 'after' },
+        )
+        .exec();
 
       permissionIds.push(permission._id);
     }
 
     if (permissionIds.length > 0) {
-      await this.permissionGroupModel.updateOne(
-        { _id: group._id },
-        { $addToSet: { permissions: { $each: permissionIds } } },
-      ).exec();
+      await this.permissionGroupModel
+        .updateOne(
+          { _id: group._id },
+          { $addToSet: { permissions: { $each: permissionIds } } },
+        )
+        .exec();
     }
 
     console.log(
@@ -1470,7 +1596,7 @@ export class AuthService implements OnModuleInit {
           if (error.name === 'DocumentNotFoundError') {
             await this.userModel.updateOne(
               { _id: user._id },
-              { $set: { role: user.role } }
+              { $set: { role: user.role } },
             );
           } else {
             throw error;
@@ -1543,7 +1669,7 @@ export class AuthService implements OnModuleInit {
   private async deduplicateRbacReferences() {
     try {
       const allPerms = await this.permissionModel.find({}, { _id: 1 }).exec();
-      const validPermIds = new Set(allPerms.map(p => p._id.toString()));
+      const validPermIds = new Set(allPerms.map((p) => p._id.toString()));
 
       const groups = await this.permissionGroupModel.find({}).exec();
       for (const group of groups) {
@@ -1561,7 +1687,9 @@ export class AuthService implements OnModuleInit {
           if (uniqueIds.length !== group.permissions.length) {
             group.permissions = uniqueIds as any;
             await this.safeSave(group);
-            console.log(`🧹 Deduplicated & cleaned permissions for group: ${group.name} (${group.code})`);
+            console.log(
+              `🧹 Deduplicated & cleaned permissions for group: ${group.name} (${group.code})`,
+            );
           }
         }
       }
@@ -1582,7 +1710,9 @@ export class AuthService implements OnModuleInit {
           if (uniqueIds.length !== role.permissions.length) {
             role.permissions = uniqueIds as any;
             await this.safeSave(role);
-            console.log(`🧹 Deduplicated & cleaned permissions for role: ${role.name} (${role.role_code})`);
+            console.log(
+              `🧹 Deduplicated & cleaned permissions for role: ${role.name} (${role.role_code})`,
+            );
           }
         }
       }

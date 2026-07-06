@@ -24,7 +24,10 @@ const BATCH_SIZE = 500;
 // Minimal schemas for migration — no validation needed
 const UserSchema = new Schema({}, { strict: false, collection: 'users' });
 const RoleSchema = new Schema({}, { strict: false, collection: 'roles' });
-const AcademicRecordSchema = new Schema({}, { strict: false, collection: 'academicrecords' });
+const AcademicRecordSchema = new Schema(
+  {},
+  { strict: false, collection: 'academicrecords' },
+);
 
 /**
  * Infer recorded_by_role from a user's role name string.
@@ -33,7 +36,12 @@ function inferRoleFromRoleName(roleName: string): string {
   if (!roleName) return 'system';
   const lower = roleName.toLowerCase();
   if (lower.includes('admin')) return 'admin';
-  if (lower.includes('supervisor') || lower.includes('quản sinh') || lower.includes('quan sinh')) return 'supervisor';
+  if (
+    lower.includes('supervisor') ||
+    lower.includes('quản sinh') ||
+    lower.includes('quan sinh')
+  )
+    return 'supervisor';
   if (
     lower.includes('teacher') ||
     lower.includes('adviser') ||
@@ -41,8 +49,14 @@ function inferRoleFromRoleName(roleName: string): string {
     lower.includes('giảng viên') ||
     lower.includes('giang vien') ||
     lower.includes('lecturer')
-  ) return 'teacher';
-  if (lower.includes('student') || lower.includes('sinh viên') || lower.includes('sinh vien')) return 'student';
+  )
+    return 'teacher';
+  if (
+    lower.includes('student') ||
+    lower.includes('sinh viên') ||
+    lower.includes('sinh vien')
+  )
+    return 'student';
   return 'system'; // Unknown roles default to system
 }
 
@@ -72,7 +86,10 @@ function parseRecordTitle(recordTitle: string | null | undefined): {
   if (optionMatch) {
     return {
       action_type: 'select_option',
-      payload: { parsed_option_id: optionMatch[1].trim(), original_title: recordTitle },
+      payload: {
+        parsed_option_id: optionMatch[1].trim(),
+        original_title: recordTitle,
+      },
     };
   }
 
@@ -118,7 +135,9 @@ export async function migrate(mongoUri?: string): Promise<{
 }> {
   const uri = mongoUri || process.env.MONGODB_URI || process.env.DATABASE_URL;
   if (!uri) {
-    throw new Error('MongoDB URI not provided. Set MONGODB_URI or DATABASE_URL env var.');
+    throw new Error(
+      'MongoDB URI not provided. Set MONGODB_URI or DATABASE_URL env var.',
+    );
   }
 
   const conn = await connect(uri);
@@ -126,7 +145,8 @@ export async function migrate(mongoUri?: string): Promise<{
 
   const UserModel = conn.models.User || model('User', UserSchema);
   const RoleModel = conn.models.Role || model('Role', RoleSchema);
-  const RecordModel = conn.models.AcademicRecord || model('AcademicRecord', AcademicRecordSchema);
+  const RecordModel =
+    conn.models.AcademicRecord || model('AcademicRecord', AcademicRecordSchema);
 
   // Preload all users with their roles for fast lookup
   console.log('[Migration 001] Preloading users and roles...');
@@ -142,7 +162,9 @@ export async function migrate(mongoUri?: string): Promise<{
     const roleName = roleMap.get(roleId) || '';
     userRoleMap.set(u._id.toString(), inferRoleFromRoleName(roleName));
   });
-  console.log(`[Migration 001] Loaded ${users.length} users, ${roles.length} roles`);
+  console.log(
+    `[Migration 001] Loaded ${users.length} users, ${roles.length} roles`,
+  );
 
   let totalProcessed = 0;
   let totalUpdated = 0;
@@ -170,23 +192,23 @@ export async function migrate(mongoUri?: string): Promise<{
 
     for (const record of batch) {
       try {
-        const recordId = (record as any)._id.toString();
+        const recordId = record._id.toString();
 
         // 1. Infer recorded_by_role
-        const recordedById = (record as any).recorded_by
-          ? (record as any).recorded_by.toString()
+        const recordedById = record.recorded_by
+          ? record.recorded_by.toString()
           : null;
         const recorded_by_role = recordedById
-          ? (userRoleMap.get(recordedById) || 'system')
+          ? userRoleMap.get(recordedById) || 'system'
           : 'system';
 
         // 2. Parse record_title → action_type + payload
-        const { action_type, payload } = parseRecordTitle((record as any).record_title);
+        const { action_type, payload } = parseRecordTitle(record.record_title);
 
         // 3. Split source → source_type + source_id
         const { source_type, source_id } = splitSource(
-          (record as any).source,
-          (record as any).daily_report_id,
+          record.source,
+          record.daily_report_id,
         );
 
         // 4. Determine record_type from criterion context (simplified)
@@ -200,8 +222,9 @@ export async function migrate(mongoUri?: string): Promise<{
         }
 
         // 5. Status migration: inactive → cancelled
-        const currentStatus = (record as any).status;
-        const newStatus = currentStatus === 'inactive' ? 'cancelled' : currentStatus;
+        const currentStatus = record.status;
+        const newStatus =
+          currentStatus === 'inactive' ? 'cancelled' : currentStatus;
 
         // 6. Build update
         const updateFields: any = {
@@ -222,13 +245,13 @@ export async function migrate(mongoUri?: string): Promise<{
         }
 
         // Set occurred_at to recorded_at if not set
-        if (!(record as any).occurred_at && (record as any).recorded_at) {
-          updateFields.occurred_at = (record as any).recorded_at;
+        if (!record.occurred_at && record.recorded_at) {
+          updateFields.occurred_at = record.recorded_at;
         }
 
         bulkOps.push({
           updateOne: {
-            filter: { _id: (record as any)._id },
+            filter: { _id: record._id },
             update: { $set: updateFields },
           },
         });
@@ -236,7 +259,7 @@ export async function migrate(mongoUri?: string): Promise<{
         totalUpdated++;
       } catch (err: any) {
         errors.push({
-          recordId: (record as any)._id.toString(),
+          recordId: record._id.toString(),
           error: err.message || String(err),
         });
       }
@@ -247,8 +270,10 @@ export async function migrate(mongoUri?: string): Promise<{
     }
 
     totalProcessed += batch.length;
-    lastId = (batch[batch.length - 1] as any)._id;
-    console.log(`[Migration 001] Processed ${totalProcessed} records (${totalUpdated} updated, ${errors.length} errors)`);
+    lastId = batch[batch.length - 1]._id;
+    console.log(
+      `[Migration 001] Processed ${totalProcessed} records (${totalUpdated} updated, ${errors.length} errors)`,
+    );
   }
 
   const skippedCount = await RecordModel.countDocuments({
@@ -256,7 +281,9 @@ export async function migrate(mongoUri?: string): Promise<{
   }).exec();
   totalSkipped = skippedCount - totalUpdated;
 
-  console.log(`[Migration 001] Complete. Processed: ${totalProcessed}, Updated: ${totalUpdated}, Skipped (already migrated): ${totalSkipped}, Errors: ${errors.length}`);
+  console.log(
+    `[Migration 001] Complete. Processed: ${totalProcessed}, Updated: ${totalUpdated}, Skipped (already migrated): ${totalSkipped}, Errors: ${errors.length}`,
+  );
 
   return { totalProcessed, totalUpdated, totalSkipped, errors };
 }

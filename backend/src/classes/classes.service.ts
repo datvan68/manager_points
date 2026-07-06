@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Class, ClassDocument } from './schemas/class.schema';
@@ -6,7 +12,10 @@ import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 import { isStudent } from '../auth/utils/role.util';
 import * as xlsx from 'xlsx';
-import { ImportClassConfirmDto, ImportClassRowDto } from './dto/import-class.dto';
+import {
+  ImportClassConfirmDto,
+  ImportClassRowDto,
+} from './dto/import-class.dto';
 
 @Injectable()
 export class ClassesService {
@@ -55,7 +64,9 @@ export class ClassesService {
   async findAll(requester?: any): Promise<Class[]> {
     if (requester && isStudent(requester) && requester.userId) {
       const studentModel = this.classModel.db.model('Student');
-      const student = await studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+      const student = await studentModel
+        .findOne({ user_id: new Types.ObjectId(requester.userId) })
+        .exec();
       if (!student || !student.class_id) return [];
       return this.classModel
         .find({ _id: student.class_id })
@@ -78,9 +89,13 @@ export class ClassesService {
   async findOne(id: string, requester?: any): Promise<Class> {
     if (requester && isStudent(requester) && requester.userId) {
       const studentModel = this.classModel.db.model('Student');
-      const student = await studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+      const student = await studentModel
+        .findOne({ user_id: new Types.ObjectId(requester.userId) })
+        .exec();
       if (!student || student.class_id?.toString() !== id) {
-        throw new ForbiddenException('Bạn không có quyền truy cập thông tin của lớp học khác.');
+        throw new ForbiddenException(
+          'Bạn không có quyền truy cập thông tin của lớp học khác.',
+        );
       }
     }
 
@@ -129,31 +144,33 @@ export class ClassesService {
   async getClassSummary(requester?: any): Promise<any[]> {
     const classes = await this.findAll(requester);
     const studentModel = this.classModel.db.model('Student');
-    
-    const summaries = await Promise.all(classes.map(async (cls: any) => {
-      const [studentCount, avatarsRaw] = await Promise.all([
-        studentModel.countDocuments({ class_id: cls._id }).exec(),
-        studentModel
-          .find({ class_id: cls._id })
-          .select('_id full_name student_code')
-          .limit(3)
-          .lean()
-          .exec()
-      ]);
-      
-      const avatars = avatarsRaw.map((s: any) => ({
-        _id: s._id,
-        full_name: s.full_name,
-        student_code: s.student_code
-      }));
-      
-      return {
-        classId: cls._id.toString(),
-        studentCount,
-        avatars
-      };
-    }));
-    
+
+    const summaries = await Promise.all(
+      classes.map(async (cls: any) => {
+        const [studentCount, avatarsRaw] = await Promise.all([
+          studentModel.countDocuments({ class_id: cls._id }).exec(),
+          studentModel
+            .find({ class_id: cls._id })
+            .select('_id full_name student_code')
+            .limit(3)
+            .lean()
+            .exec(),
+        ]);
+
+        const avatars = avatarsRaw.map((s: any) => ({
+          _id: s._id,
+          full_name: s.full_name,
+          student_code: s.student_code,
+        }));
+
+        return {
+          classId: cls._id.toString(),
+          studentCount,
+          avatars,
+        };
+      }),
+    );
+
     return summaries;
   }
 
@@ -171,33 +188,75 @@ export class ClassesService {
 
     const deptModel = this.classModel.db.model('Department');
     const userModel = this.classModel.db.model('User');
-    
+
     const classNamesInFile = new Set<string>();
 
     // Optimization: fetch all needed data at once
-    const allDeptCodes = [...new Set(rawData.map((r: any) => String(r['department_code'] || r['Mã khoa'] || '').trim()).filter(Boolean))];
-    const allEmails = [...new Set(rawData.map((r: any) => String(r['advisor_email'] || r['Email cố vấn'] || '').trim().toLowerCase()).filter(Boolean))];
-    const allClassNames = [...new Set(rawData.map((r: any) => String(r['class_name'] || r['Tên lớp'] || '').trim()).filter(Boolean))];
+    const allDeptCodes = [
+      ...new Set(
+        rawData
+          .map((r: any) =>
+            String(r['department_code'] || r['Mã khoa'] || '').trim(),
+          )
+          .filter(Boolean),
+      ),
+    ];
+    const allEmails = [
+      ...new Set(
+        rawData
+          .map((r: any) =>
+            String(r['advisor_email'] || r['Email cố vấn'] || '')
+              .trim()
+              .toLowerCase(),
+          )
+          .filter(Boolean),
+      ),
+    ];
+    const allClassNames = [
+      ...new Set(
+        rawData
+          .map((r: any) => String(r['class_name'] || r['Tên lớp'] || '').trim())
+          .filter(Boolean),
+      ),
+    ];
 
     const depts = await deptModel.find({ code: { $in: allDeptCodes } }).exec();
     const deptMap = new Map(depts.map((d: any) => [d.code, d._id]));
 
     const users = await userModel.find({ email: { $in: allEmails } }).exec();
-    const userMap = new Map(users.map((u: any) => [u.email.toLowerCase(), u._id]));
+    const userMap = new Map(
+      users.map((u: any) => [u.email.toLowerCase(), u._id]),
+    );
 
-    const existingClasses = await this.classModel.find({ class_name: { $in: allClassNames } }).exec();
-    const existingClassSet = new Set(existingClasses.map((c: any) => c.class_name));
+    const existingClasses = await this.classModel
+      .find({ class_name: { $in: allClassNames } })
+      .exec();
+    const existingClassSet = new Set(
+      existingClasses.map((c: any) => c.class_name),
+    );
 
     for (let i = 0; i < rawData.length; i++) {
       const row: any = rawData[i];
       const rowNumber = i + 2;
-      
-      const className = String(row['class_name'] || row['Tên lớp'] || '').trim();
-      const classYear = String(row['class_year'] || row['Khóa/Năm học'] || '').trim();
-      const deptCode = String(row['department_code'] || row['Mã khoa'] || '').trim();
-      const advisorEmail = String(row['advisor_email'] || row['Email cố vấn'] || '').trim();
-      const classCourse = String(row['class_course'] || row['Hệ đào tạo'] || '').trim();
-      const headquarters = String(row['headquarters'] || row['Cơ sở'] || '').trim();
+
+      const className = String(
+        row['class_name'] || row['Tên lớp'] || '',
+      ).trim();
+      const classYear = String(
+        row['class_year'] || row['Khóa/Năm học'] || '',
+      ).trim();
+      const deptCode = String(
+        row['department_code'] || row['Mã khoa'] || '',
+      ).trim();
+      const advisorEmail = String(
+        row['advisor_email'] || row['Email cố vấn'] || '',
+      ).trim();
+      const classCourse = String(
+        row['class_course'] || row['Hệ đào tạo'] || '',
+      ).trim();
+      const headquarters = String(
+        row['headquarters'] || row['Cơ sở'] || '',
+      ).trim();
 
       const data = {
         class_name: className,
@@ -271,7 +330,7 @@ export class ClassesService {
 
     const deptModel = this.classModel.db.model('Department');
     const userModel = this.classModel.db.model('User');
-    
+
     const results = {
       success: 0,
       skipped: 0,
@@ -279,25 +338,37 @@ export class ClassesService {
     };
 
     if (mode === 'fail_on_duplicates') {
-      const classNames = rows.map(r => r.class_name);
-      const existingCount = await this.classModel.countDocuments({ class_name: { $in: classNames } });
+      const classNames = rows.map((r) => r.class_name);
+      const existingCount = await this.classModel.countDocuments({
+        class_name: { $in: classNames },
+      });
       if (existingCount > 0) {
-        throw new BadRequestException('Có lớp đã tồn tại trong database (fail_on_duplicates mode).');
+        throw new BadRequestException(
+          'Có lớp đã tồn tại trong database (fail_on_duplicates mode).',
+        );
       }
     }
 
-    const allDeptCodes = [...new Set(rows.map(r => r.department_code))];
+    const allDeptCodes = [...new Set(rows.map((r) => r.department_code))];
     const depts = await deptModel.find({ code: { $in: allDeptCodes } }).exec();
     const deptMap = new Map(depts.map((d: any) => [d.code, d._id]));
 
-    const allEmails = [...new Set(rows.map(r => r.advisor_email?.toLowerCase()).filter(Boolean))];
+    const allEmails = [
+      ...new Set(
+        rows.map((r) => r.advisor_email?.toLowerCase()).filter(Boolean),
+      ),
+    ];
     const users = await userModel.find({ email: { $in: allEmails } }).exec();
-    const userMap = new Map(users.map((u: any) => [u.email.toLowerCase(), u._id]));
+    const userMap = new Map(
+      users.map((u: any) => [u.email.toLowerCase(), u._id]),
+    );
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-        const existingClass = await this.classModel.findOne({ class_name: row.class_name }).exec();
+        const existingClass = await this.classModel
+          .findOne({ class_name: row.class_name })
+          .exec();
         if (existingClass) {
           results.skipped++;
           continue;
@@ -305,7 +376,10 @@ export class ClassesService {
 
         const deptId = deptMap.get(row.department_code);
         if (!deptId) {
-          results.errors.push({ row: i + 2, error: `Không tìm thấy khoa ${row.department_code}` });
+          results.errors.push({
+            row: i + 2,
+            error: `Không tìm thấy khoa ${row.department_code}`,
+          });
           continue;
         }
 

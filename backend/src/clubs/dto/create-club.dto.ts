@@ -1,5 +1,6 @@
 import {
   IsString,
+  IsNotEmpty,
   IsOptional,
   IsEnum,
   IsNumber,
@@ -13,28 +14,42 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class ClubSettingsDto {
-  @ApiPropertyOptional({ description: 'Allow students to self-register', default: true })
+  @ApiPropertyOptional({
+    description: 'Allow students to self-register',
+    default: true,
+  })
   @IsOptional()
   @IsBoolean()
   allow_self_registration?: boolean;
 
-  @ApiPropertyOptional({ description: 'Require approval for registration', default: true })
+  @ApiPropertyOptional({
+    description: 'Require approval for registration',
+    default: true,
+  })
   @IsOptional()
   @IsBoolean()
   require_approval?: boolean;
 
-  @ApiPropertyOptional({ description: 'Enable training points from attendance', default: false })
+  @ApiPropertyOptional({
+    description: 'Enable training points from attendance',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   attendance_point_enabled?: boolean;
 
-  @ApiPropertyOptional({ description: 'Points awarded per attendance', default: 0 })
+  @ApiPropertyOptional({
+    description: 'Points awarded per attendance',
+    default: 0,
+  })
   @IsOptional()
   @IsNumber()
   @Min(0)
   point_per_attendance?: number;
 
-  @ApiPropertyOptional({ description: 'Criterion ID for training point mapping' })
+  @ApiPropertyOptional({
+    description: 'Criterion ID for training point mapping',
+  })
   @IsOptional()
   @IsMongoId()
   criterion_id?: string;
@@ -48,6 +63,11 @@ export class CreateClubDto {
   @ApiProperty({ description: 'Unique club code (auto uppercase)' })
   @IsString()
   code: string;
+
+  @ApiProperty({ description: 'Default classroom or activity room' })
+  @IsString()
+  @IsNotEmpty()
+  classroom: string;
 
   @ApiPropertyOptional({ description: 'Club description' })
   @IsOptional()

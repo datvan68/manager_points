@@ -8,10 +8,18 @@ export class ClubAttendanceConfig {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Club', default: null })
   club_id: Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Semester', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Semester',
+    required: true,
+  })
   semester_id: Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Criterion', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Criterion',
+    required: true,
+  })
   criterion_id: Types.ObjectId;
 
   // Point rules

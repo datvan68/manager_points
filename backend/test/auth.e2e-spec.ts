@@ -43,13 +43,19 @@ describe('Auth (e2e)', () => {
 
     userModel = moduleFixture.get<Model<User>>(getModelToken(User.name));
     roleModel = moduleFixture.get<Model<Role>>(getModelToken(Role.name));
-    studentModel = moduleFixture.get<Model<Student>>(getModelToken(Student.name));
-    refreshTokenModel = moduleFixture.get<Model<RefreshToken>>(getModelToken(RefreshToken.name));
+    studentModel = moduleFixture.get<Model<Student>>(
+      getModelToken(Student.name),
+    );
+    refreshTokenModel = moduleFixture.get<Model<RefreshToken>>(
+      getModelToken(RefreshToken.name),
+    );
 
     await app.init();
 
     // 1. Clean up existing test data
-    await studentModel.deleteMany({ student_code: { $in: ['20230005', '20230006'] } });
+    await studentModel.deleteMany({
+      student_code: { $in: ['20230005', '20230006'] },
+    });
     await userModel.deleteMany({
       email: {
         $in: [
@@ -102,7 +108,7 @@ describe('Auth (e2e)', () => {
       status: UserStatus.ACTIVE,
       role: studentRole._id,
     });
-    activeStudentUserId = activeUser._id as Types.ObjectId;
+    activeStudentUserId = activeUser._id;
 
     await studentModel.create({
       student_code: '20230005',
@@ -121,7 +127,7 @@ describe('Auth (e2e)', () => {
       status: UserStatus.INACTIVE,
       role: studentRole._id,
     });
-    inactiveStudentUserId = inactiveUser._id as Types.ObjectId;
+    inactiveStudentUserId = inactiveUser._id;
 
     await studentModel.create({
       student_code: '20230006',
@@ -140,7 +146,7 @@ describe('Auth (e2e)', () => {
       status: UserStatus.ACTIVE,
       role: adminRole._id,
     });
-    adminUserId = adminUser._id as Types.ObjectId;
+    adminUserId = adminUser._id;
 
     const regularUser = await userModel.create({
       user_name: 'e2e_user',
@@ -149,17 +155,33 @@ describe('Auth (e2e)', () => {
       status: UserStatus.ACTIVE,
       role: userRole._id,
     });
-    regularUserId = regularUser._id as Types.ObjectId;
+    regularUserId = regularUser._id;
   });
 
   afterAll(async () => {
     // Clean up created mock data
-    await studentModel.deleteMany({ student_code: { $in: ['20230005', '20230006'] } });
+    await studentModel.deleteMany({
+      student_code: { $in: ['20230005', '20230006'] },
+    });
     await userModel.deleteMany({
-      _id: { $in: [activeStudentUserId, inactiveStudentUserId, adminUserId, regularUserId] },
+      _id: {
+        $in: [
+          activeStudentUserId,
+          inactiveStudentUserId,
+          adminUserId,
+          regularUserId,
+        ],
+      },
     });
     await refreshTokenModel.deleteMany({
-      user_id: { $in: [activeStudentUserId, inactiveStudentUserId, adminUserId, regularUserId] },
+      user_id: {
+        $in: [
+          activeStudentUserId,
+          inactiveStudentUserId,
+          adminUserId,
+          regularUserId,
+        ],
+      },
     });
     await app.close();
   });
@@ -188,7 +210,9 @@ describe('Auth (e2e)', () => {
           expect(res.body.access_token).toBeDefined();
 
           const cookies = res.headers['set-cookie'] || [];
-          const refreshTokenCookie = cookies.find((cookie: string) => cookie.includes('refresh_token='));
+          const refreshTokenCookie = cookies.find((cookie: string) =>
+            cookie.includes('refresh_token='),
+          );
           expect(refreshTokenCookie).toBeDefined();
           expect(refreshTokenCookie).toContain('HttpOnly');
           expect(refreshTokenCookie).toContain('Path=/api/auth');
@@ -218,7 +242,9 @@ describe('Auth (e2e)', () => {
         .expect(200)
         .then((res) => {
           const cookies = res.headers['set-cookie'] || [];
-          const refreshTokenCookie = cookies.find((cookie: string) => cookie.startsWith('refresh_token='));
+          const refreshTokenCookie = cookies.find((cookie: string) =>
+            cookie.startsWith('refresh_token='),
+          );
           expect(refreshTokenCookie).toBeDefined();
           expect(refreshTokenCookie).toContain('Max-Age=14400');
           expect(refreshTokenCookie).toContain('HttpOnly');
@@ -237,7 +263,9 @@ describe('Auth (e2e)', () => {
         .expect(200)
         .then((res) => {
           const cookies = res.headers['set-cookie'] || [];
-          const refreshTokenCookie = cookies.find((cookie: string) => cookie.startsWith('refresh_token='));
+          const refreshTokenCookie = cookies.find((cookie: string) =>
+            cookie.startsWith('refresh_token='),
+          );
           expect(refreshTokenCookie).toBeDefined();
           expect(refreshTokenCookie).toContain('Max-Age=2592000');
           expect(refreshTokenCookie).toContain('HttpOnly');
@@ -258,7 +286,9 @@ describe('Auth (e2e)', () => {
         .expect(200);
 
       const cookies = loginRes.headers['set-cookie'] || [];
-      const refreshTokenCookie = cookies.find((cookie: string) => cookie.startsWith('refresh_token='));
+      const refreshTokenCookie = cookies.find((cookie: string) =>
+        cookie.startsWith('refresh_token='),
+      );
       expect(refreshTokenCookie).toBeDefined();
 
       // Trích xuất phần cookie thô refresh_token=value
@@ -275,7 +305,9 @@ describe('Auth (e2e)', () => {
       expect(refreshRes.body.access_token).toBeDefined();
 
       const newCookies = refreshRes.headers['set-cookie'] || [];
-      const newRefreshTokenCookie = newCookies.find((cookie: string) => cookie.startsWith('refresh_token='));
+      const newRefreshTokenCookie = newCookies.find((cookie: string) =>
+        cookie.startsWith('refresh_token='),
+      );
       expect(newRefreshTokenCookie).toBeDefined();
       expect(newRefreshTokenCookie).not.toBe(refreshTokenCookie);
       expect(newRefreshTokenCookie).toContain('HttpOnly');
@@ -300,7 +332,9 @@ describe('Auth (e2e)', () => {
         })
         .expect(200);
 
-      const rawCookie = loginRes.headers['set-cookie']?.find((c: string) => c.startsWith('refresh_token='))?.split(';')[0];
+      const rawCookie = loginRes.headers['set-cookie']
+        ?.find((c: string) => c.startsWith('refresh_token='))
+        ?.split(';')[0];
 
       // 2. Refresh lần 1
       const refresh1Res = await request(app.getHttpServer())
@@ -308,8 +342,10 @@ describe('Auth (e2e)', () => {
         .set('Cookie', [rawCookie!])
         .expect(200);
 
-      const rawCookie2 = refresh1Res.headers['set-cookie']?.find((c: string) => c.startsWith('refresh_token='))?.split(';')[0];
-      
+      const rawCookie2 = refresh1Res.headers['set-cookie']
+        ?.find((c: string) => c.startsWith('refresh_token='))
+        ?.split(';')[0];
+
       // 3. Refresh lần 2 với cookie cũ (grace period)
       const refresh2Res = await request(app.getHttpServer())
         .post('/api/auth/refresh')
@@ -317,7 +353,9 @@ describe('Auth (e2e)', () => {
         .expect(200);
 
       expect(refresh2Res.body.access_token).toBeDefined();
-      const rawCookie3 = refresh2Res.headers['set-cookie']?.find((c: string) => c.startsWith('refresh_token='))?.split(';')[0];
+      const rawCookie3 = refresh2Res.headers['set-cookie']
+        ?.find((c: string) => c.startsWith('refresh_token='))
+        ?.split(';')[0];
       expect(rawCookie3).toBeDefined();
       expect(rawCookie3).not.toBe(rawCookie2);
     });
@@ -332,7 +370,9 @@ describe('Auth (e2e)', () => {
         })
         .expect(200);
 
-      const rawCookie = loginRes.headers['set-cookie']?.find((c: string) => c.startsWith('refresh_token='))?.split(';')[0];
+      const rawCookie = loginRes.headers['set-cookie']
+        ?.find((c: string) => c.startsWith('refresh_token='))
+        ?.split(';')[0];
 
       // 2. Xóa refresh token khỏi DB
       await refreshTokenModel.deleteMany({});
@@ -345,10 +385,14 @@ describe('Auth (e2e)', () => {
 
       // Phải có header clear cookie (thường set lại cookie rỗng hoặc Max-Age/Expires về 0/quá khứ)
       const cookies = refreshRes.headers['set-cookie'] || [];
-      const refreshTokenCookie = cookies.find((cookie: string) => cookie.startsWith('refresh_token='));
+      const refreshTokenCookie = cookies.find((cookie: string) =>
+        cookie.startsWith('refresh_token='),
+      );
       expect(refreshTokenCookie).toBeDefined();
       // Express clearCookie thường set path=/api/auth; expires=Thu, 01 Jan 1970 00:00:00 GMT; httponly
-      expect(refreshTokenCookie).toMatch(/Expires=Thu, 01 Jan 1970 00:00:00 GMT|Max-Age=0/i);
+      expect(refreshTokenCookie).toMatch(
+        /Expires=Thu, 01 Jan 1970 00:00:00 GMT|Max-Age=0/i,
+      );
     });
   });
 });

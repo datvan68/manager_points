@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { SummariesPointService, resolveRankTier } from '../summaries-point.service';
+import {
+  SummariesPointService,
+  resolveRankTier,
+} from '../summaries-point.service';
 import { getModelToken } from '@nestjs/mongoose';
 import { SummaryPoint } from '../schemas/summary-point.schema';
 import { Student } from '../../students/schemas/student.schema';
@@ -7,42 +10,82 @@ import { Class } from '../../classes/schemas/class.schema';
 import { Department } from '../../departments/schemas/department.schema';
 import { Semester } from '../../semesters/schemas/semester.schema';
 import { Types } from 'mongoose';
-import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { AcademicRecord } from '../../academic-record/schemas/academic-record.schema';
 import { AcademicRecordService } from '../../academic-record/academic-record.service';
 
 describe('resolveRankTier', () => {
   it('should return unranked if status is not locked', () => {
-    expect(resolveRankTier(95, 'draft')).toEqual({ rank_tier: 'unranked', rank_label: 'Chưa chốt' });
+    expect(resolveRankTier(95, 'draft')).toEqual({
+      rank_tier: 'unranked',
+      rank_label: 'Chưa chốt',
+    });
   });
 
   it('should return unranked if totalScore is null', () => {
-    expect(resolveRankTier(null, 'locked')).toEqual({ rank_tier: 'unranked', rank_label: 'Chưa chốt' });
+    expect(resolveRankTier(null, 'locked')).toEqual({
+      rank_tier: 'unranked',
+      rank_label: 'Chưa chốt',
+    });
   });
 
   it('should return diamond for score >= 90', () => {
-    expect(resolveRankTier(90, 'locked')).toEqual({ rank_tier: 'diamond', rank_label: 'Xuất sắc' });
-    expect(resolveRankTier(95, 'locked')).toEqual({ rank_tier: 'diamond', rank_label: 'Xuất sắc' });
+    expect(resolveRankTier(90, 'locked')).toEqual({
+      rank_tier: 'diamond',
+      rank_label: 'Xuất sắc',
+    });
+    expect(resolveRankTier(95, 'locked')).toEqual({
+      rank_tier: 'diamond',
+      rank_label: 'Xuất sắc',
+    });
   });
 
   it('should return gold for score >= 80 and < 90', () => {
-    expect(resolveRankTier(80, 'locked')).toEqual({ rank_tier: 'gold', rank_label: 'Tốt' });
-    expect(resolveRankTier(89, 'locked')).toEqual({ rank_tier: 'gold', rank_label: 'Tốt' });
+    expect(resolveRankTier(80, 'locked')).toEqual({
+      rank_tier: 'gold',
+      rank_label: 'Tốt',
+    });
+    expect(resolveRankTier(89, 'locked')).toEqual({
+      rank_tier: 'gold',
+      rank_label: 'Tốt',
+    });
   });
 
   it('should return silver for score >= 70 and < 80', () => {
-    expect(resolveRankTier(70, 'locked')).toEqual({ rank_tier: 'silver', rank_label: 'Khá' });
-    expect(resolveRankTier(79, 'locked')).toEqual({ rank_tier: 'silver', rank_label: 'Khá' });
+    expect(resolveRankTier(70, 'locked')).toEqual({
+      rank_tier: 'silver',
+      rank_label: 'Khá',
+    });
+    expect(resolveRankTier(79, 'locked')).toEqual({
+      rank_tier: 'silver',
+      rank_label: 'Khá',
+    });
   });
 
   it('should return bronze for score >= 50 and < 70', () => {
-    expect(resolveRankTier(50, 'locked')).toEqual({ rank_tier: 'bronze', rank_label: 'Trung Bình' });
-    expect(resolveRankTier(69, 'locked')).toEqual({ rank_tier: 'bronze', rank_label: 'Trung Bình' });
+    expect(resolveRankTier(50, 'locked')).toEqual({
+      rank_tier: 'bronze',
+      rank_label: 'Trung Bình',
+    });
+    expect(resolveRankTier(69, 'locked')).toEqual({
+      rank_tier: 'bronze',
+      rank_label: 'Trung Bình',
+    });
   });
 
   it('should return unranked (Yếu) for score < 50', () => {
-    expect(resolveRankTier(49, 'locked')).toEqual({ rank_tier: 'unranked', rank_label: 'Yếu' });
-    expect(resolveRankTier(0, 'locked')).toEqual({ rank_tier: 'unranked', rank_label: 'Yếu' });
+    expect(resolveRankTier(49, 'locked')).toEqual({
+      rank_tier: 'unranked',
+      rank_label: 'Yếu',
+    });
+    expect(resolveRankTier(0, 'locked')).toEqual({
+      rank_tier: 'unranked',
+      rank_label: 'Yếu',
+    });
   });
 });
 
@@ -63,7 +106,7 @@ describe('SummariesPointService', () => {
       findByIdAndDelete: jest.fn(),
       aggregate: jest.fn(),
       insertMany: jest.fn(),
-    }
+    },
   );
 
   const mockStudentModel = {
@@ -99,11 +142,15 @@ describe('SummariesPointService', () => {
   };
 
   const mockAcademicRecordService = {
-    syncMultipleStudentCriterionScores: jest.fn().mockResolvedValue({ mismatches: [] }),
+    syncMultipleStudentCriterionScores: jest
+      .fn()
+      .mockResolvedValue({ mismatches: [] }),
   };
 
   jest.mock('../export/pl03-summary-excel.service', () => ({
-    generatePl03Excel: jest.fn().mockResolvedValue(Buffer.from('mock excel data')),
+    generatePl03Excel: jest
+      .fn()
+      .mockResolvedValue(Buffer.from('mock excel data')),
   }));
 
   beforeEach(async () => {
@@ -153,7 +200,11 @@ describe('SummariesPointService', () => {
     mockStudentModel.findById.mockReturnValue({
       select: jest.fn().mockReturnThis(),
       lean: jest.fn().mockReturnThis(),
-      exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', class_id: 'class-1', status: 'Studying' }),
+      exec: jest.fn().mockResolvedValue({
+        _id: '507f1f77bcf86cd799439011',
+        class_id: 'class-1',
+        status: 'Studying',
+      }),
     });
   });
 
@@ -169,7 +220,9 @@ describe('SummariesPointService', () => {
     };
 
     it('should return existing summary if it already exists', async () => {
-      jest.spyOn(service as any, 'assertCanAccessStudent').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessStudent')
+        .mockResolvedValue(undefined);
       const mockExisting = { _id: 'existing-id', ...createDto };
       mockSummaryPointModel.findOne.mockReturnValue({
         populate: jest.fn().mockReturnThis(),
@@ -183,7 +236,9 @@ describe('SummariesPointService', () => {
     });
 
     it('should create and return new summary if it does not exist', async () => {
-      jest.spyOn(service as any, 'assertCanAccessStudent').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessStudent')
+        .mockResolvedValue(undefined);
       mockSummaryPointModel.findOne.mockReturnValue({
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null),
@@ -205,7 +260,9 @@ describe('SummariesPointService', () => {
     });
 
     it('should handle race condition E11000 duplicate key error and return existing data', async () => {
-      jest.spyOn(service as any, 'assertCanAccessStudent').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessStudent')
+        .mockResolvedValue(undefined);
       mockSummaryPointModel.findOne.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null),
@@ -227,12 +284,18 @@ describe('SummariesPointService', () => {
     });
 
     it('should normalize missing period_id to null and return existing data', async () => {
-      jest.spyOn(service as any, 'assertCanAccessStudent').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessStudent')
+        .mockResolvedValue(undefined);
       const dtoWithoutPeriod = {
         student_id: '507f1f77bcf86cd799439011',
         semester_id: '507f1f77bcf86cd799439012',
       };
-      const mockExisting = { _id: 'existing-id', ...dtoWithoutPeriod, period_id: null };
+      const mockExisting = {
+        _id: 'existing-id',
+        ...dtoWithoutPeriod,
+        period_id: null,
+      };
       mockSummaryPointModel.findOne.mockReturnValue({
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(mockExisting),
@@ -240,27 +303,35 @@ describe('SummariesPointService', () => {
 
       const result = await service.create(dtoWithoutPeriod as any);
 
-      expect(mockSummaryPointModel.findOne).toHaveBeenCalledWith(expect.objectContaining({
-        student_id: new Types.ObjectId(dtoWithoutPeriod.student_id),
-        semester_id: new Types.ObjectId(dtoWithoutPeriod.semester_id),
-        period_id: null,
-      }));
+      expect(mockSummaryPointModel.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          student_id: new Types.ObjectId(dtoWithoutPeriod.student_id),
+          semester_id: new Types.ObjectId(dtoWithoutPeriod.semester_id),
+          period_id: null,
+        }),
+      );
       expect(result).toEqual(mockExisting);
     });
 
     it('should throw BadRequestException if period_id is an empty string', async () => {
-      jest.spyOn(service as any, 'assertCanAccessStudent').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessStudent')
+        .mockResolvedValue(undefined);
       const dtoWithEmptyPeriod = {
         student_id: '507f1f77bcf86cd799439011',
         semester_id: '507f1f77bcf86cd799439012',
         period_id: '',
       };
 
-      await expect(service.create(dtoWithEmptyPeriod as any)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dtoWithEmptyPeriod as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should handle race condition with period_id: null and return existing null-period summary', async () => {
-      jest.spyOn(service as any, 'assertCanAccessStudent').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessStudent')
+        .mockResolvedValue(undefined);
       const dtoWithNullPeriod = {
         student_id: '507f1f77bcf86cd799439011',
         semester_id: '507f1f77bcf86cd799439012',
@@ -284,50 +355,78 @@ describe('SummariesPointService', () => {
 
       const result = await service.create(dtoWithNullPeriod as any);
 
-      expect(mockSummaryPointModel.findOne).toHaveBeenNthCalledWith(2, expect.objectContaining({
-        student_id: new Types.ObjectId(dtoWithNullPeriod.student_id),
-        semester_id: new Types.ObjectId(dtoWithNullPeriod.semester_id),
-        period_id: null,
-      }));
+      expect(mockSummaryPointModel.findOne).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          student_id: new Types.ObjectId(dtoWithNullPeriod.student_id),
+          semester_id: new Types.ObjectId(dtoWithNullPeriod.semester_id),
+          period_id: null,
+        }),
+      );
       expect(result).toEqual(mockExisting);
     });
 
     it('should throw BadRequestException if target student is not Studying', async () => {
-      jest.spyOn(service as any, 'assertCanAccessStudent').mockResolvedValue(undefined);
-      
+      jest
+        .spyOn(service as any, 'assertCanAccessStudent')
+        .mockResolvedValue(undefined);
+
       mockStudentModel.findById.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', status: 'Reserved' }),
+        exec: jest.fn().mockResolvedValue({
+          _id: '507f1f77bcf86cd799439011',
+          status: 'Reserved',
+        }),
       });
 
-      await expect(service.create(createDto)).rejects.toThrow(BadRequestException);
+      await expect(service.create(createDto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
   describe('initializeClass', () => {
     it('should throw BadRequestException if classId is invalid', async () => {
-      await expect(service.initializeClass('invalid', '507f1f77bcf86cd799439012')).rejects.toThrow(BadRequestException);
+      await expect(
+        service.initializeClass('invalid', '507f1f77bcf86cd799439012'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw NotFoundException if class does not exist', async () => {
-      mockClassModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
-      await expect(service.initializeClass('507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012')).rejects.toThrow(NotFoundException);
+      mockClassModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+      await expect(
+        service.initializeClass(
+          '507f1f77bcf86cd799439011',
+          '507f1f77bcf86cd799439012',
+        ),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should initialize summaries for students with default values', async () => {
-      mockClassModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue({ _id: 'class-1', advisor_id: 'user1' }) });
+      mockClassModel.findById.mockReturnValue({
+        exec: jest
+          .fn()
+          .mockResolvedValue({ _id: 'class-1', advisor_id: 'user1' }),
+      });
       mockStudentModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([
-          { _id: 'student-1' },
-          { _id: 'student-2' }
-        ])
+        exec: jest
+          .fn()
+          .mockResolvedValue([{ _id: 'student-1' }, { _id: 'student-2' }]),
       });
       mockSummaryPointModel.find.mockReturnValue({
         select: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ student_id: 'student-1' }])
+        exec: jest.fn().mockResolvedValue([{ student_id: 'student-1' }]),
       });
-      mockSummaryPointModel.insertMany.mockResolvedValue([{ _id: 'new-summary' }]);
+      mockSummaryPointModel.insertMany.mockResolvedValue([
+        { _id: 'new-summary' },
+      ]);
 
-      const result = await service.initializeClass('507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012', { userId: 'user1', roleName: 'teacher' });
+      const result = await service.initializeClass(
+        '507f1f77bcf86cd799439011',
+        '507f1f77bcf86cd799439012',
+        { userId: 'user1', roleName: 'teacher' },
+      );
 
       expect(mockSummaryPointModel.insertMany).toHaveBeenCalledWith([
         {
@@ -336,18 +435,28 @@ describe('SummariesPointService', () => {
           period_id: null,
           total_score: 0,
           grading: 'CHUA XEP LOAI',
-          status: 'draft'
-        }
+          status: 'draft',
+        },
       ]);
       expect(result).toEqual({ success: true, createdCount: 1 });
     });
   });
 
   describe('approveGrading', () => {
-    const setupApproveGradingMock = (details: any[], activeRecords: any[] = [], criteria: any[] = []) => {
-      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
-      jest.spyOn(service as any, 'recomputeTotalScore').mockResolvedValue(undefined);
-      jest.spyOn(service, 'syncSummaryWithAcademicRecords').mockResolvedValue(null);
+    const setupApproveGradingMock = (
+      details: any[],
+      activeRecords: any[] = [],
+      criteria: any[] = [],
+    ) => {
+      jest
+        .spyOn(service as any, 'assertCanAccessSummary')
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'recomputeTotalScore')
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(service, 'syncSummaryWithAcademicRecords')
+        .mockResolvedValue(null);
 
       mockAcademicRecordModel.find.mockReturnValue({
         lean: jest.fn().mockReturnThis(),
@@ -370,7 +479,11 @@ describe('SummariesPointService', () => {
         save: jest.fn().mockResolvedValue(true),
       };
 
-      const mockPopulatedResult = { ...mockSummary, status: 'locked', rank_tier: 'gold' };
+      const mockPopulatedResult = {
+        ...mockSummary,
+        status: 'locked',
+        rank_tier: 'gold',
+      };
 
       mockSummaryPointModel.findById.mockImplementation((id: string) => {
         const queryBuilder = {
@@ -386,23 +499,43 @@ describe('SummariesPointService', () => {
 
     it('should throw ForbiddenException if requester is not admin or supervisor', async () => {
       await expect(
-        service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'student' })
+        service.approveGrading('some-id', {
+          userId: '507f1f77bcf86cd799439011',
+          roleName: 'student',
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw NotFoundException if summary not found after recompute', async () => {
-      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
-      jest.spyOn(service as any, 'recomputeTotalScore').mockResolvedValue(undefined);
-      jest.spyOn(service, 'syncSummaryWithAcademicRecords').mockResolvedValue(null);
+      jest
+        .spyOn(service as any, 'assertCanAccessSummary')
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'recomputeTotalScore')
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(service, 'syncSummaryWithAcademicRecords')
+        .mockResolvedValue(null);
       mockSummaryPointModel.findById.mockResolvedValueOnce(null);
 
-      await expect(service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' })).rejects.toThrow(NotFoundException);
+      await expect(
+        service.approveGrading('some-id', {
+          userId: '507f1f77bcf86cd799439011',
+          roleName: 'admin',
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should calculate rank_tier, update status to locked and save', async () => {
-      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
-      jest.spyOn(service as any, 'recomputeTotalScore').mockResolvedValue(undefined);
-      jest.spyOn(service, 'syncSummaryWithAcademicRecords').mockResolvedValue(null);
+      jest
+        .spyOn(service as any, 'assertCanAccessSummary')
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'recomputeTotalScore')
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(service, 'syncSummaryWithAcademicRecords')
+        .mockResolvedValue(null);
 
       mockAcademicRecordModel.find.mockReturnValue({
         lean: jest.fn().mockReturnThis(),
@@ -428,14 +561,21 @@ describe('SummariesPointService', () => {
 
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
-      
-      const mockPopulatedResult = { ...mockSummary, status: 'locked', rank_tier: 'gold' };
+
+      const mockPopulatedResult = {
+        ...mockSummary,
+        status: 'locked',
+        rank_tier: 'gold',
+      };
       mockSummaryPointModel.findById.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValueOnce(mockPopulatedResult),
       });
 
-      const result = await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+      const result = await service.approveGrading('some-id', {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      });
 
       expect(mockSummary.status).toBe('locked');
       expect(mockSummary.rank_tier).toBe('gold');
@@ -459,7 +599,10 @@ describe('SummariesPointService', () => {
       ];
       const { mockSummary } = setupApproveGradingMock(details);
 
-      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+      await service.approveGrading('some-id', {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      });
 
       expect(mockSummary.details[0].final_score).toBe(9);
       expect(mockSummary.details[0].status).toBe('locked');
@@ -488,7 +631,10 @@ describe('SummariesPointService', () => {
       ];
       const { mockSummary } = setupApproveGradingMock(details);
 
-      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+      await service.approveGrading('some-id', {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      });
 
       expect(mockSummary.details[0].final_score).toBe(8);
       expect(mockSummary.details[1].final_score).toBe(6);
@@ -517,7 +663,10 @@ describe('SummariesPointService', () => {
       ];
       const { mockSummary } = setupApproveGradingMock(details);
 
-      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+      await service.approveGrading('some-id', {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      });
 
       expect(mockSummary.details[0].final_score).toBe(7);
       expect(mockSummary.details[1].final_score).toBe(5);
@@ -555,7 +704,10 @@ describe('SummariesPointService', () => {
       ];
       const { mockSummary } = setupApproveGradingMock(details);
 
-      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+      await service.approveGrading('some-id', {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      });
 
       expect(mockSummary.details[0].final_score).toBe(0);
       expect(mockSummary.details[1].final_score).toBe(0);
@@ -577,7 +729,10 @@ describe('SummariesPointService', () => {
       const { mockSummary } = setupApproveGradingMock(details);
       mockSummary.status = 'locked';
 
-      const result = await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+      const result = await service.approveGrading('some-id', {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      });
 
       expect(result.status).toBe('locked');
       expect(mockSummary.details[0].final_score).toBe(9);
@@ -615,11 +770,18 @@ describe('SummariesPointService', () => {
           scoring_mode: 'count',
         },
       ];
-      
-      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+
+      const { mockSummary } = setupApproveGradingMock(
+        details,
+        activeRecords,
+        criteria,
+      );
 
       await expect(
-        service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' })
+        service.approveGrading('some-id', {
+          userId: '507f1f77bcf86cd799439011',
+          roleName: 'admin',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -656,9 +818,16 @@ describe('SummariesPointService', () => {
         },
       ];
 
-      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+      const { mockSummary } = setupApproveGradingMock(
+        details,
+        activeRecords,
+        criteria,
+      );
 
-      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+      await service.approveGrading('some-id', {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      });
 
       expect(mockSummary.details[0].final_score).toBe(0);
       expect(mockSummary.details[0].status).toBe('locked');
@@ -694,9 +863,16 @@ describe('SummariesPointService', () => {
         },
       ];
 
-      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+      const { mockSummary } = setupApproveGradingMock(
+        details,
+        activeRecords,
+        criteria,
+      );
 
-      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+      await service.approveGrading('some-id', {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      });
 
       expect(mockSummary.details[0].final_score).toBe(0);
       expect(mockSummary.details[0].status).toBe('locked');
@@ -732,9 +908,16 @@ describe('SummariesPointService', () => {
         },
       ];
 
-      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+      const { mockSummary } = setupApproveGradingMock(
+        details,
+        activeRecords,
+        criteria,
+      );
 
-      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+      await service.approveGrading('some-id', {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      });
 
       expect(mockSummary.details[0].final_score).toBe(0);
       expect(mockSummary.details[0].status).toBe('locked');
@@ -772,10 +955,17 @@ describe('SummariesPointService', () => {
         },
       ];
 
-      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+      const { mockSummary } = setupApproveGradingMock(
+        details,
+        activeRecords,
+        criteria,
+      );
 
       await expect(
-        service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' })
+        service.approveGrading('some-id', {
+          userId: '507f1f77bcf86cd799439011',
+          roleName: 'admin',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -811,10 +1001,17 @@ describe('SummariesPointService', () => {
         },
       ];
 
-      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+      const { mockSummary } = setupApproveGradingMock(
+        details,
+        activeRecords,
+        criteria,
+      );
 
       await expect(
-        service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' })
+        service.approveGrading('some-id', {
+          userId: '507f1f77bcf86cd799439011',
+          roleName: 'admin',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -851,9 +1048,16 @@ describe('SummariesPointService', () => {
         },
       ];
 
-      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+      const { mockSummary } = setupApproveGradingMock(
+        details,
+        activeRecords,
+        criteria,
+      );
 
-      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+      await service.approveGrading('some-id', {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      });
 
       expect(mockSummary.details[0].final_score).toBe(0);
       expect(mockSummary.details[0].status).toBe('locked');
@@ -863,34 +1067,51 @@ describe('SummariesPointService', () => {
   describe('cancelApproval', () => {
     it('should throw ForbiddenException if requester is not admin or supervisor', async () => {
       await expect(
-        service.cancelApproval('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'student' })
+        service.cancelApproval('some-id', {
+          userId: '507f1f77bcf86cd799439011',
+          roleName: 'student',
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw NotFoundException if summary not found', async () => {
-      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessSummary')
+        .mockResolvedValue(undefined);
       mockSummaryPointModel.findById.mockResolvedValueOnce(null);
 
       await expect(
-        service.cancelApproval('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' })
+        service.cancelApproval('some-id', {
+          userId: '507f1f77bcf86cd799439011',
+          roleName: 'admin',
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException if status is not locked', async () => {
-      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessSummary')
+        .mockResolvedValue(undefined);
       mockSummaryPointModel.findById.mockResolvedValueOnce({
         _id: 'some-id',
         status: 'draft',
       });
 
       await expect(
-        service.cancelApproval('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' })
+        service.cancelApproval('some-id', {
+          userId: '507f1f77bcf86cd799439011',
+          roleName: 'admin',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should clear detail.final_score, reset statuses to draft, reset rank fields to null, and log old final_score', async () => {
-      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
-      jest.spyOn(service as any, 'recomputeTotalScore').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessSummary')
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'recomputeTotalScore')
+        .mockResolvedValue(undefined);
 
       const mockSummary = {
         _id: 'some-id',
@@ -913,13 +1134,22 @@ describe('SummariesPointService', () => {
 
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
 
-      const mockPopulatedResult = { ...mockSummary, status: 'draft', rank_tier: null, rank_label: null, grading: 'Chưa xếp loại' };
+      const mockPopulatedResult = {
+        ...mockSummary,
+        status: 'draft',
+        rank_tier: null,
+        rank_label: null,
+        grading: 'Chưa xếp loại',
+      };
       mockSummaryPointModel.findById.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValueOnce(mockPopulatedResult),
       });
 
-      const requester = { userId: '507f1f77bcf86cd799439011', roleName: 'admin' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439011',
+        roleName: 'admin',
+      };
       const result = await service.cancelApproval('some-id', requester);
 
       expect(mockSummary.status).toBe('draft');
@@ -934,14 +1164,16 @@ describe('SummariesPointService', () => {
       expect(mockSummary.details[0].locked_by).toBeNull();
 
       expect(mockSummary.details[0].log).toHaveLength(1);
-      expect(mockSummary.details[0].log[0]).toEqual(expect.objectContaining({
-        from_status: 'locked',
-        to_status: 'draft',
-        score_before: 85,
-        score_after: null,
-        count: 1,
-        reason: 'Hủy duyệt rèn luyện về Bản nháp',
-      }));
+      expect(mockSummary.details[0].log[0]).toEqual(
+        expect.objectContaining({
+          from_status: 'locked',
+          to_status: 'draft',
+          score_before: 85,
+          score_after: null,
+          count: 1,
+          reason: 'Hủy duyệt rèn luyện về Bản nháp',
+        }),
+      );
 
       expect(mockSummary.save).toHaveBeenCalled();
       expect(result.grading).toBe('Chưa xếp loại');
@@ -952,18 +1184,22 @@ describe('SummariesPointService', () => {
   describe('cancelApprovalBulk', () => {
     it('should throw BadRequestException if summaryIds is empty', async () => {
       await expect(
-        service.cancelApprovalBulk([], { userId: 'admin1', roleName: 'admin' })
+        service.cancelApprovalBulk([], { userId: 'admin1', roleName: 'admin' }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should return results with success and error details', async () => {
       const mockResult = { _id: 'id1', status: 'draft' };
-      const cancelApprovalSpy = jest.spyOn(service, 'cancelApproval')
+      const cancelApprovalSpy = jest
+        .spyOn(service, 'cancelApproval')
         .mockResolvedValueOnce(mockResult as any)
         .mockRejectedValueOnce(new Error('Some error'));
 
       const requester = { userId: 'admin1', roleName: 'admin' };
-      const results = await service.cancelApprovalBulk(['id1', 'id2'], requester);
+      const results = await service.cancelApprovalBulk(
+        ['id1', 'id2'],
+        requester,
+      );
 
       expect(cancelApprovalSpy).toHaveBeenCalledTimes(2);
       expect(cancelApprovalSpy).toHaveBeenNthCalledWith(1, 'id1', requester);
@@ -971,7 +1207,7 @@ describe('SummariesPointService', () => {
 
       expect(results).toEqual([
         { summaryId: 'id1', success: true, data: mockResult },
-        { summaryId: 'id2', success: false, error: 'Some error' }
+        { summaryId: 'id2', success: false, error: 'Some error' },
       ]);
     });
   });
@@ -984,7 +1220,9 @@ describe('SummariesPointService', () => {
       });
       const result = await service.findLatestForStudent('user123');
       expect(result).toBeNull();
-      expect(mockStudentModel.findOne).toHaveBeenCalledWith({ user_id: 'user123' });
+      expect(mockStudentModel.findOne).toHaveBeenCalledWith({
+        user_id: 'user123',
+      });
     });
 
     it('should return null if no locked summary found', async () => {
@@ -1016,7 +1254,7 @@ describe('SummariesPointService', () => {
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(mockStudent),
       });
-      
+
       const mockSummary = {
         _id: 'summary1',
         status: 'locked',
@@ -1036,7 +1274,7 @@ describe('SummariesPointService', () => {
       });
 
       const result = await service.findLatestForStudent('user123');
-      
+
       expect(result).toEqual({
         _id: 'summary1',
         status: 'locked',
@@ -1058,7 +1296,9 @@ describe('SummariesPointService', () => {
           },
         },
       });
-      expect(mockStudentModel.findOne).toHaveBeenCalledWith({ user_id: 'user123' });
+      expect(mockStudentModel.findOne).toHaveBeenCalledWith({
+        user_id: 'user123',
+      });
       expect(mockSummaryPointModel.findOne).toHaveBeenCalledWith({
         student_id: 'student123',
         status: 'locked',
@@ -1076,7 +1316,7 @@ describe('SummariesPointService', () => {
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(mockStudent),
       });
-      
+
       const mockSummary = {
         _id: 'summary1',
         status: 'locked',
@@ -1096,7 +1336,7 @@ describe('SummariesPointService', () => {
       });
 
       const result = await service.findLatestForStudent('user123');
-      
+
       expect(result.className).toBe('Chưa cập nhật');
       expect(result.student.class_id).toBeNull();
     });
@@ -1109,28 +1349,52 @@ describe('SummariesPointService', () => {
     const validStu2 = '507f1f77bcf86cd799439014';
 
     it('should throw NotFoundException if class does not exist', async () => {
-      mockClassModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
-      const dto = { semesterId: validSemId, classId: validClassId, mode: 'all_filtered' as const };
-      
-      await expect(service.generateSummaryExcel(dto, { userId: 'u1' })).rejects.toThrow(NotFoundException);
+      mockClassModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+      const dto = {
+        semesterId: validSemId,
+        classId: validClassId,
+        mode: 'all_filtered' as const,
+      };
+
+      await expect(
+        service.generateSummaryExcel(dto, { userId: 'u1' }),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ForbiddenException if requester is not admin/supervisor and not advisor', async () => {
       mockClassModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ _id: validClassId, advisor_id: 'u2' }),
+        exec: jest
+          .fn()
+          .mockResolvedValue({ _id: validClassId, advisor_id: 'u2' }),
       });
-      const dto = { semesterId: validSemId, classId: validClassId, mode: 'all_filtered' as const };
-      
-      await expect(service.generateSummaryExcel(dto, { userId: 'u1', roleName: 'Teacher' }))
-        .rejects.toThrow(ForbiddenException);
+      const dto = {
+        semesterId: validSemId,
+        classId: validClassId,
+        mode: 'all_filtered' as const,
+      };
+
+      await expect(
+        service.generateSummaryExcel(dto, {
+          userId: 'u1',
+          roleName: 'Teacher',
+        }),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should allow if requester is admin/supervisor', async () => {
       mockClassModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ _id: validClassId, advisor_id: 'u2', class_name: 'Lop 1' }),
+        exec: jest.fn().mockResolvedValue({
+          _id: validClassId,
+          advisor_id: 'u2',
+          class_name: 'Lop 1',
+        }),
       });
       mockSemesterModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ _id: validSemId, semester_name: 'HK1' }),
+        exec: jest
+          .fn()
+          .mockResolvedValue({ _id: validSemId, semester_name: 'HK1' }),
       });
       mockStudentModel.find.mockReturnValue({
         select: jest.fn().mockReturnThis(),
@@ -1141,8 +1405,15 @@ describe('SummariesPointService', () => {
         exec: jest.fn().mockResolvedValue([{ _id: 'sum1', total_score: 90 }]),
       });
 
-      const dto = { semesterId: validSemId, classId: validClassId, mode: 'all_filtered' as const };
-      const result = await service.generateSummaryExcel(dto, { userId: 'u1', roleName: 'Admin' });
+      const dto = {
+        semesterId: validSemId,
+        classId: validClassId,
+        mode: 'all_filtered' as const,
+      };
+      const result = await service.generateSummaryExcel(dto, {
+        userId: 'u1',
+        roleName: 'Admin',
+      });
 
       expect(result.filename).toContain('PL03-TONGHOPRL-LOP-1.xlsx');
       expect(result.buffer).toBeInstanceOf(Buffer);
@@ -1150,22 +1421,41 @@ describe('SummariesPointService', () => {
 
     it('should generate excel for selected students', async () => {
       mockClassModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ _id: validClassId, advisor_id: 'u1', class_name: 'Lop 1' }),
+        exec: jest.fn().mockResolvedValue({
+          _id: validClassId,
+          advisor_id: 'u1',
+          class_name: 'Lop 1',
+        }),
       });
       mockSemesterModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ _id: validSemId, semester_name: 'HK1' }),
+        exec: jest
+          .fn()
+          .mockResolvedValue({ _id: validSemId, semester_name: 'HK1' }),
       });
       mockStudentModel.find.mockReturnValue({
         select: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: validStu1 }, { _id: validStu2 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValue([{ _id: validStu1 }, { _id: validStu2 }]),
       });
       mockSummaryPointModel.find.mockReturnValue({
         populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: 'sum1', total_score: 90 }, { _id: 'sum2', total_score: 80 }]),
+        exec: jest.fn().mockResolvedValue([
+          { _id: 'sum1', total_score: 90 },
+          { _id: 'sum2', total_score: 80 },
+        ]),
       });
 
-      const dto = { semesterId: validSemId, classId: validClassId, studentIds: [validStu1, validStu2], mode: 'selected' as const };
-      const result = await service.generateSummaryExcel(dto, { userId: 'u1', roleName: 'Teacher' });
+      const dto = {
+        semesterId: validSemId,
+        classId: validClassId,
+        studentIds: [validStu1, validStu2],
+        mode: 'selected' as const,
+      };
+      const result = await service.generateSummaryExcel(dto, {
+        userId: 'u1',
+        roleName: 'Teacher',
+      });
 
       expect(result.filename).toContain('PL03-TONGHOPRL-LOP-1.xlsx');
       expect(result.buffer).toBeInstanceOf(Buffer);
@@ -1178,7 +1468,9 @@ describe('SummariesPointService', () => {
 
   describe('update', () => {
     it('should throw BadRequestException if update attempts to set status to locked', async () => {
-      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessSummary')
+        .mockResolvedValue(undefined);
       mockSummaryPointModel.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValueOnce({
           _id: 'some-id',
@@ -1192,7 +1484,9 @@ describe('SummariesPointService', () => {
     });
 
     it('should throw BadRequestException if existing summary status is locked', async () => {
-      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'assertCanAccessSummary')
+        .mockResolvedValue(undefined);
       mockSummaryPointModel.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValueOnce({
           _id: 'some-id',
@@ -1201,7 +1495,11 @@ describe('SummariesPointService', () => {
       });
 
       await expect(
-        service.update('some-id', { status: 'draft' }, { userId: 'user1', roleName: 'admin' }),
+        service.update(
+          'some-id',
+          { status: 'draft' },
+          { userId: 'user1', roleName: 'admin' },
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -1220,11 +1518,17 @@ describe('SummariesPointService', () => {
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
       mockCriterionModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([
+            { _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 },
+          ]),
       });
 
       await service.recomputeTotalScore('some-id');
@@ -1247,11 +1551,17 @@ describe('SummariesPointService', () => {
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
       mockCriterionModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([
+            { _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 },
+          ]),
       });
 
       await service.recomputeTotalScore('some-id');
@@ -1274,11 +1584,17 @@ describe('SummariesPointService', () => {
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
       mockCriterionModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([
+            { _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 },
+          ]),
       });
 
       await service.recomputeTotalScore('some-id');
@@ -1301,16 +1617,27 @@ describe('SummariesPointService', () => {
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
       mockCriterionModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cri-vio', category_id: 'cat-1', criterion_type: 'ky_luat', score_per_unit: -1, max_score: 10, is_score_counted: true }]),
+        exec: jest.fn().mockResolvedValueOnce([
+          {
+            _id: 'cri-vio',
+            category_id: 'cat-1',
+            criterion_type: 'ky_luat',
+            score_per_unit: -1,
+            max_score: 10,
+            is_score_counted: true,
+          },
+        ]),
       });
 
       await service.recomputeTotalScore('some-id');
 
-      // final_score=-3 -> rawScore = max_score(10) - |-3| = 7. 
+      // final_score=-3 -> rawScore = max_score(10) - |-3| = 7.
       // Since is_score_counted is true, catInfo.currentScore adds 7. Total=7.
       expect(mockSummary.total_score).toBe(7);
       expect(mockSummary.save).toHaveBeenCalled();
@@ -1329,11 +1656,17 @@ describe('SummariesPointService', () => {
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
       mockCriterionModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([
+            { _id: 'cri-1', category_id: 'cat-1', score_per_unit: 1 },
+          ]),
       });
 
       await service.recomputeTotalScore('some-id');
@@ -1354,17 +1687,33 @@ describe('SummariesPointService', () => {
       };
 
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
-      
+
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
 
       mockCriterionModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValueOnce([
-          { _id: 'cri-1', category_id: 'cat-1', criterion_type: 'ky_luat', max_score: 10, score_per_unit: -2, is_score_counted: true },
-          { _id: 'cri-2', category_id: 'cat-1', criterion_type: 'ky_luat', max_score: 10, score_per_unit: -2, is_score_counted: false }
+          {
+            _id: 'cri-1',
+            category_id: 'cat-1',
+            criterion_type: 'ky_luat',
+            max_score: 10,
+            score_per_unit: -2,
+            is_score_counted: true,
+          },
+          {
+            _id: 'cri-2',
+            category_id: 'cat-1',
+            criterion_type: 'ky_luat',
+            max_score: 10,
+            score_per_unit: -2,
+            is_score_counted: false,
+          },
         ]),
       });
 
@@ -1385,7 +1734,7 @@ describe('SummariesPointService', () => {
         grading: '',
         details: [
           { criterion_id: 'cri-reward', final_score: 15 },
-          { criterion_id: 'cri-violation-non-counted', final_score: 8 } // deduct 2
+          { criterion_id: 'cri-violation-non-counted', final_score: 8 }, // deduct 2
         ],
         save: jest.fn().mockResolvedValue(true),
       };
@@ -1393,14 +1742,28 @@ describe('SummariesPointService', () => {
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
 
       mockCriterionModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValueOnce([
-          { _id: 'cri-reward', category_id: 'cat-1', criterion_type: 'thuong', score_per_unit: 5 },
-          { _id: 'cri-violation-non-counted', category_id: 'cat-1', criterion_type: 'ky_luat', max_score: 10, score_per_unit: -2, is_score_counted: false }
+          {
+            _id: 'cri-reward',
+            category_id: 'cat-1',
+            criterion_type: 'thuong',
+            score_per_unit: 5,
+          },
+          {
+            _id: 'cri-violation-non-counted',
+            category_id: 'cat-1',
+            criterion_type: 'ky_luat',
+            max_score: 10,
+            score_per_unit: -2,
+            is_score_counted: false,
+          },
         ]),
       });
 
@@ -1423,7 +1786,7 @@ describe('SummariesPointService', () => {
         details: [
           { criterion_id: 'cri-cat1-1', final_score: 30 },
           { criterion_id: 'cri-cat2-1', final_score: 40 },
-          { criterion_id: 'cri-cat3-1', final_score: 60 }
+          { criterion_id: 'cri-cat3-1', final_score: 60 },
         ],
         save: jest.fn().mockResolvedValue(true),
       };
@@ -1434,16 +1797,31 @@ describe('SummariesPointService', () => {
         exec: jest.fn().mockResolvedValueOnce([
           { _id: 'cat-1', max_score: 20 }, // 30 clamped to 20
           { _id: 'cat-2', max_score: 50 }, // 40 clamped to 40
-          { _id: 'cat-3', max_score: 50 }  // 60 clamped to 50
+          { _id: 'cat-3', max_score: 50 }, // 60 clamped to 50
         ]),
       });
 
       mockCriterionModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValueOnce([
-          { _id: 'cri-cat1-1', category_id: 'cat-1', criterion_type: 'thuong', score_per_unit: 10 },
-          { _id: 'cri-cat2-1', category_id: 'cat-2', criterion_type: 'thuong', score_per_unit: 10 },
-          { _id: 'cri-cat3-1', category_id: 'cat-3', criterion_type: 'thuong', score_per_unit: 10 }
+          {
+            _id: 'cri-cat1-1',
+            category_id: 'cat-1',
+            criterion_type: 'thuong',
+            score_per_unit: 10,
+          },
+          {
+            _id: 'cri-cat2-1',
+            category_id: 'cat-2',
+            criterion_type: 'thuong',
+            score_per_unit: 10,
+          },
+          {
+            _id: 'cri-cat3-1',
+            category_id: 'cat-3',
+            criterion_type: 'thuong',
+            score_per_unit: 10,
+          },
         ]),
       });
 
@@ -1481,7 +1859,7 @@ describe('SummariesPointService', () => {
             selected_option_id: 'opt-not-found-no-score',
             status: 'draft',
             current_count: 1,
-          }
+          },
         ],
         save: jest.fn().mockResolvedValue(true),
       };
@@ -1489,7 +1867,9 @@ describe('SummariesPointService', () => {
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
 
       mockCriterionModel.find.mockReturnValueOnce({
@@ -1512,7 +1892,7 @@ describe('SummariesPointService', () => {
             category_id: 'cat-1',
             scoring_mode: 'single_option',
             options: [],
-          }
+          },
         ]),
       });
 
@@ -1540,7 +1920,7 @@ describe('SummariesPointService', () => {
             sv_score: 10,
             gv_score: 10,
             status: 'draft',
-          }
+          },
         ],
         save: jest.fn().mockResolvedValue(true),
       };
@@ -1548,7 +1928,9 @@ describe('SummariesPointService', () => {
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
 
       mockCriterionModel.find.mockReturnValueOnce({
@@ -1561,7 +1943,7 @@ describe('SummariesPointService', () => {
             score_per_unit: 5,
             max_score: 10,
             criterion_type: 'reward',
-          }
+          },
         ]),
       });
 
@@ -1587,7 +1969,7 @@ describe('SummariesPointService', () => {
             sv_score: 0,
             gv_score: 0,
             status: 'draft',
-          }
+          },
         ],
         save: jest.fn().mockResolvedValue(true),
       };
@@ -1595,7 +1977,9 @@ describe('SummariesPointService', () => {
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
 
       mockCriterionModel.find.mockReturnValueOnce({
@@ -1606,7 +1990,7 @@ describe('SummariesPointService', () => {
             category_id: 'cat-1',
             scoring_mode: 'single_option',
             options: [{ id: 'opt-1', label: 'Option 1', score: 10 }],
-          }
+          },
         ]),
       });
 
@@ -1632,7 +2016,7 @@ describe('SummariesPointService', () => {
             sv_score: 10,
             gv_score: 10,
             status: 'draft',
-          }
+          },
         ],
         save: jest.fn().mockResolvedValue(true),
       };
@@ -1640,7 +2024,9 @@ describe('SummariesPointService', () => {
       mockSummaryPointModel.findById.mockResolvedValueOnce(mockSummary);
       mockCategoryModel.find.mockReturnValueOnce({
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
+        exec: jest
+          .fn()
+          .mockResolvedValueOnce([{ _id: 'cat-1', max_score: 100 }]),
       });
 
       mockCriterionModel.find.mockReturnValueOnce({
@@ -1651,7 +2037,7 @@ describe('SummariesPointService', () => {
             category_id: 'cat-1',
             scoring_mode: 'single_option',
             options: [{ id: 'opt-1', label: 'Option 1', score: 10 }],
-          }
+          },
         ]),
       });
 

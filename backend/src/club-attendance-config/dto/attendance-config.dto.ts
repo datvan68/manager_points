@@ -28,7 +28,10 @@ export class CreateAttendanceConfigDto {
   @Min(0)
   point_per_attendance: number;
 
-  @ApiPropertyOptional({ description: 'Points per late attendance', default: 0.25 })
+  @ApiPropertyOptional({
+    description: 'Points per late attendance',
+    default: 0.25,
+  })
   @IsOptional()
   @IsNumber()
   @Min(0)
@@ -40,24 +43,35 @@ export class CreateAttendanceConfigDto {
   @Min(0)
   max_points_per_semester?: number;
 
-  @ApiPropertyOptional({ description: 'Minimum attendances to earn points', default: 1 })
+  @ApiPropertyOptional({
+    description: 'Minimum attendances to earn points',
+    default: 1,
+  })
   @IsOptional()
   @IsNumber()
   @Min(0)
   min_attendance_for_points?: number;
 
-  @ApiPropertyOptional({ description: 'Auto-sync on attendance approval', default: true })
+  @ApiPropertyOptional({
+    description: 'Auto-sync on attendance approval',
+    default: true,
+  })
   @IsOptional()
   @IsBoolean()
   auto_sync_on_approve?: boolean;
 
-  @ApiPropertyOptional({ description: 'Require all sessions approved before sync', default: false })
+  @ApiPropertyOptional({
+    description: 'Require all sessions approved before sync',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   require_all_approved?: boolean;
 }
 
-export class UpdateAttendanceConfigDto extends PartialType(CreateAttendanceConfigDto) {
+export class UpdateAttendanceConfigDto extends PartialType(
+  CreateAttendanceConfigDto,
+) {
   @ApiPropertyOptional({
     description: 'Config status',
     enum: ['active', 'inactive'],

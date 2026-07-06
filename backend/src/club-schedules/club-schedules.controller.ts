@@ -10,7 +10,12 @@ import {
   Request,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
 import { ClubSchedulesService } from './club-schedules.service';
@@ -89,6 +94,15 @@ export class ClubSchedulesController {
   ) {
     return this.schedulesService.remove(id, deleteSeries === 'true');
   }
+
+  @Post(':id/cancel-recurrence')
+  @UseGuards(checkPermission('CLUB_SCHEDULE_MANAGE'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Hủy chế độ lặp lại của chuỗi lịch sinh hoạt' })
+  cancelRecurrence(@Param('id') id: string) {
+    return this.schedulesService.cancelRecurrence(id);
+  }
+
 
   // ── Registration ──
 

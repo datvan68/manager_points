@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { StudentTasksService } from './student-tasks.service';
 import { StudentTask } from './schemas/student-task.schema';
 import { Student } from '../students/schemas/student.schema';
@@ -73,10 +77,18 @@ describe('StudentTasksService', () => {
           useValue: {
             syncProgressForTask: jest.fn().mockResolvedValue(undefined),
             findProgressByUser: jest.fn().mockResolvedValue([mockProgress]),
-            findProgressByUserAndTasks: jest.fn().mockResolvedValue([mockProgress]),
-            findProgressByUserAndTask: jest.fn().mockResolvedValue(mockProgress),
-            updateStatus: jest.fn().mockResolvedValue({ ...mockProgress, status: 'completed' }),
-            cascadeStatusToActiveProgresses: jest.fn().mockResolvedValue({ matched: 1 }),
+            findProgressByUserAndTasks: jest
+              .fn()
+              .mockResolvedValue([mockProgress]),
+            findProgressByUserAndTask: jest
+              .fn()
+              .mockResolvedValue(mockProgress),
+            updateStatus: jest
+              .fn()
+              .mockResolvedValue({ ...mockProgress, status: 'completed' }),
+            cascadeStatusToActiveProgresses: jest
+              .fn()
+              .mockResolvedValue({ matched: 1 }),
           },
         },
         {
@@ -170,8 +182,11 @@ describe('StudentTasksService', () => {
     model = module.get(getModelToken(StudentTask.name));
     studentModel = module.get(getModelToken(Student.name));
     evaluationPeriodModel = module.get(getModelToken(EvaluationPeriod.name));
-    notificationsService = module.get<NotificationsService>(NotificationsService);
-    studentTaskProgressService = module.get<StudentTaskProgressService>(StudentTaskProgressService);
+    notificationsService =
+      module.get<NotificationsService>(NotificationsService);
+    studentTaskProgressService = module.get<StudentTaskProgressService>(
+      StudentTaskProgressService,
+    );
   });
 
   it('should be defined', () => {
@@ -208,7 +223,9 @@ describe('StudentTasksService', () => {
         targetType: 'student',
         targetScope: 'all',
       };
-      await expect(service.create(dto, mockUserId)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto, mockUserId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if targetScope is specific and no targetDetail', async () => {
@@ -223,7 +240,9 @@ describe('StudentTasksService', () => {
         targetType: 'student',
         targetScope: 'specific',
       };
-      await expect(service.create(dto, mockUserId)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto, mockUserId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if targetStudentIds contain invalid ObjectId', async () => {
@@ -239,7 +258,9 @@ describe('StudentTasksService', () => {
         targetScope: 'all',
         targetStudentIds: ['invalid-id'],
       };
-      await expect(service.create(dto, mockUserId)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto, mockUserId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if targetScope is specific, targetType is student and no student/class IDs provided', async () => {
@@ -257,7 +278,9 @@ describe('StudentTasksService', () => {
         targetStudentIds: [],
         targetClassIds: [],
       };
-      await expect(service.create(dto, mockUserId)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto, mockUserId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if targetScope is specific, targetType is teacher and no teacher IDs provided', async () => {
@@ -274,7 +297,9 @@ describe('StudentTasksService', () => {
         targetDetail: 'Some teacher',
         targetTeacherIds: [],
       };
-      await expect(service.create(dto, mockUserId)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto, mockUserId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if targetScope is specific and targetType is supervisor', async () => {
@@ -290,7 +315,9 @@ describe('StudentTasksService', () => {
         targetScope: 'specific',
         targetDetail: 'Some supervisor',
       };
-      await expect(service.create(dto, mockUserId)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto, mockUserId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -318,26 +345,28 @@ describe('StudentTasksService', () => {
     it('should compute KPI summaries and filter items based on userProgress status for Student role', async () => {
       // Mock student progress có status completed
       studentTaskProgressService.findProgressByUser.mockResolvedValueOnce([
-        { ...mockProgress, taskId: mockTask._id, status: 'completed' }
+        { ...mockProgress, taskId: mockTask._id, status: 'completed' },
       ]);
-      studentTaskProgressService.findProgressByUserAndTasks.mockResolvedValueOnce([
-        { ...mockProgress, taskId: mockTask._id, status: 'completed' }
-      ]);
-      
+      studentTaskProgressService.findProgressByUserAndTasks.mockResolvedValueOnce(
+        [{ ...mockProgress, taskId: mockTask._id, status: 'completed' }],
+      );
+
       const query = { page: 1, limit: 6, status: 'completed' };
       const user = { userId: mockUserId, roleName: 'Student' };
 
       // Mock find cho student tasks
       // Lần 1 gọi find() cho visibleTasks, lần 2 gọi find() cho items. Cả 2 lần đều trả về mockTask.
-      model.find.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue([mockTask]),
-      }).mockReturnValueOnce({
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([mockTask]),
-      });
+      model.find
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue([mockTask]),
+        })
+        .mockReturnValueOnce({
+          sort: jest.fn().mockReturnThis(),
+          skip: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockReturnThis(),
+          populate: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue([mockTask]),
+        });
 
       const result = await service.findAll(query, user);
 
@@ -352,7 +381,7 @@ describe('StudentTasksService', () => {
     it('should exclude progress of soft-deleted tasks from KPI calculations for Student role', async () => {
       const mockTaskId1 = new Types.ObjectId();
       const mockTaskId2 = new Types.ObjectId();
-      
+
       const mockProgress1 = {
         _id: new Types.ObjectId(),
         taskId: mockTaskId1,
@@ -360,7 +389,7 @@ describe('StudentTasksService', () => {
         status: 'not_started',
         isActive: true,
       };
-      
+
       const mockProgress2 = {
         _id: new Types.ObjectId(),
         taskId: mockTaskId2,
@@ -381,27 +410,33 @@ describe('StudentTasksService', () => {
         title: 'Active Task',
         priority: 'high',
         deletedAt: null,
-        toObject: jest.fn().mockReturnValue({ _id: mockTaskId1, title: 'Active Task' }),
+        toObject: jest
+          .fn()
+          .mockReturnValue({ _id: mockTaskId1, title: 'Active Task' }),
       };
 
       // Lần 1: visibleTasks, Lần 2: items
-      model.find.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue([mockActiveTask]),
-      }).mockReturnValueOnce({
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([mockActiveTask]),
-      });
+      model.find
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue([mockActiveTask]),
+        })
+        .mockReturnValueOnce({
+          sort: jest.fn().mockReturnThis(),
+          skip: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockReturnThis(),
+          populate: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue([mockActiveTask]),
+        });
 
-      studentTaskProgressService.findProgressByUserAndTasks.mockResolvedValueOnce([mockProgress1]);
+      studentTaskProgressService.findProgressByUserAndTasks.mockResolvedValueOnce(
+        [mockProgress1],
+      );
 
       const query = { page: 1, limit: 6 };
       const user = { userId: mockUserId, roleName: 'Student' };
-      
+
       const result = await service.findAll(query, user);
-      
+
       expect(result).toBeDefined();
       expect(result.summary.totalTasks).toEqual(1); // Chỉ tính mockProgress1 vì mockProgress2 thuộc task 2 đã bị soft deleted
       expect(result.summary.completedTasks).toEqual(0);
@@ -425,15 +460,17 @@ describe('StudentTasksService', () => {
       mockTask.targetScope = 'specific';
       mockTask.targetStudentIds = [new Types.ObjectId() as any];
       mockTask.targetClassIds = [new Types.ObjectId() as any];
-      
+
       const user = { userId: mockUserId, roleName: 'Student' };
-      await expect(service.findOne(mockTaskId, user)).rejects.toThrow(ForbiddenException);
+      await expect(service.findOne(mockTaskId, user)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should allow student if task is scope specific and student is assigned', async () => {
       mockTask.targetScope = 'specific';
       mockTask.targetStudentIds = [mockStudentId as any];
-      
+
       const user = { userId: mockUserId, roleName: 'Student' };
       const result = await service.findOne(mockTaskId, user);
       expect(result).toBeDefined();
@@ -465,7 +502,9 @@ describe('StudentTasksService', () => {
         }),
       });
       const user = { userId: mockUserId, roleName: 'Teacher' };
-      await expect(service.findOne(mockTaskId, user)).rejects.toThrow(ForbiddenException);
+      await expect(service.findOne(mockTaskId, user)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should throw NotFoundException if task does not exist', async () => {
@@ -473,19 +512,23 @@ describe('StudentTasksService', () => {
         exec: jest.fn().mockResolvedValue(null),
       });
       const user = { userId: mockUserId, roleName: 'Admin' };
-      await expect(service.findOne(mockTaskId, user)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(mockTaskId, user)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('updateStatus', () => {
     it('should allow student to update status of scope all task (updates progress)', async () => {
       const user = { userId: mockUserId, roleName: 'Student' };
-      
-      model.findOne.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(mockTask),
-      }).mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(mockTask),
-      });
+
+      model.findOne
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue(mockTask),
+        })
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue(mockTask),
+        });
 
       const result = await service.updateStatus(mockTaskId, 'completed', user);
       expect(result).toBeDefined();
@@ -494,27 +537,37 @@ describe('StudentTasksService', () => {
 
     it('should throw ForbiddenException if student progress not found', async () => {
       const user = { userId: mockUserId, roleName: 'Student' };
-      studentTaskProgressService.findProgressByUserAndTask.mockResolvedValueOnce(null);
+      studentTaskProgressService.findProgressByUserAndTask.mockResolvedValueOnce(
+        null,
+      );
 
-      await expect(service.updateStatus(mockTaskId, 'completed', user)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.updateStatus(mockTaskId, 'completed', user),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw BadRequestException if student progress is inactive', async () => {
       const user = { userId: mockUserId, roleName: 'Student' };
-      studentTaskProgressService.findProgressByUserAndTask.mockResolvedValueOnce({
-        ...mockProgress,
-        isActive: false,
-      });
+      studentTaskProgressService.findProgressByUserAndTask.mockResolvedValueOnce(
+        {
+          ...mockProgress,
+          isActive: false,
+        },
+      );
 
-      await expect(service.updateStatus(mockTaskId, 'completed', user)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateStatus(mockTaskId, 'completed', user),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should deny student to update status of non-assigned specific task', async () => {
       mockTask.targetScope = 'specific';
       mockTask.targetStudentIds = [new Types.ObjectId() as any];
-      
+
       const user = { userId: mockUserId, roleName: 'Student' };
-      await expect(service.updateStatus(mockTaskId, 'completed', user)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.updateStatus(mockTaskId, 'completed', user),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw ForbiddenException if student attempts to update teacher task', async () => {
@@ -525,24 +578,30 @@ describe('StudentTasksService', () => {
         }),
       });
       const user = { userId: mockUserId, roleName: 'Student' };
-      await expect(service.updateStatus(mockTaskId, 'completed', user)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.updateStatus(mockTaskId, 'completed', user),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should allow teacher if they are the creator (updates progress if no manage permission)', async () => {
-      model.findOne.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue({
-          ...mockTask,
-          targetType: 'teacher',
-          createdBy: new Types.ObjectId(mockUserId),
-        }),
-      }).mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(mockTask),
-      });
+      model.findOne
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue({
+            ...mockTask,
+            targetType: 'teacher',
+            createdBy: new Types.ObjectId(mockUserId),
+          }),
+        })
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue(mockTask),
+        });
       const user = { userId: mockUserId, roleName: 'Teacher' };
       const result = await service.updateStatus(mockTaskId, 'completed', user);
       console.log('FIRST TEST RESULT', result);
       expect(result).toBeDefined();
-      expect(studentTaskProgressService.cascadeStatusToActiveProgresses).toHaveBeenCalled();
+      expect(
+        studentTaskProgressService.cascadeStatusToActiveProgresses,
+      ).toHaveBeenCalled();
     });
 
     it('should deny teacher if they are not creator and not assigned', async () => {
@@ -556,32 +615,44 @@ describe('StudentTasksService', () => {
         }),
       });
       const user = { userId: mockUserId, roleName: 'Teacher', permissions: [] };
-      await expect(service.updateStatus(mockTaskId, 'completed', user)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.updateStatus(mockTaskId, 'completed', user),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should allow teacher if they have UPDATE_STUDENT_TASK permission even if not creator/assigned', async () => {
-      model.findOne.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue({
-          ...mockTask,
-          targetType: 'teacher',
-          targetScope: 'specific',
-          targetTeacherIds: [new Types.ObjectId()],
-          createdBy: new Types.ObjectId(),
-        }),
-      }).mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue(mockTask),
-      });
-      const user = { userId: mockUserId, roleName: 'Teacher', permissions: ['UPDATE_STUDENT_TASK'] };
+      model.findOne
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue({
+            ...mockTask,
+            targetType: 'teacher',
+            targetScope: 'specific',
+            targetTeacherIds: [new Types.ObjectId()],
+            createdBy: new Types.ObjectId(),
+          }),
+        })
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue(mockTask),
+        });
+      const user = {
+        userId: mockUserId,
+        roleName: 'Teacher',
+        permissions: ['UPDATE_STUDENT_TASK'],
+      };
       mockTask.save.mockResolvedValueOnce({ ...mockTask, status: 'completed' });
       const result = await service.updateStatus(mockTaskId, 'completed', user);
       console.log('SECOND TEST RESULT', result);
       expect(result).toBeDefined();
-      expect(studentTaskProgressService.cascadeStatusToActiveProgresses).toHaveBeenCalled();
+      expect(
+        studentTaskProgressService.cascadeStatusToActiveProgresses,
+      ).toHaveBeenCalled();
     });
 
     it('should deny other roles (e.g. Guest) without UPDATE_STUDENT_TASK permission', async () => {
       const user = { userId: mockUserId, roleName: 'Guest', permissions: [] };
-      await expect(service.updateStatus(mockTaskId, 'completed', user)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.updateStatus(mockTaskId, 'completed', user),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -598,7 +669,9 @@ describe('StudentTasksService', () => {
         targetStudentIds: [],
         targetClassIds: [],
       };
-      await expect(service.update(mockTaskId, dto, mockUserId)).rejects.toThrow(BadRequestException);
+      await expect(service.update(mockTaskId, dto, mockUserId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if update violates specific teacher target validation', async () => {
@@ -607,7 +680,9 @@ describe('StudentTasksService', () => {
         targetScope: 'specific',
         targetTeacherIds: [],
       };
-      await expect(service.update(mockTaskId, dto, mockUserId)).rejects.toThrow(BadRequestException);
+      await expect(service.update(mockTaskId, dto, mockUserId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if update sets supervisor specific', async () => {
@@ -615,13 +690,18 @@ describe('StudentTasksService', () => {
         targetType: 'supervisor',
         targetScope: 'specific',
       };
-      await expect(service.update(mockTaskId, dto, mockUserId)).rejects.toThrow(BadRequestException);
+      await expect(service.update(mockTaskId, dto, mockUserId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
   describe('remove', () => {
     it('should soft delete and set deletedAt', async () => {
-      mockTask.save.mockResolvedValueOnce({ ...mockTask, deletedAt: new Date() });
+      mockTask.save.mockResolvedValueOnce({
+        ...mockTask,
+        deletedAt: new Date(),
+      });
       const result = await service.remove(mockTaskId, mockUserId);
       expect(result).toBeDefined();
     });
@@ -629,10 +709,10 @@ describe('StudentTasksService', () => {
 
   describe('resolveLinkedTaskDeadline', () => {
     it('should return deadline for /grading/score if active grading period exists', async () => {
-      const mockPeriod = { 
+      const mockPeriod = {
         status: 'gv_phase',
         gv_deadline: new Date('2026-06-27T23:59:59.000Z'),
-        sv_deadline: new Date('2026-06-26T23:59:59.000Z')
+        sv_deadline: new Date('2026-06-26T23:59:59.000Z'),
       };
       evaluationPeriodModel.findOne.mockReturnValueOnce({
         sort: jest.fn().mockReturnThis(),

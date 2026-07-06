@@ -30,11 +30,14 @@ export class MailService {
       const user = this.configService.get<string>('MAIL_USER') || '';
       const pass = this.configService.get<string>('MAIL_PASS') || '';
       const secureVal = this.configService.get<any>('MAIL_SECURE');
-      const isSecure = secureVal === true || secureVal === 'true' || secureVal === '1';
-      
+      const isSecure =
+        secureVal === true || secureVal === 'true' || secureVal === '1';
+
       const portVal = this.configService.get<any>('MAIL_PORT');
       const port = portVal ? parseInt(String(portVal), 10) : 587;
-      const from = this.configService.get<string>('MAIL_FROM') || '"Manager Point" <noreply@managerpoint.com>';
+      const from =
+        this.configService.get<string>('MAIL_FROM') ||
+        '"Manager Point" <noreply@managerpoint.com>';
 
       this.currentConfig = { host, port, secure: isSecure, user, pass, from };
     }
@@ -42,7 +45,9 @@ export class MailService {
     const { host, port, secure, user, pass } = this.currentConfig;
 
     if (!host || !user || !pass) {
-      this.logger.warn('Missing required SMTP configurations. Mail delivery will fail.');
+      this.logger.warn(
+        'Missing required SMTP configurations. Mail delivery will fail.',
+      );
     }
 
     this.transporter = nodemailer.createTransport({
@@ -56,7 +61,9 @@ export class MailService {
     });
   }
 
-  public async verifyConnection(testConfig?: MailConfigOptions): Promise<boolean> {
+  public async verifyConnection(
+    testConfig?: MailConfigOptions,
+  ): Promise<boolean> {
     try {
       if (testConfig) {
         const testTransporter = nodemailer.createTransport({
@@ -95,27 +102,39 @@ export class MailService {
       to,
       subject: 'Test SMTP Connection - Manager Point',
       text: 'Nếu bạn nhận được email này, cấu hình SMTP của bạn đã hoạt động bình thường.',
-      html: '<p>Nếu bạn nhận được email này, cấu hình SMTP của bạn đã <strong>hoạt động bình thường</strong>.</p>'
+      html: '<p>Nếu bạn nhận được email này, cấu hình SMTP của bạn đã <strong>hoạt động bình thường</strong>.</p>',
     };
 
     try {
       await transporterToUse.sendMail(mailOptions);
       this.logger.log(`Test email sent successfully to ${to}`);
     } catch (error: any) {
-      this.logger.error(`Failed to send test email: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to send test email: ${error.message}`,
+        error.stack,
+      );
       throw new Error(`Gửi email thử nghiệm thất bại: ${error.message}`);
     }
   }
 
   private getEmailHash(email: string): string {
     if (!email) return '***';
-    return crypto.createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
+    return crypto
+      .createHash('sha256')
+      .update(email.trim().toLowerCase())
+      .digest('hex');
   }
 
   async sendPasswordResetEmail(email: string, token: string) {
-    if (!this.currentConfig.host || !this.currentConfig.user || !this.currentConfig.pass) {
+    if (
+      !this.currentConfig.host ||
+      !this.currentConfig.user ||
+      !this.currentConfig.pass
+    ) {
       this.logger.error('Cannot send email: SMTP configuration is missing');
-      throw new Error('Cấu hình SMTP chưa hoàn thiện. Vui lòng liên hệ quản trị viên.');
+      throw new Error(
+        'Cấu hình SMTP chưa hoàn thiện. Vui lòng liên hệ quản trị viên.',
+      );
     }
 
     const frontendUrl =
@@ -145,17 +164,27 @@ export class MailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email reset password sent successfully. Hash: ${emailHash}`);
+      this.logger.log(
+        `Email reset password sent successfully. Hash: ${emailHash}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send reset password email. Hash: ${emailHash}`);
+      this.logger.error(
+        `Failed to send reset password email. Hash: ${emailHash}`,
+      );
       throw new Error('Gửi email đặt lại mật khẩu thất bại.');
     }
   }
 
   async sendPasswordResetOtpEmail(email: string, code: string) {
-    if (!this.currentConfig.host || !this.currentConfig.user || !this.currentConfig.pass) {
+    if (
+      !this.currentConfig.host ||
+      !this.currentConfig.user ||
+      !this.currentConfig.pass
+    ) {
       this.logger.error('Cannot send OTP email: SMTP configuration is missing');
-      throw new Error('Cấu hình SMTP chưa hoàn thiện. Vui lòng liên hệ quản trị viên.');
+      throw new Error(
+        'Cấu hình SMTP chưa hoàn thiện. Vui lòng liên hệ quản trị viên.',
+      );
     }
 
     const emailHash = this.getEmailHash(email);
@@ -187,4 +216,3 @@ export class MailService {
     }
   }
 }
-

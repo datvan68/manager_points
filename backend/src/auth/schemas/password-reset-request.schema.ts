@@ -54,7 +54,8 @@ export class PasswordResetRequest {
   expires_at: Date;
 }
 
-export const PasswordResetRequestSchema = SchemaFactory.createForClass(PasswordResetRequest);
+export const PasswordResetRequestSchema =
+  SchemaFactory.createForClass(PasswordResetRequest);
 
 PasswordResetRequestSchema.index({ expires_at: 1 }, { expireAfterSeconds: 0 });
 PasswordResetRequestSchema.index({ user_id: 1 });

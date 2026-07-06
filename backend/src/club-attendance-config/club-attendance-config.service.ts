@@ -128,7 +128,7 @@ export class ClubAttendanceConfigService {
     const config = await this.configModel.findByIdAndUpdate(
       id,
       { $set: updateData },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     );
 
     if (!config) {

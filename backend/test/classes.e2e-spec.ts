@@ -35,13 +35,15 @@ describe('Classes (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe());
     classModel = moduleFixture.get<Model<any>>(getModelToken(Class.name));
-    departmentModel = moduleFixture.get<Model<any>>(getModelToken(Department.name));
-    
+    departmentModel = moduleFixture.get<Model<any>>(
+      getModelToken(Department.name),
+    );
+
     // Clean up any old test data
     await departmentModel.deleteMany({ code: testDept.code });
     await classModel.deleteMany({ class_name: testClass.class_name });
     await classModel.deleteMany({ class_name: 'E2E Class A Updated' });
-    
+
     // Create a real department first
     const dept = new departmentModel(testDept);
     const savedDept = await dept.save();
@@ -85,7 +87,9 @@ describe('Classes (e2e)', () => {
       .expect(200)
       .then((res) => {
         expect(Array.isArray(res.body)).toBe(true);
-        const found = res.body.find((c: any) => c.class_name === testClass.class_name);
+        const found = res.body.find(
+          (c: any) => c.class_name === testClass.class_name,
+        );
         expect(found).toBeDefined();
         expect(found.dept_id).toBeDefined();
         expect(found.dept_id.code).toBe(testDept.code);

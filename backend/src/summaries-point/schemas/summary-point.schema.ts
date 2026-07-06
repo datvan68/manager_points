@@ -83,7 +83,10 @@ SummaryPointSchema.index(
   { student_id: 1, semester_id: 1, period_id: 1 },
   { unique: true, name: 'uq_student_period' },
 );
-SummaryPointSchema.index({ period_id: 1, status: 1 }, { name: 'idx_period_status' });
+SummaryPointSchema.index(
+  { period_id: 1, status: 1 },
+  { name: 'idx_period_status' },
+);
 SummaryPointSchema.index(
   { student_id: 1, status: 1, updatedAt: -1 },
   { name: 'idx_student_status_updated' },

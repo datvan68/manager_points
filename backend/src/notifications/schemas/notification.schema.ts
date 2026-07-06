@@ -23,10 +23,20 @@ export class Notification {
   @Prop({ trim: true })
   routeUrl?: string;
 
-  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'User', default: [], index: true })
+  @Prop({
+    type: [MongooseSchema.Types.ObjectId],
+    ref: 'User',
+    default: [],
+    index: true,
+  })
   readByUserIds: Types.ObjectId[];
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true, default: null })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    index: true,
+    default: null,
+  })
   recipientUserId?: Types.ObjectId | null;
 
   @Prop({
@@ -52,6 +62,10 @@ export class Notification {
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
 
-NotificationSchema.index({ recipientUserId: 1, readByUserIds: 1, createdAt: -1 });
+NotificationSchema.index({
+  recipientUserId: 1,
+  readByUserIds: 1,
+  createdAt: -1,
+});
 NotificationSchema.index({ type: 1, createdAt: -1 });
 NotificationSchema.index({ deletedAt: 1 });

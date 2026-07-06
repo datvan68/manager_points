@@ -19,7 +19,19 @@ export class CollectionSummary {
 
 @Schema({ timestamps: true, collection: 'database_restore_jobs' })
 export class DatabaseRestoreJob {
-  @Prop({ required: true, enum: ['queued', 'running', 'success', 'failed', 'preview', 'cancelled', 'expired'], default: 'queued' })
+  @Prop({
+    required: true,
+    enum: [
+      'queued',
+      'running',
+      'success',
+      'failed',
+      'preview',
+      'cancelled',
+      'expired',
+    ],
+    default: 'queued',
+  })
   status: string;
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
@@ -62,4 +74,5 @@ export class DatabaseRestoreJob {
   error_message: string;
 }
 
-export const DatabaseRestoreJobSchema = SchemaFactory.createForClass(DatabaseRestoreJob);
+export const DatabaseRestoreJobSchema =
+  SchemaFactory.createForClass(DatabaseRestoreJob);

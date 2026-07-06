@@ -91,17 +91,29 @@ export class CreateEvaluationDetailDto {
   @IsNumber()
   system_score?: number;
 
-  @ApiProperty({ example: 'opt_1', required: false, description: 'ID của option được chọn' })
+  @ApiProperty({
+    example: 'opt_1',
+    required: false,
+    description: 'ID của option được chọn',
+  })
   @IsOptional()
   @IsString()
   selected_option_id?: string;
 
-  @ApiProperty({ example: 'Cán bộ lớp', required: false, description: 'Nhãn của option được chọn' })
+  @ApiProperty({
+    example: 'Cán bộ lớp',
+    required: false,
+    description: 'Nhãn của option được chọn',
+  })
   @IsOptional()
   @IsString()
   selected_option_label?: string;
 
-  @ApiProperty({ example: 10, required: false, description: 'Điểm của option được chọn' })
+  @ApiProperty({
+    example: 10,
+    required: false,
+    description: 'Điểm của option được chọn',
+  })
   @IsOptional()
   @IsNumber()
   selected_option_score?: number;
@@ -130,8 +142,6 @@ export class CreateEvaluationDetailDto {
   @IsOptional()
   @IsMongoId()
   gv_reviewed_by?: string;
-
-
 
   @ApiProperty({
     example: 'draft',

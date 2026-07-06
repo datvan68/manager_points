@@ -123,9 +123,12 @@ export class ClubAttendanceService {
     const filter: any = {};
 
     if (query.club_id) filter.club_id = new Types.ObjectId(query.club_id);
-    if (query.schedule_id) filter.schedule_id = new Types.ObjectId(query.schedule_id);
-    if (query.student_id) filter.student_id = new Types.ObjectId(query.student_id);
-    if (query.semester_id) filter.semester_id = new Types.ObjectId(query.semester_id);
+    if (query.schedule_id)
+      filter.schedule_id = new Types.ObjectId(query.schedule_id);
+    if (query.student_id)
+      filter.student_id = new Types.ObjectId(query.student_id);
+    if (query.semester_id)
+      filter.semester_id = new Types.ObjectId(query.semester_id);
     if (query.approval_status) filter.approval_status = query.approval_status;
     if (query.status) filter.status = query.status;
 
@@ -200,7 +203,7 @@ export class ClubAttendanceService {
     const attendance = await this.attendanceModel.findByIdAndUpdate(
       id,
       { $set: updates },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!attendance) {
       throw new NotFoundException('Không tìm thấy bản ghi điểm danh');
@@ -242,9 +245,10 @@ export class ClubAttendanceService {
     // Auto-sync to AcademicRecord when approved
     if (dto.status === 'approved') {
       try {
-        const syncResult = await this.syncService.syncAttendanceToAcademicRecord(
-          saved._id.toString(),
-        );
+        const syncResult =
+          await this.syncService.syncAttendanceToAcademicRecord(
+            saved._id.toString(),
+          );
         this.logger.log(
           `Sync result for ${saved._id}: ${syncResult.synced ? 'OK' : syncResult.reason}`,
         );
@@ -293,10 +297,7 @@ export class ClubAttendanceService {
     return { approved, errors };
   }
 
-  async getSummary(
-    clubId: string,
-    semesterId: string,
-  ): Promise<any> {
+  async getSummary(clubId: string, semesterId: string): Promise<any> {
     const pipeline = [
       {
         $match: {

@@ -38,7 +38,10 @@ export class StudentsController {
 
   @Post('bulk')
   @UseGuards(checkPermission('STUDENT_IMPORT'))
-  createBulk(@Body() createStudentDtos: CreateStudentDto[], @Request() req: any) {
+  createBulk(
+    @Body() createStudentDtos: CreateStudentDto[],
+    @Request() req: any,
+  ) {
     return this.studentsService.createBulk(createStudentDtos, req.user);
   }
 
@@ -52,7 +55,11 @@ export class StudentsController {
     @Request() req: any,
   ): Promise<ImportStudentPreviewResultDto> {
     const requester = req.user;
-    return this.studentsService.importPreview(body.classId, body.rows, requester);
+    return this.studentsService.importPreview(
+      body.classId,
+      body.rows,
+      requester,
+    );
   }
 
   @Post('import/confirm')
@@ -80,14 +87,20 @@ export class StudentsController {
 
   @Post('check-duplicate')
   @UseGuards(checkPermission('STUDENT_CREATE'))
-  checkDuplicate(@Body('studentCodes') studentCodes: string[], @Request() req: any) {
+  checkDuplicate(
+    @Body('studentCodes') studentCodes: string[],
+    @Request() req: any,
+  ) {
     return this.studentsService.checkDuplicate(studentCodes, req.user);
   }
 
   @Post('bulk-activate')
   @UseGuards(checkPermission('STUDENT_ACCOUNT_ACTIVATE'))
   bulkActivate(@Body('studentIds') studentIds: string[], @Request() req: any) {
-    return this.studentsService.bulkActivateStudentAccounts(studentIds, req.user);
+    return this.studentsService.bulkActivateStudentAccounts(
+      studentIds,
+      req.user,
+    );
   }
 
   @Post(':id/activate')

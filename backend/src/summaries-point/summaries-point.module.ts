@@ -9,12 +9,24 @@ import {
 } from './schemas/summary-point.schema';
 import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
-import { Category, CategorySchema } from '../categories/schemas/category.schema';
-import { Criterion, CriterionSchema } from '../criteria/schemas/criterion.schema';
-import { Department, DepartmentSchema } from '../departments/schemas/department.schema';
+import {
+  Category,
+  CategorySchema,
+} from '../categories/schemas/category.schema';
+import {
+  Criterion,
+  CriterionSchema,
+} from '../criteria/schemas/criterion.schema';
+import {
+  Department,
+  DepartmentSchema,
+} from '../departments/schemas/department.schema';
 import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
 import { AcademicRecordModule } from '../academic-record/academic-record.module';
-import { AcademicRecord, AcademicRecordSchema } from '../academic-record/schemas/academic-record.schema';
+import {
+  AcademicRecord,
+  AcademicRecordSchema,
+} from '../academic-record/schemas/academic-record.schema';
 
 @Module({
   imports: [

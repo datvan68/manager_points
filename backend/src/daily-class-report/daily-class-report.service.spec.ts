@@ -51,12 +51,16 @@ describe('DailyClassReportService', () => {
         exec: mockExec,
       };
       mockDailyClassReportModel.find.mockReturnValue(mockQueryObj);
-      mockDailyClassReportModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(0) });
-      
+      mockDailyClassReportModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(0),
+      });
+
       const academicRecordModelMock = {
-        aggregate: jest.fn().mockResolvedValue([])
+        aggregate: jest.fn().mockResolvedValue([]),
       };
-      mockDailyClassReportModel.db.model.mockReturnValue(academicRecordModelMock);
+      mockDailyClassReportModel.db.model.mockReturnValue(
+        academicRecordModelMock,
+      );
 
       await service.findAll({
         startDate: '2023-10-01',
@@ -69,7 +73,7 @@ describe('DailyClassReportService', () => {
             $gte: new Date('2023-10-01T00:00:00.000Z'),
             $lte: new Date('2023-10-31T23:59:59.999Z'),
           },
-        })
+        }),
       );
     });
   });

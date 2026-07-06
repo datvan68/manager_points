@@ -28,7 +28,8 @@ export class RegisterDto {
   @IsString()
   @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, {
-    message: 'Mật khẩu phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
+    message:
+      'Mật khẩu phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
   })
   password: string;
 }
@@ -66,7 +67,8 @@ export class ResetPasswordDto {
   @IsString()
   @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, {
-    message: 'Mật khẩu mới phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
+    message:
+      'Mật khẩu mới phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
   })
   new_password: string;
 }
@@ -81,7 +83,8 @@ export class ChangePasswordDto {
   @IsString()
   @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, {
-    message: 'Mật khẩu mới phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
+    message:
+      'Mật khẩu mới phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
   })
   new_password: string;
 }
@@ -422,7 +425,11 @@ export class CreateUserDto {
   @IsNotEmpty({ message: 'role_id không được để trống' })
   role_id: string;
 
-  @ApiProperty({ example: 'active', enum: ['active', 'inactive', 'locked'], required: false })
+  @ApiProperty({
+    example: 'active',
+    enum: ['active', 'inactive', 'locked'],
+    required: false,
+  })
   @IsOptional()
   @IsEnum(['active', 'inactive', 'locked'])
   status?: string;
@@ -456,7 +463,11 @@ export class BulkCreateUserItemDto {
   @IsNotEmpty({ message: 'role_id không được để trống' })
   role_id: string;
 
-  @ApiProperty({ example: 'active', enum: ['active', 'inactive', 'locked'], required: false })
+  @ApiProperty({
+    example: 'active',
+    enum: ['active', 'inactive', 'locked'],
+    required: false,
+  })
   @IsOptional()
   @IsEnum(['active', 'inactive', 'locked'])
   status?: string;
@@ -524,7 +535,8 @@ export class PasswordResetCompleteDto {
   @IsString()
   @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, {
-    message: 'Mật khẩu mới phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
+    message:
+      'Mật khẩu mới phải chứa ít nhất 1 chữ thường, 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt',
   })
   newPassword: string;
 

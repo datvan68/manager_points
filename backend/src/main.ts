@@ -21,7 +21,9 @@ async function bootstrap() {
     .filter(Boolean);
 
   if (isProduction && allowedOrigins.length === 0) {
-    throw new Error('FRONTEND_URL or CORS_ORIGINS must be configured in production');
+    throw new Error(
+      'FRONTEND_URL or CORS_ORIGINS must be configured in production',
+    );
   }
 
   const app = await NestFactory.create(AppModule);
@@ -75,7 +77,8 @@ async function bootstrap() {
     }),
   );
 
-  const swaggerEnabled = !isProduction || process.env.SWAGGER_ENABLED === 'true';
+  const swaggerEnabled =
+    !isProduction || process.env.SWAGGER_ENABLED === 'true';
   if (swaggerEnabled) {
     const config = new DocumentBuilder()
       .setTitle('Manager Point API')

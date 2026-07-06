@@ -7,11 +7,13 @@ interface CustomCalendarProps {
   startDate: Date | null;
   endDate: Date | null;
   onRangeSelect: (start: Date, end: Date) => void;
+  onRangeConfirm?: (start: Date, end: Date | null) => void;
   onCancel: () => void;
   onConfirm: () => void;
+  minDate?: Date;
 }
 
-export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, onConfirm }: CustomCalendarProps) {
+export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfirm, onCancel, onConfirm, minDate }: CustomCalendarProps) {
   const [currentDate, setCurrentDate] = React.useState(startDate || new Date()); // Default to current real-time date
   const [tempStart, setTempStart] = React.useState<Date | null>(startDate);
   const [tempEnd, setTempEnd] = React.useState<Date | null>(endDate);
@@ -62,8 +64,19 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
     return days;
   };
 
+  const isDateDisabled = (dayNumber: number | null) => {
+    if (!dayNumber) return false;
+    if (!minDate) return false;
+    const date = new Date(currentYear, currentMonth, dayNumber);
+    date.setHours(0, 0, 0, 0);
+    const min = new Date(minDate);
+    min.setHours(0, 0, 0, 0);
+    return date < min;
+  };
+
   const handleDayClick = (dayNumber: number | null) => {
     if (!dayNumber) return;
+    if (isDateDisabled(dayNumber)) return;
     const selected = new Date(currentYear, currentMonth, dayNumber);
     // Remove time parts for accurate comparisons
     selected.setHours(0, 0, 0, 0);
@@ -235,35 +248,39 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
                     const end = isEnd(day);
                     const range = isInRange(day);
                     const today = isToday(day);
+                    const disabled = isDateDisabled(day);
 
                     let bgClass = "bg-transparent";
-                    let textClass = "text-slate-800";
+                    let textClass = disabled ? "text-slate-300 cursor-not-allowed opacity-40" : "text-slate-800";
                     let roundedClass = "rounded-lg";
 
-                    if (start) {
-                      bgClass = "bg-[#1a56db]";
-                      textClass = "text-white font-bold";
-                      roundedClass = (tempEnd && tempEnd.getTime() !== tempStart?.getTime()) ? "rounded-l-lg rounded-r-none" : "rounded-lg";
-                    } else if (end) {
-                      bgClass = "bg-[#1a56db]";
-                      textClass = "text-white font-bold";
-                      roundedClass = "rounded-r-lg rounded-l-none";
-                    } else if (range) {
-                      bgClass = "bg-[#e1effe]";
-                      textClass = "text-[#1a56db] font-semibold";
-                      roundedClass = "rounded-none";
-                    } else if (today) {
-                      textClass = "text-blue-600 font-bold";
-                      bgClass = "bg-blue-50/50";
+                    if (!disabled) {
+                      if (start) {
+                        bgClass = "bg-[#1a56db]";
+                        textClass = "text-white font-bold";
+                        roundedClass = (tempEnd && tempEnd.getTime() !== tempStart?.getTime()) ? "rounded-l-lg rounded-r-none" : "rounded-lg";
+                      } else if (end) {
+                        bgClass = "bg-[#1a56db]";
+                        textClass = "text-white font-bold";
+                        roundedClass = "rounded-r-lg rounded-l-none";
+                      } else if (range) {
+                        bgClass = "bg-[#e1effe]";
+                        textClass = "text-[#1a56db] font-semibold";
+                        roundedClass = "rounded-none";
+                      } else if (today) {
+                        textClass = "text-blue-600 font-bold";
+                        bgClass = "bg-blue-50/50";
+                      }
                     }
 
                     return (
                       <button
                         key={day}
-                        onClick={() => handleDayClick(day)}
-                        className={`w-full max-w-[40px] h-[36px] flex items-center justify-center text-[13px] hover:font-bold transition-all mx-auto focus:outline-none ${textClass}`}
+                        onClick={() => !disabled && handleDayClick(day)}
+                        disabled={disabled}
+                        className={`w-full max-w-[40px] h-[36px] flex items-center justify-center text-[13px] ${!disabled ? 'hover:font-bold cursor-pointer' : ''} transition-all mx-auto focus:outline-none ${textClass}`}
                       >
-                        <div className={`w-full h-full flex items-center justify-center ${bgClass} ${roundedClass} ${(!start && !end && !range) ? 'hover:bg-slate-200 hover:rounded-lg border border-transparent' : ''} ${today && !start && !end && !range ? 'border-blue-200' : ''}`}>
+                        <div className={`w-full h-full flex items-center justify-center ${bgClass} ${roundedClass} ${(!start && !end && !range && !disabled) ? 'hover:bg-slate-200 hover:rounded-lg border border-transparent' : ''} ${today && !start && !end && !range && !disabled ? 'border-blue-200' : ''}`}>
                           {day}
                         </div>
                       </button>
@@ -329,7 +346,11 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onCancel, on
           <button
             onClick={() => {
               if (tempStart) {
-                onRangeSelect(tempStart, tempEnd || tempStart);
+                if (onRangeConfirm) {
+                  onRangeConfirm(tempStart, tempEnd);
+                } else {
+                  onRangeSelect(tempStart, tempEnd || tempStart);
+                }
                 onConfirm();
               }
             }}

@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type SystemPerformanceMetricDocument = HydratedDocument<SystemPerformanceMetric>;
+export type SystemPerformanceMetricDocument =
+  HydratedDocument<SystemPerformanceMetric>;
 
 @Schema({ timestamps: true, collection: 'system_performance_metrics' })
 export class SystemPerformanceMetric {
@@ -14,13 +15,20 @@ export class SystemPerformanceMetric {
   @Prop({ type: String })
   role_name?: string;
 
-  @Prop({ type: String, enum: ['desktop', 'tablet', 'mobile', 'unknown'], default: 'unknown' })
+  @Prop({
+    type: String,
+    enum: ['desktop', 'tablet', 'mobile', 'unknown'],
+    default: 'unknown',
+  })
   device_type: string;
 
   @Prop({ type: String })
   network_effective_type?: string;
 
-  @Prop({ type: String, enum: ['navigate', 'reload', 'back_forward', 'prerender', 'unknown'] })
+  @Prop({
+    type: String,
+    enum: ['navigate', 'reload', 'back_forward', 'prerender', 'unknown'],
+  })
   navigation_type?: string;
 
   @Prop({ type: Number })
@@ -68,7 +76,11 @@ export class SystemPerformanceMetric {
   @Prop({
     type: [
       {
-        severity: { type: String, enum: ['critical', 'warning', 'info'], required: true },
+        severity: {
+          type: String,
+          enum: ['critical', 'warning', 'info'],
+          required: true,
+        },
         code: { type: String, required: true },
         message: { type: String, required: true },
       },
@@ -85,8 +97,13 @@ export class SystemPerformanceMetric {
   updatedAt?: Date;
 }
 
-export const SystemPerformanceMetricSchema = SchemaFactory.createForClass(SystemPerformanceMetric);
+export const SystemPerformanceMetricSchema = SchemaFactory.createForClass(
+  SystemPerformanceMetric,
+);
 
 SystemPerformanceMetricSchema.index({ route: 1, createdAt: -1 });
 SystemPerformanceMetricSchema.index({ createdAt: -1 });
-SystemPerformanceMetricSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7776000 }); // 90 days TTL
+SystemPerformanceMetricSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 7776000 },
+); // 90 days TTL

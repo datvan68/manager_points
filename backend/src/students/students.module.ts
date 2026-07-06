@@ -4,7 +4,10 @@ import { StudentsService } from './students.service';
 import { StudentsController } from './students.controller';
 import { StudentAccountSyncController } from './student-account-sync.controller';
 import { Student, StudentSchema } from './schemas/student.schema';
-import { RefreshToken, RefreshTokenSchema } from '../auth/schemas/refresh-token.schema';
+import {
+  RefreshToken,
+  RefreshTokenSchema,
+} from '../auth/schemas/refresh-token.schema';
 import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
 import {
   SummaryPoint,

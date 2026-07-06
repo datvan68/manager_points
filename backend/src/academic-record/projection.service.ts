@@ -9,8 +9,15 @@ import {
   AcademicRecord,
   AcademicRecordDocument,
 } from './schemas/academic-record.schema';
-import { ScoreEngineService, groupRecordsByRole, CountsByRole } from './score-engine.service';
-import { CountResolutionService, detectConflict } from './count-resolution.service';
+import {
+  ScoreEngineService,
+  groupRecordsByRole,
+  CountsByRole,
+} from './score-engine.service';
+import {
+  CountResolutionService,
+  detectConflict,
+} from './count-resolution.service';
 import {
   Criterion,
   CriterionDocument,
@@ -63,7 +70,14 @@ export class ProjectionService {
     quantity: number; // +1 or -1
     recordId: string;
   }): Promise<void> {
-    const { studentId, semesterId, criterionId, recorded_by_role, quantity, recordId } = params;
+    const {
+      studentId,
+      semesterId,
+      criterionId,
+      recorded_by_role,
+      quantity,
+      recordId,
+    } = params;
 
     const roleField = `details.$.counts_by_role.${recorded_by_role}`;
 
@@ -88,7 +102,7 @@ export class ProjectionService {
     if (result.modifiedCount === 0) {
       this.logger.warn(
         `[incrementCount] No matching detail found for student=${studentId}, criterion=${criterionId}. ` +
-        `The detail may not exist yet in the summary. Full recalculation may be needed.`,
+          `The detail may not exist yet in the summary. Full recalculation may be needed.`,
       );
     }
   }
@@ -107,13 +121,16 @@ export class ProjectionService {
   }): Promise<ProjectionResult> {
     const { studentId, semesterId, criterionId } = params;
 
-    const activeRecords = await this.academicRecordModel.find({
-      student_id: new Types.ObjectId(studentId),
-      semester_id: new Types.ObjectId(semesterId),
-      criterion_id: new Types.ObjectId(criterionId),
-      status: 'active',
-      is_deleted: { $ne: true },
-    } as any).lean().exec();
+    const activeRecords = await this.academicRecordModel
+      .find({
+        student_id: new Types.ObjectId(studentId),
+        semester_id: new Types.ObjectId(semesterId),
+        criterion_id: new Types.ObjectId(criterionId),
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any)
+      .lean()
+      .exec();
 
     const countsByRole = groupRecordsByRole(activeRecords);
     const totalCount = activeRecords.length;
@@ -148,11 +165,13 @@ export class ProjectionService {
     const { studentId, semesterId } = params;
 
     // Get the summary with all its details
-    const summary = await this.summaryPointModel.findOne({
-      student_id: new Types.ObjectId(studentId),
-      semester_id: new Types.ObjectId(semesterId),
-      period_id: null,
-    } as any).exec();
+    const summary = await this.summaryPointModel
+      .findOne({
+        student_id: new Types.ObjectId(studentId),
+        semester_id: new Types.ObjectId(semesterId),
+        period_id: null,
+      } as any)
+      .exec();
 
     if (!summary || !summary.details || summary.details.length === 0) {
       return [];
@@ -186,7 +205,8 @@ export class ProjectionService {
       const criterionId = detail.criterion_id?.toString();
       if (!criterionId) continue;
 
-      const incrementalCount = (detail as any).source_record_count || detail.current_count || 0;
+      const incrementalCount =
+        (detail as any).source_record_count || detail.current_count || 0;
       const actualCount = actualCountMap.get(criterionId) || 0;
 
       results.push({

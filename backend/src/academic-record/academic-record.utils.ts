@@ -26,7 +26,9 @@ export function calculateCriterionScoreHelper(params: {
   let currentCount = count;
 
   const scorePerUnit = criterion.score_per_unit || 0;
-  const maxScore = criterion.max_score ?? (criterion.criterion_type === 'ky_luat' || scorePerUnit < 0 ? 10 : 100);
+  const maxScore =
+    criterion.max_score ??
+    (criterion.criterion_type === 'ky_luat' || scorePerUnit < 0 ? 10 : 100);
   const minScore = criterion.min_score || 0;
 
   if (criterion.scoring_mode === 'single_option') {
@@ -45,7 +47,9 @@ export function calculateCriterionScoreHelper(params: {
         if (isSyncPath) {
           systemScore = 0;
         } else {
-          const isDiscipline = criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false;
+          const isDiscipline =
+            criterion.criterion_type === 'ky_luat' &&
+            criterion.is_score_counted === false;
           systemScore = isDiscipline ? maxScore : 0;
         }
       }
@@ -54,7 +58,9 @@ export function calculateCriterionScoreHelper(params: {
       if (isSyncPath) {
         systemScore = 0;
       } else {
-        const isDiscipline = criterion.criterion_type === 'ky_luat' && criterion.is_score_counted === false;
+        const isDiscipline =
+          criterion.criterion_type === 'ky_luat' &&
+          criterion.is_score_counted === false;
         systemScore = isDiscipline ? maxScore : 0;
       }
     }
@@ -67,17 +73,32 @@ export function calculateCriterionScoreHelper(params: {
         if (scorePerUnit >= 0) {
           systemScore = Math.max(minScore, Math.min(maxScore, systemScore));
         } else {
-          systemScore = Math.max(minScore, Math.min(maxScore, maxScore - currentCount * Math.abs(scorePerUnit)));
+          systemScore = Math.max(
+            minScore,
+            Math.min(
+              maxScore,
+              maxScore - currentCount * Math.abs(scorePerUnit),
+            ),
+          );
         }
       } else {
         if (isSyncPath) {
-          systemScore = (criterion.criterion_type === 'ky_luat' || scorePerUnit < 0) ? maxScore : 0;
+          systemScore =
+            criterion.criterion_type === 'ky_luat' || scorePerUnit < 0
+              ? maxScore
+              : 0;
         } else {
           systemScore = currentCount * scorePerUnit;
           if (scorePerUnit >= 0) {
             systemScore = Math.max(minScore, Math.min(maxScore, systemScore));
           } else {
-            systemScore = Math.max(minScore, Math.min(maxScore, maxScore - currentCount * Math.abs(scorePerUnit)));
+            systemScore = Math.max(
+              minScore,
+              Math.min(
+                maxScore,
+                maxScore - currentCount * Math.abs(scorePerUnit),
+              ),
+            );
           }
         }
       }
@@ -123,9 +144,8 @@ export function buildGradingEventPayload(params: {
 }) {
   const { type, summary, student, criterionIds, extra } = params;
 
-  const classId = student && student.class_id
-    ? normalizeObjectId(student.class_id)
-    : '';
+  const classId =
+    student && student.class_id ? normalizeObjectId(student.class_id) : '';
 
   const payload: any = {
     type,
@@ -143,8 +163,10 @@ export function buildGradingEventPayload(params: {
   if (criterionIds && criterionIds.length > 0) {
     payload.criterionIds = criterionIds;
     if (summary.details) {
-      payload.updatedDetails = summary.details.filter((d: any) =>
-        d.criterion_id && criterionIds.includes(normalizeObjectId(d.criterion_id))
+      payload.updatedDetails = summary.details.filter(
+        (d: any) =>
+          d.criterion_id &&
+          criterionIds.includes(normalizeObjectId(d.criterion_id)),
       );
       if (criterionIds.length === 1) {
         payload.criterionId = criterionIds[0];
@@ -155,4 +177,3 @@ export function buildGradingEventPayload(params: {
 
   return payload;
 }
-

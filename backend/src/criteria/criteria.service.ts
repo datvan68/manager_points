@@ -20,9 +20,13 @@ export class CriteriaService {
 
   async create(createCriterionDto: CreateCriterionDto): Promise<Criterion> {
     if (createCriterionDto.criterion_code) {
-      createCriterionDto.criterion_code = createCriterionDto.criterion_code.trim().toUpperCase();
-      const existing = await this.criterionModel.findOne({ 
-        criterion_code: { $regex: new RegExp(`^${createCriterionDto.criterion_code}$`, 'i') } 
+      createCriterionDto.criterion_code = createCriterionDto.criterion_code
+        .trim()
+        .toUpperCase();
+      const existing = await this.criterionModel.findOne({
+        criterion_code: {
+          $regex: new RegExp(`^${createCriterionDto.criterion_code}$`, 'i'),
+        },
       });
       if (existing) {
         throw new BadRequestException('Mã tiêu chí đã tồn tại');
@@ -54,7 +58,12 @@ export class CriteriaService {
   }
 
   async suggestCode(categoryId: string): Promise<{ suggestedCode: string }> {
-    if (!categoryId || categoryId === 'undefined' || categoryId === 'null' || !Types.ObjectId.isValid(categoryId)) {
+    if (
+      !categoryId ||
+      categoryId === 'undefined' ||
+      categoryId === 'null' ||
+      !Types.ObjectId.isValid(categoryId)
+    ) {
       throw new BadRequestException('ID danh mục không hợp lệ hoặc bị thiếu');
     }
     const category = await this.categoriesService.findOne(categoryId);
@@ -105,10 +114,14 @@ export class CriteriaService {
       throw new BadRequestException('ID tiêu chí không hợp lệ');
     }
     if (updateCriterionDto.criterion_code) {
-      updateCriterionDto.criterion_code = updateCriterionDto.criterion_code.trim().toUpperCase();
-      const existing = await this.criterionModel.findOne({ 
-        criterion_code: { $regex: new RegExp(`^${updateCriterionDto.criterion_code}$`, 'i') },
-        _id: { $ne: new Types.ObjectId(id) }
+      updateCriterionDto.criterion_code = updateCriterionDto.criterion_code
+        .trim()
+        .toUpperCase();
+      const existing = await this.criterionModel.findOne({
+        criterion_code: {
+          $regex: new RegExp(`^${updateCriterionDto.criterion_code}$`, 'i'),
+        },
+        _id: { $ne: new Types.ObjectId(id) },
       });
       if (existing) {
         throw new BadRequestException('Mã tiêu chí đã tồn tại');

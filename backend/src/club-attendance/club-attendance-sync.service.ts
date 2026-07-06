@@ -14,7 +14,10 @@ import {
   AcademicRecordDocument,
 } from '../academic-record/schemas/academic-record.schema';
 import { Club, ClubDocument } from '../clubs/schemas/club.schema';
-import { ClubSchedule, ClubScheduleDocument } from '../club-schedules/schemas/club-schedule.schema';
+import {
+  ClubSchedule,
+  ClubScheduleDocument,
+} from '../club-schedules/schemas/club-schedule.schema';
 
 /**
  * Service responsible for syncing approved club attendance records
@@ -68,7 +71,10 @@ export class ClubAttendanceSyncService {
       attendance.semester_id.toString(),
     );
     if (!config) {
-      return { synced: false, reason: 'No attendance config found for this club/semester' };
+      return {
+        synced: false,
+        reason: 'No attendance config found for this club/semester',
+      };
     }
 
     // Check if club has attendance_point_enabled
@@ -87,14 +93,18 @@ export class ClubAttendanceSyncService {
         status: { $in: ['present', 'late'] },
       });
       if (approvedCount < config.min_attendance_for_points) {
-        return { synced: false, reason: `Need ${config.min_attendance_for_points} approved attendances, currently ${approvedCount}` };
+        return {
+          synced: false,
+          reason: `Need ${config.min_attendance_for_points} approved attendances, currently ${approvedCount}`,
+        };
       }
     }
 
     // Calculate points based on status
-    const points = attendance.status === 'present'
-      ? config.point_per_attendance
-      : config.point_per_late;
+    const points =
+      attendance.status === 'present'
+        ? config.point_per_attendance
+        : config.point_per_late;
 
     // Check max_points_per_semester
     if (config.max_points_per_semester) {
@@ -104,12 +114,17 @@ export class ClubAttendanceSyncService {
         attendance.club_id.toString(),
       );
       if (existingPoints + points > config.max_points_per_semester) {
-        return { synced: false, reason: `Would exceed max points per semester (${config.max_points_per_semester})` };
+        return {
+          synced: false,
+          reason: `Would exceed max points per semester (${config.max_points_per_semester})`,
+        };
       }
     }
 
     // Get schedule info for record title
-    const schedule = await this.scheduleModel.findById(attendance.schedule_id).lean();
+    const schedule = await this.scheduleModel
+      .findById(attendance.schedule_id)
+      .lean();
 
     // Build idempotency key to prevent duplicate records
     const idempotencyKey = `club_att:${attendance._id.toString()}`;
@@ -175,9 +190,14 @@ export class ClubAttendanceSyncService {
       // Handle duplicate key error gracefully
       if (error.code === 11000) {
         this.logger.warn(`Duplicate idempotency key: ${idempotencyKey}`);
-        return { synced: false, reason: 'Duplicate record prevented by idempotency key' };
+        return {
+          synced: false,
+          reason: 'Duplicate record prevented by idempotency key',
+        };
       }
-      this.logger.error(`Failed to sync attendance ${attendance._id}: ${error.message}`);
+      this.logger.error(
+        `Failed to sync attendance ${attendance._id}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -188,7 +208,12 @@ export class ClubAttendanceSyncService {
   async batchSyncClubAttendance(
     clubId: string,
     semesterId: string,
-  ): Promise<{ total: number; synced: number; skipped: number; errors: string[] }> {
+  ): Promise<{
+    total: number;
+    synced: number;
+    skipped: number;
+    errors: string[];
+  }> {
     const unsyncedAttendances = await this.attendanceModel.find({
       club_id: new Types.ObjectId(clubId),
       semester_id: new Types.ObjectId(semesterId),
@@ -277,21 +302,24 @@ export class ClubAttendanceSyncService {
     semesterId: string,
     clubId: string,
   ): Promise<number> {
-    const syncedAttendances = await this.attendanceModel.find({
-      student_id: new Types.ObjectId(studentId),
-      semester_id: new Types.ObjectId(semesterId),
-      club_id: new Types.ObjectId(clubId),
-      synced_to_academic_record: true,
-    }).lean();
+    const syncedAttendances = await this.attendanceModel
+      .find({
+        student_id: new Types.ObjectId(studentId),
+        semester_id: new Types.ObjectId(semesterId),
+        club_id: new Types.ObjectId(clubId),
+        synced_to_academic_record: true,
+      })
+      .lean();
 
     const config = await this.getEffectiveConfig(clubId, semesterId);
     if (!config) return 0;
 
     let totalPoints = 0;
     for (const att of syncedAttendances) {
-      totalPoints += att.status === 'present'
-        ? config.point_per_attendance
-        : config.point_per_late;
+      totalPoints +=
+        att.status === 'present'
+          ? config.point_per_attendance
+          : config.point_per_late;
     }
 
     return totalPoints;

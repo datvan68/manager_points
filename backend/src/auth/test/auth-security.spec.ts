@@ -69,7 +69,11 @@ describe('Auth Security (Student Account Policies)', () => {
       userModel.findById.mockReturnValue({
         populate: jest.fn().mockReturnThis(),
         select: jest.fn().mockImplementation(() => ({
-          then: jest.fn().mockImplementation((cb) => Promise.resolve(mockActiveUser).then(cb)),
+          then: jest
+            .fn()
+            .mockImplementation((cb) =>
+              Promise.resolve(mockActiveUser).then(cb),
+            ),
         })),
       });
 
@@ -89,13 +93,17 @@ describe('Auth Security (Student Account Policies)', () => {
       userModel.findById.mockReturnValue({
         populate: jest.fn().mockReturnThis(),
         select: jest.fn().mockImplementation(() => ({
-          then: jest.fn().mockImplementation((cb) => Promise.resolve(mockInactiveUser).then(cb)),
+          then: jest
+            .fn()
+            .mockImplementation((cb) =>
+              Promise.resolve(mockInactiveUser).then(cb),
+            ),
         })),
       });
 
-      await expect(jwtStrategy.validate({ user_id: 'user-id' })).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        jwtStrategy.validate({ user_id: 'user-id' }),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException for locked user', async () => {
@@ -107,13 +115,17 @@ describe('Auth Security (Student Account Policies)', () => {
       userModel.findById.mockReturnValue({
         populate: jest.fn().mockReturnThis(),
         select: jest.fn().mockImplementation(() => ({
-          then: jest.fn().mockImplementation((cb) => Promise.resolve(mockLockedUser).then(cb)),
+          then: jest
+            .fn()
+            .mockImplementation((cb) =>
+              Promise.resolve(mockLockedUser).then(cb),
+            ),
         })),
       });
 
-      await expect(jwtStrategy.validate({ user_id: 'user-id' })).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        jwtStrategy.validate({ user_id: 'user-id' }),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -200,9 +212,9 @@ describe('Auth Security (Student Account Policies)', () => {
         exec: jest.fn().mockResolvedValue(mockInactiveUser),
       });
 
-      await expect(tokenService.refreshToken('valid-refresh-token')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        tokenService.refreshToken('valid-refresh-token'),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException when refreshing token of a locked user', async () => {
@@ -222,9 +234,9 @@ describe('Auth Security (Student Account Policies)', () => {
         exec: jest.fn().mockResolvedValue(mockLockedUser),
       });
 
-      await expect(tokenService.refreshToken('valid-refresh-token')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        tokenService.refreshToken('valid-refresh-token'),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should allow concurrent refresh within 10s grace period and return replaced token info', async () => {
@@ -373,7 +385,9 @@ describe('Auth Security (Student Account Policies)', () => {
       passwordService = module.get(PasswordService);
       roleModel = module.get(getModelToken(Role.name));
       studentModel = module.get(getModelToken(Student.name));
-      jest.spyOn(authService, 'onModuleInit').mockImplementation(async () => {});
+      jest
+        .spyOn(authService, 'onModuleInit')
+        .mockImplementation(async () => {});
     });
 
     describe('Account Lock / Inactive / Auto-Unlock Logic', () => {
@@ -391,8 +405,15 @@ describe('Auth Security (Student Account Policies)', () => {
         });
 
         await expect(
-          authService.login({ email: 'inactive@school.edu.vn', password: 'password' }, '127.0.0.1'),
-        ).rejects.toThrow(new ForbiddenException('Tài khoản chưa được kích hoạt bởi quản trị viên.'));
+          authService.login(
+            { email: 'inactive@school.edu.vn', password: 'password' },
+            '127.0.0.1',
+          ),
+        ).rejects.toThrow(
+          new ForbiddenException(
+            'Tài khoản chưa được kích hoạt bởi quản trị viên.',
+          ),
+        );
       });
 
       it('should throw ForbiddenException for manual lock (locked_until is null) indefinitely', async () => {
@@ -410,8 +431,13 @@ describe('Auth Security (Student Account Policies)', () => {
         });
 
         await expect(
-          authService.login({ email: 'locked@school.edu.vn', password: 'password' }, '127.0.0.1'),
-        ).rejects.toThrow(new ForbiddenException('Tài khoản đã bị khóa bởi quản trị viên.'));
+          authService.login(
+            { email: 'locked@school.edu.vn', password: 'password' },
+            '127.0.0.1',
+          ),
+        ).rejects.toThrow(
+          new ForbiddenException('Tài khoản đã bị khóa bởi quản trị viên.'),
+        );
       });
 
       it('should throw ForbiddenException if auto-lock locked_until is not expired', async () => {
@@ -430,7 +456,10 @@ describe('Auth Security (Student Account Policies)', () => {
         });
 
         await expect(
-          authService.login({ email: 'locked@school.edu.vn', password: 'password' }, '127.0.0.1'),
+          authService.login(
+            { email: 'locked@school.edu.vn', password: 'password' },
+            '127.0.0.1',
+          ),
         ).rejects.toThrow(ForbiddenException);
       });
 
@@ -479,7 +508,9 @@ describe('Auth Security (Student Account Policies)', () => {
           populate: jest.fn().mockReturnThis(),
           select: jest.fn().mockReturnThis(),
           exec: jest.fn().mockResolvedValue(user),
-          then: jest.fn().mockImplementation((cb) => Promise.resolve(user).then(cb)),
+          then: jest
+            .fn()
+            .mockImplementation((cb) => Promise.resolve(user).then(cb)),
         };
         userModel.findById.mockReturnValue(mockQuery);
         jest.spyOn(authService, 'getMe').mockResolvedValue(user as any);
@@ -487,7 +518,11 @@ describe('Auth Security (Student Account Policies)', () => {
         const revokeSpy = jest.spyOn(tokenService, 'revokeAllUserTokens');
 
         // Change status to LOCKED
-        await authService.updateUser(user._id.toString(), { status: 'locked' }, '127.0.0.1');
+        await authService.updateUser(
+          user._id.toString(),
+          { status: 'locked' },
+          '127.0.0.1',
+        );
         expect(user.status).toBe(UserStatus.LOCKED);
         expect(revokeSpy).toHaveBeenCalledWith(user._id.toString());
 
@@ -495,7 +530,11 @@ describe('Auth Security (Student Account Policies)', () => {
 
         // Change status to INACTIVE
         user.status = UserStatus.ACTIVE;
-        await authService.updateUser(user._id.toString(), { status: 'inactive' }, '127.0.0.1');
+        await authService.updateUser(
+          user._id.toString(),
+          { status: 'inactive' },
+          '127.0.0.1',
+        );
         expect(user.status).toBe(UserStatus.INACTIVE);
         expect(revokeSpy).toHaveBeenCalledWith(user._id.toString());
       });
@@ -516,19 +555,27 @@ describe('Auth Security (Student Account Policies)', () => {
           populate: jest.fn().mockReturnThis(),
           select: jest.fn().mockReturnThis(),
           exec: jest.fn().mockResolvedValue(user),
-          then: jest.fn().mockImplementation((cb) => Promise.resolve(user).then(cb)),
+          then: jest
+            .fn()
+            .mockImplementation((cb) => Promise.resolve(user).then(cb)),
         };
         userModel.findById.mockReturnValue(mockQuery);
         jest.spyOn(authService, 'getMe').mockResolvedValue(user as any);
 
         jest.spyOn(roleModel, 'findById').mockReturnValue({
           exec: jest.fn().mockResolvedValue(newRole),
-          then: jest.fn().mockImplementation((cb) => Promise.resolve(newRole).then(cb)),
+          then: jest
+            .fn()
+            .mockImplementation((cb) => Promise.resolve(newRole).then(cb)),
         } as any);
 
         const revokeSpy = jest.spyOn(tokenService, 'revokeAllUserTokens');
 
-        await authService.updateUser(user._id.toString(), { role_id: newRole._id.toString() }, '127.0.0.1');
+        await authService.updateUser(
+          user._id.toString(),
+          { role_id: newRole._id.toString() },
+          '127.0.0.1',
+        );
         expect(user.role.toString()).toBe(newRole._id.toString());
         expect(revokeSpy).toHaveBeenCalledWith(user._id.toString());
       });
@@ -544,14 +591,20 @@ describe('Auth Security (Student Account Policies)', () => {
           populate: jest.fn().mockReturnThis(),
           select: jest.fn().mockReturnThis(),
           exec: jest.fn().mockResolvedValue(user),
-          then: jest.fn().mockImplementation((cb) => Promise.resolve(user).then(cb)),
+          then: jest
+            .fn()
+            .mockImplementation((cb) => Promise.resolve(user).then(cb)),
         };
         userModel.findById.mockReturnValue(mockQuery);
         jest.spyOn(authService, 'getMe').mockResolvedValue(user as any);
 
         const revokeSpy = jest.spyOn(tokenService, 'revokeAllUserTokens');
 
-        await authService.updateUser(user._id.toString(), { password: 'NewSecurePassword123!' }, '127.0.0.1');
+        await authService.updateUser(
+          user._id.toString(),
+          { password: 'NewSecurePassword123!' },
+          '127.0.0.1',
+        );
         expect(revokeSpy).toHaveBeenCalledWith(user._id.toString());
       });
     });
@@ -567,15 +620,19 @@ describe('Auth Security (Student Account Policies)', () => {
             user_name: 'SV001',
             email: 'sv001@school.edu.vn',
             role: mockRole,
-            toObject: function() { return this; },
+            toObject: function () {
+              return this;
+            },
           },
           {
             _id: regularUserId,
             user_name: 'teacher1',
             email: 'teacher1@school.edu.vn',
             role: { _id: new Types.ObjectId(), name: 'Teacher' },
-            toObject: function() { return this; },
-          }
+            toObject: function () {
+              return this;
+            },
+          },
         ];
 
         userModel.find.mockReturnValue({
@@ -591,7 +648,7 @@ describe('Auth Security (Student Account Policies)', () => {
             full_name: 'Nguyen Van A',
             user_id: studentUserId,
             class_id: new Types.ObjectId(),
-          }
+          },
         ];
 
         studentModel.find.mockReturnValue({
@@ -603,7 +660,9 @@ describe('Auth Security (Student Account Policies)', () => {
         expect(result).toBeDefined();
         expect(result.length).toBe(2);
 
-        const studentUser = result.find(u => u._id.toString() === studentUserId.toString());
+        const studentUser = result.find(
+          (u) => u._id.toString() === studentUserId.toString(),
+        );
         expect(studentUser).toBeDefined();
         expect(studentUser.display_name).toBe('Nguyen Van A');
         expect(studentUser.student_profile).toBeDefined();
@@ -611,7 +670,9 @@ describe('Auth Security (Student Account Policies)', () => {
         expect(studentUser.student_profile.full_name).toBe('Nguyen Van A');
         expect(studentUser.user_name).toBe('SV001');
 
-        const regularUser = result.find(u => u._id.toString() === regularUserId.toString());
+        const regularUser = result.find(
+          (u) => u._id.toString() === regularUserId.toString(),
+        );
         expect(regularUser).toBeDefined();
         expect(regularUser.display_name).toBe('teacher1');
         expect(regularUser.student_profile).toBeUndefined();
@@ -678,7 +739,11 @@ describe('Auth Security (Student Account Policies)', () => {
             { email: '20230002', password: 'password123' },
             '127.0.0.1',
           ),
-        ).rejects.toThrow(new ForbiddenException('Tài khoản chưa được kích hoạt bởi quản trị viên.'));
+        ).rejects.toThrow(
+          new ForbiddenException(
+            'Tài khoản chưa được kích hoạt bởi quản trị viên.',
+          ),
+        );
       });
 
       it('should allow active student to login using student code (MSSV) and date of birth password in ddMMyyyy format', async () => {
@@ -710,7 +775,10 @@ describe('Auth Security (Student Account Policies)', () => {
         expect(result).toBeDefined();
         expect(result.user.username).toBe('20230123');
         expect(result.user.role).toBe('Student');
-        expect(passwordService.comparePassword).toHaveBeenCalledWith('15082003', 'hashed-dob-password');
+        expect(passwordService.comparePassword).toHaveBeenCalledWith(
+          '15082003',
+          'hashed-dob-password',
+        );
         expect(mockStudentUser.save).toHaveBeenCalled();
       });
     });
@@ -831,26 +899,50 @@ describe('Auth Security (Student Account Policies)', () => {
         process.env.AUTH_COOKIE_SECURE = 'false';
         const mockRes = { cookie: jest.fn() } as any;
         const mockReq = { ip: '127.0.0.1' };
-        authService.login.mockResolvedValue({ access_token: 'ac', refresh_token: 'rf', user: { id: 'u', role: 'User' } });
-        await authController.login({ email: 'user@school.edu.vn', password: 'password', remember: true }, mockReq, mockRes);
+        authService.login.mockResolvedValue({
+          access_token: 'ac',
+          refresh_token: 'rf',
+          user: { id: 'u', role: 'User' },
+        });
+        await authController.login(
+          { email: 'user@school.edu.vn', password: 'password', remember: true },
+          mockReq,
+          mockRes,
+        );
 
-        expect(mockRes.cookie).toHaveBeenCalledWith('refresh_token', 'rf', expect.objectContaining({
-          secure: false,
-          sameSite: 'lax',
-        }));
+        expect(mockRes.cookie).toHaveBeenCalledWith(
+          'refresh_token',
+          'rf',
+          expect.objectContaining({
+            secure: false,
+            sameSite: 'lax',
+          }),
+        );
       });
 
       it('should set secure=true and sameSite=none when AUTH_COOKIE_SECURE=true', async () => {
         process.env.AUTH_COOKIE_SECURE = 'true';
         const mockRes = { cookie: jest.fn() } as any;
         const mockReq = { ip: '127.0.0.1' };
-        authService.login.mockResolvedValue({ access_token: 'ac', refresh_token: 'rf', user: { id: 'u', role: 'User' } });
-        await authController.login({ email: 'user@school.edu.vn', password: 'password', remember: true }, mockReq, mockRes);
+        authService.login.mockResolvedValue({
+          access_token: 'ac',
+          refresh_token: 'rf',
+          user: { id: 'u', role: 'User' },
+        });
+        await authController.login(
+          { email: 'user@school.edu.vn', password: 'password', remember: true },
+          mockReq,
+          mockRes,
+        );
 
-        expect(mockRes.cookie).toHaveBeenCalledWith('refresh_token', 'rf', expect.objectContaining({
-          secure: true,
-          sameSite: 'none',
-        }));
+        expect(mockRes.cookie).toHaveBeenCalledWith(
+          'refresh_token',
+          'rf',
+          expect.objectContaining({
+            secure: true,
+            sameSite: 'none',
+          }),
+        );
       });
     });
   });

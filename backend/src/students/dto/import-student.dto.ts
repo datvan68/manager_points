@@ -7,7 +7,10 @@ export class ImportStudentRequestDto {
   @IsNotEmpty()
   classId: string;
 
-  @ApiProperty({ description: 'Danh sách các dòng dữ liệu từ file Excel', type: [Object] })
+  @ApiProperty({
+    description: 'Danh sách các dòng dữ liệu từ file Excel',
+    type: [Object],
+  })
   @IsArray()
   rows: any[];
 }

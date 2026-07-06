@@ -2,7 +2,10 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ClubSchedulesService } from './club-schedules.service';
 import { ClubSchedulesController } from './club-schedules.controller';
-import { ClubSchedule, ClubScheduleSchema } from './schemas/club-schedule.schema';
+import {
+  ClubSchedule,
+  ClubScheduleSchema,
+} from './schemas/club-schedule.schema';
 import {
   ScheduleRegistration,
   ScheduleRegistrationSchema,

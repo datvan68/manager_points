@@ -1,4 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -26,7 +34,6 @@ import { SummariesPointService } from '../summaries-point/summaries-point.servic
 import { calculateCriterionScoreHelper } from '../academic-record/academic-record.utils';
 import { getGradingRole } from '../auth/utils/grading-access.util';
 
-
 @Injectable()
 export class EvaluationDetailService {
   constructor(
@@ -44,7 +51,7 @@ export class EvaluationDetailService {
     private readonly classModel: Model<ClassDocument>,
     @Inject(forwardRef(() => SummariesPointService))
     private readonly summariesPointService: SummariesPointService,
-  ) { }
+  ) {}
 
   private isTeacher(requester?: any) {
     return getGradingRole(requester) === 'teacher';
@@ -91,13 +98,18 @@ export class EvaluationDetailService {
     if (!teacherStudentIds) return;
 
     const summary = await this.summaryPointModel
-      .findOne({ _id: summaryId, student_id: { $in: teacherStudentIds } } as any)
+      .findOne({
+        _id: summaryId,
+        student_id: { $in: teacherStudentIds },
+      } as any)
       .select('_id')
       .lean()
       .exec();
 
     if (!summary) {
-      throw new ForbiddenException('Bạn không có quyền thao tác chi tiết điểm ngoài lớp GVCN.');
+      throw new ForbiddenException(
+        'Bạn không có quyền thao tác chi tiết điểm ngoài lớp GVCN.',
+      );
     }
   }
 
@@ -112,7 +124,12 @@ export class EvaluationDetailService {
     if (!roleName) return 1;
     const nameLower = roleName.toLowerCase();
     if (nameLower.includes('admin')) return 4;
-    if (nameLower.includes('supervisor') || nameLower.includes('quản sinh') || nameLower.includes('quan sinh')) return 3;
+    if (
+      nameLower.includes('supervisor') ||
+      nameLower.includes('quản sinh') ||
+      nameLower.includes('quan sinh')
+    )
+      return 3;
     if (
       nameLower.includes('teacher') ||
       nameLower.includes('adviser') ||
@@ -129,10 +146,14 @@ export class EvaluationDetailService {
   private getRecordCreator(record: any): { id: string; level: number } | null {
     if (!record.recorded_by) return null;
 
-    const recordedBy = record.recorded_by as any;
-    const id = recordedBy._id ? recordedBy._id.toString() : recordedBy.toString();
+    const recordedBy = record.recorded_by;
+    const id = recordedBy._id
+      ? recordedBy._id.toString()
+      : recordedBy.toString();
     const roleName = recordedBy.role
-      ? (typeof recordedBy.role === 'object' ? recordedBy.role.name : recordedBy.role)
+      ? typeof recordedBy.role === 'object'
+        ? recordedBy.role.name
+        : recordedBy.role
       : '';
 
     return { id, level: this.getRoleLevel(roleName, recordedBy) };
@@ -168,22 +189,32 @@ export class EvaluationDetailService {
     criterion: CriterionDocument,
     currentCount: number,
     requester?: any,
-  ): Promise<{ actualCount: number, originalCount: number, dailyReportCount: number, permissionLockedCount: number }> {
+  ): Promise<{
+    actualCount: number;
+    originalCount: number;
+    dailyReportCount: number;
+    permissionLockedCount: number;
+  }> {
     // Find all active academic records for this student, semester, and criterion
-    const records = await this.academicRecordModel.find({
-      student_id: summary.student_id as any,
-      semester_id: summary.semester_id as any,
-      criterion_id: criterion._id as any,
-      status: 'active',
-      is_deleted: { $ne: true },
-    } as any)
+    const records = await this.academicRecordModel
+      .find({
+        student_id: summary.student_id as any,
+        semester_id: summary.semester_id as any,
+        criterion_id: criterion._id as any,
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any)
       .exec();
 
     const diff = currentCount - records.length;
     let actualCount = records.length;
 
-    const dailyReportCount = records.filter(rec => rec.daily_report_id).length;
-    const originalCount = records.filter((rec) => !this.canRequesterDeleteRecord(rec, requester)).length;
+    const dailyReportCount = records.filter(
+      (rec) => rec.daily_report_id,
+    ).length;
+    const originalCount = records.filter(
+      (rec) => !this.canRequesterDeleteRecord(rec, requester),
+    ).length;
     const permissionLockedCount = originalCount - dailyReportCount;
 
     if (diff > 0) {
@@ -207,8 +238,10 @@ export class EvaluationDetailService {
             record_title: criterion.criterion_name,
             description: `(Chấm điểm trực tiếp từ ${userName})`,
             status: 'active',
-            recorded_by: updatedByUserId ? new Types.ObjectId(updatedByUserId) : undefined,
-          }).save()
+            recorded_by: updatedByUserId
+              ? new Types.ObjectId(updatedByUserId)
+              : undefined,
+          }).save(),
         );
       }
       await Promise.all(promises);
@@ -225,17 +258,25 @@ export class EvaluationDetailService {
           const aLevel = aCreator?.level || requesterLevel;
           const bLevel = bCreator?.level || requesterLevel;
           if (aLevel !== bLevel) return aLevel - bLevel;
-          return new Date((b as any).createdAt || 0).getTime() - new Date((a as any).createdAt || 0).getTime();
+          return (
+            new Date((b as any).createdAt || 0).getTime() -
+            new Date((a as any).createdAt || 0).getTime()
+          );
         });
       const recordsToDelete = deletableRecords.slice(0, excessCount);
       const promises = recordsToDelete.map((rec) =>
-        this.academicRecordModel.findByIdAndDelete(rec._id).exec()
+        this.academicRecordModel.findByIdAndDelete(rec._id).exec(),
       );
       await Promise.all(promises);
       actualCount -= recordsToDelete.length;
     }
 
-    return { actualCount, originalCount, dailyReportCount, permissionLockedCount };
+    return {
+      actualCount,
+      originalCount,
+      dailyReportCount,
+      permissionLockedCount,
+    };
   }
 
   /**
@@ -248,13 +289,15 @@ export class EvaluationDetailService {
     const summary = await this.summaryPointModel.findById(summaryId).exec();
     if (!summary) return 0;
 
-    const count = await this.academicRecordModel.countDocuments({
-      student_id: summary.student_id as any,
-      semester_id: summary.semester_id as any,
-      criterion_id: new Types.ObjectId(criterionId) as any,
-      status: 'active',
-      is_deleted: { $ne: true },
-    } as any).exec();
+    const count = await this.academicRecordModel
+      .countDocuments({
+        student_id: summary.student_id as any,
+        semester_id: summary.semester_id as any,
+        criterion_id: new Types.ObjectId(criterionId) as any,
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any)
+      .exec();
 
     return count;
   }
@@ -265,25 +308,49 @@ export class EvaluationDetailService {
   async getPreExistingCountsForSummary(
     summaryId: string,
     requester?: any,
-  ): Promise<Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>> {
+  ): Promise<
+    Record<
+      string,
+      {
+        original_count: number;
+        non_deletable_count: number;
+        deletable_count: number;
+        current_count: number;
+      }
+    >
+  > {
     const summary = await this.summaryPointModel.findById(summaryId).exec();
     if (!summary) return {};
 
-    const records = await this.academicRecordModel.find({
-      student_id: summary.student_id as any,
-      semester_id: summary.semester_id as any,
-      status: 'active',
-      is_deleted: { $ne: true },
-    } as any)
+    const records = await this.academicRecordModel
+      .find({
+        student_id: summary.student_id as any,
+        semester_id: summary.semester_id as any,
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any)
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
 
-    const countsMap: Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }> = {};
+    const countsMap: Record<
+      string,
+      {
+        original_count: number;
+        non_deletable_count: number;
+        deletable_count: number;
+        current_count: number;
+      }
+    > = {};
     records.forEach((rec) => {
       const criId = rec.criterion_id?.toString();
       if (criId) {
         if (!countsMap[criId]) {
-          countsMap[criId] = { original_count: 0, non_deletable_count: 0, deletable_count: 0, current_count: 0 };
+          countsMap[criId] = {
+            original_count: 0,
+            non_deletable_count: 0,
+            deletable_count: 0,
+            current_count: 0,
+          };
         }
         countsMap[criId].current_count += 1;
         if (!this.canRequesterDeleteRecord(rec, requester)) {
@@ -301,13 +368,29 @@ export class EvaluationDetailService {
   async getPreExistingCountsBulk(
     summaryIds: string[],
     requester?: any,
-  ): Promise<Record<string, Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>>> {
+  ): Promise<
+    Record<
+      string,
+      Record<
+        string,
+        {
+          original_count: number;
+          non_deletable_count: number;
+          deletable_count: number;
+          current_count: number;
+        }
+      >
+    >
+  > {
     if (!summaryIds || summaryIds.length === 0) return {};
 
     // 1. Tìm tất cả summaries được yêu cầu
-    const summaries = await this.summaryPointModel.find({
-      _id: { $in: summaryIds.map(id => new Types.ObjectId(id)) }
-    } as any).lean().exec();
+    const summaries = await this.summaryPointModel
+      .find({
+        _id: { $in: summaryIds.map((id) => new Types.ObjectId(id)) },
+      } as any)
+      .lean()
+      .exec();
 
     if (!summaries || summaries.length === 0) return {};
 
@@ -324,61 +407,84 @@ export class EvaluationDetailService {
     }
 
     // 3. Sử dụng MongoDB Aggregation để gom nhóm records
-    const groupedRecords = await this.academicRecordModel.aggregate([
-      {
-        $match: {
-          student_id: { $in: studentIds },
-          semester_id: { $in: semesterIds },
-          status: 'active',
-          is_deleted: { $ne: true },
-        }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'recorded_by',
-          foreignField: '_id',
-          as: 'recorded_by_user'
-        }
-      },
-      { $unwind: { path: '$recorded_by_user', preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: 'roles',
-          localField: 'recorded_by_user.role',
-          foreignField: '_id',
-          as: 'recorded_by_role'
-        }
-      },
-      { $unwind: { path: '$recorded_by_role', preserveNullAndEmptyArrays: true } },
-      {
-        $group: {
-          _id: {
-            student_id: '$student_id',
-            semester_id: '$semester_id',
-            criterion_id: '$criterion_id'
+    const groupedRecords = await this.academicRecordModel
+      .aggregate([
+        {
+          $match: {
+            student_id: { $in: studentIds },
+            semester_id: { $in: semesterIds },
+            status: 'active',
+            is_deleted: { $ne: true },
           },
-          current_count: { $sum: 1 },
-          records: {
-            $push: {
-              daily_report_id: '$daily_report_id',
-              recorded_by: {
-                $cond: {
-                  if: { $ifNull: ["$recorded_by_user._id", false] },
-                  then: {
-                    _id: '$recorded_by_user._id',
-                    role: { name: '$recorded_by_role.name' }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'recorded_by',
+            foreignField: '_id',
+            as: 'recorded_by_user',
+          },
+        },
+        {
+          $unwind: {
+            path: '$recorded_by_user',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: 'roles',
+            localField: 'recorded_by_user.role',
+            foreignField: '_id',
+            as: 'recorded_by_role',
+          },
+        },
+        {
+          $unwind: {
+            path: '$recorded_by_role',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $group: {
+            _id: {
+              student_id: '$student_id',
+              semester_id: '$semester_id',
+              criterion_id: '$criterion_id',
+            },
+            current_count: { $sum: 1 },
+            records: {
+              $push: {
+                daily_report_id: '$daily_report_id',
+                recorded_by: {
+                  $cond: {
+                    if: { $ifNull: ['$recorded_by_user._id', false] },
+                    then: {
+                      _id: '$recorded_by_user._id',
+                      role: { name: '$recorded_by_role.name' },
+                    },
+                    else: null,
                   },
-                  else: null
-                }
-              }
-            }
-          }
-        }
-      }
-    ]).exec();
+                },
+              },
+            },
+          },
+        },
+      ])
+      .exec();
 
-    const result: Record<string, Record<string, { original_count: number; non_deletable_count: number; deletable_count: number; current_count: number }>> = {};
+    const result: Record<
+      string,
+      Record<
+        string,
+        {
+          original_count: number;
+          non_deletable_count: number;
+          deletable_count: number;
+          current_count: number;
+        }
+      >
+    > = {};
 
     // Khởi tạo map kết quả
     for (const s of summaries) {
@@ -420,34 +526,48 @@ export class EvaluationDetailService {
     createEvaluationDetailDto: CreateEvaluationDetailDto,
     requester?: any,
   ): Promise<EvaluationDetail> {
-    const { summary_id, criterion_id, current_count, ...rest } = createEvaluationDetailDto;
+    const { summary_id, criterion_id, current_count, ...rest } =
+      createEvaluationDetailDto;
     await this.assertCanAccessSummary(summary_id, requester);
 
     const summary = await this.summaryPointModel.findById(summary_id).exec();
     if (!summary) {
-      throw new NotFoundException(`SummaryPoint with ID ${summary_id} not found`);
+      throw new NotFoundException(
+        `SummaryPoint with ID ${summary_id} not found`,
+      );
     }
 
     if (summary.status === 'locked') {
-      throw new BadRequestException('Không thể thêm chi tiết chấm điểm cho bảng điểm đã chốt');
+      throw new BadRequestException(
+        'Không thể thêm chi tiết chấm điểm cho bảng điểm đã chốt',
+      );
     }
 
     const criterion = await this.criterionModel.findById(criterion_id).exec();
     if (!criterion) {
-      throw new NotFoundException(`Criterion with ID ${criterion_id} not found`);
+      throw new NotFoundException(
+        `Criterion with ID ${criterion_id} not found`,
+      );
     }
 
     // Check if detail already exists
     const existingIndex = summary.details.findIndex(
-      (d) => d.criterion_id && d.criterion_id.toString() === criterion_id
+      (d) => d.criterion_id && d.criterion_id.toString() === criterion_id,
     );
     if (existingIndex !== -1) {
-      throw new ConflictException(`EvaluationDetail for Criterion ${criterion_id} already exists on this SummaryPoint`);
+      throw new ConflictException(
+        `EvaluationDetail for Criterion ${criterion_id} already exists on this SummaryPoint`,
+      );
     }
 
     const rawRest = rest as any;
-    if (criterion.scoring_mode === 'single_option' && rawRest.selected_option_id) {
-      const option = criterion.options?.find((o: any) => o.id === rawRest.selected_option_id);
+    if (
+      criterion.scoring_mode === 'single_option' &&
+      rawRest.selected_option_id
+    ) {
+      const option = criterion.options?.find(
+        (o: any) => o.id === rawRest.selected_option_id,
+      );
       if (!option) {
         throw new BadRequestException('Option không hợp lệ');
       }
@@ -482,20 +602,24 @@ export class EvaluationDetailService {
       sv_submitted_at: rest.sv_submitted_at || null,
       gv_score: rest.gv_score !== undefined ? rest.gv_score : null,
       gv_reviewed_at: rest.gv_reviewed_at || null,
-      gv_reviewed_by: rest.gv_reviewed_by ? new Types.ObjectId(rest.gv_reviewed_by) : null,
+      gv_reviewed_by: rest.gv_reviewed_by
+        ? new Types.ObjectId(rest.gv_reviewed_by)
+        : null,
       final_score: null,
       locked_at: null,
       locked_by: null,
-      status: rest.status === 'locked' ? 'draft' : (rest.status || 'draft'),
+      status: rest.status === 'locked' ? 'draft' : rest.status || 'draft',
       description: rest.description || '',
       log: rest.log || [],
     };
 
-    await this.summaryPointModel.findByIdAndUpdate(
-      summary_id,
-      { $push: { details: newDetail } },
-      { returnDocument: 'after' }
-    ).exec();
+    await this.summaryPointModel
+      .findByIdAndUpdate(
+        summary_id,
+        { $push: { details: newDetail } },
+        { returnDocument: 'after' },
+      )
+      .exec();
 
     await this.summariesPointService.recomputeTotalScore(summary_id);
 
@@ -521,7 +645,13 @@ export class EvaluationDetailService {
     let studentId: string | undefined;
     let actualRequester = requester;
 
-    if (query && ('roleName' in query || 'userId' in query || 'role' in query || 'username' in query)) {
+    if (
+      query &&
+      ('roleName' in query ||
+        'userId' in query ||
+        'role' in query ||
+        'username' in query)
+    ) {
       actualRequester = query;
     } else if (query) {
       page = query.page;
@@ -544,16 +674,33 @@ export class EvaluationDetailService {
     }
 
     if (classId && Types.ObjectId.isValid(classId)) {
-      const classStudents = await this.studentModel.find({ class_id: new Types.ObjectId(classId) }).select('_id').exec();
-      const studentIds = classStudents.map(s => s._id);
+      const classStudents = await this.studentModel
+        .find({ class_id: new Types.ObjectId(classId) })
+        .select('_id')
+        .exec();
+      const studentIds = classStudents.map((s) => s._id);
       if (filter.student_id) {
         if (filter.student_id.$in) {
           filter.student_id.$in = filter.student_id.$in.filter((id: any) =>
-            studentIds.some(sId => sId.toString() === id.toString())
+            studentIds.some((sId) => sId.toString() === id.toString()),
           );
         } else {
-          if (!studentIds.some(sId => sId.toString() === filter.student_id.toString())) {
-            return (page !== undefined || limit !== undefined) ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+          if (
+            !studentIds.some(
+              (sId) => sId.toString() === filter.student_id.toString(),
+            )
+          ) {
+            return page !== undefined || limit !== undefined
+              ? {
+                  data: [],
+                  meta: {
+                    total: 0,
+                    page: page || 1,
+                    limit: limit || 10,
+                    totalPages: 0,
+                  },
+                }
+              : [];
           }
         }
       } else {
@@ -565,13 +712,35 @@ export class EvaluationDetailService {
       const targetStudentObjectId = new Types.ObjectId(studentId);
       if (filter.student_id) {
         if (filter.student_id.$in) {
-          const hasAccess = filter.student_id.$in.some((id: any) => id.toString() === studentId);
+          const hasAccess = filter.student_id.$in.some(
+            (id: any) => id.toString() === studentId,
+          );
           if (!hasAccess) {
-            return (page !== undefined || limit !== undefined) ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+            return page !== undefined || limit !== undefined
+              ? {
+                  data: [],
+                  meta: {
+                    total: 0,
+                    page: page || 1,
+                    limit: limit || 10,
+                    totalPages: 0,
+                  },
+                }
+              : [];
           }
         } else {
           if (filter.student_id.toString() !== studentId) {
-            return (page !== undefined || limit !== undefined) ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+            return page !== undefined || limit !== undefined
+              ? {
+                  data: [],
+                  meta: {
+                    total: 0,
+                    page: page || 1,
+                    limit: limit || 10,
+                    totalPages: 0,
+                  },
+                }
+              : [];
           }
         }
       }
@@ -608,8 +777,8 @@ export class EvaluationDetailService {
           total,
           page: p,
           limit: l,
-          totalPages: Math.ceil(total / l)
-        }
+          totalPages: Math.ceil(total / l),
+        },
       };
     } else {
       return allDetails;
@@ -622,10 +791,12 @@ export class EvaluationDetailService {
     }
 
     const scopeFilter = await this.getSummaryScopeFilter(requester);
-    const summary = await this.summaryPointModel.findOne({
-      ...scopeFilter,
-      'details._id': new Types.ObjectId(id),
-    } as any).exec();
+    const summary = await this.summaryPointModel
+      .findOne({
+        ...scopeFilter,
+        'details._id': new Types.ObjectId(id),
+      })
+      .exec();
 
     if (!summary) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
@@ -635,9 +806,15 @@ export class EvaluationDetailService {
     return detail;
   }
 
-  async findBySummaryId(summaryId: string, requester?: any, fetchLogs: boolean = true): Promise<EvaluationDetail[]> {
+  async findBySummaryId(
+    summaryId: string,
+    requester?: any,
+    fetchLogs: boolean = true,
+  ): Promise<EvaluationDetail[]> {
     if (!Types.ObjectId.isValid(summaryId)) {
-      throw new NotFoundException(`SummaryPoint with ID ${summaryId} not found`);
+      throw new NotFoundException(
+        `SummaryPoint with ID ${summaryId} not found`,
+      );
     }
 
     await this.assertCanAccessSummary(summaryId, requester);
@@ -661,7 +838,9 @@ export class EvaluationDetailService {
     requester?: any,
   ): Promise<EvaluationDetail> {
     if (updateEvaluationDetailDto.status === 'locked') {
-      throw new BadRequestException('Không thể chốt trạng thái chi tiết chấm điểm trực tiếp');
+      throw new BadRequestException(
+        'Không thể chốt trạng thái chi tiết chấm điểm trực tiếp',
+      );
     }
     const rawDto = updateEvaluationDetailDto as any;
     if (
@@ -669,16 +848,20 @@ export class EvaluationDetailService {
       rawDto.locked_at !== undefined ||
       rawDto.locked_by !== undefined
     ) {
-      throw new BadRequestException('Không thể chỉnh sửa các trường khóa trực tiếp');
+      throw new BadRequestException(
+        'Không thể chỉnh sửa các trường khóa trực tiếp',
+      );
     }
 
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
     }
 
-    const summary = await this.summaryPointModel.findOne({
-      'details._id': new Types.ObjectId(id),
-    }).exec();
+    const summary = await this.summaryPointModel
+      .findOne({
+        'details._id': new Types.ObjectId(id),
+      })
+      .exec();
 
     if (!summary) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
@@ -686,15 +869,23 @@ export class EvaluationDetailService {
     await this.assertCanAccessSummary(summary._id.toString(), requester);
 
     if (summary.status === 'locked') {
-      throw new BadRequestException('Không thể chỉnh sửa chi tiết chấm điểm của bảng điểm đã chốt');
+      throw new BadRequestException(
+        'Không thể chỉnh sửa chi tiết chấm điểm của bảng điểm đã chốt',
+      );
     }
 
-    const detailIndex = summary.details.findIndex((d: any) => d._id.toString() === id);
+    const detailIndex = summary.details.findIndex(
+      (d: any) => d._id.toString() === id,
+    );
     const detail = summary.details[detailIndex];
 
-    const criterion = await this.criterionModel.findById(detail.criterion_id).exec();
+    const criterion = await this.criterionModel
+      .findById(detail.criterion_id)
+      .exec();
     if (!criterion) {
-      throw new NotFoundException(`Criterion with ID ${detail.criterion_id} not found`);
+      throw new NotFoundException(
+        `Criterion with ID ${detail.criterion_id} not found`,
+      );
     }
 
     const setObj: any = {};
@@ -704,11 +895,19 @@ export class EvaluationDetailService {
       rawDto.selected_option_id !== undefined ||
       (rawDto.log && rawDto.log.length > 0)
     ) {
-      throw new BadRequestException('Tiêu chí này phải được cập nhật điểm thông qua hồ sơ minh chứng (academic_record) hoặc cơ chế intent.');
+      throw new BadRequestException(
+        'Tiêu chí này phải được cập nhật điểm thông qua hồ sơ minh chứng (academic_record) hoặc cơ chế intent.',
+      );
     }
-    if (updateEvaluationDetailDto.sv_score !== undefined) setObj['details.$.sv_score'] = updateEvaluationDetailDto.sv_score;
-    if (updateEvaluationDetailDto.sv_submitted_at !== undefined) setObj['details.$.sv_submitted_at'] = updateEvaluationDetailDto.sv_submitted_at ? new Date(updateEvaluationDetailDto.sv_submitted_at) : null;
-    if (updateEvaluationDetailDto.gv_score !== undefined) setObj['details.$.gv_score'] = updateEvaluationDetailDto.gv_score;
+    if (updateEvaluationDetailDto.sv_score !== undefined)
+      setObj['details.$.sv_score'] = updateEvaluationDetailDto.sv_score;
+    if (updateEvaluationDetailDto.sv_submitted_at !== undefined)
+      setObj['details.$.sv_submitted_at'] =
+        updateEvaluationDetailDto.sv_submitted_at
+          ? new Date(updateEvaluationDetailDto.sv_submitted_at)
+          : null;
+    if (updateEvaluationDetailDto.gv_score !== undefined)
+      setObj['details.$.gv_score'] = updateEvaluationDetailDto.gv_score;
 
     // Clear gv_score if student updates sv_score and gv hasn't reviewed
     if (
@@ -721,34 +920,51 @@ export class EvaluationDetailService {
       setObj['details.$.gv_score'] = null;
     }
 
-    if (updateEvaluationDetailDto.gv_reviewed_at !== undefined) setObj['details.$.gv_reviewed_at'] = updateEvaluationDetailDto.gv_reviewed_at ? new Date(updateEvaluationDetailDto.gv_reviewed_at) : null;
-    if (updateEvaluationDetailDto.gv_reviewed_by !== undefined) setObj['details.$.gv_reviewed_by'] = updateEvaluationDetailDto.gv_reviewed_by ? new Types.ObjectId(updateEvaluationDetailDto.gv_reviewed_by) : null;
+    if (updateEvaluationDetailDto.gv_reviewed_at !== undefined)
+      setObj['details.$.gv_reviewed_at'] =
+        updateEvaluationDetailDto.gv_reviewed_at
+          ? new Date(updateEvaluationDetailDto.gv_reviewed_at)
+          : null;
+    if (updateEvaluationDetailDto.gv_reviewed_by !== undefined)
+      setObj['details.$.gv_reviewed_by'] =
+        updateEvaluationDetailDto.gv_reviewed_by
+          ? new Types.ObjectId(updateEvaluationDetailDto.gv_reviewed_by)
+          : null;
 
-    if (updateEvaluationDetailDto.status !== undefined) setObj['details.$.status'] = updateEvaluationDetailDto.status;
-    if (updateEvaluationDetailDto.description !== undefined) setObj['details.$.description'] = updateEvaluationDetailDto.description;
-
+    if (updateEvaluationDetailDto.status !== undefined)
+      setObj['details.$.status'] = updateEvaluationDetailDto.status;
+    if (updateEvaluationDetailDto.description !== undefined)
+      setObj['details.$.description'] = updateEvaluationDetailDto.description;
 
     const updateQuery: any = {};
     if (Object.keys(setObj).length > 0) {
       updateQuery.$set = setObj;
     }
 
-    const updatedSummary = await this.summaryPointModel.findOneAndUpdate(
-      { 'details._id': new Types.ObjectId(id) },
-      updateQuery,
-      { returnDocument: 'after' },
-    ).exec();
+    const updatedSummary = await this.summaryPointModel
+      .findOneAndUpdate(
+        { 'details._id': new Types.ObjectId(id) },
+        updateQuery,
+        { returnDocument: 'after' },
+      )
+      .exec();
 
     if (!updatedSummary) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
     }
 
     // --- Recompute total score ---
-    await this.summariesPointService.recomputeTotalScore(updatedSummary._id.toString());
+    await this.summariesPointService.recomputeTotalScore(
+      updatedSummary._id.toString(),
+    );
 
-    const finalSummary = await this.summaryPointModel.findById(updatedSummary._id).exec();
+    const finalSummary = await this.summaryPointModel
+      .findById(updatedSummary._id)
+      .exec();
     if (!finalSummary) {
-      throw new NotFoundException(`SummaryPoint with ID ${updatedSummary._id} not found after update`);
+      throw new NotFoundException(
+        `SummaryPoint with ID ${updatedSummary._id} not found after update`,
+      );
     }
     const updatedDetail = (finalSummary.details as any).id(id);
     return updatedDetail;
@@ -763,11 +979,15 @@ export class EvaluationDetailService {
 
     const summary = await this.summaryPointModel.findById(summary_id).exec();
     if (!summary) {
-      throw new NotFoundException(`SummaryPoint with ID ${summary_id} not found`);
+      throw new NotFoundException(
+        `SummaryPoint with ID ${summary_id} not found`,
+      );
     }
 
     if (summary.status === 'locked') {
-      throw new BadRequestException('Không thể thêm/chỉnh sửa chi tiết chấm điểm cho bảng điểm đã chốt');
+      throw new BadRequestException(
+        'Không thể thêm/chỉnh sửa chi tiết chấm điểm cho bảng điểm đã chốt',
+      );
     }
 
     const clampResults: any[] = [];
@@ -778,15 +998,23 @@ export class EvaluationDetailService {
       if (!criterion) continue;
 
       const existingIndex = summary.details.findIndex(
-        (d) => d.criterion_id && d.criterion_id.toString() === criterion_id
+        (d) => d.criterion_id && d.criterion_id.toString() === criterion_id,
       );
 
-      const detail = existingIndex !== -1 ? summary.details[existingIndex] : null;
+      const detail =
+        existingIndex !== -1 ? summary.details[existingIndex] : null;
 
       if (detail) {
-        const isReviewed = detail.status === 'gv_reviewed' || !!detail.gv_reviewed_by || !!detail.gv_reviewed_at;
-        const isLocked = detail.status === 'locked' || !!detail.locked_at || !!detail.locked_by;
-        const isApproved = detail.final_score !== null && detail.final_score !== undefined;
+        const isReviewed =
+          detail.status === 'gv_reviewed' ||
+          !!detail.gv_reviewed_by ||
+          !!detail.gv_reviewed_at;
+        const isLocked =
+          detail.status === 'locked' ||
+          !!detail.locked_at ||
+          !!detail.locked_by;
+        const isApproved =
+          detail.final_score !== null && detail.final_score !== undefined;
         const isManuallyReviewed = isReviewed || isLocked || isApproved;
 
         if (isManuallyReviewed) {
@@ -800,13 +1028,15 @@ export class EvaluationDetailService {
       }
 
       // Đếm active academic records cho student/semester của summary này và criterion này
-      const activeCount = await this.academicRecordModel.countDocuments({
-        student_id: summary.student_id,
-        semester_id: summary.semester_id,
-        criterion_id: new Types.ObjectId(criterion_id),
-        status: 'active',
-        is_deleted: { $ne: true },
-      } as any).exec();
+      const activeCount = await this.academicRecordModel
+        .countDocuments({
+          student_id: summary.student_id,
+          semester_id: summary.semester_id,
+          criterion_id: new Types.ObjectId(criterion_id),
+          status: 'active',
+          is_deleted: { $ne: true },
+        } as any)
+        .exec();
 
       // Tính system_score từ records
       let optId: string | null = null;
@@ -814,26 +1044,41 @@ export class EvaluationDetailService {
       let optScore: number | null = null;
       let manualScore: number | null = null;
       if (activeCount > 0) {
-        const latestRecord = await this.academicRecordModel.findOne({
-          student_id: summary.student_id,
-          semester_id: summary.semester_id,
-          criterion_id: new Types.ObjectId(criterion_id),
-          status: 'active',
-          is_deleted: { $ne: true },
-        } as any).sort({ createdAt: -1 }).exec();
+        const latestRecord = await this.academicRecordModel
+          .findOne({
+            student_id: summary.student_id,
+            semester_id: summary.semester_id,
+            criterion_id: new Types.ObjectId(criterion_id),
+            status: 'active',
+            is_deleted: { $ne: true },
+          } as any)
+          .sort({ createdAt: -1 })
+          .exec();
 
         if (latestRecord) {
           if (criterion.scoring_mode === 'single_option') {
             if (latestRecord.selected_option_id) {
               optId = latestRecord.selected_option_id;
               optLabel = latestRecord.selected_option_label || null;
-              optScore = latestRecord.selected_option_score !== undefined ? latestRecord.selected_option_score : null;
-            } else if (latestRecord.record_title && latestRecord.record_title.startsWith('Lựa chọn option ')) {
+              optScore =
+                latestRecord.selected_option_score !== undefined
+                  ? latestRecord.selected_option_score
+                  : null;
+            } else if (
+              latestRecord.record_title &&
+              latestRecord.record_title.startsWith('Lựa chọn option ')
+            ) {
               optId = latestRecord.record_title.replace('Lựa chọn option ', '');
             }
           } else {
-            if (latestRecord.record_title && latestRecord.record_title.startsWith('Nhập điểm tay: ')) {
-              const manualScoreStr = latestRecord.record_title.replace('Nhập điểm tay: ', '');
+            if (
+              latestRecord.record_title &&
+              latestRecord.record_title.startsWith('Nhập điểm tay: ')
+            ) {
+              const manualScoreStr = latestRecord.record_title.replace(
+                'Nhập điểm tay: ',
+                '',
+              );
               manualScore = parseFloat(manualScoreStr) || 0;
             }
           }
@@ -854,14 +1099,28 @@ export class EvaluationDetailService {
       // Bảo vệ chống ghi đè stale zero/null values từ frontend khi có active academic records
       if (activeCount > 0) {
         detailDto.current_count = scoringResult.currentCount;
-        detailDto.selected_option_id = scoringResult.selectedOptionId ?? undefined;
+        detailDto.selected_option_id =
+          scoringResult.selectedOptionId ?? undefined;
 
-        const isRewardOrViolation = criterion.score_per_unit > 0 || criterion.criterion_type === 'reward' || criterion.criterion_type === 'bonus' || criterion.score_per_unit < 0 || criterion.criterion_type === 'violation';
+        const isRewardOrViolation =
+          criterion.score_per_unit > 0 ||
+          criterion.criterion_type === 'reward' ||
+          criterion.criterion_type === 'bonus' ||
+          criterion.score_per_unit < 0 ||
+          criterion.criterion_type === 'violation';
         if (realSystemScore > 0 && isRewardOrViolation) {
-          if (detailDto.sv_score === undefined || detailDto.sv_score === 0 || detailDto.sv_score === null) {
+          if (
+            detailDto.sv_score === undefined ||
+            detailDto.sv_score === 0 ||
+            detailDto.sv_score === null
+          ) {
             detailDto.sv_score = realSystemScore;
           }
-          if (detailDto.gv_score === undefined || detailDto.gv_score === 0 || detailDto.gv_score === null) {
+          if (
+            detailDto.gv_score === undefined ||
+            detailDto.gv_score === 0 ||
+            detailDto.gv_score === null
+          ) {
             detailDto.gv_score = realSystemScore;
           }
         }
@@ -886,7 +1145,9 @@ export class EvaluationDetailService {
             setObj.selected_option_label = null;
             setObj.selected_option_score = 0;
           } else {
-            const option = criterion.options?.find((o: any) => o.id === detailDto.selected_option_id);
+            const option = criterion.options?.find(
+              (o: any) => o.id === detailDto.selected_option_id,
+            );
             if (option) {
               setObj.selected_option_label = option.label;
               setObj.selected_option_score = option.score;
@@ -915,21 +1176,38 @@ export class EvaluationDetailService {
         }
       }
 
-      if (detailDto.sv_score !== undefined) setObj.sv_score = detailDto.sv_score;
-      if (detailDto.sv_submitted_at !== undefined) setObj.sv_submitted_at = detailDto.sv_submitted_at ? new Date(detailDto.sv_submitted_at) : null;
-      if (detailDto.gv_score !== undefined) setObj.gv_score = detailDto.gv_score;
+      if (detailDto.sv_score !== undefined)
+        setObj.sv_score = detailDto.sv_score;
+      if (detailDto.sv_submitted_at !== undefined)
+        setObj.sv_submitted_at = detailDto.sv_submitted_at
+          ? new Date(detailDto.sv_submitted_at)
+          : null;
+      if (detailDto.gv_score !== undefined)
+        setObj.gv_score = detailDto.gv_score;
 
-      const isGVScoreCleared = this.isStudent(requester) &&
+      const isGVScoreCleared =
+        this.isStudent(requester) &&
         detailDto.sv_score !== undefined &&
         detailDto.gv_score === undefined;
 
-      if (detailDto.gv_reviewed_at !== undefined) setObj.gv_reviewed_at = detailDto.gv_reviewed_at ? new Date(detailDto.gv_reviewed_at) : null;
-      if (detailDto.gv_reviewed_by !== undefined) setObj.gv_reviewed_by = detailDto.gv_reviewed_by ? new Types.ObjectId(detailDto.gv_reviewed_by) : null;
+      if (detailDto.gv_reviewed_at !== undefined)
+        setObj.gv_reviewed_at = detailDto.gv_reviewed_at
+          ? new Date(detailDto.gv_reviewed_at)
+          : null;
+      if (detailDto.gv_reviewed_by !== undefined)
+        setObj.gv_reviewed_by = detailDto.gv_reviewed_by
+          ? new Types.ObjectId(detailDto.gv_reviewed_by)
+          : null;
       if (detailDto.status !== undefined) setObj.status = detailDto.status;
       if (detailDto.log && detailDto.log.length > 0) setObj.log = detailDto.log;
 
       if (existingIndex !== -1) {
-        if (detail && isGVScoreCleared && !detail.gv_reviewed_at && !detail.gv_reviewed_by) {
+        if (
+          detail &&
+          isGVScoreCleared &&
+          !detail.gv_reviewed_at &&
+          !detail.gv_reviewed_by
+        ) {
           setObj.gv_score = null;
         }
 
@@ -937,19 +1215,35 @@ export class EvaluationDetailService {
         for (const key of Object.keys(setObj)) {
           updateQuery[`details.$.${key}`] = setObj[key];
         }
-        await this.summaryPointModel.findOneAndUpdate(
-          { 'details._id': (detail as any)._id },
-          { $set: updateQuery }
-        ).exec();
+        await this.summaryPointModel
+          .findOneAndUpdate(
+            { 'details._id': (detail as any)._id },
+            { $set: updateQuery },
+          )
+          .exec();
       } else {
         const newDetail: any = {
           _id: new Types.ObjectId(),
           ...setObj,
-          current_count: activeCount > 0 ? scoringResult.currentCount : (setObj.current_count ?? 0),
-          system_score: activeCount > 0 ? realSystemScore : (setObj.system_score ?? 0),
-          sv_score: setObj.sv_score !== undefined ? setObj.sv_score : (activeCount > 0 ? realSystemScore : null),
+          current_count:
+            activeCount > 0
+              ? scoringResult.currentCount
+              : (setObj.current_count ?? 0),
+          system_score:
+            activeCount > 0 ? realSystemScore : (setObj.system_score ?? 0),
+          sv_score:
+            setObj.sv_score !== undefined
+              ? setObj.sv_score
+              : activeCount > 0
+                ? realSystemScore
+                : null,
           sv_submitted_at: setObj.sv_submitted_at || null,
-          gv_score: setObj.gv_score !== undefined ? setObj.gv_score : (activeCount > 0 ? realSystemScore : null),
+          gv_score:
+            setObj.gv_score !== undefined
+              ? setObj.gv_score
+              : activeCount > 0
+                ? realSystemScore
+                : null,
           gv_reviewed_at: setObj.gv_reviewed_at || null,
           gv_reviewed_by: setObj.gv_reviewed_by || null,
           final_score: null,
@@ -959,10 +1253,9 @@ export class EvaluationDetailService {
           description: '',
           log: setObj.log || [],
         };
-        await this.summaryPointModel.findByIdAndUpdate(
-          summary_id,
-          { $push: { details: newDetail } }
-        ).exec();
+        await this.summaryPointModel
+          .findByIdAndUpdate(summary_id, { $push: { details: newDetail } })
+          .exec();
       }
     }
 
@@ -976,16 +1269,22 @@ export class EvaluationDetailService {
     }
 
     if (this.isStudent(requester)) {
-      throw new ForbiddenException('Sinh viên không có quyền xóa lịch sử ghi nhận.');
+      throw new ForbiddenException(
+        'Sinh viên không có quyền xóa lịch sử ghi nhận.',
+      );
     }
 
     if (this.isTeacher(requester)) {
-      throw new ForbiddenException('Cố vấn không có quyền xóa lịch sử ghi nhận.');
+      throw new ForbiddenException(
+        'Cố vấn không có quyền xóa lịch sử ghi nhận.',
+      );
     }
 
-    const summary = await this.summaryPointModel.findOne({
-      'details._id': new Types.ObjectId(id),
-    }).exec();
+    const summary = await this.summaryPointModel
+      .findOne({
+        'details._id': new Types.ObjectId(id),
+      })
+      .exec();
 
     if (!summary) {
       throw new NotFoundException(`EvaluationDetail with ID ${id} not found`);
@@ -993,9 +1292,13 @@ export class EvaluationDetailService {
     await this.assertCanAccessSummary(summary._id.toString(), requester);
 
     if (summary.status === 'locked') {
-      throw new BadRequestException('Không thể xóa chi tiết chấm điểm của bảng điểm đã chốt');
+      throw new BadRequestException(
+        'Không thể xóa chi tiết chấm điểm của bảng điểm đã chốt',
+      );
     }
 
-    throw new BadRequestException('Vui lòng sử dụng cơ chế intent (clear_score) hoặc xóa hồ sơ minh chứng để xóa điểm.');
+    throw new BadRequestException(
+      'Vui lòng sử dụng cơ chế intent (clear_score) hoặc xóa hồ sơ minh chứng để xóa điểm.',
+    );
   }
 }

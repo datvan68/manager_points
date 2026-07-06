@@ -10,7 +10,12 @@ import {
   Request,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { checkPermission } from '../auth/guards/check-permission.guard';
 import { ClubAttendanceConfigService } from './club-attendance-config.service';
 import {
@@ -21,9 +26,7 @@ import {
 @ApiTags('Club Attendance Config')
 @Controller('club-attendance-config')
 export class ClubAttendanceConfigController {
-  constructor(
-    private readonly configService: ClubAttendanceConfigService,
-  ) {}
+  constructor(private readonly configService: ClubAttendanceConfigService) {}
 
   @Post()
   @UseGuards(checkPermission('CLUB_CONFIG_MANAGE'))

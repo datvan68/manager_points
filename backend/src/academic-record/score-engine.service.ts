@@ -60,7 +60,10 @@ export function extractStructuredData(record: any): {
       manual_score: record.payload?.manual_score ?? null,
       selected_option_id: record.selected_option_id ?? null,
       selected_option_label: record.selected_option_label ?? null,
-      selected_option_score: record.selected_option_score !== undefined ? record.selected_option_score : null,
+      selected_option_score:
+        record.selected_option_score !== undefined
+          ? record.selected_option_score
+          : null,
     };
   }
 
@@ -71,7 +74,10 @@ export function extractStructuredData(record: any): {
       manual_score: null,
       selected_option_id: record.selected_option_id,
       selected_option_label: record.selected_option_label || null,
-      selected_option_score: record.selected_option_score !== undefined ? record.selected_option_score : null,
+      selected_option_score:
+        record.selected_option_score !== undefined
+          ? record.selected_option_score
+          : null,
     };
   }
 
@@ -93,7 +99,9 @@ export function extractStructuredData(record: any): {
     }
 
     // Option selection: "Lựa chọn option A" / "Lua chon option B"
-    const optionMatch = record.record_title.match(/Lu[aạ]\s*ch[oọ]n\s*option\s*(.+)/i);
+    const optionMatch = record.record_title.match(
+      /Lu[aạ]\s*ch[oọ]n\s*option\s*(.+)/i,
+    );
     if (optionMatch) {
       return {
         action_type: 'select_option',
@@ -154,14 +162,13 @@ export function getTotalCount(counts: Partial<CountsByRole>): number {
  * Check how many distinct roles have non-zero counts.
  */
 export function getNonZeroRoleCount(counts: Partial<CountsByRole>): number {
-  return Object.values(counts).filter(v => (v || 0) > 0).length;
+  return Object.values(counts).filter((v) => (v || 0) > 0).length;
 }
 
 // === Score Engine Service ===
 
 @Injectable()
 export class ScoreEngineService {
-
   /**
    * Centralized score calculation — consolidates logic from:
    * - academic-record.utils.ts:calculateCriterionScoreHelper
@@ -190,7 +197,11 @@ export class ScoreEngineService {
     let effectiveCount: number;
     let calculationReason: string;
 
-    if (calculation_context === 'approval' && resolved_count !== null && resolved_count !== undefined) {
+    if (
+      calculation_context === 'approval' &&
+      resolved_count !== null &&
+      resolved_count !== undefined
+    ) {
       // Approval context: use resolved_count only, no fallback
       effectiveCount = resolved_count;
       calculationReason = `approval: using resolved_count=${resolved_count}`;
@@ -208,14 +219,18 @@ export class ScoreEngineService {
     let systemScore = 0;
     let optId = selected_option_id || null;
     let optLabel = selected_option_label || null;
-    let optScore = selected_option_score !== undefined ? selected_option_score : null;
+    let optScore =
+      selected_option_score !== undefined ? selected_option_score : null;
     let currentCount = effectiveCount;
-    let effectiveManualScore = manual_score ?? null;
+    const effectiveManualScore = manual_score ?? null;
 
     const scorePerUnit = criterion.score_per_unit || 0;
-    const maxScore = criterion.max_score ?? (criterion.criterion_type === 'ky_luat' || scorePerUnit < 0 ? 10 : 100);
+    const maxScore =
+      criterion.max_score ??
+      (criterion.criterion_type === 'ky_luat' || scorePerUnit < 0 ? 10 : 100);
     const minScore = criterion.min_score || 0;
-    const isDiscipline = criterion.criterion_type === 'ky_luat' || scorePerUnit < 0;
+    const isDiscipline =
+      criterion.criterion_type === 'ky_luat' || scorePerUnit < 0;
     const isSyncContext = calculation_context === 'sync';
 
     if (criterion.scoring_mode === 'single_option') {
@@ -234,13 +249,13 @@ export class ScoreEngineService {
           optLabel = null;
           optScore = null;
           currentCount = 0;
-          systemScore = isSyncContext ? 0 : (isDiscipline ? maxScore : 0);
+          systemScore = isSyncContext ? 0 : isDiscipline ? maxScore : 0;
           calculationReason += '; single_option invalid — reset';
         }
       } else {
         // No option selected
         currentCount = 0;
-        systemScore = isSyncContext ? 0 : (isDiscipline ? maxScore : 0);
+        systemScore = isSyncContext ? 0 : isDiscipline ? maxScore : 0;
         calculationReason += '; single_option none selected';
       }
     } else {
@@ -256,7 +271,13 @@ export class ScoreEngineService {
           systemScore = Math.max(minScore, Math.min(maxScore, systemScore));
         } else {
           // Discipline/negative: max_score - count * |score_per_unit|
-          systemScore = Math.max(minScore, Math.min(maxScore, maxScore - currentCount * Math.abs(scorePerUnit)));
+          systemScore = Math.max(
+            minScore,
+            Math.min(
+              maxScore,
+              maxScore - currentCount * Math.abs(scorePerUnit),
+            ),
+          );
         }
         calculationReason += `; count=${currentCount} × score_per_unit=${scorePerUnit}`;
       } else {
@@ -275,7 +296,13 @@ export class ScoreEngineService {
           if (scorePerUnit >= 0) {
             systemScore = Math.max(minScore, Math.min(maxScore, systemScore));
           } else {
-            systemScore = Math.max(minScore, Math.min(maxScore, maxScore - currentCount * Math.abs(scorePerUnit)));
+            systemScore = Math.max(
+              minScore,
+              Math.min(
+                maxScore,
+                maxScore - currentCount * Math.abs(scorePerUnit),
+              ),
+            );
           }
           calculationReason += `; manual zero-count standard calc`;
         }
@@ -300,7 +327,8 @@ export class ScoreEngineService {
    * Handles the discipline/non-counted scoring inversion.
    */
   getCriterionContribution(criterion: any, rawScore: number): number {
-    const isDiscipline = criterion.criterion_type === 'ky_luat' || criterion.score_per_unit < 0;
+    const isDiscipline =
+      criterion.criterion_type === 'ky_luat' || criterion.score_per_unit < 0;
     if (isDiscipline && criterion.is_score_counted === false) {
       return rawScore - (criterion.max_score || 10);
     }

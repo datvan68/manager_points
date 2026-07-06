@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsDateString, IsOptional, IsMongoId } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsDateString,
+  IsOptional,
+  IsMongoId,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateEvaluationPeriodDto {
@@ -15,17 +21,26 @@ export class CreateEvaluationPeriodDto {
   @IsOptional()
   status?: string;
 
-  @ApiProperty({ example: '2026-06-30T23:59:59Z', description: 'Hạn SV tự chấm' })
+  @ApiProperty({
+    example: '2026-06-30T23:59:59Z',
+    description: 'Hạn SV tự chấm',
+  })
   @IsDateString()
   @IsNotEmpty({ message: 'sv_deadline không được để trống' })
   sv_deadline: string;
 
-  @ApiProperty({ example: '2026-07-15T23:59:59Z', description: 'Hạn GVCN duyệt' })
+  @ApiProperty({
+    example: '2026-07-15T23:59:59Z',
+    description: 'Hạn GVCN duyệt',
+  })
   @IsDateString()
   @IsNotEmpty({ message: 'gv_deadline không được để trống' })
   gv_deadline: string;
 
-  @ApiProperty({ example: '2026-07-30T23:59:59Z', description: 'Hạn admin chốt' })
+  @ApiProperty({
+    example: '2026-07-30T23:59:59Z',
+    description: 'Hạn admin chốt',
+  })
   @IsDateString()
   @IsNotEmpty({ message: 'admin_deadline không được để trống' })
   admin_deadline: string;

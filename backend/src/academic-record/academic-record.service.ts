@@ -1,4 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  forwardRef,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -18,15 +26,33 @@ import { BulkCreateAcademicRecordDto } from './dto/bulk-create-academic-record.d
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
 import { Student } from '../students/schemas/student.schema';
 import { Class } from '../classes/schemas/class.schema';
-import { getRequesterRoleName, isStudent, isTeacher } from '../auth/utils/role.util';
-import { assertCanAccessStudent, getGradingRole } from '../auth/utils/grading-access.util';
+import {
+  getRequesterRoleName,
+  isStudent,
+  isTeacher,
+} from '../auth/utils/role.util';
+import {
+  assertCanAccessStudent,
+  getGradingRole,
+} from '../auth/utils/grading-access.util';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
 import { gradingEventEmitter } from '../system/grading-event-emitter';
 import { IntentScoreDto } from './dto/intent-score.dto';
-import { calculateCriterionScoreHelper, normalizeObjectId, buildGradingEventPayload } from './academic-record.utils';
-import { ScoreEngineService, extractStructuredData, groupRecordsByRole, CountsByRole } from './score-engine.service';
-import { CountResolutionService, detectConflict } from './count-resolution.service';
-
+import {
+  calculateCriterionScoreHelper,
+  normalizeObjectId,
+  buildGradingEventPayload,
+} from './academic-record.utils';
+import {
+  ScoreEngineService,
+  extractStructuredData,
+  groupRecordsByRole,
+  CountsByRole,
+} from './score-engine.service';
+import {
+  CountResolutionService,
+  detectConflict,
+} from './count-resolution.service';
 
 export interface AcademicRecordFindAllQuery {
   page?: number;
@@ -57,16 +83,21 @@ export class AcademicRecordService {
     private readonly summariesPointService: SummariesPointService,
     private readonly scoreEngineService: ScoreEngineService,
     private readonly countResolutionService: CountResolutionService,
-  ) { }
+  ) {}
 
   private importSessions = new Map<string, any>();
 
-  private async checkSummaryLocked(studentId: any, semesterId: any): Promise<void> {
+  private async checkSummaryLocked(
+    studentId: any,
+    semesterId: any,
+  ): Promise<void> {
     if (!studentId || !semesterId) return;
-    const summary = await this.summaryPointModel.findOne({
-      student_id: new Types.ObjectId(normalizeObjectId(studentId)),
-      semester_id: new Types.ObjectId(normalizeObjectId(semesterId)),
-    } as any).exec();
+    const summary = await this.summaryPointModel
+      .findOne({
+        student_id: new Types.ObjectId(normalizeObjectId(studentId)),
+        semester_id: new Types.ObjectId(normalizeObjectId(semesterId)),
+      } as any)
+      .exec();
     if (summary && summary.status === 'locked') {
       throw new BadRequestException({
         statusCode: 400,
@@ -118,14 +149,30 @@ export class AcademicRecordService {
     } = params;
 
     // 1. Determine manually reviewed status of oldDetail
-    const isReviewed = oldDetail && (oldDetail.status === 'gv_reviewed' || !!oldDetail.gv_reviewed_by || !!oldDetail.gv_reviewed_at);
-    const isLocked = oldDetail && (oldDetail.status === 'locked' || !!oldDetail.locked_at || !!oldDetail.locked_by);
-    const isApproved = oldDetail && (oldDetail.final_score !== null && oldDetail.final_score !== undefined);
+    const isReviewed =
+      oldDetail &&
+      (oldDetail.status === 'gv_reviewed' ||
+        !!oldDetail.gv_reviewed_by ||
+        !!oldDetail.gv_reviewed_at);
+    const isLocked =
+      oldDetail &&
+      (oldDetail.status === 'locked' ||
+        !!oldDetail.locked_at ||
+        !!oldDetail.locked_by);
+    const isApproved =
+      oldDetail &&
+      oldDetail.final_score !== null &&
+      oldDetail.final_score !== undefined;
     const isManuallyReviewed = isReviewed || isLocked || isApproved;
 
     // 2. Determine skip status and skip_reason
     let status: 'repaired' | 'skipped' = 'repaired';
-    let skipReason: 'locked' | 'reviewed' | 'approved' | 'invalid_option' | null = null;
+    let skipReason:
+      | 'locked'
+      | 'reviewed'
+      | 'approved'
+      | 'invalid_option'
+      | null = null;
 
     if (isManuallyReviewed && !options?.forceRepairLocked) {
       status = 'skipped';
@@ -158,24 +205,33 @@ export class AcademicRecordService {
     const selectedOptionScore = scoringResult.selectedOptionScore;
 
     // 4. Construct / Update detail
-    const detail: any = oldDetail ? (oldDetail.toObject ? oldDetail.toObject() : { ...oldDetail }) : {
-      criterion_id: new Types.ObjectId(criterion._id),
-      sv_score: null,
-      sv_submitted_at: null,
-      gv_score: null,
-      gv_reviewed_at: null,
-      gv_reviewed_by: null,
-      final_score: null,
-      locked_at: null,
-      locked_by: null,
-      status: 'draft',
-      description: '',
-      log: [],
-    };
+    const detail: any = oldDetail
+      ? oldDetail.toObject
+        ? oldDetail.toObject()
+        : { ...oldDetail }
+      : {
+          criterion_id: new Types.ObjectId(criterion._id),
+          sv_score: null,
+          sv_submitted_at: null,
+          gv_score: null,
+          gv_reviewed_at: null,
+          gv_reviewed_by: null,
+          final_score: null,
+          locked_at: null,
+          locked_by: null,
+          status: 'draft',
+          description: '',
+          log: [],
+        };
 
     if (status === 'skipped') {
       // If skipped, update only current_count and system_score
-      detail.current_count = criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount;
+      detail.current_count =
+        criterion.scoring_mode === 'single_option'
+          ? activeCount > 0
+            ? 1
+            : 0
+          : activeCount;
       detail.system_score = systemScore;
       if (activeCount > 0) {
         detail.selected_option_id = selectedOptionId;
@@ -184,14 +240,28 @@ export class AcademicRecordService {
       }
     } else {
       // Repaired / New draft detail
-      const isReward = criterion.criterion_type === 'reward' || criterion.criterion_type === 'bonus' || criterion.score_per_unit > 0 || !(criterion.score_per_unit < 0 || criterion.criterion_type === 'ky_luat');
+      const isReward =
+        criterion.criterion_type === 'reward' ||
+        criterion.criterion_type === 'bonus' ||
+        criterion.score_per_unit > 0 ||
+        !(
+          criterion.score_per_unit < 0 || criterion.criterion_type === 'ky_luat'
+        );
 
       detail.status = 'draft';
-      detail.current_count = criterion.scoring_mode === 'single_option' ? (activeCount > 0 ? 1 : 0) : activeCount;
+      detail.current_count =
+        criterion.scoring_mode === 'single_option'
+          ? activeCount > 0
+            ? 1
+            : 0
+          : activeCount;
 
-      const targetScore = activeCount === 0
-        ? (criterion.scoring_mode === 'single_option' || isReward ? 0 : systemScore)
-        : systemScore;
+      const targetScore =
+        activeCount === 0
+          ? criterion.scoring_mode === 'single_option' || isReward
+            ? 0
+            : systemScore
+          : systemScore;
 
       detail.system_score = targetScore;
 
@@ -206,28 +276,41 @@ export class AcademicRecordService {
       }
 
       // Phân bổ điểm theo vai trò:
-      const oldSv = oldDetail && oldDetail.sv_score !== undefined ? oldDetail.sv_score : null;
-      const oldGv = oldDetail && oldDetail.gv_score !== undefined ? oldDetail.gv_score : null;
-      const oldFinal = oldDetail && oldDetail.final_score !== undefined ? oldDetail.final_score : null;
+      const oldSv =
+        oldDetail && oldDetail.sv_score !== undefined
+          ? oldDetail.sv_score
+          : null;
+      const oldGv =
+        oldDetail && oldDetail.gv_score !== undefined
+          ? oldDetail.gv_score
+          : null;
+      const oldFinal =
+        oldDetail && oldDetail.final_score !== undefined
+          ? oldDetail.final_score
+          : null;
 
       let requesterLevel = 0;
       if (requester) {
         requesterLevel = this.getRoleLevel(requester.roleName);
       }
 
-      if (requesterLevel === 1) { // Student
+      if (requesterLevel === 1) {
+        // Student
         detail.sv_score = targetScore;
         detail.gv_score = oldGv;
         detail.final_score = oldFinal;
-      } else if (requesterLevel === 2) { // Teacher
+      } else if (requesterLevel === 2) {
+        // Teacher
         detail.gv_score = targetScore;
         detail.sv_score = oldSv;
         detail.final_score = oldFinal;
-      } else if (requesterLevel >= 3) { // Admin / Supervisor
+      } else if (requesterLevel >= 3) {
+        // Admin / Supervisor
         detail.final_score = targetScore;
         detail.sv_score = oldSv;
         detail.gv_score = oldGv;
-      } else { // Fallback (requesterLevel === 0)
+      } else {
+        // Fallback (requesterLevel === 0)
         detail.sv_score = targetScore;
         detail.gv_score = targetScore;
         detail.final_score = oldFinal;
@@ -250,7 +333,11 @@ export class AcademicRecordService {
     criterionId: string,
     requester?: any,
   ): Promise<any> {
-    if (!Types.ObjectId.isValid(studentId) || !Types.ObjectId.isValid(semesterId) || !Types.ObjectId.isValid(criterionId)) {
+    if (
+      !Types.ObjectId.isValid(studentId) ||
+      !Types.ObjectId.isValid(semesterId) ||
+      !Types.ObjectId.isValid(criterionId)
+    ) {
       return null;
     }
 
@@ -264,7 +351,10 @@ export class AcademicRecordService {
     } as any);
 
     if (query.populate) {
-      query = query.populate({ path: 'recorded_by', populate: { path: 'role' } });
+      query = query.populate({
+        path: 'recorded_by',
+        populate: { path: 'role' },
+      });
     }
     if (query.sort) {
       query = query.sort({ createdAt: -1 });
@@ -277,7 +367,11 @@ export class AcademicRecordService {
       const latestRecord = activeRecords[0];
       const creator = latestRecord.recorded_by as any;
       if (creator) {
-        const roleName = creator.role?.name || creator.role?.role_code || creator.role_name || '';
+        const roleName =
+          creator.role?.name ||
+          creator.role?.role_code ||
+          creator.role_name ||
+          '';
         resolvedRequester = {
           userId: creator._id?.toString(),
           roleName: roleName,
@@ -303,7 +397,9 @@ export class AcademicRecordService {
     const warnings: string[] = [];
 
     if (activeCount > 1) {
-      warnings.push(`Duplicate active records detected: ${activeCount} active records exist for this criterion.`);
+      warnings.push(
+        `Duplicate active records detected: ${activeCount} active records exist for this criterion.`,
+      );
     }
 
     if (activeCount > 0) {
@@ -319,14 +415,18 @@ export class AcademicRecordService {
           optScore = structured.selected_option_score;
 
           if (optId) {
-            const optionExists = criterion.options?.some((o: any) => o.id === optId);
+            const optionExists = criterion.options?.some(
+              (o: any) => o.id === optId,
+            );
             if (!optionExists) {
               isValidOption = false;
               warnings.push(`Invalid option ID '${optId}' validation failed.`);
             }
           } else {
             isValidOption = false;
-            warnings.push("No option ID found/parsed for single_option criterion.");
+            warnings.push(
+              'No option ID found/parsed for single_option criterion.',
+            );
           }
         } else {
           manualScore = structured.manual_score;
@@ -341,13 +441,20 @@ export class AcademicRecordService {
     });
 
     // 4. Find all SummaryPoints for this student and semester
-    let summaries = await this.summaryPointModel.find({
-      student_id: new Types.ObjectId(studentId),
-      semester_id: new Types.ObjectId(semesterId),
-    } as any).exec();
+    const summaries = await this.summaryPointModel
+      .find({
+        student_id: new Types.ObjectId(studentId),
+        semester_id: new Types.ObjectId(semesterId),
+      } as any)
+      .exec();
 
     let syncResultStatus: 'repaired' | 'skipped' = 'repaired';
-    let syncResultSkipReason: 'locked' | 'reviewed' | 'approved' | 'invalid_option' | null = null;
+    let syncResultSkipReason:
+      | 'locked'
+      | 'reviewed'
+      | 'approved'
+      | 'invalid_option'
+      | null = null;
 
     for (const summary of summaries) {
       if (summary.status === 'locked') {
@@ -360,13 +467,16 @@ export class AcademicRecordService {
         try {
           let currentSummary = summary;
           if (attempts > 0) {
-            currentSummary = await this.summaryPointModel.findById(summary._id).exec() as any;
+            currentSummary = (await this.summaryPointModel
+              .findById(summary._id)
+              .exec()) as any;
             if (!currentSummary || currentSummary.status === 'locked') break;
           }
 
-          let details = currentSummary.details || [];
+          const details = currentSummary.details || [];
           const detailIndex = details.findIndex(
-            (d: any) => d.criterion_id && d.criterion_id.toString() === criterionId,
+            (d: any) =>
+              d.criterion_id && d.criterion_id.toString() === criterionId,
           );
 
           const oldDetail = detailIndex !== -1 ? details[detailIndex] : null;
@@ -391,8 +501,15 @@ export class AcademicRecordService {
           detail.counts_by_role = countsByRole;
           detail.has_conflict = resolution.has_conflict;
           detail.source_record_count = activeCount;
-          detail.last_record_at = activeRecords.length > 0 ? (activeRecords[0] as any).createdAt || (activeRecords[0] as any).recorded_at : null;
-          detail.last_source_record_id = activeRecords.length > 0 ? (activeRecords[0] as any)._id?.toString() : null;
+          detail.last_record_at =
+            activeRecords.length > 0
+              ? (activeRecords[0] as any).createdAt ||
+                (activeRecords[0] as any).recorded_at
+              : null;
+          detail.last_source_record_id =
+            activeRecords.length > 0
+              ? (activeRecords[0] as any)._id?.toString()
+              : null;
 
           // Only populate resolution fields if auto-resolved without conflict
           if (resolution.auto_resolved && !resolution.has_conflict) {
@@ -412,7 +529,10 @@ export class AcademicRecordService {
           currentSummary.details = details;
           currentSummary.markModified('details');
           await currentSummary.save();
-          const recomputed = await this.summariesPointService.recomputeTotalScore(currentSummary._id.toString());
+          const recomputed =
+            await this.summariesPointService.recomputeTotalScore(
+              currentSummary._id.toString(),
+            );
           const student = await this.studentModel.findById(studentId).exec();
           const payload = await buildGradingEventPayload({
             type: 'academic_record_changed',
@@ -427,10 +547,12 @@ export class AcademicRecordService {
           if (err.name === 'VersionError') {
             attempts++;
             if (attempts >= 3) {
-              console.warn(`[syncStudentCriterionScore] VersionError retries exhausted for summary ${summary._id}`);
+              console.warn(
+                `[syncStudentCriterionScore] VersionError retries exhausted for summary ${summary._id}`,
+              );
               break;
             }
-            await new Promise(res => setTimeout(res, 20 * attempts));
+            await new Promise((res) => setTimeout(res, 20 * attempts));
           } else {
             throw err;
           }
@@ -438,11 +560,13 @@ export class AcademicRecordService {
       }
     }
 
-    const freshSummary = await this.summaryPointModel.findOne({
-      student_id: new Types.ObjectId(studentId),
-      semester_id: new Types.ObjectId(semesterId),
-      period_id: null,
-    } as any).exec();
+    const freshSummary = await this.summaryPointModel
+      .findOne({
+        student_id: new Types.ObjectId(studentId),
+        semester_id: new Types.ObjectId(semesterId),
+        period_id: null,
+      } as any)
+      .exec();
 
     if (freshSummary) {
       const detail = freshSummary.details?.find(
@@ -461,17 +585,19 @@ export class AcademicRecordService {
     return warnings.length > 0 ? { warnings } : null;
   }
 
-
   async syncMultipleStudentCriterionScores(
-    records: { student_id: any, semester_id: any, criterion_id: any }[],
-    options?: { forceRepairLocked?: boolean }
+    records: { student_id: any; semester_id: any; criterion_id: any }[],
+    options?: { forceRepairLocked?: boolean },
   ): Promise<any> {
     if (!records || records.length === 0) return { mismatches: [] };
 
     const mismatches = [];
 
     // Group by student_id and semester_id
-    const groups = new Map<string, { studentId: string; semesterId: string; criterionIds: Set<string> }>();
+    const groups = new Map<
+      string,
+      { studentId: string; semesterId: string; criterionIds: Set<string> }
+    >();
     for (const r of records) {
       const sId = normalizeObjectId(r.student_id);
       const semId = normalizeObjectId(r.semester_id);
@@ -479,35 +605,66 @@ export class AcademicRecordService {
       if (!sId || !semId || !cId) continue;
       const key = `${sId}_${semId}`;
       if (!groups.has(key)) {
-        groups.set(key, { studentId: sId, semesterId: semId, criterionIds: new Set() });
+        groups.set(key, {
+          studentId: sId,
+          semesterId: semId,
+          criterionIds: new Set(),
+        });
       }
       groups.get(key)!.criterionIds.add(cId);
     }
 
     // Preload criteria and categories definitions to avoid N+1 queries during sync & recompute
-    const allCriterionIds = Array.from(new Set(records.map(r => r.criterion_id ? r.criterion_id.toString() : '').filter(Boolean)));
-    const criteria = await this.criterionModel.find({ _id: { $in: allCriterionIds as any } } as any).lean().exec();
-    const criteriaMap = new Map(criteria.map((c: any) => [c._id.toString(), c]));
+    const allCriterionIds = Array.from(
+      new Set(
+        records
+          .map((r) => (r.criterion_id ? r.criterion_id.toString() : ''))
+          .filter(Boolean),
+      ),
+    );
+    const criteria = await this.criterionModel
+      .find({ _id: { $in: allCriterionIds as any } } as any)
+      .lean()
+      .exec();
+    const criteriaMap = new Map(
+      criteria.map((c: any) => [c._id.toString(), c]),
+    );
 
-    const allCategories = await this.summaryPointModel.db.model('Category').find().lean().exec();
+    const allCategories = await this.summaryPointModel.db
+      .model('Category')
+      .find()
+      .lean()
+      .exec();
     const allCriteria = await this.criterionModel.find().lean().exec();
-    const preloadedMetadata = { categories: allCategories, criteria: allCriteria };
+    const preloadedMetadata = {
+      categories: allCategories,
+      criteria: allCriteria,
+    };
 
     // Sync each student/semester group
     for (const [_, group] of groups) {
       const { studentId, semesterId, criterionIds } = group;
-      if (!Types.ObjectId.isValid(studentId) || !Types.ObjectId.isValid(semesterId)) continue;
+      if (
+        !Types.ObjectId.isValid(studentId) ||
+        !Types.ObjectId.isValid(semesterId)
+      )
+        continue;
 
       const student = await this.studentModel.findById(studentId).exec();
 
       // Fetch all active academic records for these criteria of this student/semester
-      const activeRecords = await this.academicRecordModel.find({
-        student_id: new Types.ObjectId(studentId),
-        semester_id: new Types.ObjectId(semesterId),
-        criterion_id: { $in: Array.from(criterionIds).map(id => new Types.ObjectId(id)) },
-        status: 'active',
-        is_deleted: { $ne: true }
-      } as any).sort({ createdAt: -1 }).exec();
+      const activeRecords = await this.academicRecordModel
+        .find({
+          student_id: new Types.ObjectId(studentId),
+          semester_id: new Types.ObjectId(semesterId),
+          criterion_id: {
+            $in: Array.from(criterionIds).map((id) => new Types.ObjectId(id)),
+          },
+          status: 'active',
+          is_deleted: { $ne: true },
+        } as any)
+        .sort({ createdAt: -1 })
+        .exec();
 
       // Group active records by criterionId
       const recordsByCriterion = new Map<string, any[]>();
@@ -520,10 +677,12 @@ export class AcademicRecordService {
       }
 
       // Load all SummaryPoints for this student and semester
-      const summaries = await this.summaryPointModel.find({
-        student_id: new Types.ObjectId(studentId),
-        semester_id: new Types.ObjectId(semesterId)
-      } as any).exec();
+      const summaries = await this.summaryPointModel
+        .find({
+          student_id: new Types.ObjectId(studentId),
+          semester_id: new Types.ObjectId(semesterId),
+        } as any)
+        .exec();
 
       for (const summary of summaries) {
         if (summary.status === 'locked') continue;
@@ -534,14 +693,16 @@ export class AcademicRecordService {
           try {
             let currentSummary = summary;
             if (attempts > 0) {
-              currentSummary = await this.summaryPointModel.findById(summary._id).exec() as any;
+              currentSummary = (await this.summaryPointModel
+                .findById(summary._id)
+                .exec()) as any;
               if (!currentSummary || currentSummary.status === 'locked') break;
             }
 
-            let details = currentSummary.details || [];
+            const details = currentSummary.details || [];
 
             for (const criterionId of criterionIds) {
-              const criterion = criteriaMap.get(criterionId) as any;
+              const criterion = criteriaMap.get(criterionId);
               if (!criterion) continue;
 
               const criRecords = recordsByCriterion.get(criterionId) || [];
@@ -567,7 +728,9 @@ export class AcademicRecordService {
                   optScore = structured.selected_option_score;
 
                   if (optId) {
-                    const optionExists = criterion.options?.some((o: any) => o.id === optId);
+                    const optionExists = criterion.options?.some(
+                      (o: any) => o.id === optId,
+                    );
                     if (!optionExists) {
                       isValidOption = false;
                     }
@@ -585,11 +748,23 @@ export class AcademicRecordService {
                 context: 'auto',
               });
 
-              const detailIndex = details.findIndex((d: any) => d.criterion_id && d.criterion_id.toString() === criterionId);
-              const oldDetail = detailIndex !== -1 ? details[detailIndex] : null;
+              const detailIndex = details.findIndex(
+                (d: any) =>
+                  d.criterion_id && d.criterion_id.toString() === criterionId,
+              );
+              const oldDetail =
+                detailIndex !== -1 ? details[detailIndex] : null;
               const oldDetailCount = oldDetail ? oldDetail.current_count : 0;
-              const oldDetailScore = oldDetail ? { sv: oldDetail.sv_score, gv: oldDetail.gv_score, final: oldDetail.final_score } : null;
-              const oldDetailOptionId = oldDetail ? oldDetail.selected_option_id : null;
+              const oldDetailScore = oldDetail
+                ? {
+                    sv: oldDetail.sv_score,
+                    gv: oldDetail.gv_score,
+                    final: oldDetail.final_score,
+                  }
+                : null;
+              const oldDetailOptionId = oldDetail
+                ? oldDetail.selected_option_id
+                : null;
 
               const syncResult = this.calculateSyncDetail({
                 criterion,
@@ -609,9 +784,14 @@ export class AcademicRecordService {
               } else {
                 if (oldDetail.current_count !== activeCount) {
                   isMismatch = true;
-                } else if (criterion.scoring_mode === 'single_option' && oldDetail.selected_option_id !== optId) {
+                } else if (
+                  criterion.scoring_mode === 'single_option' &&
+                  oldDetail.selected_option_id !== optId
+                ) {
                   isMismatch = true;
-                } else if (oldDetail.system_score !== syncResult.detail.system_score) {
+                } else if (
+                  oldDetail.system_score !== syncResult.detail.system_score
+                ) {
                   isMismatch = true;
                 }
               }
@@ -628,7 +808,8 @@ export class AcademicRecordService {
                   old_detail_count: oldDetailCount,
                   old_score_fields: oldDetailScore,
                   repaired_detail_count: syncResult.detail.current_count,
-                  repaired_selected_option_id: syncResult.detail.selected_option_id,
+                  repaired_selected_option_id:
+                    syncResult.detail.selected_option_id,
                   repaired_system_score: syncResult.detail.system_score,
                   status: syncResult.status,
                   skip_reason: syncResult.skipReason,
@@ -640,8 +821,12 @@ export class AcademicRecordService {
               detail.counts_by_role = criCountsByRole;
               detail.has_conflict = criResolution.has_conflict;
               detail.source_record_count = activeCount;
-              detail.last_record_at = latestRecord ? (latestRecord as any).createdAt || (latestRecord as any).recorded_at : null;
-              detail.last_source_record_id = latestRecord ? (latestRecord as any)._id?.toString() : null;
+              detail.last_record_at = latestRecord
+                ? latestRecord.createdAt || latestRecord.recorded_at
+                : null;
+              detail.last_source_record_id = latestRecord
+                ? latestRecord._id?.toString()
+                : null;
 
               if (criResolution.auto_resolved && !criResolution.has_conflict) {
                 detail.resolved_count = criResolution.resolved_count;
@@ -661,7 +846,11 @@ export class AcademicRecordService {
             currentSummary.details = details;
             currentSummary.markModified('details');
             await currentSummary.save();
-            const recomputed = await this.summariesPointService.recomputeTotalScore(currentSummary._id.toString(), preloadedMetadata);
+            const recomputed =
+              await this.summariesPointService.recomputeTotalScore(
+                currentSummary._id.toString(),
+                preloadedMetadata,
+              );
             const payload = await buildGradingEventPayload({
               type: 'academic_record_changed',
               summary: recomputed || currentSummary,
@@ -675,10 +864,12 @@ export class AcademicRecordService {
             if (err.name === 'VersionError') {
               attempts++;
               if (attempts >= 3) {
-                console.warn(`[syncMultipleStudentCriterionScores] VersionError retries exhausted for summary ${summary._id}`);
+                console.warn(
+                  `[syncMultipleStudentCriterionScores] VersionError retries exhausted for summary ${summary._id}`,
+                );
                 break;
               }
-              await new Promise(res => setTimeout(res, 20 * attempts));
+              await new Promise((res) => setTimeout(res, 20 * attempts));
             } else {
               throw err;
             }
@@ -692,27 +883,48 @@ export class AcademicRecordService {
     };
   }
 
-
   async handleScoreIntent(intentDto: IntentScoreDto, requester?: any) {
-    const { student_id, semester_id, criterion_id, intent_type, target_count, manual_score, selected_option_id, note } = intentDto;
+    const {
+      student_id,
+      semester_id,
+      criterion_id,
+      intent_type,
+      target_count,
+      manual_score,
+      selected_option_id,
+      note,
+    } = intentDto;
 
     // Preflight check: check if the summary is locked
     await this.checkSummaryLocked(student_id, semester_id);
 
     // Verify permissions for the requester
     if (requester) {
-      await assertCanAccessStudent(requester, student_id, this.classModel, this.studentModel);
+      await assertCanAccessStudent(
+        requester,
+        student_id,
+        this.classModel,
+        this.studentModel,
+      );
     }
 
     const requesterLevel = this.getRoleLevel(requester?.roleName);
     // === NEW: Derive recorded_by_role from requester ===
-    const recordedByRole = intentDto.recorded_by_role || this.deriveRecordedByRole(requester?.roleName);
-    let changedRecordIds: string[] = [];
+    const recordedByRole =
+      intentDto.recorded_by_role ||
+      this.deriveRecordedByRole(requester?.roleName);
+    const changedRecordIds: string[] = [];
 
-    if (intent_type === 'increase' || intent_type === 'decrease' || intent_type === 'set_target_count') {
+    if (
+      intent_type === 'increase' ||
+      intent_type === 'decrease' ||
+      intent_type === 'set_target_count'
+    ) {
       const criterion = await this.criterionModel.findById(criterion_id).exec();
       if (!criterion) {
-        throw new NotFoundException(`Criterion with ID ${criterion_id} not found`);
+        throw new NotFoundException(
+          `Criterion with ID ${criterion_id} not found`,
+        );
       }
 
       let maxCount = 0;
@@ -721,17 +933,21 @@ export class AcademicRecordService {
       } else {
         const pointsPerUnit = criterion.score_per_unit || 0;
         if (pointsPerUnit === 0) {
-          throw new BadRequestException('Tiêu chí này không hỗ trợ chế độ cộng trừ do điểm trên mỗi đơn vị bằng 0.');
+          throw new BadRequestException(
+            'Tiêu chí này không hỗ trợ chế độ cộng trừ do điểm trên mỗi đơn vị bằng 0.',
+          );
         }
         const maxScore = criterion.max_score || 10;
         maxCount = Math.ceil(maxScore / Math.abs(pointsPerUnit));
       }
 
       // 1. Kiểm tra lệch dữ liệu (mismatch) giữa summary details và academic records hiện tại
-      const summaryObj = await this.summaryPointModel.findOne({
-        student_id: new Types.ObjectId(student_id),
-        semester_id: new Types.ObjectId(semester_id),
-      } as any).exec();
+      const summaryObj = await this.summaryPointModel
+        .findOne({
+          student_id: new Types.ObjectId(student_id),
+          semester_id: new Types.ObjectId(semester_id),
+        } as any)
+        .exec();
 
       if (summaryObj) {
         const detail = summaryObj.details?.find((d: any) => {
@@ -740,36 +956,50 @@ export class AcademicRecordService {
         });
 
         const detailCount = detail ? detail.current_count : 0;
-        const currentCountReal = await this.academicRecordModel.countDocuments({
+        const currentCountReal = await this.academicRecordModel
+          .countDocuments({
+            student_id: new Types.ObjectId(student_id),
+            semester_id: new Types.ObjectId(semester_id),
+            criterion_id: new Types.ObjectId(criterion_id),
+            status: 'active',
+            is_deleted: { $ne: true },
+          } as any)
+          .exec();
+
+        if (
+          (!detail && currentCountReal > 0) ||
+          (detail && detailCount !== currentCountReal)
+        ) {
+          Logger.warn(
+            `[SYNC_ALERT] Phát hiện lệch dữ liệu trước intent: Criterion ID=${criterion_id}, Student ID=${student_id}. Detail count=${detailCount}, Actual active records count=${currentCountReal}. Đang tự động sync...`,
+          );
+          await this.syncStudentCriterionScore(
+            student_id,
+            semester_id,
+            criterion_id,
+            requester,
+          );
+        }
+      }
+
+      const currentRecords = await this.academicRecordModel
+        .find({
           student_id: new Types.ObjectId(student_id),
           semester_id: new Types.ObjectId(semester_id),
           criterion_id: new Types.ObjectId(criterion_id),
           status: 'active',
           is_deleted: { $ne: true },
-        } as any).exec();
-
-        if ((!detail && currentCountReal > 0) || (detail && detailCount !== currentCountReal)) {
-          Logger.warn(`[SYNC_ALERT] Phát hiện lệch dữ liệu trước intent: Criterion ID=${criterion_id}, Student ID=${student_id}. Detail count=${detailCount}, Actual active records count=${currentCountReal}. Đang tự động sync...`);
-          await this.syncStudentCriterionScore(student_id, semester_id, criterion_id, requester);
-        }
-      }
-
-      const currentRecords = await this.academicRecordModel.find({
-        student_id: new Types.ObjectId(student_id),
-        semester_id: new Types.ObjectId(semester_id),
-        criterion_id: new Types.ObjectId(criterion_id),
-        status: 'active',
-        is_deleted: { $ne: true },
-      } as any)
+        } as any)
         .populate({ path: 'recorded_by', populate: { path: 'role' } })
         .exec();
 
-      let currentCount = currentRecords.length;
+      const currentCount = currentRecords.length;
       let desiredCount = currentCount;
 
       if (intent_type === 'increase') desiredCount++;
       else if (intent_type === 'decrease') desiredCount--;
-      else if (intent_type === 'set_target_count' && target_count !== undefined) desiredCount = target_count;
+      else if (intent_type === 'set_target_count' && target_count !== undefined)
+        desiredCount = target_count;
 
       desiredCount = Math.max(0, desiredCount);
 
@@ -778,13 +1008,15 @@ export class AcademicRecordService {
         const baseline = intentDto.baseline_count;
         if (baseline !== undefined && baseline !== currentCount) {
           throw new BadRequestException(
-            `Dữ liệu chấm điểm trên màn hình không đồng bộ (mismatch). Baseline count là ${baseline} nhưng thực tế hiện tại là ${currentCount}. Vui lòng làm mới trang.`
+            `Dữ liệu chấm điểm trên màn hình không đồng bộ (mismatch). Baseline count là ${baseline} nhưng thực tế hiện tại là ${currentCount}. Vui lòng làm mới trang.`,
           );
         }
       }
 
       if (desiredCount > maxCount) {
-        throw new BadRequestException(`Số lần tích lũy vượt quá giới hạn tối đa cho phép (${maxCount} lần).`);
+        throw new BadRequestException(
+          `Số lần tích lũy vượt quá giới hạn tối đa cho phép (${maxCount} lần).`,
+        );
       }
 
       if (desiredCount > currentCount) {
@@ -808,7 +1040,7 @@ export class AcademicRecordService {
           });
         }
         const inserted = await this.academicRecordModel.insertMany(newRecords);
-        changedRecordIds.push(...inserted.map(r => r._id.toString()));
+        changedRecordIds.push(...inserted.map((r) => r._id.toString()));
       } else if (desiredCount < currentCount) {
         // Need to delete records
         let recordsToRemove = currentCount - desiredCount;
@@ -822,24 +1054,34 @@ export class AcademicRecordService {
           } else {
             let creatorRoleName = '';
             if (record.recorded_by && (record.recorded_by as any).role) {
-              creatorRoleName = (record.recorded_by as any).role.role_name || '';
-            } else if (record.recorded_by && (record.recorded_by as any).role_name) {
+              creatorRoleName =
+                (record.recorded_by as any).role.role_name || '';
+            } else if (
+              record.recorded_by &&
+              (record.recorded_by as any).role_name
+            ) {
               creatorRoleName = (record.recorded_by as any).role_name;
             }
 
-            let creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
+            const creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
 
-            const recordedById = record.recorded_by && (record.recorded_by as any)._id
-              ? (record.recorded_by as any)._id.toString()
-              : record.recorded_by?.toString();
+            const recordedById =
+              record.recorded_by && (record.recorded_by as any)._id
+                ? (record.recorded_by as any)._id.toString()
+                : record.recorded_by?.toString();
 
-            if (requesterLevel > creatorLevel || recordedById === requester?.userId) {
+            if (
+              requesterLevel > creatorLevel ||
+              recordedById === requester?.userId
+            ) {
               canDelete = true;
             }
           }
 
           if (canDelete) {
-            Logger.log(`[AUDIT_LOG] Hard-delete academic_record _id=${record._id} for student_id=${student_id}, requested_by=${requester?.userId}`);
+            Logger.log(
+              `[AUDIT_LOG] Hard-delete academic_record _id=${record._id} for student_id=${student_id}, requested_by=${requester?.userId}`,
+            );
             await this.academicRecordModel.deleteOne({ _id: record._id });
             changedRecordIds.push(record._id.toString());
             recordsToRemove--;
@@ -849,24 +1091,34 @@ export class AcademicRecordService {
     } else if (intent_type === 'select_option') {
       const criterion = await this.criterionModel.findById(criterion_id).exec();
       if (!criterion) {
-        throw new NotFoundException(`Criterion with ID ${criterion_id} not found`);
+        throw new NotFoundException(
+          `Criterion with ID ${criterion_id} not found`,
+        );
       }
       if (criterion.scoring_mode !== 'single_option') {
-        throw new BadRequestException('Tiêu chí này không hỗ trợ chế độ chấm điểm lựa chọn duy nhất (single_option).');
+        throw new BadRequestException(
+          'Tiêu chí này không hỗ trợ chế độ chấm điểm lựa chọn duy nhất (single_option).',
+        );
       }
 
-      let existingRecord = await this.academicRecordModel.findOne({
-        student_id: new Types.ObjectId(student_id),
-        semester_id: new Types.ObjectId(semester_id),
-        criterion_id: new Types.ObjectId(criterion_id),
-        status: 'active',
-        is_deleted: { $ne: true },
-      } as any).exec();
+      const existingRecord = await this.academicRecordModel
+        .findOne({
+          student_id: new Types.ObjectId(student_id),
+          semester_id: new Types.ObjectId(semester_id),
+          criterion_id: new Types.ObjectId(criterion_id),
+          status: 'active',
+          is_deleted: { $ne: true },
+        } as any)
+        .exec();
 
       if (selected_option_id) {
-        const option = criterion.options?.find((o: any) => o.id === selected_option_id);
+        const option = criterion.options?.find(
+          (o: any) => o.id === selected_option_id,
+        );
         if (!option) {
-          throw new BadRequestException(`Lựa chọn có ID '${selected_option_id}' không tồn tại trong tiêu chí này.`);
+          throw new BadRequestException(
+            `Lựa chọn có ID '${selected_option_id}' không tồn tại trong tiêu chí này.`,
+          );
         }
 
         if (existingRecord) {
@@ -876,22 +1128,36 @@ export class AcademicRecordService {
             canUpdate = true;
           } else {
             let creatorRoleName = '';
-            if (existingRecord.recorded_by && (existingRecord.recorded_by as any).role) {
-              creatorRoleName = (existingRecord.recorded_by as any).role.role_name || '';
-            } else if (existingRecord.recorded_by && (existingRecord.recorded_by as any).role_name) {
+            if (
+              existingRecord.recorded_by &&
+              (existingRecord.recorded_by as any).role
+            ) {
+              creatorRoleName =
+                (existingRecord.recorded_by as any).role.role_name || '';
+            } else if (
+              existingRecord.recorded_by &&
+              (existingRecord.recorded_by as any).role_name
+            ) {
               creatorRoleName = (existingRecord.recorded_by as any).role_name;
             }
-            let creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
-            const recordedById = existingRecord.recorded_by && (existingRecord.recorded_by as any)._id
-              ? (existingRecord.recorded_by as any)._id.toString()
-              : existingRecord.recorded_by?.toString();
+            const creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
+            const recordedById =
+              existingRecord.recorded_by &&
+              (existingRecord.recorded_by as any)._id
+                ? (existingRecord.recorded_by as any)._id.toString()
+                : existingRecord.recorded_by?.toString();
 
-            if (requesterLevel > creatorLevel || recordedById === requester?.userId) {
+            if (
+              requesterLevel > creatorLevel ||
+              recordedById === requester?.userId
+            ) {
               canUpdate = true;
             }
           }
           if (!canUpdate) {
-            throw new ForbiddenException('Bạn không có quyền sửa đổi điểm do người khác chấm.');
+            throw new ForbiddenException(
+              'Bạn không có quyền sửa đổi điểm do người khác chấm.',
+            );
           }
 
           existingRecord.selected_option_id = selected_option_id;
@@ -933,35 +1199,51 @@ export class AcademicRecordService {
             canDelete = true;
           } else {
             let creatorRoleName = '';
-            if (existingRecord.recorded_by && (existingRecord.recorded_by as any).role) {
-              creatorRoleName = (existingRecord.recorded_by as any).role.role_name || '';
-            } else if (existingRecord.recorded_by && (existingRecord.recorded_by as any).role_name) {
+            if (
+              existingRecord.recorded_by &&
+              (existingRecord.recorded_by as any).role
+            ) {
+              creatorRoleName =
+                (existingRecord.recorded_by as any).role.role_name || '';
+            } else if (
+              existingRecord.recorded_by &&
+              (existingRecord.recorded_by as any).role_name
+            ) {
               creatorRoleName = (existingRecord.recorded_by as any).role_name;
             }
-            let creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
-            const recordedById = existingRecord.recorded_by && (existingRecord.recorded_by as any)._id
-              ? (existingRecord.recorded_by as any)._id.toString()
-              : existingRecord.recorded_by?.toString();
+            const creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
+            const recordedById =
+              existingRecord.recorded_by &&
+              (existingRecord.recorded_by as any)._id
+                ? (existingRecord.recorded_by as any)._id.toString()
+                : existingRecord.recorded_by?.toString();
 
-            if (requesterLevel > creatorLevel || recordedById === requester?.userId) {
+            if (
+              requesterLevel > creatorLevel ||
+              recordedById === requester?.userId
+            ) {
               canDelete = true;
             }
           }
 
           if (canDelete) {
-            await this.academicRecordModel.deleteOne({ _id: existingRecord._id });
+            await this.academicRecordModel.deleteOne({
+              _id: existingRecord._id,
+            });
             changedRecordIds.push(existingRecord._id.toString());
           }
         }
       }
     } else if (intent_type === 'set_manual_score') {
-      let existingRecord = await this.academicRecordModel.findOne({
-        student_id: new Types.ObjectId(student_id),
-        semester_id: new Types.ObjectId(semester_id),
-        criterion_id: new Types.ObjectId(criterion_id),
-        status: 'active',
-        is_deleted: { $ne: true },
-      } as any).exec();
+      const existingRecord = await this.academicRecordModel
+        .findOne({
+          student_id: new Types.ObjectId(student_id),
+          semester_id: new Types.ObjectId(semester_id),
+          criterion_id: new Types.ObjectId(criterion_id),
+          status: 'active',
+          is_deleted: { $ne: true },
+        } as any)
+        .exec();
 
       if (existingRecord) {
         existingRecord.record_title = `Nhập điểm tay: ${manual_score}`;
@@ -991,15 +1273,15 @@ export class AcademicRecordService {
         });
         changedRecordIds.push(created._id.toString());
       }
-
     } else if (intent_type === 'clear_score') {
-      const currentRecords = await this.academicRecordModel.find({
-        student_id: new Types.ObjectId(student_id),
-        semester_id: new Types.ObjectId(semester_id),
-        criterion_id: new Types.ObjectId(criterion_id),
-        status: 'active',
-        is_deleted: { $ne: true },
-      } as any)
+      const currentRecords = await this.academicRecordModel
+        .find({
+          student_id: new Types.ObjectId(student_id),
+          semester_id: new Types.ObjectId(semester_id),
+          criterion_id: new Types.ObjectId(criterion_id),
+          status: 'active',
+          is_deleted: { $ne: true },
+        } as any)
         .populate({ path: 'recorded_by', populate: { path: 'role' } })
         .exec();
 
@@ -1011,23 +1293,32 @@ export class AcademicRecordService {
           let creatorRoleName = '';
           if (record.recorded_by && (record.recorded_by as any).role) {
             creatorRoleName = (record.recorded_by as any).role.role_name || '';
-          } else if (record.recorded_by && (record.recorded_by as any).role_name) {
+          } else if (
+            record.recorded_by &&
+            (record.recorded_by as any).role_name
+          ) {
             creatorRoleName = (record.recorded_by as any).role_name;
           }
 
-          let creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
+          const creatorLevel = this.getRoleLevel(creatorRoleName) || 1;
 
-          const recordedById = record.recorded_by && (record.recorded_by as any)._id
-            ? (record.recorded_by as any)._id.toString()
-            : record.recorded_by?.toString();
+          const recordedById =
+            record.recorded_by && (record.recorded_by as any)._id
+              ? (record.recorded_by as any)._id.toString()
+              : record.recorded_by?.toString();
 
-          if (requesterLevel > creatorLevel || recordedById === requester?.userId) {
+          if (
+            requesterLevel > creatorLevel ||
+            recordedById === requester?.userId
+          ) {
             canDelete = true;
           }
         }
 
         if (canDelete) {
-          Logger.log(`[AUDIT_LOG] Hard-delete academic_record _id=${record._id} for clear_score requested_by=${requester?.userId}`);
+          Logger.log(
+            `[AUDIT_LOG] Hard-delete academic_record _id=${record._id} for clear_score requested_by=${requester?.userId}`,
+          );
           await this.academicRecordModel.deleteOne({ _id: record._id });
           changedRecordIds.push(record._id.toString());
         }
@@ -1035,15 +1326,25 @@ export class AcademicRecordService {
     }
 
     // Rebuild detail
-    await this.syncStudentCriterionScore(student_id, semester_id, criterion_id, requester);
+    await this.syncStudentCriterionScore(
+      student_id,
+      semester_id,
+      criterion_id,
+      requester,
+    );
 
     // Return the updated summary and actual count
-    const summary = await this.summaryPointModel.findOne({
-      student_id: new Types.ObjectId(student_id),
-      semester_id: new Types.ObjectId(semester_id),
-    } as any).lean().exec();
+    const summary = await this.summaryPointModel
+      .findOne({
+        student_id: new Types.ObjectId(student_id),
+        semester_id: new Types.ObjectId(semester_id),
+      } as any)
+      .lean()
+      .exec();
 
-    const detail = (summary as any)?.details?.find((d: any) => d.criterion_id?.toString() === criterion_id);
+    const detail = (summary as any)?.details?.find(
+      (d: any) => d.criterion_id?.toString() === criterion_id,
+    );
 
     let syncStatus: 'synced' | 'summary_missing' | 'summary_locked' = 'synced';
     if (!summary) {
@@ -1056,38 +1357,48 @@ export class AcademicRecordService {
       success: true,
       actual_count: detail?.current_count || 0,
       evaluation_detail: detail,
-      summary: summary ? {
-        _id: summary._id.toString(),
-        total_score: summary.total_score,
-        grading: summary.grading,
-        status: summary.status
-      } : null,
+      summary: summary
+        ? {
+            _id: summary._id.toString(),
+            total_score: summary.total_score,
+            grading: summary.grading,
+            status: summary.status,
+          }
+        : null,
       changed_record_ids: changedRecordIds,
       sync_status: syncStatus,
     };
   }
 
-  async auditMismatches(semesterId: string): Promise<{ totalScanned: number; totalFixed: number }> {
-    const summaries = await this.summaryPointModel.find({
-      semester_id: new Types.ObjectId(semesterId)
-    } as any).exec();
+  async auditMismatches(
+    semesterId: string,
+  ): Promise<{ totalScanned: number; totalFixed: number }> {
+    const summaries = await this.summaryPointModel
+      .find({
+        semester_id: new Types.ObjectId(semesterId),
+      } as any)
+      .exec();
 
     let totalFixed = 0;
 
     for (const summary of summaries) {
-      const studentId = summary.student_id ? (summary.student_id as any)._id || summary.student_id : null;
+      const studentId = summary.student_id
+        ? (summary.student_id as any)._id || summary.student_id
+        : null;
       if (!studentId) continue;
 
       let isAnyCriterionFixed = false;
       const details = summary.details || [];
 
       // Lấy tất cả active records của student này trong học kỳ
-      const activeRecords = await this.academicRecordModel.find({
-        student_id: new Types.ObjectId(studentId),
-        semester_id: new Types.ObjectId(semesterId),
-        status: 'active',
-        is_deleted: { $ne: true },
-      } as any).exec();
+      const activeRecords = await this.academicRecordModel
+        .find({
+          student_id: new Types.ObjectId(studentId),
+          semester_id: new Types.ObjectId(semesterId),
+          status: 'active',
+          is_deleted: { $ne: true },
+        } as any)
+        .exec();
 
       // Đếm theo criterion_id
       const recordCountByCri: Record<string, number> = {};
@@ -1103,13 +1414,24 @@ export class AcademicRecordService {
 
       for (const cri of criteriaList) {
         const criIdStr = cri._id.toString();
-        const detail = details.find((d: any) => d.criterion_id && d.criterion_id.toString() === criIdStr);
+        const detail = details.find(
+          (d: any) => d.criterion_id && d.criterion_id.toString() === criIdStr,
+        );
         const detailCount = detail ? detail.current_count : 0;
         const actualCount = recordCountByCri[criIdStr] ?? 0;
 
-        if ((!detail && actualCount > 0) || (detail && detailCount !== actualCount)) {
-          Logger.log(`[AUDIT_CLEANUP] Lệch dữ liệu phát hiện cho Sinh viên=${studentId}, Criterion=${criIdStr}. Detail count=${detailCount}, Actual count=${actualCount}. Đang thực hiện đồng bộ...`);
-          await this.syncStudentCriterionScore(studentId.toString(), semesterId, criIdStr);
+        if (
+          (!detail && actualCount > 0) ||
+          (detail && detailCount !== actualCount)
+        ) {
+          Logger.log(
+            `[AUDIT_CLEANUP] Lệch dữ liệu phát hiện cho Sinh viên=${studentId}, Criterion=${criIdStr}. Detail count=${detailCount}, Actual count=${actualCount}. Đang thực hiện đồng bộ...`,
+          );
+          await this.syncStudentCriterionScore(
+            studentId.toString(),
+            semesterId,
+            criIdStr,
+          );
           isAnyCriterionFixed = true;
         }
       }
@@ -1129,7 +1451,12 @@ export class AcademicRecordService {
     if (!roleName) return 1;
     const nameLower = roleName.toLowerCase();
     if (nameLower.includes('admin')) return 4;
-    if (nameLower.includes('supervisor') || nameLower.includes('quản sinh') || nameLower.includes('quan sinh')) return 3;
+    if (
+      nameLower.includes('supervisor') ||
+      nameLower.includes('quản sinh') ||
+      nameLower.includes('quan sinh')
+    )
+      return 3;
     if (
       nameLower.includes('teacher') ||
       nameLower.includes('adviser') ||
@@ -1152,7 +1479,12 @@ export class AcademicRecordService {
     if (!roleName) return 'system';
     const nameLower = roleName.toLowerCase();
     if (nameLower.includes('admin')) return 'admin';
-    if (nameLower.includes('supervisor') || nameLower.includes('quản sinh') || nameLower.includes('quan sinh')) return 'supervisor';
+    if (
+      nameLower.includes('supervisor') ||
+      nameLower.includes('quản sinh') ||
+      nameLower.includes('quan sinh')
+    )
+      return 'supervisor';
     if (
       nameLower.includes('teacher') ||
       nameLower.includes('adviser') ||
@@ -1163,7 +1495,11 @@ export class AcademicRecordService {
     ) {
       return 'teacher';
     }
-    if (nameLower.includes('student') || nameLower.includes('sinh viên') || nameLower.includes('sinh vien')) {
+    if (
+      nameLower.includes('student') ||
+      nameLower.includes('sinh viên') ||
+      nameLower.includes('sinh vien')
+    ) {
       return 'student';
     }
     return 'system';
@@ -1173,10 +1509,18 @@ export class AcademicRecordService {
     createAcademicRecordDto: CreateAcademicRecordDto,
     requester?: any,
   ): Promise<AcademicRecord> {
-    await this.checkSummaryLocked(createAcademicRecordDto.student_id, createAcademicRecordDto.semester_id);
+    await this.checkSummaryLocked(
+      createAcademicRecordDto.student_id,
+      createAcademicRecordDto.semester_id,
+    );
 
     if (requester) {
-      await assertCanAccessStudent(requester, createAcademicRecordDto.student_id, this.classModel, this.studentModel);
+      await assertCanAccessStudent(
+        requester,
+        createAcademicRecordDto.student_id,
+        this.classModel,
+        this.studentModel,
+      );
     }
 
     const createdRecord = new this.academicRecordModel(createAcademicRecordDto);
@@ -1200,12 +1544,22 @@ export class AcademicRecordService {
   ): Promise<any> {
     const { records } = bulkCreateDto;
     if (records && records.length > 0) {
-      const studentSemMap = new Map<string, { studentId: string; semesterId: string }>();
+      const studentSemMap = new Map<
+        string,
+        { studentId: string; semesterId: string }
+      >();
       for (const record of records) {
-        const sId = record.student_id ? normalizeObjectId(record.student_id) : '';
-        const semId = record.semester_id ? normalizeObjectId(record.semester_id) : '';
+        const sId = record.student_id
+          ? normalizeObjectId(record.student_id)
+          : '';
+        const semId = record.semester_id
+          ? normalizeObjectId(record.semester_id)
+          : '';
         if (sId && semId) {
-          studentSemMap.set(`${sId}_${semId}`, { studentId: sId, semesterId: semId });
+          studentSemMap.set(`${sId}_${semId}`, {
+            studentId: sId,
+            semesterId: semId,
+          });
         }
       }
       for (const { studentId, semesterId } of studentSemMap.values()) {
@@ -1213,7 +1567,15 @@ export class AcademicRecordService {
       }
     }
     if (!records || records.length === 0) {
-      return { batchId: Date.now().toString(), acceptedCount: 0, insertedCount: 0, duplicatedCount: 0, failedItems: [], createdRecordIds: [], groupsSynced: 0 };
+      return {
+        batchId: Date.now().toString(),
+        acceptedCount: 0,
+        insertedCount: 0,
+        duplicatedCount: 0,
+        failedItems: [],
+        createdRecordIds: [],
+        groupsSynced: 0,
+      };
     }
 
     let validStudentIds: Set<string> | null = null;
@@ -1221,10 +1583,16 @@ export class AcademicRecordService {
       const role = getGradingRole(requester);
       // Nếu là Teacher, chỉ được ghi nhận cho sinh viên lớp mình
       if (role === 'teacher') {
-        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
-        const classIds = classes.map(c => c._id);
-        const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
-        validStudentIds = new Set(students.map(s => s._id.toString()));
+        const classes = await this.classModel
+          .find({ advisor_id: requester.userId })
+          .select('_id')
+          .exec();
+        const classIds = classes.map((c) => c._id);
+        const students = await this.studentModel
+          .find({ class_id: { $in: classIds } })
+          .select('_id')
+          .exec();
+        validStudentIds = new Set(students.map((s) => s._id.toString()));
       } else if (role === 'student') {
         validStudentIds = new Set([requester.userId]);
       }
@@ -1236,15 +1604,24 @@ export class AcademicRecordService {
 
     for (const record of records) {
       // Validate RBAC
-      if (validStudentIds && !validStudentIds.has(record.student_id.toString())) {
-        failedItems.push({ record, reason: 'Không có quyền đánh giá sinh viên này' });
+      if (
+        validStudentIds &&
+        !validStudentIds.has(record.student_id.toString())
+      ) {
+        failedItems.push({
+          record,
+          reason: 'Không có quyền đánh giá sinh viên này',
+        });
         continue;
       }
 
       // Lọc bỏ trùng lặp trong cùng batch
       if (record.idempotency_key) {
         if (idempotencyMap.has(record.idempotency_key)) {
-          failedItems.push({ record, reason: 'Trùng idempotency_key trong cùng batch' });
+          failedItems.push({
+            record,
+            reason: 'Trùng idempotency_key trong cùng batch',
+          });
           continue;
         }
         idempotencyMap.set(record.idempotency_key, true);
@@ -1260,32 +1637,38 @@ export class AcademicRecordService {
         duplicatedCount: 0,
         failedItems,
         createdRecordIds: [],
-        groupsSynced: 0
+        groupsSynced: 0,
       };
     }
 
     // Insert batch records với ordered: false để bỏ qua duplicate keys
-    const insertOps = validRecords.map(record => ({
+    const insertOps = validRecords.map((record) => ({
       insertOne: {
-        document: record
-      }
+        document: record,
+      },
     }));
 
     let result;
     let duplicatedCount = 0;
     try {
-      result = await this.academicRecordModel.bulkWrite(insertOps as any, { ordered: false });
+      result = await this.academicRecordModel.bulkWrite(insertOps as any, {
+        ordered: false,
+      });
     } catch (err) {
       if (err.code !== 11000 && !err.message.includes('11000')) {
         throw err;
       }
       // Dù có lỗi 11000 thì các document không bị trùng vẫn được insert vì ordered: false
       result = err.result || err;
-      duplicatedCount = err.writeErrors ? err.writeErrors.length : (validRecords.length - (result.insertedCount || result.nInserted || 0));
+      duplicatedCount = err.writeErrors
+        ? err.writeErrors.length
+        : validRecords.length - (result.insertedCount || result.nInserted || 0);
     }
 
     const insertedCount = result?.insertedCount || result?.nInserted || 0;
-    const createdRecordIds = result?.insertedIds ? Object.values(result.insertedIds) : [];
+    const createdRecordIds = result?.insertedIds
+      ? Object.values(result.insertedIds)
+      : [];
 
     // Gom nhóm theo student_id + semester_id + criterion_id để sync
     const groups = new Set<string>();
@@ -1295,15 +1678,16 @@ export class AcademicRecordService {
     }
 
     // Chạy sync point cho từng nhóm, giới hạn concurrency
-    const syncFuncs = Array.from(groups).map(groupKey => {
+    const syncFuncs = Array.from(groups).map((groupKey) => {
       const [studentId, semesterId, criterionId] = groupKey.split('_');
-      return () => this.syncStudentCriterionScore(studentId, semesterId, criterionId);
+      return () =>
+        this.syncStudentCriterionScore(studentId, semesterId, criterionId);
     });
 
     const chunkSize = 10;
     for (let i = 0; i < syncFuncs.length; i += chunkSize) {
       const chunk = syncFuncs.slice(i, i + chunkSize);
-      await Promise.all(chunk.map(f => f()));
+      await Promise.all(chunk.map((f) => f()));
     }
 
     return {
@@ -1329,7 +1713,13 @@ export class AcademicRecordService {
     let studentId: string | undefined;
     let actualRequester = requester;
 
-    if (query && ('roleName' in query || 'userId' in query || 'role' in query || 'username' in query)) {
+    if (
+      query &&
+      ('roleName' in query ||
+        'userId' in query ||
+        'role' in query ||
+        'username' in query)
+    ) {
       actualRequester = query;
     } else if (query) {
       page = query.page;
@@ -1348,19 +1738,41 @@ export class AcademicRecordService {
 
       // Nếu là Student, chỉ trả về các bản ghi thuộc student của user đó
       if (roleName.includes('student')) {
-        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(actualRequester.userId) }).exec();
+        const student = await this.studentModel
+          .findOne({ user_id: new Types.ObjectId(actualRequester.userId) })
+          .exec();
         if (!student) {
-          return isPaginationRequested ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+          return isPaginationRequested
+            ? {
+                data: [],
+                meta: {
+                  total: 0,
+                  page: page || 1,
+                  limit: limit || 10,
+                  totalPages: 0,
+                },
+              }
+            : [];
         }
         filter.student_id = student._id;
       }
       // Nếu là Teacher, chỉ trả về các bản ghi thuộc class của teacher phụ trách
-      else if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
-        const classes = await this.classModel.find({ advisor_id: actualRequester.userId }).select('_id').exec();
-        const classIds = classes.map(c => c._id);
+      else if (
+        roleName.includes('teacher') ||
+        roleName.includes('advisor') ||
+        roleName.includes('giảng viên')
+      ) {
+        const classes = await this.classModel
+          .find({ advisor_id: actualRequester.userId })
+          .select('_id')
+          .exec();
+        const classIds = classes.map((c) => c._id);
 
-        const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
-        const studentIds = students.map(s => s._id);
+        const students = await this.studentModel
+          .find({ class_id: { $in: classIds } })
+          .select('_id')
+          .exec();
+        const studentIds = students.map((s) => s._id);
 
         filter.student_id = { $in: studentIds };
       }
@@ -1368,18 +1780,35 @@ export class AcademicRecordService {
 
     // Apply class filter if provided
     if (classId && Types.ObjectId.isValid(classId)) {
-      const classStudents = await this.studentModel.find({ class_id: new Types.ObjectId(classId) }).select('_id').exec();
-      const classStudentIds = classStudents.map(s => s._id);
+      const classStudents = await this.studentModel
+        .find({ class_id: new Types.ObjectId(classId) })
+        .select('_id')
+        .exec();
+      const classStudentIds = classStudents.map((s) => s._id);
 
       if (filter.student_id) {
         if (filter.student_id.$in) {
           filter.student_id.$in = filter.student_id.$in.filter((id: any) =>
-            classStudentIds.some(csId => csId.toString() === id.toString())
+            classStudentIds.some((csId) => csId.toString() === id.toString()),
           );
         } else {
           // Lọc theo một studentId cụ thể của Student
-          if (!classStudentIds.some(csId => csId.toString() === filter.student_id.toString())) {
-            return isPaginationRequested ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+          if (
+            !classStudentIds.some(
+              (csId) => csId.toString() === filter.student_id.toString(),
+            )
+          ) {
+            return isPaginationRequested
+              ? {
+                  data: [],
+                  meta: {
+                    total: 0,
+                    page: page || 1,
+                    limit: limit || 10,
+                    totalPages: 0,
+                  },
+                }
+              : [];
           }
         }
       } else {
@@ -1392,13 +1821,35 @@ export class AcademicRecordService {
       const targetStudentObjectId = new Types.ObjectId(studentId);
       if (filter.student_id) {
         if (filter.student_id.$in) {
-          const hasAccess = filter.student_id.$in.some((id: any) => id.toString() === studentId);
+          const hasAccess = filter.student_id.$in.some(
+            (id: any) => id.toString() === studentId,
+          );
           if (!hasAccess) {
-            return isPaginationRequested ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+            return isPaginationRequested
+              ? {
+                  data: [],
+                  meta: {
+                    total: 0,
+                    page: page || 1,
+                    limit: limit || 10,
+                    totalPages: 0,
+                  },
+                }
+              : [];
           }
         } else {
           if (filter.student_id.toString() !== studentId) {
-            return isPaginationRequested ? { data: [], meta: { total: 0, page: page || 1, limit: limit || 10, totalPages: 0 } } : [];
+            return isPaginationRequested
+              ? {
+                  data: [],
+                  meta: {
+                    total: 0,
+                    page: page || 1,
+                    limit: limit || 10,
+                    totalPages: 0,
+                  },
+                }
+              : [];
           }
         }
       }
@@ -1414,21 +1865,30 @@ export class AcademicRecordService {
     if (search) {
       const trimmedSearch = search.trim();
       if (trimmedSearch) {
-        const escapedSearch = trimmedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escapedSearch = trimmedSearch.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          '\\$&',
+        );
 
         // Find students matching search
-        const matchingStudents = await this.studentModel.find({
-          $or: [
-            { full_name: { $regex: escapedSearch, $options: 'i' } },
-            { student_code: { $regex: escapedSearch, $options: 'i' } }
-          ]
-        }).select('_id').exec();
+        const matchingStudents = await this.studentModel
+          .find({
+            $or: [
+              { full_name: { $regex: escapedSearch, $options: 'i' } },
+              { student_code: { $regex: escapedSearch, $options: 'i' } },
+            ],
+          })
+          .select('_id')
+          .exec();
         const studentIds = matchingStudents.map((s: any) => s._id);
 
         // Find criteria matching search
-        const matchingCriteria = await this.criterionModel.find({
-          criterion_name: { $regex: escapedSearch, $options: 'i' }
-        }).select('_id').exec();
+        const matchingCriteria = await this.criterionModel
+          .find({
+            criterion_name: { $regex: escapedSearch, $options: 'i' },
+          })
+          .select('_id')
+          .exec();
         const criterionIds = matchingCriteria.map((c: any) => c._id);
 
         if (!filter.$and) filter.$and = [];
@@ -1437,8 +1897,8 @@ export class AcademicRecordService {
             { record_title: { $regex: escapedSearch, $options: 'i' } },
             { description: { $regex: escapedSearch, $options: 'i' } },
             { student_id: { $in: studentIds } },
-            { criterion_id: { $in: criterionIds } }
-          ]
+            { criterion_id: { $in: criterionIds } },
+          ],
         });
       }
     }
@@ -1452,21 +1912,33 @@ export class AcademicRecordService {
 
         let roleRegex = '';
         if (creator === 'admin') roleRegex = 'admin';
-        else if (creator === 'supervisor') roleRegex = 'supervisor|quản sinh|quan sinh';
-        else if (creator === 'teacher') roleRegex = 'teacher|advisor|giảng viên|giang vien';
-        else if (creator === 'student') roleRegex = 'student|học sinh|sinh viên';
+        else if (creator === 'supervisor')
+          roleRegex = 'supervisor|quản sinh|quan sinh';
+        else if (creator === 'teacher')
+          roleRegex = 'teacher|advisor|giảng viên|giang vien';
+        else if (creator === 'student')
+          roleRegex = 'student|học sinh|sinh viên';
 
         if (roleRegex) {
-          const matchingRoles = await roleModel.find({ name: { $regex: roleRegex, $options: 'i' } }).select('_id').exec();
+          const matchingRoles = await roleModel
+            .find({ name: { $regex: roleRegex, $options: 'i' } })
+            .select('_id')
+            .exec();
           const roleIds = matchingRoles.map((r: any) => r._id);
 
-          const matchingUsers = await userModel.find({ role: { $in: roleIds } }).select('_id').exec();
+          const matchingUsers = await userModel
+            .find({ role: { $in: roleIds } })
+            .select('_id')
+            .exec();
           const userIds = matchingUsers.map((u: any) => u._id);
 
           filter.recorded_by = { $in: userIds };
         }
       } catch (err) {
-        console.warn('Could not filter by creator due to missing models or error:', err);
+        console.warn(
+          'Could not filter by creator due to missing models or error:',
+          err,
+        );
       }
     }
 
@@ -1482,10 +1954,7 @@ export class AcademicRecordService {
       }
       if (!filter.$and) filter.$and = [];
       filter.$and.push({
-        $or: [
-          { recorded_at: dateFilter },
-          { date_record: dateFilter }
-        ]
+        $or: [{ recorded_at: dateFilter }, { date_record: dateFilter }],
       });
     }
 
@@ -1505,7 +1974,7 @@ export class AcademicRecordService {
           .skip((p - 1) * l)
           .limit(l)
           .exec(),
-        this.academicRecordModel.countDocuments(filter).exec()
+        this.academicRecordModel.countDocuments(filter).exec(),
       ]);
 
       return {
@@ -1514,8 +1983,8 @@ export class AcademicRecordService {
           total,
           page: p,
           limit: l,
-          totalPages: Math.ceil(total / l)
-        }
+          totalPages: Math.ceil(total / l),
+        },
       };
     } else {
       return this.academicRecordModel
@@ -1536,14 +2005,26 @@ export class AcademicRecordService {
     if (requester) {
       const roleName = (requester.roleName || '').toLowerCase();
       if (roleName.includes('student')) {
-        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+        const student = await this.studentModel
+          .findOne({ user_id: new Types.ObjectId(requester.userId) })
+          .exec();
         if (!student) return [];
         filter.student_id = student._id;
-      } else if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
-        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
-        const classIds = classes.map(c => c._id);
-        const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
-        const studentIds = students.map(s => s._id);
+      } else if (
+        roleName.includes('teacher') ||
+        roleName.includes('advisor') ||
+        roleName.includes('giảng viên')
+      ) {
+        const classes = await this.classModel
+          .find({ advisor_id: requester.userId })
+          .select('_id')
+          .exec();
+        const classIds = classes.map((c) => c._id);
+        const students = await this.studentModel
+          .find({ class_id: { $in: classIds } })
+          .select('_id')
+          .exec();
+        const studentIds = students.map((s) => s._id);
         filter.student_id = { $in: studentIds };
       }
     }
@@ -1577,16 +2058,37 @@ export class AcademicRecordService {
     if (requester) {
       const roleName = (requester.roleName || '').toLowerCase();
       if (roleName.includes('student')) {
-        const studentEmail = record.student_id && typeof record.student_id === 'object' ? (record.student_id as any).email : '';
-        if (!requester.email || !studentEmail || requester.email.toLowerCase() !== studentEmail.toLowerCase()) {
-          throw new ForbiddenException('Bạn không có quyền truy cập ghi nhận rèn luyện của sinh viên khác.');
+        const studentEmail =
+          record.student_id && typeof record.student_id === 'object'
+            ? (record.student_id as any).email
+            : '';
+        if (
+          !requester.email ||
+          !studentEmail ||
+          requester.email.toLowerCase() !== studentEmail.toLowerCase()
+        ) {
+          throw new ForbiddenException(
+            'Bạn không có quyền truy cập ghi nhận rèn luyện của sinh viên khác.',
+          );
         }
-      } else if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
-        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
-        const classIds = classes.map(c => c._id.toString());
-        const studentClassId = record.student_id && typeof record.student_id === 'object' ? (record.student_id as any).class_id?.toString() : null;
+      } else if (
+        roleName.includes('teacher') ||
+        roleName.includes('advisor') ||
+        roleName.includes('giảng viên')
+      ) {
+        const classes = await this.classModel
+          .find({ advisor_id: requester.userId })
+          .select('_id')
+          .exec();
+        const classIds = classes.map((c) => c._id.toString());
+        const studentClassId =
+          record.student_id && typeof record.student_id === 'object'
+            ? (record.student_id as any).class_id?.toString()
+            : null;
         if (!studentClassId || !classIds.includes(studentClassId)) {
-          throw new ForbiddenException('Bạn không có quyền truy cập sinh viên ngoài lớp phụ trách.');
+          throw new ForbiddenException(
+            'Bạn không có quyền truy cập sinh viên ngoài lớp phụ trách.',
+          );
         }
       }
     }
@@ -1594,7 +2096,10 @@ export class AcademicRecordService {
     return record;
   }
 
-  async findByStudentId(studentId: string, requester?: any): Promise<AcademicRecord[]> {
+  async findByStudentId(
+    studentId: string,
+    requester?: any,
+  ): Promise<AcademicRecord[]> {
     if (!Types.ObjectId.isValid(studentId)) {
       return [];
     }
@@ -1605,23 +2110,40 @@ export class AcademicRecordService {
       const isRequesterTeacher = roleName === 'Teacher';
 
       if (isRequesterStudent) {
-        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+        const student = await this.studentModel
+          .findOne({ user_id: new Types.ObjectId(requester.userId) })
+          .exec();
         if (!student || student._id.toString() !== studentId) {
-          throw new ForbiddenException('Bạn không có quyền truy cập ghi nhận rèn luyện của sinh viên khác.');
+          throw new ForbiddenException(
+            'Bạn không có quyền truy cập ghi nhận rèn luyện của sinh viên khác.',
+          );
         }
       } else if (isRequesterTeacher) {
-        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
-        const classIds = classes.map(c => c._id.toString());
+        const classes = await this.classModel
+          .find({ advisor_id: requester.userId })
+          .select('_id')
+          .exec();
+        const classIds = classes.map((c) => c._id.toString());
 
         const student = await this.studentModel.findById(studentId).exec();
-        if (!student || !student.class_id || !classIds.includes(student.class_id.toString())) {
-          throw new ForbiddenException('Bạn không có quyền truy cập sinh viên ngoài lớp phụ trách.');
+        if (
+          !student ||
+          !student.class_id ||
+          !classIds.includes(student.class_id.toString())
+        ) {
+          throw new ForbiddenException(
+            'Bạn không có quyền truy cập sinh viên ngoài lớp phụ trách.',
+          );
         }
       }
     }
 
     return this.academicRecordModel
-      .find({ student_id: new Types.ObjectId(studentId), status: 'active', is_deleted: { $ne: true } } as any)
+      .find({
+        student_id: new Types.ObjectId(studentId),
+        status: 'active',
+        is_deleted: { $ne: true },
+      } as any)
       .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
@@ -1630,25 +2152,45 @@ export class AcademicRecordService {
       .exec();
   }
 
-  async findByDailyReportId(dailyReportId: string, includeDeleted: boolean = false, requester?: any): Promise<AcademicRecord[]> {
+  async findByDailyReportId(
+    dailyReportId: string,
+    includeDeleted: boolean = false,
+    requester?: any,
+  ): Promise<AcademicRecord[]> {
     if (!Types.ObjectId.isValid(dailyReportId)) {
       return [];
     }
     const query: any = includeDeleted
       ? { daily_report_id: new Types.ObjectId(dailyReportId) }
-      : { daily_report_id: new Types.ObjectId(dailyReportId), status: 'active', is_deleted: { $ne: true } };
+      : {
+          daily_report_id: new Types.ObjectId(dailyReportId),
+          status: 'active',
+          is_deleted: { $ne: true },
+        };
 
     if (requester) {
       const roleName = (requester.roleName || '').toLowerCase();
       if (roleName.includes('student')) {
-        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).exec();
+        const student = await this.studentModel
+          .findOne({ user_id: new Types.ObjectId(requester.userId) })
+          .exec();
         if (!student) return [];
         query.student_id = student._id;
-      } else if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
-        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
-        const classIds = classes.map(c => c._id);
-        const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
-        const studentIds = students.map(s => s._id);
+      } else if (
+        roleName.includes('teacher') ||
+        roleName.includes('advisor') ||
+        roleName.includes('giảng viên')
+      ) {
+        const classes = await this.classModel
+          .find({ advisor_id: requester.userId })
+          .select('_id')
+          .exec();
+        const classIds = classes.map((c) => c._id);
+        const students = await this.studentModel
+          .find({ class_id: { $in: classIds } })
+          .select('_id')
+          .exec();
+        const studentIds = students.map((s) => s._id);
         query.student_id = { $in: studentIds };
       }
     }
@@ -1673,7 +2215,8 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const oldRecord = await this.academicRecordModel.findOne({ _id: id, status: 'active', is_deleted: { $ne: true } })
+    const oldRecord = await this.academicRecordModel
+      .findOne({ _id: id, status: 'active', is_deleted: { $ne: true } })
       .populate('student_id')
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
@@ -1682,9 +2225,14 @@ export class AcademicRecordService {
     }
 
     await this.checkSummaryLocked(oldRecord.student_id, oldRecord.semester_id);
-    if (updateAcademicRecordDto.student_id || updateAcademicRecordDto.semester_id) {
-      const nextStudent = updateAcademicRecordDto.student_id || oldRecord.student_id;
-      const nextSemester = updateAcademicRecordDto.semester_id || oldRecord.semester_id;
+    if (
+      updateAcademicRecordDto.student_id ||
+      updateAcademicRecordDto.semester_id
+    ) {
+      const nextStudent =
+        updateAcademicRecordDto.student_id || oldRecord.student_id;
+      const nextSemester =
+        updateAcademicRecordDto.semester_id || oldRecord.semester_id;
       await this.checkSummaryLocked(nextStudent, nextSemester);
     }
 
@@ -1716,27 +2264,46 @@ export class AcademicRecordService {
     await this.safeSync(oldRecord);
 
     // Sync new key if changed
-    const oldStudent = oldRecord.student_id ? oldRecord.student_id.toString() : '';
-    const oldSemester = oldRecord.semester_id ? oldRecord.semester_id.toString() : '';
-    const oldCriterion = oldRecord.criterion_id ? oldRecord.criterion_id.toString() : '';
+    const oldStudent = oldRecord.student_id
+      ? oldRecord.student_id.toString()
+      : '';
+    const oldSemester = oldRecord.semester_id
+      ? oldRecord.semester_id.toString()
+      : '';
+    const oldCriterion = oldRecord.criterion_id
+      ? oldRecord.criterion_id.toString()
+      : '';
 
     const newStudent = updated.student_id ? updated.student_id.toString() : '';
-    const newSemester = updated.semester_id ? updated.semester_id.toString() : '';
-    const newCriterion = updated.criterion_id ? updated.criterion_id.toString() : '';
+    const newSemester = updated.semester_id
+      ? updated.semester_id.toString()
+      : '';
+    const newCriterion = updated.criterion_id
+      ? updated.criterion_id.toString()
+      : '';
 
-    if (oldStudent !== newStudent || oldSemester !== newSemester || oldCriterion !== newCriterion) {
+    if (
+      oldStudent !== newStudent ||
+      oldSemester !== newSemester ||
+      oldCriterion !== newCriterion
+    ) {
       await this.safeSync(updated);
     }
 
     return updated;
   }
 
-  async remove(id: string, requester: any, bypassDailyReportCheck: boolean = false): Promise<AcademicRecord> {
+  async remove(
+    id: string,
+    requester: any,
+    bypassDailyReportCheck: boolean = false,
+  ): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel.findOne({ _id: id, status: 'active', is_deleted: { $ne: true } })
+    const record = await this.academicRecordModel
+      .findOne({ _id: id, status: 'active', is_deleted: { $ne: true } })
       .populate('student_id')
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
@@ -1761,11 +2328,9 @@ export class AcademicRecordService {
       updatePayload.idempotency_key = `${record.idempotency_key}_deleted_${Date.now()}`;
     }
 
-    const deleted = await this.academicRecordModel.findByIdAndUpdate(
-      id,
-      updatePayload,
-      { returnDocument: 'after' },
-    ).exec();
+    const deleted = await this.academicRecordModel
+      .findByIdAndUpdate(id, updatePayload, { returnDocument: 'after' })
+      .exec();
 
     if (!deleted) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
@@ -1782,12 +2347,15 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel.findOne({ _id: id, $or: [{ status: 'inactive' }, { is_deleted: true }] })
+    const record = await this.academicRecordModel
+      .findOne({ _id: id, $or: [{ status: 'inactive' }, { is_deleted: true }] })
       .populate('student_id')
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
     if (!record) {
-      throw new NotFoundException(`AcademicRecord with ID ${id} not found trong thùng rác`);
+      throw new NotFoundException(
+        `AcademicRecord with ID ${id} not found trong thùng rác`,
+      );
     }
 
     await this.checkSummaryLocked(record.student_id, record.semester_id);
@@ -1812,23 +2380,36 @@ export class AcademicRecordService {
     ]);
   }
 
-  async forceRemove(id: string, requester: any, bypassDailyReportCheck: boolean = false): Promise<AcademicRecord> {
+  async forceRemove(
+    id: string,
+    requester: any,
+    bypassDailyReportCheck: boolean = false,
+  ): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel.findById(id)
+    const record = await this.academicRecordModel
+      .findById(id)
       .populate('student_id')
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
     if (!record) {
-      throw new NotFoundException(`AcademicRecord with ID ${id} not found or already deleted`);
+      throw new NotFoundException(
+        `AcademicRecord with ID ${id} not found or already deleted`,
+      );
     }
 
     await this.checkSummaryLocked(record.student_id, record.semester_id);
 
-    if (!bypassDailyReportCheck && record.status !== 'inactive' && record.is_deleted !== true) {
-      throw new BadRequestException('Chỉ có thể xóa vĩnh viễn ghi nhận rèn luyện đã nằm trong thùng rác.');
+    if (
+      !bypassDailyReportCheck &&
+      record.status !== 'inactive' &&
+      record.is_deleted !== true
+    ) {
+      throw new BadRequestException(
+        'Chỉ có thể xóa vĩnh viễn ghi nhận rèn luyện đã nằm trong thùng rác.',
+      );
     }
 
     if (record.daily_report_id && !bypassDailyReportCheck) {
@@ -1843,7 +2424,9 @@ export class AcademicRecordService {
 
     const deleted = await this.academicRecordModel.findByIdAndDelete(id).exec();
     if (!deleted) {
-      throw new NotFoundException(`AcademicRecord with ID ${id} not found or already deleted`);
+      throw new NotFoundException(
+        `AcademicRecord with ID ${id} not found or already deleted`,
+      );
     }
 
     // Sync score update
@@ -1861,7 +2444,12 @@ export class AcademicRecordService {
       if (!roleName) return 1;
       const nameLower = roleName.toLowerCase();
       if (nameLower.includes('admin')) return 4;
-      if (nameLower.includes('supervisor') || nameLower.includes('quản sinh') || nameLower.includes('quan sinh')) return 3;
+      if (
+        nameLower.includes('supervisor') ||
+        nameLower.includes('quản sinh') ||
+        nameLower.includes('quan sinh')
+      )
+        return 3;
       if (
         nameLower.includes('teacher') ||
         nameLower.includes('adviser') ||
@@ -1882,33 +2470,47 @@ export class AcademicRecordService {
 
     // Nếu người yêu cầu là sinh viên (Level 1)
     if (requesterLevel === 1) {
-      const studentEmail = record.student_id && typeof record.student_id === 'object' ? record.student_id.email : '';
+      const studentEmail =
+        record.student_id && typeof record.student_id === 'object'
+          ? record.student_id.email
+          : '';
 
       // So sánh email của tài khoản đang đăng nhập với email của sinh viên sở hữu bản ghi
-      if (requester.email && studentEmail && requester.email.toLowerCase() === studentEmail.toLowerCase()) {
+      if (
+        requester.email &&
+        studentEmail &&
+        requester.email.toLowerCase() === studentEmail.toLowerCase()
+      ) {
         let creatorId = '';
         if (record.recorded_by) {
-          creatorId = typeof record.recorded_by === 'object' ? record.recorded_by._id?.toString() : record.recorded_by.toString();
+          creatorId =
+            typeof record.recorded_by === 'object'
+              ? record.recorded_by._id?.toString()
+              : record.recorded_by.toString();
         }
 
         // Cho phép sinh viên xóa nếu bản ghi do chính họ tạo, hoặc bản ghi trống recorded_by
-        if (
-          !creatorId ||
-          creatorId === requester.userId
-        ) {
+        if (!creatorId || creatorId === requester.userId) {
           return; // Cho phép xóa!
         }
       }
-      throw new ForbiddenException('Bạn chỉ có thể xóa ghi nhận rèn luyện tự chấm của chính mình.');
+      throw new ForbiddenException(
+        'Bạn chỉ có thể xóa ghi nhận rèn luyện tự chấm của chính mình.',
+      );
     }
 
     let creatorLevel = 1;
     let creatorId = '';
 
     if (record.recorded_by) {
-      creatorId = typeof record.recorded_by === 'object' ? record.recorded_by._id?.toString() : record.recorded_by.toString();
+      creatorId =
+        typeof record.recorded_by === 'object'
+          ? record.recorded_by._id?.toString()
+          : record.recorded_by.toString();
       const creatorRoleName = record.recorded_by.role
-        ? (typeof record.recorded_by.role === 'object' ? record.recorded_by.role.name : record.recorded_by.role)
+        ? typeof record.recorded_by.role === 'object'
+          ? record.recorded_by.role.name
+          : record.recorded_by.role
         : '';
       creatorLevel = getRoleLevel(creatorRoleName);
     }
@@ -1923,11 +2525,15 @@ export class AcademicRecordService {
       if (requester.userId === creatorId) {
         return;
       }
-      throw new ForbiddenException('Bạn chỉ có thể xóa ghi nhận rèn luyện do chính mình tạo ra.');
+      throw new ForbiddenException(
+        'Bạn chỉ có thể xóa ghi nhận rèn luyện do chính mình tạo ra.',
+      );
     }
 
     // Cấp thấp hơn không được xóa
-    throw new ForbiddenException('Bạn không có quyền xóa ghi nhận rèn luyện của cấp bậc cao hơn.');
+    throw new ForbiddenException(
+      'Bạn không có quyền xóa ghi nhận rèn luyện của cấp bậc cao hơn.',
+    );
   }
 
   async importPreview(rows: any[], requester: any): Promise<any> {
@@ -1937,34 +2543,75 @@ export class AcademicRecordService {
     let validStudentIds: Set<string> | null = null;
     if (requester) {
       const roleName = (requester.roleName || '').toLowerCase();
-      if (roleName.includes('teacher') || roleName.includes('advisor') || roleName.includes('giảng viên')) {
-        const classes = await this.classModel.find({ advisor_id: requester.userId }).select('_id').exec();
-        const classIds = classes.map(c => c._id);
-        const students = await this.studentModel.find({ class_id: { $in: classIds } }).select('_id').exec();
-        validStudentIds = new Set(students.map(s => s._id.toString()));
+      if (
+        roleName.includes('teacher') ||
+        roleName.includes('advisor') ||
+        roleName.includes('giảng viên')
+      ) {
+        const classes = await this.classModel
+          .find({ advisor_id: requester.userId })
+          .select('_id')
+          .exec();
+        const classIds = classes.map((c) => c._id);
+        const students = await this.studentModel
+          .find({ class_id: { $in: classIds } })
+          .select('_id')
+          .exec();
+        validStudentIds = new Set(students.map((s) => s._id.toString()));
       }
     }
 
     // 1. Thu thập tất cả student_code để query
-    const studentCodes = Array.from(new Set(rows.map(r => {
-      const code = r['Ma SV'] || r['Mã SV'] || r['Mã sinh viên'] || r['student_code'];
-      return code ? code.toString().trim() : '';
-    }).filter(Boolean)));
+    const studentCodes = Array.from(
+      new Set(
+        rows
+          .map((r) => {
+            const code =
+              r['Ma SV'] ||
+              r['Mã SV'] ||
+              r['Mã sinh viên'] ||
+              r['student_code'];
+            return code ? code.toString().trim() : '';
+          })
+          .filter(Boolean),
+      ),
+    );
 
     // 2. Query students
-    const students = await this.studentModel.find({ student_code: { $in: studentCodes } }).lean().exec();
-    const studentMap = new Map(students.map(s => [s.student_code.toLowerCase(), s]));
+    const students = await this.studentModel
+      .find({ student_code: { $in: studentCodes } })
+      .lean()
+      .exec();
+    const studentMap = new Map(
+      students.map((s) => [s.student_code.toLowerCase(), s]),
+    );
 
     // 3. Query all criteria and semesters (dung lượng nhỏ)
     const criteria = await this.criterionModel.find().lean().exec();
-    const criteriaMap = new Map(criteria.map(c => [(c.criterion_name || '').toString().trim().toLowerCase(), c]));
-    const criteriaCodeMap = new Map(criteria.map(c => {
-      const code = c.criterion_code ? c.criterion_code.toString().trim().toLowerCase() : '';
-      return [code, c] as [string, any];
-    }).filter(entry => entry[0] !== ''));
+    const criteriaMap = new Map(
+      criteria.map((c) => [
+        (c.criterion_name || '').toString().trim().toLowerCase(),
+        c,
+      ]),
+    );
+    const criteriaCodeMap = new Map(
+      criteria
+        .map((c) => {
+          const code = c.criterion_code
+            ? c.criterion_code.toString().trim().toLowerCase()
+            : '';
+          return [code, c] as [string, any];
+        })
+        .filter((entry) => entry[0] !== ''),
+    );
 
     const semesters = await semesterModel.find().lean().exec();
-    const semesterMap = new Map(semesters.map((s: any) => [(s.semester_name || s.name || '').toString().trim().toLowerCase(), s]));
+    const semesterMap = new Map(
+      semesters.map((s: any) => [
+        (s.semester_name || s.name || '').toString().trim().toLowerCase(),
+        s,
+      ]),
+    );
     const activeSem = semesters.find((s: any) => s.status === 'active');
 
     const errors: any[] = [];
@@ -1974,38 +2621,74 @@ export class AcademicRecordService {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rowNumber = i + 2;
-      const studentCodeRaw = row['Ma SV'] || row['Mã SV'] || row['Mã sinh viên'] || row['student_code'];
-      const criterionCodeRaw = row['Ma tieu chi'] || row['Mã tiêu chí'] || row['criterion_code'];
-      const criterionRaw = row['Tieu chi'] || row['Tiêu chí'] || row['criterion'] || row['Tieu chi (*)'];
-      const dateRaw = row['Ngay ghi nhan'] || row['Ngày ghi nhận'] || row['recorded_at'] || row['Ngay'];
+      const studentCodeRaw =
+        row['Ma SV'] ||
+        row['Mã SV'] ||
+        row['Mã sinh viên'] ||
+        row['student_code'];
+      const criterionCodeRaw =
+        row['Ma tieu chi'] || row['Mã tiêu chí'] || row['criterion_code'];
+      const criterionRaw =
+        row['Tieu chi'] ||
+        row['Tiêu chí'] ||
+        row['criterion'] ||
+        row['Tieu chi (*)'];
+      const dateRaw =
+        row['Ngay ghi nhan'] ||
+        row['Ngày ghi nhận'] ||
+        row['recorded_at'] ||
+        row['Ngay'];
       const noteRaw = row['Ghi chu'] || row['Ghi chú'] || row['note'];
       const semesterRaw = row['Hoc ky'] || row['Học kỳ'] || row['semester'];
       const statusRaw = row['Trang thai'] || row['Trạng thái'] || row['status'];
 
-      const studentCode = studentCodeRaw ? studentCodeRaw.toString().trim() : '';
+      const studentCode = studentCodeRaw
+        ? studentCodeRaw.toString().trim()
+        : '';
       if (!studentCode) {
         errors.push({ row: rowNumber, reason: 'Thiếu Mã SV' });
         continue;
       }
 
       if (!criterionCodeRaw && !criterionRaw) {
-        errors.push({ row: rowNumber, studentCode, reason: 'Thiếu Mã tiêu chí hoặc Tiêu chí' });
+        errors.push({
+          row: rowNumber,
+          studentCode,
+          reason: 'Thiếu Mã tiêu chí hoặc Tiêu chí',
+        });
         continue;
       }
 
       if (dateRaw === undefined || dateRaw === null || dateRaw === '') {
-        errors.push({ row: rowNumber, studentCode, reason: 'Thiếu Ngày ghi nhận' });
+        errors.push({
+          row: rowNumber,
+          studentCode,
+          reason: 'Thiếu Ngày ghi nhận',
+        });
         continue;
       }
 
       const foundStudent = studentMap.get(studentCode.toLowerCase());
       if (!foundStudent) {
-        errors.push({ row: rowNumber, studentCode, reason: 'Không tìm thấy sinh viên theo Mã SV' });
+        errors.push({
+          row: rowNumber,
+          studentCode,
+          reason: 'Không tìm thấy sinh viên theo Mã SV',
+        });
         continue;
       }
 
-      if (validStudentIds && !validStudentIds.has(foundStudent._id.toString())) {
-        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: 'Không có quyền ghi nhận cho sinh viên này (ngoài lớp phụ trách)' });
+      if (
+        validStudentIds &&
+        !validStudentIds.has(foundStudent._id.toString())
+      ) {
+        errors.push({
+          row: rowNumber,
+          studentCode,
+          fullName: foundStudent.full_name,
+          reason:
+            'Không có quyền ghi nhận cho sinh viên này (ngoài lớp phụ trách)',
+        });
         continue;
       }
 
@@ -2014,14 +2697,24 @@ export class AcademicRecordService {
         const criterionCode = criterionCodeRaw.toString().trim().toLowerCase();
         foundCriterion = criteriaCodeMap.get(criterionCode);
         if (!foundCriterion) {
-          errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Không tìm thấy tiêu chí theo mã: ${criterionCodeRaw.toString().trim()}` });
+          errors.push({
+            row: rowNumber,
+            studentCode,
+            fullName: foundStudent.full_name,
+            reason: `Không tìm thấy tiêu chí theo mã: ${criterionCodeRaw.toString().trim()}`,
+          });
           continue;
         }
       } else {
         const criterionName = criterionRaw.toString().trim();
         foundCriterion = criteriaMap.get(criterionName.toLowerCase());
         if (!foundCriterion) {
-          errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Không tìm thấy tiêu chí: ${criterionName}` });
+          errors.push({
+            row: rowNumber,
+            studentCode,
+            fullName: foundStudent.full_name,
+            reason: `Không tìm thấy tiêu chí: ${criterionName}`,
+          });
           continue;
         }
       }
@@ -2031,22 +2724,33 @@ export class AcademicRecordService {
       let dateErr = false;
       if (typeof dateRaw === 'number') {
         const jsDate = new Date(Math.round((dateRaw - 25569) * 86400 * 1000));
-        if (isNaN(jsDate.getTime())) dateErr = true; else recordedAtIso = jsDate.toISOString();
+        if (isNaN(jsDate.getTime())) dateErr = true;
+        else recordedAtIso = jsDate.toISOString();
       } else {
         const str = dateRaw ? dateRaw.toString().trim() : '';
         const dmy = /^([0-9]{1,2})[\/\-]([0-9]{1,2})[\/\-]([0-9]{4})$/;
         const m = str.match(dmy);
         if (m) {
-          const day = parseInt(m[1], 10); const month = parseInt(m[2], 10) - 1; const year = parseInt(m[3], 10);
+          const day = parseInt(m[1], 10);
+          const month = parseInt(m[2], 10) - 1;
+          const year = parseInt(m[3], 10);
           const parsed = new Date(year, month, day);
-          if (isNaN(parsed.getTime()) || parsed.getDate() !== day) dateErr = true; else recordedAtIso = parsed.toISOString();
+          if (isNaN(parsed.getTime()) || parsed.getDate() !== day)
+            dateErr = true;
+          else recordedAtIso = parsed.toISOString();
         } else {
           const parsed = new Date(str);
-          if (isNaN(parsed.getTime())) dateErr = true; else recordedAtIso = parsed.toISOString();
+          if (isNaN(parsed.getTime())) dateErr = true;
+          else recordedAtIso = parsed.toISOString();
         }
       }
       if (dateErr) {
-        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Định dạng ngày không hợp lệ: ${dateRaw}` });
+        errors.push({
+          row: rowNumber,
+          studentCode,
+          fullName: foundStudent.full_name,
+          reason: `Định dạng ngày không hợp lệ: ${dateRaw}`,
+        });
         continue;
       }
 
@@ -2054,40 +2758,73 @@ export class AcademicRecordService {
       let semesterId = '';
       if (semesterRaw) {
         const semStr = semesterRaw.toString().trim().toLowerCase();
-        const foundSem = semesterMap.get(semStr) || semesters.find((s: any) => s._id.toString() === semStr);
+        const foundSem =
+          semesterMap.get(semStr) ||
+          semesters.find((s: any) => s._id.toString() === semStr);
         if (foundSem) {
           semesterId = foundSem._id.toString();
         } else {
-          errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Không tìm thấy học kỳ: ${semesterRaw}` });
+          errors.push({
+            row: rowNumber,
+            studentCode,
+            fullName: foundStudent.full_name,
+            reason: `Không tìm thấy học kỳ: ${semesterRaw}`,
+          });
           continue;
         }
       } else if (activeSem) {
         semesterId = activeSem._id.toString();
       } else {
-        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: 'Không có học kỳ active để gán mặc định' });
+        errors.push({
+          row: rowNumber,
+          studentCode,
+          fullName: foundStudent.full_name,
+          reason: 'Không có học kỳ active để gán mặc định',
+        });
         continue;
       }
 
       // Check if summary is locked
-      const summary = await this.summaryPointModel.findOne({
-        student_id: foundStudent._id,
-        semester_id: new Types.ObjectId(semesterId),
-      } as any).select('status').exec();
+      const summary = await this.summaryPointModel
+        .findOne({
+          student_id: foundStudent._id,
+          semester_id: new Types.ObjectId(semesterId),
+        } as any)
+        .select('status')
+        .exec();
       if (summary && summary.status === 'locked') {
-        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: 'Bảng điểm rèn luyện của học kỳ này đã chốt, không thể nhập thêm điểm.' });
+        errors.push({
+          row: rowNumber,
+          studentCode,
+          fullName: foundStudent.full_name,
+          reason:
+            'Bảng điểm rèn luyện của học kỳ này đã chốt, không thể nhập thêm điểm.',
+        });
         continue;
       }
 
-      const status = statusRaw ? statusRaw.toString().trim().toLowerCase() : 'active';
+      const status = statusRaw
+        ? statusRaw.toString().trim().toLowerCase()
+        : 'active';
       if (statusRaw && status !== 'active' && status !== 'inactive') {
-        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Trạng thái không hợp lệ: ${statusRaw}` });
+        errors.push({
+          row: rowNumber,
+          studentCode,
+          fullName: foundStudent.full_name,
+          reason: `Trạng thái không hợp lệ: ${statusRaw}`,
+        });
         continue;
       }
 
       // duplicate check in file
       const idempotency_key = `${studentCode}_${foundCriterion._id.toString()}_${recordedAtIso}`;
       if (seen.has(idempotency_key)) {
-        errors.push({ row: rowNumber, studentCode, fullName: foundStudent.full_name, reason: `Bản ghi trùng lặp trong file (trùng với dòng ${seen.get(idempotency_key)})` });
+        errors.push({
+          row: rowNumber,
+          studentCode,
+          fullName: foundStudent.full_name,
+          reason: `Bản ghi trùng lặp trong file (trùng với dòng ${seen.get(idempotency_key)})`,
+        });
         continue;
       }
       seen.set(idempotency_key, rowNumber);
@@ -2105,11 +2842,12 @@ export class AcademicRecordService {
         points_effect: pointsEffect,
         status: status || 'active',
         source: 'import_excel',
-        idempotency_key
+        idempotency_key,
       });
     }
 
-    const sessionId = Date.now().toString() + Math.random().toString(36).substring(2, 7);
+    const sessionId =
+      Date.now().toString() + Math.random().toString(36).substring(2, 7);
     this.importSessions.set(sessionId, {
       id: sessionId,
       status: 'ready_to_commit',
@@ -2120,7 +2858,7 @@ export class AcademicRecordService {
       processedCount: 0,
       insertedCount: 0,
       duplicatedCount: 0,
-      commitErrors: []
+      commitErrors: [],
     });
 
     // Cleanup old sessions
@@ -2136,7 +2874,7 @@ export class AcademicRecordService {
       totalRows: rows.length,
       validCount: validItems.length,
       errorCount: errors.length,
-      errors
+      errors,
     };
   }
 
@@ -2146,13 +2884,15 @@ export class AcademicRecordService {
       throw new BadRequestException('Session không tồn tại hoặc đã hết hạn');
     }
     if (session.status !== 'ready_to_commit') {
-      throw new BadRequestException('Session đang ở trạng thái không hợp lệ: ' + session.status);
+      throw new BadRequestException(
+        'Session đang ở trạng thái không hợp lệ: ' + session.status,
+      );
     }
 
     session.status = 'committing';
 
     // Background job
-    this.processImportBatch(sessionId, requester).catch(err => {
+    this.processImportBatch(sessionId, requester).catch((err) => {
       console.error('Import batch error:', err);
       session.status = 'failed';
       session.commitErrors.push({ reason: err.message });
@@ -2172,23 +2912,31 @@ export class AcademicRecordService {
       for (let i = 0; i < validItems.length; i += batchSize) {
         const batch = validItems.slice(i, i + batchSize);
         const insertOps = batch.map((record: any) => ({
-          insertOne: { document: record }
+          insertOne: { document: record },
         }));
 
         let result;
         try {
-          result = await this.academicRecordModel.bulkWrite(insertOps as any, { ordered: false });
+          result = await this.academicRecordModel.bulkWrite(insertOps, {
+            ordered: false,
+          });
         } catch (err: any) {
           if (err.code !== 11000 && !err.message.includes('11000')) {
             throw err;
           }
           result = err.result || err;
-          session.duplicatedCount += err.writeErrors ? err.writeErrors.length : (batch.length - (result.insertedCount || result.nInserted || 0));
+          session.duplicatedCount += err.writeErrors
+            ? err.writeErrors.length
+            : batch.length - (result.insertedCount || result.nInserted || 0);
         }
 
-        session.insertedCount += result?.insertedCount || result?.nInserted || 0;
+        session.insertedCount +=
+          result?.insertedCount || result?.nInserted || 0;
         session.processedCount += batch.length;
-        session.progress = validItems.length > 0 ? Math.floor((session.processedCount / validItems.length) * 100) : 100;
+        session.progress =
+          validItems.length > 0
+            ? Math.floor((session.processedCount / validItems.length) * 100)
+            : 100;
 
         // Sync điểm sau mỗi batch
         await this.syncMultipleStudentCriterionScores(batch);

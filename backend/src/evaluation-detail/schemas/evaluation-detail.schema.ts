@@ -122,7 +122,12 @@ export class EvaluationDetail {
   // How the count was resolved
   @Prop({
     type: String,
-    enum: ['teacher_review', 'supervisor_approval', 'admin_override', 'automatic_rule'],
+    enum: [
+      'teacher_review',
+      'supervisor_approval',
+      'admin_override',
+      'automatic_rule',
+    ],
     default: null,
   })
   resolution_source?: string | null;

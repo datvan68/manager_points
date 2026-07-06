@@ -1,7 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
-import { NotFoundException, ForbiddenException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ForbiddenException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { Types } from 'mongoose';
 import { StudentsService } from '../students.service';
 import { Student } from '../schemas/student.schema';
@@ -82,7 +87,11 @@ describe('StudentsService', () => {
               findByIdAndDelete: jest.fn().mockImplementation(() => ({
                 exec: jest.fn().mockResolvedValue(getCloneMockStudent()),
               })),
-              insertMany: jest.fn().mockImplementation(() => Promise.resolve([getCloneMockStudent()])),
+              insertMany: jest
+                .fn()
+                .mockImplementation(() =>
+                  Promise.resolve([getCloneMockStudent()]),
+                ),
               bulkWrite: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
               updateOne: jest.fn().mockResolvedValue({}),
               countDocuments: jest.fn().mockImplementation(() => {
@@ -97,7 +106,11 @@ describe('StudentsService', () => {
           provide: getModelToken(Semester.name),
           useValue: {
             find: jest.fn().mockReturnValue({
-              exec: jest.fn().mockResolvedValue([{ _id: 'mock-semester-id', status: 'active' }]),
+              exec: jest
+                .fn()
+                .mockResolvedValue([
+                  { _id: 'mock-semester-id', status: 'active' },
+                ]),
             }),
           },
         },
@@ -137,7 +150,9 @@ describe('StudentsService', () => {
           provide: getModelToken(Role.name),
           useValue: {
             findOne: jest.fn().mockReturnValue({
-              exec: jest.fn().mockResolvedValue({ _id: 'mock-role-id', name: 'Student' }),
+              exec: jest
+                .fn()
+                .mockResolvedValue({ _id: 'mock-role-id', name: 'Student' }),
             }),
           },
         },
@@ -165,7 +180,7 @@ describe('StudentsService', () => {
     classModel = module.get(getModelToken(Class.name));
     summaryPointModel = module.get(getModelToken(SummaryPoint.name));
     refreshTokenModel = module.get(getModelToken(RefreshToken.name));
-    
+
     // Reset config service mock
     const configService = module.get<ConfigService>(ConfigService);
     (configService.get as jest.Mock).mockImplementation((key) => {
@@ -241,12 +256,14 @@ describe('StudentsService', () => {
         class_id: '507f1f77bcf86cd799439012',
         training_point_id: 'mock-tp-id',
       };
-      
+
       model.mockImplementationOnce((d: any) => ({
         ...d,
-        save: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011', ...d }),
+        save: jest
+          .fn()
+          .mockResolvedValue({ _id: '507f1f77bcf86cd799439011', ...d }),
       }));
-      
+
       summaryPointModel.bulkWrite.mockClear();
 
       const result = await service.create(dto);
@@ -294,7 +311,9 @@ describe('StudentsService', () => {
       (mongoError as any).code = 11000;
       summaryPointModel.bulkWrite.mockRejectedValueOnce(mongoError);
 
-      const mockResult = [{ ...mockStudent, student_code: dtos[0].student_code }];
+      const mockResult = [
+        { ...mockStudent, student_code: dtos[0].student_code },
+      ];
       model.insertMany.mockResolvedValueOnce(mockResult);
       model.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
@@ -346,7 +365,7 @@ describe('StudentsService', () => {
       const result = await service.createBulk(dtos);
       expect(result).toBeDefined();
       expect(summaryPointModel.bulkWrite).toHaveBeenCalled();
-      
+
       const bulkOps = summaryPointModel.bulkWrite.mock.calls[0][0];
       expect(bulkOps.length).toBe(1);
       expect(bulkOps[0].updateOne.filter.student_id).toEqual(mockResult[0]._id);
@@ -355,7 +374,10 @@ describe('StudentsService', () => {
 
   describe('findAll', () => {
     it('should return list containing only self profile when requester is Student', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439013', roleName: 'Student' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439013',
+        roleName: 'Student',
+      };
       const result = await service.findAll(requester);
       expect(result).toBeDefined();
       expect(result.length).toBe(1);
@@ -363,7 +385,10 @@ describe('StudentsService', () => {
     });
 
     it('should return empty list if student profile not found for Student requester', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439014', roleName: 'Student' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439014',
+        roleName: 'Student',
+      };
       model.findOne.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null),
@@ -373,16 +398,22 @@ describe('StudentsService', () => {
     });
 
     it('should return full list if requester is Admin', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439015', roleName: 'Admin' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439015',
+        roleName: 'Admin',
+      };
       const result = await service.findAll(requester);
       expect(result).toBeDefined();
       expect(result.length).toBeGreaterThan(0);
     });
 
     it('should return only students for the requested classId', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439015', roleName: 'Admin' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439015',
+        roleName: 'Admin',
+      };
       const classId = '507f1f77bcf86cd799439012';
-      
+
       model.find.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([getCloneMockStudent()]),
@@ -391,13 +422,18 @@ describe('StudentsService', () => {
       const result = await service.findAll({ classId }, requester);
       expect(result).toBeDefined();
       expect(result.length).toBe(1);
-      expect(model.find).toHaveBeenCalledWith({ class_id: new Types.ObjectId(classId) });
+      expect(model.find).toHaveBeenCalledWith({
+        class_id: new Types.ObjectId(classId),
+      });
     });
 
     it('should return empty for invalid classId', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439015', roleName: 'Admin' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439015',
+        roleName: 'Admin',
+      };
       const classId = 'invalid-class-id';
-      
+
       const result = await service.findAll({ classId }, requester);
       expect(result).toEqual([]);
     });
@@ -405,11 +441,13 @@ describe('StudentsService', () => {
     it('should allow teacher requester to see students if classId matches an assigned class', async () => {
       const requester = { userId: 'teacher-user-id', roleName: 'Teacher' };
       const classId = '507f1f77bcf86cd799439012';
-      
+
       jest.spyOn(classModel, 'find').mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(classId) }]),
+        exec: jest
+          .fn()
+          .mockResolvedValue([{ _id: new Types.ObjectId(classId) }]),
       } as any);
 
       model.find.mockReturnValueOnce({
@@ -420,17 +458,23 @@ describe('StudentsService', () => {
       const result = await service.findAll({ classId }, requester);
       expect(result).toBeDefined();
       expect(result.length).toBe(1);
-      expect(model.find).toHaveBeenCalledWith({ class_id: new Types.ObjectId(classId) });
+      expect(model.find).toHaveBeenCalledWith({
+        class_id: new Types.ObjectId(classId),
+      });
     });
 
     it('should return empty list if teacher requests classId that is not assigned to them', async () => {
       const requester = { userId: 'teacher-user-id', roleName: 'Teacher' };
       const classId = '507f1f77bcf86cd799439099'; // not assigned
-      
+
       jest.spyOn(classModel, 'find').mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId('507f1f77bcf86cd799439012') }]),
+        exec: jest
+          .fn()
+          .mockResolvedValue([
+            { _id: new Types.ObjectId('507f1f77bcf86cd799439012') },
+          ]),
       } as any);
 
       const result = await service.findAll({ classId }, requester);
@@ -438,9 +482,12 @@ describe('StudentsService', () => {
     });
 
     it('should return empty list if student requests a classId that is not their own class', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439013', roleName: 'Student' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439013',
+        roleName: 'Student',
+      };
       const classId = '507f1f77bcf86cd799439099'; // not student's class
-      
+
       const result = await service.findAll({ classId }, requester);
       expect(result).toEqual([]);
     });
@@ -448,7 +495,10 @@ describe('StudentsService', () => {
 
   describe('findMe', () => {
     it('should return student profile for the current logged in student', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439013', roleName: 'Student' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439013',
+        roleName: 'Student',
+      };
       const result = await service.findMe(requester);
       expect(result).toBeDefined();
       expect(result.full_name).toEqual('Nguyễn Văn A');
@@ -456,16 +506,23 @@ describe('StudentsService', () => {
 
     it('should throw UnauthorizedException if userId is invalid', async () => {
       const requester = { userId: 'invalid-id', roleName: 'Student' };
-      await expect(service.findMe(requester)).rejects.toThrow(UnauthorizedException);
+      await expect(service.findMe(requester)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw NotFoundException if student profile is not found', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439014', roleName: 'Student' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439014',
+        roleName: 'Student',
+      };
       model.findOne.mockReturnValueOnce({
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.findMe(requester)).rejects.toThrow(NotFoundException);
+      await expect(service.findMe(requester)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -487,15 +544,23 @@ describe('StudentsService', () => {
     });
 
     it('should return student profile if requester is Student and requests their own profile', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439013', roleName: 'Student' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439013',
+        roleName: 'Student',
+      };
       const result = await service.findOne(mockStudent._id, requester);
       expect(result).toBeDefined();
       expect(result.full_name).toEqual('Nguyễn Văn A');
     });
 
     it('should throw ForbiddenException if requester is Student and requests another profile', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439019', roleName: 'Student' };
-      await expect(service.findOne(mockStudent._id, requester)).rejects.toThrow(ForbiddenException);
+      const requester = {
+        userId: '507f1f77bcf86cd799439019',
+        roleName: 'Student',
+      };
+      await expect(service.findOne(mockStudent._id, requester)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -514,8 +579,8 @@ describe('StudentsService', () => {
       await expect(service.findByStudentCode('invalid-code')).rejects.toThrow(
         NotFoundException,
       );
+    });
   });
-});
 
   describe('resolve', () => {
     it('should resolve a student by valid ObjectId', async () => {
@@ -541,22 +606,33 @@ describe('StudentsService', () => {
     });
 
     it('should return student profile if requester is Student and resolves their own profile', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439013', roleName: 'Student' };
+      const requester = {
+        userId: '507f1f77bcf86cd799439013',
+        roleName: 'Student',
+      };
       const result = await service.resolve(mockStudent._id, requester);
       expect(result).toBeDefined();
       expect(result.full_name).toEqual('Nguyễn Văn A');
     });
 
     it('should throw ForbiddenException if requester is Student and resolves another profile', async () => {
-      const requester = { userId: '507f1f77bcf86cd799439019', roleName: 'Student' };
-      await expect(service.resolve(mockStudent._id, requester)).rejects.toThrow(ForbiddenException);
+      const requester = {
+        userId: '507f1f77bcf86cd799439019',
+        roleName: 'Student',
+      };
+      await expect(service.resolve(mockStudent._id, requester)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
   describe('update', () => {
     it('should update and return the updated student', async () => {
       const updateDto = { full_name: 'Nguyễn Văn B' };
-      const result = await service.update('507f1f77bcf86cd799439011', updateDto);
+      const result = await service.update(
+        '507f1f77bcf86cd799439011',
+        updateDto,
+      );
       expect(result).toBeDefined();
     });
 
@@ -564,9 +640,9 @@ describe('StudentsService', () => {
       model.findByIdAndUpdate.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue(null),
       });
-      await expect(service.update('507f1f77bcf86cd799439011', {})).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.update('507f1f77bcf86cd799439011', {}),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ForbiddenException if requester is Student', async () => {
@@ -584,17 +660,23 @@ describe('StudentsService', () => {
 
     it('should throw BadRequestException if changing status from Studying without confirmation', async () => {
       const updateDto = { status: 'Reserved' };
-      await expect(service.update('507f1f77bcf86cd799439011', updateDto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.update('507f1f77bcf86cd799439011', updateDto),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should delete related summaries when status change is confirmed', async () => {
-      const updateDto = { status: 'Reserved', deleteTrainingScoresConfirmed: true };
-      
+      const updateDto = {
+        status: 'Reserved',
+        deleteTrainingScoresConfirmed: true,
+      };
+
       summaryPointModel.deleteMany.mockClear();
 
-      const result = await service.update('507f1f77bcf86cd799439011', updateDto);
+      const result = await service.update(
+        '507f1f77bcf86cd799439011',
+        updateDto,
+      );
       expect(result).toBeDefined();
       expect(summaryPointModel.deleteMany).toHaveBeenCalledWith({
         student_id: new Types.ObjectId('507f1f77bcf86cd799439011'),
@@ -603,10 +685,13 @@ describe('StudentsService', () => {
 
     it('should not delete summaries when status is not changed away from Studying', async () => {
       const updateDto = { status: 'Studying' };
-      
+
       summaryPointModel.deleteMany.mockClear();
 
-      const result = await service.update('507f1f77bcf86cd799439011', updateDto);
+      const result = await service.update(
+        '507f1f77bcf86cd799439011',
+        updateDto,
+      );
       expect(result).toBeDefined();
       expect(summaryPointModel.deleteMany).not.toHaveBeenCalled();
     });
@@ -647,7 +732,9 @@ describe('StudentsService', () => {
       jest.spyOn(classModel, 'find').mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: '507f1f77bcf86cd799439012' }]),
+        exec: jest
+          .fn()
+          .mockResolvedValue([{ _id: '507f1f77bcf86cd799439012' }]),
       } as any);
 
       const result = await service.findOne(mockStudent._id, requester);
@@ -668,7 +755,9 @@ describe('StudentsService', () => {
         exec: jest.fn().mockResolvedValue(null),
       });
 
-      await expect(service.findOne(mockStudent._id, requester)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(mockStudent._id, requester)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw NotFoundException on findOne if ID is invalid', async () => {
@@ -686,16 +775,20 @@ describe('StudentsService', () => {
         role: '507f1f77bcf86cd799439012',
         save: jest.fn().mockResolvedValue(true),
       };
-      
+
       jest.spyOn(service['userModel'], 'findOne').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockUser),
       } as any);
       jest.spyOn(service['userModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockUser),
       } as any);
-      jest.spyOn(service['studentModel'], 'updateOne').mockResolvedValue({} as any);
+      jest
+        .spyOn(service['studentModel'], 'updateOne')
+        .mockResolvedValue({} as any);
 
-      const result = await service.activateStudentAccount('507f1f77bcf86cd799439011');
+      const result = await service.activateStudentAccount(
+        '507f1f77bcf86cd799439011',
+      );
       expect(result).toBeDefined();
       expect(mockUser.status).toEqual('active');
       expect(mockUser.save).toHaveBeenCalled();
@@ -714,10 +807,16 @@ describe('StudentsService', () => {
         status: 'active',
         save: jest.fn(),
       };
-      jest.spyOn(service['userModel'], 'create').mockResolvedValue(mockCreatedUser as any);
-      jest.spyOn(service['studentModel'], 'updateOne').mockResolvedValue({} as any);
+      jest
+        .spyOn(service['userModel'], 'create')
+        .mockResolvedValue(mockCreatedUser as any);
+      jest
+        .spyOn(service['studentModel'], 'updateOne')
+        .mockResolvedValue({} as any);
 
-      const result = await service.activateStudentAccount('507f1f77bcf86cd799439011');
+      const result = await service.activateStudentAccount(
+        '507f1f77bcf86cd799439011',
+      );
       expect(result).toBeDefined();
       expect(service['userModel'].create).toHaveBeenCalled();
     });
@@ -738,9 +837,13 @@ describe('StudentsService', () => {
       jest.spyOn(service['userModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockUser),
       } as any);
-      jest.spyOn(service['studentModel'], 'updateOne').mockResolvedValue({} as any);
+      jest
+        .spyOn(service['studentModel'], 'updateOne')
+        .mockResolvedValue({} as any);
 
-      const result = await service.bulkActivateStudentAccounts(['507f1f77bcf86cd799439011']);
+      const result = await service.bulkActivateStudentAccounts([
+        '507f1f77bcf86cd799439011',
+      ]);
       expect(result).toBeDefined();
       expect(result.success).toEqual(1);
     });
@@ -750,7 +853,10 @@ describe('StudentsService', () => {
     it('should throw ForbiddenException if requester is Student', async () => {
       const requester = { userId: 'student-id', roleName: 'Student' };
       await expect(
-        service.resetStudentAccountPassword('507f1f77bcf86cd799439011', requester),
+        service.resetStudentAccountPassword(
+          '507f1f77bcf86cd799439011',
+          requester,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -761,20 +867,26 @@ describe('StudentsService', () => {
       } as any);
 
       await expect(
-        service.resetStudentAccountPassword('507f1f77bcf86cd799439011', requester),
+        service.resetStudentAccountPassword(
+          '507f1f77bcf86cd799439011',
+          requester,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException if student has no linked user_id', async () => {
       const requester = { userId: 'admin-id', roleName: 'Admin' };
       const studentNoUser = { ...getCloneMockStudent(), user_id: null };
-      
+
       jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(studentNoUser),
       } as any);
 
       await expect(
-        service.resetStudentAccountPassword('507f1f77bcf86cd799439011', requester),
+        service.resetStudentAccountPassword(
+          '507f1f77bcf86cd799439011',
+          requester,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -793,12 +905,14 @@ describe('StudentsService', () => {
       jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(student),
       } as any);
-      
+
       jest.spyOn(service['userModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockUser),
       } as any);
 
-      const updateManySpy = jest.spyOn(refreshTokenModel, 'updateMany').mockResolvedValue({} as any);
+      const updateManySpy = jest
+        .spyOn(refreshTokenModel, 'updateMany')
+        .mockResolvedValue({} as any);
 
       // Mock getAccountStatusMap to prevent errors in attachAccountStatus
       jest.spyOn(service as any, 'getAccountStatusMap').mockResolvedValue({
@@ -806,7 +920,10 @@ describe('StudentsService', () => {
         byEmail: new Map(),
       });
 
-      const result = await service.resetStudentAccountPassword('507f1f77bcf86cd799439011', requester);
+      const result = await service.resetStudentAccountPassword(
+        '507f1f77bcf86cd799439011',
+        requester,
+      );
 
       expect(result).toBeDefined();
       expect(mockUser.status).toBe('inactive');
@@ -834,12 +951,14 @@ describe('StudentsService', () => {
       jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(student),
       } as any);
-      
+
       jest.spyOn(service['userModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockUser),
       } as any);
 
-      const updateManySpy = jest.spyOn(refreshTokenModel, 'updateMany').mockResolvedValue({} as any);
+      const updateManySpy = jest
+        .spyOn(refreshTokenModel, 'updateMany')
+        .mockResolvedValue({} as any);
 
       // Mock getAccountStatusMap to prevent errors in attachAccountStatus
       jest.spyOn(service as any, 'getAccountStatusMap').mockResolvedValue({
@@ -847,7 +966,10 @@ describe('StudentsService', () => {
         byEmail: new Map(),
       });
 
-      const result = await service.resetStudentAccountPassword('507f1f77bcf86cd799439011', requester);
+      const result = await service.resetStudentAccountPassword(
+        '507f1f77bcf86cd799439011',
+        requester,
+      );
 
       expect(result).toBeDefined();
       expect(mockUser.status).toBe('active');
@@ -877,19 +999,24 @@ describe('StudentsService', () => {
       jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(student),
       } as any);
-      
+
       jest.spyOn(service['userModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockUser),
       } as any);
 
-      const updateManySpy = jest.spyOn(refreshTokenModel, 'updateMany').mockResolvedValue({} as any);
+      const updateManySpy = jest
+        .spyOn(refreshTokenModel, 'updateMany')
+        .mockResolvedValue({} as any);
 
       jest.spyOn(service as any, 'getAccountStatusMap').mockResolvedValue({
         byId: new Map([[mockUser._id, 'locked']]),
         byEmail: new Map(),
       });
 
-      const result = await service.lockStudentAccount('507f1f77bcf86cd799439011', requester);
+      const result = await service.lockStudentAccount(
+        '507f1f77bcf86cd799439011',
+        requester,
+      );
 
       expect(result).toBeDefined();
       expect(mockUser.status).toBe('locked');
@@ -923,7 +1050,7 @@ describe('StudentsService', () => {
       jest.spyOn(service['studentModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(student),
       } as any);
-      
+
       jest.spyOn(service['userModel'], 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockUser),
       } as any);
@@ -933,7 +1060,10 @@ describe('StudentsService', () => {
         byEmail: new Map(),
       });
 
-      const result = await service.unlockStudentAccount('507f1f77bcf86cd799439011', requester);
+      const result = await service.unlockStudentAccount(
+        '507f1f77bcf86cd799439011',
+        requester,
+      );
 
       expect(result).toBeDefined();
       expect(mockUser.status).toBe('active');
@@ -980,7 +1110,7 @@ describe('StudentsService', () => {
     it('should do nothing if PASSWORD_REMEDIATION_MODE is "off"', async () => {
       process.env.PASSWORD_REMEDIATION_MODE = 'off';
       const findStudentSpy = jest.spyOn(service['studentModel'], 'find');
-      
+
       await service['remediateStalePasswords']();
 
       expect(findStudentSpy).not.toHaveBeenCalled();
@@ -988,7 +1118,7 @@ describe('StudentsService', () => {
 
     it('should run in dry-run mode and log affected users without saving them', async () => {
       process.env.PASSWORD_REMEDIATION_MODE = 'dry-run';
-      
+
       const dob = new Date('1999-12-31T20:00:00.000Z'); // correct: 01012000, wrong (UTC): 31121999
       const mockStudentObj = {
         student_code: 'SV12345',
@@ -1005,13 +1135,19 @@ describe('StudentsService', () => {
         exec: jest.fn().mockResolvedValue([mockStudentObj]),
       } as any);
 
-      const findUserSpy = jest.spyOn(service['userModel'], 'find').mockReturnValue({
-        exec: jest.fn().mockResolvedValue([mockUserObj]),
-      } as any);
+      const findUserSpy = jest
+        .spyOn(service['userModel'], 'find')
+        .mockReturnValue({
+          exec: jest.fn().mockResolvedValue([mockUserObj]),
+        } as any);
 
-      jest.spyOn(service as any, 'getStudentEmail').mockReturnValue('sv12345@school.edu.vn');
-      
-      const bcryptCompareSpy = jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
+      jest
+        .spyOn(service as any, 'getStudentEmail')
+        .mockReturnValue('sv12345@school.edu.vn');
+
+      const bcryptCompareSpy = jest
+        .spyOn(require('bcrypt'), 'compare')
+        .mockResolvedValue(true as never);
       const loggerLogSpy = jest.spyOn(service['logger'], 'log');
 
       await service['remediateStalePasswords']();
@@ -1019,13 +1155,15 @@ describe('StudentsService', () => {
       expect(findUserSpy).toHaveBeenCalledWith({
         $or: [
           { email: { $in: ['sv12345@school.edu.vn'] } },
-          { user_name: { $in: ['SV12345'] } }
-        ]
+          { user_name: { $in: ['SV12345'] } },
+        ],
       });
       expect(bcryptCompareSpy).toHaveBeenCalled();
       expect(mockUserObj.save).not.toHaveBeenCalled();
       expect(loggerLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[DRY-RUN] Found 1 student accounts with incorrect timezone DOB passwords')
+        expect.stringContaining(
+          '[DRY-RUN] Found 1 student accounts with incorrect timezone DOB passwords',
+        ),
       );
     });
 
@@ -1048,14 +1186,20 @@ describe('StudentsService', () => {
         exec: jest.fn().mockResolvedValue([mockStudentObj]),
       } as any);
 
-      const findUserSpy = jest.spyOn(service['userModel'], 'find').mockReturnValue({
-        exec: jest.fn().mockResolvedValue([mockUserObj]),
-      } as any);
+      const findUserSpy = jest
+        .spyOn(service['userModel'], 'find')
+        .mockReturnValue({
+          exec: jest.fn().mockResolvedValue([mockUserObj]),
+        } as any);
 
-      jest.spyOn(service as any, 'getStudentEmail').mockReturnValue('sv12345@school.edu.vn');
-      
+      jest
+        .spyOn(service as any, 'getStudentEmail')
+        .mockReturnValue('sv12345@school.edu.vn');
+
       jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
-      jest.spyOn(require('bcrypt'), 'hash').mockResolvedValue('new_hashed_correct_password' as never);
+      jest
+        .spyOn(require('bcrypt'), 'hash')
+        .mockResolvedValue('new_hashed_correct_password' as never);
       const loggerLogSpy = jest.spyOn(service['logger'], 'log');
 
       await service['remediateStalePasswords']();
@@ -1063,13 +1207,15 @@ describe('StudentsService', () => {
       expect(findUserSpy).toHaveBeenCalledWith({
         $or: [
           { email: { $in: ['sv12345@school.edu.vn'] } },
-          { user_name: { $in: ['SV12345'] } }
-        ]
+          { user_name: { $in: ['SV12345'] } },
+        ],
       });
       expect(mockUserObj.pw_hash).toBe('new_hashed_correct_password');
       expect(mockUserObj.save).toHaveBeenCalled();
       expect(loggerLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[APPLY] Successfully remediated 1/1 student accounts')
+        expect.stringContaining(
+          '[APPLY] Successfully remediated 1/1 student accounts',
+        ),
       );
     });
 
@@ -1096,9 +1242,13 @@ describe('StudentsService', () => {
         exec: jest.fn().mockResolvedValue([mockUserObj]),
       } as any);
 
-      jest.spyOn(service as any, 'getStudentEmail').mockReturnValue('sv12345@school.edu.vn');
+      jest
+        .spyOn(service as any, 'getStudentEmail')
+        .mockReturnValue('sv12345@school.edu.vn');
       jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
-      jest.spyOn(require('bcrypt'), 'hash').mockResolvedValue('new_hashed_correct_password' as never);
+      jest
+        .spyOn(require('bcrypt'), 'hash')
+        .mockResolvedValue('new_hashed_correct_password' as never);
 
       const loggerLogSpy = jest.spyOn(service['logger'], 'log');
 
@@ -1107,7 +1257,7 @@ describe('StudentsService', () => {
       // Check all logger.log invocations
       for (const call of loggerLogSpy.mock.calls) {
         const logMsg = call[0];
-        
+
         // Ensure no passwords, secrets, hashes, unmasked emails, or raw DOB in strings
         expect(logMsg).not.toContain('01012000');
         expect(logMsg).not.toContain('31121999');
@@ -1115,7 +1265,7 @@ describe('StudentsService', () => {
         expect(logMsg).not.toContain('new_hashed_correct_password');
         expect(logMsg).not.toContain('sv12345@school.edu.vn');
         expect(logMsg).not.toContain(dob.toISOString());
-        
+
         // If student code is present, it must be masked (SV12345 -> SV1***45)
         if (logMsg.includes('SV1')) {
           expect(logMsg).toContain('SV1***45');
@@ -1127,15 +1277,21 @@ describe('StudentsService', () => {
 
   describe('Student Account Sync', () => {
     it('should not sync on startup if config is off', async () => {
-      const syncSpy = jest.spyOn(service, 'syncLegacyStudentsAccounts').mockResolvedValue(null as any);
+      const syncSpy = jest
+        .spyOn(service, 'syncLegacyStudentsAccounts')
+        .mockResolvedValue(null as any);
       await service.onModuleInit();
       expect(syncSpy).not.toHaveBeenCalled();
     });
 
     it('should call sync with preview if config is dry-run', async () => {
       const configService = service['configService'];
-      (configService.get as jest.Mock).mockImplementation((k) => k === 'STUDENT_ACCOUNT_STARTUP_SYNC' ? 'dry-run' : null);
-      const syncSpy = jest.spyOn(service, 'syncLegacyStudentsAccounts').mockResolvedValue(null as any);
+      (configService.get as jest.Mock).mockImplementation((k) =>
+        k === 'STUDENT_ACCOUNT_STARTUP_SYNC' ? 'dry-run' : null,
+      );
+      const syncSpy = jest
+        .spyOn(service, 'syncLegacyStudentsAccounts')
+        .mockResolvedValue(null as any);
       await service.onModuleInit();
       expect(syncSpy).toHaveBeenCalledWith('preview');
     });
@@ -1149,7 +1305,9 @@ describe('StudentsService', () => {
       });
       const origEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'production';
-      const syncSpy = jest.spyOn(service, 'syncLegacyStudentsAccounts').mockResolvedValue(null as any);
+      const syncSpy = jest
+        .spyOn(service, 'syncLegacyStudentsAccounts')
+        .mockResolvedValue(null as any);
       await service.onModuleInit();
       expect(syncSpy).toHaveBeenCalledWith('apply');
       process.env.NODE_ENV = origEnv;
@@ -1157,10 +1315,14 @@ describe('StudentsService', () => {
 
     it('should block apply if production and repair not allowed', async () => {
       const configService = service['configService'];
-      (configService.get as jest.Mock).mockImplementation((k) => k === 'STUDENT_ACCOUNT_STARTUP_SYNC' ? 'apply' : 'false');
+      (configService.get as jest.Mock).mockImplementation((k) =>
+        k === 'STUDENT_ACCOUNT_STARTUP_SYNC' ? 'apply' : 'false',
+      );
       const origEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'production';
-      const syncSpy = jest.spyOn(service, 'syncLegacyStudentsAccounts').mockResolvedValue(null as any);
+      const syncSpy = jest
+        .spyOn(service, 'syncLegacyStudentsAccounts')
+        .mockResolvedValue(null as any);
       await service.onModuleInit();
       expect(syncSpy).not.toHaveBeenCalled();
       process.env.NODE_ENV = origEnv;
@@ -1227,8 +1389,9 @@ describe('StudentsService', () => {
     describe('importPreview', () => {
       it('should block student role from performing preview (ForbiddenException)', async () => {
         const requester = { userId: 'student-id', roleName: 'Student' };
-        await expect(service.importPreview('507f1f77bcf86cd799439012', [], requester))
-          .rejects.toThrow(ForbiddenException);
+        await expect(
+          service.importPreview('507f1f77bcf86cd799439012', [], requester),
+        ).rejects.toThrow(ForbiddenException);
       });
 
       it('should throw NotFoundException if class does not exist', async () => {
@@ -1237,27 +1400,57 @@ describe('StudentsService', () => {
           exec: jest.fn().mockResolvedValue(null),
         } as any);
 
-        await expect(service.importPreview('non-existent-class-id', [], requester))
-          .rejects.toThrow(NotFoundException);
+        await expect(
+          service.importPreview('non-existent-class-id', [], requester),
+        ).rejects.toThrow(NotFoundException);
       });
 
       it('should return valid count, errors, duplicate counts and not write to DB', async () => {
         const requester = { userId: 'admin-id', roleName: 'Admin' };
         const rows = [
-          { 'Mã sinh viên': 'SV001', 'Họ và tên': 'Student One', 'Ngày sinh': '2003-01-15', 'Giới tính': 'Nam', 'Email': 's1@school.edu.vn' },
-          { 'Mã sinh viên': 'SV002', 'Họ và tên': 'Student Two', 'Ngày sinh': '15/05/2003', 'Giới tính': 'Nữ', 'Email': 's2@school.edu.vn' },
-          { 'Mã sinh viên': 'SV003', 'Họ và tên': 'Student Three', 'Ngày sinh': 'invalid-date', 'Giới tính': 'Nam' },
-          { 'Mã sinh viên': 'SV004', 'Họ và tên': 'Student Four', 'Ngày sinh': '2003-02-20', 'Giới tính': 'Nam', 'Email': 'invalid-email' },
+          {
+            'Mã sinh viên': 'SV001',
+            'Họ và tên': 'Student One',
+            'Ngày sinh': '2003-01-15',
+            'Giới tính': 'Nam',
+            Email: 's1@school.edu.vn',
+          },
+          {
+            'Mã sinh viên': 'SV002',
+            'Họ và tên': 'Student Two',
+            'Ngày sinh': '15/05/2003',
+            'Giới tính': 'Nữ',
+            Email: 's2@school.edu.vn',
+          },
+          {
+            'Mã sinh viên': 'SV003',
+            'Họ và tên': 'Student Three',
+            'Ngày sinh': 'invalid-date',
+            'Giới tính': 'Nam',
+          },
+          {
+            'Mã sinh viên': 'SV004',
+            'Họ và tên': 'Student Four',
+            'Ngày sinh': '2003-02-20',
+            'Giới tính': 'Nam',
+            Email: 'invalid-email',
+          },
         ];
 
         const saveSpy = jest.fn();
-        const studentModelSpy = jest.spyOn(service, 'studentModel' as any).mockImplementation(() => {
-          return {
-            save: saveSpy,
-          };
-        });
+        const studentModelSpy = jest
+          .spyOn(service, 'studentModel' as any)
+          .mockImplementation(() => {
+            return {
+              save: saveSpy,
+            };
+          });
 
-        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        const result = await service.importPreview(
+          '507f1f77bcf86cd799439012',
+          rows,
+          requester,
+        );
 
         expect(result).toBeDefined();
         expect(result.totalRows).toBe(4);
@@ -1281,11 +1474,27 @@ describe('StudentsService', () => {
       it('should validate formats (student code normalize, valid email, sex mapping like Nam -> Male, valid date of birth)', async () => {
         const requester = { userId: 'admin-id', roleName: 'Admin' };
         const rows = [
-          { 'Mã SV': '  SV001  ', 'Họ và tên': 'Student One', 'Ngày sinh': '2003-01-15', 'Giới tính': 'Nam', 'Email': 's1@school.edu.vn' },
-          { 'Mã SV': 'SV002', 'Họ và tên': 'Student Two', 'Ngày sinh': '2003-05-20', 'Giới tính': 'khác', 'Email': 's2@school.edu.vn' }
+          {
+            'Mã SV': '  SV001  ',
+            'Họ và tên': 'Student One',
+            'Ngày sinh': '2003-01-15',
+            'Giới tính': 'Nam',
+            Email: 's1@school.edu.vn',
+          },
+          {
+            'Mã SV': 'SV002',
+            'Họ và tên': 'Student Two',
+            'Ngày sinh': '2003-05-20',
+            'Giới tính': 'khác',
+            Email: 's2@school.edu.vn',
+          },
         ];
 
-        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        const result = await service.importPreview(
+          '507f1f77bcf86cd799439012',
+          rows,
+          requester,
+        );
         expect(result.validCount).toBe(2);
 
         const session = service['importSessions'].get(result.sessionId);
@@ -1296,9 +1505,24 @@ describe('StudentsService', () => {
       it('should catch duplicates inside the Excel list as well as already existing students in DB', async () => {
         const requester = { userId: 'admin-id', roleName: 'Admin' };
         const rows = [
-          { 'Mã sinh viên': 'SV001', 'Họ và tên': 'Student One', 'Ngày sinh': '2003-01-15', 'Giới tính': 'Nam' },
-          { 'Mã sinh viên': 'SV001', 'Họ và tên': 'Student Dupe', 'Ngày sinh': '2003-01-15', 'Giới tính': 'Nam' },
-          { 'Mã sinh viên': 'SV002', 'Họ và tên': 'Student Existing', 'Ngày sinh': '2003-01-15', 'Giới tính': 'Nam' },
+          {
+            'Mã sinh viên': 'SV001',
+            'Họ và tên': 'Student One',
+            'Ngày sinh': '2003-01-15',
+            'Giới tính': 'Nam',
+          },
+          {
+            'Mã sinh viên': 'SV001',
+            'Họ và tên': 'Student Dupe',
+            'Ngày sinh': '2003-01-15',
+            'Giới tính': 'Nam',
+          },
+          {
+            'Mã sinh viên': 'SV002',
+            'Họ và tên': 'Student Existing',
+            'Ngày sinh': '2003-01-15',
+            'Giới tính': 'Nam',
+          },
         ];
 
         jest.spyOn(service['studentModel'], 'find').mockReturnValue({
@@ -1307,23 +1531,45 @@ describe('StudentsService', () => {
           exec: jest.fn().mockResolvedValue([{ student_code: 'SV002' }]),
         } as any);
 
-        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        const result = await service.importPreview(
+          '507f1f77bcf86cd799439012',
+          rows,
+          requester,
+        );
         expect(result.totalRows).toBe(3);
         expect(result.validCount).toBe(1);
         expect(result.errorCount).toBe(2);
 
-        expect(result.errors[0].reason).toContain('bị trùng lặp trong file Excel');
+        expect(result.errors[0].reason).toContain(
+          'bị trùng lặp trong file Excel',
+        );
         expect(result.errors[1].reason).toContain('đã tồn tại trong hệ thống');
       });
 
       it('should support split name columns (Họ đệm + Tên / Ho dem + Ten)', async () => {
         const requester = { userId: 'admin-id', roleName: 'Admin' };
         const rows = [
-          { 'Mã SV': 'SV003', 'Họ đệm': 'Nguyễn Văn', 'Tên': 'Anh', 'Ngày sinh': '2004-05-15', 'Giới tính': 'Nam' },
-          { 'Mã SV': 'SV004', 'Ho dem': 'Lê Thị', 'Ten': 'Bình', 'Ngày sinh': '2005-11-20', 'Giới tính': 'Nữ' },
+          {
+            'Mã SV': 'SV003',
+            'Họ đệm': 'Nguyễn Văn',
+            Tên: 'Anh',
+            'Ngày sinh': '2004-05-15',
+            'Giới tính': 'Nam',
+          },
+          {
+            'Mã SV': 'SV004',
+            'Ho dem': 'Lê Thị',
+            Ten: 'Bình',
+            'Ngày sinh': '2005-11-20',
+            'Giới tính': 'Nữ',
+          },
         ];
 
-        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        const result = await service.importPreview(
+          '507f1f77bcf86cd799439012',
+          rows,
+          requester,
+        );
         expect(result.validCount).toBe(2);
 
         const session = service['importSessions'].get(result.sessionId);
@@ -1334,10 +1580,20 @@ describe('StudentsService', () => {
       it('should normalize headers (leading/trailing space, multiple spaces, capitalization, non-breaking spaces)', async () => {
         const requester = { userId: 'admin-id', roleName: 'Admin' };
         const rows = [
-          { '  Mã SV\u200B  ': 'SV005', 'Họ\u00A0đệm': 'Trần', '  Tên  ': 'Chi', 'Ngày sinh': '2004-01-01', 'Giới tính': 'Nữ' },
+          {
+            '  Mã SV\u200B  ': 'SV005',
+            'Họ\u00A0đệm': 'Trần',
+            '  Tên  ': 'Chi',
+            'Ngày sinh': '2004-01-01',
+            'Giới tính': 'Nữ',
+          },
         ];
 
-        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        const result = await service.importPreview(
+          '507f1f77bcf86cd799439012',
+          rows,
+          requester,
+        );
         expect(result.validCount).toBe(1);
 
         const session = service['importSessions'].get(result.sessionId);
@@ -1348,24 +1604,52 @@ describe('StudentsService', () => {
       it('should fail validation if only family name or only given name is present', async () => {
         const requester = { userId: 'admin-id', roleName: 'Admin' };
         const rows = [
-          { 'Mã SV': 'SV006', 'Họ đệm': 'Nguyễn', 'Ngày sinh': '2004-01-01', 'Giới tính': 'Nam' },
-          { 'Mã SV': 'SV007', 'Tên': 'Bình', 'Ngày sinh': '2004-01-01', 'Giới tính': 'Nam' },
+          {
+            'Mã SV': 'SV006',
+            'Họ đệm': 'Nguyễn',
+            'Ngày sinh': '2004-01-01',
+            'Giới tính': 'Nam',
+          },
+          {
+            'Mã SV': 'SV007',
+            Tên: 'Bình',
+            'Ngày sinh': '2004-01-01',
+            'Giới tính': 'Nam',
+          },
         ];
 
-        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        const result = await service.importPreview(
+          '507f1f77bcf86cd799439012',
+          rows,
+          requester,
+        );
         expect(result.validCount).toBe(0);
         expect(result.errorCount).toBe(2);
-        expect(result.errors[0].reason).toContain('Họ và tên không được để trống');
-        expect(result.errors[1].reason).toContain('Họ và tên không được để trống');
+        expect(result.errors[0].reason).toContain(
+          'Họ và tên không được để trống',
+        );
+        expect(result.errors[1].reason).toContain(
+          'Họ và tên không được để trống',
+        );
       });
 
       it('should include resolved fullName in errors array when other fields fail', async () => {
         const requester = { userId: 'admin-id', roleName: 'Admin' };
         const rows = [
-          { 'Mã SV': 'SV008', 'Họ đệm': 'Phạm Hoàng', 'Tên': 'Dương', 'Ngày sinh': 'invalid-date', 'Giới tính': 'Nam' },
+          {
+            'Mã SV': 'SV008',
+            'Họ đệm': 'Phạm Hoàng',
+            Tên: 'Dương',
+            'Ngày sinh': 'invalid-date',
+            'Giới tính': 'Nam',
+          },
         ];
 
-        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        const result = await service.importPreview(
+          '507f1f77bcf86cd799439012',
+          rows,
+          requester,
+        );
         expect(result.errorCount).toBe(1);
         expect(result.errors[0].fullName).toBe('Phạm Hoàng Dương');
         expect(result.errors[0].reason).toContain('Ngày sinh không hợp lệ');
@@ -1375,22 +1659,25 @@ describe('StudentsService', () => {
     describe('importConfirm', () => {
       it('should block student role from performing confirm (ForbiddenException)', async () => {
         const requester = { userId: 'student-id', roleName: 'Student' };
-        await expect(service.importConfirm('session-id', requester))
-          .rejects.toThrow(ForbiddenException);
+        await expect(
+          service.importConfirm('session-id', requester),
+        ).rejects.toThrow(ForbiddenException);
       });
 
       it('should throw BadRequestException for non-existing, expired, or committed session IDs', async () => {
         const requester = { userId: 'admin-id', roleName: 'Admin' };
-        await expect(service.importConfirm('non-existent', requester))
-          .rejects.toThrow(BadRequestException);
+        await expect(
+          service.importConfirm('non-existent', requester),
+        ).rejects.toThrow(BadRequestException);
 
         service['importSessions'].set('session-committing', {
           id: 'session-committing',
           status: 'committing',
           validItems: [],
         });
-        await expect(service.importConfirm('session-committing', requester))
-          .rejects.toThrow(BadRequestException);
+        await expect(
+          service.importConfirm('session-committing', requester),
+        ).rejects.toThrow(BadRequestException);
       });
 
       it('should verify status updates to committing and processes rows in background', async () => {
@@ -1401,7 +1688,13 @@ describe('StudentsService', () => {
           status: 'ready_to_commit',
           classId: '507f1f77bcf86cd799439012',
           validItems: [
-            { student_code: 'SV001', full_name: 'Student One', date_bir: new Date('2003-01-15'), sex: 'Male', status: 'Studying' }
+            {
+              student_code: 'SV001',
+              full_name: 'Student One',
+              date_bir: new Date('2003-01-15'),
+              sex: 'Male',
+              status: 'Studying',
+            },
           ],
           errors: [],
           totalRows: 1,
@@ -1414,11 +1707,16 @@ describe('StudentsService', () => {
         };
         service['importSessions'].set(sessionId, session);
 
-        const processSpy = jest.spyOn(service as any, 'processStudentImportBatch').mockImplementation(async () => {});
+        const processSpy = jest
+          .spyOn(service as any, 'processStudentImportBatch')
+          .mockImplementation(async () => {});
 
         const result = await service.importConfirm(sessionId, requester);
 
-        expect(result).toEqual({ success: true, message: 'Đã bắt đầu tiến trình import' });
+        expect(result).toEqual({
+          success: true,
+          message: 'Đã bắt đầu tiến trình import',
+        });
         expect(session.status).toBe('committing');
         expect(processSpy).toHaveBeenCalledWith(sessionId, requester);
       });
@@ -1426,14 +1724,21 @@ describe('StudentsService', () => {
       it('should verify it creates students, creates linked users with default passwords based on date_bir, and initializes active semester SummaryPoints', async () => {
         const requester = { userId: 'admin-id', roleName: 'Admin' };
         const sessionId = 'session-456';
-        
+
         const date_bir = new Date('2003-01-15');
         const session = {
           id: sessionId,
           status: 'ready_to_commit',
           classId: '507f1f77bcf86cd799439012',
           validItems: [
-            { student_code: 'SV001', full_name: 'Student One', date_bir, sex: 'Male', status: 'Studying', email: 's1@school.edu.vn' }
+            {
+              student_code: 'SV001',
+              full_name: 'Student One',
+              date_bir,
+              sex: 'Male',
+              status: 'Studying',
+              email: 's1@school.edu.vn',
+            },
           ],
           errors: [],
           totalRows: 1,
@@ -1457,29 +1762,41 @@ describe('StudentsService', () => {
           class_id: new Types.ObjectId('507f1f77bcf86cd799439012'),
         };
 
-        const mockStudentConstructor = jest.spyOn(service, 'studentModel' as any).mockImplementation(() => {
-          return {
-            save: jest.fn().mockResolvedValue(savedStudent),
-          };
-        });
+        const mockStudentConstructor = jest
+          .spyOn(service, 'studentModel' as any)
+          .mockImplementation(() => {
+            return {
+              save: jest.fn().mockResolvedValue(savedStudent),
+            };
+          });
 
-        const generateUserSpy = jest.spyOn(service as any, 'generateStudentUser').mockResolvedValue({ _id: 'mock-user-id' });
-        const ensureLinkSpy = jest.spyOn(service as any, 'ensureStudentUserLink').mockImplementation(async (student: any, user: any) => {
-          student.user_id = user?._id || user;
-        });
-        const summaryBulkWriteSpy = jest.spyOn(service['summaryPointModel'], 'bulkWrite').mockResolvedValue({} as any);
+        const generateUserSpy = jest
+          .spyOn(service as any, 'generateStudentUser')
+          .mockResolvedValue({ _id: 'mock-user-id' });
+        const ensureLinkSpy = jest
+          .spyOn(service as any, 'ensureStudentUserLink')
+          .mockImplementation(async (student: any, user: any) => {
+            student.user_id = user?._id || user;
+          });
+        const summaryBulkWriteSpy = jest
+          .spyOn(service['summaryPointModel'], 'bulkWrite')
+          .mockResolvedValue({} as any);
 
         await service['processStudentImportBatch'](sessionId, requester);
 
         expect(mockStudentConstructor).toHaveBeenCalled();
         expect(generateUserSpy).toHaveBeenCalledWith(savedStudent, '15012003');
-        expect(ensureLinkSpy).toHaveBeenCalledWith(savedStudent, { _id: 'mock-user-id' });
+        expect(ensureLinkSpy).toHaveBeenCalledWith(savedStudent, {
+          _id: 'mock-user-id',
+        });
         expect(summaryBulkWriteSpy).toHaveBeenCalled();
-        
+
         const bulkOps = summaryBulkWriteSpy.mock.calls[0][0];
         expect(bulkOps.length).toBe(mockSemesters.length);
         expect(bulkOps[0].updateOne.filter.student_id).toBe(savedStudent._id);
-        expect(bulkOps[0].updateOne.filter.semester_id).toBe(mockSemesters[0]._id);
+        expect(bulkOps[0].updateOne.filter.semester_id).toBe(
+          mockSemesters[0]._id,
+        );
 
         expect(session.status).toBe('completed');
         expect(session.progress).toBe(100);
@@ -1494,7 +1811,13 @@ describe('StudentsService', () => {
           status: 'ready_to_commit',
           classId: '507f1f77bcf86cd799439012',
           validItems: [
-            { student_code: 'SV001', full_name: 'Student One', date_bir: new Date('2003-01-15'), sex: 'Male', status: 'Studying' }
+            {
+              student_code: 'SV001',
+              full_name: 'Student One',
+              date_bir: new Date('2003-01-15'),
+              sex: 'Male',
+              status: 'Studying',
+            },
           ],
           errors: [],
           totalRows: 1,
@@ -1509,7 +1832,7 @@ describe('StudentsService', () => {
 
         const mongoError = new Error('Duplicate key error');
         (mongoError as any).code = 11000;
-        
+
         jest.spyOn(service, 'studentModel' as any).mockImplementation(() => {
           return {
             save: jest.fn().mockRejectedValue(mongoError),
@@ -1524,7 +1847,9 @@ describe('StudentsService', () => {
         expect(session.duplicatedCount).toBe(1);
         expect(session.failedCount).toBe(1);
         expect(session.commitErrors.length).toBe(1);
-        expect(session.commitErrors[0].reason).toContain('Mã sinh viên đã tồn tại trong hệ thống');
+        expect(session.commitErrors[0].reason).toContain(
+          'Mã sinh viên đã tồn tại trong hệ thống',
+        );
       });
     });
 
@@ -1564,8 +1889,9 @@ describe('StudentsService', () => {
       });
 
       it('should throw NotFoundException for non-existent session', () => {
-        expect(() => service.getImportProgress('non-existent'))
-          .toThrow(NotFoundException);
+        expect(() => service.getImportProgress('non-existent')).toThrow(
+          NotFoundException,
+        );
       });
     });
   });

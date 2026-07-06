@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { CountsByRole, getNonZeroRoleCount, getTotalCount } from './score-engine.service';
+import {
+  CountsByRole,
+  getNonZeroRoleCount,
+  getTotalCount,
+} from './score-engine.service';
 
 // === Type Definitions ===
 
@@ -42,7 +46,11 @@ export function detectConflict(
   existingResolution?: { resolved_count: number } | null,
 ): { has_conflict: boolean; description?: string } {
   // If explicit resolution exists, no conflict
-  if (existingResolution && existingResolution.resolved_count !== null && existingResolution.resolved_count !== undefined) {
+  if (
+    existingResolution &&
+    existingResolution.resolved_count !== null &&
+    existingResolution.resolved_count !== undefined
+  ) {
     return { has_conflict: false };
   }
 
@@ -62,13 +70,19 @@ export function detectConflict(
   const descriptions: string[] = [];
 
   if (student > 0 && teacher > 0 && student !== teacher) {
-    descriptions.push(`Student reported: ${student}, Teacher recorded: ${teacher}`);
+    descriptions.push(
+      `Student reported: ${student}, Teacher recorded: ${teacher}`,
+    );
   }
   if (student > 0 && supervisor > 0 && student !== supervisor) {
-    descriptions.push(`Student reported: ${student}, Supervisor recorded: ${supervisor}`);
+    descriptions.push(
+      `Student reported: ${student}, Supervisor recorded: ${supervisor}`,
+    );
   }
   if (teacher > 0 && supervisor > 0 && teacher !== supervisor) {
-    descriptions.push(`Teacher recorded: ${teacher}, Supervisor recorded: ${supervisor}`);
+    descriptions.push(
+      `Teacher recorded: ${teacher}, Supervisor recorded: ${supervisor}`,
+    );
   }
 
   if (descriptions.length > 0) {
@@ -86,7 +100,6 @@ export function detectConflict(
 
 @Injectable()
 export class CountResolutionService {
-
   /**
    * Resolve role-aware counts according to resolution rules (taskscope §3).
    *
@@ -96,7 +109,13 @@ export class CountResolutionService {
    * - Student-only count always requires teacher/supervisor review before approval
    */
   resolve(input: CountResolutionInput): CountResolutionOutput {
-    const { counts_by_role, existing_resolution, context, requester_role, requester_user_id } = input;
+    const {
+      counts_by_role,
+      existing_resolution,
+      context,
+      requester_role,
+      requester_user_id,
+    } = input;
 
     // If there's an explicit existing resolution and context is 'auto', keep it
     if (context === 'auto' && existing_resolution) {
@@ -126,7 +145,12 @@ export class CountResolutionService {
       // Supervisor count takes priority if exists, otherwise total
       const supervisorCount = counts_by_role.supervisor || 0;
       const adminCount = counts_by_role.admin || 0;
-      const resolvedCount = supervisorCount > 0 ? supervisorCount : (adminCount > 0 ? adminCount : getTotalCount(counts_by_role));
+      const resolvedCount =
+        supervisorCount > 0
+          ? supervisorCount
+          : adminCount > 0
+            ? adminCount
+            : getTotalCount(counts_by_role);
       return {
         resolved_count: resolvedCount,
         resolved_by_role: 'supervisor',
@@ -139,7 +163,8 @@ export class CountResolutionService {
     if (context === 'teacher_review') {
       // Teacher count takes priority if exists
       const teacherCount = counts_by_role.teacher || 0;
-      const resolvedCount = teacherCount > 0 ? teacherCount : getTotalCount(counts_by_role);
+      const resolvedCount =
+        teacherCount > 0 ? teacherCount : getTotalCount(counts_by_role);
       return {
         resolved_count: resolvedCount,
         resolved_by_role: 'teacher',
@@ -207,7 +232,10 @@ export class CountResolutionService {
         resolved_by_role: 'teacher',
         resolution_source: 'automatic_rule',
         has_conflict: teacher !== student,
-        conflict_description: teacher !== student ? `Student reported: ${student}, Teacher recorded: ${teacher}` : undefined,
+        conflict_description:
+          teacher !== student
+            ? `Student reported: ${student}, Teacher recorded: ${teacher}`
+            : undefined,
         auto_resolved: true,
       };
     }
@@ -219,7 +247,8 @@ export class CountResolutionService {
         resolved_by_role: 'system',
         resolution_source: 'automatic_rule',
         has_conflict: true, // Student-only counts need review
-        conflict_description: 'Student-only count requires teacher/supervisor review before approval',
+        conflict_description:
+          'Student-only count requires teacher/supervisor review before approval',
         auto_resolved: true,
       };
     }

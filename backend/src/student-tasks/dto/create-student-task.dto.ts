@@ -43,7 +43,9 @@ export class CreateStudentTaskDto {
   @IsOptional()
   @IsString()
   @ValidateIf((o) => o.linkedPage !== '' && o.linkedPage != null)
-  @Matches(/^\//, { message: 'Trang liên kết (linkedPage) phải bắt đầu bằng dấu /' })
+  @Matches(/^\//, {
+    message: 'Trang liên kết (linkedPage) phải bắt đầu bằng dấu /',
+  })
   linkedPage?: string;
 
   @IsNotEmpty({ message: 'Đối tượng áp dụng không được để trống' })

@@ -23,9 +23,7 @@ describe('CreateCriterionDto', () => {
       criterion_name: 'Test single_option mode',
       criterion_type: 'cong_diem',
       scoring_mode: 'single_option',
-      options: [
-        { id: 'opt1', label: 'Option 1', score: 10 },
-      ],
+      options: [{ id: 'opt1', label: 'Option 1', score: 10 }],
     });
     const errors = await validate(dto);
     expect(errors.length).toBe(0);
@@ -40,7 +38,7 @@ describe('CreateCriterionDto', () => {
     });
     const errorsMissing = await validate(dtoMissing);
     expect(errorsMissing.length).toBeGreaterThan(0);
-    expect(errorsMissing.find(e => e.property === 'options')).toBeDefined();
+    expect(errorsMissing.find((e) => e.property === 'options')).toBeDefined();
 
     const dtoInvalid = plainToInstance(CreateCriterionDto, {
       category_id: '60c72b2f9b1d8e251c888888',
@@ -53,7 +51,7 @@ describe('CreateCriterionDto', () => {
     });
     const errorsInvalid = await validate(dtoInvalid);
     expect(errorsInvalid.length).toBeGreaterThan(0);
-    expect(errorsInvalid.find(e => e.property === 'options')).toBeDefined();
+    expect(errorsInvalid.find((e) => e.property === 'options')).toBeDefined();
   });
   it('should fail validation when scoring_mode is single_option and options is an empty array', async () => {
     const dto = plainToInstance(CreateCriterionDto, {
@@ -64,7 +62,7 @@ describe('CreateCriterionDto', () => {
       options: [],
     });
     const errors = await validate(dto);
-    const optionsError = errors.find(e => e.property === 'options');
+    const optionsError = errors.find((e) => e.property === 'options');
     expect(optionsError).toBeDefined();
     expect(optionsError?.constraints?.arrayNotEmpty).toBeDefined();
   });
@@ -81,7 +79,7 @@ describe('CreateCriterionDto', () => {
       ],
     });
     const errors = await validate(dto);
-    const optionsError = errors.find(e => e.property === 'options');
+    const optionsError = errors.find((e) => e.property === 'options');
     expect(optionsError).toBeDefined();
     expect(optionsError?.constraints?.arrayUnique).toBeDefined();
   });
@@ -93,10 +91,18 @@ describe('CreateCriterionDto', () => {
       criterion_type: 'cong_diem',
       scoring_mode: 'single_option',
       options: [
-        { _id: '60c72b2f9b1d8e251c888889', id: 'opt1', label: 'Option 1', score: 10 },
+        {
+          _id: '60c72b2f9b1d8e251c888889',
+          id: 'opt1',
+          label: 'Option 1',
+          score: 10,
+        },
       ],
     });
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
     expect(errors.length).toBe(0);
   });
 });

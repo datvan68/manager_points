@@ -13,7 +13,12 @@ import {
 import { EvaluationDetailService } from './evaluation-detail.service';
 import { CreateEvaluationDetailDto } from './dto/create-evaluation-detail.dto';
 import { UpdateEvaluationDetailDto } from './dto/update-evaluation-detail.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { checkRole } from '../auth/guards/check-role.guard';
 
 @ApiTags('evaluation-detail')
@@ -36,18 +41,24 @@ export class EvaluationDetailController {
     @Body() createEvaluationDetailDto: CreateEvaluationDetailDto,
     @Request() req: any,
   ) {
-    return this.evaluationDetailService.create(createEvaluationDetailDto, req.user);
+    return this.evaluationDetailService.create(
+      createEvaluationDetailDto,
+      req.user,
+    );
   }
 
   @Post('bulk-upsert')
-  @ApiOperation({ summary: 'Lưu hàng loạt (Tạo mới hoặc Cập nhật) chi tiết chấm điểm' })
+  @ApiOperation({
+    summary: 'Lưu hàng loạt (Tạo mới hoặc Cập nhật) chi tiết chấm điểm',
+  })
   @ApiResponse({
     status: 200,
     description: 'Chi tiết chấm điểm được lưu thành công.',
   })
   @ApiResponse({ status: 400, description: 'Dữ liệu đầu vào không hợp lệ.' })
   async bulkUpsert(
-    @Body() bulkUpsertDto: import('./dto/bulk-upsert-evaluation-detail.dto').BulkUpsertEvaluationDetailDto,
+    @Body()
+    bulkUpsertDto: import('./dto/bulk-upsert-evaluation-detail.dto').BulkUpsertEvaluationDetailDto,
     @Request() req: any,
   ) {
     return this.evaluationDetailService.bulkUpsert(bulkUpsertDto, req.user);
@@ -83,27 +94,39 @@ export class EvaluationDetailController {
 
   @Get('pre-counts/:summaryId')
   @ApiOperation({
-    summary: 'Đếm số academic_record đã có sẵn cho tất cả tiêu chí của bảng tổng kết',
+    summary:
+      'Đếm số academic_record đã có sẵn cho tất cả tiêu chí của bảng tổng kết',
   })
   @ApiResponse({
     status: 200,
     description: 'Trả về map { criterionId: count } các ghi nhận đã có sẵn.',
   })
-  getPreExistingCounts(@Param('summaryId') summaryId: string, @Request() req: any) {
-    return this.evaluationDetailService.getPreExistingCountsForSummary(summaryId, req.user);
+  getPreExistingCounts(
+    @Param('summaryId') summaryId: string,
+    @Request() req: any,
+  ) {
+    return this.evaluationDetailService.getPreExistingCountsForSummary(
+      summaryId,
+      req.user,
+    );
   }
 
   @Post('pre-counts/bulk')
   @ApiOperation({
-    summary: 'Đếm hàng loạt số academic_record đã có sẵn cho nhiều bảng tổng kết',
+    summary:
+      'Đếm hàng loạt số academic_record đã có sẵn cho nhiều bảng tổng kết',
   })
   @ApiResponse({
     status: 200,
-    description: 'Trả về map { summaryId: { criterionId: counts } } các ghi nhận đã có sẵn.',
+    description:
+      'Trả về map { summaryId: { criterionId: counts } } các ghi nhận đã có sẵn.',
   })
   getPreExistingCountsBulk(@Body() body: any, @Request() req: any) {
     const { summaryIds } = body;
-    return this.evaluationDetailService.getPreExistingCountsBulk(summaryIds, req.user);
+    return this.evaluationDetailService.getPreExistingCountsBulk(
+      summaryIds,
+      req.user,
+    );
   }
 
   @Get(':id')
@@ -134,7 +157,11 @@ export class EvaluationDetailController {
     @Query('includeLogs') includeLogs?: string,
   ) {
     const fetchLogs = includeLogs === 'true';
-    return this.evaluationDetailService.findBySummaryId(summaryId, req.user, fetchLogs);
+    return this.evaluationDetailService.findBySummaryId(
+      summaryId,
+      req.user,
+      fetchLogs,
+    );
   }
 
   @Patch(':id')
@@ -149,7 +176,11 @@ export class EvaluationDetailController {
     @Body() updateEvaluationDetailDto: UpdateEvaluationDetailDto,
     @Request() req: any,
   ) {
-    return this.evaluationDetailService.update(id, updateEvaluationDetailDto, req.user);
+    return this.evaluationDetailService.update(
+      id,
+      updateEvaluationDetailDto,
+      req.user,
+    );
   }
 
   @Delete(':id')

@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  UnauthorizedException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
 import { User, UserStatus } from '../schemas/user.schema';
 import { LoginLog } from '../schemas/login-log.schema';
@@ -81,10 +85,14 @@ describe('AuthService', () => {
           provide: getModelToken(Role.name),
           useValue: {
             findOne: jest.fn().mockReturnValue({
-              exec: jest.fn().mockResolvedValue({ _id: 'mock-role-id', name: 'User' }),
+              exec: jest
+                .fn()
+                .mockResolvedValue({ _id: 'mock-role-id', name: 'User' }),
             }),
             findById: jest.fn().mockReturnValue({
-              exec: jest.fn().mockResolvedValue({ _id: 'mock-role-id', name: 'User' }),
+              exec: jest
+                .fn()
+                .mockResolvedValue({ _id: 'mock-role-id', name: 'User' }),
             }),
           },
         },
@@ -160,7 +168,11 @@ describe('AuthService', () => {
           { email: 'test@example.com', password: 'password' },
           '127.0.0.1',
         ),
-      ).rejects.toThrow(new ForbiddenException('Tài khoản chưa được kích hoạt bởi quản trị viên.'));
+      ).rejects.toThrow(
+        new ForbiddenException(
+          'Tài khoản chưa được kích hoạt bởi quản trị viên.',
+        ),
+      );
     });
 
     it('should login successfully after account status is set to active (admin activation)', async () => {
@@ -252,7 +264,11 @@ describe('AuthService', () => {
         populate: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(user),
-        then: jest.fn().mockImplementation((callback) => Promise.resolve(user).then(callback)),
+        then: jest
+          .fn()
+          .mockImplementation((callback) =>
+            Promise.resolve(user).then(callback),
+          ),
       };
       userModel.findById.mockReturnValue(mockQuery);
 
@@ -260,19 +276,31 @@ describe('AuthService', () => {
       jest.spyOn(service, 'getMe').mockResolvedValue(user as any);
 
       // Active
-      let result = await service.updateUser('507f1f77bcf86cd799439013', { status: 'active' }, '127.0.0.1');
+      let result = await service.updateUser(
+        '507f1f77bcf86cd799439013',
+        { status: 'active' },
+        '127.0.0.1',
+      );
       expect(result).toBeDefined();
       expect(user.status).toEqual(UserStatus.ACTIVE);
 
       // Inactive
-      result = await service.updateUser('507f1f77bcf86cd799439013', { status: 'inactive' }, '127.0.0.1');
+      result = await service.updateUser(
+        '507f1f77bcf86cd799439013',
+        { status: 'inactive' },
+        '127.0.0.1',
+      );
       expect(result).toBeDefined();
       expect(user.status).toEqual(UserStatus.INACTIVE);
       expect(user.failed_login_attempts).toEqual(0);
       expect(user.locked_until).toBeNull();
 
       // Locked
-      result = await service.updateUser('507f1f77bcf86cd799439013', { status: 'locked' }, '127.0.0.1');
+      result = await service.updateUser(
+        '507f1f77bcf86cd799439013',
+        { status: 'locked' },
+        '127.0.0.1',
+      );
       expect(result).toBeDefined();
       expect(user.status).toEqual(UserStatus.LOCKED);
     });
@@ -284,7 +312,11 @@ describe('AuthService', () => {
       userModel.findById.mockResolvedValue(user);
 
       await expect(
-        service.updateUser('507f1f77bcf86cd799439013', { status: 'invalid_status' }, '127.0.0.1'),
+        service.updateUser(
+          '507f1f77bcf86cd799439013',
+          { status: 'invalid_status' },
+          '127.0.0.1',
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -292,8 +324,10 @@ describe('AuthService', () => {
   describe('createUser', () => {
     it('should successfully create a single user', async () => {
       userModel.findOne.mockResolvedValue(null);
-      jest.spyOn((service as any).roleModel, 'findById').mockResolvedValue({ _id: 'mock-role-id' });
-      
+      jest
+        .spyOn((service as any).roleModel, 'findById')
+        .mockResolvedValue({ _id: 'mock-role-id' });
+
       const createdUser = { ...mockUser, toObject: () => ({ ...mockUser }) };
       userModel.create.mockResolvedValue(createdUser);
 
@@ -316,7 +350,12 @@ describe('AuthService', () => {
       userModel.findOne.mockResolvedValueOnce({ _id: 'existing' }); // username found
 
       await expect(
-        service.createUser({ user_name: 'exist', email: 'e@mail.com', password: '1', role_id: '1' }),
+        service.createUser({
+          user_name: 'exist',
+          email: 'e@mail.com',
+          password: '1',
+          role_id: '1',
+        }),
       ).rejects.toThrow('Username đã tồn tại');
     });
   });
@@ -330,19 +369,31 @@ describe('AuthService', () => {
 
     it('should successfully create multiple users and return stats', async () => {
       userModel.findOne.mockResolvedValue(null);
-      jest.spyOn((service as any).roleModel, 'findById').mockResolvedValue({ _id: '507f1f77bcf86cd799439013' });
-      
+      jest
+        .spyOn((service as any).roleModel, 'findById')
+        .mockResolvedValue({ _id: '507f1f77bcf86cd799439013' });
+
       const createdUser1 = { _id: '1', user_name: 'u1', email: 'u1@e.com' };
       const createdUser2 = { _id: '2', user_name: 'u2', email: 'u2@e.com' };
-      
+
       userModel.create
         .mockResolvedValueOnce(createdUser1)
         .mockResolvedValueOnce(createdUser2);
 
       const dto = {
         users: [
-          { user_name: 'u1', email: 'u1@e.com', password: 'p1', role_id: '507f1f77bcf86cd799439013' },
-          { user_name: 'u2', email: 'u2@e.com', password: 'p2', role_id: '507f1f77bcf86cd799439013' },
+          {
+            user_name: 'u1',
+            email: 'u1@e.com',
+            password: 'p1',
+            role_id: '507f1f77bcf86cd799439013',
+          },
+          {
+            user_name: 'u2',
+            email: 'u2@e.com',
+            password: 'p2',
+            role_id: '507f1f77bcf86cd799439013',
+          },
         ],
       };
 
@@ -362,15 +413,27 @@ describe('AuthService', () => {
         .mockResolvedValueOnce(null) // u2 username check
         .mockResolvedValueOnce({ _id: 'existing' }); // u2 email check returns existing
 
-      jest.spyOn((service as any).roleModel, 'findById').mockResolvedValue({ _id: '507f1f77bcf86cd799439013' });
+      jest
+        .spyOn((service as any).roleModel, 'findById')
+        .mockResolvedValue({ _id: '507f1f77bcf86cd799439013' });
 
       const createdUser1 = { _id: '1', user_name: 'u1', email: 'u1@e.com' };
       userModel.create.mockResolvedValueOnce(createdUser1);
 
       const dto = {
         users: [
-          { user_name: 'u1', email: 'u1@e.com', password: 'p1', role_id: '507f1f77bcf86cd799439013' },
-          { user_name: 'u2', email: 'u2@e.com', password: 'p2', role_id: '507f1f77bcf86cd799439013' },
+          {
+            user_name: 'u1',
+            email: 'u1@e.com',
+            password: 'p1',
+            role_id: '507f1f77bcf86cd799439013',
+          },
+          {
+            user_name: 'u2',
+            email: 'u2@e.com',
+            password: 'p2',
+            role_id: '507f1f77bcf86cd799439013',
+          },
         ],
       };
 
@@ -389,27 +452,45 @@ describe('AuthService', () => {
       const permissionModel = (service as any).permissionModel;
       const permissionGroupModel = (service as any).permissionGroupModel;
 
-      permissionModel.deleteMany = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
-      permissionModel.find = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
-      permissionModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({ _id: 'mock-perm-id' }) });
+      permissionModel.deleteMany = jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionModel.find = jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
+      permissionModel.findOneAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: 'mock-perm-id' }),
+      });
 
-      permissionGroupModel.deleteOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
-      permissionGroupModel.deleteMany = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
-      permissionGroupModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
-      permissionGroupModel.find = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
+      permissionGroupModel.deleteOne = jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionGroupModel.deleteMany = jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionGroupModel.findOneAndUpdate = jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionGroupModel.find = jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
 
       const routePermissionModel = (service as any).routePermissionModel;
-      routePermissionModel.deleteOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      routePermissionModel.deleteOne = jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
 
-      roleModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      roleModel.findOneAndUpdate = jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
 
       await (service as any).seedRbac();
 
       expect(roleModel.findOneAndUpdate).toHaveBeenCalled();
-      
+
       const calls = roleModel.findOneAndUpdate.mock.calls;
       expect(calls.length).toBeGreaterThan(0);
-      calls.forEach(call => {
+      calls.forEach((call) => {
         const updateQuery = call[1];
         expect(updateQuery.$setOnInsert).toBeDefined();
         expect(updateQuery.$setOnInsert.permissions).toBeDefined();

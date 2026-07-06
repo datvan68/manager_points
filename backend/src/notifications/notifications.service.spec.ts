@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { Notification } from './schemas/notification.schema';
 import { Types } from 'mongoose';
@@ -36,7 +40,9 @@ describe('NotificationsService', () => {
                 _id: new Types.ObjectId(),
                 ...dto,
                 readByUserIds: [],
-                toObject: function() { return this; },
+                toObject: function () {
+                  return this;
+                },
               }),
             })),
             {
@@ -105,7 +111,11 @@ describe('NotificationsService', () => {
 
   describe('findAll', () => {
     it('should return paginated notifications', async () => {
-      const result = await service.findAll({ page: 1, limit: 10 }, mockUserId, 'Student');
+      const result = await service.findAll(
+        { page: 1, limit: 10 },
+        mockUserId,
+        'Student',
+      );
       expect(result).toBeDefined();
       expect(result.items).toBeDefined();
       expect(result.total).toEqual(1);
@@ -138,29 +148,47 @@ describe('NotificationsService', () => {
   describe('update', () => {
     it('should update and return updated notification for privileged user', async () => {
       const updateData = { title: 'Updated Title' };
-      const result = await service.update(mockNotificationId, updateData, mockUserId, 'Admin');
+      const result = await service.update(
+        mockNotificationId,
+        updateData,
+        mockUserId,
+        'Admin',
+      );
       expect(result).toBeDefined();
       expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
         mockNotificationId,
         { $set: updateData },
-        { returnDocument: 'after' }
+        { returnDocument: 'after' },
       );
     });
 
     it('should update and return updated notification with targetRole for privileged user', async () => {
-      const updateData = { title: 'Updated Title', targetRole: 'student' as const };
-      const result = await service.update(mockNotificationId, updateData, mockUserId, 'Admin');
+      const updateData = {
+        title: 'Updated Title',
+        targetRole: 'student' as const,
+      };
+      const result = await service.update(
+        mockNotificationId,
+        updateData,
+        mockUserId,
+        'Admin',
+      );
       expect(result).toBeDefined();
       expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
         mockNotificationId,
         { $set: updateData },
-        { returnDocument: 'after' }
+        { returnDocument: 'after' },
       );
     });
 
     it('should throw ForbiddenException if user is not privileged', async () => {
       await expect(
-        service.update(mockNotificationId, { title: 'Updated Title' }, mockUserId, 'Student'),
+        service.update(
+          mockNotificationId,
+          { title: 'Updated Title' },
+          mockUserId,
+          'Student',
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -176,7 +204,11 @@ describe('NotificationsService', () => {
 
   describe('markRead', () => {
     it('should mark a notification as read', async () => {
-      const result = await service.markRead(mockNotificationId, mockUserId, 'Student');
+      const result = await service.markRead(
+        mockNotificationId,
+        mockUserId,
+        'Student',
+      );
       expect(result).toBeDefined();
     });
 
@@ -185,7 +217,10 @@ describe('NotificationsService', () => {
         exec: jest.fn().mockResolvedValue({
           ...mockNotification,
           recipientUserId: new Types.ObjectId(), // different recipient
-          toObject: () => ({ ...mockNotification, recipientUserId: new Types.ObjectId() }),
+          toObject: () => ({
+            ...mockNotification,
+            recipientUserId: new Types.ObjectId(),
+          }),
         }),
       });
       await expect(
@@ -208,7 +243,11 @@ describe('NotificationsService', () => {
 
   describe('remove', () => {
     it('should soft delete notification for privileged user', async () => {
-      const result = await service.remove(mockNotificationId, mockUserId, 'Admin');
+      const result = await service.remove(
+        mockNotificationId,
+        mockUserId,
+        'Admin',
+      );
       expect(result).toBeDefined();
     });
 
@@ -221,7 +260,11 @@ describe('NotificationsService', () => {
 
   describe('getReaders', () => {
     it('should return readers list for privileged user', async () => {
-      const result = await service.getReaders(mockNotificationId, mockUserId, 'Admin');
+      const result = await service.getReaders(
+        mockNotificationId,
+        mockUserId,
+        'Admin',
+      );
       expect(result).toBeDefined();
     });
 

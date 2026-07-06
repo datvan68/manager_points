@@ -11,13 +11,31 @@ export class SystemRequest {
   @Prop()
   description: string;
 
-  @Prop({ required: true, enum: ['access', 'data_change', 'support', 'backup', 'other'] })
+  @Prop({
+    required: true,
+    enum: ['access', 'data_change', 'support', 'backup', 'other'],
+  })
   type: string;
 
-  @Prop({ required: true, enum: ['pending', 'in_progress', 'approved', 'rejected', 'completed', 'cancelled'], default: 'pending' })
+  @Prop({
+    required: true,
+    enum: [
+      'pending',
+      'in_progress',
+      'approved',
+      'rejected',
+      'completed',
+      'cancelled',
+    ],
+    default: 'pending',
+  })
   status: string;
 
-  @Prop({ required: true, enum: ['low', 'medium', 'high', 'critical'], default: 'medium' })
+  @Prop({
+    required: true,
+    enum: ['low', 'medium', 'high', 'critical'],
+    default: 'medium',
+  })
   priority: string;
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
@@ -55,9 +73,9 @@ export class SystemRequest {
         note: { type: String, required: true },
         changed_by: { type: Types.ObjectId, ref: 'User', required: true },
         changed_at: { type: Date, default: Date.now },
-      }
+      },
     ],
-    default: []
+    default: [],
   })
   status_history: Array<{
     from_status: string;

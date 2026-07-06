@@ -102,7 +102,13 @@ export class AcademicRecord {
   // What type of record this represents
   @Prop({
     type: String,
-    enum: ['activity', 'discipline', 'manual_score', 'selected_option', 'adjustment'],
+    enum: [
+      'activity',
+      'discipline',
+      'manual_score',
+      'selected_option',
+      'adjustment',
+    ],
     default: null,
   })
   record_type?: string;
@@ -144,7 +150,7 @@ export const AcademicRecordSchema =
 
 AcademicRecordSchema.index(
   { idempotency_key: 1 },
-  { unique: true, sparse: true, name: 'idx_idempotency_key' }
+  { unique: true, sparse: true, name: 'idx_idempotency_key' },
 );
 
 // Legacy index — preserved during migration, will be replaced by idx_role_aware_aggregate
@@ -155,7 +161,14 @@ AcademicRecordSchema.index(
 
 // Covered index for role-aware count queries (taskscope §Migration step 4)
 AcademicRecordSchema.index(
-  { student_id: 1, semester_id: 1, criterion_id: 1, recorded_by_role: 1, status: 1, is_deleted: 1 },
+  {
+    student_id: 1,
+    semester_id: 1,
+    criterion_id: 1,
+    recorded_by_role: 1,
+    status: 1,
+    is_deleted: 1,
+  },
   { name: 'idx_role_aware_aggregate' },
 );
 

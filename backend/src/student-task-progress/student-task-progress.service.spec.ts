@@ -1,10 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Types } from 'mongoose';
 import { StudentTaskProgressService } from './student-task-progress.service';
 import { StudentTaskProgress } from './schemas/student-task-progress.schema';
-import { StudentTask, StudentTaskStatus } from '../student-tasks/schemas/student-task.schema';
+import {
+  StudentTask,
+  StudentTaskStatus,
+} from '../student-tasks/schemas/student-task.schema';
 import { Student } from '../students/schemas/student.schema';
 import { User } from '../auth/schemas/user.schema';
 import { Role } from '../auth/schemas/role.schema';
@@ -147,7 +154,9 @@ describe('StudentTaskProgressService (Unit)', () => {
       ],
     }).compile();
 
-    service = module.get<StudentTaskProgressService>(StudentTaskProgressService);
+    service = module.get<StudentTaskProgressService>(
+      StudentTaskProgressService,
+    );
     progressModel = module.get(getModelToken(StudentTaskProgress.name));
     taskModel = module.get(getModelToken(StudentTask.name));
   });
@@ -239,7 +248,9 @@ describe('StudentTaskProgressService (Unit)', () => {
       };
       const user = { userId: mockUserId, roleName: 'Student' };
 
-      await expect(service.updateProgressFromLinkedEvent(dto, user)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.updateProgressFromLinkedEvent(dto, user),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should allow Admin to reset task progress', async () => {
@@ -272,7 +283,7 @@ describe('StudentTaskProgressService (Unit)', () => {
       const mockSourceSummary = {
         semester_id: new Types.ObjectId(),
       };
-      
+
       const summaryPointModel = (service as any).summaryPointModel;
       summaryPointModel.findById.mockReturnValueOnce({
         select: jest.fn().mockReturnValueOnce({
@@ -283,7 +294,11 @@ describe('StudentTaskProgressService (Unit)', () => {
       const classModel = (service as any).classModel;
       classModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnValueOnce({
-          exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), class_name: 'Lớp 1' }]),
+          exec: jest
+            .fn()
+            .mockResolvedValue([
+              { _id: new Types.ObjectId(), class_name: 'Lớp 1' },
+            ]),
         }),
       });
 
@@ -298,8 +313,8 @@ describe('StudentTaskProgressService (Unit)', () => {
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
           {
-            details: [{ sv_score: 10, gv_score: 10 }] // completed
-          }
+            details: [{ sv_score: 10, gv_score: 10 }], // completed
+          },
         ]),
       });
 
@@ -310,7 +325,11 @@ describe('StudentTaskProgressService (Unit)', () => {
         sourceType: 'grading_score',
         sourceId: new Types.ObjectId().toString(),
       };
-      const user = { userId: mockUserId, roleName: 'Teacher', user_name: 'Nguyen Van A' };
+      const user = {
+        userId: mockUserId,
+        roleName: 'Teacher',
+        user_name: 'Nguyen Van A',
+      };
 
       const result = await service.updateProgressFromLinkedEvent(dto, user);
 
@@ -344,8 +363,8 @@ describe('StudentTaskProgressService (Unit)', () => {
         exec: jest.fn().mockResolvedValue({
           _id: new Types.ObjectId(),
           details: [
-            { gv_score: 10, sv_score: 10 } // 1 completed criteria
-          ]
+            { gv_score: 10, sv_score: 10 }, // 1 completed criteria
+          ],
         }),
       });
 
@@ -377,7 +396,9 @@ describe('StudentTaskProgressService (Unit)', () => {
       };
       const user = { userId: mockUserId, roleName: 'Student', permissions: [] };
 
-      await expect(service.updateProgressFromLinkedEvent(dto, user)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.updateProgressFromLinkedEvent(dto, user),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw BadRequestException if linkedPage is mismatched', async () => {
@@ -388,7 +409,9 @@ describe('StudentTaskProgressService (Unit)', () => {
       };
       const user = { userId: mockUserId, roleName: 'Student' };
 
-      await expect(service.updateProgressFromLinkedEvent(dto, user)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateProgressFromLinkedEvent(dto, user),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if task.linkedPage is empty', async () => {
@@ -400,7 +423,9 @@ describe('StudentTaskProgressService (Unit)', () => {
       };
       const user = { userId: mockUserId, roleName: 'Student' };
 
-      await expect(service.updateProgressFromLinkedEvent(dto, user)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateProgressFromLinkedEvent(dto, user),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if task.linkedPage is not in whitelist', async () => {
@@ -412,7 +437,9 @@ describe('StudentTaskProgressService (Unit)', () => {
       };
       const user = { userId: mockUserId, roleName: 'Student' };
 
-      await expect(service.updateProgressFromLinkedEvent(dto, user)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateProgressFromLinkedEvent(dto, user),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -429,7 +456,7 @@ describe('StudentTaskProgressService (Unit)', () => {
 
       expect(taskModel.updateOne).toHaveBeenCalledWith(
         { _id: new Types.ObjectId(mockTaskId) },
-        { $set: { status: StudentTaskStatus.NOT_STARTED } }
+        { $set: { status: StudentTaskStatus.NOT_STARTED } },
       );
     });
 
@@ -445,7 +472,7 @@ describe('StudentTaskProgressService (Unit)', () => {
 
       expect(taskModel.updateOne).toHaveBeenCalledWith(
         { _id: new Types.ObjectId(mockTaskId) },
-        { $set: { status: StudentTaskStatus.IN_PROGRESS } }
+        { $set: { status: StudentTaskStatus.IN_PROGRESS } },
       );
     });
 
@@ -461,7 +488,7 @@ describe('StudentTaskProgressService (Unit)', () => {
 
       expect(taskModel.updateOne).toHaveBeenCalledWith(
         { _id: new Types.ObjectId(mockTaskId) },
-        { $set: { status: StudentTaskStatus.COMPLETED } }
+        { $set: { status: StudentTaskStatus.COMPLETED } },
       );
     });
   });
@@ -496,7 +523,9 @@ describe('StudentTaskProgressService (Unit)', () => {
       const dto = { status: StudentTaskStatus.IN_PROGRESS };
       const user = { userId: mockUserId, roleName: 'Student' };
 
-      await expect(service.updateStatus(id, dto, user)).rejects.toThrow(NotFoundException);
+      await expect(service.updateStatus(id, dto, user)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -520,7 +549,9 @@ describe('StudentTaskProgressService (Unit)', () => {
 
   describe('LinkedTaskProgressEventDto Validation', () => {
     const { validate } = require('class-validator');
-    const { LinkedTaskProgressEventDto } = require('./dto/linked-task-progress-event.dto');
+    const {
+      LinkedTaskProgressEventDto,
+    } = require('./dto/linked-task-progress-event.dto');
 
     it('should fail validation with invalid taskId, invalid event, or invalid linkedPage', async () => {
       const dto = new LinkedTaskProgressEventDto();
@@ -553,12 +584,18 @@ describe('StudentTaskProgressService (Unit)', () => {
 
   describe('cascadeStatusToActiveProgresses', () => {
     it('should successfully cascade status and call updateMany for active progress records', async () => {
-      progressModel.updateMany = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+      progressModel.updateMany = jest
+        .fn()
+        .mockResolvedValue({ modifiedCount: 1 });
       const taskId = mockTaskId;
       const status = StudentTaskStatus.COMPLETED;
       const userId = mockUserId;
 
-      const result = await service.cascadeStatusToActiveProgresses(taskId, status, userId);
+      const result = await service.cascadeStatusToActiveProgresses(
+        taskId,
+        status,
+        userId,
+      );
 
       expect(progressModel.updateMany).toHaveBeenCalled();
       expect(result).toEqual({ matched: 1, modified: 2 });
@@ -572,9 +609,11 @@ describe('StudentTaskProgressService (Unit)', () => {
       const mockStartedAt = new Date('2026-06-26T00:00:00Z');
 
       taskModel.find.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue([
-          { _id: new Types.ObjectId(mockTaskId), deadline: mockDeadline }
-        ])
+        exec: jest
+          .fn()
+          .mockResolvedValue([
+            { _id: new Types.ObjectId(mockTaskId), deadline: mockDeadline },
+          ]),
       });
 
       const activeProgress = {
@@ -582,11 +621,11 @@ describe('StudentTaskProgressService (Unit)', () => {
         taskId: new Types.ObjectId(mockTaskId),
         status: StudentTaskStatus.IN_PROGRESS,
         startedAt: mockStartedAt,
-        save: jest.fn().mockResolvedValue(true)
+        save: jest.fn().mockResolvedValue(true),
       };
 
       progressModel.find.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue([activeProgress])
+        exec: jest.fn().mockResolvedValue([activeProgress]),
       });
 
       const spy = jest.spyOn(service, 'recalculateTaskAggregateStatus');
@@ -611,9 +650,11 @@ describe('StudentTaskProgressService (Unit)', () => {
       const mockDeadline = new Date('2026-06-27T00:00:00Z');
 
       taskModel.find.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue([
-          { _id: new Types.ObjectId(mockTaskId), deadline: mockDeadline }
-        ])
+        exec: jest
+          .fn()
+          .mockResolvedValue([
+            { _id: new Types.ObjectId(mockTaskId), deadline: mockDeadline },
+          ]),
       });
 
       const activeProgress = {
@@ -621,11 +662,11 @@ describe('StudentTaskProgressService (Unit)', () => {
         taskId: new Types.ObjectId(mockTaskId),
         status: StudentTaskStatus.NOT_STARTED,
         startedAt: undefined,
-        save: jest.fn()
+        save: jest.fn(),
       };
 
       progressModel.find.mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue([activeProgress])
+        exec: jest.fn().mockResolvedValue([activeProgress]),
       });
 
       const spy = jest.spyOn(service, 'recalculateTaskAggregateStatus');
@@ -636,7 +677,7 @@ describe('StudentTaskProgressService (Unit)', () => {
       expect(result.tasksProcessed).toBe(1);
       expect(result.updatedRowsCount).toBe(0);
       expect(activeProgress.save).not.toHaveBeenCalled();
-      
+
       spy.mockRestore();
     });
   });

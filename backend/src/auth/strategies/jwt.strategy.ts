@@ -34,7 +34,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     if (user.status !== 'active') {
-      throw new UnauthorizedException('Tài khoản đã bị khóa hoặc chưa kích hoạt');
+      throw new UnauthorizedException(
+        'Tài khoản đã bị khóa hoặc chưa kích hoạt',
+      );
     }
 
     const role = user.role as any;

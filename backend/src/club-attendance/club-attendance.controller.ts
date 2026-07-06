@@ -10,7 +10,12 @@ import {
   Request,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
 import { ClubAttendanceService } from './club-attendance.service';
@@ -36,7 +41,11 @@ export class ClubAttendanceController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ghi nhận điểm danh sinh viên' })
   create(@Body() dto: CreateAttendanceDto, @Request() req: any) {
-    const role = (req.user.role_code || req.user.roleName || 'teacher').toLowerCase();
+    const role = (
+      req.user.role_code ||
+      req.user.roleName ||
+      'teacher'
+    ).toLowerCase();
     const mappedRole = role.includes('student') ? 'student' : 'teacher';
     return this.attendanceService.create(
       dto,
@@ -137,11 +146,7 @@ export class ClubAttendanceController {
     @Body() dto: ApproveAttendanceDto,
     @Request() req: any,
   ) {
-    return this.attendanceService.approve(
-      id,
-      dto,
-      req.user._id || req.user.id,
-    );
+    return this.attendanceService.approve(id, dto, req.user._id || req.user.id);
   }
 
   @Post(':id/reject')
@@ -153,11 +158,7 @@ export class ClubAttendanceController {
     @Body() dto: ApproveAttendanceDto,
     @Request() req: any,
   ) {
-    return this.attendanceService.reject(
-      id,
-      dto,
-      req.user._id || req.user.id,
-    );
+    return this.attendanceService.reject(id, dto, req.user._id || req.user.id);
   }
 
   @Post('batch-approve')

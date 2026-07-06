@@ -5,7 +5,11 @@ export type ScheduleRegistrationDocument = ScheduleRegistration & Document;
 
 @Schema({ timestamps: true, collection: 'schedule_registrations' })
 export class ScheduleRegistration {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'ClubSchedule', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'ClubSchedule',
+    required: true,
+  })
   schedule_id: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', required: true })

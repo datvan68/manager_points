@@ -43,7 +43,7 @@ export class RbacService {
 
   async getRoles() {
     const roles = await this.roleModel.find().populate('permissions').exec();
-    return roles.map(role => {
+    return roles.map((role) => {
       const rObj = role.toObject();
       if (rObj.permissions && Array.isArray(rObj.permissions)) {
         const seenCodes = new Set<string>();
@@ -142,8 +142,11 @@ export class RbacService {
   }
 
   async getPermissionGroups() {
-    const groups = await this.permissionGroupModel.find().populate('permissions').exec();
-    return groups.map(group => {
+    const groups = await this.permissionGroupModel
+      .find()
+      .populate('permissions')
+      .exec();
+    return groups.map((group) => {
       const gObj = group.toObject();
       if (gObj.permissions && Array.isArray(gObj.permissions)) {
         const seenCodes = new Set<string>();
@@ -259,7 +262,9 @@ export class RbacService {
       throw new BadRequestException('Mã vai trò không được để trống');
     }
 
-    const existingCode = await this.roleModel.findOne({ role_code: roleCodeUpper });
+    const existingCode = await this.roleModel.findOne({
+      role_code: roleCodeUpper,
+    });
     if (existingCode) {
       throw new ConflictException('Mã vai trò này đã tồn tại');
     }

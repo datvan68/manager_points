@@ -26,23 +26,32 @@ export class ProjectionListener implements OnModuleInit {
       try {
         await this.handleRecordCreated(payload);
       } catch (err) {
-        this.logger.error(`[ProjectionListener] Error handling academic_record_created: ${err}`);
+        this.logger.error(
+          `[ProjectionListener] Error handling academic_record_created: ${err}`,
+        );
       }
     });
 
-    gradingEventEmitter.on('academic_record_cancelled', async (payload: any) => {
-      try {
-        await this.handleRecordCancelled(payload);
-      } catch (err) {
-        this.logger.error(`[ProjectionListener] Error handling academic_record_cancelled: ${err}`);
-      }
-    });
+    gradingEventEmitter.on(
+      'academic_record_cancelled',
+      async (payload: any) => {
+        try {
+          await this.handleRecordCancelled(payload);
+        } catch (err) {
+          this.logger.error(
+            `[ProjectionListener] Error handling academic_record_cancelled: ${err}`,
+          );
+        }
+      },
+    );
 
     gradingEventEmitter.on('academic_record_deleted', async (payload: any) => {
       try {
         await this.handleRecordDeleted(payload);
       } catch (err) {
-        this.logger.error(`[ProjectionListener] Error handling academic_record_deleted: ${err}`);
+        this.logger.error(
+          `[ProjectionListener] Error handling academic_record_deleted: ${err}`,
+        );
       }
     });
 
@@ -57,7 +66,9 @@ export class ProjectionListener implements OnModuleInit {
     const recordId = payload.record_id || '';
 
     if (!studentId || !semesterId || !criterionId) {
-      this.logger.warn('[ProjectionListener] Missing IDs in academic_record_created payload');
+      this.logger.warn(
+        '[ProjectionListener] Missing IDs in academic_record_created payload',
+      );
       return;
     }
 
@@ -79,7 +90,9 @@ export class ProjectionListener implements OnModuleInit {
     const recordId = payload.record_id || '';
 
     if (!studentId || !semesterId || !criterionId) {
-      this.logger.warn('[ProjectionListener] Missing IDs in academic_record_cancelled payload');
+      this.logger.warn(
+        '[ProjectionListener] Missing IDs in academic_record_cancelled payload',
+      );
       return;
     }
 

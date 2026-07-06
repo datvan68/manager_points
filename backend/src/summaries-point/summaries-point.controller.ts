@@ -16,7 +16,12 @@ import { SummariesPointService } from './summaries-point.service';
 import { CreateSummaryPointDto } from './dto/create-summary-point.dto';
 import { UpdateSummaryPointDto } from './dto/update-summary-point.dto';
 import { ExportSummaryExcelDto } from './dto/export-summary-excel.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import * as express from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkRole } from '../auth/guards/check-role.guard';
@@ -47,13 +52,22 @@ export class SummariesPointController {
   }
 
   @Post('initialize-class')
-  @ApiOperation({ summary: 'Khởi tạo bảng điểm rèn luyện hàng loạt cho một lớp học' })
-  @ApiResponse({ status: 200, description: 'Khởi tạo bảng điểm rèn luyện thành công.' })
+  @ApiOperation({
+    summary: 'Khởi tạo bảng điểm rèn luyện hàng loạt cho một lớp học',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Khởi tạo bảng điểm rèn luyện thành công.',
+  })
   initializeClass(
     @Body() body: { classId: string; semesterId: string },
     @Request() req: any,
   ) {
-    return this.summariesPointService.initializeClass(body.classId, body.semesterId, req.user);
+    return this.summariesPointService.initializeClass(
+      body.classId,
+      body.semesterId,
+      req.user,
+    );
   }
 
   @Post('export-pdf')
@@ -95,13 +109,15 @@ export class SummariesPointController {
     @Res() res: express.Response,
   ) {
     try {
-      const { buffer, filename } = await this.summariesPointService.generateSummaryExcel(
-        exportDto,
-        req.user,
-      );
+      const { buffer, filename } =
+        await this.summariesPointService.generateSummaryExcel(
+          exportDto,
+          req.user,
+        );
 
       res.set({
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${filename}"`,
         'Content-Length': buffer.length.toString(),
       });
@@ -111,7 +127,7 @@ export class SummariesPointController {
       const status = error.getStatus ? error.getStatus() : 500;
       res.status(status).json({
         statusCode: status,
-        message: error.message || 'Lỗi khi xuất Excel'
+        message: error.message || 'Lỗi khi xuất Excel',
       });
     }
   }
@@ -174,7 +190,9 @@ export class SummariesPointController {
 
   // New endpoint: get latest locked summary for the logged‑in student
   @Get('me/latest')
-  @ApiOperation({ summary: 'Lấy điểm rèn luyện mới nhất của sinh viên hiện tại' })
+  @ApiOperation({
+    summary: 'Lấy điểm rèn luyện mới nhất của sinh viên hiện tại',
+  })
   @ApiResponse({ status: 200, description: 'Trả về điểm mới nhất.' })
   async getLatest(
     @Request() req: any,
@@ -182,15 +200,22 @@ export class SummariesPointController {
     @Query('periodId') periodId?: string,
   ) {
     const userId = req.user?.userId;
-    return this.summariesPointService.findLatestForStudent(userId, semesterId, periodId);
+    return this.summariesPointService.findLatestForStudent(
+      userId,
+      semesterId,
+      periodId,
+    );
   }
 
   @Get('class-approval-status')
-  @ApiOperation({ summary: 'Lấy trạng thái duyệt điểm của tất cả lớp trong một học kỳ' })
-  @ApiResponse({ status: 200, description: 'Trả về map classId -> { total, locked, allApproved }.' })
-  async getClassApprovalStatus(
-    @Query('semesterId') semesterId: string,
-  ) {
+  @ApiOperation({
+    summary: 'Lấy trạng thái duyệt điểm của tất cả lớp trong một học kỳ',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Trả về map classId -> { total, locked, allApproved }.',
+  })
+  async getClassApprovalStatus(@Query('semesterId') semesterId: string) {
     return this.summariesPointService.getClassApprovalStatus(semesterId);
   }
 
@@ -224,7 +249,11 @@ export class SummariesPointController {
     @Body() updateSummaryPointDto: UpdateSummaryPointDto,
     @Request() req: any,
   ) {
-    return this.summariesPointService.update(id, updateSummaryPointDto, req.user);
+    return this.summariesPointService.update(
+      id,
+      updateSummaryPointDto,
+      req.user,
+    );
   }
 
   @Delete(':id')
@@ -265,7 +294,10 @@ export class SummariesPointController {
 
   @Post('repair-draft-scores')
   @UseGuards(checkRole('Admin', 'Supervisor'))
-  @ApiOperation({ summary: 'Quét và tự động sửa các điểm nháp cũ (stale draft scores) của tiêu chí thưởng' })
+  @ApiOperation({
+    summary:
+      'Quét và tự động sửa các điểm nháp cũ (stale draft scores) của tiêu chí thưởng',
+  })
   @ApiResponse({ status: 200, description: 'Sửa lỗi thành công.' })
   repairDraftScores() {
     return this.summariesPointService.auditAndRepairDraftScores();

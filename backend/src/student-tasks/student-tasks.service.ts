@@ -14,7 +14,10 @@ import {
 } from './schemas/student-task.schema';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
-import { EvaluationPeriod, EvaluationPeriodDocument } from '../evaluation-periods/schemas/evaluation-period.schema';
+import {
+  EvaluationPeriod,
+  EvaluationPeriodDocument,
+} from '../evaluation-periods/schemas/evaluation-period.schema';
 import { CreateStudentTaskDto } from './dto/create-student-task.dto';
 import { UpdateStudentTaskDto } from './dto/update-student-task.dto';
 import { QueryStudentTaskDto } from './dto/query-student-task.dto';
@@ -79,12 +82,21 @@ export class StudentTasksService {
 
   private isStudentRole(roleName?: string): boolean {
     const role = (roleName || '').toLowerCase();
-    return role.includes('student') || role.includes('học sinh') || role.includes('sinh viên') || role.includes('hssv');
+    return (
+      role.includes('student') ||
+      role.includes('học sinh') ||
+      role.includes('sinh viên') ||
+      role.includes('hssv')
+    );
   }
 
   private isTeacherRole(roleName?: string): boolean {
     const role = (roleName || '').toLowerCase();
-    return role.includes('teacher') || role.includes('giáo viên') || role.includes('giảng viên');
+    return (
+      role.includes('teacher') ||
+      role.includes('giáo viên') ||
+      role.includes('giảng viên')
+    );
   }
 
   // Xây dựng điều kiện lọc theo quyền truy cập của user (async để truy vấn class của student)
@@ -95,7 +107,7 @@ export class StudentTasksService {
     if (this.isStudentRole(roleName)) {
       // Học sinh chỉ thấy các task dành cho student
       filter.targetType = 'student';
-      
+
       const student = await this.studentModel
         .findOne({ user_id: new Types.ObjectId(user.userId) })
         .exec();
@@ -118,10 +130,18 @@ export class StudentTasksService {
     } else if (this.isTeacherRole(roleName)) {
       // Giáo viên chỉ thấy các task dành cho teacher hoặc do chính mình tạo, và task giao cho lớp chủ nhiệm
       const teacherId = new Types.ObjectId(user.userId);
-      const advisorClasses = await this.classModel.find({ advisor_id: teacherId as any }).select('_id').lean().exec();
-      const advisorClassIds = advisorClasses.map(c => c._id);
-      const advisorStudents = await this.studentModel.find({ class_id: { $in: advisorClassIds } }).select('_id').lean().exec();
-      const advisorStudentIds = advisorStudents.map(s => s._id);
+      const advisorClasses = await this.classModel
+        .find({ advisor_id: teacherId as any })
+        .select('_id')
+        .lean()
+        .exec();
+      const advisorClassIds = advisorClasses.map((c) => c._id);
+      const advisorStudents = await this.studentModel
+        .find({ class_id: { $in: advisorClassIds } })
+        .select('_id')
+        .lean()
+        .exec();
+      const advisorStudentIds = advisorStudents.map((s) => s._id);
 
       filter.$or = [
         { createdBy: teacherId }, // Do giáo viên tạo
@@ -136,8 +156,14 @@ export class StudentTasksService {
           targetType: 'student',
           $or: [
             { targetScope: 'all' },
-            { targetScope: 'specific', targetClassIds: { $in: advisorClassIds } },
-            { targetScope: 'specific', targetStudentIds: { $in: advisorStudentIds } },
+            {
+              targetScope: 'specific',
+              targetClassIds: { $in: advisorClassIds },
+            },
+            {
+              targetScope: 'specific',
+              targetStudentIds: { $in: advisorStudentIds },
+            },
           ],
         },
       ];
@@ -153,7 +179,7 @@ export class StudentTasksService {
         .findOne({ status: { $in: ['sv_phase', 'gv_phase'] } })
         .sort({ createdAt: -1 })
         .exec();
-      
+
       if (activePeriod) {
         if (activePeriod.status === 'sv_phase') return activePeriod.sv_deadline;
         if (activePeriod.status === 'gv_phase') return activePeriod.gv_deadline;
@@ -169,13 +195,17 @@ export class StudentTasksService {
     this.checkObjectId(creatorId, 'Mã người tạo');
 
     let parsedDeadline = new Date(createDto.deadline);
-    
+
     if (isNaN(parsedDeadline.getTime())) {
-      const autoDeadline = await this.resolveLinkedTaskDeadline(createDto.linkedPage);
+      const autoDeadline = await this.resolveLinkedTaskDeadline(
+        createDto.linkedPage,
+      );
       if (autoDeadline) {
         parsedDeadline = autoDeadline;
       } else {
-        throw new BadRequestException('Hạn chót (deadline) không hợp lệ và không thể tự động xác định.');
+        throw new BadRequestException(
+          'Hạn chót (deadline) không hợp lệ và không thể tự động xác định.',
+        );
       }
     }
 
@@ -186,18 +216,21 @@ export class StudentTasksService {
           'Khi phạm vi áp dụng là Cụ thể, cần cung cấp thông tin chi tiết đối tượng (targetDetail)',
         );
       }
-      
+
       // Validate specific target IDs
       if (createDto.targetType === 'student') {
-        const hasStudentIds = createDto.targetStudentIds && createDto.targetStudentIds.length > 0;
-        const hasClassIds = createDto.targetClassIds && createDto.targetClassIds.length > 0;
+        const hasStudentIds =
+          createDto.targetStudentIds && createDto.targetStudentIds.length > 0;
+        const hasClassIds =
+          createDto.targetClassIds && createDto.targetClassIds.length > 0;
         if (!hasStudentIds && !hasClassIds) {
           throw new BadRequestException(
             'Khi phạm vi áp dụng là Cụ thể cho HSSV, cần cung cấp ít nhất một học sinh hoặc một lớp học.',
           );
         }
       } else if (createDto.targetType === 'teacher') {
-        const hasTeacherIds = createDto.targetTeacherIds && createDto.targetTeacherIds.length > 0;
+        const hasTeacherIds =
+          createDto.targetTeacherIds && createDto.targetTeacherIds.length > 0;
         if (!hasTeacherIds) {
           throw new BadRequestException(
             'Khi phạm vi áp dụng là Cụ thể cho Giáo viên, cần cung cấp ít nhất một giáo viên.',
@@ -211,37 +244,56 @@ export class StudentTasksService {
     }
 
     // Nếu người tạo là Teacher, giới hạn target theo lớp chủ nhiệm
-    const creatorUser = await this.userModel.findById(creatorId).populate('role').exec();
+    const creatorUser = await this.userModel
+      .findById(creatorId)
+      .populate('role')
+      .exec();
     const roleName = (creatorUser?.role as any)?.role_name || '';
     const roleCode = (creatorUser?.role as any)?.role_code || '';
-    
+
     const isTeacher = roleCode === 'TEACHER' || this.isTeacherRole(roleName);
-    
+
     if (isTeacher) {
       if (createDto.targetType !== 'student') {
-        throw new ForbiddenException('Giáo viên chỉ được tạo nhiệm vụ cho HSSV.');
+        throw new ForbiddenException(
+          'Giáo viên chỉ được tạo nhiệm vụ cho HSSV.',
+        );
       }
       if (createDto.targetScope === 'all') {
-        throw new ForbiddenException('Giáo viên không được phép tạo nhiệm vụ cho toàn trường.');
+        throw new ForbiddenException(
+          'Giáo viên không được phép tạo nhiệm vụ cho toàn trường.',
+        );
       }
-      
+
       const teacherId = new Types.ObjectId(creatorId);
-      const advisorClasses = await this.classModel.find({ advisor_id: teacherId as any }).select('_id').lean().exec();
-      const advisorClassIdsStr = advisorClasses.map(c => c._id.toString());
-      
+      const advisorClasses = await this.classModel
+        .find({ advisor_id: teacherId as any })
+        .select('_id')
+        .lean()
+        .exec();
+      const advisorClassIdsStr = advisorClasses.map((c) => c._id.toString());
+
       if (createDto.targetClassIds && createDto.targetClassIds.length > 0) {
         for (const cid of createDto.targetClassIds) {
           if (!advisorClassIdsStr.includes(cid)) {
-            throw new ForbiddenException('Bạn chỉ được phép phân công nhiệm vụ cho các lớp do bạn chủ nhiệm.');
+            throw new ForbiddenException(
+              'Bạn chỉ được phép phân công nhiệm vụ cho các lớp do bạn chủ nhiệm.',
+            );
           }
         }
       }
-      
+
       if (createDto.targetStudentIds && createDto.targetStudentIds.length > 0) {
-        const targetStudents = await this.studentModel.find({ _id: { $in: createDto.targetStudentIds } }).exec();
+        const targetStudents = await this.studentModel
+          .find({ _id: { $in: createDto.targetStudentIds } })
+          .exec();
         for (const student of targetStudents) {
-          if (!advisorClassIdsStr.includes(student.class_id?.toString() || '')) {
-            throw new ForbiddenException('Bạn chỉ được phép phân công nhiệm vụ cho sinh viên thuộc các lớp do bạn chủ nhiệm.');
+          if (
+            !advisorClassIdsStr.includes(student.class_id?.toString() || '')
+          ) {
+            throw new ForbiddenException(
+              'Bạn chỉ được phép phân công nhiệm vụ cho sinh viên thuộc các lớp do bạn chủ nhiệm.',
+            );
           }
         }
       }
@@ -301,18 +353,20 @@ export class StudentTasksService {
         },
         creatorId,
       );
-      } catch (error) {
-        console.error('Lỗi gửi thông báo khi tạo task:', error.message);
-      }
+    } catch (error) {
+      console.error('Lỗi gửi thông báo khi tạo task:', error.message);
+    }
 
-      // Sync progress records
-      try {
-        await this.studentTaskProgressService.syncProgressForTask(savedTask._id.toString());
-      } catch (error) {
-        console.error('Lỗi đồng bộ tiến độ khi tạo task:', error.message);
-      }
+    // Sync progress records
+    try {
+      await this.studentTaskProgressService.syncProgressForTask(
+        savedTask._id.toString(),
+      );
+    } catch (error) {
+      console.error('Lỗi đồng bộ tiến độ khi tạo task:', error.message);
+    }
 
-      return savedTask;
+    return savedTask;
   }
 
   async findAll(query: QueryStudentTaskDto, user: any) {
@@ -335,19 +389,27 @@ export class StudentTasksService {
 
     let userProgresses: any[] = [];
     if (isAssigneeOnly) {
-      userProgresses = await this.studentTaskProgressService.findProgressByUser(user.userId);
-      
-      // Filter out progress of tasks that are soft-deleted or do not match baseFilter
-      const visibleTasks = await this.studentTaskModel.find(baseFilter, { _id: 1, priority: 1 }).exec();
-      const visibleTaskIds = new Set(visibleTasks.map(t => t._id.toString()));
-      userProgresses = userProgresses.filter(p => visibleTaskIds.has(p.taskId.toString()));
+      userProgresses = await this.studentTaskProgressService.findProgressByUser(
+        user.userId,
+      );
 
-      const assignedTaskIds = userProgresses.map(p => p.taskId);
+      // Filter out progress of tasks that are soft-deleted or do not match baseFilter
+      const visibleTasks = await this.studentTaskModel
+        .find(baseFilter, { _id: 1, priority: 1 })
+        .exec();
+      const visibleTaskIds = new Set(visibleTasks.map((t) => t._id.toString()));
+      userProgresses = userProgresses.filter((p) =>
+        visibleTaskIds.has(p.taskId.toString()),
+      );
+
+      const assignedTaskIds = userProgresses.map((p) => p.taskId);
       filter._id = { $in: assignedTaskIds };
 
       if (query.status && query.status !== 'all') {
-        const filteredProgresses = userProgresses.filter(p => p.status === query.status);
-        const filteredTaskIds = filteredProgresses.map(p => p.taskId);
+        const filteredProgresses = userProgresses.filter(
+          (p) => p.status === query.status,
+        );
+        const filteredTaskIds = filteredProgresses.map((p) => p.taskId);
         filter._id = { $in: filteredTaskIds };
       }
     } else {
@@ -414,22 +476,30 @@ export class StudentTasksService {
     const totalPages = Math.ceil(total / limit) || 1;
 
     // Lấy progress của user hiện tại cho các task này
-    const taskIds = items.map(item => item._id);
-    const progresses = await this.studentTaskProgressService.findProgressByUserAndTasks(user.userId, taskIds);
-    const progressMap = new Map(progresses.map(p => [p.taskId.toString(), p]));
+    const taskIds = items.map((item) => item._id);
+    const progresses =
+      await this.studentTaskProgressService.findProgressByUserAndTasks(
+        user.userId,
+        taskIds,
+      );
+    const progressMap = new Map(
+      progresses.map((p) => [p.taskId.toString(), p]),
+    );
 
-    const mappedItems = items.map(item => {
+    const mappedItems = items.map((item) => {
       const itemObj = item.toObject();
       const userProgress = progressMap.get(item._id.toString());
       return {
         ...itemObj,
         id: itemObj._id.toString(),
-        userProgress: userProgress ? {
-          id: userProgress._id.toString(),
-          status: userProgress.status,
-          startedAt: userProgress.startedAt,
-          completedAt: userProgress.completedAt,
-        } : null,
+        userProgress: userProgress
+          ? {
+              id: userProgress._id.toString(),
+              status: userProgress.status,
+              startedAt: userProgress.startedAt,
+              completedAt: userProgress.completedAt,
+            }
+          : null,
       };
     });
 
@@ -438,19 +508,31 @@ export class StudentTasksService {
 
     if (isAssigneeOnly) {
       const totalTasks = userProgresses.length;
-      const completedTasks = userProgresses.filter(p => p.status === 'completed').length;
-      const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      const completedTasks = userProgresses.filter(
+        (p) => p.status === 'completed',
+      ).length;
+      const progressPercentage =
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-      const assignedTaskIds = userProgresses.map(p => p.taskId);
-      const highPriorityTasks = await this.studentTaskModel.find({
-        _id: { $in: assignedTaskIds },
-        priority: 'high',
-        deletedAt: null
-      }, { _id: 1 }).exec();
-      const highPriorityTaskIds = new Set(highPriorityTasks.map(t => t._id.toString()));
+      const assignedTaskIds = userProgresses.map((p) => p.taskId);
+      const highPriorityTasks = await this.studentTaskModel
+        .find(
+          {
+            _id: { $in: assignedTaskIds },
+            priority: 'high',
+            deletedAt: null,
+          },
+          { _id: 1 },
+        )
+        .exec();
+      const highPriorityTaskIds = new Set(
+        highPriorityTasks.map((t) => t._id.toString()),
+      );
 
       const urgentTasks = userProgresses.filter(
-        p => p.status !== 'completed' && highPriorityTaskIds.has(p.taskId.toString())
+        (p) =>
+          p.status !== 'completed' &&
+          highPriorityTaskIds.has(p.taskId.toString()),
       ).length;
 
       summary = {
@@ -563,20 +645,38 @@ export class StudentTasksService {
     }
 
     // Validate specific target IDs on update
-    const finalTargetType = updateDto.targetType !== undefined ? updateDto.targetType : task.targetType;
-    const finalTargetScope = updateDto.targetScope !== undefined ? updateDto.targetScope : task.targetScope;
+    const finalTargetType =
+      updateDto.targetType !== undefined
+        ? updateDto.targetType
+        : task.targetType;
+    const finalTargetScope =
+      updateDto.targetScope !== undefined
+        ? updateDto.targetScope
+        : task.targetScope;
 
     if (finalTargetScope === 'specific') {
       if (finalTargetType === 'student') {
-        const finalStudentIds = updateDto.targetStudentIds !== undefined ? updateDto.targetStudentIds : task.targetStudentIds;
-        const finalClassIds = updateDto.targetClassIds !== undefined ? updateDto.targetClassIds : task.targetClassIds;
-        if ((!finalStudentIds || finalStudentIds.length === 0) && (!finalClassIds || finalClassIds.length === 0)) {
+        const finalStudentIds =
+          updateDto.targetStudentIds !== undefined
+            ? updateDto.targetStudentIds
+            : task.targetStudentIds;
+        const finalClassIds =
+          updateDto.targetClassIds !== undefined
+            ? updateDto.targetClassIds
+            : task.targetClassIds;
+        if (
+          (!finalStudentIds || finalStudentIds.length === 0) &&
+          (!finalClassIds || finalClassIds.length === 0)
+        ) {
           throw new BadRequestException(
             'Khi phạm vi áp dụng là Cụ thể cho HSSV, cần cung cấp ít nhất một học sinh hoặc một lớp học.',
           );
         }
       } else if (finalTargetType === 'teacher') {
-        const finalTeacherIds = updateDto.targetTeacherIds !== undefined ? updateDto.targetTeacherIds : task.targetTeacherIds;
+        const finalTeacherIds =
+          updateDto.targetTeacherIds !== undefined
+            ? updateDto.targetTeacherIds
+            : task.targetTeacherIds;
         if (!finalTeacherIds || finalTeacherIds.length === 0) {
           throw new BadRequestException(
             'Khi phạm vi áp dụng là Cụ thể cho Giáo viên, cần cung cấp ít nhất một giáo viên.',
@@ -659,7 +759,9 @@ export class StudentTasksService {
 
     // Sync progress records (because target scope/audience might have changed)
     try {
-      await this.studentTaskProgressService.syncProgressForTask(updatedTask._id.toString());
+      await this.studentTaskProgressService.syncProgressForTask(
+        updatedTask._id.toString(),
+      );
     } catch (error) {
       console.error('Lỗi đồng bộ tiến độ khi cập nhật task:', error.message);
     }
@@ -694,7 +796,7 @@ export class StudentTasksService {
     const isStudent = this.isStudentRole(roleName);
     const isTeacher = this.isTeacherRole(roleName);
     const isCreator = task.createdBy.toString() === user.userId;
-    
+
     const hasUpdatePermission =
       roleName === 'Admin' ||
       roleName.toLowerCase().includes('supervisor') ||
@@ -715,7 +817,9 @@ export class StudentTasksService {
             .findOne({ user_id: new Types.ObjectId(user.userId) })
             .exec();
           if (!student) {
-            throw new ForbiddenException('Không tìm thấy thông tin sinh viên của bạn');
+            throw new ForbiddenException(
+              'Không tìm thấy thông tin sinh viên của bạn',
+            );
           }
           const isAssignedStudent = task.targetStudentIds?.some(
             (sid) => sid.toString() === student._id.toString(),
@@ -733,23 +837,41 @@ export class StudentTasksService {
         const isAssignedTeacher =
           task.targetType === 'teacher' &&
           (task.targetScope === 'all' ||
-            task.targetTeacherIds?.some((tid) => tid.toString() === user.userId));
+            task.targetTeacherIds?.some(
+              (tid) => tid.toString() === user.userId,
+            ));
         if (!isAssignedTeacher) {
-          throw new ForbiddenException('Bạn không được phân công nhiệm vụ này, không thể cập nhật trạng thái');
+          throw new ForbiddenException(
+            'Bạn không được phân công nhiệm vụ này, không thể cập nhật trạng thái',
+          );
         }
       }
 
       // Tìm và cập nhật progress
-      const progress = await this.studentTaskProgressService.findProgressByUserAndTask(user.userId, id);
+      const progress =
+        await this.studentTaskProgressService.findProgressByUserAndTask(
+          user.userId,
+          id,
+        );
       if (!progress) {
-        throw new ForbiddenException('Bạn không được phân công nhiệm vụ này, không thể cập nhật trạng thái');
+        throw new ForbiddenException(
+          'Bạn không được phân công nhiệm vụ này, không thể cập nhật trạng thái',
+        );
       }
       if (!progress.isActive) {
-        throw new BadRequestException('Tiến độ của nhiệm vụ này không còn hoạt động');
+        throw new BadRequestException(
+          'Tiến độ của nhiệm vụ này không còn hoạt động',
+        );
       }
 
-      await this.studentTaskProgressService.updateStatus(progress._id.toString(), { status: status as any }, user);
-      const updated = await this.studentTaskModel.findOne({ _id: new Types.ObjectId(id), deletedAt: null }).exec();
+      await this.studentTaskProgressService.updateStatus(
+        progress._id.toString(),
+        { status: status as any },
+        user,
+      );
+      const updated = await this.studentTaskModel
+        .findOne({ _id: new Types.ObjectId(id), deletedAt: null })
+        .exec();
       if (!updated) {
         throw new NotFoundException(`Không tìm thấy nhiệm vụ với ID ${id}`);
       }
@@ -757,16 +879,28 @@ export class StudentTasksService {
     }
 
     if (!hasUpdatePermission) {
-      throw new ForbiddenException('Bạn không có quyền cập nhật trạng thái nhiệm vụ này');
+      throw new ForbiddenException(
+        'Bạn không có quyền cập nhật trạng thái nhiệm vụ này',
+      );
     }
 
     const previousStatus = task.status;
 
     // Cascade sang toàn bộ progress active của task này
-    const cascadeResult = await this.studentTaskProgressService.cascadeStatusToActiveProgresses(id, status, user.userId);
-    
-    if (cascadeResult.matched === 0 && status !== StudentTaskStatus.NOT_STARTED) {
-      throw new BadRequestException('Nhiệm vụ chưa được phân công hoặc không có người phân công hoạt động, không thể cập nhật trạng thái');
+    const cascadeResult =
+      await this.studentTaskProgressService.cascadeStatusToActiveProgresses(
+        id,
+        status,
+        user.userId,
+      );
+
+    if (
+      cascadeResult.matched === 0 &&
+      status !== StudentTaskStatus.NOT_STARTED
+    ) {
+      throw new BadRequestException(
+        'Nhiệm vụ chưa được phân công hoặc không có người phân công hoạt động, không thể cập nhật trạng thái',
+      );
     }
 
     const updatedTask = await this.studentTaskModel
@@ -819,7 +953,9 @@ export class StudentTasksService {
 
   async resolveAutoLinkedTask(linkedPage: string, user: any) {
     if (!linkedPage) {
-      throw new BadRequestException('Trang liên kết (linkedPage) không được để trống');
+      throw new BadRequestException(
+        'Trang liên kết (linkedPage) không được để trống',
+      );
     }
 
     const normalizedLinkedPage = normalizeLinkedPage(linkedPage);
@@ -831,37 +967,47 @@ export class StudentTasksService {
     const filter: any = {
       ...baseFilter,
       linkedPage: normalizedLinkedPage,
-      status: { $in: [StudentTaskStatus.NOT_STARTED, StudentTaskStatus.IN_PROGRESS] },
+      status: {
+        $in: [StudentTaskStatus.NOT_STARTED, StudentTaskStatus.IN_PROGRESS],
+      },
     };
 
     const tasks = await this.studentTaskModel.find(filter).exec();
 
-    // 3. Lọc lại theo logic "người này có thực sự được giao task hay không" 
+    // 3. Lọc lại theo logic "người này có thực sự được giao task hay không"
     // vì baseFilter của Teacher có thể lỏng hơn (lấy cả task giao cho teacher hoặc student lớp chủ nhiệm)
     let validTasks = [];
     const roleName = user.roleName || '';
     const isTeacher = this.isTeacherRole(roleName);
-    
+
     if (isTeacher) {
       const teacherId = new Types.ObjectId(user.userId);
-      const advisorClasses = await this.classModel.find({ advisor_id: teacherId as any }).select('_id').lean().exec();
-      const advisorClassIdsStr = advisorClasses.map(c => c._id.toString());
+      const advisorClasses = await this.classModel
+        .find({ advisor_id: teacherId as any })
+        .select('_id')
+        .lean()
+        .exec();
+      const advisorClassIdsStr = advisorClasses.map((c) => c._id.toString());
 
       validTasks = tasks.filter((task) => {
         // Teacher task
         if (task.targetType === 'teacher') {
           if (task.targetScope === 'all') return true;
-          return task.targetTeacherIds?.some(tid => tid.toString() === user.userId);
+          return task.targetTeacherIds?.some(
+            (tid) => tid.toString() === user.userId,
+          );
         }
-        
+
         // Student task (chỉ lấy task giao cho lớp chủ nhiệm của giáo viên)
         if (task.targetType === 'student') {
-           if (task.targetScope === 'all') return true;
-           const matchedClass = task.targetClassIds?.some(cid => advisorClassIdsStr.includes(cid.toString()));
-           // Trong trường hợp này, việc tìm studentIds khá phức tạp, ta tạm coi nếu có matchedClass là hợp lệ.
-           return matchedClass;
+          if (task.targetScope === 'all') return true;
+          const matchedClass = task.targetClassIds?.some((cid) =>
+            advisorClassIdsStr.includes(cid.toString()),
+          );
+          // Trong trường hợp này, việc tìm studentIds khá phức tạp, ta tạm coi nếu có matchedClass là hợp lệ.
+          return matchedClass;
         }
-        
+
         return false;
       });
     } else {
@@ -877,14 +1023,19 @@ export class StudentTasksService {
   }
 
   async getTeachers() {
-    const teacherRole = await this.roleModel.findOne({ role_code: 'TEACHER' }).exec();
+    const teacherRole = await this.roleModel
+      .findOne({ role_code: 'TEACHER' })
+      .exec();
     if (!teacherRole) return [];
-    const users = await this.userModel.find({ role: teacherRole._id }).populate('role', 'role_code').exec();
-    return users.map(u => ({
+    const users = await this.userModel
+      .find({ role: teacherRole._id })
+      .populate('role', 'role_code')
+      .exec();
+    return users.map((u) => ({
       id: u._id.toString(),
       user_name: u.user_name,
       email: u.email,
-      role_code: (u.role as any)?.role_code || 'TEACHER'
+      role_code: (u.role as any)?.role_code || 'TEACHER',
     }));
   }
 
@@ -898,13 +1049,17 @@ export class StudentTasksService {
       throw new NotFoundException(`Không tìm thấy nhiệm vụ với ID ${id}`);
     }
 
-    const normalizeLinkedPage = (page?: string) => page?.split('?')[0].replace(/\/$/, '') || '';
+    const normalizeLinkedPage = (page?: string) =>
+      page?.split('?')[0].replace(/\/$/, '') || '';
     const AUTO_EVENT_PAGES = ['/students/record', '/grading/score'];
     const normalizedPath = normalizeLinkedPage(task.linkedPage);
-    
+
     let mode: 'none' | 'manual' | 'auto' = 'none';
     if (normalizedPath) {
-      const isAuto = AUTO_EVENT_PAGES.some((page) => normalizedPath === page || normalizedPath.startsWith(`${page}/`));
+      const isAuto = AUTO_EVENT_PAGES.some(
+        (page) =>
+          normalizedPath === page || normalizedPath.startsWith(`${page}/`),
+      );
       mode = isAuto ? 'auto' : 'manual';
     }
 
@@ -919,10 +1074,11 @@ export class StudentTasksService {
       (isTeacher && isCreator);
 
     // Tìm progress active của user hiện tại
-    const progress = await this.studentTaskProgressService.findProgressByUserAndTask(
-      user.userId,
-      id
-    );
+    const progress =
+      await this.studentTaskProgressService.findProgressByUserAndTask(
+        user.userId,
+        id,
+      );
 
     let allowed = false;
     if (isManager) {
@@ -935,7 +1091,8 @@ export class StudentTasksService {
       allowed,
       mode,
       linkedPage: task.linkedPage || '',
-      progressId: progress && progress.isActive ? progress._id.toString() : undefined,
+      progressId:
+        progress && progress.isActive ? progress._id.toString() : undefined,
     };
   }
 }

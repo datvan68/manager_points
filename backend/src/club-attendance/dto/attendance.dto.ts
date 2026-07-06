@@ -78,7 +78,10 @@ export class BatchAttendanceDto {
   @IsMongoId()
   semester_id: string;
 
-  @ApiProperty({ description: 'Attendance entries', type: [AttendanceEntryDto] })
+  @ApiProperty({
+    description: 'Attendance entries',
+    type: [AttendanceEntryDto],
+  })
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
@@ -87,7 +90,10 @@ export class BatchAttendanceDto {
 }
 
 export class ApproveAttendanceDto {
-  @ApiProperty({ description: 'Approval decision', enum: ['approved', 'rejected'] })
+  @ApiProperty({
+    description: 'Approval decision',
+    enum: ['approved', 'rejected'],
+  })
   @IsEnum(['approved', 'rejected'])
   status: string;
 

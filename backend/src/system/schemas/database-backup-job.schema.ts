@@ -5,7 +5,11 @@ export type DatabaseBackupJobDocument = DatabaseBackupJob & Document;
 
 @Schema({ timestamps: true, collection: 'database_backup_jobs' })
 export class DatabaseBackupJob {
-  @Prop({ required: true, enum: ['queued', 'running', 'success', 'failed'], default: 'queued' })
+  @Prop({
+    required: true,
+    enum: ['queued', 'running', 'success', 'failed'],
+    default: 'queued',
+  })
   status: string;
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
@@ -36,4 +40,5 @@ export class DatabaseBackupJob {
   error_message: string;
 }
 
-export const DatabaseBackupJobSchema = SchemaFactory.createForClass(DatabaseBackupJob);
+export const DatabaseBackupJobSchema =
+  SchemaFactory.createForClass(DatabaseBackupJob);

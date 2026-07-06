@@ -1,4 +1,21 @@
-import { IsNotEmpty, IsString, IsOptional, IsEnum, IsInt, Min, Max, IsMongoId, IsObject, IsDateString, IsNumber, IsArray, ValidateNested, IsBoolean, MaxLength, ArrayMaxSize } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsInt,
+  Min,
+  Max,
+  IsMongoId,
+  IsObject,
+  IsDateString,
+  IsNumber,
+  IsArray,
+  ValidateNested,
+  IsBoolean,
+  MaxLength,
+  ArrayMaxSize,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class MongoIdParamDto {
@@ -113,9 +130,19 @@ export class UpdateSystemRequestDto {
 }
 
 export class UpdateSystemRequestStatusDto {
-  @IsEnum(['pending', 'in_progress', 'approved', 'rejected', 'completed', 'cancelled'], {
-    message: 'Trạng thái không hợp lệ',
-  })
+  @IsEnum(
+    [
+      'pending',
+      'in_progress',
+      'approved',
+      'rejected',
+      'completed',
+      'cancelled',
+    ],
+    {
+      message: 'Trạng thái không hợp lệ',
+    },
+  )
   status: string;
 
   @IsString()
@@ -138,7 +165,14 @@ export class GetSystemRequestsQueryDto {
   limit?: number = 20; // Default limit is 20
 
   @IsOptional()
-  @IsEnum(['pending', 'in_progress', 'approved', 'rejected', 'completed', 'cancelled'])
+  @IsEnum([
+    'pending',
+    'in_progress',
+    'approved',
+    'rejected',
+    'completed',
+    'cancelled',
+  ])
   status?: string;
 
   @IsOptional()
