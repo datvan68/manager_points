@@ -144,6 +144,29 @@ export const studentApi = {
       method: 'POST',
     });
     return handleResponse<Student>(res);
+  },
+
+  async previewImportStudents(classId: string, rows: any[]): Promise<any> {
+    const res = await httpClient(`${API_BASE}/students/import/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classId, rows }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async confirmImportStudents(sessionId: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/students/import/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async getImportStudentsProgress(sessionId: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/students/import/${sessionId}/progress`);
+    return handleResponse<any>(res);
   }
 };
 

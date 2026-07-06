@@ -23,9 +23,32 @@ import { Role, RoleDocument } from '../auth/schemas/role.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { getRequesterRoleName, isStudent, isTeacher, isSupervisor, isAdmin } from '../auth/utils/role.util';
 
+export interface StudentImportSession {
+  id: string;
+  status: 'ready_to_commit' | 'committing' | 'completed' | 'failed';
+  classId: string;
+  validItems: any[];
+  errors: Array<{
+    row: number;
+    studentCode?: string;
+    reason: string;
+  }>;
+  totalRows: number;
+  progress: number;
+  processedCount: number;
+  insertedCount: number;
+  duplicatedCount: number;
+  failedCount: number;
+  commitErrors: Array<{
+    studentCode?: string;
+    reason: string;
+  }>;
+}
+
 @Injectable()
 export class StudentsService implements OnModuleInit {
   private readonly logger = new Logger(StudentsService.name);
+  private importSessions = new Map<string, StudentImportSession>();
 
   constructor(
     @InjectModel(Student.name) private studentModel: Model<StudentDocument>,
@@ -1384,4 +1407,408 @@ export class StudentsService implements OnModuleInit {
       this.logger.log(`[APPLY] Successfully remediated ${remediatedCount}/${affectedCount} student accounts. Remediated: [${affectedCodes.join(', ')}].`);
     }
   }
+
+  private normalizeImportHeader(header: string): string {
+    if (!header) return '';
+    return header
+      .replace(/[\u200B-\u200D\uFEFF]/g, '') // remove BOM and zero-width characters
+      .replace(/\u00A0/g, ' ') // convert non-breaking spaces to normal spaces
+      .trim()
+      .replace(/\s+/g, ' ') // collapse multiple spaces to single space
+      .toLowerCase();
+  }
+
+  private findImportValue(row: any, aliases: string[]): any {
+    if (!row || typeof row !== 'object') return undefined;
+
+    const normalizedRow: Record<string, any> = {};
+    for (const key of Object.keys(row)) {
+      const normKey = this.normalizeImportHeader(key);
+      normalizedRow[normKey] = row[key];
+    }
+
+    const normalizedAliases = aliases.map(a => this.normalizeImportHeader(a));
+    for (const alias of normalizedAliases) {
+      if (normalizedRow[alias] !== undefined && normalizedRow[alias] !== null) {
+        return normalizedRow[alias];
+      }
+    }
+
+    // fallback to original key search
+    for (const key of aliases) {
+      if (row[key] !== undefined && row[key] !== null) {
+        return row[key];
+      }
+      const foundKey = Object.keys(row).find(k => k.toLowerCase().trim() === key.toLowerCase());
+      if (foundKey) {
+        return row[foundKey];
+      }
+    }
+
+    return undefined;
+  }
+
+  private extractStudentFields(row: any) {
+    const student_code = this.findImportValue(row, ['student_code', 'studentCode', 'Mã sinh viên', 'Mã SV', 'Ma SV', 'Mã số sinh viên']);
+    
+    // Check combined name first
+    const combinedName = this.findImportValue(row, ['full_name', 'fullName', 'Họ và tên', 'Ho va ten', 'Họ tên', 'Ho ten']);
+    
+    // Check split names
+    const familyName = this.findImportValue(row, ['Ho dem', 'Họ đệm', 'Ho', 'Họ', 'last_name', 'lastName']);
+    const givenName = this.findImportValue(row, ['Ten', 'Tên', 'first_name', 'firstName']);
+
+    let full_name: any = undefined;
+    const combinedVal = combinedName !== undefined && combinedName !== null ? String(combinedName).trim() : '';
+    if (combinedVal) {
+      full_name = combinedVal;
+    } else {
+      const familyVal = familyName !== undefined && familyName !== null ? String(familyName).trim() : '';
+      const givenVal = givenName !== undefined && givenName !== null ? String(givenName).trim() : '';
+      if (familyVal && givenVal) {
+        full_name = `${familyVal} ${givenVal}`;
+      }
+    }
+
+    const date_bir = this.findImportValue(row, ['date_bir', 'dateOfBirth', 'date_of_birth', 'Ngày sinh', 'Ngay sinh']);
+    const sex = this.findImportValue(row, ['sex', 'gender', 'Giới tính', 'Gioi tinh']);
+    const email = this.findImportValue(row, ['email', 'Email']);
+    const user_id = this.findImportValue(row, ['user_id', 'userId', 'User ID', 'Tài khoản']);
+
+    return { student_code, full_name, date_bir, sex, email, user_id };
+  }
+
+  async importPreview(classId: string, rows: any[], requester: any): Promise<any> {
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền import hồ sơ sinh viên.');
+    }
+
+    const targetClass = await this.classModel.findById(classId).exec();
+    if (!targetClass) {
+      throw new NotFoundException('Lớp học không tồn tại');
+    }
+
+    const validItems: any[] = [];
+    const errors: Array<{ row: number; studentCode?: string; fullName?: string; reason: string }> = [];
+
+    const extractedRows = rows.map((row, index) => {
+      const extracted = this.extractStudentFields(row);
+      const rowNum = index + 2;
+
+      let student_code = extracted.student_code;
+      if (student_code !== undefined && student_code !== null) {
+        student_code = String(student_code).trim();
+      }
+      
+      let user_id = extracted.user_id;
+      if (user_id !== undefined && user_id !== null) {
+        user_id = String(user_id).trim();
+      }
+
+      return {
+        rowNum,
+        raw: row,
+        extracted: {
+          ...extracted,
+          student_code,
+          user_id,
+        }
+      };
+    });
+
+    const allStudentCodes = extractedRows
+      .map(r => r.extracted.student_code)
+      .filter(Boolean) as string[];
+
+    const allUserIds = extractedRows
+      .map(r => r.extracted.user_id)
+      .filter(Boolean) as string[];
+
+    const existingStudentsInDb = await this.studentModel.find({
+      student_code: { $in: allStudentCodes }
+    }).select('student_code').lean().exec();
+    const existingDbCodes = new Set(existingStudentsInDb.map(s => s.student_code));
+
+    const validMongoUserIds = allUserIds.filter(id => Types.ObjectId.isValid(id));
+    const studentsWithUsersInDb = await this.studentModel.find({
+      user_id: { $in: validMongoUserIds.map(id => new Types.ObjectId(id)) }
+    }).select('user_id student_code').lean().exec();
+    
+    const dbLinkedUserIds = new Set(
+      studentsWithUsersInDb.map(s => s.user_id ? s.user_id.toString() : '')
+    );
+
+    const usersInDb = await this.userModel.find({
+      _id: { $in: validMongoUserIds.map(id => new Types.ObjectId(id)) }
+    }).select('_id').lean().exec();
+    const dbUserIds = new Set(usersInDb.map(u => u._id.toString()));
+
+    const seenStudentCodesInFile = new Set<string>();
+
+    for (const item of extractedRows) {
+      const { rowNum, extracted } = item;
+      const rowErrors: string[] = [];
+
+      if (!extracted.student_code) {
+        rowErrors.push('Mã sinh viên không được để trống');
+      } else {
+        const code = extracted.student_code;
+        if (seenStudentCodesInFile.has(code.toLowerCase())) {
+          rowErrors.push(`Mã sinh viên "${code}" bị trùng lặp trong file Excel`);
+        } else {
+          seenStudentCodesInFile.add(code.toLowerCase());
+        }
+
+        if (existingDbCodes.has(code)) {
+          rowErrors.push(`Mã sinh viên "${code}" đã tồn tại trong hệ thống`);
+        }
+      }
+
+      if (!extracted.full_name || !String(extracted.full_name).trim()) {
+        rowErrors.push('Họ và tên không được để trống');
+      }
+
+      let parsedDate: Date | null = null;
+      if (!extracted.date_bir) {
+        rowErrors.push('Ngày sinh không được để trống');
+      } else {
+        if (extracted.date_bir instanceof Date) {
+          parsedDate = extracted.date_bir;
+        } else {
+          const dateStr = String(extracted.date_bir).trim();
+          const parts = dateStr.split('/');
+          if (parts.length === 3) {
+            const d = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const y = parseInt(parts[2], 10);
+            parsedDate = new Date(y, m, d);
+          } else {
+            parsedDate = new Date(dateStr);
+          }
+        }
+
+        if (!parsedDate || isNaN(parsedDate.getTime())) {
+          rowErrors.push('Ngày sinh không hợp lệ');
+        }
+      }
+
+      let mappedSex = 'Other';
+      const s = String(extracted.sex || '').trim().toLowerCase();
+      if (s === 'nam' || s === 'male' || s === 'm') {
+        mappedSex = 'Male';
+      } else if (s === 'nữ' || s === 'nu' || s === 'female' || s === 'f') {
+        mappedSex = 'Female';
+      } else if (s === 'khác' || s === 'khac' || s === 'other' || s === 'o') {
+        mappedSex = 'Other';
+      } else if (extracted.sex) {
+        mappedSex = 'Other';
+      }
+
+      let emailVal = extracted.email ? String(extracted.email).trim() : undefined;
+      if (emailVal) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(emailVal)) {
+          rowErrors.push('Email không đúng định dạng');
+        }
+      }
+
+      let finalUserId: Types.ObjectId | undefined = undefined;
+      if (extracted.user_id) {
+        const uidStr = extracted.user_id;
+        if (!Types.ObjectId.isValid(uidStr)) {
+          rowErrors.push('User ID không hợp lệ');
+        } else {
+          if (!dbUserIds.has(uidStr)) {
+            rowErrors.push('Tài khoản User ID không tồn tại trong hệ thống');
+          } else if (dbLinkedUserIds.has(uidStr)) {
+            rowErrors.push('Tài khoản này đã được liên kết với sinh viên khác');
+          } else {
+            finalUserId = new Types.ObjectId(uidStr);
+          }
+        }
+      }
+
+      if (rowErrors.length > 0) {
+        errors.push({
+          row: rowNum,
+          studentCode: extracted.student_code || undefined,
+          fullName: extracted.full_name || undefined,
+          reason: rowErrors.join(', '),
+        });
+      } else {
+        validItems.push({
+          student_code: extracted.student_code,
+          full_name: String(extracted.full_name).trim(),
+          email: emailVal,
+          date_bir: parsedDate,
+          sex: mappedSex,
+          status: 'Studying',
+          user_id: finalUserId,
+        });
+      }
+    }
+
+    const sessionId = Date.now().toString() + Math.random().toString(36).substring(2, 7);
+    this.importSessions.set(sessionId, {
+      id: sessionId,
+      status: 'ready_to_commit',
+      classId,
+      validItems,
+      errors,
+      totalRows: rows.length,
+      progress: 0,
+      processedCount: 0,
+      insertedCount: 0,
+      duplicatedCount: 0,
+      failedCount: 0,
+      commitErrors: [],
+    });
+
+    if (this.importSessions.size > 100) {
+      const keys = Array.from(this.importSessions.keys());
+      for (let i = 0; i < 50; i++) {
+        this.importSessions.delete(keys[i]);
+      }
+    }
+
+    return {
+      sessionId,
+      totalRows: rows.length,
+      validCount: validItems.length,
+      errorCount: errors.length,
+      errors,
+    };
+  }
+
+  async importConfirm(sessionId: string, requester: any): Promise<any> {
+    if (requester && isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền import hồ sơ sinh viên.');
+    }
+
+    const session = this.importSessions.get(sessionId);
+    if (!session) {
+      throw new BadRequestException('Session không tồn tại hoặc đã hết hạn');
+    }
+    if (session.status !== 'ready_to_commit') {
+      throw new BadRequestException('Session đang ở trạng thái không hợp lệ: ' + session.status);
+    }
+
+    session.status = 'committing';
+
+    this.processStudentImportBatch(sessionId, requester).catch(err => {
+      this.logger.error(`Import student batch error for session ${sessionId}:`, err);
+      session.status = 'failed';
+      session.commitErrors.push({ reason: err.message });
+    });
+
+    return { success: true, message: 'Đã bắt đầu tiến trình import' };
+  }
+
+  private async processStudentImportBatch(sessionId: string, requester: any) {
+    const session = this.importSessions.get(sessionId);
+    if (!session) return;
+
+    const { validItems, classId } = session;
+    const batchSize = 50;
+
+    try {
+      let semesters = await this.semesterModel.find({ status: 'active' }).exec();
+      if (semesters.length === 0) {
+        semesters = await this.semesterModel.find().exec();
+      }
+
+      for (let i = 0; i < validItems.length; i += batchSize) {
+        const batch = validItems.slice(i, i + batchSize);
+
+        const promises = batch.map(async (item: any) => {
+          try {
+            const studentPayload = {
+              ...item,
+              class_id: new Types.ObjectId(classId),
+            };
+            const studentDoc = await new this.studentModel(studentPayload).save();
+
+            try {
+              const plainPassword = this.getDefaultPasswordFromDob(studentDoc.date_bir);
+              const linkedUser = await this.generateStudentUser(studentDoc, plainPassword);
+              await this.ensureStudentUserLink(studentDoc, linkedUser);
+            } catch (userErr: any) {
+              this.logger.error(`Failed to auto-create user for student ${studentDoc.student_code}:`, userErr);
+            }
+
+            if (studentDoc.status === 'Studying') {
+              try {
+                const bulkOps = semesters.map((sem) => ({
+                  updateOne: {
+                    filter: {
+                      student_id: studentDoc._id,
+                      semester_id: sem._id,
+                      period_id: null,
+                    },
+                    update: {
+                      $setOnInsert: {
+                        student_id: studentDoc._id,
+                        semester_id: sem._id,
+                        period_id: null,
+                        total_score: 0,
+                        grading: 'chưa xếp loại',
+                        status: 'draft',
+                        details: [],
+                      },
+                    },
+                    upsert: true,
+                  },
+                }));
+                if (bulkOps.length > 0) {
+                  await this.summaryPointModel.bulkWrite(bulkOps, { ordered: false });
+                }
+              } catch (sumErr: any) {
+                this.logger.error(`Failed to auto-create summary points for student ${studentDoc.student_code}:`, sumErr);
+              }
+            }
+
+            session.insertedCount++;
+          } catch (err: any) {
+            session.duplicatedCount++;
+            session.failedCount++;
+            session.commitErrors.push({
+              studentCode: item.student_code,
+              reason: err.code === 11000 ? 'Mã sinh viên đã tồn tại trong hệ thống' : err.message,
+            });
+          } finally {
+            session.processedCount++;
+            session.progress = session.totalRows > 0 ? Math.floor((session.processedCount / session.totalRows) * 100) : 100;
+          }
+        });
+
+        await Promise.all(promises);
+      }
+
+      session.status = 'completed';
+      session.progress = 100;
+    } catch (err: any) {
+      session.status = 'failed';
+      session.commitErrors.push({ reason: err.message });
+    }
+  }
+
+  getImportProgress(sessionId: string): any {
+    const session = this.importSessions.get(sessionId);
+    if (!session) {
+      throw new NotFoundException('Session không tồn tại');
+    }
+    return {
+      status: session.status,
+      progress: session.progress,
+      processedCount: session.processedCount,
+      insertedCount: session.insertedCount,
+      duplicatedCount: session.duplicatedCount,
+      totalRows: session.totalRows,
+      failedItems: session.commitErrors,
+      acceptedCount: session.validItems ? session.validItems.length : 0,
+      failedCount: session.failedCount || 0,
+      skippedCount: session.duplicatedCount || 0,
+    };
+  }
 }
+

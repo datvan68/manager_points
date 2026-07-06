@@ -28,9 +28,9 @@ export default function ImportResultPopup({ isOpen, onClose, successCount, dupli
   const handleDownloadErrorReport = async () => {
     try {
       const XLSX = await import('xlsx');
-      const headers = [['Dòng', 'Mã SV', 'Họ và tên', 'Nguyên nhân Lỗi / Cảnh báo']];
+      const headers = [['Dòng', 'Mã SV', 'Họ tên', 'Lý do lỗi']];
       const errorData = errors.map(err => [
-        `Dòng ${err.row}`,
+        err.row,
         err.studentCode || '',
         err.fullName || '',
         err.reason
@@ -40,15 +40,15 @@ export default function ImportResultPopup({ isOpen, onClose, successCount, dupli
 
       // Professional Column Widths
       worksheet['!cols'] = [
-        { wch: 12 }, // Dòng
+        { wch: 10 }, // Dòng
         { wch: 15 }, // Mã SV
-        { wch: 25 }, // Họ và tên
-        { wch: 45 }  // Nguyên nhân Lỗi
+        { wch: 25 }, // Họ tên
+        { wch: 45 }  // Lý do lỗi
       ];
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Error_Report');
-      XLSX.writeFile(workbook, 'Bao_Cao_Loi_Import_Sinh_Vien.xlsx');
+      XLSX.writeFile(workbook, 'Bao_Cao_Loi_Import.xlsx');
     } catch (err) {
       console.error('Lỗi khi xuất file báo cáo lỗi:', err);
     }

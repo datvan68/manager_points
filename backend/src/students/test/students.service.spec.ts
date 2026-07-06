@@ -1186,4 +1186,387 @@ describe('StudentsService', () => {
       expect(summary.samples).toBeDefined();
     });
   });
+
+  describe('Two-step Student Excel Import', () => {
+    let mockClass: any;
+    let mockSemesters: any[];
+
+    beforeEach(() => {
+      mockClass = {
+        _id: '507f1f77bcf86cd799439012',
+        class_name: 'CNTT1',
+      };
+      mockSemesters = [
+        { _id: 'mock-semester-1', status: 'active' },
+        { _id: 'mock-semester-2', status: 'active' },
+      ];
+
+      classModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockClass),
+      });
+
+      jest.spyOn(service['semesterModel'], 'find').mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockSemesters),
+      } as any);
+
+      jest.spyOn(service['studentModel'], 'find').mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      } as any);
+
+      jest.spyOn(service['userModel'], 'find').mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      } as any);
+
+      service['importSessions'].clear();
+    });
+
+    describe('importPreview', () => {
+      it('should block student role from performing preview (ForbiddenException)', async () => {
+        const requester = { userId: 'student-id', roleName: 'Student' };
+        await expect(service.importPreview('507f1f77bcf86cd799439012', [], requester))
+          .rejects.toThrow(ForbiddenException);
+      });
+
+      it('should throw NotFoundException if class does not exist', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        classModel.findById.mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue(null),
+        } as any);
+
+        await expect(service.importPreview('non-existent-class-id', [], requester))
+          .rejects.toThrow(NotFoundException);
+      });
+
+      it('should return valid count, errors, duplicate counts and not write to DB', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        const rows = [
+          { 'Mã sinh viên': 'SV001', 'Họ và tên': 'Student One', 'Ngày sinh': '2003-01-15', 'Giới tính': 'Nam', 'Email': 's1@school.edu.vn' },
+          { 'Mã sinh viên': 'SV002', 'Họ và tên': 'Student Two', 'Ngày sinh': '15/05/2003', 'Giới tính': 'Nữ', 'Email': 's2@school.edu.vn' },
+          { 'Mã sinh viên': 'SV003', 'Họ và tên': 'Student Three', 'Ngày sinh': 'invalid-date', 'Giới tính': 'Nam' },
+          { 'Mã sinh viên': 'SV004', 'Họ và tên': 'Student Four', 'Ngày sinh': '2003-02-20', 'Giới tính': 'Nam', 'Email': 'invalid-email' },
+        ];
+
+        const saveSpy = jest.fn();
+        const studentModelSpy = jest.spyOn(service, 'studentModel' as any).mockImplementation(() => {
+          return {
+            save: saveSpy,
+          };
+        });
+
+        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+
+        expect(result).toBeDefined();
+        expect(result.totalRows).toBe(4);
+        expect(result.validCount).toBe(2);
+        expect(result.errorCount).toBe(2);
+        expect(result.errors.length).toBe(2);
+        expect(result.sessionId).toBeDefined();
+
+        expect(studentModelSpy).not.toHaveBeenCalled();
+        expect(saveSpy).not.toHaveBeenCalled();
+
+        const session = service['importSessions'].get(result.sessionId);
+        expect(session).toBeDefined();
+        expect(session.validItems.length).toBe(2);
+        expect(session.validItems[0].student_code).toBe('SV001');
+        expect(session.validItems[0].sex).toBe('Male');
+        expect(session.validItems[1].student_code).toBe('SV002');
+        expect(session.validItems[1].sex).toBe('Female');
+      });
+
+      it('should validate formats (student code normalize, valid email, sex mapping like Nam -> Male, valid date of birth)', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        const rows = [
+          { 'Mã SV': '  SV001  ', 'Họ và tên': 'Student One', 'Ngày sinh': '2003-01-15', 'Giới tính': 'Nam', 'Email': 's1@school.edu.vn' },
+          { 'Mã SV': 'SV002', 'Họ và tên': 'Student Two', 'Ngày sinh': '2003-05-20', 'Giới tính': 'khác', 'Email': 's2@school.edu.vn' }
+        ];
+
+        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        expect(result.validCount).toBe(2);
+
+        const session = service['importSessions'].get(result.sessionId);
+        expect(session.validItems[0].student_code).toBe('SV001');
+        expect(session.validItems[1].sex).toBe('Other');
+      });
+
+      it('should catch duplicates inside the Excel list as well as already existing students in DB', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        const rows = [
+          { 'Mã sinh viên': 'SV001', 'Họ và tên': 'Student One', 'Ngày sinh': '2003-01-15', 'Giới tính': 'Nam' },
+          { 'Mã sinh viên': 'SV001', 'Họ và tên': 'Student Dupe', 'Ngày sinh': '2003-01-15', 'Giới tính': 'Nam' },
+          { 'Mã sinh viên': 'SV002', 'Họ và tên': 'Student Existing', 'Ngày sinh': '2003-01-15', 'Giới tính': 'Nam' },
+        ];
+
+        jest.spyOn(service['studentModel'], 'find').mockReturnValue({
+          select: jest.fn().mockReturnThis(),
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue([{ student_code: 'SV002' }]),
+        } as any);
+
+        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        expect(result.totalRows).toBe(3);
+        expect(result.validCount).toBe(1);
+        expect(result.errorCount).toBe(2);
+
+        expect(result.errors[0].reason).toContain('bị trùng lặp trong file Excel');
+        expect(result.errors[1].reason).toContain('đã tồn tại trong hệ thống');
+      });
+
+      it('should support split name columns (Họ đệm + Tên / Ho dem + Ten)', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        const rows = [
+          { 'Mã SV': 'SV003', 'Họ đệm': 'Nguyễn Văn', 'Tên': 'Anh', 'Ngày sinh': '2004-05-15', 'Giới tính': 'Nam' },
+          { 'Mã SV': 'SV004', 'Ho dem': 'Lê Thị', 'Ten': 'Bình', 'Ngày sinh': '2005-11-20', 'Giới tính': 'Nữ' },
+        ];
+
+        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        expect(result.validCount).toBe(2);
+
+        const session = service['importSessions'].get(result.sessionId);
+        expect(session.validItems[0].full_name).toBe('Nguyễn Văn Anh');
+        expect(session.validItems[1].full_name).toBe('Lê Thị Bình');
+      });
+
+      it('should normalize headers (leading/trailing space, multiple spaces, capitalization, non-breaking spaces)', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        const rows = [
+          { '  Mã SV\u200B  ': 'SV005', 'Họ\u00A0đệm': 'Trần', '  Tên  ': 'Chi', 'Ngày sinh': '2004-01-01', 'Giới tính': 'Nữ' },
+        ];
+
+        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        expect(result.validCount).toBe(1);
+
+        const session = service['importSessions'].get(result.sessionId);
+        expect(session.validItems[0].student_code).toBe('SV005');
+        expect(session.validItems[0].full_name).toBe('Trần Chi');
+      });
+
+      it('should fail validation if only family name or only given name is present', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        const rows = [
+          { 'Mã SV': 'SV006', 'Họ đệm': 'Nguyễn', 'Ngày sinh': '2004-01-01', 'Giới tính': 'Nam' },
+          { 'Mã SV': 'SV007', 'Tên': 'Bình', 'Ngày sinh': '2004-01-01', 'Giới tính': 'Nam' },
+        ];
+
+        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        expect(result.validCount).toBe(0);
+        expect(result.errorCount).toBe(2);
+        expect(result.errors[0].reason).toContain('Họ và tên không được để trống');
+        expect(result.errors[1].reason).toContain('Họ và tên không được để trống');
+      });
+
+      it('should include resolved fullName in errors array when other fields fail', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        const rows = [
+          { 'Mã SV': 'SV008', 'Họ đệm': 'Phạm Hoàng', 'Tên': 'Dương', 'Ngày sinh': 'invalid-date', 'Giới tính': 'Nam' },
+        ];
+
+        const result = await service.importPreview('507f1f77bcf86cd799439012', rows, requester);
+        expect(result.errorCount).toBe(1);
+        expect(result.errors[0].fullName).toBe('Phạm Hoàng Dương');
+        expect(result.errors[0].reason).toContain('Ngày sinh không hợp lệ');
+      });
+    });
+
+    describe('importConfirm', () => {
+      it('should block student role from performing confirm (ForbiddenException)', async () => {
+        const requester = { userId: 'student-id', roleName: 'Student' };
+        await expect(service.importConfirm('session-id', requester))
+          .rejects.toThrow(ForbiddenException);
+      });
+
+      it('should throw BadRequestException for non-existing, expired, or committed session IDs', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        await expect(service.importConfirm('non-existent', requester))
+          .rejects.toThrow(BadRequestException);
+
+        service['importSessions'].set('session-committing', {
+          id: 'session-committing',
+          status: 'committing',
+          validItems: [],
+        });
+        await expect(service.importConfirm('session-committing', requester))
+          .rejects.toThrow(BadRequestException);
+      });
+
+      it('should verify status updates to committing and processes rows in background', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        const sessionId = 'session-123';
+        const session = {
+          id: sessionId,
+          status: 'ready_to_commit',
+          classId: '507f1f77bcf86cd799439012',
+          validItems: [
+            { student_code: 'SV001', full_name: 'Student One', date_bir: new Date('2003-01-15'), sex: 'Male', status: 'Studying' }
+          ],
+          errors: [],
+          totalRows: 1,
+          progress: 0,
+          processedCount: 0,
+          insertedCount: 0,
+          duplicatedCount: 0,
+          failedCount: 0,
+          commitErrors: [],
+        };
+        service['importSessions'].set(sessionId, session);
+
+        const processSpy = jest.spyOn(service as any, 'processStudentImportBatch').mockImplementation(async () => {});
+
+        const result = await service.importConfirm(sessionId, requester);
+
+        expect(result).toEqual({ success: true, message: 'Đã bắt đầu tiến trình import' });
+        expect(session.status).toBe('committing');
+        expect(processSpy).toHaveBeenCalledWith(sessionId, requester);
+      });
+
+      it('should verify it creates students, creates linked users with default passwords based on date_bir, and initializes active semester SummaryPoints', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        const sessionId = 'session-456';
+        
+        const date_bir = new Date('2003-01-15');
+        const session = {
+          id: sessionId,
+          status: 'ready_to_commit',
+          classId: '507f1f77bcf86cd799439012',
+          validItems: [
+            { student_code: 'SV001', full_name: 'Student One', date_bir, sex: 'Male', status: 'Studying', email: 's1@school.edu.vn' }
+          ],
+          errors: [],
+          totalRows: 1,
+          progress: 0,
+          processedCount: 0,
+          insertedCount: 0,
+          duplicatedCount: 0,
+          failedCount: 0,
+          commitErrors: [],
+        };
+        service['importSessions'].set(sessionId, session);
+
+        const savedStudent = {
+          _id: 'mock-student-id-999',
+          student_code: 'SV001',
+          full_name: 'Student One',
+          date_bir,
+          sex: 'Male',
+          status: 'Studying',
+          email: 's1@school.edu.vn',
+          class_id: new Types.ObjectId('507f1f77bcf86cd799439012'),
+        };
+
+        const mockStudentConstructor = jest.spyOn(service, 'studentModel' as any).mockImplementation(() => {
+          return {
+            save: jest.fn().mockResolvedValue(savedStudent),
+          };
+        });
+
+        const generateUserSpy = jest.spyOn(service as any, 'generateStudentUser').mockResolvedValue({ _id: 'mock-user-id' });
+        const ensureLinkSpy = jest.spyOn(service as any, 'ensureStudentUserLink').mockImplementation(async (student: any, user: any) => {
+          student.user_id = user?._id || user;
+        });
+        const summaryBulkWriteSpy = jest.spyOn(service['summaryPointModel'], 'bulkWrite').mockResolvedValue({} as any);
+
+        await service['processStudentImportBatch'](sessionId, requester);
+
+        expect(mockStudentConstructor).toHaveBeenCalled();
+        expect(generateUserSpy).toHaveBeenCalledWith(savedStudent, '15012003');
+        expect(ensureLinkSpy).toHaveBeenCalledWith(savedStudent, { _id: 'mock-user-id' });
+        expect(summaryBulkWriteSpy).toHaveBeenCalled();
+        
+        const bulkOps = summaryBulkWriteSpy.mock.calls[0][0];
+        expect(bulkOps.length).toBe(mockSemesters.length);
+        expect(bulkOps[0].updateOne.filter.student_id).toBe(savedStudent._id);
+        expect(bulkOps[0].updateOne.filter.semester_id).toBe(mockSemesters[0]._id);
+
+        expect(session.status).toBe('completed');
+        expect(session.progress).toBe(100);
+        expect(session.insertedCount).toBe(1);
+      });
+
+      it('should test that duplicate key errors (11000) during database commit are caught, counted as duplicates, and do not crash the session', async () => {
+        const requester = { userId: 'admin-id', roleName: 'Admin' };
+        const sessionId = 'session-789';
+        const session = {
+          id: sessionId,
+          status: 'ready_to_commit',
+          classId: '507f1f77bcf86cd799439012',
+          validItems: [
+            { student_code: 'SV001', full_name: 'Student One', date_bir: new Date('2003-01-15'), sex: 'Male', status: 'Studying' }
+          ],
+          errors: [],
+          totalRows: 1,
+          progress: 0,
+          processedCount: 0,
+          insertedCount: 0,
+          duplicatedCount: 0,
+          failedCount: 0,
+          commitErrors: [],
+        };
+        service['importSessions'].set(sessionId, session);
+
+        const mongoError = new Error('Duplicate key error');
+        (mongoError as any).code = 11000;
+        
+        jest.spyOn(service, 'studentModel' as any).mockImplementation(() => {
+          return {
+            save: jest.fn().mockRejectedValue(mongoError),
+          };
+        });
+
+        await service['processStudentImportBatch'](sessionId, requester);
+
+        expect(session.status).toBe('completed');
+        expect(session.progress).toBe(100);
+        expect(session.insertedCount).toBe(0);
+        expect(session.duplicatedCount).toBe(1);
+        expect(session.failedCount).toBe(1);
+        expect(session.commitErrors.length).toBe(1);
+        expect(session.commitErrors[0].reason).toContain('Mã sinh viên đã tồn tại trong hệ thống');
+      });
+    });
+
+    describe('getImportProgress', () => {
+      it('should return current progress statistics', () => {
+        const sessionId = 'session-progress';
+        const session = {
+          id: sessionId,
+          status: 'completed',
+          classId: '507f1f77bcf86cd799439012',
+          validItems: [1, 2, 3],
+          errors: [{}, {}],
+          totalRows: 5,
+          progress: 100,
+          processedCount: 5,
+          insertedCount: 3,
+          duplicatedCount: 2,
+          failedCount: 2,
+          commitErrors: [{ studentCode: 'SV002', reason: 'Dupe' }],
+        };
+        service['importSessions'].set(sessionId, session);
+
+        const result = service.getImportProgress(sessionId);
+
+        expect(result).toEqual({
+          status: 'completed',
+          progress: 100,
+          processedCount: 5,
+          insertedCount: 3,
+          duplicatedCount: 2,
+          totalRows: 5,
+          failedItems: [{ studentCode: 'SV002', reason: 'Dupe' }],
+          acceptedCount: 3,
+          failedCount: 2,
+          skippedCount: 2,
+        });
+      });
+
+      it('should throw NotFoundException for non-existent session', () => {
+        expect(() => service.getImportProgress('non-existent'))
+          .toThrow(NotFoundException);
+      });
+    });
+  });
 });

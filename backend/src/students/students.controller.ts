@@ -15,7 +15,17 @@ import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
+import { checkRole } from '../auth/guards/check-role.guard';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import {
+  ImportStudentRequestDto,
+  ImportStudentCommitDto,
+  ImportStudentPreviewResultDto,
+  ImportStudentCommitResultDto,
+  ImportStudentProgressDto,
+} from './dto/import-student.dto';
 
+@ApiTags('Students')
 @Controller('students')
 export class StudentsController {
   constructor(private readonly studentsService: StudentsService) {}
@@ -30,6 +40,42 @@ export class StudentsController {
   @UseGuards(checkPermission('STUDENT_IMPORT'))
   createBulk(@Body() createStudentDtos: CreateStudentDto[], @Request() req: any) {
     return this.studentsService.createBulk(createStudentDtos, req.user);
+  }
+
+  @Post('import/preview')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Preview and validate bulk import of students' })
+  @ApiBody({ type: ImportStudentRequestDto })
+  async importPreview(
+    @Body() body: ImportStudentRequestDto,
+    @Request() req: any,
+  ): Promise<ImportStudentPreviewResultDto> {
+    const requester = req.user;
+    return this.studentsService.importPreview(body.classId, body.rows, requester);
+  }
+
+  @Post('import/confirm')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Confirm and commit bulk import of students' })
+  @ApiBody({ type: ImportStudentCommitDto })
+  async importConfirm(
+    @Body() body: ImportStudentCommitDto,
+    @Request() req: any,
+  ): Promise<ImportStudentCommitResultDto> {
+    const requester = req.user;
+    return this.studentsService.importConfirm(body.sessionId, requester);
+  }
+
+  @Get('import/:sessionId/progress')
+  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get progress of student import session' })
+  async getImportProgress(
+    @Param('sessionId') sessionId: string,
+  ): Promise<ImportStudentProgressDto> {
+    return this.studentsService.getImportProgress(sessionId);
   }
 
   @Post('check-duplicate')
