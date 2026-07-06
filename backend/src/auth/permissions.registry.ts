@@ -54,6 +54,13 @@ export const REPORT_MANAGER_GROUP = {
   status: 'Active',
 };
 
+export const CLUB_MANAGER_GROUP = {
+  code: 'G_CLUB',
+  name: 'Quản lý Câu lạc bộ',
+  description: 'Quản lý câu lạc bộ, lịch sinh hoạt, điểm danh và cấu hình điểm rèn luyện.',
+  status: 'Active',
+};
+
 export const PROPOSED_PERMISSION_GROUP = {
   code: 'G_PROPOSED',
   name: 'Đề xuất bổ sung',
@@ -336,6 +343,116 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     name: 'Xem báo cáo',
     module: REPORT_MANAGER_GROUP.name,
     description: 'Cho phép xem dữ liệu các báo cáo và biểu đồ thống kê.',
+  },
+
+  // 7. Nhóm Quản lý Câu lạc bộ
+  {
+    code: 'CLUB_PAGE',
+    name: 'Truy cập trang quản lý CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép truy cập menu và giao diện quản lý câu lạc bộ.',
+  },
+  {
+    code: 'CLUB_READ',
+    name: 'Xem CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép xem danh sách và chi tiết câu lạc bộ.',
+  },
+  {
+    code: 'CLUB_CREATE',
+    name: 'Tạo CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép tạo câu lạc bộ mới.',
+  },
+  {
+    code: 'CLUB_UPDATE',
+    name: 'Cập nhật CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép chỉnh sửa thông tin câu lạc bộ.',
+  },
+  {
+    code: 'CLUB_DELETE',
+    name: 'Xóa CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép vô hiệu hóa (soft delete) câu lạc bộ.',
+  },
+  {
+    code: 'CLUB_MEMBER_MANAGE',
+    name: 'Quản lý thành viên CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép thêm, xóa, duyệt thành viên và phân vai trò trong CLB.',
+  },
+  {
+    code: 'CLUB_SCHEDULE_READ',
+    name: 'Xem lịch sinh hoạt CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép xem lịch sinh hoạt và danh sách đăng ký buổi sinh hoạt CLB.',
+  },
+  {
+    code: 'CLUB_SCHEDULE_MANAGE',
+    name: 'Quản lý lịch sinh hoạt CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép tạo, sửa, xóa lịch sinh hoạt câu lạc bộ.',
+  },
+  {
+    code: 'CLUB_SCHEDULE_REGISTER',
+    name: 'Đăng ký buổi sinh hoạt CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép sinh viên đăng ký hoặc hủy tham gia buổi sinh hoạt.',
+  },
+  {
+    code: 'CLUB_ATTENDANCE_READ',
+    name: 'Xem điểm danh CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép xem danh sách và thống kê điểm danh câu lạc bộ.',
+  },
+  {
+    code: 'CLUB_ATTENDANCE_CREATE',
+    name: 'Ghi nhận điểm danh CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép ghi nhận điểm danh sinh viên tại buổi sinh hoạt CLB.',
+  },
+  {
+    code: 'CLUB_ATTENDANCE_UPDATE',
+    name: 'Cập nhật điểm danh CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép chỉnh sửa bản ghi điểm danh đã tồn tại.',
+  },
+  {
+    code: 'CLUB_ATTENDANCE_APPROVE',
+    name: 'Duyệt điểm danh CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép duyệt hoặc từ chối điểm danh sinh viên tại CLB.',
+  },
+  {
+    code: 'CLUB_ATTENDANCE_DELETE',
+    name: 'Xóa điểm danh CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép xóa bản ghi điểm danh CLB.',
+  },
+  {
+    code: 'CLUB_CONFIG_READ',
+    name: 'Xem cấu hình điểm CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép xem cấu hình mapping điểm danh CLB sang điểm rèn luyện.',
+  },
+  {
+    code: 'CLUB_CONFIG_MANAGE',
+    name: 'Quản lý cấu hình điểm CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép tạo, sửa, xóa cấu hình điểm danh → điểm rèn luyện.',
+  },
+  {
+    code: 'CLUB_REPORT_READ',
+    name: 'Xem báo cáo CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép xem báo cáo thống kê hoạt động câu lạc bộ.',
+  },
+  {
+    code: 'CLUB_EXPORT',
+    name: 'Xuất dữ liệu CLB',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép xuất dữ liệu CLB ra file Excel/PDF.',
   },
 
   // Nhóm Đề xuất bổ sung (Các quyền CRUD cho trang /permissions chưa có guard)

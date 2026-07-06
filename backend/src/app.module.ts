@@ -26,6 +26,10 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { StudentTasksModule } from './student-tasks/student-tasks.module';
 import { StudentTaskProgressModule } from './student-task-progress/student-task-progress.module';
 import { SystemModule } from './system/system.module';
+import { ClubsModule } from './clubs/clubs.module';
+import { ClubSchedulesModule } from './club-schedules/club-schedules.module';
+import { ClubAttendanceModule } from './club-attendance/club-attendance.module';
+import { ClubAttendanceConfigModule } from './club-attendance-config/club-attendance-config.module';
 
 @Module({
   imports: [
@@ -75,6 +79,10 @@ import { SystemModule } from './system/system.module';
     StudentTasksModule,
     StudentTaskProgressModule,
     SystemModule,
+    ClubsModule,
+    ClubSchedulesModule,
+    ClubAttendanceModule,
+    ClubAttendanceConfigModule,
   ],
   controllers: [AppController],
   providers: [AppService],

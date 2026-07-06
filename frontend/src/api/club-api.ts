@@ -1,0 +1,506 @@
+import { httpClient, handleResponse } from './http-client';
+import { API_BASE } from './config';
+
+// ── Types ──
+
+export interface ClubFavoriteState {
+  club_id: string;
+  is_favorited: boolean;
+  favorite_count: number;
+}
+
+export interface Club {
+  _id: string;
+  name: string;
+  code: string;
+  description?: string;
+  category: string;
+  logo_url?: string;
+  cover_url?: string;
+  advisor_id: any;
+  president_id?: any;
+  vice_president_ids?: any[];
+  max_members?: number;
+  founded_date?: string;
+  activity_start_date?: string;
+  activity_end_date?: string;
+  status: string;
+  semester_id?: any;
+  settings: {
+    allow_self_registration: boolean;
+    require_approval: boolean;
+    attendance_point_enabled: boolean;
+    point_per_attendance: number;
+    criterion_id?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClubMember {
+  _id: string;
+  club_id: any;
+  student_id: any;
+  role: string;
+  status: string;
+  joined_at?: string;
+  left_at?: string;
+  approved_by?: any;
+  semester_id: any;
+  createdAt: string;
+}
+
+export interface ClubSchedule {
+  _id: string;
+  club_id: any;
+  title: string;
+  description?: string;
+  schedule_type: string;
+  location?: string;
+  start_time: string;
+  end_time: string;
+  recurrence?: { type: string; day_of_week?: number; until?: string };
+  recurrence_id?: string;
+  semester_id: any;
+  instructor_id?: any;
+  max_attendees?: number;
+  status: string;
+  created_by: any;
+  registration_count?: number;
+  createdAt: string;
+}
+
+export interface ClubAttendance {
+  _id: string;
+  club_id: any;
+  schedule_id: any;
+  student_id: any;
+  semester_id: any;
+  status: string;
+  check_in_time?: string;
+  check_out_time?: string;
+  note?: string;
+  recorded_by: any;
+  recorded_by_role: string;
+  recorded_at: string;
+  approval_status: string;
+  approved_by?: any;
+  approved_at?: string;
+  rejection_reason?: string;
+  synced_to_academic_record: boolean;
+  createdAt: string;
+}
+
+export interface AttendanceConfig {
+  _id: string;
+  club_id?: any;
+  semester_id: any;
+  criterion_id: any;
+  point_per_attendance: number;
+  point_per_late: number;
+  max_points_per_semester?: number;
+  min_attendance_for_points: number;
+  auto_sync_on_approve: boolean;
+  require_all_approved: boolean;
+  status: string;
+  created_by: any;
+  createdAt: string;
+}
+
+export interface AttendanceSummary {
+  student_id: string;
+  student_name: string;
+  student_code: string;
+  total_sessions: number;
+  present_count: number;
+  absent_count: number;
+  late_count: number;
+  excused_count: number;
+  approved_count: number;
+  pending_count: number;
+  attendance_rate: number;
+}
+
+// ── Helpers ──
+
+function buildQuery(params?: Record<string, any>): string {
+  if (!params) return '';
+  const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== '' && v !== null);
+  if (entries.length === 0) return '';
+  return '?' + entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+}
+
+const jsonHeaders = { 'Content-Type': 'application/json' };
+
+// ── Clubs API ──
+
+export const clubApi = {
+  async getAll(): Promise<Club[]> {
+    const res = await httpClient(`${API_BASE}/clubs`);
+    return handleResponse<Club[]>(res);
+  },
+
+  async getMyClubs(): Promise<ClubMember[]> {
+    const res = await httpClient(`${API_BASE}/clubs/my`);
+    return handleResponse<ClubMember[]>(res);
+  },
+
+  async getById(id: string): Promise<Club> {
+    const res = await httpClient(`${API_BASE}/clubs/${id}`);
+    return handleResponse<Club>(res);
+  },
+
+  async create(data: Partial<Club>): Promise<Club> {
+    const res = await httpClient(`${API_BASE}/clubs`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<Club>(res);
+  },
+
+  async uploadMedia(file: File, kind: 'cover' | 'logo'): Promise<{
+    url: string;
+    file_name: string;
+    mime_type: string;
+    size: number;
+    kind: 'cover' | 'logo';
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('kind', kind);
+
+    const res = await httpClient(`${API_BASE}/clubs/media/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    return handleResponse<{
+      url: string;
+      file_name: string;
+      mime_type: string;
+      size: number;
+      kind: 'cover' | 'logo';
+    }>(res);
+  },
+
+  async update(id: string, data: Partial<Club>): Promise<Club> {
+    const res = await httpClient(`${API_BASE}/clubs/${id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<Club>(res);
+  },
+
+  async delete(id: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/clubs/${id}`, { method: 'DELETE' });
+    return handleResponse(res);
+  },
+
+  async getStats(id: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/clubs/${id}/stats`);
+    return handleResponse(res);
+  },
+
+  // Members
+  async getMembers(clubId: string, params?: { status?: string; semester_id?: string }): Promise<ClubMember[]> {
+    const res = await httpClient(`${API_BASE}/clubs/${clubId}/members${buildQuery(params)}`);
+    return handleResponse<ClubMember[]>(res);
+  },
+
+  async addMember(clubId: string, data: { student_id: string; role?: string; semester_id: string }): Promise<ClubMember> {
+    const res = await httpClient(`${API_BASE}/clubs/${clubId}/members`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ClubMember>(res);
+  },
+
+  async joinClub(clubId: string, data: { semester_id: string }): Promise<ClubMember> {
+    const res = await httpClient(`${API_BASE}/clubs/${clubId}/join`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ClubMember>(res);
+  },
+
+  async updateMember(clubId: string, memberId: string, data: any): Promise<ClubMember> {
+    const res = await httpClient(`${API_BASE}/clubs/${clubId}/members/${memberId}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ClubMember>(res);
+  },
+
+  async removeMember(clubId: string, memberId: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/clubs/${clubId}/members/${memberId}`, { method: 'DELETE' });
+    return handleResponse(res);
+  },
+
+  async approveMember(clubId: string, memberId: string, data: { status: string; rejection_reason?: string }): Promise<ClubMember> {
+    const res = await httpClient(`${API_BASE}/clubs/${clubId}/members/${memberId}/approve`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ClubMember>(res);
+  },
+
+  async favoriteClub(clubId: string): Promise<ClubFavoriteState> {
+    const res = await httpClient(`${API_BASE}/clubs/${clubId}/favorite`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({}),
+    });
+    return handleResponse<ClubFavoriteState>(res);
+  },
+
+  async unfavoriteClub(clubId: string): Promise<ClubFavoriteState> {
+    const res = await httpClient(`${API_BASE}/clubs/${clubId}/favorite`, {
+      method: 'DELETE',
+    });
+    return handleResponse<ClubFavoriteState>(res);
+  },
+
+  async getMyFavoriteClubIds(): Promise<string[]> {
+    const res = await httpClient(`${API_BASE}/clubs/favorites/me`);
+    const data = await handleResponse<{ club_ids: string[] }>(res);
+    return data.club_ids || [];
+  },
+};
+
+// ── Schedules API ──
+
+export const clubScheduleApi = {
+  async getAll(params?: any): Promise<{ items: ClubSchedule[]; total: number }> {
+    const res = await httpClient(`${API_BASE}/club-schedules${buildQuery(params)}`);
+    return handleResponse(res);
+  },
+
+  async getMySchedules(): Promise<any[]> {
+    const res = await httpClient(`${API_BASE}/club-schedules/my`);
+    return handleResponse(res);
+  },
+
+  async getUpcoming(params?: { club_id?: string; limit?: number }): Promise<ClubSchedule[]> {
+    const res = await httpClient(`${API_BASE}/club-schedules/upcoming${buildQuery(params)}`);
+    return handleResponse<ClubSchedule[]>(res);
+  },
+
+  async getById(id: string): Promise<ClubSchedule> {
+    const res = await httpClient(`${API_BASE}/club-schedules/${id}`);
+    return handleResponse<ClubSchedule>(res);
+  },
+
+  async create(data: any): Promise<ClubSchedule> {
+    const res = await httpClient(`${API_BASE}/club-schedules`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ClubSchedule>(res);
+  },
+
+  async update(id: string, data: any): Promise<ClubSchedule> {
+    const res = await httpClient(`${API_BASE}/club-schedules/${id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ClubSchedule>(res);
+  },
+
+  async delete(id: string, deleteSeries?: boolean): Promise<any> {
+    const url = `${API_BASE}/club-schedules/${id}${deleteSeries ? '?deleteSeries=true' : ''}`;
+    const res = await httpClient(url, { method: 'DELETE' });
+    return handleResponse(res);
+  },
+
+  async register(id: string, clubId: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-schedules/${id}/register`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ club_id: clubId }),
+    });
+    return handleResponse(res);
+  },
+
+  async cancelRegistration(id: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-schedules/${id}/cancel-registration`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({}),
+    });
+    return handleResponse(res);
+  },
+
+  async getRegistrations(id: string): Promise<any[]> {
+    const res = await httpClient(`${API_BASE}/club-schedules/${id}/registrations`);
+    return handleResponse(res);
+  },
+
+  async markCompleted(id: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-schedules/${id}/complete`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify({}),
+    });
+    return handleResponse(res);
+  },
+};
+
+// ── Attendance API ──
+
+export const clubAttendanceApi = {
+  async getAll(params?: any): Promise<{ items: ClubAttendance[]; total: number }> {
+    const res = await httpClient(`${API_BASE}/club-attendance${buildQuery(params)}`);
+    return handleResponse(res);
+  },
+
+  async getMyAttendance(params?: { semester_id?: string; club_id?: string }): Promise<ClubAttendance[]> {
+    const res = await httpClient(`${API_BASE}/club-attendance/my${buildQuery(params)}`);
+    return handleResponse<ClubAttendance[]>(res);
+  },
+
+  async getPendingCount(clubId?: string): Promise<{ count: number }> {
+    const res = await httpClient(`${API_BASE}/club-attendance/pending-count${buildQuery(clubId ? { club_id: clubId } : {})}`);
+    return handleResponse(res);
+  },
+
+  async getSummary(clubId: string, semesterId: string): Promise<AttendanceSummary[]> {
+    const res = await httpClient(`${API_BASE}/club-attendance/summary/${clubId}${buildQuery({ semester_id: semesterId })}`);
+    return handleResponse<AttendanceSummary[]>(res);
+  },
+
+  async getById(id: string): Promise<ClubAttendance> {
+    const res = await httpClient(`${API_BASE}/club-attendance/${id}`);
+    return handleResponse<ClubAttendance>(res);
+  },
+
+  async create(data: any): Promise<ClubAttendance> {
+    const res = await httpClient(`${API_BASE}/club-attendance`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ClubAttendance>(res);
+  },
+
+  async batchCreate(data: {
+    club_id: string;
+    schedule_id: string;
+    semester_id: string;
+    entries: { student_id: string; status: string; note?: string }[];
+  }): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-attendance/batch`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
+  },
+
+  async update(id: string, data: any): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-attendance/${id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
+  },
+
+  async delete(id: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-attendance/${id}`, { method: 'DELETE' });
+    return handleResponse(res);
+  },
+
+  async approve(id: string, data: { status: string; rejection_reason?: string }): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-attendance/${id}/approve`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
+  },
+
+  async reject(id: string, data: { status: string; rejection_reason?: string }): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-attendance/${id}/reject`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
+  },
+
+  async batchApprove(ids: string[]): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-attendance/batch-approve`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ ids }),
+    });
+    return handleResponse(res);
+  },
+
+  async batchSync(clubId: string, semesterId: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-attendance/sync/${clubId}${buildQuery({ semester_id: semesterId })}`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({}),
+    });
+    return handleResponse(res);
+  },
+
+  async retrySync(id: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-attendance/${id}/retry-sync`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({}),
+    });
+    return handleResponse(res);
+  },
+};
+
+// ── Config API ──
+
+export const clubConfigApi = {
+  async getAll(semesterId?: string): Promise<AttendanceConfig[]> {
+    const res = await httpClient(`${API_BASE}/club-attendance-config${buildQuery(semesterId ? { semester_id: semesterId } : {})}`);
+    return handleResponse<AttendanceConfig[]>(res);
+  },
+
+  async getByClub(clubId: string, semesterId: string): Promise<AttendanceConfig | null> {
+    const res = await httpClient(`${API_BASE}/club-attendance-config/club/${clubId}${buildQuery({ semester_id: semesterId })}`);
+    return handleResponse(res);
+  },
+
+  async getById(id: string): Promise<AttendanceConfig> {
+    const res = await httpClient(`${API_BASE}/club-attendance-config/${id}`);
+    return handleResponse<AttendanceConfig>(res);
+  },
+
+  async create(data: any): Promise<AttendanceConfig> {
+    const res = await httpClient(`${API_BASE}/club-attendance-config`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<AttendanceConfig>(res);
+  },
+
+  async update(id: string, data: any): Promise<AttendanceConfig> {
+    const res = await httpClient(`${API_BASE}/club-attendance-config/${id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<AttendanceConfig>(res);
+  },
+
+  async delete(id: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/club-attendance-config/${id}`, { method: 'DELETE' });
+    return handleResponse(res);
+  },
+};

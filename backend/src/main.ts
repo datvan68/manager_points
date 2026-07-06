@@ -6,6 +6,8 @@ import compression from 'compression';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { json, urlencoded } from 'express';
+import * as express from 'express';
+import { join } from 'path';
 
 async function bootstrap() {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -29,6 +31,9 @@ async function bootstrap() {
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ limit: '50mb', extended: true }));
   app.getHttpAdapter().getInstance().set('trust proxy', true);
+
+  // Serve static uploads
+  app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
 
   app.use(
     helmet({
