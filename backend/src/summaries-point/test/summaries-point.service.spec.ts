@@ -663,6 +663,201 @@ describe('SummariesPointService', () => {
       expect(mockSummary.details[0].final_score).toBe(0);
       expect(mockSummary.details[0].status).toBe('locked');
     });
+
+    it('should approve discipline criterion with activeCount = 8 (max_score = 8, score_per_unit = -1), setting final_score to 0', async () => {
+      const details = [
+        {
+          criterion_id: 'crit-discipline',
+          gv_score: null,
+          sv_score: null,
+          system_score: null,
+          status: 'draft',
+          final_score: null,
+          log: [],
+        },
+      ];
+      const activeRecords = Array.from({ length: 8 }).map(() => ({
+        criterion_id: 'crit-discipline',
+        student_id: 'student-1',
+        semester_id: 'semester-1',
+        status: 'active',
+        createdAt: new Date(),
+      }));
+      const criteria = [
+        {
+          _id: 'crit-discipline',
+          criterion_name: 'Ky luat di muon',
+          score_per_unit: -1,
+          max_score: 8,
+          min_score: 0,
+          scoring_mode: 'count',
+        },
+      ];
+
+      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+
+      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+
+      expect(mockSummary.details[0].final_score).toBe(0);
+      expect(mockSummary.details[0].status).toBe('locked');
+    });
+
+    it('should approve discipline criterion with activeCount = 9 (fully deducted past min_score), setting final_score to 0', async () => {
+      const details = [
+        {
+          criterion_id: 'crit-discipline',
+          gv_score: null,
+          sv_score: null,
+          system_score: null,
+          status: 'draft',
+          final_score: null,
+          log: [],
+        },
+      ];
+      const activeRecords = Array.from({ length: 9 }).map(() => ({
+        criterion_id: 'crit-discipline',
+        student_id: 'student-1',
+        semester_id: 'semester-1',
+        status: 'active',
+        createdAt: new Date(),
+      }));
+      const criteria = [
+        {
+          _id: 'crit-discipline',
+          criterion_name: 'Ky luat di muon',
+          score_per_unit: -1,
+          max_score: 8,
+          min_score: 0,
+          scoring_mode: 'count',
+        },
+      ];
+
+      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+
+      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+
+      expect(mockSummary.details[0].final_score).toBe(0);
+      expect(mockSummary.details[0].status).toBe('locked');
+    });
+
+    it('should throw BadRequestException for discipline criterion with activeCount = 1 (expected 7) and stale resolved score 0', async () => {
+      const details = [
+        {
+          criterion_id: 'crit-discipline',
+          gv_score: 0,
+          sv_score: null,
+          system_score: null,
+          status: 'draft',
+          final_score: null,
+          log: [],
+        },
+      ];
+      const activeRecords = [
+        {
+          criterion_id: 'crit-discipline',
+          student_id: 'student-1',
+          semester_id: 'semester-1',
+          status: 'active',
+          createdAt: new Date(),
+        },
+      ];
+      const criteria = [
+        {
+          _id: 'crit-discipline',
+          criterion_name: 'Ky luat di muon',
+          score_per_unit: -1,
+          max_score: 8,
+          min_score: 0,
+          scoring_mode: 'count',
+        },
+      ];
+
+      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+
+      await expect(
+        service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException for reward criterion with active records and stale zero score', async () => {
+      const details = [
+        {
+          criterion_id: 'crit-reward',
+          gv_score: 0,
+          sv_score: null,
+          system_score: null,
+          status: 'draft',
+          final_score: null,
+          log: [],
+        },
+      ];
+      const activeRecords = [
+        {
+          criterion_id: 'crit-reward',
+          student_id: 'student-1',
+          semester_id: 'semester-1',
+          status: 'active',
+          createdAt: new Date(),
+        },
+      ];
+      const criteria = [
+        {
+          _id: 'crit-reward',
+          criterion_name: 'Crit Reward',
+          score_per_unit: 5,
+          max_score: 10,
+          min_score: 0,
+          scoring_mode: 'count',
+        },
+      ];
+
+      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+
+      await expect(
+        service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should preserve intentionally reviewed zero score for discipline criterion', async () => {
+      const details = [
+        {
+          criterion_id: 'crit-discipline',
+          gv_score: 0,
+          sv_score: null,
+          system_score: 7,
+          status: 'gv_reviewed',
+          gv_reviewed_by: '507f1f77bcf86cd799439011',
+          final_score: null,
+          log: [],
+        },
+      ];
+      const activeRecords = [
+        {
+          criterion_id: 'crit-discipline',
+          student_id: 'student-1',
+          semester_id: 'semester-1',
+          status: 'active',
+          createdAt: new Date(),
+        },
+      ];
+      const criteria = [
+        {
+          _id: 'crit-discipline',
+          criterion_name: 'Ky luat di muon',
+          score_per_unit: -1,
+          max_score: 8,
+          min_score: 0,
+          scoring_mode: 'count',
+        },
+      ];
+
+      const { mockSummary } = setupApproveGradingMock(details, activeRecords, criteria);
+
+      await service.approveGrading('some-id', { userId: '507f1f77bcf86cd799439011', roleName: 'admin' });
+
+      expect(mockSummary.details[0].final_score).toBe(0);
+      expect(mockSummary.details[0].status).toBe('locked');
+    });
   });
 
   describe('cancelApproval', () => {

@@ -1,194 +1,200 @@
-# Taskscope: Align Schedule Time Blocks Between Hour Lines
+# Taskscope: Allow Valid Zero Approval Score For Fully Deducted Discipline Criteria
 
 ## Objective
 
-Adjust the `/club/schedules` timetable layout so each hour block is visually centered between its upper and lower separator lines, and club schedule cards fit completely inside their selected time range.
+Fix the `/grading` approval flow so a discipline criterion can be approved with score `0` when active academic records legitimately deduct the criterion down to its minimum score.
 
-For example, if a club activity is scheduled from `07:00` to `09:00`, the card must start at the `07:00` boundary and end at the `09:00` boundary. All visible card content, including action buttons, must remain inside that `07:00 - 09:00` block.
+The reported failure happens while approving a conduct grading summary from `/grading`. The failing criterion is a discipline item for late attendance, skipping class, unexcused absence, private work during class, disorder, phone use, or entering/leaving class without lecturer permission. It has more than eight active records, so the score being deducted to `0` is expected and must not block approval.
 
-## Target Page
+## Target Areas
 
-- Page: `frontend/src/app/(dashboard)/club/schedules/page.tsx`
-- Route: `/club/schedules`
-- Affected UI:
-  - left time column
-  - hour labels
-  - horizontal hour separator lines
-  - schedule grid rows
-  - draft and saved club schedule cards
-  - card footer actions inside schedule cards
+- Route: `/grading`
+- Approval action from the grading list page
+- Backend approval flow:
+  - `backend/src/summaries-point/summaries-point.service.ts`
+  - `approveGrading`
+  - `syncSummaryWithAcademicRecords`
+  - `recomputeTotalScore`
+- Score helper and related tests if needed:
+  - `backend/src/academic-record/academic-record.utils.ts`
+  - `backend/src/academic-record/score-engine.service.ts`
+  - `backend/src/summaries-point/test/summaries-point.service.spec.ts`
 
 ## Problem Statement
 
-The current schedule grid makes the hour labels and schedule cards feel misaligned with the horizontal hour boundaries.
+`approveGrading` currently performs a guard check after syncing active `academic_record` data. The guard rejects approval when:
 
-In the current visual state, a card scheduled for `07:00 - 09:00` can visually extend its footer buttons toward or past the `09:00` boundary. This makes the card appear taller than its intended time range and weakens the user's ability to trust the schedule grid.
+- a criterion has active academic records
+- the resolved approval score is `0` or `null`
+- the calculated expected score is greater than `0`
 
-The timetable should communicate time ranges precisely:
+For discipline criteria, the current expected-score check is wrong. The score helper already returns the raw score after deduction:
 
-- hour labels should sit visually between the two surrounding separator lines
-- card top and bottom edges should align with the selected start and end time boundaries
-- card content must be constrained inside the card height
+```ts
+systemScore = clamp(maxScore - activeCount * abs(scorePerUnit), minScore, maxScore)
+```
+
+For a discipline criterion with:
+
+- `max_score = 8`
+- `score_per_unit = -1`
+- `activeCount >= 8`
+- `min_score = 0`
+
+the valid derived score is:
+
+```text
+max(0, min(8, 8 - activeCount)) = 0
+```
+
+However, `approveGrading` then recalculates an additional discipline expected value with:
+
+```ts
+const calculatedExpected = isDiscipline
+  ? (criterion.max_score || 10) - Math.abs(recordDerivedScore)
+  : recordDerivedScore;
+```
+
+When `recordDerivedScore` is already `0`, this produces `8`, so the guard incorrectly treats the valid zero score as a conflict.
 
 ## Required Behavior
 
-### 1. Center Hour Labels Between Separators
+### 1. Treat Fully Deducted Discipline Score `0` As Valid
 
-- Each hour label must appear centered within its hour row.
-- The `07:00` label should sit between the `07:00` row's top line and the `08:00` line.
-- The `08:00` label should sit between the `08:00` and `09:00` lines.
-- The `09:00` label should sit between the `09:00` and `10:00` lines.
-- Do not place hour labels directly on top of separator lines.
+If a discipline criterion has active records and the derived score from those records is `0`, approval must succeed when `0` is the mathematically correct clamped score.
 
-Recommended layout direction:
+Valid example:
 
-```tsx
-<div className="relative h-[var(--hour-height)] border-t border-slate-200/50">
-  <span className="absolute left-0 right-0 top-1/2 -translate-y-1/2">
-    07:00
-  </span>
-</div>
-```
+- criterion type: `ky_luat` or negative `score_per_unit`
+- `max_score = 8`
+- `min_score = 0`
+- `score_per_unit = -1`
+- `activeCount = 8` or more
+- derived score: `0`
+- approval result: success
+- `detail.final_score`: `0`
+- summary status: `locked`
 
-Use the project's existing layout approach if it already has a cleaner pattern.
+### 2. Keep Conflict Protection For Invalid Zero Scores
 
-### 2. Align Card Boundaries With Time Boundaries
+The approval guard should still block suspicious zero scores for positive reward criteria or partially deducted discipline criteria.
 
-- A card scheduled from `07:00` to `09:00` must have:
-  - top edge aligned with the `07:00` boundary
-  - bottom edge aligned with the `09:00` boundary
-- Card height must be calculated from the exact time duration.
-- The card's visual border must not extend beyond the calculated time block.
-- Existing snap behavior should continue to place card edges on valid time increments.
+Examples that should still fail unless intentionally reviewed:
 
-Expected formula direction:
+- reward criterion with active records where expected score is positive but resolved score is `0`
+- discipline criterion with active count below the full-deduction threshold where expected score is positive but resolved score is `0`
+
+The existing intentionally reviewed zero behavior must remain:
+
+- if the teacher reviewed the detail and set `gv_score = 0`, approval may preserve `0`
+- existing `gv_reviewed`, `gv_reviewed_by`, or equivalent reviewed-state handling should not regress
+
+### 3. Use One Consistent Record-Derived Score
+
+Do not invert or re-derive the score after `calculateCriterionScoreHelper` has already returned a clamped raw score.
+
+Recommended direction:
 
 ```ts
-const top = minutesFromScheduleStart * PIXELS_PER_MINUTE;
-const height = durationMinutes * PIXELS_PER_MINUTE;
+const recordDerivedScore = scoringResult.systemScore;
+const calculatedExpected = recordDerivedScore;
 ```
 
-Do not add visual padding outside the card that changes the perceived time range.
+If a different helper is used, it must follow the same rule: the value compared by the approval guard should be the score that active records actually imply for the criterion.
 
-### 3. Keep Card Footer Buttons Inside The Time Range
+### 4. Preserve Academic Record As Source Of Truth
 
-- Card action buttons must stay fully inside the card body.
-- Buttons must not overlap or cross the card's bottom border.
-- Buttons must not visually fall into the next hour row.
-- For short cards, reduce internal spacing or use compact button layout instead of allowing overflow.
-- If content is too tall for the card duration, apply an internal scroll, compact mode, or hide lower-priority metadata according to the existing UX pattern.
+Approval must continue to sync from active `academic_record` data before locking the summary.
 
-For the example `07:00 - 09:00`, all card elements must remain above the `09:00` boundary.
+Do not change the one-way sync principle:
 
-### 4. Preserve Existing Schedule Interactions
+- `academic_record` is the source of truth
+- `evaluation_detail.current_count` is a derived/cache value
+- approval must not rely on stale frontend counts
 
-- Keep drag behavior unchanged.
-- Keep vertical resize behavior unchanged.
-- Keep horizontal movement or span behavior unchanged if already implemented.
-- Keep recurrence configuration behavior unchanged.
-- Keep draft confirmation and cancel actions unchanged.
-- Only adjust layout and overflow behavior needed for precise visual alignment.
+### 5. Preserve Existing Approval Side Effects
 
-### 5. Maintain Subtle Grid Lines
+After successful approval:
 
-- Keep hour separator lines visually soft.
-- Do not make the separator lines stronger while fixing alignment.
-- The grid should remain a background guide, while club cards remain the primary visual element.
+- details are locked
+- `final_score` is set consistently
+- `locked_at` and `locked_by` are populated
+- status transition logs are written
+- `summary.status` becomes `locked`
+- `recomputeTotalScore(summaryId)` still runs
+- realtime/event behavior remains unchanged
 
 ## Implementation Plan
 
-### Phase 1: Inspect Current Grid Geometry
+### Phase 1: Confirm Current Failure Path
 
-- Review the timetable body in `frontend/src/app/(dashboard)/club/schedules/page.tsx`.
-- Identify:
-  - the constant used for hour row height
-  - how hour labels are positioned
-  - how separator lines are rendered
-  - how card `top` and `height` are calculated
-  - whether card margins, gaps, borders, or padding add visual overflow
+- Inspect `approveGrading` in `backend/src/summaries-point/summaries-point.service.ts`.
+- Confirm the rejection comes from `GRADING_APPROVAL_SCORE_CONFLICT`.
+- Confirm active record count is grouped by criterion before final score assignment.
+- Confirm discipline scores are already clamped by `calculateCriterionScoreHelper`.
 
-### Phase 2: Normalize Hour Row Rendering
+### Phase 2: Fix Expected Score Calculation
 
-- Ensure each hour row has a stable fixed height.
-- Position the hour label at the vertical center of the hour row.
-- Keep separator lines at row boundaries.
-- Make sure the first visible row starts at the correct schedule start time.
+- Remove the extra discipline inversion in the approval guard.
+- Use the helper's record-derived score directly as the expected approval score.
+- Keep the existing guard shape for true conflicts:
+  - active records exist
+  - resolved score is zero or missing
+  - record-derived expected score is positive
+  - detail is not intentionally reviewed to zero
 
-### Phase 3: Normalize Card Position And Height
+### Phase 3: Ensure Final Score Assignment Is Correct
 
-- Calculate card `top` from the start time boundary.
-- Calculate card `height` from the duration only.
-- Keep the card absolutely positioned inside the day column.
-- Avoid external vertical margins that shift the card away from the grid boundaries.
-- Use `box-border` so borders are included inside the calculated height.
+- When active records exist and the derived score is `0`, set `detail.final_score = 0`.
+- Do not fall back to criterion max score for fully deducted discipline criteria.
+- Do not convert `0` to `null`, `undefined`, or a positive fallback value.
 
-Recommended card container direction:
+### Phase 4: Regression Tests
 
-```tsx
-style={{
-  top,
-  height,
-}}
-className="absolute box-border overflow-hidden"
-```
+Add or update backend tests for `approveGrading`.
 
-### Phase 4: Constrain Card Internal Layout
+Required test cases:
 
-- Review draft and saved schedule card content.
-- Ensure title, metadata, recurrence tag, time label, and action buttons fit inside the available height.
-- Use compact spacing for short duration cards.
-- Keep action buttons anchored inside the bottom area without overflowing.
-- Prefer `min-h-0`, `overflow-hidden`, and flexible internal layout where needed.
+- discipline criterion with `max_score = 8`, `score_per_unit = -1`, `activeCount = 8`, draft/unreviewed detail, derived score `0`, approval succeeds, `final_score = 0`
+- discipline criterion with `max_score = 8`, `score_per_unit = -1`, `activeCount = 9`, approval succeeds, `final_score = 0`
+- discipline criterion with `max_score = 8`, `score_per_unit = -1`, `activeCount = 1`, stale resolved score `0`, approval still throws `BadRequestException`
+- reward criterion with active records and stale zero score still throws `BadRequestException`
+- intentionally reviewed zero score still approves and preserves `0`
 
-Example direction:
+### Phase 5: Manual Verification
 
-```tsx
-<div className="flex h-full min-h-0 flex-col overflow-hidden">
-  <div className="min-h-0 flex-1 overflow-hidden">
-    ...
-  </div>
-  <div className="shrink-0">
-    ...
-  </div>
-</div>
-```
+Verify from `/grading`:
 
-### Phase 5: Visual QA
-
-Manually verify `/club/schedules` with at least these cases:
-
-- `07:00 - 09:00`
-- `07:00 - 10:00`
-- `08:00 - 09:00`
-- a draft card with action buttons
-- a saved card without draft buttons
-- a card near the top of the visible timetable
-- a card near the bottom of the visible timetable
+- select a student whose discipline criterion has more than eight active records
+- run approval from the list action
+- confirm no toast/error appears
+- confirm the summary becomes approved/locked
+- confirm the discipline criterion remains `0`
+- confirm total score and rank recompute correctly
 
 ## Acceptance Criteria
 
-- Hour labels are centered between their upper and lower separator lines.
-- A `07:00 - 09:00` club card starts at the `07:00` boundary and ends at the `09:00` boundary.
-- The card border is horizontally aligned with the start and end time grid lines.
-- All card action buttons remain inside the selected time range.
-- No card content visually spills below the end-time boundary.
-- The fix does not alter schedule data, recurrence logic, or backend APIs.
-- Dragging and resizing still snap to the expected time increments.
-- Hour separator lines remain subtle and consistent across the time column and grid.
+- `/grading` approval no longer fails when a discipline criterion is legitimately deducted to `0`.
+- The reported criterion with more than eight active records can be approved.
+- `GRADING_APPROVAL_SCORE_CONFLICT` is still thrown for true stale-zero conflicts.
+- Fully deducted discipline criteria keep `final_score = 0` after approval.
+- Partial discipline deductions still expect a positive score.
+- Reward criteria conflict behavior does not regress.
+- `academic_record` remains the source of truth for approval-time scoring.
+- Backend regression tests cover both valid zero and invalid zero cases.
 
 ## Out Of Scope
 
-- Redesigning the full schedule page.
-- Changing club creation flow.
-- Changing recurrence configuration logic.
-- Changing backend schedule schema.
-- Changing membership or favorite club behavior.
-- Adding new schedule card actions.
-- Reworking the entire calendar library or data model.
+- Redesigning the `/grading` UI.
+- Changing the scoring model for reward criteria.
+- Changing criterion configuration data.
+- Changing academic record creation, deletion, or permission rules.
+- Changing bulk approval UX beyond surfacing the corrected backend result.
+- Reworking realtime events or report export logic.
 
 ## Notes
 
-- This is a visual alignment and containment task.
-- The core requirement is geometric accuracy: the visible card must match the selected time range.
-- Treat the grid lines as time boundaries and hour labels as centered row labels.
-- Prefer layout fixes over hardcoded one-off offsets.
+- This is a backend approval validation bug, not a frontend display bug.
+- The key distinction is between a stale zero and a mathematically valid zero.
+- For negative discipline criteria, `0` is a valid terminal score after enough violations.
+- Avoid adding special handling for only the reported criterion name; the fix must apply to all discipline criteria with equivalent scoring rules.

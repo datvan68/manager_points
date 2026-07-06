@@ -949,8 +949,7 @@ export class SummariesPointService {
 
           const recordDerivedScore = scoringResult.systemScore;
 
-          const isDiscipline = criterion.score_per_unit < 0 || criterion.criterion_type === 'ky_luat';
-          const calculatedExpected = isDiscipline ? (criterion.max_score || 10) - Math.abs(recordDerivedScore) : recordDerivedScore;
+          const calculatedExpected = recordDerivedScore;
 
           const isResolvedToZero = finalScore === 0 || finalScore === null;
           const isRealExpectedNotZero = calculatedExpected > 0;
