@@ -147,6 +147,12 @@ export default function ClubsListPage() {
   const [showBgSetupModal, setShowBgSetupModal] = useState(false);
   const [selectedClubForBg, setSelectedClubForBg] = useState<ClubWithStats | null>(null);
  
+  // Bulk selection states
+  const [selectedClubIds, setSelectedClubIds] = useState<string[]>([]);
+  const [bulkActionType, setBulkActionType] = useState<'delete' | 'deactivate' | null>(null);
+  const [isBulkActionRunning, setIsBulkActionRunning] = useState(false);
+  const selectAllRef = React.useRef<HTMLInputElement>(null);
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -297,6 +303,126 @@ export default function ClubsListPage() {
     const isPresident = presidentId && presidentId.toString() === userId?.toString();
     
     return !!(isAdvisor || isPresident);
+  };
+
+  const selectableClubsOnPage = paginatedClubs.filter(canManageClub);
+  const selectedSelectableClubsOnPage = selectableClubsOnPage.filter(club => selectedClubIds.includes(club._id));
+  const isAllSelected = selectableClubsOnPage.length > 0 && selectedSelectableClubsOnPage.length === selectableClubsOnPage.length;
+  const isIndeterminate = selectedSelectableClubsOnPage.length > 0 && selectedSelectableClubsOnPage.length < selectableClubsOnPage.length;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = isIndeterminate;
+    }
+  }, [isIndeterminate]);
+
+  useEffect(() => {
+    if (clubs.length > 0 && selectedClubIds.length > 0) {
+      const manageableClubIds = new Set(
+        clubs.filter(canManageClub).map((c) => c._id)
+      );
+      setSelectedClubIds((prev) => prev.filter((id) => manageableClubIds.has(id)));
+    }
+  }, [clubs]);
+
+  // Selection Handlers
+  const handleSelectRow = (clubId: string) => {
+    setSelectedClubIds((prev) => {
+      if (prev.includes(clubId)) {
+        return prev.filter((id) => id !== clubId);
+      } else {
+        return [...prev, clubId];
+      }
+    });
+  };
+
+  const handleSelectAllChange = () => {
+    const selectableClubsOnPage = paginatedClubs.filter(canManageClub);
+    const selectedSelectableOnPage = selectableClubsOnPage.filter(club => selectedClubIds.includes(club._id));
+
+    if (selectedSelectableOnPage.length === selectableClubsOnPage.length) {
+      const selectableIdsOnPage = new Set(selectableClubsOnPage.map(c => c._id));
+      setSelectedClubIds((prev) => prev.filter((id) => !selectableIdsOnPage.has(id)));
+    } else {
+      const selectableIdsOnPage = selectableClubsOnPage.map(c => c._id);
+      setSelectedClubIds((prev) => {
+        const union = new Set([...prev, ...selectableIdsOnPage]);
+        return Array.from(union);
+      });
+    }
+  };
+
+  const handleBulkActionConfirm = async () => {
+    if (!bulkActionType || selectedClubIds.length === 0) return;
+    
+    setIsBulkActionRunning(true);
+    const actionType = bulkActionType;
+    const idsToProcess = [...selectedClubIds];
+    
+    try {
+      if (actionType === 'delete') {
+        const results = await Promise.allSettled(
+          idsToProcess.map(async (id) => {
+            await clubApi.delete(id);
+            return id;
+          })
+        );
+        
+        const fulfilledIds: string[] = [];
+        const rejectedIds: string[] = [];
+        
+        results.forEach((res, idx) => {
+          if (res.status === 'fulfilled') {
+            fulfilledIds.push(res.value);
+          } else {
+            rejectedIds.push(idsToProcess[idx]);
+          }
+        });
+        
+        if (fulfilledIds.length > 0) {
+          toast.success(`Đã xóa thành công ${fulfilledIds.length} câu lạc bộ.`);
+        }
+        if (rejectedIds.length > 0) {
+          toast.error(`Xóa thất bại ${rejectedIds.length} câu lạc bộ.`);
+        }
+        
+        setSelectedClubIds(prev => prev.filter(id => !fulfilledIds.includes(id)));
+      } else if (actionType === 'deactivate') {
+        const results = await Promise.allSettled(
+          idsToProcess.map(async (id) => {
+            await clubApi.update(id, { status: 'inactive' });
+            return id;
+          })
+        );
+        
+        const fulfilledIds: string[] = [];
+        const rejectedIds: string[] = [];
+        
+        results.forEach((res, idx) => {
+          if (res.status === 'fulfilled') {
+            fulfilledIds.push(res.value);
+          } else {
+            rejectedIds.push(idsToProcess[idx]);
+          }
+        });
+        
+        if (fulfilledIds.length > 0) {
+          toast.success(`Đã vô hiệu hóa thành công ${fulfilledIds.length} câu lạc bộ.`);
+        }
+        if (rejectedIds.length > 0) {
+          toast.error(`Vô hiệu hóa thất bại ${rejectedIds.length} câu lạc bộ.`);
+        }
+        
+        setSelectedClubIds(prev => prev.filter(id => !fulfilledIds.includes(id)));
+      }
+      
+      await loadClubs();
+    } catch (error) {
+      toast.error('Có lỗi xảy ra khi thực hiện hành động hàng loạt.');
+    } finally {
+      setIsBulkActionRunning(false);
+      setBulkActionType(null);
+    }
   };
 
   const handleFavoriteClick = async (event: React.MouseEvent, club: ClubWithStats) => {
@@ -987,7 +1113,14 @@ export default function ClubsListPage() {
               <thead>
                 <tr className="bg-slate-100/40 text-[10px] font-bold text-slate-500 tracking-wider uppercase border-b border-slate-200/80">
                   <th className="px-5 py-3.5 w-12">
-                    <input type="checkbox" className="rounded border-slate-300" disabled />
+                    <input 
+                      type="checkbox" 
+                      ref={selectAllRef}
+                      checked={isAllSelected}
+                      onChange={handleSelectAllChange}
+                      className="rounded border-slate-300 h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      disabled={selectableClubsOnPage.length === 0}
+                    />
                   </th>
                   <th className="px-4 py-3.5">TÊN CLB</th>
                   <th className="px-4 py-3.5">CHỦ NHIỆM</th>
@@ -1009,8 +1142,22 @@ export default function ClubsListPage() {
                       key={club._id}
                       className="hover:bg-white/40 transition-colors text-slate-700 text-xs font-semibold"
                     >
-                      <td className="px-5 py-4">
-                        <input type="checkbox" className="rounded border-slate-300" disabled />
+                      <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
+                        {canManageClub(club) ? (
+                          <input 
+                            type="checkbox"
+                            checked={selectedClubIds.includes(club._id)}
+                            onChange={() => handleSelectRow(club._id)}
+                            className="rounded border-slate-300 h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                        ) : (
+                          <input 
+                            type="checkbox" 
+                            disabled 
+                            className="rounded border-slate-200 h-4 w-4 opacity-30 cursor-not-allowed"
+                            title="Bạn không có quyền quản lý CLB này"
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-4 min-w-[240px]">
                         <div className="flex items-center gap-3">
@@ -1236,6 +1383,68 @@ export default function ClubsListPage() {
           }}
         />
       )}
+
+      {/* Floating Action Bar */}
+      {selectedClubIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/90 text-white rounded-2xl px-6 py-4 shadow-2xl border border-white/10 backdrop-blur-md flex items-center justify-between gap-6 min-w-[320px] max-w-[90vw] md:max-w-2xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-5">
+          <div className="flex items-center gap-3">
+            <span className="bg-blue-600 text-[11px] font-extrabold px-2.5 py-1 rounded-full text-white animate-pulse">
+              {selectedClubIds.length}
+            </span>
+            <span className="text-xs font-bold text-slate-200">câu lạc bộ đã chọn</span>
+          </div>
+
+          <div className="h-5 w-[1px] bg-white/20" />
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedClubIds([])}
+              disabled={isBulkActionRunning}
+              className="px-3 py-1.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Bỏ chọn tất cả"
+            >
+              <X size={14} />
+              <span className="hidden sm:inline">Bỏ chọn</span>
+            </button>
+
+            <button
+              onClick={() => setBulkActionType('deactivate')}
+              disabled={isBulkActionRunning}
+              className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-bold transition-all flex items-center gap-1.5 border border-amber-500/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Vô hiệu hóa các CLB đã chọn"
+            >
+              <ShieldAlert size={14} />
+              <span className="hidden sm:inline">Vô hiệu hóa</span>
+            </button>
+
+            <button
+              onClick={() => setBulkActionType('delete')}
+              disabled={isBulkActionRunning}
+              className="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-red-500/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Xóa các CLB đã chọn"
+            >
+              <Trash2 size={14} />
+              <span className="hidden sm:inline">Xóa</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Action Confirmation Modal */}
+      <ConfirmModal
+        isOpen={bulkActionType !== null}
+        onClose={() => setBulkActionType(null)}
+        onConfirm={handleBulkActionConfirm}
+        title={bulkActionType === 'delete' ? 'Xóa nhiều Câu lạc bộ' : 'Vô hiệu hóa nhiều Câu lạc bộ'}
+        message={
+          bulkActionType === 'delete'
+            ? `Bạn có chắc chắn muốn xóa ${selectedClubIds.length} câu lạc bộ đã chọn? Hành động này không thể hoàn tác.`
+            : `Bạn có chắc chắn muốn vô hiệu hóa ${selectedClubIds.length} câu lạc bộ đã chọn? Các câu lạc bộ sẽ chuyển sang trạng thái không hoạt động.`
+        }
+        confirmLabel={bulkActionType === 'delete' ? 'Xóa' : 'Vô hiệu hóa'}
+        cancelLabel="Hủy"
+        variant={bulkActionType === 'delete' ? 'danger' : 'warning'}
+      />
     </div>
   );
 }
