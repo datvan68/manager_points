@@ -668,10 +668,16 @@ export default function ClubsListPage() {
                     cardBgClass
                   )}
                   style={{
-                    borderTopWidth: '4px',
-                    borderTopColor: accentColor,
+                    borderColor: isDarkTemplate ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                    boxShadow: isDarkTemplate ? `0 4px 20px -2px rgba(0,0,0,0.35)` : `0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05)`,
                   }}
                 >
+                  {/* Corner Dots */}
+                  <div className="absolute top-3 left-3 w-1.5 h-1.5 rounded-full z-20 pointer-events-none transition-all duration-300" style={{ backgroundColor: isDarkTemplate ? 'rgba(255,255,255,0.35)' : `${accentColor}50` }} />
+                  <div className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full z-20 pointer-events-none transition-all duration-300" style={{ backgroundColor: isDarkTemplate ? 'rgba(255,255,255,0.35)' : `${accentColor}50` }} />
+                  <div className="absolute bottom-3 left-3 w-1.5 h-1.5 rounded-full z-20 pointer-events-none transition-all duration-300" style={{ backgroundColor: isDarkTemplate ? 'rgba(255,255,255,0.35)' : `${accentColor}50` }} />
+                  <div className="absolute bottom-3 right-3 w-1.5 h-1.5 rounded-full z-20 pointer-events-none transition-all duration-300" style={{ backgroundColor: isDarkTemplate ? 'rgba(255,255,255,0.35)' : `${accentColor}50` }} />
+
                   {/* Whole-card Custom Background under a light gradient filter backdrop blur */}
                   {customBgUrl && (
                     <>
@@ -709,18 +715,44 @@ export default function ClubsListPage() {
                   {/* Top Header & Favorite Row */}
                   <div className="flex justify-between items-start gap-2 z-10">
                     <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                      <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm border border-slate-200/40">
+                      {/* Category Badge */}
+                      <span className={cn(
+                        "text-[9px] font-extrabold px-2 py-0.5 rounded-full backdrop-blur-sm shadow-sm border transition-all duration-300",
+                        isDarkTemplate 
+                          ? "bg-white/10 text-slate-200 border-white/10" 
+                          : "bg-white/70 text-slate-800 border-slate-200/50"
+                      )}>
                         {conf.label}
                       </span>
+
+                      {/* Status Badge with Live Pulsing Dot */}
                       <span className={cn(
-                        "text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm shadow-sm border",
-                        club.status === 'active' ? 'bg-emerald-50/80 border-emerald-100 text-emerald-600' :
-                        club.status === 'suspended' ? 'bg-red-50/80 border-red-100 text-red-600' :
-                        'bg-slate-50 border-slate-200 text-slate-500'
+                        "text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm border flex items-center gap-1 transition-all duration-300",
+                        club.status === 'active' ? (
+                          isDarkTemplate
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                            : "bg-emerald-50/70 text-emerald-600 border-emerald-200/60"
+                        ) : club.status === 'suspended' ? (
+                          isDarkTemplate
+                            ? "bg-red-500/10 text-red-400 border-red-500/20"
+                            : "bg-red-50/70 text-red-600 border-red-200/60"
+                        ) : (
+                          isDarkTemplate
+                            ? "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                            : "bg-slate-50/70 text-slate-500 border-slate-200/60"
+                        )
                       )}>
+                        {club.status === 'active' && <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
+                        {club.status === 'suspended' && <span className="w-1 h-1 rounded-full bg-red-500 shrink-0" />}
+                        {club.status === 'inactive' && <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0" />}
                         {club.status === 'active' ? 'Hoạt động' : club.status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động'}
                       </span>
-                      <span className="text-[9px] font-mono font-bold text-slate-400 tracking-wider">
+
+                      {/* Club Code */}
+                      <span className={cn(
+                        "text-[9px] font-mono font-bold tracking-wider transition-all duration-300",
+                        isDarkTemplate ? "text-white/40" : "text-slate-400/80"
+                      )}>
                         {club.code}
                       </span>
                     </div>
@@ -2936,10 +2968,16 @@ function BackgroundSetupModal({
                 previewCardBgClass
               )}
               style={{
-                borderTopWidth: '4px',
-                borderTopColor: accentColor || '#3B82F6',
+                borderColor: isPreviewDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                boxShadow: isPreviewDark ? `0 4px 20px -2px rgba(0,0,0,0.35)` : `0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05)`,
               }}
             >
+              {/* Corner Dots */}
+              <div className="absolute top-3 left-3 w-1.5 h-1.5 rounded-full z-20 pointer-events-none transition-all duration-300" style={{ backgroundColor: isPreviewDark ? 'rgba(255,255,255,0.35)' : `${accentColor || '#3B82F6'}50` }} />
+              <div className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full z-20 pointer-events-none transition-all duration-300" style={{ backgroundColor: isPreviewDark ? 'rgba(255,255,255,0.35)' : `${accentColor || '#3B82F6'}50` }} />
+              <div className="absolute bottom-3 left-3 w-1.5 h-1.5 rounded-full z-20 pointer-events-none transition-all duration-300" style={{ backgroundColor: isPreviewDark ? 'rgba(255,255,255,0.35)' : `${accentColor || '#3B82F6'}50` }} />
+              <div className="absolute bottom-3 right-3 w-1.5 h-1.5 rounded-full z-20 pointer-events-none transition-all duration-300" style={{ backgroundColor: isPreviewDark ? 'rgba(255,255,255,0.35)' : `${accentColor || '#3B82F6'}50` }} />
+
               {/* Preview Whole-card Custom Background under a light gradient filter backdrop blur */}
               {previewCustomBgUrl && (
                 <>
@@ -2978,13 +3016,44 @@ function BackgroundSetupModal({
               {/* Preview Top Header & Favorite Row */}
               <div className="flex justify-between items-start gap-2 z-10">
                 <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                  <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm border border-slate-200/40">
+                  {/* Category Badge */}
+                  <span className={cn(
+                    "text-[9px] font-extrabold px-2 py-0.5 rounded-full backdrop-blur-sm shadow-sm border transition-all duration-300",
+                    isPreviewDark 
+                      ? "bg-white/10 text-slate-200 border-white/10" 
+                      : "bg-white/70 text-slate-800 border-slate-200/50"
+                  )}>
                     {previewCategoryConf.label}
                   </span>
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/90 shadow-sm text-emerald-600 border border-slate-200/40">
-                    Hoạt động
+
+                  {/* Status Badge with Live Pulsing Dot */}
+                  <span className={cn(
+                    "text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm border flex items-center gap-1 transition-all duration-300",
+                    club.status === 'active' ? (
+                      isPreviewDark
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                        : "bg-emerald-50/70 text-emerald-600 border-emerald-200/60"
+                    ) : club.status === 'suspended' ? (
+                      isPreviewDark
+                        ? "bg-red-500/10 text-red-400 border-red-500/20"
+                        : "bg-red-50/70 text-red-600 border-red-200/60"
+                    ) : (
+                      isPreviewDark
+                        ? "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                        : "bg-slate-50/70 text-slate-500 border-slate-200/60"
+                    )
+                  )}>
+                    {club.status === 'active' && <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
+                    {club.status === 'suspended' && <span className="w-1 h-1 rounded-full bg-red-500 shrink-0" />}
+                    {club.status === 'inactive' && <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0" />}
+                    {club.status === 'active' ? 'Hoạt động' : club.status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động'}
                   </span>
-                  <span className="text-[9px] font-mono font-bold text-slate-400 tracking-wider">
+
+                  {/* Club Code */}
+                  <span className={cn(
+                    "text-[9px] font-mono font-bold tracking-wider transition-all duration-300",
+                    isPreviewDark ? "text-white/40" : "text-slate-400/80"
+                  )}>
                     {club.code}
                   </span>
                 </div>
