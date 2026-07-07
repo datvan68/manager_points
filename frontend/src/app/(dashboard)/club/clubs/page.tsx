@@ -24,7 +24,7 @@ import { format } from 'date-fns';
 import { clubApi, clubScheduleApi, Club } from '@/api/club-api';
 import { authApi, tokenStorage } from '@/api/auth-api';
 import { semesterApi, Semester } from '@/api/semester-api';
-import { getClubScheduleSummary, BACKGROUND_PRESETS, getClubAccentColor } from './schedule-helper';
+import { getClubScheduleSummary, BACKGROUND_PRESETS, getClubAccentColor, ScheduleSummaryRow } from './schedule-helper';
 import { API_ORIGIN } from '@/api/config';
  
 const SHOW_CLUB_AVATAR = false;
@@ -106,7 +106,7 @@ const categoryConfigs: Record<string, {
     badge: 'COMMUNITY HUB',
   },
 };
- 
+
 interface ClubWithStats extends Club {
   active_members_count: number;
   pending_members_count: number;
@@ -116,6 +116,7 @@ interface ClubWithStats extends Club {
   favorite_loading?: boolean;
   join_loading?: boolean;
   schedule_time?: string;
+  schedule_summary?: ScheduleSummaryRow[];
 }
 
 const formatScheduleSummary = (schedules: any[], clubId: string) => {
@@ -188,6 +189,7 @@ export default function ClubsListPage() {
               return sClubId === club._id;
             });
             const scheduleTimeStr = formatScheduleSummary(clubSchedules, club._id);
+            const scheduleSummary = getClubScheduleSummary(clubSchedules, club._id);
 
             return {
               ...club,
@@ -199,6 +201,7 @@ export default function ClubsListPage() {
               favorite_loading: false,
               join_loading: false,
               schedule_time: scheduleTimeStr,
+              schedule_summary: scheduleSummary,
             };
           } catch {
             return {
@@ -211,6 +214,7 @@ export default function ClubsListPage() {
               favorite_loading: false,
               join_loading: false,
               schedule_time: 'Chưa xếp lịch',
+              schedule_summary: [],
             };
           }
         })
@@ -640,7 +644,7 @@ export default function ClubsListPage() {
 
 
           {/* Balanced Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
              {paginatedClubs.map((club) => {
               const conf = categoryConfigs[club.category] || categoryConfigs.other;
               const currentUser = tokenStorage.getUser();
@@ -661,11 +665,11 @@ export default function ClubsListPage() {
                   key={club._id}
                   onClick={() => router.push(`/club/clubs/${club._id}`)}
                   className={cn(
-                    "group relative backdrop-blur-md rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:bg-white/80 transition-all duration-300 flex flex-col sm:flex-row min-h-[210px] sm:min-h-0 sm:h-[160px] cursor-pointer border p-3.5 sm:p-4 justify-between gap-3.5",
+                    "group relative bg-white backdrop-blur-md rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:bg-slate-50/90 transition-all duration-300 flex flex-col min-h-[240px] cursor-pointer border p-4 justify-between gap-3.5",
                     cardBgClass
                   )}
                   style={{
-                    borderTopWidth: '3px',
+                    borderTopWidth: '4px',
                     borderTopColor: accentColor,
                   }}
                 >
@@ -697,35 +701,89 @@ export default function ClubsListPage() {
                     />
                   )}
 
-                  {/* Left Column */}
-                  <div className="flex-1 flex flex-col justify-between min-w-0 z-10">
-                    <div>
-                      {/* Top Header Flex Row */}
-                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                        <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm border border-slate-200/40">
-                          {conf.label}
-                        </span>
-                        <span className={cn(
-                          "text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm shadow-sm border",
-                          club.status === 'active' ? 'bg-emerald-50/80 border-emerald-100 text-emerald-600' :
-                          club.status === 'suspended' ? 'bg-red-50/80 border-red-100 text-red-600' :
-                          'bg-slate-50 border-slate-200 text-slate-500'
-                        )}>
-                          {club.status === 'active' ? 'Hoạt động' : club.status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động'}
-                        </span>
-                        <span className="text-[10px] font-mono font-bold text-slate-400 tracking-wider">
-                          {club.code}
+                  {/* Top Header & Favorite Row */}
+                  <div className="flex justify-between items-start gap-2 z-10">
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                      <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm border border-slate-200/40">
+                        {conf.label}
+                      </span>
+                      <span className={cn(
+                        "text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm shadow-sm border",
+                        club.status === 'active' ? 'bg-emerald-50/80 border-emerald-100 text-emerald-600' :
+                        club.status === 'suspended' ? 'bg-red-50/80 border-red-100 text-red-600' :
+                        'bg-slate-50 border-slate-200 text-slate-500'
+                      )}>
+                        {club.status === 'active' ? 'Hoạt động' : club.status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động'}
+                      </span>
+                      <span className="text-[9px] font-mono font-bold text-slate-400 tracking-wider">
+                        {club.code}
+                      </span>
+                    </div>
+                    <button
+                      disabled={club.favorite_loading}
+                      onClick={(e) => handleFavoriteClick(e, club)}
+                      className="w-7 h-7 rounded-full bg-white/90 hover:bg-white text-slate-600 hover:text-pink-500 flex items-center justify-center backdrop-blur-sm shadow-sm border border-slate-100/50 active:scale-90 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {club.favorite_loading ? (
+                        <span className="w-3 h-3 border border-pink-500 border-t-transparent rounded-full animate-spin" />
+                      ) : club.is_favorited ? (
+                        <Heart size={13} className="fill-pink-500 text-pink-500" />
+                      ) : (
+                        <Heart size={13} className="transition-colors" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Club Name */}
+                  <div className="flex-1 flex flex-col justify-start min-w-0 z-10 mt-1">
+                    <h3 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug">
+                      {club.name}
+                    </h3>
+                  </div>
+
+                  {/* Middle: Schedule and Location boxes */}
+                  <div className="space-y-1.5 text-xs font-semibold w-full z-10 my-1">
+                    {/* Schedule Time */}
+                    {club.schedule_summary && club.schedule_summary.length > 0 ? (
+                      <div className="space-y-1">
+                        {club.schedule_summary.slice(0, 2).map((row, idx) => (
+                          <div key={idx} className="flex items-start gap-1.5 text-slate-700 py-0.5">
+                            <Clock size={12} className="text-blue-500 shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1">
+                              <span className="block text-slate-800 text-[11px] font-bold leading-normal break-words" title={`${row.weekdays.join(', ')}: ${row.timeRange}`}>
+                                {row.weekdays.join(', ')}: {row.timeRange}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                        {club.schedule_summary.length > 2 && (
+                          <div className="text-[10px] text-slate-500 font-bold pl-2">
+                            + {club.schedule_summary.length - 2} ngày khác
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-slate-700 py-0.5">
+                        <Clock size={12} className="text-blue-500 shrink-0" />
+                        <span className="text-slate-800 text-[11px] font-bold">Chưa xếp lịch</span>
+                      </div>
+                    )}
+
+                    {/* Location / Classroom */}
+                    <div className="flex items-center gap-1.5 text-slate-700 py-0.5">
+                      <MapPin size={12} className="text-amber-500 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-slate-800 text-[11px] font-bold truncate" title={club.classroom}>
+                          {club.classroom || 'Chưa xếp phòng'}
                         </span>
                       </div>
-
-                      {/* Club Name */}
-                      <h3 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug mt-2.5">
-                        {club.name}
-                      </h3>
                     </div>
+                  </div>
 
-                    {/* Left Bottom Stats */}
-                    <div className="flex items-center gap-2.5 text-slate-500 text-xs font-semibold pt-2">
+                  {/* Bottom Stats and Actions Row */}
+                  <div className="flex items-center justify-between gap-2 z-10 border-t border-slate-100/50 pt-2.5 mt-auto">
+                    {/* Stats */}
+                    <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold shrink-0">
                       <div className="flex items-center gap-1" title={`${club.active_members_count} thành viên`}>
                         <Users size={12} className="text-slate-400 shrink-0" />
                         <span className="text-[11px] font-bold text-slate-700">{club.active_members_count}/{club.max_members || '∞'}</span>
@@ -735,52 +793,9 @@ export default function ClubsListPage() {
                         <span className="text-[11px] font-bold text-slate-600">{club.favorite_count || 0}</span>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Right Column */}
-                  <div className="flex flex-col justify-between items-end sm:w-[170px] shrink-0 z-10 gap-2">
-                    {/* Top: Favorite button */}
-                    <div className="flex justify-end w-full">
-                      <button
-                        disabled={club.favorite_loading}
-                        onClick={(e) => handleFavoriteClick(e, club)}
-                        className="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-600 hover:text-pink-500 flex items-center justify-center backdrop-blur-sm shadow-sm border border-slate-100/50 active:scale-90 transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {club.favorite_loading ? (
-                          <span className="w-3.5 h-3.5 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                        ) : club.is_favorited ? (
-                          <Heart size={15} className="fill-pink-500 text-pink-500" />
-                        ) : (
-                          <Heart size={15} className="transition-colors" />
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Middle: Schedule and Location boxes */}
-                    <div className="space-y-1 text-xs font-semibold w-full">
-                      {/* Schedule Time */}
-                      <div className="flex items-center gap-1.5 text-slate-700 bg-blue-50/50 hover:bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100/30 transition-colors">
-                        <Clock size={11} className="text-blue-500 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <span className="block text-slate-800 text-[10px] font-bold truncate" title={club.schedule_time}>
-                            {club.schedule_time || 'Chưa xếp lịch'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Location / Classroom */}
-                      <div className="flex items-center gap-1.5 text-slate-700 bg-amber-50/50 hover:bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100/30 transition-colors">
-                        <MapPin size={11} className="text-amber-500 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <span className="block text-slate-800 text-[10px] font-bold truncate" title={club.classroom}>
-                            {club.classroom || 'Chưa xếp phòng'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bottom: Actions */}
-                    <div className="flex items-center gap-1.5 w-full justify-end" onClick={(e) => e.stopPropagation()}>
+                    {/* Actions */}
+                    <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                       {canManageClub(club) && (
                         <Button
                           variant="outline"
@@ -789,7 +804,7 @@ export default function ClubsListPage() {
                             setSelectedClubForBg(club);
                             setShowBgSetupModal(true);
                           }}
-                          className="h-7 text-[10px] px-2.5 font-bold rounded-lg cursor-pointer transition-all border-blue-500 text-blue-600 hover:bg-blue-50 flex items-center gap-1 shrink-0"
+                          className="h-7 text-[10px] px-2 font-bold rounded-lg cursor-pointer transition-all border-blue-500 text-blue-600 hover:bg-blue-50 flex items-center gap-1"
                         >
                           <Palette size={12} className="shrink-0" />
                           Nền
@@ -812,14 +827,14 @@ export default function ClubsListPage() {
                         }
                         onClick={(e) => handleJoinClick(e, club)}
                         className={cn(
-                          "h-7 text-[10px] px-3 font-bold rounded-lg cursor-pointer transition-all truncate",
+                          "h-7 text-[10px] px-2.5 font-bold rounded-lg cursor-pointer transition-all truncate max-w-[90px]",
                           club.membership_status === 'active' && "border-emerald-500 text-emerald-600 bg-emerald-50 hover:bg-emerald-50 cursor-default",
                           club.membership_status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100 cursor-default",
                           (club.status !== 'active' || !club.settings?.allow_self_registration) && "bg-slate-100 text-slate-400 border-slate-200"
                         )}
                       >
                         {club.join_loading ? (
-                          <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
                         ) : club.membership_status === 'active' ? (
                           'Đã tham gia'
                         ) : club.membership_status === 'pending' ? (
@@ -827,11 +842,11 @@ export default function ClubsListPage() {
                         ) : club.status !== 'active' ? (
                           'Tạm dừng'
                         ) : !club.settings?.allow_self_registration ? (
-                          'Khóa đăng ký'
+                          'Khóa'
                         ) : (club.max_members ? club.active_members_count >= club.max_members : false) ? (
                           'Đầy'
                         ) : (currentUser?.role && currentUser.role.toLowerCase() !== 'student' && currentUser.role.toLowerCase() !== 'admin') ? (
-                          'Chỉ cho SV'
+                          'Chỉ SV'
                         ) : (
                           'Tham gia'
                         )}
@@ -1758,7 +1773,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
   switch (pattern) {
     case 'gold-corners':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%" preserveAspectRatio="none">
   <defs>
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.35"/>
@@ -1778,7 +1793,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'soft-waves':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%" preserveAspectRatio="none">
   <path d="M -20,100 Q 80,60, 180,120 T 320,80 L 320,340 L -20,340 Z" fill="${c}" opacity="0.12"/>
   <path d="M -20,140 Q 60,180, 160,110 T 320,160 L 320,340 L -20,340 Z" fill="${c}" opacity="0.08"/>
   <path d="M -20,180 Q 100,120, 200,200 T 320,150 L 320,340 L -20,340 Z" fill="${c}" opacity="0.1"/>
@@ -1786,7 +1801,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'circuit-corners':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
   <defs>
     <radialGradient id="cyberGlow" cx="20%" cy="80%" r="50%">
       <stop offset="0%" stop-color="${c}" stop-opacity="0.2"/>
@@ -1813,7 +1828,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'diagonal-frames':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%" preserveAspectRatio="none">
   <rect x="10" y="10" width="280" height="300" rx="10" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.22" />
   <g stroke="${c}" stroke-width="1.2" opacity="0.22">
     <line x1="240" y1="10" x2="290" y2="60" />
@@ -1831,7 +1846,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'academic-lines':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%" preserveAspectRatio="none">
   <defs>
     <pattern id="acLines" width="100" height="20" patternUnits="userSpaceOnUse">
       <line x1="0" y1="20" x2="100" y2="20" stroke="${c}" stroke-width="0.8" opacity="0.2" />
@@ -1843,7 +1858,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'premium-frame':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
   <defs>
     <radialGradient id="goldGlow" cx="80%" cy="20%" r="60%">
       <stop offset="0%" stop-color="${c}" stop-opacity="0.22"/>
@@ -1860,7 +1875,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'botanical-corners':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
   <defs>
     <radialGradient id="mintGlow" cx="15%" cy="15%" r="50%">
       <stop offset="0%" stop-color="${c}" stop-opacity="0.18"/>
@@ -1878,7 +1893,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'geometric-ribbon':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
   <path d="M 0 24 L 24 0 L 36 0 L 0 36 Z" fill="${c}" opacity="0.25"/>
   <path d="M 0 12 L 12 0 L 16 0 L 0 16 Z" fill="${c}" opacity="0.4"/>
   <path d="M 300 24 L 276 0 L 264 0 L 300 36 Z" fill="${c}" opacity="0.25"/>
@@ -1889,7 +1904,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'spark-dot-frame':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
   <g fill="${c}" opacity="0.1">
     <circle cx="40" cy="30" r="1" />
     <circle cx="80" cy="30" r="1" />
@@ -1922,7 +1937,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'wave-corner-mix':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
   <defs>
     <radialGradient id="sunGlow" cx="80%" cy="80%" r="70%">
       <stop offset="0%" stop-color="${c}" stop-opacity="0.22"/>
@@ -1941,7 +1956,7 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'campus-badge-frame':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
   <defs>
     <radialGradient id="acadGlow" cx="50%" cy="50%" r="55%">
       <stop offset="0%" stop-color="${c}" stop-opacity="0.1"/>
@@ -2229,11 +2244,11 @@ function BackgroundSetupModal({
             
             <div
               className={cn(
-                "relative backdrop-blur-md rounded-2xl overflow-hidden shadow-lg flex flex-col sm:flex-row min-h-[210px] sm:min-h-0 sm:h-[160px] w-full border transition-all duration-300 bg-white p-3.5 sm:p-4 justify-between gap-3.5",
+                "relative bg-white backdrop-blur-md rounded-2xl overflow-hidden shadow-lg flex flex-col min-h-[240px] w-full border transition-all duration-300 p-4 justify-between gap-3.5",
                 previewCardBgClass
               )}
               style={{
-                borderTopWidth: '3px',
+                borderTopWidth: '4px',
                 borderTopColor: accentColor || '#3B82F6',
               }}
             >
@@ -2248,8 +2263,8 @@ function BackgroundSetupModal({
                       backgroundPosition: 'center',
                       backgroundRepeat: 'no-repeat',
                       filter: 'blur(4.5px)',
-                      }}
-                    />
+                    }}
+                  />
                   <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/85 to-white/90 pointer-events-none z-0" />
                 </>
               )}
@@ -2265,30 +2280,78 @@ function BackgroundSetupModal({
                 />
               )}
 
-              {/* Left Column */}
-              <div className="flex-1 flex flex-col justify-between min-w-0 z-10">
-                <div>
-                  {/* Preview Top Header Flex Row */}
-                  <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                    <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm border border-slate-200/40">
-                      {previewCategoryConf.label}
-                    </span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/90 shadow-sm text-emerald-600 border border-slate-200/40">
-                      Hoạt động
-                    </span>
-                    <span className="text-[10px] font-mono font-bold text-slate-400 tracking-wider">
-                      {club.code}
+              {/* Preview Top Header & Favorite Row */}
+              <div className="flex justify-between items-start gap-2 z-10">
+                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                  <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm border border-slate-200/40">
+                    {previewCategoryConf.label}
+                  </span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/90 shadow-sm text-emerald-600 border border-slate-200/40">
+                    Hoạt động
+                  </span>
+                  <span className="text-[9px] font-mono font-bold text-slate-400 tracking-wider">
+                    {club.code}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="w-7 h-7 rounded-full bg-white/90 text-slate-400 flex items-center justify-center backdrop-blur-sm shadow-sm border border-slate-100/50"
+                  disabled
+                >
+                  <Heart size={13} className={club.is_favorited ? "fill-pink-500 text-pink-500" : ""} />
+                </button>
+              </div>
+
+              {/* Preview Club Name */}
+              <div className="flex-1 flex flex-col justify-start min-w-0 z-10 mt-1">
+                <h3 className="text-sm font-bold text-slate-800 line-clamp-2 leading-snug">
+                  {club.name}
+                </h3>
+              </div>
+
+              {/* Preview Middle: Schedule and Location boxes */}
+              <div className="space-y-1.5 text-xs font-semibold w-full z-10 my-1">
+                {/* Preview Schedule Time */}
+                {club.schedule_summary && club.schedule_summary.length > 0 ? (
+                  <div className="space-y-1">
+                    {club.schedule_summary.slice(0, 2).map((row, idx) => (
+                      <div key={idx} className="flex items-start gap-1.5 text-slate-700 py-0.5">
+                        <Clock size={12} className="text-blue-500 shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-slate-800 text-[11px] font-bold leading-normal break-words" title={`${row.weekdays.join(', ')}: ${row.timeRange}`}>
+                            {row.weekdays.join(', ')}: {row.timeRange}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {club.schedule_summary.length > 2 && (
+                      <div className="text-[10px] text-slate-500 font-bold pl-2">
+                        + {club.schedule_summary.length - 2} ngày khác
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-slate-700 py-0.5">
+                    <Clock size={12} className="text-blue-500 shrink-0" />
+                    <span className="text-slate-800 text-[11px] font-bold">Chưa xếp lịch</span>
+                  </div>
+                )}
+
+                {/* Preview Location / Classroom */}
+                <div className="flex items-center gap-1.5 text-slate-700 py-0.5">
+                  <MapPin size={12} className="text-amber-500 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-slate-800 text-[11px] font-bold truncate" title={club.classroom}>
+                      {club.classroom || 'Chưa xếp phòng'}
                     </span>
                   </div>
-
-                  {/* Preview Club Name */}
-                  <h3 className="text-sm font-bold text-slate-800 line-clamp-2 leading-snug mt-2.5">
-                    {club.name}
-                  </h3>
                 </div>
+              </div>
 
-                {/* Preview Footer Info Stats */}
-                <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold pt-2">
+              {/* Preview Bottom Stats and Actions Row */}
+              <div className="flex items-center justify-between gap-2 z-10 border-t border-slate-100/50 pt-2.5 mt-auto">
+                {/* Stats */}
+                <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold shrink-0">
                   <div className="flex items-center gap-1">
                     <Users size={12} className="text-slate-400 shrink-0" />
                     <span className="text-[11px] font-bold text-slate-700">{club.active_members_count}/{club.max_members || '∞'}</span>
@@ -2298,61 +2361,29 @@ function BackgroundSetupModal({
                     <span className="text-[11px] font-bold text-slate-600">{club.favorite_count || 0}</span>
                   </div>
                 </div>
-              </div>
 
-              {/* Right Column */}
-              <div className="flex flex-col justify-between items-end sm:w-[170px] shrink-0 z-10 gap-2">
-                {/* Preview Favorite button */}
-                <div className="flex justify-end w-full">
-                  <button
-                    type="button"
-                    className="w-8 h-8 rounded-full bg-white/80 text-slate-400 flex items-center justify-center backdrop-blur-sm shadow-sm border border-slate-100/50"
+                {/* Actions */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    variant={
+                      club.membership_status === 'active' ? 'outline' :
+                      club.membership_status === 'pending' ? 'secondary' : 'default'
+                    }
+                    size="sm"
                     disabled
+                    className={cn(
+                      "h-7 text-[10px] px-2.5 font-bold rounded-lg cursor-default truncate max-w-[90px]",
+                      club.membership_status === 'active' && "border-emerald-500 text-emerald-600 bg-emerald-50 hover:bg-emerald-50",
+                      club.membership_status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100",
+                      (club.status !== 'active' || !club.settings?.allow_self_registration) && "bg-slate-100 text-slate-400 border-slate-200"
+                    )}
                   >
-                    <Heart size={15} className={club.is_favorited ? "fill-pink-500 text-pink-500" : ""} />
-                  </button>
+                    {
+                      club.membership_status === 'active' ? 'Đã tham gia' :
+                      club.membership_status === 'pending' ? 'Chờ duyệt' : 'Tham gia'
+                    }
+                  </Button>
                 </div>
-
-                {/* Preview Schedule & Location */}
-                <div className="space-y-1 text-xs font-semibold w-full">
-                  <div className="flex items-center gap-1.5 text-slate-700 bg-blue-50/50 px-2 py-0.5 rounded-md border border-blue-100/30">
-                    <Clock size={11} className="text-blue-500 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <span className="block text-slate-800 text-[10px] font-bold truncate">
-                        {club.schedule_time || 'Chưa xếp lịch'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-700 bg-amber-50/50 px-2 py-0.5 rounded-md border border-amber-100/30">
-                    <MapPin size={11} className="text-amber-500 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <span className="block text-slate-800 text-[10px] font-bold truncate">
-                        {club.classroom || 'Chưa xếp phòng'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Preview Button */}
-                <Button
-                  variant={
-                    club.membership_status === 'active' ? 'outline' :
-                    club.membership_status === 'pending' ? 'secondary' : 'default'
-                  }
-                  size="sm"
-                  disabled
-                  className={cn(
-                    "h-7 text-[10px] px-3 font-bold rounded-lg cursor-default shrink-0 truncate",
-                    club.membership_status === 'active' && "border-emerald-500 text-emerald-600 bg-emerald-50 hover:bg-emerald-50",
-                    club.membership_status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100",
-                    (club.status !== 'active' || !club.settings?.allow_self_registration) && "bg-slate-100 text-slate-400 border-slate-200"
-                  )}
-                >
-                  {
-                    club.membership_status === 'active' ? 'Đã tham gia' :
-                    club.membership_status === 'pending' ? 'Chờ duyệt' : 'Tham gia'
-                  }
-                </Button>
               </div>
             </div>
           </div>
