@@ -641,14 +641,13 @@ export default function ClubsListPage() {
       ) : viewMode === 'grid' ? (
         // Grid View
         <div className="space-y-6">
-
-
           {/* Balanced Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
              {paginatedClubs.map((club) => {
               const conf = categoryConfigs[club.category] || categoryConfigs.other;
               const currentUser = tokenStorage.getUser();
               const template = BACKGROUND_TEMPLATES.find((t) => t.id === club.background_config?.pattern);
+              const isDarkTemplate = !!template?.isDark;
               const cardBgClass = template 
                 ? template.bgClass 
                 : (BACKGROUND_PRESETS.find((p) => p.id === club.background_config?.preset)?.className || "bg-white/45 border-white/70");
@@ -665,7 +664,7 @@ export default function ClubsListPage() {
                   key={club._id}
                   onClick={() => router.push(`/club/clubs/${club._id}`)}
                   className={cn(
-                    "group relative bg-white backdrop-blur-md rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:bg-slate-50/90 transition-all duration-300 flex flex-col min-h-[240px] cursor-pointer border p-4 justify-between gap-3.5",
+                    "group relative bg-white backdrop-blur-md rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:bg-slate-50/90 transition-all duration-300 flex flex-col min-h-[240px] cursor-pointer border p-4 justify-between gap-3.5 template-shine-effect",
                     cardBgClass
                   )}
                   style={{
@@ -700,6 +699,12 @@ export default function ClubsListPage() {
                       )} 
                     />
                   )}
+
+                  {/* Pet Motion Accent Layer */}
+                  <PetAccentLayer 
+                    type={club.background_config?.petAccentType} 
+                    color={accentColor} 
+                  />
 
                   {/* Top Header & Favorite Row */}
                   <div className="flex justify-between items-start gap-2 z-10">
@@ -736,21 +741,30 @@ export default function ClubsListPage() {
 
                   {/* Club Name */}
                   <div className="flex-1 flex flex-col justify-start min-w-0 z-10 mt-1">
-                    <h3 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug">
+                    <h3 className={cn(
+                      "text-sm font-bold group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug",
+                      isDarkTemplate ? "text-slate-100" : "text-slate-800"
+                    )}>
                       {club.name}
                     </h3>
                   </div>
 
                   {/* Middle: Schedule and Location boxes */}
-                  <div className="space-y-1.5 text-xs font-semibold w-full z-10 my-1">
+                  <div className={cn(
+                    "space-y-1.5 text-xs font-semibold w-full z-10 my-1",
+                    isDarkTemplate ? "text-slate-300" : "text-slate-700"
+                  )}>
                     {/* Schedule Time */}
                     {club.schedule_summary && club.schedule_summary.length > 0 ? (
                       <div className="space-y-1">
                         {club.schedule_summary.slice(0, 2).map((row, idx) => (
-                          <div key={idx} className="flex items-start gap-1.5 text-slate-700 py-0.5">
+                          <div key={idx} className="flex items-start gap-1.5 py-0.5">
                             <Clock size={12} className="text-blue-500 shrink-0 mt-0.5" />
                             <div className="min-w-0 flex-1">
-                              <span className="block text-slate-800 text-[11px] font-bold leading-normal break-words" title={`${row.weekdays.join(', ')}: ${row.timeRange}`}>
+                              <span className={cn(
+                                "block text-[11px] font-bold leading-normal break-words",
+                                isDarkTemplate ? "text-slate-200" : "text-slate-800"
+                              )} title={`${row.weekdays.join(', ')}: ${row.timeRange}`}>
                                 {row.weekdays.join(', ')}: {row.timeRange}
                               </span>
                             </div>
@@ -763,17 +777,23 @@ export default function ClubsListPage() {
                         )}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5 text-slate-700 py-0.5">
+                      <div className="flex items-center gap-1.5 py-0.5">
                         <Clock size={12} className="text-blue-500 shrink-0" />
-                        <span className="text-slate-800 text-[11px] font-bold">Chưa xếp lịch</span>
+                        <span className={cn(
+                          "text-[11px] font-bold",
+                          isDarkTemplate ? "text-slate-200" : "text-slate-800"
+                        )}>Chưa xếp lịch</span>
                       </div>
                     )}
 
                     {/* Location / Classroom */}
-                    <div className="flex items-center gap-1.5 text-slate-700 py-0.5">
+                    <div className="flex items-center gap-1.5 py-0.5">
                       <MapPin size={12} className="text-amber-500 shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <span className="block text-slate-800 text-[11px] font-bold truncate" title={club.classroom}>
+                        <span className={cn(
+                          "block text-[11px] font-bold truncate",
+                          isDarkTemplate ? "text-slate-200" : "text-slate-800"
+                        )} title={club.classroom}>
                           {club.classroom || 'Chưa xếp phòng'}
                         </span>
                       </div>
@@ -781,16 +801,28 @@ export default function ClubsListPage() {
                   </div>
 
                   {/* Bottom Stats and Actions Row */}
-                  <div className="flex items-center justify-between gap-2 z-10 border-t border-slate-100/50 pt-2.5 mt-auto">
+                  <div className={cn(
+                    "flex items-center justify-between gap-2 z-10 border-t pt-2.5 mt-auto",
+                    isDarkTemplate ? "border-white/15" : "border-slate-100/50"
+                  )}>
                     {/* Stats */}
-                    <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold shrink-0">
+                    <div className={cn(
+                      "flex items-center gap-2 text-xs font-semibold shrink-0",
+                      isDarkTemplate ? "text-slate-400" : "text-slate-500"
+                    )}>
                       <div className="flex items-center gap-1" title={`${club.active_members_count} thành viên`}>
                         <Users size={12} className="text-slate-400 shrink-0" />
-                        <span className="text-[11px] font-bold text-slate-700">{club.active_members_count}/{club.max_members || '∞'}</span>
+                        <span className={cn(
+                          "text-[11px] font-bold",
+                          isDarkTemplate ? "text-slate-300" : "text-slate-700"
+                        )}>{club.active_members_count}/{club.max_members || '∞'}</span>
                       </div>
                       <div className="flex items-center gap-1" title={`${club.favorite_count || 0} lượt yêu thích`}>
                         <Heart size={12} className={club.is_favorited ? "fill-pink-500 text-pink-500 shrink-0" : "text-slate-400 shrink-0"} />
-                        <span className="text-[11px] font-bold text-slate-600">{club.favorite_count || 0}</span>
+                        <span className={cn(
+                          "text-[11px] font-bold",
+                          isDarkTemplate ? "text-slate-300" : "text-slate-600"
+                        )}>{club.favorite_count || 0}</span>
                       </div>
                     </div>
 
@@ -1719,262 +1751,727 @@ export interface BackgroundTemplate {
   bgClass: string;
   accentColor: string;
   patternId: string;
+  category: 'classic' | 'premium' | 'active' | 'pet';
+  isDark?: boolean;
 }
 
 const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
-  {
-    id: 'luxury-gold',
-    name: 'Hoàng gia Gold (Luxury Gold)',
-    bgClass: 'bg-gradient-to-br from-amber-50/60 via-orange-50/10 to-yellow-50/30 border-amber-200',
-    accentColor: '#D97706',
-    patternId: 'premium-frame',
-  },
-  {
-    id: 'cyber-tech',
-    name: 'Cyber Xanh (Cyber Tech)',
-    bgClass: 'bg-gradient-to-br from-cyan-50/30 via-slate-50/10 to-blue-50/30 border-cyan-200',
-    accentColor: '#06B6D4',
-    patternId: 'circuit-corners',
-  },
-  {
-    id: 'academic-prestige',
-    name: 'Học thuật Indigo (Academic)',
-    bgClass: 'bg-gradient-to-br from-indigo-50/40 via-sky-50/10 to-slate-100/40 border-indigo-200',
-    accentColor: '#4F46E5',
-    patternId: 'campus-badge-frame',
-  },
-  {
-    id: 'sunset-wave',
-    name: 'Hoàng hôn Rose (Sunset Wave)',
-    bgClass: 'bg-gradient-to-br from-rose-50/40 via-amber-50/10 to-rose-100/20 border-rose-200',
-    accentColor: '#E11D48',
-    patternId: 'wave-corner-mix',
-  },
-  {
-    id: 'eco-blossom',
-    name: 'Mầm xanh Mint (Eco Blossom)',
-    bgClass: 'bg-gradient-to-br from-emerald-50/40 via-teal-50/10 to-green-50/20 border-emerald-200',
-    accentColor: '#10B981',
-    patternId: 'botanical-corners',
-  },
+  // Classic
   {
     id: 'minimal-clean',
     name: 'Tối giản Slate (Minimal Clean)',
-    bgClass: 'bg-white border-slate-200/80',
+    bgClass: 'bg-gradient-to-br from-slate-50 to-slate-100/80 border-slate-200/80 shadow-sm',
     accentColor: '#64748B',
     patternId: 'spark-dot-frame',
+    category: 'classic',
+  },
+  {
+    id: 'aurora-glass',
+    name: 'Kính Cực quang (Aurora Glass)',
+    bgClass: 'bg-gradient-to-tr from-indigo-50/90 via-purple-50/70 to-pink-50/80 border-indigo-100 backdrop-blur-md shadow-sm',
+    accentColor: '#8B5CF6',
+    patternId: 'glass-grid',
+    category: 'classic',
+  },
+  {
+    id: 'academic-crest',
+    name: 'Học thuật Indigo (Academic Crest)',
+    bgClass: 'bg-gradient-to-br from-indigo-50/80 via-blue-50/40 to-slate-50 border-indigo-200/60 shadow-sm',
+    accentColor: '#4F46E5',
+    patternId: 'academic-crest-pattern',
+    category: 'classic',
+  },
+  {
+    id: 'soft-silk',
+    name: 'Lụa Mềm mại (Soft Silk)',
+    bgClass: 'bg-gradient-to-br from-rose-50/70 via-orange-50/40 to-slate-100/60 border-rose-100 shadow-sm',
+    accentColor: '#F43F5E',
+    patternId: 'soft-waves-pattern',
+    category: 'classic',
+  },
+  {
+    id: 'eco-leaf',
+    name: 'Môi trường Mint (Eco Environment)',
+    bgClass: 'bg-gradient-to-br from-emerald-50/80 via-teal-50/30 to-green-50/40 border-emerald-200/60 shadow-sm',
+    accentColor: '#10B981',
+    patternId: 'eco-leaf-pattern',
+    category: 'classic',
+  },
+  {
+    id: 'medical-pulse',
+    name: 'Y sinh Nhịp tim (Medical Pulse)',
+    bgClass: 'bg-gradient-to-br from-cyan-50/80 via-teal-50/20 to-slate-50 border-cyan-200/60 shadow-sm',
+    accentColor: '#06B6D4',
+    patternId: 'medical-pulse-pattern',
+    category: 'classic',
+  },
+  {
+    id: 'lang-global',
+    name: 'Ngôn ngữ Toàn cầu (Global Languages)',
+    bgClass: 'bg-gradient-to-br from-blue-50/70 via-indigo-50/30 to-slate-100/50 border-blue-200/60 shadow-sm',
+    accentColor: '#3B82F6',
+    patternId: 'lang-global-pattern',
+    category: 'classic',
+  },
+
+  // Premium
+  {
+    id: 'royal-gold',
+    name: 'Hoàng gia Gold (Royal Gold)',
+    bgClass: 'bg-gradient-to-br from-amber-500/10 via-amber-600/[0.04] to-yellow-500/10 border-amber-300 shadow-md',
+    accentColor: '#D97706',
+    patternId: 'premium-frame-pattern',
+    category: 'premium',
+  },
+  {
+    id: 'cyber-neon',
+    name: 'Cyberpunk Neon (Cyber Neon)',
+    bgClass: 'bg-gradient-to-br from-slate-900 via-slate-950 to-zinc-900 border-cyan-500/30 text-white shadow-lg',
+    accentColor: '#06B6D4',
+    patternId: 'circuit-neon-pattern',
+    category: 'premium',
+    isDark: true,
+  },
+  {
+    id: 'space-orbit',
+    name: 'Vũ trụ Vô tận (Cosmic Space)',
+    bgClass: 'bg-gradient-to-br from-violet-950 via-purple-900 to-indigo-950 border-purple-500/30 text-white shadow-lg',
+    accentColor: '#A855F7',
+    patternId: 'space-orbit-pattern',
+    category: 'premium',
+    isDark: true,
+  },
+  {
+    id: 'carbon-3d',
+    name: 'Vân Carbon (Carbon Tech)',
+    bgClass: 'bg-gradient-to-br from-zinc-800 to-zinc-900 border-zinc-700/80 text-white shadow-md',
+    accentColor: '#71717A',
+    patternId: 'carbon-3d-pattern',
+    category: 'premium',
+    isDark: true,
+  },
+  {
+    id: 'abstract-geom',
+    name: 'Hình học Trừu tượng (Abstract Geo)',
+    bgClass: 'bg-gradient-to-br from-slate-50 via-sky-50/50 to-indigo-50/40 border-slate-300 shadow-sm',
+    accentColor: '#0284C7',
+    patternId: 'abstract-geom-pattern',
+    category: 'premium',
+  },
+  {
+    id: 'tech-ai',
+    name: 'Trí tuệ Nhân tạo (AI Cognitive)',
+    bgClass: 'bg-gradient-to-br from-violet-950 via-slate-900 to-zinc-950 border-purple-500/40 text-white shadow-lg',
+    accentColor: '#8B5CF6',
+    patternId: 'tech-ai-pattern',
+    category: 'premium',
+    isDark: true,
+  },
+  {
+    id: 'tech-hardware',
+    name: 'Phần cứng Vi mạch (Hardware IoT)',
+    bgClass: 'bg-gradient-to-br from-zinc-900 via-slate-950 to-zinc-950 border-emerald-500/40 text-white shadow-lg',
+    accentColor: '#10B981',
+    patternId: 'tech-hardware-pattern',
+    category: 'premium',
+    isDark: true,
+  },
+  {
+    id: 'eng-mechanical',
+    name: 'Cơ khí Bánh răng (Mechanical Gear)',
+    bgClass: 'bg-gradient-to-br from-slate-100 via-amber-500/[0.03] to-slate-200/70 border-slate-300 shadow-sm',
+    accentColor: '#B45309',
+    patternId: 'eng-mechanical-pattern',
+    category: 'premium',
+  },
+
+  // Active
+  {
+    id: 'sport-dynamic',
+    name: 'Thể thao Năng động (Sport Dynamic)',
+    bgClass: 'bg-gradient-to-br from-orange-500/10 via-amber-500/[0.03] to-red-500/10 border-orange-300 shadow-sm',
+    accentColor: '#EA580C',
+    patternId: 'sport-stripes-pattern',
+    category: 'active',
+  },
+  {
+    id: 'chroma-glow',
+    name: 'Chroma Neon (Chroma Glow)',
+    bgClass: 'bg-gradient-to-tr from-fuchsia-500/15 via-rose-500/10 to-amber-500/10 border-fuchsia-300/60 shadow-sm',
+    accentColor: '#D946EF',
+    patternId: 'chroma-glow-pattern',
+    category: 'active',
+  },
+  {
+    id: 'comic-pop',
+    name: 'Comic Halftone (Comic Pop)',
+    bgClass: 'bg-gradient-to-br from-emerald-50 via-teal-50/30 to-cyan-100/40 border-teal-200/80 shadow-sm',
+    accentColor: '#0D9488',
+    patternId: 'halftone-pop-pattern',
+    category: 'active',
+  },
+  {
+    id: 'ocean-wave',
+    name: 'Sóng biển Mát lạnh (Ocean Wave)',
+    bgClass: 'bg-gradient-to-br from-sky-50 via-cyan-50/40 to-blue-100/30 border-sky-200/80 shadow-sm',
+    accentColor: '#0284C7',
+    patternId: 'ocean-waves-pattern',
+    category: 'active',
+  },
+  {
+    id: 'sport-soccer',
+    name: 'Bóng đá Sân cỏ (Soccer Field)',
+    bgClass: 'bg-gradient-to-br from-green-500/10 via-emerald-500/[0.03] to-emerald-600/10 border-emerald-300 shadow-sm',
+    accentColor: '#22C55E',
+    patternId: 'sport-soccer-pattern',
+    category: 'active',
+  },
+  {
+    id: 'sport-basketball',
+    name: 'Bóng rổ Đường phố (Street Basketball)',
+    bgClass: 'bg-gradient-to-br from-orange-500/10 via-red-500/[0.04] to-orange-600/10 border-orange-300 shadow-sm',
+    accentColor: '#F97316',
+    patternId: 'sport-basketball-pattern',
+    category: 'active',
+  },
+  {
+    id: 'art-music',
+    name: 'Nghệ thuật Âm nhạc (Art & Music)',
+    bgClass: 'bg-gradient-to-br from-fuchsia-500/10 via-purple-500/[0.04] to-violet-600/10 border-fuchsia-300 shadow-sm',
+    accentColor: '#D946EF',
+    patternId: 'art-music-pattern',
+    category: 'active',
+  },
+  {
+    id: 'art-paint',
+    name: 'Hội họa Sáng tạo (Creative Canvas)',
+    bgClass: 'bg-gradient-to-tr from-pink-500/10 via-rose-500/[0.04] to-amber-500/10 border-rose-300 shadow-sm',
+    accentColor: '#F43F5E',
+    patternId: 'art-paint-pattern',
+    category: 'active',
+  },
+
+  // Pet
+  {
+    id: 'paw-paradise',
+    name: 'Dấu chân Vui nhộn (Paw Paradise)',
+    bgClass: 'bg-gradient-to-br from-amber-50 via-orange-50/30 to-yellow-50 border-amber-200 shadow-sm',
+    accentColor: '#D97706',
+    patternId: 'paw-print-pattern',
+    category: 'pet',
+  },
+  {
+    id: 'cat-kingdom',
+    name: 'Vương quốc Mèo (Cat Kingdom)',
+    bgClass: 'bg-gradient-to-br from-rose-50 via-pink-50/20 to-rose-100/20 border-rose-200 shadow-sm',
+    accentColor: '#EC4899',
+    patternId: 'cat-kingdom-pattern',
+    category: 'pet',
+  },
+  {
+    id: 'dog-playland',
+    name: 'Sân chơi Cún con (Dog Playland)',
+    bgClass: 'bg-gradient-to-br from-sky-50 via-blue-50/20 to-indigo-50/20 border-sky-200 shadow-sm',
+    accentColor: '#2563EB',
+    patternId: 'dog-playland-pattern',
+    category: 'pet',
+  },
+  {
+    id: 'sweet-honey',
+    name: 'Ong Mật Ngọt (Sweet Honey)',
+    bgClass: 'bg-gradient-to-br from-yellow-500/10 via-amber-500/[0.04] to-orange-500/10 border-yellow-300 shadow-sm',
+    accentColor: '#CA8A04',
+    patternId: 'honey-comb-pattern',
+    category: 'pet',
   }
 ];
 
 const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties => {
   const c = color || '#3B82F6';
   
+  // Ánh xạ (alias) từ pattern cũ sang pattern mới để tương thích ngược dữ liệu
+  let targetPattern = pattern;
+  const aliasMap: Record<string, string> = {
+    'gold-corners': 'premium-frame-pattern',
+    'soft-waves': 'soft-waves-pattern',
+    'circuit-corners': 'circuit-neon-pattern',
+    'diagonal-frames': 'spark-dot-frame',
+    'academic-lines': 'academic-crest-pattern',
+    'premium-frame': 'premium-frame-pattern',
+    'botanical-corners': 'soft-waves-pattern',
+    'geometric-ribbon': 'spark-dot-frame',
+    'wave-corner-mix': 'chroma-glow-pattern',
+    'campus-badge-frame': 'academic-crest-pattern',
+    'sport-stripes': 'sport-stripes-pattern',
+    'celebration-stars': 'chroma-glow-pattern',
+    'paw-print': 'paw-print-pattern',
+    'cat-club': 'cat-kingdom-pattern',
+    'dog-club': 'dog-playland-pattern',
+    'pet-care-icons': 'paw-print-pattern',
+    'animal-friends': 'paw-print-pattern',
+    'tech-grid-pattern': 'glass-grid',
+    'cyber-frame-pattern': 'circuit-neon-pattern',
+    'blueprint-pattern': 'glass-grid',
+    'carbon-panel-pattern': 'carbon-3d-pattern',
+    'precision-blocks-pattern': 'abstract-geom-pattern',
+    'symmetric-crest-pattern': 'academic-crest-pattern',
+  };
+  
+  if (targetPattern && aliasMap[targetPattern]) {
+    targetPattern = aliasMap[targetPattern];
+  }
+
   let svgString = '';
-  switch (pattern) {
-    case 'gold-corners':
-      svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%" preserveAspectRatio="none">
-  <defs>
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.35"/>
-      <stop offset="100%" stop-color="#D97706" stop-opacity="0.15"/>
-    </linearGradient>
-  </defs>
-  <path d="M 0 0 L 40 0 C 40 20, 20 40, 0 40 Z" fill="url(#goldGrad)"/>
-  <path d="M 0 0 L 50 0 C 50 25, 25 50, 0 50 Z" fill="none" stroke="#F59E0B" stroke-width="1.8" opacity="0.35"/>
-  <path d="M 0 0 L 30 0 C 30 15, 15 30, 0 30 Z" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.25"/>
-  <path d="M 300 0 L 260 0 C 260 20, 280 40, 300 40 Z" fill="url(#goldGrad)"/>
-  <path d="M 300 0 L 250 0 C 250 25, 275 50, 300 50 Z" fill="none" stroke="#F59E0B" stroke-width="1.8" opacity="0.35"/>
-  <path d="M 0 320 L 40 320 C 40 300, 20 280, 0 280 Z" fill="url(#goldGrad)"/>
-  <path d="M 0 320 L 50 320 C 50 295, 25 270, 0 270 Z" fill="none" stroke="#F59E0B" stroke-width="1.8" opacity="0.35"/>
-  <path d="M 300 320 L 260 320 C 260 300, 280 280, 300 280 Z" fill="url(#goldGrad)"/>
-  <path d="M 300 320 L 250 320 C 250 295, 275 270, 300 270 Z" fill="none" stroke="#F59E0B" stroke-width="1.8" opacity="0.35"/>
-</svg>`;
-      break;
-    case 'soft-waves':
-      svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%" preserveAspectRatio="none">
-  <path d="M -20,100 Q 80,60, 180,120 T 320,80 L 320,340 L -20,340 Z" fill="${c}" opacity="0.12"/>
-  <path d="M -20,140 Q 60,180, 160,110 T 320,160 L 320,340 L -20,340 Z" fill="${c}" opacity="0.08"/>
-  <path d="M -20,180 Q 100,120, 200,200 T 320,150 L 320,340 L -20,340 Z" fill="${c}" opacity="0.1"/>
-</svg>`;
-      break;
-    case 'circuit-corners':
-      svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
-  <defs>
-    <radialGradient id="cyberGlow" cx="20%" cy="80%" r="50%">
-      <stop offset="0%" stop-color="${c}" stop-opacity="0.2"/>
-      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="300" height="160" fill="url(#cyberGlow)" />
-  <g fill="${c}" opacity="0.2">
-    <circle cx="100" cy="40" r="1" />
-    <circle cx="115" cy="40" r="1" />
-    <circle cx="130" cy="40" r="1" />
-    <circle cx="100" cy="55" r="1" />
-    <circle cx="115" cy="55" r="1" />
-    <circle cx="130" cy="55" r="1" />
-  </g>
-  <path d="M 10 135 H 120 L 140 155 H 290" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.35" />
-  <path d="M 20 130 H 115" fill="none" stroke="${c}" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.2" />
-  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.3" transform="translate(160, 45)">
-    <circle cx="0" cy="0" r="5" />
-    <line x1="-8" y1="0" x2="8" y2="0" />
-    <line x1="0" y1="-8" x2="0" y2="8" />
-  </g>
-</svg>`;
-      break;
-    case 'diagonal-frames':
-      svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%" preserveAspectRatio="none">
-  <rect x="10" y="10" width="280" height="300" rx="10" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.22" />
-  <g stroke="${c}" stroke-width="1.2" opacity="0.22">
-    <line x1="240" y1="10" x2="290" y2="60" />
-    <line x1="255" y1="10" x2="290" y2="45" />
-    <line x1="270" y1="10" x2="290" y2="30" />
-    <line x1="225" y1="10" x2="290" y2="75" />
-  </g>
-  <g stroke="${c}" stroke-width="1.2" opacity="0.22">
-    <line x1="10" y1="240" x2="90" y2="310" />
-    <line x1="10" y1="255" x2="75" y2="310" />
-    <line x1="10" y1="270" x2="60" y2="310" />
-    <line x1="10" y1="225" x2="105" y2="310" />
-  </g>
-</svg>`;
-      break;
-    case 'academic-lines':
-      svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%" preserveAspectRatio="none">
-  <defs>
-    <pattern id="acLines" width="100" height="20" patternUnits="userSpaceOnUse">
-      <line x1="0" y1="20" x2="100" y2="20" stroke="${c}" stroke-width="0.8" opacity="0.2" />
-    </pattern>
-  </defs>
-  <line x1="40" y1="0" x2="40" y2="320" stroke="#EF4444" stroke-width="1.2" opacity="0.3" />
-  <rect width="300" height="320" fill="url(#acLines)" />
-</svg>`;
-      break;
-    case 'premium-frame':
-      svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
-  <defs>
-    <radialGradient id="goldGlow" cx="80%" cy="20%" r="60%">
-      <stop offset="0%" stop-color="${c}" stop-opacity="0.22"/>
-      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="300" height="160" fill="url(#goldGlow)" />
-  <path d="M 0 145 C 80 120, 160 155, 300 130" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.35" />
-  <path d="M 0 150 C 75 125, 155 160, 300 135" fill="none" stroke="${c}" stroke-width="0.8" stroke-dasharray="4 2" opacity="0.2" />
-  <path d="M 120 30 Q 120 36, 126 36 Q 120 36, 120 42 Q 120 36, 114 36 Q 120 36, 120 30 Z" fill="${c}" opacity="0.5" />
-  <path d="M 235 65 Q 235 70, 240 70 Q 235 70, 235 75 Q 235 70, 230 70 Q 235 70, 235 65 Z" fill="${c}" opacity="0.4" />
-  <path d="M 45 100 Q 45 103, 48 103 Q 45 103, 45 106 Q 45 103, 42 103 Q 45 103, 45 100 Z" fill="${c}" opacity="0.3" />
-</svg>`;
-      break;
-    case 'botanical-corners':
-      svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
-  <defs>
-    <radialGradient id="mintGlow" cx="15%" cy="15%" r="50%">
-      <stop offset="0%" stop-color="${c}" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="300" height="160" fill="url(#mintGlow)" />
-  <circle cx="180" cy="35" r="4.5" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.2" />
-  <circle cx="230" cy="115" r="8" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.15" />
-  <circle cx="75" cy="120" r="3.5" fill="none" stroke="${c}" stroke-width="0.6" opacity="0.18" />
-  <path d="M 0,20 C 30,20 40,40 60,30 S 80,10 100,20" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.22" />
-  <path d="M 60,30 C 58,25 50,22 46,24 C 42,26 44,32 60,30 Z" fill="${c}" fill-opacity="0.12" stroke="${c}" stroke-width="0.8" opacity="0.22" />
-  <path d="M 80,10 C 82,15 90,18 94,16 C 98,14 96,8 80,10 Z" fill="${c}" fill-opacity="0.12" stroke="${c}" stroke-width="0.8" opacity="0.22" />
-</svg>`;
-      break;
-    case 'geometric-ribbon':
-      svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
-  <path d="M 0 24 L 24 0 L 36 0 L 0 36 Z" fill="${c}" opacity="0.25"/>
-  <path d="M 0 12 L 12 0 L 16 0 L 0 16 Z" fill="${c}" opacity="0.4"/>
-  <path d="M 300 24 L 276 0 L 264 0 L 300 36 Z" fill="${c}" opacity="0.25"/>
-  <path d="M 300 12 L 288 0 L 284 0 L 300 16 Z" fill="${c}" opacity="0.4"/>
-  <line x1="45" y1="6" x2="255" y2="6" stroke="${c}" stroke-width="1" stroke-dasharray="4 4" opacity="0.3"/>
-  <line x1="45" y1="154" x2="255" y2="154" stroke="${c}" stroke-width="1" stroke-dasharray="4 4" opacity="0.3"/>
-</svg>`;
-      break;
+  switch (targetPattern) {
     case 'spark-dot-frame':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
-  <g fill="${c}" opacity="0.1">
-    <circle cx="40" cy="30" r="1" />
-    <circle cx="80" cy="30" r="1" />
-    <circle cx="120" cy="30" r="1" />
-    <circle cx="160" cy="30" r="1" />
-    <circle cx="200" cy="30" r="1" />
-    <circle cx="240" cy="30" r="1" />
-    <circle cx="40" cy="65" r="1" />
-    <circle cx="80" cy="65" r="1" />
-    <circle cx="120" cy="65" r="1" />
-    <circle cx="160" cy="65" r="1" />
-    <circle cx="200" cy="65" r="1" />
-    <circle cx="240" cy="65" r="1" />
-    <circle cx="40" cy="100" r="1" />
-    <circle cx="80" cy="100" r="1" />
-    <circle cx="120" cy="100" r="1" />
-    <circle cx="160" cy="100" r="1" />
-    <circle cx="200" cy="100" r="1" />
-    <circle cx="240" cy="100" r="1" />
+  <g fill="${c}" opacity="0.08">
+    <circle cx="20" cy="20" r="1" /><circle cx="60" cy="20" r="1" /><circle cx="100" cy="20" r="1" /><circle cx="140" cy="20" r="1" /><circle cx="180" cy="20" r="1" /><circle cx="220" cy="20" r="1" /><circle cx="260" cy="20" r="1" />
+    <circle cx="20" cy="50" r="1" /><circle cx="60" cy="50" r="1" /><circle cx="100" cy="50" r="1" /><circle cx="140" cy="50" r="1" /><circle cx="180" cy="50" r="1" /><circle cx="220" cy="50" r="1" /><circle cx="260" cy="50" r="1" />
+    <circle cx="20" cy="80" r="1" /><circle cx="60" cy="80" r="1" /><circle cx="100" cy="80" r="1" /><circle cx="140" cy="80" r="1" /><circle cx="180" cy="80" r="1" /><circle cx="220" cy="80" r="1" /><circle cx="260" cy="80" r="1" />
+    <circle cx="20" cy="110" r="1" /><circle cx="60" cy="110" r="1" /><circle cx="100" cy="110" r="1" /><circle cx="140" cy="110" r="1" /><circle cx="180" cy="110" r="1" /><circle cx="220" cy="110" r="1" /><circle cx="260" cy="110" r="1" />
   </g>
-  <g stroke="${c}" stroke-width="0.8" opacity="0.25">
-    <line x1="20" y1="20" x2="35" y2="20" />
-    <line x1="20" y1="20" x2="20" y2="35" />
-    <line x1="20" y1="20" x2="60" y2="20" stroke-dasharray="3 3" />
-    <line x1="280" y1="140" x2="265" y2="140" />
-    <line x1="280" y1="140" x2="280" y2="125" />
-    <line x1="280" y1="140" x2="240" y2="140" stroke-dasharray="3 3" />
-  </g>
+  <path d="M 12 12 H 40 M 12 12 V 40" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.3" stroke-linecap="round" />
+  <path d="M 288 12 H 260 M 288 12 V 40" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.3" stroke-linecap="round" />
+  <path d="M 12 148 H 40 M 12 148 V 120" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.3" stroke-linecap="round" />
+  <path d="M 288 148 H 260 M 288 148 V 120" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.3" stroke-linecap="round" />
 </svg>`;
       break;
-    case 'wave-corner-mix':
+    case 'glass-grid':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
   <defs>
-    <radialGradient id="sunGlow" cx="80%" cy="80%" r="70%">
-      <stop offset="0%" stop-color="${c}" stop-opacity="0.22"/>
-      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
-    </radialGradient>
+    <pattern id="glassGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.08" />
+    </pattern>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.15"/>
+      <stop offset="30%" stop-color="#ffffff" stop-opacity="0.3"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
   </defs>
-  <rect width="300" height="160" fill="url(#sunGlow)" />
-  <path d="M -20,110 C 60,80 140,140 220,105 T 320,125" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.22" />
-  <path d="M -20,120 C 70,95 130,150 210,115 T 320,135" fill="none" stroke="${c}" stroke-width="1" stroke-dasharray="6 3" opacity="0.15" />
-  <circle cx="45" cy="50" r="7" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.18" />
-  <circle cx="49" cy="48" r="1.5" fill="${c}" opacity="0.1" />
-  <circle cx="110" cy="95" r="12" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.14" />
-  <circle cx="210" cy="40" r="5" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.15" />
-  <circle cx="255" cy="100" r="8" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.14" />
+  <rect width="300" height="160" fill="url(#glassGrid)" />
+  <path d="M -50 0 L 150 0 L 0 160 L -150 160 Z" fill="url(#shine)" />
 </svg>`;
       break;
-    case 'campus-badge-frame':
+    case 'academic-crest-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g fill="none" stroke="${c}" stroke-width="0.8" opacity="0.15" transform="translate(150, 80) scale(1.6)">
+    <path d="M -12 -15 L 12 -15 C 12 -15, 15 2, 0 16 C -15 2, -12 -15, -12 -15 Z" />
+    <path d="M -10 -13 L 10 -13 C 10 -13, 12.5 1, 0 13.5 C -12.5 1, -10 -13, -10 -13 Z" stroke-dasharray="1.5 1.5" />
+    <path d="M -6 -4 Q -3 -6, 0 -4 Q 3 -6, 6 -4 L 6 3 Q 3 1, 0 3 Q -3 1, -6 3 Z" fill="${c}" fill-opacity="0.1" />
+    <circle cx="0" cy="-8" r="1.5" fill="${c}" />
+    <polygon points="0,-18 1,-16 3,-16 1.5,-15 2,-13 0,-14.5 -2,-13 -1.5,-15 -3,-16 -1,-16" fill="${c}" fill-opacity="0.8" stroke="none" />
+  </g>
+  <path d="M 85,80 Q 95,120, 150,125 Q 205,120, 215,80" fill="none" stroke="${c}" stroke-width="1" stroke-dasharray="4 2" opacity="0.25" />
+</svg>`;
+      break;
+    case 'soft-waves-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <path d="M 0 100 Q 75 70, 150 110 T 300 90 L 300 160 L 0 160 Z" fill="${c}" opacity="0.08" />
+  <path d="M 0 120 Q 85 95, 170 130 T 300 115 L 300 160 L 0 160 Z" fill="${c}" opacity="0.05" />
+  <path d="M 0 80 Q 60 110, 130 75 T 300 100 L 300 160 L 0 160 Z" fill="${c}" opacity="0.03" />
+</svg>`;
+      break;
+    case 'premium-frame-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <rect x="6" y="6" width="288" height="148" rx="6" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.3" />
+  <rect x="10" y="10" width="280" height="140" rx="4" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="4 3" opacity="0.2" />
+  <path d="M 6 22 L 22 6 M 6 26 V 6 H 26" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.4" />
+  <path d="M 294 22 L 278 6 M 294 26 V 6 H 274" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.4" />
+  <path d="M 6 138 L 22 154 M 6 134 V 154 H 26" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.4" />
+  <path d="M 294 138 L 278 154 M 294 134 V 154 H 274" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.4" />
+  <path d="M 140 6 L 144 11 L 150 6 L 156 11 L 160 6 L 158 13 H 142 Z" fill="${c}" opacity="0.35" />
+</svg>`;
+      break;
+    case 'circuit-neon-pattern':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
   <defs>
-    <radialGradient id="acadGlow" cx="50%" cy="50%" r="55%">
-      <stop offset="0%" stop-color="${c}" stop-opacity="0.1"/>
-      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <g fill="${c}" opacity="0.2">
+    <circle cx="20" cy="30" r="1.5" /><circle cx="26" cy="30" r="1" /><circle cx="32" cy="30" r="1" />
+    <circle cx="280" cy="130" r="1.5" /><circle cx="274" cy="130" r="1" /><circle cx="268" cy="130" r="1" />
+  </g>
+  <path d="M 10 120 L 70 120 L 90 140 L 180 140 L 190 130" fill="none" stroke="${c}" stroke-width="1" opacity="0.4" filter="url(#neonGlow)" />
+  <path d="M 290 40 L 230 40 L 210 20 L 150 20" fill="none" stroke="${c}" stroke-width="1" opacity="0.4" filter="url(#neonGlow)" />
+  <circle cx="90" cy="140" r="2.5" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.5" />
+  <circle cx="210" cy="20" r="2.5" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.5" />
+</svg>`;
+      break;
+    case 'space-orbit-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <defs>
+    <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="${c}" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="${c}" stop-opacity="0" />
     </radialGradient>
   </defs>
-  <rect width="300" height="160" fill="url(#acadGlow)" />
-  <line x1="20" y1="50" x2="280" y2="50" stroke="${c}" stroke-width="0.6" opacity="0.12" />
-  <line x1="20" y1="80" x2="280" y2="80" stroke="${c}" stroke-width="0.6" opacity="0.12" />
-  <line x1="20" y1="110" x2="280" y2="110" stroke="${c}" stroke-width="0.6" opacity="0.12" />
-  <path d="M 0 40 A 40 40 0 0 1 40 0" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.2" />
-  <path d="M 0 35 A 35 35 0 0 1 35 0" fill="none" stroke="${c}" stroke-width="0.8" stroke-dasharray="3 2" opacity="0.12" />
-  <path d="M 300 40 A 40 40 0 0 0 260 0" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.2" />
-  <g fill="none" stroke="${c}" stroke-width="1" opacity="0.08" transform="translate(80, 80) scale(1.4)">
-    <path d="M -15 -5 L 0 -12 L 15 -5 L 0 2 Z" />
-    <path d="M -10 -2 L -10 8 C -10 12, 10 12, 10 8 L 10 -2" />
-    <line x1="12" y1="-3" x2="12" y2="8" />
-    <circle cx="12" cy="9" r="1.2" fill="${c}" />
+  <rect width="300" height="160" fill="url(#centerGlow)" />
+  <ellipse cx="150" cy="80" rx="120" ry="40" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.25" transform="rotate(-15 150 80)" />
+  <ellipse cx="150" cy="80" rx="80" ry="25" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.2" transform="rotate(-15 150 80)" />
+  <ellipse cx="150" cy="80" rx="160" ry="55" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.15" transform="rotate(-15 150 80)" />
+  <circle cx="60" cy="30" r="1" fill="#fff" opacity="0.6" />
+  <circle cx="250" cy="40" r="1.5" fill="#fff" opacity="0.8" />
+  <circle cx="80" cy="130" r="0.8" fill="#fff" opacity="0.5" />
+  <circle cx="220" cy="120" r="1.2" fill="#fff" opacity="0.7" />
+  <polygon points="180,40 181.5,43 185,43 182,45 183,48 180,46.5 177,48 178,45 175,43 178.5,43" fill="${c}" opacity="0.4" />
+</svg>`;
+      break;
+    case 'carbon-3d-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <defs>
+    <pattern id="carbon" width="6" height="6" patternUnits="userSpaceOnUse">
+      <rect width="6" height="6" fill="#18181b" />
+      <polygon points="0,0 3,0 0,3" fill="#27272a" />
+      <polygon points="3,3 6,3 3,6" fill="#27272a" />
+      <polygon points="3,0 6,0 6,3" fill="#09090b" opacity="0.4" />
+      <polygon points="0,3 3,3 0,6" fill="#09090b" opacity="0.4" />
+    </pattern>
+  </defs>
+  <rect width="300" height="160" fill="url(#carbon)" opacity="0.4" />
+  <line x1="12" y1="0" x2="12" y2="160" stroke="${c}" stroke-width="1.5" opacity="0.25" />
+  <line x1="288" y1="0" x2="288" y2="160" stroke="${c}" stroke-width="1.5" opacity="0.25" />
+</svg>`;
+      break;
+    case 'abstract-geom-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <polygon points="0,0 120,0 70,160 0,160" fill="${c}" opacity="0.05" />
+  <polygon points="300,160 180,160 230,0 300,0" fill="${c}" opacity="0.05" />
+  <line x1="120" y1="0" x2="70" y2="160" stroke="${c}" stroke-width="0.8" stroke-dasharray="5 3" opacity="0.15" />
+  <line x1="180" y1="160" x2="230" y2="0" stroke="${c}" stroke-width="0.8" stroke-dasharray="5 3" opacity="0.15" />
+  <g stroke="${c}" stroke-width="0.8" opacity="0.25" fill="none" transform="translate(250, 40)">
+    <circle cx="0" cy="0" r="8" />
+    <line x1="-12" y1="0" x2="12" y2="0" />
+    <line x1="0" y1="-12" x2="0" y2="12" />
+  </g>
+</svg>`;
+      break;
+    case 'sport-stripes-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g fill="${c}" opacity="0.12">
+    <polygon points="230,0 260,0 180,160 150,160" />
+    <polygon points="265,0 285,0 205,160 185,160" />
+    <polygon points="290,0 300,0 220,160 210,160" />
+    <polygon points="0,20 30,20 0,80" />
+  </g>
+  <path d="M 12 140 L 22 148 L 12 156" fill="none" stroke="${c}" stroke-width="2" opacity="0.3" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 20 140 L 30 148 L 20 156" fill="none" stroke="${c}" stroke-width="1" opacity="0.2" stroke-linecap="round" stroke-linejoin="round" />
+</svg>`;
+      break;
+    case 'chroma-glow-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="neonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${c}" stop-opacity="0.3" />
+      <stop offset="50%" stop-color="#EC4899" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#EAB308" stop-opacity="0.25" />
+    </linearGradient>
+  </defs>
+  <rect width="300" height="160" fill="url(#neonGrad)" />
+  <path d="M 0 60 C 80 20, 120 100, 200 50 T 300 80" fill="none" stroke="${c}" stroke-width="2.5" opacity="0.4" stroke-linecap="round" />
+  <path d="M 0 65 C 80 25, 120 105, 200 55 T 300 85" fill="none" stroke="#fff" stroke-width="0.8" opacity="0.3" stroke-linecap="round" />
+</svg>`;
+      break;
+    case 'halftone-pop-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <defs>
+    <pattern id="halftone" width="30" height="30" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="1" fill="${c}" opacity="0.15" />
+      <circle cx="15" cy="15" r="2" fill="${c}" opacity="0.1" />
+      <circle cx="27" cy="27" r="1.5" fill="${c}" opacity="0.12" />
+    </pattern>
+  </defs>
+  <rect width="300" height="160" fill="url(#halftone)" />
+  <path d="M 260 20 L 275 25 L 265 32 L 285 35 L 255 48 L 262 35 L 250 32 Z" fill="${c}" opacity="0.3" />
+  <path d="M 30 110 L 45 115 L 35 122 L 55 125 L 25 138 L 32 125 L 20 122 Z" fill="${c}" opacity="0.25" />
+</svg>`;
+      break;
+    case 'ocean-waves-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <path d="M 0 110 C 60 90, 100 130, 170 100 C 240 70, 270 120, 300 95 L 300 160 L 0 160 Z" fill="${c}" opacity="0.12" />
+  <path d="M 0 125 C 50 115, 90 140, 150 120 C 210 100, 250 135, 300 115 L 300 160 L 0 160 Z" fill="${c}" opacity="0.08" />
+  <circle cx="45" cy="40" r="3.5" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.2" />
+  <circle cx="52" cy="35" r="2" fill="none" stroke="${c}" stroke-width="0.6" opacity="0.15" />
+  <circle cx="250" cy="50" r="4" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.18" />
+</svg>`;
+      break;
+    case 'paw-print-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g fill="${c}" opacity="0.15" transform="translate(25, 25) rotate(-15)">
+    <path d="M 8 12 C 5 10, 4 14, 8 15 C 12 14, 11 10, 8 12 Z" />
+    <circle cx="2" cy="7" r="1.5" /><circle cx="6" cy="4" r="1.5" /><circle cx="10.5" cy="4" r="1.5" /><circle cx="14" cy="7" r="1.5" />
+  </g>
+  <g fill="${c}" opacity="0.15" transform="translate(265, 115) rotate(20)">
+    <path d="M 8 12 C 5 10, 4 14, 8 15 C 12 14, 11 10, 8 12 Z" />
+    <circle cx="2" cy="7" r="1.5" /><circle cx="6" cy="4" r="1.5" /><circle cx="10.5" cy="4" r="1.5" /><circle cx="14" cy="7" r="1.5" />
+  </g>
+  <g fill="${c}" opacity="0.08" transform="translate(250, 25) rotate(35) scale(0.8)">
+    <path d="M 8 12 C 5 10, 4 14, 8 15 C 12 14, 11 10, 8 12 Z" />
+    <circle cx="2" cy="7" r="1.5" /><circle cx="6" cy="4" r="1.5" /><circle cx="10.5" cy="4" r="1.5" /><circle cx="14" cy="7" r="1.5" />
+  </g>
+  <g fill="${c}" opacity="0.08" transform="translate(30, 120) rotate(-30) scale(0.8)">
+    <path d="M 8 12 C 5 10, 4 14, 8 15 C 12 14, 11 10, 8 12 Z" />
+    <circle cx="2" cy="7" r="1.5" /><circle cx="6" cy="4" r="1.5" /><circle cx="10.5" cy="4" r="1.5" /><circle cx="14" cy="7" r="1.5" />
+  </g>
+</svg>`;
+      break;
+    case 'cat-kingdom-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g fill="none" stroke="${c}" stroke-width="1.2" opacity="0.22">
+    <path d="M 10 2 Q 13 12, 23 14" /><path d="M 10 2 Q 4 8, 2 18" />
+    <path d="M 290 2 Q 287 12, 277 14" /><path d="M 290 2 Q 296 8, 298 18" />
+  </g>
+  <g fill="${c}" opacity="0.14" transform="translate(250, 120) rotate(-15) scale(0.8)">
+    <path d="M 12 5 C 9 2, 6 2, 4 4 C 2 6, 2 9, 4 11 C 6 13, 9 13, 12 10 L 15 13 H 17 V 9 V 7 V 3 H 15 Z" />
+  </g>
+  <g fill="${c}" opacity="0.14" transform="translate(40, 28) scale(0.7)">
+    <path d="M 12 5 C 9 2, 6 2, 4 4 C 2 6, 2 9, 4 11 C 6 13, 9 13, 12 10 L 15 13 H 17 V 9 V 7 V 3 H 15 Z" />
+  </g>
+  <path d="M 12 5 C 10 3, 7 3, 5 5 C 3 7, 3 10, 5 12 L 12 18 L 19 12 C 21 10, 21 7, 19 5 C 17 3, 14 3, 12 5 Z" fill="${c}" opacity="0.12" transform="translate(145, 20) scale(0.6)" />
+</svg>`;
+      break;
+    case 'dog-playland-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g fill="${c}" opacity="0.15" transform="translate(260, 25) rotate(35) scale(0.9)">
+    <path d="M 3 6 C 2 4.5, 0.5 5, 1 7 C 0.5 9, 2 9.5, 3 8 L 13 8 C 14 9.5, 15.5 9, 15 7 C 15.5 5, 14 4.5, 13 6 Z" />
+  </g>
+  <g fill="${c}" opacity="0.15" transform="translate(30, 120) rotate(-25) scale(0.9)">
+    <path d="M 3 6 C 2 4.5, 0.5 5, 1 7 C 0.5 9, 2 9.5, 3 8 L 13 8 C 14 9.5, 15.5 9, 15 7 C 15.5 5, 14 4.5, 13 6 Z" />
+  </g>
+  <circle cx="50" cy="35" r="7" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.14" />
+  <path d="M 46.5 30 Q 50 35, 46.5 40 M 53.5 30 Q 50 35, 53.5 40" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="1 1" opacity="0.15" />
+</svg>`;
+      break;
+    case 'honey-comb-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <defs>
+    <pattern id="honeycomb" width="28" height="16" patternUnits="userSpaceOnUse">
+      <path d="M 0 8 L 4 0 L 12 0 L 16 8 L 12 16 L 4 16 Z M 14 16 L 18 8 L 26 8 L 30 16" fill="none" stroke="${c}" stroke-width="0.6" opacity="0.08" />
+    </pattern>
+  </defs>
+  <rect width="300" height="160" fill="url(#honeycomb)" />
+  <polygon points="12,12 18,6 30,6 36,12 30,18 18,18" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.25" />
+  <polygon points="264,136 270,130 282,130 288,136 282,142 270,142" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.25" />
+</svg>`;
+      break;
+    case 'eco-leaf-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g fill="none" stroke="${c}" stroke-width="1.2" opacity="0.22">
+    <path d="M 5 25 C 15 25, 25 15, 25 5 C 15 5, 5 15, 5 25 Z" fill="${c}" fill-opacity="0.08" />
+    <path d="M 5 25 L 20 10" />
+    <path d="M 295 135 C 285 135, 275 145, 275 155 C 285 155, 295 145, 295 135 Z" fill="${c}" fill-opacity="0.08" />
+    <path d="M 295 135 L 280 150" />
+  </g>
+  <path d="M 90 80 A 15 15 0 0 1 120 80 M 115 75 L 120 80 L 115 85" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.15" />
+  <path d="M 120 80 A 15 15 0 0 1 105 95 M 109 99 L 105 95 L 101 99" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.15" />
+</svg>`;
+      break;
+    case 'medical-pulse-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <path d="M 10 80 H 80 L 90 60 L 100 110 L 110 50 L 120 90 L 130 80 H 290" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.25" stroke-linecap="round" stroke-linejoin="round" />
+  <g stroke="${c}" stroke-width="1" fill="none" opacity="0.15" transform="translate(260, 25) scale(0.9)">
+    <path d="M 0 -6 H 4 V -2 H 8 V 2 H 4 V 6 H -4 V 2 H -8 V -2 H -4 V -6 Z" />
+  </g>
+  <g fill="none" stroke="${c}" stroke-width="0.8" opacity="0.12" transform="translate(30, 115) scale(0.8)">
+    <circle cx="10" cy="10" r="8" />
+    <path d="M 10 18 Q 10 26, 18 26 T 26 18" />
+    <circle cx="26" cy="18" r="3" fill="${c}" fill-opacity="0.2" />
+  </g>
+</svg>`;
+      break;
+    case 'lang-global-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g stroke="${c}" stroke-width="0.6" fill="none" opacity="0.16" transform="translate(255, 35)">
+    <circle cx="0" cy="0" r="22" />
+    <ellipse cx="0" cy="0" rx="22" ry="7" />
+    <ellipse cx="0" cy="0" rx="7" ry="22" />
+    <line x1="-22" y1="0" x2="22" y2="0" />
+    <line x1="0" y1="-22" x2="0" y2="22" />
+  </g>
+  <g fill="none" stroke="${c}" stroke-width="1" opacity="0.2" transform="translate(35, 120)">
+    <path d="M 2 10 A 8 8 0 0 1 18 10 A 8 8 0 0 1 2 10 Z" fill="${c}" fill-opacity="0.08" />
+    <path d="M 14 18 L 18 22 L 18 16" />
+    <path d="M 8 13 L 10 7 L 12 13 M 9 11 H 11" stroke-width="0.8" />
+  </g>
+  <g fill="none" stroke="${c}" stroke-width="0.8" opacity="0.15" transform="translate(58, 115) scale(0.8)">
+    <path d="M 2 10 A 8 8 0 0 1 18 10 A 8 8 0 0 1 2 10 Z" />
+    <path d="M 6 18 L 2 22 L 2 16" />
+    <path d="M 6 7 H 14 M 10 7 V 10 M 7 10 Q 10 13, 13 14 M 13 10 Q 10 13, 7 14" />
+  </g>
+</svg>`;
+      break;
+    case 'tech-ai-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.3">
+    <line x1="60" y1="40" x2="100" y2="80" />
+    <line x1="60" y1="120" x2="100" y2="80" />
+    <line x1="100" y1="80" x2="160" y2="80" />
+    <line x1="160" y1="80" x2="200" y2="40" />
+    <line x1="160" y1="80" x2="200" y2="120" />
+    <circle cx="60" cy="40" r="3.5" fill="#fff" />
+    <circle cx="60" cy="120" r="3.5" fill="#fff" />
+    <circle cx="100" cy="80" r="5" fill="${c}" />
+    <circle cx="160" cy="80" r="5" fill="${c}" />
+    <circle cx="200" cy="40" r="3.5" fill="#fff" />
+    <circle cx="200" cy="120" r="3.5" fill="#fff" />
+  </g>
+  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.35" transform="translate(130, 68) scale(0.6)">
+    <polygon points="20,0 40,10 40,30 20,40 0,30 0,10" fill="${c}" fill-opacity="0.1" />
+    <line x1="20" y1="0" x2="20" y2="40" />
+    <line x1="0" y1="10" x2="20" y2="20" />
+    <line x1="40" y1="10" x2="20" y2="20" />
+  </g>
+</svg>`;
+      break;
+    case 'tech-hardware-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g stroke="${c}" stroke-width="1" fill="none" opacity="0.25" transform="translate(125, 55)">
+    <rect x="0" y="0" width="50" height="50" rx="3" />
+    <rect x="4" y="4" width="42" height="42" stroke-dasharray="2 2" />
+    <circle cx="25" cy="25" r="8" opacity="0.3" />
+    <line x1="-3" y1="10" x2="0" y2="10" /><line x1="-3" y1="20" x2="0" y2="20" /><line x1="-3" y1="30" x2="0" y2="30" /><line x1="-3" y1="40" x2="0" y2="40" />
+    <line x1="50" y1="10" x2="53" y2="10" /><line x1="50" y1="20" x2="53" y2="20" /><line x1="50" y1="30" x2="53" y2="30" /><line x1="50" y1="40" x2="53" y2="40" />
+  </g>
+  <g stroke="${c}" stroke-width="0.8" opacity="0.2" transform="translate(240, 20)">
+    <rect x="0" y="0" width="6" height="120" />
+    <rect x="12" y="0" width="6" height="120" />
+    <line x1="-4" y1="10" x2="22" y2="10" /><line x1="-4" y1="110" x2="22" y2="110" />
+  </g>
+  <g fill="none" stroke="${c}" stroke-width="0.8" opacity="0.22">
+    <circle cx="40" cy="40" r="6" /><line x1="34" y1="40" x2="46" y2="40" />
+    <circle cx="58" cy="40" r="4.5" />
+    <circle cx="45" cy="115" r="7" /><line x1="45" y1="109" x2="45" y2="121" />
+  </g>
+</svg>`;
+      break;
+    case 'eng-mechanical-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g stroke="${c}" stroke-width="1" fill="none" opacity="0.2" transform="translate(250, 110) scale(1.1)">
+    <circle cx="0" cy="0" r="18" />
+    <circle cx="0" cy="0" r="8" fill="#fff" />
+    <path d="M -3 -22 H 3 L 4 -18 H -4 Z" /><path d="M -3 18 H 3 L 4 22 H -4 Z" transform="rotate(45)" />
+    <path d="M -3 18 H 3 L 4 22 H -4 Z" transform="rotate(90)" /><path d="M -3 18 H 3 L 4 22 H -4 Z" transform="rotate(135)" />
+    <path d="M -3 18 H 3 L 4 22 H -4 Z" transform="rotate(180)" /><path d="M -3 18 H 3 L 4 22 H -4 Z" transform="rotate(225)" />
+    <path d="M -3 18 H 3 L 4 22 H -4 Z" transform="rotate(270)" /><path d="M -3 18 H 3 L 4 22 H -4 Z" transform="rotate(315)" />
+  </g>
+  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.18" transform="translate(210, 80) scale(0.7)">
+    <circle cx="0" cy="0" r="15" />
+    <circle cx="0" cy="0" r="5" />
+    <path d="M -2.5 -18 H 2.5 L 3 -15 H -3 Z" /><path d="M -2.5 15 H 2.5 L 3 18 H -3 Z" transform="rotate(60)" /><path d="M -2.5 15 H 2.5 L 3 18 H -3 Z" transform="rotate(120)" /><path d="M -2.5 15 H 2.5 L 3 18 H -3 Z" transform="rotate(180)" /><path d="M -2.5 15 H 2.5 L 3 18 H -3 Z" transform="rotate(240)" /><path d="M -2.5 15 H 2.5 L 3 18 H -3 Z" transform="rotate(300)" />
+  </g>
+  <g stroke="${c}" stroke-width="0.6" opacity="0.15">
+    <line x1="20" y1="20" x2="160" y2="20" />
+    <line x1="20" y1="16" x2="20" y2="24" /><line x1="70" y1="16" x2="70" y2="24" /><line x1="120" y1="16" x2="120" y2="24" /><line x1="160" y1="16" x2="160" y2="24" />
+    <text x="90" y="14" fill="${c}" font-size="6" font-family="monospace" text-anchor="middle">scale: 1:10</text>
+  </g>
+</svg>`;
+      break;
+    case 'sport-soccer-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.18">
+    <circle cx="150" cy="80" r="30" />
+    <line x1="150" y1="0" x2="150" y2="160" />
+    <rect x="0" y="30" width="40" height="100" />
+    <rect x="0" y="55" width="15" height="50" />
+  </g>
+  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.16" transform="translate(265, 125) scale(0.9)">
+    <circle cx="0" cy="0" r="20" />
+    <polygon points="0,-6 5,-3 5,3 0,6 -5,3 -5,-3" />
+    <line x1="0" y1="-6" x2="0" y2="-20" />
+    <line x1="5" y1="3" x2="16" y2="12" />
+    <line x1="-5" y1="3" x2="-16" y2="12" />
+    <line x1="5" y1="-3" x2="16" y2="-12" />
+    <line x1="-5" y1="-3" x2="-16" y2="-12" />
+  </g>
+</svg>`;
+      break;
+    case 'sport-basketball-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g stroke="${c}" stroke-width="1.2" fill="none" opacity="0.18" transform="translate(255, 35) scale(1.1)">
+    <circle cx="0" cy="0" r="20" />
+    <path d="M -20 0 H 20" />
+    <path d="M 0 -20 V 20" />
+    <path d="M -14 -14 Q 0 0, -14 14" />
+    <path d="M 14 -14 Q 0 0, 14 14" />
+  </g>
+  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.15" transform="translate(35, 120)">
+    <ellipse cx="10" cy="0" rx="12" ry="3" fill="${c}" fill-opacity="0.1" />
+    <rect x="-6" y="-12" width="32" height="12" />
+    <path d="M 0 1 L 4 15 L 10 20 L 16 15 L 20 1 M 2 1 L 10 20 L 18 1 M 6 1 L 2 15 L 10 20 L 18 15 L 14 1" stroke-dasharray="1.5 1.5" />
+  </g>
+</svg>`;
+      break;
+    case 'art-music-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g stroke="${c}" stroke-width="0.6" fill="none" opacity="0.14">
+    <path d="M 10 70 Q 75 50, 150 70 T 290 70" />
+    <path d="M 10 75 Q 75 55, 150 75 T 290 75" />
+    <path d="M 10 80 Q 75 60, 150 80 T 290 80" />
+    <path d="M 10 85 Q 75 65, 150 85 T 290 85" />
+    <path d="M 10 90 Q 75 70, 150 90 T 290 90" />
+  </g>
+  <g fill="none" stroke="${c}" stroke-width="1" opacity="0.22" transform="translate(35, 62) scale(0.9)">
+    <path d="M 6 35 C 6 38, 2 38, 2 35 C 2 28, 12 28, 12 18 C 12 6, 4 2, 4 -12 L 5 -16 C 5 -16, 2 -5, 2 5 C 2 15, -4 20, -4 28 C -4 33, 1 36, 5 36 Z M 4 -16 V 39" />
+    <circle cx="4" cy="40" r="2.5" fill="${c}" />
+  </g>
+  <g fill="${c}" opacity="0.22" transform="translate(180, 45) rotate(15)">
+    <ellipse cx="6" cy="10" rx="4" ry="2.8" />
+    <line x1="9" y1="10" x2="9" y2="0" stroke="${c}" stroke-width="1.2" />
+    <path d="M 9 0 Q 14 2, 14 6" fill="none" stroke="${c}" stroke-width="1.2" />
+  </g>
+  <g fill="${c}" opacity="0.18" transform="translate(230, 95) scale(0.85) rotate(-10)">
+    <ellipse cx="6" cy="10" rx="4" ry="2.8" />
+    <line x1="9" y1="10" x2="9" y2="0" stroke="${c}" stroke-width="1.2" />
+  </g>
+</svg>`;
+      break;
+    case 'art-paint-pattern':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
+  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.18" transform="translate(245, 110) scale(0.9)">
+    <path d="M -15 -10 C -25 -10, -30 10, -15 20 C -5 27, 20 18, 15 0 C 12 -12, -5 -10, -15 -10 Z" fill="${c}" fill-opacity="0.08" />
+    <circle cx="-16" cy="4" r="3.5" fill="#fff" />
+    <circle cx="-5" cy="-4" r="2" fill="${c}" fill-opacity="0.3" /><circle cx="5" cy="2" r="2" fill="${c}" fill-opacity="0.3" /><circle cx="4" cy="11" r="2" fill="${c}" fill-opacity="0.3" />
+    <line x1="-30" y1="28" x2="16" y2="-18" stroke="${c}" stroke-width="1.2" />
+    <path d="M 16 -18 L 19 -21 L 18 -16 Z" fill="${c}" />
+  </g>
+  <g fill="${c}" opacity="0.08">
+    <path d="M 30,30 Q 35,25, 45,35 T 55,30 T 40,50 Z" />
+    <circle cx="28" cy="45" r="2.5" />
+    <circle cx="62" cy="25" r="1.5" />
   </g>
 </svg>`;
       break;
@@ -1989,6 +2486,120 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
     backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
   };
+};
+
+const PetAccentLayer = ({ type, color }: { type?: string; color: string }) => {
+  if (!type || type === 'none') return null;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none z-[2] overflow-hidden pet-accent-container">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes pawBorderTop {
+          0% { transform: translate(-20px, 4px) rotate(90deg); opacity: 0; }
+          5% { opacity: 0.25; }
+          45% { opacity: 0.25; }
+          50% { transform: translate(320px, 4px) rotate(90deg); opacity: 0; }
+          100% { transform: translate(320px, 4px) rotate(90deg); opacity: 0; }
+        }
+
+        @keyframes pawBorderBottom {
+          0% { transform: translate(320px, 222px) rotate(-90deg); opacity: 0; }
+          50% { transform: translate(320px, 222px) rotate(-90deg); opacity: 0; }
+          55% { opacity: 0.25; }
+          95% { opacity: 0.25; }
+          100% { transform: translate(-20px, 222px) rotate(-90deg); opacity: 0; }
+        }
+
+        @keyframes catPeeking {
+          0% { transform: translateY(100%); }
+          5% { transform: translateY(0); }
+          30% { transform: translateY(0); }
+          35% { transform: translateY(100%); }
+          100% { transform: translateY(100%); }
+        }
+
+        @keyframes dogBoneDrift {
+          0% { transform: translate(0, 0) rotate(0deg); opacity: 0.15; }
+          50% { transform: translate(-8px, 6px) rotate(15deg); opacity: 0.3; }
+          100% { transform: translate(0, 0) rotate(0deg); opacity: 0.15; }
+        }
+
+        @keyframes petFlying {
+          0% { transform: translate(-20px, 2px); opacity: 0; }
+          8% { opacity: 0.35; }
+          92% { opacity: 0.35; }
+          100% { transform: translate(320px, 2px); opacity: 0; }
+        }
+
+        .paw-print-top {
+          animation: pawBorderTop 15s linear infinite;
+        }
+        .paw-print-bottom {
+          animation: pawBorderBottom 15s linear infinite;
+        }
+        .cat-peeking {
+          animation: catPeeking 12s ease-in-out infinite;
+        }
+        .dog-bone-float {
+          animation: dogBoneDrift 8s ease-in-out infinite;
+        }
+        .pet-flying {
+          animation: petFlying 20s linear infinite;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .pet-accent-animated {
+            animation: none !important;
+            display: none !important;
+          }
+        }
+      ` }} />
+      {type === 'paw-border' && (
+        <>
+          <div className="absolute pet-accent-animated paw-print-top" style={{ color }}>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M 8 12 C 5 10, 4 14, 8 15 C 12 14, 11 10, 8 12 Z" />
+              <circle cx="2" cy="7" r="1.5" />
+              <circle cx="6" cy="4" r="1.5" />
+              <circle cx="10.5" cy="4" r="1.5" />
+              <circle cx="14" cy="7" r="1.5" />
+            </svg>
+          </div>
+          <div className="absolute pet-accent-animated paw-print-bottom" style={{ color }}>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M 8 12 C 5 10, 4 14, 8 15 C 12 14, 11 10, 8 12 Z" />
+              <circle cx="2" cy="7" r="1.5" />
+              <circle cx="6" cy="4" r="1.5" />
+              <circle cx="10.5" cy="4" r="1.5" />
+              <circle cx="14" cy="7" r="1.5" />
+            </svg>
+          </div>
+        </>
+      )}
+      {type === 'cat-slide' && (
+        <div className="absolute bottom-0 left-6 pet-accent-animated cat-peeking" style={{ color }}>
+          <svg className="w-8 h-4" viewBox="0 0 32 16" fill="currentColor" opacity="0.25">
+            <path d="M 4 16 L 10 2 Q 13 8, 16 16 Z" />
+            <path d="M 20 16 L 26 2 Q 29 8, 32 16 Z" />
+          </svg>
+        </div>
+      )}
+      {type === 'dog-bone' && (
+        <div className="absolute top-8 right-6 pet-accent-animated dog-bone-float" style={{ color }}>
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.25">
+            <path d="M17 3a2.82 2.82 0 0 0-4 0L12 4l-1-1a2.82 2.82 0 0 0-4 0 2.82 2.82 0 0 0 0 4l.3.3a4.78 4.78 0 0 1 0 6.8l-.3.3a2.82 2.82 0 0 0 0 4 2.82 2.82 0 0 0 4 0l1-1 1 1a2.82 2.82 0 0 0 4 0 2.82 2.82 0 0 0 0-4l-.3-.3a4.78 4.78 0 0 1 0-6.8l.3-.3a2.82 2.82 0 0 0 0-4z" />
+          </svg>
+        </div>
+      )}
+      {type === 'pet-orbit' && (
+        <div className="absolute top-1 left-0 pet-accent-animated pet-flying" style={{ color }}>
+          <svg className="w-4.5 h-3" viewBox="0 0 18 12" fill="currentColor" opacity="0.25">
+            <path d="M 0 4 Q 4 -1, 8 3 Q 12 -1, 16 4 Q 8 6, 0 4 Z" />
+          </svg>
+        </div>
+      )}
+    </div>
+  );
 };
 
 function BackgroundSetupModal({
@@ -2007,8 +2618,9 @@ function BackgroundSetupModal({
   const [bgFile, setBgFile] = useState<File | null>(null);
   const [bgPreview, setBgPreview] = useState(club.background_config?.backgroundImageUrl ? getImageUrl(club.background_config.backgroundImageUrl) : '');
   
-  // New States
   const [selectedPattern, setSelectedPattern] = useState(club.background_config?.pattern || 'minimal');
+  const [selectedPetAccent, setSelectedPetAccent] = useState(club.background_config?.petAccentType || 'none');
+  const [activeTab, setActiveTab] = useState<'all' | 'classic' | 'premium' | 'active' | 'pet'>('all');
 
   const [saving, setSaving] = useState(false);
 
@@ -2053,6 +2665,7 @@ function BackgroundSetupModal({
           backgroundImageUrl: finalBgUrl,
           useAvatarAsBackground,
           pattern: selectedPattern,
+          petAccentType: selectedPetAccent,
         },
       });
 
@@ -2066,6 +2679,7 @@ function BackgroundSetupModal({
   };
 
   const previewTemplate = BACKGROUND_TEMPLATES.find((t) => t.id === selectedPattern);
+  const isPreviewDark = !!previewTemplate?.isDark;
   const previewCardBgClass = previewTemplate 
     ? previewTemplate.bgClass 
     : (BACKGROUND_PRESETS.find((p) => p.id === selectedPreset)?.className || "bg-white border-slate-200");
@@ -2104,36 +2718,81 @@ function BackgroundSetupModal({
         <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
           {/* Left Column: Setup Controls */}
           <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 custom-scrollbar">
-            {/* Combined Templates Grid */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mẫu thiết kế kết hợp (Template)</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {BACKGROUND_TEMPLATES.map((tpl) => (
-                  <button
-                    key={tpl.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedPattern(tpl.id);
-                      setSelectedPreset(tpl.id);
-                      setAccentColor(tpl.accentColor);
-                    }}
-                    className={cn(
-                      "flex flex-col p-3 rounded-xl border text-xs font-bold transition-all text-left relative overflow-hidden h-16 justify-between cursor-pointer group shadow-sm bg-white",
-                      selectedPattern === tpl.id
-                        ? "border-blue-500 bg-blue-50/30 text-blue-600 ring-2 ring-blue-500/15"
-                        : "border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700"
-                    )}
-                  >
-                    <div className="z-10 flex items-center justify-between w-full">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-90">{tpl.name.split(' (')[0]}</span>
-                      <div className={cn("w-3 h-3 rounded-full border border-slate-300/30 shrink-0", tpl.bgClass)} />
-                    </div>
-                    <div 
-                      className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity pointer-events-none z-0" 
-                      style={getPatternStyle(tpl.patternId, accentColor)} 
-                    />
-                  </button>
-                ))}
+            {/* Combined Templates Tab Filter & Grid */}
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mẫu thiết kế kết hợp (Template)</label>
+                {/* Tab Filter buttons */}
+                <div className="flex flex-wrap gap-1 bg-slate-200/50 p-0.5 rounded-lg text-[10px] font-bold">
+                  {(['all', 'classic', 'premium', 'active', 'pet'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveTab(tab)}
+                      className={cn(
+                        "px-2 py-1 rounded-md transition-all cursor-pointer",
+                        activeTab === tab ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                      )}
+                    >
+                      {tab === 'all' ? 'Tất cả' :
+                       tab === 'classic' ? 'Tối giản' :
+                       tab === 'premium' ? 'Sang trọng' :
+                       tab === 'active' ? 'Năng động' : '🐱 Thú cưng'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grid Layout */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[220px] overflow-y-auto pr-1.5 custom-scrollbar">
+                {BACKGROUND_TEMPLATES.filter((tpl) => activeTab === 'all' || tpl.category === activeTab).map((tpl) => {
+                  const isSelected = selectedPattern === tpl.id;
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPattern(tpl.id);
+                        setSelectedPreset(tpl.id);
+                        setAccentColor(tpl.accentColor);
+                      }}
+                      className={cn(
+                        "flex flex-col p-3 rounded-xl border text-xs font-bold transition-all text-left relative overflow-hidden h-16 justify-between cursor-pointer group shadow-sm transition-all duration-300",
+                        tpl.bgClass,
+                        isSelected
+                          ? "ring-2 ring-offset-1 ring-offset-white"
+                          : "hover:scale-[1.02] border-slate-200/60 hover:border-slate-300"
+                      )}
+                      style={{
+                        borderColor: isSelected ? tpl.accentColor : undefined,
+                        boxShadow: isSelected ? `0 4px 14px -2px ${tpl.accentColor}30, 0 0 0 2px ${tpl.accentColor}20` : undefined,
+                        color: tpl.isDark ? '#F1F5F9' : '#1E293B'
+                      }}
+                    >
+                      <div className="z-10 flex items-center justify-between w-full">
+                        <span 
+                          className="text-[9px] font-black uppercase tracking-wider opacity-90 truncate pr-1" 
+                          title={tpl.name.split(' (')[0]}
+                        >
+                          {tpl.name.split(' (')[0]}
+                        </span>
+                        <div 
+                          className="w-2.5 h-2.5 rounded-full border border-white/20 shrink-0" 
+                          style={{ backgroundColor: tpl.accentColor }} 
+                        />
+                      </div>
+                      <div className="z-10 flex justify-between items-center w-full">
+                        <span className="text-[8px] font-bold opacity-60 uppercase tracking-widest">
+                          {tpl.category}
+                        </span>
+                      </div>
+                      <div 
+                        className="absolute inset-0 opacity-25 group-hover:opacity-45 transition-opacity pointer-events-none z-0" 
+                        style={getPatternStyle(tpl.patternId, tpl.accentColor)} 
+                      />
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -2162,6 +2821,35 @@ function BackgroundSetupModal({
                     style={{ backgroundColor: accentColor }}
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Hiệu ứng thú cưng chuyển động */}
+            <div className="space-y-2 border-t border-slate-200/60 pt-4">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Hiệu ứng chuyển động (Motion Accents)</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { id: 'none', name: 'Không có hiệu ứng', icon: '🚫' },
+                  { id: 'paw-border', name: 'Dấu chân men viền', icon: '🐾' },
+                  { id: 'cat-slide', name: 'Mèo con lấp ló', icon: '🐱' },
+                  { id: 'dog-bone', name: 'Khúc xương bay nhẹ', icon: '🦴' },
+                  { id: 'pet-orbit', name: 'Chim nhỏ bay qua', icon: '🐦' },
+                ].map((accent) => (
+                  <button
+                    key={accent.id}
+                    type="button"
+                    onClick={() => setSelectedPetAccent(accent.id)}
+                    className={cn(
+                      "flex items-center gap-2 p-2.5 rounded-xl border text-[11px] font-bold transition-all text-left cursor-pointer bg-white transition-all duration-200 select-none",
+                      selectedPetAccent === accent.id
+                        ? "border-blue-500 bg-blue-50/40 text-blue-600 ring-2 ring-blue-500/15"
+                        : "border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    <span className="text-sm shrink-0">{accent.icon}</span>
+                    <span className="truncate">{accent.name}</span>
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -2244,7 +2932,7 @@ function BackgroundSetupModal({
             
             <div
               className={cn(
-                "relative bg-white backdrop-blur-md rounded-2xl overflow-hidden shadow-lg flex flex-col min-h-[240px] w-full border transition-all duration-300 p-4 justify-between gap-3.5",
+                "relative bg-white backdrop-blur-md rounded-2xl overflow-hidden shadow-lg flex flex-col min-h-[240px] w-full border transition-all duration-300 p-4 justify-between gap-3.5 template-shine-effect",
                 previewCardBgClass
               )}
               style={{
@@ -2277,8 +2965,15 @@ function BackgroundSetupModal({
                     BACKGROUND_TEMPLATES.find((t) => t.id === selectedPattern)?.patternId || selectedPattern, 
                     accentColor
                   )} 
+                  key={`preview-pattern-${selectedPattern}`}
                 />
               )}
+
+              {/* Preview Pet Motion Accent Layer */}
+              <PetAccentLayer 
+                type={selectedPetAccent} 
+                color={accentColor} 
+              />
 
               {/* Preview Top Header & Favorite Row */}
               <div className="flex justify-between items-start gap-2 z-10">
@@ -2304,21 +2999,30 @@ function BackgroundSetupModal({
 
               {/* Preview Club Name */}
               <div className="flex-1 flex flex-col justify-start min-w-0 z-10 mt-1">
-                <h3 className="text-sm font-bold text-slate-800 line-clamp-2 leading-snug">
+                <h3 className={cn(
+                  "text-sm font-bold line-clamp-2 leading-snug",
+                  isPreviewDark ? "text-slate-100" : "text-slate-800"
+                )}>
                   {club.name}
                 </h3>
               </div>
 
               {/* Preview Middle: Schedule and Location boxes */}
-              <div className="space-y-1.5 text-xs font-semibold w-full z-10 my-1">
+              <div className={cn(
+                "space-y-1.5 text-xs font-semibold w-full z-10 my-1",
+                isPreviewDark ? "text-slate-300" : "text-slate-700"
+              )}>
                 {/* Preview Schedule Time */}
                 {club.schedule_summary && club.schedule_summary.length > 0 ? (
                   <div className="space-y-1">
                     {club.schedule_summary.slice(0, 2).map((row, idx) => (
-                      <div key={idx} className="flex items-start gap-1.5 text-slate-700 py-0.5">
+                      <div key={idx} className="flex items-start gap-1.5 py-0.5">
                         <Clock size={12} className="text-blue-500 shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
-                          <span className="block text-slate-800 text-[11px] font-bold leading-normal break-words" title={`${row.weekdays.join(', ')}: ${row.timeRange}`}>
+                          <span className={cn(
+                            "block text-[11px] font-bold leading-normal break-words",
+                            isPreviewDark ? "text-slate-200" : "text-slate-800"
+                          )} title={`${row.weekdays.join(', ')}: ${row.timeRange}`}>
                             {row.weekdays.join(', ')}: {row.timeRange}
                           </span>
                         </div>
@@ -2331,17 +3035,23 @@ function BackgroundSetupModal({
                     )}
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-slate-700 py-0.5">
+                  <div className="flex items-center gap-1.5 py-0.5">
                     <Clock size={12} className="text-blue-500 shrink-0" />
-                    <span className="text-slate-800 text-[11px] font-bold">Chưa xếp lịch</span>
+                    <span className={cn(
+                      "text-[11px] font-bold",
+                      isPreviewDark ? "text-slate-200" : "text-slate-800"
+                    )}>Chưa xếp lịch</span>
                   </div>
                 )}
 
                 {/* Preview Location / Classroom */}
-                <div className="flex items-center gap-1.5 text-slate-700 py-0.5">
+                <div className="flex items-center gap-1.5 py-0.5">
                   <MapPin size={12} className="text-amber-500 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <span className="block text-slate-800 text-[11px] font-bold truncate" title={club.classroom}>
+                    <span className={cn(
+                      "block text-[11px] font-bold truncate",
+                      isPreviewDark ? "text-slate-200" : "text-slate-800"
+                    )} title={club.classroom}>
                       {club.classroom || 'Chưa xếp phòng'}
                     </span>
                   </div>
@@ -2349,16 +3059,28 @@ function BackgroundSetupModal({
               </div>
 
               {/* Preview Bottom Stats and Actions Row */}
-              <div className="flex items-center justify-between gap-2 z-10 border-t border-slate-100/50 pt-2.5 mt-auto">
+              <div className={cn(
+                "flex items-center justify-between gap-2 z-10 border-t pt-2.5 mt-auto",
+                isPreviewDark ? "border-white/15" : "border-slate-100/50"
+              )}>
                 {/* Stats */}
-                <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold shrink-0">
+                <div className={cn(
+                  "flex items-center gap-2 text-xs font-semibold shrink-0",
+                  isPreviewDark ? "text-slate-400" : "text-slate-500"
+                )}>
                   <div className="flex items-center gap-1">
                     <Users size={12} className="text-slate-400 shrink-0" />
-                    <span className="text-[11px] font-bold text-slate-700">{club.active_members_count}/{club.max_members || '∞'}</span>
+                    <span className={cn(
+                      "text-[11px] font-bold",
+                      isPreviewDark ? "text-slate-300" : "text-slate-700"
+                    )}>{club.active_members_count}/{club.max_members || '∞'}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Heart size={12} className={club.is_favorited ? "fill-pink-500 text-pink-500 shrink-0" : "text-slate-400 shrink-0"} />
-                    <span className="text-[11px] font-bold text-slate-600">{club.favorite_count || 0}</span>
+                    <span className={cn(
+                      "text-[11px] font-bold",
+                      isPreviewDark ? "text-slate-300" : "text-slate-600"
+                    )}>{club.favorite_count || 0}</span>
                   </div>
                 </div>
 

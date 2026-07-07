@@ -112,6 +112,11 @@ export class BackgroundConfigDto {
   @IsOptional()
   @IsString()
   pattern?: string;
+
+  @ApiPropertyOptional({ description: 'Pet accent motion type' })
+  @IsOptional()
+  @IsString()
+  petAccentType?: string;
 }
 
 export class CreateClubDto {

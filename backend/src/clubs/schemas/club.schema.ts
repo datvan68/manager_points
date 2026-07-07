@@ -64,6 +64,9 @@ export class BackgroundConfig {
 
   @Prop({ type: String })
   pattern?: string;
+
+  @Prop({ type: String })
+  petAccentType?: string;
 }
 
 export const BackgroundConfigSchema = SchemaFactory.createForClass(BackgroundConfig);

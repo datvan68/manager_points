@@ -46,6 +46,7 @@ export interface Club {
     useAvatarAsBackground?: boolean;
     backgroundFrameUrl?: string;
     pattern?: string;
+    petAccentType?: string;
   };
   createdAt: string;
   updatedAt: string;
