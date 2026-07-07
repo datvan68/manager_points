@@ -11,14 +11,27 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
   let service: ClubSchedulesService;
   const mockUserId = new Types.ObjectId().toString();
 
-  const mockClubScheduleModel = {
-    insertMany: jest.fn().mockImplementation((arr) => Promise.resolve(arr)),
-    create: jest.fn().mockImplementation((obj) => ({
+  class MockModel {
+    _id: any;
+    constructor(public obj: any) {
+      Object.assign(this, obj);
+      if (!this._id) {
+        this._id = new Types.ObjectId();
+      }
+    }
+    save = jest.fn().mockResolvedValue(this);
+    static insertMany = jest.fn().mockImplementation((arr) => Promise.resolve(arr));
+    static create = jest.fn().mockImplementation((obj) => ({
       ...obj,
       save: jest.fn().mockResolvedValue(obj),
-    })),
-    findById: jest.fn(),
-  };
+    }));
+    static findById = jest.fn().mockReturnValue({ exec: jest.fn() });
+    static find = jest.fn().mockReturnValue({ exec: jest.fn() });
+    static findByIdAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn() });
+    static updateMany = jest.fn().mockReturnValue({ exec: jest.fn() });
+  }
+
+  const mockClubScheduleModel = MockModel as any;
 
   const mockScheduleRegistrationModel = {
     countDocuments: jest.fn(),
@@ -182,5 +195,108 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
     expect(insertedSchedules[0].start_time.toISOString()).toBe(new Date('2026-07-06T08:00:00').toISOString());
     expect(insertedSchedules[1].start_time.toISOString()).toBe(new Date('2026-07-20T08:00:00').toISOString());
     expect(insertedSchedules[2].start_time.toISOString()).toBe(new Date('2026-07-27T08:00:00').toISOString());
+  });
+
+  describe('update monthly recurrence', () => {
+    it('should preserve original monthly calendar date pattern when monthly series is updated', async () => {
+      const recurrenceId = new Types.ObjectId();
+      const semesterId = new Types.ObjectId();
+      const existingId = new Types.ObjectId();
+      const augustId = new Types.ObjectId();
+      const septemberId = new Types.ObjectId();
+
+      const existingSchedule = {
+        _id: existingId,
+        title: 'Họp CLB Hàng Tháng',
+        start_time: new Date('2026-07-15T08:00:00'), // Wednesday July 15 (midweek)
+        end_time: new Date('2026-07-15T10:00:00'),
+        recurrence_id: recurrenceId,
+        recurrence: {
+          type: 'monthly',
+          day_of_week: 3,
+          until: new Date('2026-10-31T23:59:59'),
+          start: new Date('2026-07-13T00:00:00'),
+          source_week_start_date: new Date('2026-07-13T00:00:00'),
+          source_week_end_date: new Date('2026-07-19T23:59:59'),
+        },
+        semester_id: semesterId,
+        status: 'scheduled',
+      };
+
+      const series = [
+        existingSchedule,
+        {
+          _id: augustId,
+          title: 'Họp CLB Hàng Tháng',
+          start_time: new Date('2026-08-15T08:00:00'), // Saturday Aug 15
+          end_time: new Date('2026-08-15T10:00:00'),
+          recurrence_id: recurrenceId,
+          recurrence: existingSchedule.recurrence,
+          status: 'scheduled',
+        },
+        {
+          _id: septemberId,
+          title: 'Họp CLB Hàng Tháng',
+          start_time: new Date('2026-09-15T08:00:00'), // Tuesday Sep 15
+          end_time: new Date('2026-09-15T10:00:00'),
+          recurrence_id: recurrenceId,
+          recurrence: existingSchedule.recurrence,
+          status: 'scheduled',
+        },
+      ];
+
+      // Mock DB calls
+      mockClubScheduleModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(existingSchedule),
+      });
+
+      mockClubScheduleModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(series),
+      });
+
+      const updatedSchedules: any[] = [];
+      mockClubScheduleModel.findByIdAndUpdate.mockImplementation((id, update) => {
+        const found = series.find(s => s._id.toString() === id.toString());
+        const updatedDoc = {
+          ...found,
+          ...update.$set,
+        };
+        updatedSchedules.push(updatedDoc);
+        return {
+          exec: jest.fn().mockResolvedValue(updatedDoc),
+        };
+      });
+
+      // Update the 2nd session (August 15) to start at 09:00 instead of 08:00
+      const dto = {
+        start_time: new Date('2026-08-15T09:00:00'),
+        end_time: new Date('2026-08-15T11:00:00'),
+      };
+
+      mockClubScheduleModel.findById.mockImplementation((id) => {
+        if (id.toString() === augustId.toString()) {
+          return {
+            exec: jest.fn().mockResolvedValue(series[1]),
+          };
+        }
+        const found = updatedSchedules.find(s => s._id.toString() === id.toString());
+        return {
+          exec: jest.fn().mockResolvedValue(found || existingSchedule),
+        };
+      });
+
+      const result = await service.update(augustId.toString(), dto);
+      expect(result).toBeDefined();
+
+      // Check updatedSchedules:
+      // Index 0: July 15 (Wednesday) updated to time pattern 09:00
+      // Index 1: Aug 15 (Saturday) updated to time pattern 09:00
+      // Index 2: Sep 15 (Tuesday) updated to time pattern 09:00
+      expect(updatedSchedules.length).toBe(3);
+      
+      expect(updatedSchedules[0].start_time.toISOString()).toBe(new Date('2026-07-15T09:00:00').toISOString());
+      expect(updatedSchedules[1].start_time.toISOString()).toBe(new Date('2026-08-15T09:00:00').toISOString());
+      expect(updatedSchedules[2].start_time.toISOString()).toBe(new Date('2026-09-15T09:00:00').toISOString());
+    });
   });
 });

@@ -100,6 +100,16 @@ export class ClubSchedulesService {
       const recurrence_id = new Types.ObjectId();
       const schedulesToCreate: any[] = [];
 
+      const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
+      sunday.setHours(23, 59, 59, 999);
+
+      const source_week_start_date = dto.recurrence.source_week_start_date
+        ? new Date(dto.recurrence.source_week_start_date)
+        : monday;
+      const source_week_end_date = dto.recurrence.source_week_end_date
+        ? new Date(dto.recurrence.source_week_end_date)
+        : sunday;
+
       let i = 0;
       while (true) {
         let currentStart: Date;
@@ -148,6 +158,8 @@ export class ClubSchedulesService {
               ...dto.recurrence,
               until: untilDate,
               start: repeatStart || monday,
+              source_week_start_date,
+              source_week_end_date,
             },
           });
         }
@@ -302,33 +314,274 @@ export class ClubSchedulesService {
     id: string,
     dto: UpdateScheduleDto,
   ): Promise<ClubScheduleDocument> {
+    const existing = await this.scheduleModel.findById(id).exec();
+    if (!existing) {
+      throw new NotFoundException(`Không tìm thấy lịch sinh hoạt với ID: ${id}`);
+    }
+
     if (dto.end_time && dto.start_time && new Date(dto.end_time) <= new Date(dto.start_time)) {
       throw new BadRequestException(
         'Thời gian kết thúc phải sau thời gian bắt đầu',
       );
     }
 
-    if (dto.recurrence) {
-      const existing = await this.scheduleModel.findById(id).exec();
-      if (!existing) {
-        throw new NotFoundException(`Không tìm thấy lịch sinh hoạt với ID: ${id}`);
+    const getMonday = (d: Date) => {
+      const date = new Date(d);
+      const day = date.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const monday = new Date(date.getTime() + diff * 24 * 60 * 60 * 1000);
+      monday.setHours(0, 0, 0, 0);
+      return monday;
+    };
+
+    if (existing.recurrence_id) {
+      // 1. Lấy thông tin recurrence hiện tại
+      const recurrenceType = dto.recurrence?.type || existing.recurrence?.type || 'weekly';
+      
+      // Xác định start_time và end_time mới cho session đang sửa
+      const newStart = dto.start_time ? new Date(dto.start_time) : new Date(existing.start_time);
+      const newEnd = dto.end_time ? new Date(dto.end_time) : new Date(existing.end_time);
+
+      // Tính day_of_week mới từ newStart
+      const newDayOfWeek = newStart.getDay();
+
+      let untilDate: Date;
+      const untilFromDtoOrExisting = dto.recurrence?.until || existing.recurrence?.until;
+      if (untilFromDtoOrExisting) {
+        untilDate = new Date(untilFromDtoOrExisting);
+      } else {
+        const semesterId = dto.semester_id || existing.semester_id;
+        const semester = semesterId ? await this.semesterModel.findById(semesterId).exec() : null;
+        if (semester) {
+          untilDate = new Date(semester.end_date);
+        } else {
+          untilDate = new Date(
+            newStart.getTime() + 10 * 7 * 24 * 60 * 60 * 1000,
+          );
+        }
       }
 
+      // 2. Tìm tất cả các schedule hiện tại trong chuỗi
+      const series = await this.scheduleModel.find({
+        recurrence_id: existing.recurrence_id
+      }).exec();
+
+      let source_week_start_date: Date;
+      let source_week_end_date: Date;
+
+      if (existing.recurrence?.source_week_start_date && existing.recurrence?.source_week_end_date) {
+        source_week_start_date = new Date(existing.recurrence.source_week_start_date);
+        source_week_end_date = new Date(existing.recurrence.source_week_end_date);
+      } else {
+        // Fallback/Migration: tìm buổi hoạt động có start_time sớm nhất trong chuỗi
+        const activeSeries = series.filter(s => s.status !== 'cancelled');
+        const fallbackAnchor = activeSeries.length > 0
+          ? new Date(Math.min(...activeSeries.map(s => new Date(s.start_time).getTime())))
+          : new Date(existing.start_time);
+        
+        source_week_start_date = getMonday(fallbackAnchor);
+        source_week_end_date = new Date(source_week_start_date.getTime() + 6 * 24 * 60 * 60 * 1000);
+        source_week_end_date.setHours(23, 59, 59, 999);
+      }
+
+      // Kiểm tra xem newStart có trước source_week_start_date không
+      if (newStart < source_week_start_date) {
+        throw new BadRequestException('Ngày bắt đầu không được trước tuần nguồn lặp');
+      }
+
+      const repeatStart = dto.recurrence?.start
+        ? new Date(dto.recurrence.start)
+        : existing.recurrence?.start
+          ? new Date(existing.recurrence.start)
+          : source_week_start_date;
+
+      if (repeatStart && repeatStart < source_week_start_date) {
+        throw new BadRequestException('Ngày bắt đầu lặp lại không được trước tuần nguồn lặp');
+      }
+
+      if (repeatStart && untilDate && untilDate < repeatStart) {
+        throw new BadRequestException('Ngày kết thúc lặp lại phải bằng hoặc sau ngày bắt đầu lặp');
+      }
+
+      if (untilDate && untilDate < newStart) {
+        throw new BadRequestException(
+          'Ngày kết thúc lặp lại phải bằng hoặc sau ngày bắt đầu buổi sinh hoạt đầu tiên',
+        );
+      }
+
+      let newSourceStart = newStart;
+      let newSourceEnd = newEnd;
+
+      if (recurrenceType === 'monthly') {
+        let originalAnchorStart = existing.start_time;
+        const anchorSession = series.find(s => 
+          s.recurrence?.source_week_start_date && 
+          new Date(s.start_time) >= source_week_start_date && 
+          new Date(s.start_time) <= source_week_end_date
+        );
+        if (anchorSession) {
+          originalAnchorStart = anchorSession.start_time;
+        } else {
+          const activeSeries = series.filter(s => s.status !== 'cancelled');
+          if (activeSeries.length > 0) {
+            originalAnchorStart = new Date(Math.min(...activeSeries.map(s => new Date(s.start_time).getTime())));
+          }
+        }
+
+        const getMonthDiff = (d1: Date, d2: Date) => {
+          return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+        };
+        const m = getMonthDiff(new Date(originalAnchorStart), new Date(existing.start_time));
+
+        newSourceStart = new Date(newStart);
+        newSourceStart.setMonth(newStart.getMonth() - m);
+
+        newSourceEnd = new Date(newEnd);
+        newSourceEnd.setMonth(newEnd.getMonth() - m);
+      }
+
+      // 3. Sinh ra danh sách các ngày hoạt động mong muốn (desired dates)
+      const desiredWeeks: { start: Date; end: Date }[] = [];
+
+      let i = 0;
+      while (true) {
+        let currentStart: Date;
+        let currentEnd: Date;
+
+        let weekMonday: Date;
+        if (recurrenceType === 'weekly') {
+          weekMonday = new Date(source_week_start_date.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+          weekMonday.setHours(0, 0, 0, 0);
+          const dayOffset = newDayOfWeek === 0 ? 6 : newDayOfWeek - 1;
+          currentStart = new Date(weekMonday.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+          currentStart.setHours(newStart.getHours(), newStart.getMinutes(), newStart.getSeconds(), newStart.getMilliseconds());
+          currentEnd = new Date(weekMonday.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+          currentEnd.setHours(newEnd.getHours(), newEnd.getMinutes(), newEnd.getSeconds(), newEnd.getMilliseconds());
+        } else if (recurrenceType === 'biweekly') {
+          weekMonday = new Date(source_week_start_date.getTime() + i * 14 * 24 * 60 * 60 * 1000);
+          weekMonday.setHours(0, 0, 0, 0);
+          const dayOffset = newDayOfWeek === 0 ? 6 : newDayOfWeek - 1;
+          currentStart = new Date(weekMonday.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+          currentStart.setHours(newStart.getHours(), newStart.getMinutes(), newStart.getSeconds(), newStart.getMilliseconds());
+          currentEnd = new Date(weekMonday.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+          currentEnd.setHours(newEnd.getHours(), newEnd.getMinutes(), newEnd.getSeconds(), newEnd.getMilliseconds());
+        } else if (recurrenceType === 'monthly') {
+          currentStart = new Date(newSourceStart);
+          currentStart.setMonth(newSourceStart.getMonth() + i);
+          currentEnd = new Date(newSourceEnd);
+          currentEnd.setMonth(newSourceEnd.getMonth() + i);
+        } else {
+          weekMonday = new Date(source_week_start_date.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+          weekMonday.setHours(0, 0, 0, 0);
+          const dayOffset = newDayOfWeek === 0 ? 6 : newDayOfWeek - 1;
+          currentStart = new Date(weekMonday.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+          currentStart.setHours(newStart.getHours(), newStart.getMinutes(), newStart.getSeconds(), newStart.getMilliseconds());
+          currentEnd = new Date(weekMonday.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+          currentEnd.setHours(newEnd.getHours(), newEnd.getMinutes(), newEnd.getSeconds(), newEnd.getMilliseconds());
+        }
+
+        if (currentStart > untilDate) {
+          break;
+        }
+
+        if (currentStart < source_week_start_date) {
+          throw new BadRequestException('Cấu hình lặp tạo ra lịch sinh hoạt trước tuần nguồn');
+        }
+
+        if (i === 0 || currentStart >= repeatStart) {
+          desiredWeeks.push({ start: currentStart, end: currentEnd });
+        }
+
+        i++;
+        if (i > 100) break;
+      }
+
+      // 4. Đồng bộ hóa (Reconcile)
+      const updatedSeriesIds: string[] = [];
+
+      for (const desired of desiredWeeks) {
+        const desiredMonday = getMonday(desired.start);
+        const desiredSunday = new Date(desiredMonday);
+        desiredSunday.setDate(desiredMonday.getDate() + 6);
+        desiredSunday.setHours(23, 59, 59, 999);
+
+        // Tìm schedule hiện tại thuộc tuần này
+        const existingInWeek = series.find(s => 
+          new Date(s.start_time) >= desiredMonday && new Date(s.start_time) <= desiredSunday
+        );
+
+        const recurrenceMetadata = {
+          type: recurrenceType,
+          day_of_week: newDayOfWeek,
+          until: untilDate,
+          start: repeatStart,
+          source_week_start_date,
+          source_week_end_date,
+        };
+
+        const updateData = {
+          title: dto.title !== undefined ? dto.title : existing.title,
+          description: dto.description !== undefined ? dto.description : existing.description,
+          schedule_type: dto.schedule_type !== undefined ? dto.schedule_type : existing.schedule_type,
+          location: dto.location !== undefined ? dto.location : existing.location,
+          instructor_id: dto.instructor_id !== undefined ? dto.instructor_id : existing.instructor_id,
+          max_attendees: dto.max_attendees !== undefined ? dto.max_attendees : existing.max_attendees,
+          club_id: dto.club_id !== undefined ? new Types.ObjectId(dto.club_id) : existing.club_id,
+          semester_id: dto.semester_id !== undefined ? new Types.ObjectId(dto.semester_id) : existing.semester_id,
+          recurrence: recurrenceMetadata,
+          start_time: desired.start,
+          end_time: desired.end,
+        };
+
+        if (existingInWeek) {
+          await this.scheduleModel.findByIdAndUpdate(
+            existingInWeek._id,
+            { $set: updateData },
+            { runValidators: true }
+          ).exec();
+          updatedSeriesIds.push(existingInWeek._id.toString());
+        } else {
+          const newSchedule = new this.scheduleModel({
+            ...updateData,
+            recurrence_id: existing.recurrence_id,
+            status: 'scheduled',
+            created_by: existing.created_by,
+          });
+          const saved = await newSchedule.save();
+          updatedSeriesIds.push(saved._id.toString());
+        }
+      }
+
+      // Hủy (cancel) các schedule trong chuỗi cũ không còn nằm trong desired weeks
+      const toCancel = series.filter(s => !updatedSeriesIds.includes(s._id.toString()));
+      if (toCancel.length > 0) {
+        const cancelIds = toCancel.map(s => s._id);
+        await this.registrationModel.updateMany(
+          { schedule_id: { $in: cancelIds }, status: 'registered' },
+          { $set: { status: 'cancelled', cancelled_at: new Date() } },
+        );
+        await this.scheduleModel.updateMany(
+          { _id: { $in: cancelIds } },
+          { $set: { status: 'cancelled' } },
+        );
+      }
+
+      const updatedSelf = await this.scheduleModel.findById(id).exec();
+      if (!updatedSelf) {
+        throw new NotFoundException(`Không tìm thấy lịch sinh hoạt với ID: ${id}`);
+      }
+      return updatedSelf;
+    }
+
+    // Nếu không lặp, chỉ cập nhật buổi hiện tại
+    if (dto.recurrence) {
       const start = dto.start_time ? new Date(dto.start_time) : new Date(existing.start_time);
       const untilDate = dto.recurrence.until ? new Date(dto.recurrence.until) : null;
-
-      const day = start.getDay();
-      const diffToMonday = day === 0 ? -6 : 1 - day;
-      const monday = new Date(start.getTime() + diffToMonday * 24 * 60 * 60 * 1000);
-      monday.setHours(0, 0, 0, 0);
-
+      const monday = getMonday(start);
       const repeatStart = dto.recurrence.start ? new Date(dto.recurrence.start) : null;
 
-      if (repeatStart) {
-        repeatStart.setHours(0, 0, 0, 0);
-        if (repeatStart < monday) {
-          throw new BadRequestException('Ngày bắt đầu lặp lại không được trước tuần xếp lịch');
-        }
+      if (repeatStart && repeatStart < monday) {
+        throw new BadRequestException('Ngày bắt đầu lặp lại không được trước tuần xếp lịch');
       }
 
       if (repeatStart && untilDate && untilDate < repeatStart) {

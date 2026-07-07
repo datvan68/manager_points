@@ -60,7 +60,14 @@ export interface ClubSchedule {
   location?: string;
   start_time: string;
   end_time: string;
-  recurrence?: { type: string; day_of_week?: number; until?: string; start?: string };
+  recurrence?: { 
+    type: string; 
+    day_of_week?: number; 
+    until?: string; 
+    start?: string; 
+    source_week_start_date?: string; 
+    source_week_end_date?: string; 
+  };
   recurrence_id?: string;
   semester_id: any;
   instructor_id?: any;

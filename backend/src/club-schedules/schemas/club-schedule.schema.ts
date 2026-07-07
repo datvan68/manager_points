@@ -16,6 +16,12 @@ export class ScheduleRecurrence {
 
   @Prop()
   start: Date;
+
+  @Prop()
+  source_week_start_date: Date;
+
+  @Prop()
+  source_week_end_date: Date;
 }
 
 export const ScheduleRecurrenceSchema =

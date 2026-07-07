@@ -38,6 +38,18 @@ export class RecurrenceDto {
   @Type(() => Date)
   @IsDate()
   start?: Date;
+
+  @ApiPropertyOptional({ description: 'Source week start date' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  source_week_start_date?: Date;
+
+  @ApiPropertyOptional({ description: 'Source week end date' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  source_week_end_date?: Date;
 }
 
 export class CreateScheduleDto {

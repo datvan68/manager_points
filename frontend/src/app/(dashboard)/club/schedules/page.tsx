@@ -553,6 +553,23 @@ const getMondayDateStr = (dateStrOrDate: string | Date): string => {
   return monday.toISOString().split('T')[0];
 };
 
+const getWeekOffsetFromDate = (targetDate: Date) => {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const todayMonday = new Date(today.getTime() + diff * 24 * 60 * 60 * 1000);
+  todayMonday.setHours(0, 0, 0, 0);
+
+  const targetDay = targetDate.getDay();
+  const targetDiff = targetDay === 0 ? -6 : 1 - targetDay;
+  const targetMonday = new Date(targetDate.getTime() + targetDiff * 24 * 60 * 60 * 1000);
+  targetMonday.setHours(0, 0, 0, 0);
+
+  const diffTime = targetMonday.getTime() - todayMonday.getTime();
+  const diffDays = Math.round(diffTime / (24 * 60 * 60 * 1000));
+  return Math.round(diffDays / 7);
+};
+
 const isDateInAnchorWeek = (dateStrOrDate: string | Date, anchorWeekMonday: string): boolean => {
   return getMondayDateStr(dateStrOrDate) === anchorWeekMonday;
 };
@@ -904,6 +921,7 @@ export default function SchedulesOverview() {
   // Navigation & View states
   const [view, setView] = useState<'weekly' | 'daily'>('weekly');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [preRecurrenceWeekOffset, setPreRecurrenceWeekOffset] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -968,24 +986,38 @@ export default function SchedulesOverview() {
   const renderRecurrenceBadge = (schedule: ClubSchedule, size: 'sm' | 'md' = 'md') => {
     const isAnchorInRecurrence = isDateInAnchorWeek(schedule.start_time, anchorWeekMonday) && defaultRecurrence.enabled;
     const isSavedRecurring = !isAnchorInRecurrence && !!schedule.recurrence_id;
+    
     let badgeText = '';
+    let badgeStyle = 'text-blue-700 bg-blue-500/10 border-blue-500/20';
+
     if (isAnchorInRecurrence) {
       badgeText = 'Lặp (Anchor)';
+      badgeStyle = 'text-blue-700 bg-blue-500/10 border-blue-500/20';
     } else if (isSavedRecurring) {
-      badgeText = 'Lặp lại';
+      const isSource = schedule.recurrence?.source_week_start_date && 
+        getMondayDateStr(schedule.start_time) === getMondayDateStr(schedule.recurrence.source_week_start_date);
+      
+      if (isSource) {
+        badgeText = 'Nguồn lặp';
+        badgeStyle = 'text-purple-700 bg-purple-500/10 border-purple-500/20';
+      } else {
+        badgeText = 'Buổi lặp';
+        badgeStyle = 'text-amber-700 bg-amber-500/10 border-amber-500/20';
+      }
     }
+    
     if (!badgeText) return null;
     
     if (size === 'sm') {
       return (
-        <div className="text-[7px] font-black text-blue-700 bg-blue-500/10 rounded px-1 py-0.5 mt-1.5 w-fit shrink-0">
+        <div className={cn("text-[7px] font-black rounded px-1 py-0.5 mt-1.5 w-fit shrink-0 border", badgeStyle)}>
           {badgeText}
         </div>
       );
     }
     
     return (
-      <span className="text-[9px] font-black bg-blue-500/10 text-blue-700 px-1.5 py-0.5 rounded ml-2 uppercase tracking-wide">
+      <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded ml-2 uppercase tracking-wide border", badgeStyle)}>
         {badgeText}
       </span>
     );
@@ -1351,6 +1383,7 @@ export default function SchedulesOverview() {
       setModalRepeatEndDate(endD);
       setModalUntilDate(endD);
     }
+    setPreRecurrenceWeekOffset(weekOffset);
     setShowRecurrenceModal(true);
   };
 
@@ -1544,6 +1577,10 @@ export default function SchedulesOverview() {
       toast.success('Đã cấu hình chuỗi lặp cho lịch hiện tại');
     }
     setShowRecurrenceModal(false);
+    if (preRecurrenceWeekOffset !== null) {
+      setWeekOffset(preRecurrenceWeekOffset);
+      setPreRecurrenceWeekOffset(null);
+    }
   };
 
   const handleCancelAllRecurrence = async () => {
@@ -1588,6 +1625,10 @@ export default function SchedulesOverview() {
 
       toast.success('Đã hủy toàn bộ lịch lặp thành công');
       setShowRecurrenceModal(false);
+      if (preRecurrenceWeekOffset !== null) {
+        setWeekOffset(preRecurrenceWeekOffset);
+        setPreRecurrenceWeekOffset(null);
+      }
       reloadSchedules();
     } catch (err: any) {
       toast.error(err?.message || 'Không thể hủy toàn bộ lịch lặp');
@@ -1729,8 +1770,7 @@ export default function SchedulesOverview() {
 
     try {
       if (updateSeries) {
-        await clubScheduleApi.delete(scheduleId, true);
-        await clubScheduleApi.create(payload);
+        await clubScheduleApi.update(scheduleId, payload);
         toast.success('Đã cập nhật chuỗi lịch sinh hoạt thành công');
       } else {
         const singlePayload = { ...payload, recurrence: undefined };
@@ -2074,14 +2114,106 @@ export default function SchedulesOverview() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Week Context Widget */}
+          {(() => {
+            const isCurrentWeek = weekOffset === 0;
+            const currentMondayStr = getMondayDateStr(mondayDate);
+            
+            // Check if viewed week has any recurring schedule items
+            const repeatedSchedulesInWeek = weekSchedules.filter(s => !!s.recurrence_id);
+            const containsRepeated = repeatedSchedulesInWeek.length > 0;
+            
+            // Check if viewed week is the source week for any recurrence series
+            const isSourceWeek = schedules.some(s => 
+              s.recurrence_id && 
+              s.recurrence?.source_week_start_date && 
+              getMondayDateStr(s.recurrence.source_week_start_date) === currentMondayStr
+            );
+
+            let statusLabel = 'Tuần bình thường';
+            let badgeColor = 'bg-slate-100 text-slate-600 border-slate-200/50';
+            
+            if (isCurrentWeek && isSourceWeek) {
+              statusLabel = 'Tuần hiện tại & Tuần nguồn';
+              badgeColor = 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20';
+            } else if (isCurrentWeek) {
+              statusLabel = 'Tuần hiện tại';
+              badgeColor = 'bg-blue-500/10 text-blue-700 border-blue-500/20';
+            } else if (isSourceWeek) {
+              statusLabel = 'Tuần nguồn lặp';
+              badgeColor = 'bg-purple-500/10 text-purple-700 border-purple-500/20';
+            } else if (containsRepeated) {
+              statusLabel = 'Tuần lặp lại';
+              badgeColor = 'bg-amber-500/10 text-amber-700 border-amber-500/20';
+            }
+
+            // Find relevant recurrence shown in the current viewed week to display its source week range
+            const relevantRecurrence = repeatedSchedulesInWeek.find(s => !!s.recurrence_id && s.recurrence?.source_week_start_date);
+            const sourceWeekRangeStr = relevantRecurrence?.recurrence?.source_week_start_date
+              ? `${new Date(relevantRecurrence.recurrence.source_week_start_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} - ${new Date(relevantRecurrence.recurrence.source_week_end_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+              : null;
+
+            return (
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                <span className={cn("px-2.5 py-0.5 rounded-full border text-[10px] uppercase font-black tracking-wide", badgeColor)}>
+                  {statusLabel}
+                </span>
+                {sourceWeekRangeStr && (
+                  <span className="text-slate-400 font-bold border-l border-slate-200/80 pl-2">
+                    Nguồn: {sourceWeekRangeStr}
+                  </span>
+                )}
+                {preRecurrenceWeekOffset !== null && weekOffset !== preRecurrenceWeekOffset && (
+                  <button
+                    type="button"
+                    onClick={() => setWeekOffset(preRecurrenceWeekOffset)}
+                    className="ml-1 px-2 py-0.5 bg-amber-500 text-white hover:bg-amber-600 text-[10px] font-black rounded-lg transition-all cursor-pointer animate-pulse"
+                  >
+                    Quay lại tuần ban đầu
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Week Nav controls */}
-          <div className="flex p-1 bg-white/80 rounded-xl border border-slate-200/60 shadow-sm items-center">
+          <div className="flex p-1 bg-white/80 rounded-xl border border-slate-200/60 shadow-sm items-center gap-1">
             <button onClick={() => setWeekOffset(prev => prev - 1)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-all cursor-pointer">
               <ChevronLeft size={16} />
             </button>
-            <button onClick={() => setWeekOffset(0)} className="px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer">
-              Hôm nay
+            <button
+              onClick={() => setWeekOffset(0)}
+              disabled={weekOffset === 0}
+              className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-transparent rounded-lg transition-all cursor-pointer"
+            >
+              Về tuần hiện tại
             </button>
+
+            {(() => {
+              const repeatedSchedulesInWeek = weekSchedules.filter(s => !!s.recurrence_id);
+              const relevantRecurrence = repeatedSchedulesInWeek.find(s => !!s.recurrence_id && s.recurrence?.source_week_start_date);
+              if (!relevantRecurrence) return null;
+
+              const isAlreadySource = getMondayDateStr(relevantRecurrence.recurrence?.source_week_start_date) === getMondayDateStr(mondayDate);
+
+              const handleGoToSource = () => {
+                if (relevantRecurrence.recurrence?.source_week_start_date) {
+                  const targetDate = new Date(relevantRecurrence.recurrence.source_week_start_date);
+                  setWeekOffset(getWeekOffsetFromDate(targetDate));
+                }
+              };
+
+              return (
+                <button
+                  onClick={handleGoToSource}
+                  disabled={isAlreadySource}
+                  className="px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:hover:bg-transparent rounded-lg transition-all border-l border-slate-200 pl-2 cursor-pointer"
+                >
+                  Về tuần nguồn
+                </button>
+              );
+            })()}
+
             <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-all cursor-pointer">
               <ChevronRight size={16} />
             </button>
@@ -2767,7 +2899,13 @@ export default function SchedulesOverview() {
                 Cấu hình chuỗi lịch lặp lại
               </h3>
               <button 
-                onClick={() => setShowRecurrenceModal(false)} 
+                onClick={() => {
+                  setShowRecurrenceModal(false);
+                  if (preRecurrenceWeekOffset !== null) {
+                    setWeekOffset(preRecurrenceWeekOffset);
+                    setPreRecurrenceWeekOffset(null);
+                  }
+                }} 
                 className="p-1 hover:bg-slate-200/80 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X size={16} />
@@ -2876,7 +3014,13 @@ export default function SchedulesOverview() {
               )}
               <button
                 type="button"
-                onClick={() => setShowRecurrenceModal(false)}
+                onClick={() => {
+                  setShowRecurrenceModal(false);
+                  if (preRecurrenceWeekOffset !== null) {
+                    setWeekOffset(preRecurrenceWeekOffset);
+                    setPreRecurrenceWeekOffset(null);
+                  }
+                }}
                 className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 cursor-pointer"
               >
                 Hủy
@@ -2952,7 +3096,40 @@ export default function SchedulesOverview() {
                   </div>
                 </div>
 
+                {(() => {
+                  const targetScheduleId = formScheduleId || activePendingSchedule?.scheduleId;
+                  const existing = targetScheduleId ? schedules.find(s => s._id === targetScheduleId) : null;
+                  if (!existing || !existing.recurrence_id) return null;
 
+                  const isSource = existing.recurrence?.source_week_start_date && 
+                    getMondayDateStr(existing.start_time) === getMondayDateStr(existing.recurrence.source_week_start_date);
+                  
+                  const sourceStart = existing.recurrence?.source_week_start_date 
+                    ? new Date(existing.recurrence.source_week_start_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    : '';
+                  const sourceEnd = existing.recurrence?.source_week_end_date 
+                    ? new Date(existing.recurrence.source_week_end_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    : '';
+
+                  return (
+                    <div className="bg-amber-500/10 border border-amber-500/20 p-3.5 rounded-xl text-xs space-y-1 my-3 text-amber-900 font-semibold border-dashed text-left">
+                      <div>
+                        <span className="font-black text-amber-950">Trạng thái lặp:</span> {isSource ? 'Buổi nguồn lặp (Source Week)' : 'Buổi lặp lại (Repeated Week)'}
+                      </div>
+                      {sourceStart && (
+                        <div>
+                          <span className="font-black text-amber-950">Tuần nguồn lặp:</span> {sourceStart} - {sourceEnd}
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-black text-amber-950">Tuần đang sửa:</span> {mondayDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {sundayDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </div>
+                      <div className="text-[10px] text-amber-700 italic font-bold mt-1.5 leading-relaxed">
+                        * Việc chỉnh sửa sẽ được áp dụng cho toàn bộ các buổi hoạt động lặp lại liên kết trong chuỗi này.
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                   <button
@@ -3095,6 +3272,41 @@ export default function SchedulesOverview() {
                   </div>
                 </div>
 
+                {(() => {
+                  const targetScheduleId = formScheduleId || activePendingSchedule?.scheduleId;
+                  const existing = targetScheduleId ? schedules.find(s => s._id === targetScheduleId) : null;
+                  if (!existing || !existing.recurrence_id) return null;
+
+                  const isSource = existing.recurrence?.source_week_start_date && 
+                    getMondayDateStr(existing.start_time) === getMondayDateStr(existing.recurrence.source_week_start_date);
+                  
+                  const sourceStart = existing.recurrence?.source_week_start_date 
+                    ? new Date(existing.recurrence.source_week_start_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    : '';
+                  const sourceEnd = existing.recurrence?.source_week_end_date 
+                    ? new Date(existing.recurrence.source_week_end_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    : '';
+
+                  return (
+                    <div className="bg-amber-500/10 border border-amber-500/20 p-3.5 rounded-xl text-xs space-y-1 my-3 text-amber-900 font-semibold border-dashed text-left">
+                      <div>
+                        <span className="font-black text-amber-950">Trạng thái lặp:</span> {isSource ? 'Buổi nguồn lặp (Source Week)' : 'Buổi lặp lại (Repeated Week)'}
+                      </div>
+                      {sourceStart && (
+                        <div>
+                          <span className="font-black text-amber-950">Tuần nguồn lặp:</span> {sourceStart} - {sourceEnd}
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-black text-amber-950">Tuần đang sửa:</span> {mondayDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {sundayDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </div>
+                      <div className="text-[10px] text-amber-700 italic font-bold mt-1.5 leading-relaxed">
+                        * Việc chỉnh sửa sẽ được áp dụng cho toàn bộ các buổi hoạt động lặp lại liên kết trong chuỗi này.
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                   <button
                     type="button"
@@ -3125,24 +3337,44 @@ export default function SchedulesOverview() {
               <h3 className="font-extrabold text-slate-800 text-base">Cập nhật lịch định kỳ</h3>
             </div>
             
-            <p className="text-slate-500 text-xs mt-3 font-medium leading-relaxed">
-              Buổi sinh hoạt này thuộc một chuỗi lịch định kỳ. Bạn muốn áp dụng thay đổi này như thế nào?
+            <p className="text-slate-500 text-xs mt-3 font-medium leading-relaxed text-left">
+              Buổi sinh hoạt này thuộc một chuỗi lịch định kỳ. Thay đổi này sẽ được áp dụng cho toàn bộ các buổi hoạt động lặp lại liên kết trong chuỗi lặp này.
             </p>
 
+            {(() => {
+              const targetId = pendingUpdatePayload?.scheduleId;
+              const existing = targetId ? schedules.find(s => s._id === targetId) : null;
+              const sourceStart = existing?.recurrence?.source_week_start_date 
+                ? new Date(existing.recurrence.source_week_start_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                : '';
+              const sourceEnd = existing?.recurrence?.source_week_end_date 
+                ? new Date(existing.recurrence.source_week_end_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                : '';
+              
+              const currentStart = mondayDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+              const currentEnd = sundayDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+              return (
+                <div className="mt-4 p-3 bg-slate-50 rounded-xl space-y-2 text-[11px] text-slate-600 font-medium text-left border border-slate-200/50 border-dashed">
+                  {sourceStart && (
+                    <div>
+                      <span className="font-black text-slate-700">Tuần nguồn lặp:</span> {sourceStart} - {sourceEnd}
+                    </div>
+                  )}
+                  <div>
+                    <span className="font-black text-slate-700">Tuần đang sửa:</span> {currentStart} - {currentEnd}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="flex flex-col gap-2 mt-6">
-              <button
-                type="button"
-                onClick={() => handleUpdateConfirm(false)}
-                className="w-full py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded-xl transition-all cursor-pointer"
-              >
-                Chỉ cập nhật buổi sinh hoạt này
-              </button>
               <button
                 type="button"
                 onClick={() => handleUpdateConfirm(true)}
                 className="w-full py-2 bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
               >
-                Cập nhật từ buổi này và các buổi tiếp theo
+                Xác nhận cập nhật chuỗi lặp
               </button>
               <button
                 type="button"
