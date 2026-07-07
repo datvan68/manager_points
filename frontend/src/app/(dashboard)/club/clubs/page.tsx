@@ -220,30 +220,32 @@ export default function ClubsListPage() {
     return matchSearch && matchCategory;
   });
 
+  // Sort by favorite_count, active_members_count, updatedAt, and _id
+  const sortedAndFiltered = [...filtered].sort((a, b) => {
+    const favA = a.favorite_count || 0;
+    const favB = b.favorite_count || 0;
+    if (favB !== favA) {
+      return favB - favA;
+    }
+    const memA = a.active_members_count || 0;
+    const memB = b.active_members_count || 0;
+    if (memB !== memA) {
+      return memB - memA;
+    }
+    const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    if (timeB !== timeA) {
+      return timeB - timeA;
+    }
+    return a._id.localeCompare(b._id);
+  });
+
   // Pagination calculation
-  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
-  const paginatedClubs = filtered.slice(
+  const totalPages = Math.ceil(sortedAndFiltered.length / itemsPerPage) || 1;
+  const paginatedClubs = sortedAndFiltered.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
-  // Find the featured club based on favorite count, then active members count, then updatedAt
-  const featuredClub = clubs.length > 0 
-    ? [...clubs].sort((a, b) => {
-        if ((b.favorite_count || 0) !== (a.favorite_count || 0)) {
-          return (b.favorite_count || 0) - (a.favorite_count || 0);
-        }
-        if (b.active_members_count !== a.active_members_count) {
-          return b.active_members_count - a.active_members_count;
-        }
-        const timeB = new Date(b.updatedAt).getTime();
-        const timeA = new Date(a.updatedAt).getTime();
-        if (timeB !== timeA) {
-          return timeB - timeA;
-        }
-        return 0;
-      })[0]
-    : null;
 
   const handleFavoriteClick = async (event: React.MouseEvent, club: ClubWithStats) => {
     event.stopPropagation();
@@ -397,37 +399,9 @@ export default function ClubsListPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 custom-scrollbar overflow-y-auto h-full">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Phân hệ Quản lý Câu lạc bộ</h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Tổng số {clubs.length} câu lạc bộ sinh viên đang đăng ký hoạt động
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowQuickReports(!showQuickReports)}
-            title={showQuickReports ? "Ẩn báo cáo nhanh" : "Hiện báo cáo nhanh"}
-            aria-label={showQuickReports ? "Ẩn báo cáo nhanh" : "Hiện báo cáo nhanh"}
-            className={cn(
-              "flex items-center justify-center h-10 w-10 rounded-xl transition-all border cursor-pointer",
-              showQuickReports
-                ? "bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
-                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-            )}
-          >
-            <BarChart3 size={18} />
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer"
-          >
-            <Plus size={18} /> Tạo Câu lạc bộ Mới
-          </button>
-        </div>
-      </div>
+    <div className="px-6 pb-6 pt-0 space-y-6 custom-scrollbar overflow-y-auto h-full">
+      {/* Screen-reader-only heading for accessibility */}
+      <h1 className="sr-only">Phân hệ Quản lý Câu lạc bộ</h1>
 
       {/* Bento Stats Grid */}
       <div
@@ -497,11 +471,14 @@ export default function ClubsListPage() {
         </div>
       </div>
 
-      {/* Filter and View Toggle Controls */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-white/30 backdrop-blur-sm p-3 rounded-2xl border border-white/50">
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto flex-1">
+      {/* Filter and Action Controls */}
+      <div className={cn(
+        "flex flex-col md:flex-row gap-3 items-center justify-between bg-white/30 backdrop-blur-sm p-3 rounded-2xl border border-white/50",
+        !showQuickReports && "!mt-0"
+      )}>
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-1">
           {/* Search */}
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 md:max-w-md">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -515,48 +492,84 @@ export default function ClubsListPage() {
             />
           </div>
           {/* Category Filter */}
-          <div className="relative min-w-[160px]">
-            <Filter size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <select
-              value={filterCategory}
-              onChange={(e) => {
-                setFilterCategory(e.target.value);
+          <div className="relative min-w-[160px] w-full sm:w-auto">
+            <Filter size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
+            <Select
+              value={filterCategory || "all"}
+              onValueChange={(val) => {
+                setFilterCategory(val === "all" ? "" : val);
                 setCurrentPage(1);
               }}
-              className="w-full pl-10 pr-8 py-2 bg-white/75 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 appearance-none cursor-pointer shadow-sm"
             >
-              <option value="">Tất cả loại CLB</option>
-              {Object.entries(categoryConfigs).map(([key, config]) => (
-                <option key={key} value={key}>{config.label}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full pl-10 pr-8 h-10 bg-white/75 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm cursor-pointer">
+                <SelectValue placeholder="Tất cả loại CLB" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả loại CLB</SelectItem>
+                {Object.entries(categoryConfigs).map(([k, conf]) => (
+                  <SelectItem key={k} value={k}>
+                    {conf.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        {/* View Toggle */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-200/50 rounded-xl">
+        {/* Right side actions and view toggle */}
+        <div className="flex flex-wrap items-center justify-end gap-3 w-full md:w-auto">
+          {/* Quick report button */}
           <button
-            onClick={() => setViewMode('grid')}
-            className={`p-2 rounded-lg transition-all cursor-pointer ${
-              viewMode === 'grid'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-            title="Dạng thẻ"
+            onClick={() => setShowQuickReports(!showQuickReports)}
+            title={showQuickReports ? "Ẩn báo cáo nhanh" : "Hiện báo cáo nhanh"}
+            aria-label={showQuickReports ? "Ẩn báo cáo nhanh" : "Hiện báo cáo nhanh"}
+            className={cn(
+              "flex items-center justify-center h-10 w-10 rounded-xl transition-all border cursor-pointer shrink-0",
+              showQuickReports
+                ? "bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
+                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            )}
           >
-            <Grid size={16} />
+            <BarChart3 size={18} />
           </button>
+
+          {/* Create Club button */}
           <button
-            onClick={() => setViewMode('table')}
-            className={`p-2 rounded-lg transition-all cursor-pointer ${
-              viewMode === 'table'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-            title="Dạng bảng"
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer shrink-0"
           >
-            <List size={16} />
+            <Plus size={18} />
+            <span className="hidden sm:inline">Tạo Câu lạc bộ Mới</span>
+            <span className="sm:hidden">Tạo CLB</span>
           </button>
+
+          {/* View Toggle */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200/50 rounded-xl shrink-0">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={cn(
+                "p-2 rounded-lg transition-all cursor-pointer",
+                viewMode === 'grid'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-slate-550 hover:text-slate-700'
+              )}
+              title="Dạng thẻ"
+            >
+              <Grid size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={cn(
+                "p-2 rounded-lg transition-all cursor-pointer",
+                viewMode === 'table'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-slate-555 hover:text-slate-700'
+              )}
+              title="Dạng bảng"
+            >
+              <List size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -580,68 +593,7 @@ export default function ClubsListPage() {
       ) : viewMode === 'grid' ? (
         // Grid View
         <div className="space-y-6">
-          {/* Featured Club Hero section */}
-          {featuredClub && currentPage === 1 && !search && !filterCategory && (
-            <div className="backdrop-blur-md bg-white/45 border border-white/80 rounded-2xl overflow-hidden p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm shadow-slate-200">
-              <div className="flex-1 space-y-4">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black tracking-wider text-blue-600 bg-blue-600/10 border border-blue-500/20 uppercase">
-                  {featuredClub.favorite_count > 0 ? '⭐ CÂU LẠC BỘ ĐƯỢC YÊU THÍCH NHẤT' : '⭐ CÂU LẠC BỘ TIÊU BIỂU'}
-                </span>
-                <h2 className="text-2xl font-black text-slate-800 leading-tight">
-                  {featuredClub.name}
-                </h2>
-                <p className="text-sm text-slate-500 leading-relaxed max-w-2xl">
-                  {featuredClub.description || 'Nơi hội tụ những tâm hồn nhiệt huyết, cùng nhau phát triển các hoạt động kỹ năng và đóng góp cho cộng đồng.'}
-                </p>
-                <div className="flex items-center gap-4 text-xs font-semibold text-slate-500 pt-1">
-                  <div className="flex items-center gap-1.5">
-                    <Users size={14} className="text-slate-400" />
-                    <span>{featuredClub.active_members_count} Thành viên chính thức</span>
-                  </div>
-                  <span>•</span>
-                  <div className="flex items-center gap-1.5">
-                    <BookOpen size={14} className="text-slate-400" />
-                    <span>{categoryConfigs[featuredClub.category]?.label || 'Khác'}</span>
-                  </div>
-                  {featuredClub.favorite_count > 0 && (
-                    <>
-                      <span>•</span>
-                      <div className="flex items-center gap-1.5">
-                        <Heart size={14} className="text-pink-500 fill-pink-500" />
-                        <span>{featuredClub.favorite_count} lượt yêu thích</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 pt-3">
-                  <button
-                    onClick={() => router.push(`/club/clubs/${featuredClub._id}`)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-all cursor-style active:scale-95 cursor-pointer shadow-md shadow-blue-500/20"
-                  >
-                    Tìm hiểu thêm <ArrowRight size={14} />
-                  </button>
-                </div>
-              </div>
-              <div 
-                className="w-full md:w-80 h-44 md:h-48 rounded-xl shrink-0 border border-white flex flex-col justify-end p-4 relative overflow-hidden bg-center bg-cover"
-                style={featuredClub.cover_url ? {
-                  backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.6)), url(${getImageUrl(featuredClub.cover_url)})`
-                } : {
-                  background: categoryConfigs[featuredClub.category]?.heroGradient || categoryConfigs.other.heroGradient
-                }}
-              >
-                <div className="absolute top-4 right-4 text-slate-400/20 font-black text-7xl select-none leading-none">
-                  {featuredClub.code}
-                </div>
-                <div className="relative z-10">
-                  <div className="text-[10px] font-bold text-slate-500/70 tracking-widest uppercase mb-1">FOUNDED</div>
-                  <div className="text-xs font-extrabold text-slate-700">
-                    {featuredClub.founded_date ? new Date(featuredClub.founded_date).toLocaleDateString('vi-VN') : '—'}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+
 
           {/* Balanced Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
