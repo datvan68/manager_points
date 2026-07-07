@@ -23,6 +23,48 @@ export class ClubSettings {
 
 export const ClubSettingsSchema = SchemaFactory.createForClass(ClubSettings);
 
+@Schema({ _id: false })
+export class CardUi {
+  @Prop({
+    type: String,
+    enum: ['default', 'academic', 'sports', 'art', 'volunteer', 'technology', 'other'],
+    default: 'default',
+  })
+  theme: string;
+
+  @Prop({ type: String })
+  accent_color?: string;
+
+  @Prop({
+    type: String,
+    enum: ['classic', 'spotlight', 'minimal'],
+    default: 'classic',
+  })
+  style: string;
+}
+
+export const CardUiSchema = SchemaFactory.createForClass(CardUi);
+
+@Schema({ _id: false })
+export class BackgroundConfig {
+  @Prop({ type: String, default: 'default' })
+  preset?: string;
+
+  @Prop({ type: String })
+  accentColor?: string;
+
+  @Prop({ type: String })
+  backgroundImageUrl?: string;
+
+  @Prop({ type: Boolean, default: false })
+  useAvatarAsBackground?: boolean;
+
+  @Prop({ type: String })
+  backgroundFrameUrl?: string;
+}
+
+export const BackgroundConfigSchema = SchemaFactory.createForClass(BackgroundConfig);
+
 @Schema({ timestamps: true, collection: 'clubs' })
 export class Club {
   @Prop({ required: true, trim: true })
@@ -83,6 +125,12 @@ export class Club {
 
   @Prop({ type: ClubSettingsSchema, default: () => ({}) })
   settings: ClubSettings;
+
+  @Prop({ type: CardUiSchema, default: () => ({}) })
+  card_ui: CardUi;
+
+  @Prop({ type: BackgroundConfigSchema, default: () => ({}) })
+  background_config: BackgroundConfig;
 }
 
 export const ClubSchema = SchemaFactory.createForClass(Club);

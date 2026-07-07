@@ -6,7 +6,7 @@ import {
   Plus, Search, Filter, Users, MapPin, Compass, Grid, List,
   Sparkles, Download, ArrowRight, BookOpen, Clock, Calendar, CheckCircle2,
   AlertCircle, ShieldAlert, MoreVertical, Edit2, Trash2, Eye, Shield, HelpCircle,
-  X, Upload, Heart, BarChart3
+  X, Upload, Heart, BarChart3, Palette
 } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/button';
@@ -24,8 +24,11 @@ import { format } from 'date-fns';
 import { clubApi, clubScheduleApi, Club } from '@/api/club-api';
 import { authApi, tokenStorage } from '@/api/auth-api';
 import { semesterApi, Semester } from '@/api/semester-api';
+import { getClubScheduleSummary, BACKGROUND_PRESETS, getClubAccentColor } from './schedule-helper';
 import { API_ORIGIN } from '@/api/config';
  
+const SHOW_CLUB_AVATAR = false;
+
 const getImageUrl = (url?: string) => {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
@@ -112,7 +115,16 @@ interface ClubWithStats extends Club {
   membership_status?: 'none' | 'pending' | 'active' | 'inactive' | 'rejected' | 'left';
   favorite_loading?: boolean;
   join_loading?: boolean;
+  schedule_time?: string;
 }
+
+const formatScheduleSummary = (schedules: any[], clubId: string) => {
+  const summary = getClubScheduleSummary(schedules, clubId);
+  if (!summary || summary.length === 0) {
+    return 'Chưa xếp lịch';
+  }
+  return summary.map(row => `${row.weekdays.join(', ')}: ${row.timeRange}`).join(' | ');
+};
  
 export default function ClubsListPage() {
   const router = useRouter();
@@ -125,6 +137,8 @@ export default function ClubsListPage() {
   const [showQuickReports, setShowQuickReports] = useState(false);
   const [todaySchedulesCount, setTodaySchedulesCount] = useState(0);
   const [activeSemesterId, setActiveSemesterId] = useState<string | null>(null);
+  const [showBgSetupModal, setShowBgSetupModal] = useState(false);
+  const [selectedClubForBg, setSelectedClubForBg] = useState<ClubWithStats | null>(null);
  
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -140,13 +154,16 @@ export default function ClubsListPage() {
       setLoading(true);
       const currentUser = tokenStorage.getUser();
  
-      const [data, favoriteIds, myMemberships, semestersList] = await Promise.all([
+      const [data, favoriteIds, myMemberships, semestersList, schedulesData] = await Promise.all([
         clubApi.getAll(),
         currentUser ? clubApi.getMyFavoriteClubIds().catch(() => []) : Promise.resolve([]),
         currentUser ? clubApi.getMyClubs().catch(() => []) : Promise.resolve([]),
         semesterApi.getSemesters().catch(() => []),
+        clubScheduleApi.getAll({ limit: 1000 }).catch(() => ({ items: [], total: 0 })),
       ]);
  
+      const schedulesList = schedulesData?.items || [];
+
       // Find active semester
       const activeSem = semestersList.find((s) => s.status === 'active');
       if (activeSem) {
@@ -165,6 +182,13 @@ export default function ClubsListPage() {
               return mClubId === club._id;
             });
  
+            // Find schedules for this club
+            const clubSchedules = schedulesList.filter((s: any) => {
+              const sClubId = s.club_id?._id || s.club_id;
+              return sClubId === club._id;
+            });
+            const scheduleTimeStr = formatScheduleSummary(clubSchedules, club._id);
+
             return {
               ...club,
               active_members_count: stats.active_members || 0,
@@ -174,6 +198,7 @@ export default function ClubsListPage() {
               membership_status: membership?.status || 'none',
               favorite_loading: false,
               join_loading: false,
+              schedule_time: scheduleTimeStr,
             };
           } catch {
             return {
@@ -185,6 +210,7 @@ export default function ClubsListPage() {
               membership_status: 'none',
               favorite_loading: false,
               join_loading: false,
+              schedule_time: 'Chưa xếp lịch',
             };
           }
         })
@@ -239,13 +265,29 @@ export default function ClubsListPage() {
     }
     return a._id.localeCompare(b._id);
   });
-
   // Pagination calculation
   const totalPages = Math.ceil(sortedAndFiltered.length / itemsPerPage) || 1;
   const paginatedClubs = sortedAndFiltered.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  const canManageClub = (club: ClubWithStats) => {
+    const currentUser = tokenStorage.getUser();
+    if (!currentUser) return false;
+    const userId = currentUser._id || currentUser.userId || currentUser.id;
+    const role = currentUser.role?.toLowerCase();
+    
+    if (role === 'admin') return true;
+    
+    const advisorId = club.advisor_id?._id || club.advisor_id;
+    const presidentId = club.president_id?._id || club.president_id;
+    
+    const isAdvisor = advisorId && advisorId.toString() === userId?.toString();
+    const isPresident = presidentId && presidentId.toString() === userId?.toString();
+    
+    return !!(isAdvisor || isPresident);
+  };
 
   const handleFavoriteClick = async (event: React.MouseEvent, club: ClubWithStats) => {
     event.stopPropagation();
@@ -323,8 +365,10 @@ export default function ClubsListPage() {
       return;
     }
 
-    if (currentUser.role && currentUser.role !== 'student') {
-      toast.error('Chỉ sinh viên mới được tham gia câu lạc bộ');
+    const isStudent = currentUser.role?.toLowerCase() === 'student';
+    const isAdmin = currentUser.role?.toLowerCase() === 'admin';
+    if (!isStudent && !isAdmin) {
+      toast.error('Chỉ sinh viên hoặc quản trị viên (test) mới được tham gia câu lạc bộ');
       return;
     }
 
@@ -600,20 +644,36 @@ export default function ClubsListPage() {
              {paginatedClubs.map((club) => {
               const conf = categoryConfigs[club.category] || categoryConfigs.other;
               const currentUser = tokenStorage.getUser();
+              const preset = BACKGROUND_PRESETS.find((p) => p.id === club.background_config?.preset);
+              const cardBgClass = preset ? preset.className : "bg-white/45 border-white/70";
+              const accentColor = getClubAccentColor(club);
               return (
                 <div
                   key={club._id}
                   onClick={() => router.push(`/club/clubs/${club._id}`)}
-                  className="group relative backdrop-blur-md bg-white/45 border border-white/70 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:bg-white/80 transition-all duration-300 flex flex-col h-[320px] cursor-pointer border-t-[3px] border-t-transparent hover:border-t-blue-500"
+                  className={cn(
+                    "group relative backdrop-blur-md rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:bg-white/80 transition-all duration-300 flex flex-col h-[320px] cursor-pointer border",
+                    cardBgClass
+                  )}
+                  style={{
+                    borderTopWidth: '3px',
+                    borderTopColor: accentColor,
+                  }}
                 >
                   {/* Banner Section */}
                   <div 
                     className="h-28 w-full relative transition-all duration-300 bg-center bg-cover"
-                    style={club.cover_url ? {
-                      backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.cover_url)})`
-                    } : {
-                      background: conf.heroGradient
-                    }}
+                    style={
+                      (club.background_config?.useAvatarAsBackground && club.logo_url) ? {
+                        backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.logo_url)})`
+                      } : club.background_config?.backgroundImageUrl ? {
+                        backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.background_config.backgroundImageUrl)})`
+                      } : club.cover_url ? {
+                        backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.cover_url)})`
+                      } : {
+                        background: conf.heroGradient
+                      }
+                    }
                   >
                     {/* Badges absolutely positioned over banner */}
                     <div className="absolute top-3 left-3 flex gap-1.5 items-center z-10">
@@ -647,6 +707,13 @@ export default function ClubsListPage() {
                     <div className="absolute bottom-2 left-3 right-3 text-white/20 font-black text-3xl font-mono select-none leading-none text-right">
                       {club.code}
                     </div>
+
+                    {/* Club logo/avatar overlap banner (reversible flag SHOW_CLUB_AVATAR) */}
+                    {SHOW_CLUB_AVATAR && club.logo_url && (
+                      <div className="absolute -bottom-5 left-3 w-10 h-10 rounded-xl border-2 border-white overflow-hidden bg-white shadow-sm z-10">
+                        <img src={getImageUrl(club.logo_url)} alt="Logo" className="w-full h-full object-cover" />
+                      </div>
+                    )}
                   </div>
 
                   {/* Content Section */}
@@ -656,13 +723,34 @@ export default function ClubsListPage() {
                         {club.name}
                       </h3>
                       
-                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed font-normal">
-                        {club.description || 'Chưa có mô tả chi tiết từ ban chủ nhiệm.'}
-                      </p>
+                      {/* Highlighted Schedule and Location */}
+                      <div className="space-y-1.5 text-xs font-semibold py-1">
+                        {/* Schedule Time */}
+                        <div className="flex items-center gap-2 text-slate-700 bg-blue-50/50 hover:bg-blue-50 px-2 py-1 rounded-lg border border-blue-100/50 transition-colors">
+                          <Clock size={13} className="text-blue-500 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <span className="block text-[9px] text-blue-500 font-bold uppercase tracking-wider leading-none mb-0.5">Lịch sinh hoạt</span>
+                            <span className="block text-slate-800 text-[10.5px] font-bold truncate" title={club.schedule_time}>
+                              {club.schedule_time || 'Chưa xếp lịch'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Location / Classroom */}
+                        <div className="flex items-center gap-2 text-slate-700 bg-amber-50/50 hover:bg-amber-50 px-2 py-1 rounded-lg border border-amber-100/50 transition-colors">
+                          <MapPin size={13} className="text-amber-500 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <span className="block text-[9px] text-amber-500 font-bold uppercase tracking-wider leading-none mb-0.5">Địa điểm</span>
+                            <span className="block text-slate-800 text-[10.5px] font-bold truncate" title={club.classroom}>
+                              {club.classroom || 'Chưa xếp phòng'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Action Row */}
-                    <div className="py-1 flex justify-start mt-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="py-1 flex justify-start items-center gap-2 mt-1" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant={
                           club.membership_status === 'active' ? 'outline' :
@@ -676,7 +764,7 @@ export default function ClubsListPage() {
                           club.status !== 'active' ||
                           !club.settings?.allow_self_registration ||
                           (club.max_members ? club.active_members_count >= club.max_members : false) ||
-                          (currentUser?.role && currentUser.role !== 'student')
+                          (currentUser?.role && currentUser.role.toLowerCase() !== 'student' && currentUser.role.toLowerCase() !== 'admin')
                         }
                         onClick={(e) => handleJoinClick(e, club)}
                         className={cn(
@@ -698,12 +786,26 @@ export default function ClubsListPage() {
                           'Khóa đăng ký'
                         ) : (club.max_members ? club.active_members_count >= club.max_members : false) ? (
                           'Đầy số lượng'
-                        ) : (currentUser?.role && currentUser.role !== 'student') ? (
+                        ) : (currentUser?.role && currentUser.role.toLowerCase() !== 'student' && currentUser.role.toLowerCase() !== 'admin') ? (
                           'Chỉ cho SV'
                         ) : (
                           'Tham gia'
                         )}
                       </Button>
+                      {canManageClub(club) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedClubForBg(club);
+                            setShowBgSetupModal(true);
+                          }}
+                          className="h-7 text-[10px] px-2.5 font-bold rounded-lg cursor-pointer transition-all border-blue-500 text-blue-600 hover:bg-blue-50 flex items-center gap-1 shrink-0 ml-1.5"
+                        >
+                          <Palette size={12} className="shrink-0" />
+                          Nền CLB
+                        </Button>
+                      )}
                     </div>
 
                     {/* Footer Info */}
@@ -885,7 +987,6 @@ export default function ClubsListPage() {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          {/* Join button in Table view */}
                           <Button
                             variant={
                               club.membership_status === 'active' ? 'outline' :
@@ -899,7 +1000,7 @@ export default function ClubsListPage() {
                               club.status !== 'active' ||
                               !club.settings?.allow_self_registration ||
                               (club.max_members ? club.active_members_count >= club.max_members : false) ||
-                              (currentUser?.role && currentUser.role !== 'student')
+                              (currentUser?.role && currentUser.role.toLowerCase() !== 'student' && currentUser.role.toLowerCase() !== 'admin')
                             }
                             onClick={(e) => handleJoinClick(e, club)}
                             className={cn(
@@ -921,7 +1022,7 @@ export default function ClubsListPage() {
                               'Khóa đăng ký'
                             ) : (club.max_members ? club.active_members_count >= club.max_members : false) ? (
                               'Đầy'
-                            ) : (currentUser?.role && currentUser.role !== 'student') ? (
+                            ) : (currentUser?.role && currentUser.role.toLowerCase() !== 'student' && currentUser.role.toLowerCase() !== 'admin') ? (
                               'Chỉ cho SV'
                             ) : (
                               'Tham gia'
@@ -934,6 +1035,18 @@ export default function ClubsListPage() {
                           >
                             <Eye size={14} />
                           </button>
+                          {canManageClub(club) && (
+                            <button
+                              onClick={() => {
+                                setSelectedClubForBg(club);
+                                setShowBgSetupModal(true);
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-650 hover:bg-blue-50 transition-all cursor-pointer"
+                              title="Thiết lập nền"
+                            >
+                              <Palette size={14} />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDeleteClub(club._id, club.name)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-red-650 hover:bg-red-50 transition-all cursor-pointer"
@@ -1006,6 +1119,22 @@ export default function ClubsListPage() {
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
+            loadClubs();
+          }}
+        />
+      )}
+
+      {/* Background Setup Modal */}
+      {showBgSetupModal && selectedClubForBg && (
+        <BackgroundSetupModal
+          club={selectedClubForBg}
+          onClose={() => {
+            setShowBgSetupModal(false);
+            setSelectedClubForBg(null);
+          }}
+          onSuccess={() => {
+            setShowBgSetupModal(false);
+            setSelectedClubForBg(null);
             loadClubs();
           }}
         />
@@ -1571,6 +1700,315 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function BackgroundSetupModal({
+  club,
+  onClose,
+  onSuccess,
+}: {
+  club: ClubWithStats;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [selectedPreset, setSelectedPreset] = useState(club.background_config?.preset || 'default');
+  const [accentColor, setAccentColor] = useState(club.background_config?.accentColor || '#3B82F6');
+  const [useAvatarAsBackground, setUseAvatarAsBackground] = useState(club.background_config?.useAvatarAsBackground || false);
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState(club.background_config?.backgroundImageUrl || '');
+  const [bgFile, setBgFile] = useState<File | null>(null);
+  const [bgPreview, setBgPreview] = useState(club.background_config?.backgroundImageUrl ? getImageUrl(club.background_config.backgroundImageUrl) : '');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (bgPreview && bgFile) {
+        URL.revokeObjectURL(bgPreview);
+      }
+    };
+  }, [bgPreview, bgFile]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Kích thước ảnh không được vượt quá 5MB.');
+      return;
+    }
+
+    setBgFile(file);
+    const previewUrl = URL.createObjectURL(file);
+    setBgPreview(previewUrl);
+    setUseAvatarAsBackground(false);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      let finalBgUrl = backgroundImageUrl;
+      if (bgFile) {
+        toast.info('Đang tải lên ảnh nền...');
+        const res = await clubApi.uploadMedia(bgFile, 'cover');
+        finalBgUrl = res.url;
+      }
+
+      await clubApi.update(club._id, {
+        background_config: {
+          preset: selectedPreset,
+          accentColor,
+          backgroundImageUrl: finalBgUrl,
+          useAvatarAsBackground,
+        },
+      });
+
+      toast.success('Cập nhật hình nền thành công!');
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể lưu hình nền');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const previewPreset = BACKGROUND_PRESETS.find((p) => p.id === selectedPreset);
+  const previewCardBgClass = previewPreset ? previewPreset.className : "bg-white border-slate-200";
+  const previewCategoryConf = categoryConfigs[club.category] || categoryConfigs.other;
+
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white/95 backdrop-blur-md border border-white/80 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col md:flex-row p-6 md:p-8 gap-6 md:gap-8 animate-scale-up">
+        {/* Left Side: Setup Controls */}
+        <form onSubmit={handleSave} className="flex-1 flex flex-col justify-between gap-5 min-w-0">
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                <Palette className="text-blue-500" size={20} /> Thiết lập hình nền thẻ CLB
+              </h2>
+              <p className="text-xs text-slate-400 font-medium mt-1">
+                Tùy chỉnh diện mạo thẻ câu lạc bộ của bạn để tăng tính thẩm mỹ và nhận diện thương hiệu.
+              </p>
+            </div>
+
+            {/* Presets Grid */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mẫu chủ đề (Preset)</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPreset('default');
+                    setAccentColor('#3B82F6');
+                  }}
+                  className={cn(
+                    "p-2.5 rounded-xl border text-xs font-semibold transition-all text-left",
+                    selectedPreset === 'default'
+                      ? "border-blue-500 bg-blue-50/50 text-blue-600 font-bold"
+                      : "border-slate-200 hover:bg-slate-50 text-slate-655"
+                  )}
+                >
+                  Mặc định (Category)
+                </button>
+                {BACKGROUND_PRESETS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPreset(p.id);
+                      setAccentColor(p.accentColor);
+                    }}
+                    className={cn(
+                      "p-2.5 rounded-xl border text-xs font-semibold transition-all text-left truncate",
+                      selectedPreset === p.id
+                        ? "border-blue-500 bg-blue-50/50 text-blue-600 font-bold"
+                        : "border-slate-200 hover:bg-slate-50 text-slate-655"
+                    )}
+                    title={p.name}
+                  >
+                    {p.name.split(' (')[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Accent Color picker */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tông màu chủ đạo (Accent Color)</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={accentColor}
+                  onChange={(e) => setAccentColor(e.target.value)}
+                  className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 shrink-0"
+                />
+                <input
+                  type="text"
+                  value={accentColor}
+                  onChange={(e) => setAccentColor(e.target.value)}
+                  className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  placeholder="#HEX Code"
+                />
+              </div>
+            </div>
+
+            {/* Avatar as background toggle */}
+            <div className="flex items-center justify-between border-t border-slate-100 pt-3.5">
+              <div>
+                <p className="text-slate-700 font-bold text-sm">Sử dụng Logo làm ảnh bìa</p>
+                <p className="text-[10px] text-slate-400 font-medium">Sử dụng Logo câu lạc bộ phóng to, làm mờ làm nền cho phần banner thẻ.</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={useAvatarAsBackground}
+                onChange={(e) => {
+                  setUseAvatarAsBackground(e.target.checked);
+                  if (e.target.checked) {
+                    setBgPreview('');
+                    setBgFile(null);
+                  }
+                }}
+                className="w-4 h-4 text-blue-650 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+              />
+            </div>
+
+            {/* Custom Image Upload */}
+            <div className="space-y-2 border-t border-slate-100 pt-3.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tải lên ảnh bìa riêng biệt</label>
+              <div className="flex flex-col gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-750 hover:file:bg-blue-100 cursor-pointer"
+                />
+                {bgPreview && (
+                  <div className="relative w-full h-24 rounded-2xl overflow-hidden border border-slate-200">
+                    <img src={bgPreview} alt="Preview custom background" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBgPreview('');
+                        setBgFile(null);
+                        setBackgroundImageUrl('');
+                      }}
+                      className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all cursor-pointer shadow-md"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-auto">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="px-4 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl transition-all cursor-pointer disabled:opacity-50 text-xs font-bold"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-2 text-xs"
+            >
+              {saving ? 'Đang lưu...' : 'Lưu cấu hình'}
+            </button>
+          </div>
+        </form>
+
+        {/* Right Side: Live Card Preview */}
+        <div className="w-full md:w-80 flex flex-col items-center justify-center p-6 bg-slate-50/50 rounded-3xl border border-slate-200/60 shrink-0">
+          <p className="text-[10px] font-black text-slate-400 mb-4 uppercase tracking-widest">Bản xem trước thẻ CLB</p>
+          
+          <div
+            className={cn(
+              "group relative backdrop-blur-md rounded-2xl overflow-hidden shadow-lg flex flex-col h-[320px] w-full max-w-[260px] border transition-all duration-300 bg-white",
+              previewCardBgClass
+            )}
+            style={{
+              borderTopWidth: '3px',
+              borderTopColor: accentColor || '#3B82F6',
+            }}
+          >
+            {/* Preview Banner Section */}
+            <div 
+              className="h-28 w-full relative bg-center bg-cover"
+              style={
+                (useAvatarAsBackground && club.logo_url) ? {
+                  backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.logo_url)})`
+                } : bgPreview ? {
+                  backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${bgPreview})`
+                } : club.cover_url ? {
+                  backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.cover_url)})`
+                } : {
+                  background: previewCategoryConf.heroGradient
+                }
+              }
+            >
+              <div className="absolute top-3 left-3 flex gap-1.5 items-center z-10">
+                <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm">
+                  {previewCategoryConf.label}
+                </span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/90 shadow-sm text-emerald-650">
+                  Hoạt động
+                </span>
+              </div>
+              <div className="absolute bottom-2 left-3 right-3 text-white/20 font-black text-3xl font-mono select-none leading-none text-right">
+                {club.code}
+              </div>
+            </div>
+
+            {/* Preview Content Section */}
+            <div className="p-4 flex-1 flex flex-col justify-between min-h-0 bg-white/20">
+              <div className="space-y-2">
+                <h3 className="text-sm font-bold text-slate-700 line-clamp-1 leading-snug">
+                  {club.name}
+                </h3>
+                
+                {/* Schedule & Location */}
+                <div className="space-y-1.5 text-xs font-semibold py-1">
+                  <div className="flex items-center gap-2 text-slate-700 bg-blue-50/50 px-2 py-1 rounded-lg border border-blue-100/50">
+                    <Clock size={13} className="text-blue-500 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-[9px] text-blue-500 font-bold uppercase tracking-wider leading-none mb-0.5">Lịch sinh hoạt</span>
+                      <span className="block text-slate-800 text-[10.5px] font-bold truncate">
+                        {club.schedule_time || 'Chưa xếp lịch'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-700 bg-amber-50/50 px-2 py-1 rounded-lg border border-amber-100/50">
+                    <MapPin size={13} className="text-amber-500 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-[9px] text-amber-500 font-bold uppercase tracking-wider leading-none mb-0.5">Địa điểm</span>
+                      <span className="block text-slate-800 text-[10.5px] font-bold truncate">
+                        {club.classroom || 'Chưa xếp phòng'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <div className="py-1 flex justify-start mt-1">
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled
+                  className="h-7 text-[10px] px-3 font-bold rounded-lg cursor-default"
+                >
+                  Tham gia
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

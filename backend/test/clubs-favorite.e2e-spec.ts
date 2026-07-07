@@ -162,6 +162,7 @@ describe('Clubs Favorite (e2e)', () => {
       code: 'E2E-FAV-CLUB',
       description: 'Club for E2E Favorite testing',
       category: 'technology',
+      classroom: 'Room 101',
       advisor_id: testAdvisorUserId,
       status: 'active',
       semester_id: testSemesterId,

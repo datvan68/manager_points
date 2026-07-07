@@ -56,7 +56,7 @@ export class ClubsController {
   }
 
   @Post('media/upload')
-  @UseGuards(checkAnyPermission('CLUB_CREATE', 'CLUB_UPDATE'))
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -162,19 +162,19 @@ export class ClubsController {
   }
 
   @Patch(':id')
-  @UseGuards(checkPermission('CLUB_UPDATE'))
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật thông tin CLB' })
-  update(@Param('id') id: string, @Body() dto: UpdateClubDto) {
-    return this.clubsService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateClubDto, @Request() req: any) {
+    return this.clubsService.update(id, dto, req.user);
   }
 
   @Delete(':id')
-  @UseGuards(checkPermission('CLUB_DELETE'))
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Vô hiệu hóa CLB (soft delete)' })
-  remove(@Param('id') id: string) {
-    return this.clubsService.remove(id);
+  remove(@Param('id') id: string, @Request() req: any) {
+    return this.clubsService.remove(id, req.user);
   }
 
   // ── Member endpoints ──
@@ -210,7 +210,7 @@ export class ClubsController {
     @Body() dto: JoinClubDto,
     @Request() req: any,
   ) {
-    const studentId = req.user.studentId || req.user._id;
+    const studentId = req.user.studentId || req.user.userId || req.user._id;
     return this.clubsService.joinClub(id, studentId, dto);
   }
 

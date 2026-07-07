@@ -111,10 +111,18 @@ export class ClubsService {
     return club;
   }
 
-  async update(id: string, dto: UpdateClubDto): Promise<ClubDocument> {
+  async update(id: string, dto: UpdateClubDto, user?: any): Promise<ClubDocument> {
     const currentClub = await this.clubModel.findById(id);
     if (!currentClub) {
       throw new NotFoundException(`Không tìm thấy CLB với ID: ${id}`);
+    }
+
+    if (user && !isAdminUser(user)) {
+      const userId = user.userId || user._id || user.id;
+      const isAdvisor = currentClub.advisor_id?.toString() === userId?.toString();
+      if (!isAdvisor) {
+        throw new ForbiddenException('Bạn không có quyền chỉnh sửa câu lạc bộ này');
+      }
     }
 
     if (dto.classroom !== undefined && dto.classroom.trim() === '') {
@@ -156,10 +164,18 @@ export class ClubsService {
     return club;
   }
 
-  async remove(id: string): Promise<{ message: string }> {
+  async remove(id: string, user?: any): Promise<{ message: string }> {
     const club = await this.clubModel.findById(id);
     if (!club) {
       throw new NotFoundException(`Không tìm thấy CLB với ID: ${id}`);
+    }
+
+    if (user && !isAdminUser(user)) {
+      const userId = user.userId || user._id || user.id;
+      const isAdvisor = club.advisor_id?.toString() === userId?.toString();
+      if (!isAdvisor) {
+        throw new ForbiddenException('Bạn không có quyền xóa câu lạc bộ này');
+      }
     }
 
     // Soft delete: set status to inactive
@@ -248,6 +264,18 @@ export class ClubsService {
         .exec();
       if (student) {
         studentId = student._id.toString();
+      } else {
+        const user = await this.userModel.findById(studentIdOrUserId).populate('role').exec();
+        if (user && isAdminUser(user)) {
+          const testStudent = await this.studentModel.findOne().exec();
+          if (testStudent) {
+            studentId = testStudent._id.toString();
+          } else {
+            throw new BadRequestException('Không tìm thấy sinh viên nào trong hệ thống để test join');
+          }
+        } else {
+          throw new BadRequestException('Người dùng không phải là sinh viên hoặc không có hồ sơ sinh viên');
+        }
       }
     }
 
@@ -381,6 +409,14 @@ export class ClubsService {
         .exec();
       if (student) {
         studentId = student._id.toString();
+      } else {
+        const user = await this.userModel.findById(studentIdOrUserId).populate('role').exec();
+        if (user && isAdminUser(user)) {
+          const testStudent = await this.studentModel.findOne().exec();
+          if (testStudent) {
+            studentId = testStudent._id.toString();
+          }
+        }
       }
     }
 

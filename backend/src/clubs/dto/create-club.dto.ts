@@ -55,6 +55,60 @@ export class ClubSettingsDto {
   criterion_id?: string;
 }
 
+export class CardUiDto {
+  @ApiPropertyOptional({
+    description: 'Theme for the club card',
+    enum: ['default', 'academic', 'sports', 'art', 'volunteer', 'technology', 'other'],
+    default: 'default',
+  })
+  @IsOptional()
+  @IsEnum(['default', 'academic', 'sports', 'art', 'volunteer', 'technology', 'other'])
+  theme?: string;
+
+  @ApiPropertyOptional({
+    description: 'Accent color for the club card',
+  })
+  @IsOptional()
+  @IsString()
+  accent_color?: string;
+
+  @ApiPropertyOptional({
+    description: 'Display style for the club card',
+    enum: ['classic', 'spotlight', 'minimal'],
+    default: 'classic',
+  })
+  @IsOptional()
+  @IsEnum(['classic', 'spotlight', 'minimal'])
+  style?: string;
+}
+
+export class BackgroundConfigDto {
+  @ApiPropertyOptional({ description: 'Preset background style' })
+  @IsOptional()
+  @IsString()
+  preset?: string;
+
+  @ApiPropertyOptional({ description: 'Accent color' })
+  @IsOptional()
+  @IsString()
+  accentColor?: string;
+
+  @ApiPropertyOptional({ description: 'Background image URL' })
+  @IsOptional()
+  @IsString()
+  backgroundImageUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Use avatar image as card background' })
+  @IsOptional()
+  @IsBoolean()
+  useAvatarAsBackground?: boolean;
+
+  @ApiPropertyOptional({ description: 'URL of the background frame image' })
+  @IsOptional()
+  @IsString()
+  backgroundFrameUrl?: string;
+}
+
 export class CreateClubDto {
   @ApiProperty({ description: 'Club name' })
   @IsString()
@@ -139,4 +193,16 @@ export class CreateClubDto {
   @ValidateNested()
   @Type(() => ClubSettingsDto)
   settings?: ClubSettingsDto;
+
+  @ApiPropertyOptional({ description: 'Club card UI customization' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CardUiDto)
+  card_ui?: CardUiDto;
+
+  @ApiPropertyOptional({ description: 'Club background UI configuration' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BackgroundConfigDto)
+  background_config?: BackgroundConfigDto;
 }

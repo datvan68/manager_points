@@ -34,6 +34,18 @@ export interface Club {
     point_per_attendance: number;
     criterion_id?: string;
   };
+  card_ui?: {
+    theme: 'default' | 'academic' | 'sports' | 'art' | 'volunteer' | 'technology' | 'other';
+    accent_color?: string;
+    style: 'classic' | 'spotlight' | 'minimal';
+  };
+  background_config?: {
+    preset?: string;
+    accentColor?: string;
+    backgroundImageUrl?: string;
+    useAvatarAsBackground?: boolean;
+    backgroundFrameUrl?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -167,12 +179,12 @@ export const clubApi = {
     return handleResponse<Club>(res);
   },
 
-  async uploadMedia(file: File, kind: 'cover' | 'logo'): Promise<{
+  async uploadMedia(file: File, kind: 'cover' | 'logo' | 'frame'): Promise<{
     url: string;
     file_name: string;
     mime_type: string;
     size: number;
-    kind: 'cover' | 'logo';
+    kind: 'cover' | 'logo' | 'frame';
   }> {
     const formData = new FormData();
     formData.append('file', file);
@@ -187,7 +199,7 @@ export const clubApi = {
       file_name: string;
       mime_type: string;
       size: number;
-      kind: 'cover' | 'logo';
+      kind: 'cover' | 'logo' | 'frame';
     }>(res);
   },
 

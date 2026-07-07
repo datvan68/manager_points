@@ -8,13 +8,15 @@ interface FloatingActionBarProps {
     onClear: () => void;
     actions: React.ReactNode;
     variant?: 'light' | 'dark';
+    itemLabel?: string;
 }
 
 export default function FloatingActionBar({
     selectedCount,
     onClear,
     actions,
-    variant = 'light'
+    variant = 'light',
+    itemLabel = 'sinh viên'
 }: FloatingActionBarProps) {
     const isVisible = selectedCount > 0;
 
@@ -43,7 +45,7 @@ export default function FloatingActionBar({
                         <span className="text-[12px] sm:text-[13px] font-medium whitespace-nowrap shrink-0">
                             <span className="hidden sm:inline">Đã chọn </span>
                             <strong className={`font-bold ${variant === 'dark' ? 'text-white' : 'text-[#135bec]'}`}>{selectedCount}</strong>
-                            <span className="hidden sm:inline"> sinh viên</span>
+                            <span className="hidden sm:inline"> {itemLabel}</span>
                             <span className="inline sm:hidden"> đã chọn</span>
                         </span>
                     </div>
