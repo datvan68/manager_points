@@ -120,7 +120,18 @@ export class ClubsService {
     if (user && !isAdminUser(user)) {
       const userId = user.userId || user._id || user.id;
       const isAdvisor = currentClub.advisor_id?.toString() === userId?.toString();
-      if (!isAdvisor) {
+      
+      let isPresident = false;
+      if (userId && Types.ObjectId.isValid(userId)) {
+        const student = await this.studentModel
+          .findOne({ user_id: new Types.ObjectId(userId) })
+          .exec();
+        if (student && currentClub.president_id?.toString() === student._id.toString()) {
+          isPresident = true;
+        }
+      }
+
+      if (!isAdvisor && !isPresident) {
         throw new ForbiddenException('Bạn không có quyền chỉnh sửa câu lạc bộ này');
       }
     }

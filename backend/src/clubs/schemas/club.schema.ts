@@ -61,6 +61,9 @@ export class BackgroundConfig {
 
   @Prop({ type: String })
   backgroundFrameUrl?: string;
+
+  @Prop({ type: String })
+  pattern?: string;
 }
 
 export const BackgroundConfigSchema = SchemaFactory.createForClass(BackgroundConfig);

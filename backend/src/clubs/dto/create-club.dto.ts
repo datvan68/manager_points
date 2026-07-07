@@ -107,6 +107,11 @@ export class BackgroundConfigDto {
   @IsOptional()
   @IsString()
   backgroundFrameUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Subtle decorative pattern style' })
+  @IsOptional()
+  @IsString()
+  pattern?: string;
 }
 
 export class CreateClubDto {

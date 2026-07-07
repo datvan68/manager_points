@@ -595,7 +595,7 @@ export default function ClubsListPage() {
                 "p-2 rounded-lg transition-all cursor-pointer",
                 viewMode === 'grid'
                   ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-550 hover:text-slate-700'
+                  : 'text-slate-500 hover:text-slate-700'
               )}
               title="Dạng thẻ"
             >
@@ -607,7 +607,7 @@ export default function ClubsListPage() {
                 "p-2 rounded-lg transition-all cursor-pointer",
                 viewMode === 'table'
                   ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-555 hover:text-slate-700'
+                  : 'text-slate-500 hover:text-slate-700'
               )}
               title="Dạng bảng"
             >
@@ -619,9 +619,9 @@ export default function ClubsListPage() {
 
       {/* Main Content Area */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-64 bg-white/40 rounded-2xl animate-pulse border border-white" />
+            <div key={i} className="h-[180px] bg-white/40 rounded-2xl animate-pulse border border-white" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
@@ -640,19 +640,26 @@ export default function ClubsListPage() {
 
 
           {/* Balanced Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
              {paginatedClubs.map((club) => {
               const conf = categoryConfigs[club.category] || categoryConfigs.other;
               const currentUser = tokenStorage.getUser();
               const preset = BACKGROUND_PRESETS.find((p) => p.id === club.background_config?.preset);
               const cardBgClass = preset ? preset.className : "bg-white/45 border-white/70";
               const accentColor = getClubAccentColor(club);
+              const isCustomBg = !!club.background_config?.backgroundImageUrl || (club.background_config?.useAvatarAsBackground && !!club.logo_url);
+              const customBgUrl = club.background_config?.backgroundImageUrl
+                ? getImageUrl(club.background_config.backgroundImageUrl)
+                : (club.background_config?.useAvatarAsBackground && club.logo_url)
+                  ? getImageUrl(club.logo_url)
+                  : null;
+
               return (
                 <div
                   key={club._id}
                   onClick={() => router.push(`/club/clubs/${club._id}`)}
                   className={cn(
-                    "group relative backdrop-blur-md rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:bg-white/80 transition-all duration-300 flex flex-col h-[320px] cursor-pointer border",
+                    "group relative backdrop-blur-md rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:bg-white/80 transition-all duration-300 flex flex-col sm:flex-row min-h-[210px] sm:min-h-0 sm:h-[160px] cursor-pointer border p-3.5 sm:p-4 justify-between gap-3.5",
                     cardBgClass
                   )}
                   style={{
@@ -660,97 +667,133 @@ export default function ClubsListPage() {
                     borderTopColor: accentColor,
                   }}
                 >
-                  {/* Banner Section */}
-                  <div 
-                    className="h-28 w-full relative transition-all duration-300 bg-center bg-cover"
-                    style={
-                      (club.background_config?.useAvatarAsBackground && club.logo_url) ? {
-                        backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.logo_url)})`
-                      } : club.background_config?.backgroundImageUrl ? {
-                        backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.background_config.backgroundImageUrl)})`
-                      } : club.cover_url ? {
-                        backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.cover_url)})`
-                      } : {
-                        background: conf.heroGradient
-                      }
-                    }
-                  >
-                    {/* Badges absolutely positioned over banner */}
-                    <div className="absolute top-3 left-3 flex gap-1.5 items-center z-10">
-                      <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm`}>
-                        {conf.label}
-                      </span>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/90 shadow-sm ${
-                        club.status === 'active' ? 'text-emerald-650' :
-                        club.status === 'suspended' ? 'text-red-650' :
-                        'text-slate-550'
-                      }`}>
-                        {club.status === 'active' ? 'Hoạt động' : club.status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động'}
-                      </span>
-                    </div>
+                  {/* Whole-card Custom Background under a light gradient filter backdrop blur */}
+                  {customBgUrl && (
+                    <>
+                      <div 
+                        className="absolute inset-0 pointer-events-none z-0" 
+                        style={{
+                          backgroundImage: `url(${customBgUrl})`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          backgroundRepeat: 'no-repeat',
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/85 to-white/90 backdrop-blur-[3px] pointer-events-none z-0" />
+                    </>
+                  )}
 
-                    {/* Heart/Favorite absolute overlay */}
-                    <button
-                      disabled={club.favorite_loading}
-                      onClick={(e) => handleFavoriteClick(e, club)}
-                      className="absolute top-2 right-2 z-20 w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-600 hover:text-pink-500 flex items-center justify-center backdrop-blur-sm shadow-sm border border-slate-100/50 active:scale-90 transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      {club.favorite_loading ? (
-                        <span className="w-3.5 h-3.5 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                      ) : club.is_favorited ? (
-                        <Heart size={15} className="fill-pink-500 text-pink-500" />
-                      ) : (
-                        <Heart size={15} className="transition-colors" />
-                      )}
-                    </button>
+                  {/* Pattern Overlay */}
+                  {club.background_config?.pattern && (
+                    <div 
+                      className="absolute inset-0 pointer-events-none opacity-65 z-0" 
+                      style={getPatternStyle(club.background_config.pattern, accentColor)} 
+                    />
+                  )}
 
-                    <div className="absolute bottom-2 left-3 right-3 text-white/20 font-black text-3xl font-mono select-none leading-none text-right">
-                      {club.code}
-                    </div>
-
-                    {/* Club logo/avatar overlap banner (reversible flag SHOW_CLUB_AVATAR) */}
-                    {SHOW_CLUB_AVATAR && club.logo_url && (
-                      <div className="absolute -bottom-5 left-3 w-10 h-10 rounded-xl border-2 border-white overflow-hidden bg-white shadow-sm z-10">
-                        <img src={getImageUrl(club.logo_url)} alt="Logo" className="w-full h-full object-cover" />
-                      </div>
-                    )}
+                  {/* Subtle watermark of the club.code in the background behind the content */}
+                  <div className="absolute right-4 bottom-2 text-slate-900/[0.03] font-black text-5xl font-mono select-none pointer-events-none transform rotate-[-10deg] uppercase z-0">
+                    {club.code}
                   </div>
 
-                  {/* Content Section */}
-                  <div className="p-4 flex-1 flex flex-col justify-between min-h-0 bg-white/20">
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition-colors line-clamp-1 leading-snug">
+                  {/* Left Column */}
+                  <div className="flex-1 flex flex-col justify-between min-w-0 z-10">
+                    <div>
+                      {/* Top Header Flex Row */}
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                        <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm border border-slate-200/40">
+                          {conf.label}
+                        </span>
+                        <span className={cn(
+                          "text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm shadow-sm border",
+                          club.status === 'active' ? 'bg-emerald-50/80 border-emerald-100 text-emerald-600' :
+                          club.status === 'suspended' ? 'bg-red-50/80 border-red-100 text-red-600' :
+                          'bg-slate-50 border-slate-200 text-slate-500'
+                        )}>
+                          {club.status === 'active' ? 'Hoạt động' : club.status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động'}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold text-slate-400 tracking-wider">
+                          {club.code}
+                        </span>
+                      </div>
+
+                      {/* Club Name */}
+                      <h3 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug mt-2.5">
                         {club.name}
                       </h3>
-                      
-                      {/* Highlighted Schedule and Location */}
-                      <div className="space-y-1.5 text-xs font-semibold py-1">
-                        {/* Schedule Time */}
-                        <div className="flex items-center gap-2 text-slate-700 bg-blue-50/50 hover:bg-blue-50 px-2 py-1 rounded-lg border border-blue-100/50 transition-colors">
-                          <Clock size={13} className="text-blue-500 shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <span className="block text-[9px] text-blue-500 font-bold uppercase tracking-wider leading-none mb-0.5">Lịch sinh hoạt</span>
-                            <span className="block text-slate-800 text-[10.5px] font-bold truncate" title={club.schedule_time}>
-                              {club.schedule_time || 'Chưa xếp lịch'}
-                            </span>
-                          </div>
-                        </div>
+                    </div>
 
-                        {/* Location / Classroom */}
-                        <div className="flex items-center gap-2 text-slate-700 bg-amber-50/50 hover:bg-amber-50 px-2 py-1 rounded-lg border border-amber-100/50 transition-colors">
-                          <MapPin size={13} className="text-amber-500 shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <span className="block text-[9px] text-amber-500 font-bold uppercase tracking-wider leading-none mb-0.5">Địa điểm</span>
-                            <span className="block text-slate-800 text-[10.5px] font-bold truncate" title={club.classroom}>
-                              {club.classroom || 'Chưa xếp phòng'}
-                            </span>
-                          </div>
+                    {/* Left Bottom Stats */}
+                    <div className="flex items-center gap-2.5 text-slate-500 text-xs font-semibold pt-2">
+                      <div className="flex items-center gap-1" title={`${club.active_members_count} thành viên`}>
+                        <Users size={12} className="text-slate-400 shrink-0" />
+                        <span className="text-[11px] font-bold text-slate-700">{club.active_members_count}/{club.max_members || '∞'}</span>
+                      </div>
+                      <div className="flex items-center gap-1" title={`${club.favorite_count || 0} lượt yêu thích`}>
+                        <Heart size={12} className={club.is_favorited ? "fill-pink-500 text-pink-500 shrink-0" : "text-slate-400 shrink-0"} />
+                        <span className="text-[11px] font-bold text-slate-600">{club.favorite_count || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div className="flex flex-col justify-between items-end sm:w-[170px] shrink-0 z-10 gap-2">
+                    {/* Top: Favorite button */}
+                    <div className="flex justify-end w-full">
+                      <button
+                        disabled={club.favorite_loading}
+                        onClick={(e) => handleFavoriteClick(e, club)}
+                        className="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-600 hover:text-pink-500 flex items-center justify-center backdrop-blur-sm shadow-sm border border-slate-100/50 active:scale-90 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {club.favorite_loading ? (
+                          <span className="w-3.5 h-3.5 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+                        ) : club.is_favorited ? (
+                          <Heart size={15} className="fill-pink-500 text-pink-500" />
+                        ) : (
+                          <Heart size={15} className="transition-colors" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Middle: Schedule and Location boxes */}
+                    <div className="space-y-1 text-xs font-semibold w-full">
+                      {/* Schedule Time */}
+                      <div className="flex items-center gap-1.5 text-slate-700 bg-blue-50/50 hover:bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100/30 transition-colors">
+                        <Clock size={11} className="text-blue-500 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-slate-800 text-[10px] font-bold truncate" title={club.schedule_time}>
+                            {club.schedule_time || 'Chưa xếp lịch'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Location / Classroom */}
+                      <div className="flex items-center gap-1.5 text-slate-700 bg-amber-50/50 hover:bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100/30 transition-colors">
+                        <MapPin size={11} className="text-amber-500 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-slate-800 text-[10px] font-bold truncate" title={club.classroom}>
+                            {club.classroom || 'Chưa xếp phòng'}
+                          </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Action Row */}
-                    <div className="py-1 flex justify-start items-center gap-2 mt-1" onClick={(e) => e.stopPropagation()}>
+                    {/* Bottom: Actions */}
+                    <div className="flex items-center gap-1.5 w-full justify-end" onClick={(e) => e.stopPropagation()}>
+                      {canManageClub(club) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedClubForBg(club);
+                            setShowBgSetupModal(true);
+                          }}
+                          className="h-7 text-[10px] px-2.5 font-bold rounded-lg cursor-pointer transition-all border-blue-500 text-blue-600 hover:bg-blue-50 flex items-center gap-1 shrink-0"
+                        >
+                          <Palette size={12} className="shrink-0" />
+                          Nền
+                        </Button>
+                      )}
                       <Button
                         variant={
                           club.membership_status === 'active' ? 'outline' :
@@ -768,8 +811,8 @@ export default function ClubsListPage() {
                         }
                         onClick={(e) => handleJoinClick(e, club)}
                         className={cn(
-                          "h-7 text-[10px] px-3 font-bold rounded-lg cursor-pointer transition-all",
-                          club.membership_status === 'active' && "border-emerald-500 text-emerald-650 bg-emerald-50 hover:bg-emerald-50 cursor-default",
+                          "h-7 text-[10px] px-3 font-bold rounded-lg cursor-pointer transition-all truncate",
+                          club.membership_status === 'active' && "border-emerald-500 text-emerald-600 bg-emerald-50 hover:bg-emerald-50 cursor-default",
                           club.membership_status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100 cursor-default",
                           (club.status !== 'active' || !club.settings?.allow_self_registration) && "bg-slate-100 text-slate-400 border-slate-200"
                         )}
@@ -785,59 +828,13 @@ export default function ClubsListPage() {
                         ) : !club.settings?.allow_self_registration ? (
                           'Khóa đăng ký'
                         ) : (club.max_members ? club.active_members_count >= club.max_members : false) ? (
-                          'Đầy số lượng'
+                          'Đầy'
                         ) : (currentUser?.role && currentUser.role.toLowerCase() !== 'student' && currentUser.role.toLowerCase() !== 'admin') ? (
                           'Chỉ cho SV'
                         ) : (
                           'Tham gia'
                         )}
                       </Button>
-                      {canManageClub(club) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedClubForBg(club);
-                            setShowBgSetupModal(true);
-                          }}
-                          className="h-7 text-[10px] px-2.5 font-bold rounded-lg cursor-pointer transition-all border-blue-500 text-blue-600 hover:bg-blue-50 flex items-center gap-1 shrink-0 ml-1.5"
-                        >
-                          <Palette size={12} className="shrink-0" />
-                          Nền CLB
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Footer Info */}
-                    <div className="pt-3 border-t border-slate-200/50 flex items-center justify-between mt-auto">
-                      {/* Member Avatars mock stack */}
-                      <div className="flex items-center -space-x-1.5">
-                        <div className="w-5 h-5 rounded-full bg-slate-300 border border-white text-[9px] font-bold text-slate-750 flex items-center justify-center">
-                          A
-                        </div>
-                        <div className="w-5 h-5 rounded-full bg-slate-400 border border-white text-[9px] font-bold text-slate-750 flex items-center justify-center">
-                          B
-                        </div>
-                        <div className="w-5 h-5 rounded-full border border-white text-[9px] font-bold text-white bg-blue-600 flex items-center justify-center">
-                          +{club.active_members_count}
-                        </div>
-                      </div>
-
-                      {/* Stats */}
-                      <div className="flex items-center gap-2.5 text-slate-500 text-xs font-semibold">
-                        <div className="flex items-center gap-1 text-slate-500" title={`Phòng: ${club.classroom || 'Chưa xếp phòng'}`}>
-                          <MapPin size={12} className="text-slate-400 shrink-0" />
-                          <span className="truncate max-w-[70px] text-[11px] font-bold">{club.classroom || 'Chưa xếp phòng'}</span>
-                        </div>
-                        <div className="flex items-center gap-1" title={`${club.favorite_count || 0} lượt yêu thích`}>
-                          <Heart size={12} className={club.is_favorited ? "fill-pink-500 text-pink-500" : "text-slate-400"} />
-                          <span>{club.favorite_count || 0}</span>
-                        </div>
-                        <div className="flex items-center gap-1" title={`${club.active_members_count} thành viên`}>
-                          <Users size={12} className="text-slate-400" />
-                          <span>{club.active_members_count}</span>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -935,7 +932,7 @@ export default function ClubsListPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <span className="text-slate-850">
+                        <span className="text-slate-800">
                           {club.president_id?.full_name || '—'}
                         </span>
                       </td>
@@ -971,7 +968,7 @@ export default function ClubsListPage() {
                       <td className="px-4 py-4">
                         <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           club.status === 'active' ? 'bg-emerald-500/10 text-emerald-600' :
-                          club.status === 'suspended' ? 'bg-red-500/10 text-red-650' :
+                          club.status === 'suspended' ? 'bg-red-500/10 text-red-600' :
                           'bg-slate-500/10 text-slate-500'
                         }`}>
                           <span className={`w-1 h-1 rounded-full ${
@@ -1005,7 +1002,7 @@ export default function ClubsListPage() {
                             onClick={(e) => handleJoinClick(e, club)}
                             className={cn(
                               "h-7 text-[9px] px-2 font-bold rounded-lg cursor-pointer transition-all mr-1.5",
-                              club.membership_status === 'active' && "border-emerald-500 text-emerald-650 bg-emerald-50 hover:bg-emerald-50 cursor-default",
+                              club.membership_status === 'active' && "border-emerald-500 text-emerald-600 bg-emerald-50 hover:bg-emerald-50 cursor-default",
                               club.membership_status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100 cursor-default",
                               (club.status !== 'active' || !club.settings?.allow_self_registration) && "bg-slate-100 text-slate-400 border-slate-200"
                             )}
@@ -1030,7 +1027,7 @@ export default function ClubsListPage() {
                           </Button>
                           <button
                             onClick={() => router.push(`/club/clubs/${club._id}`)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-650 hover:bg-slate-100 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
                             title="Xem chi tiết"
                           >
                             <Eye size={14} />
@@ -1041,7 +1038,7 @@ export default function ClubsListPage() {
                                 setSelectedClubForBg(club);
                                 setShowBgSetupModal(true);
                               }}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-650 hover:bg-blue-50 transition-all cursor-pointer"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
                               title="Thiết lập nền"
                             >
                               <Palette size={14} />
@@ -1049,7 +1046,7 @@ export default function ClubsListPage() {
                           )}
                           <button
                             onClick={() => handleDeleteClub(club._id, club.name)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-650 hover:bg-red-50 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
                             title="Xóa/Vô hiệu hóa"
                           >
                             <Trash2 size={14} />
@@ -1088,7 +1085,7 @@ export default function ClubsListPage() {
                   className={`px-2.5 py-1 border rounded transition-all cursor-pointer ${
                     currentPage === idx + 1
                       ? 'bg-blue-600 border-blue-600 text-white font-bold'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-650'
+                      : 'border-slate-200 hover:bg-slate-50 text-slate-600'
                   }`}
                 >
                   {idx + 1}
@@ -1378,7 +1375,7 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
             <h2 className="text-base font-black text-slate-800 tracking-tight">Tạo Câu lạc bộ Mới</h2>
             <p className="text-[11px] text-slate-400 mt-0.5">Khai báo cấu hình và người phụ trách cho câu lạc bộ.</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-650 transition-colors text-xs font-semibold cursor-pointer">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors text-xs font-semibold cursor-pointer">
             Đóng
           </button>
         </div>
@@ -1519,7 +1516,7 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
                   ) : (
                     <label className="flex flex-col items-center justify-center h-20 w-20 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-50/85 cursor-pointer transition-all gap-1.5 group shrink-0">
                       <Upload className="h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
-                      <span className="text-[9px] text-slate-450 font-bold text-center leading-tight px-1">Logo</span>
+                      <span className="text-[9px] text-slate-500 font-bold text-center leading-tight px-1">Logo</span>
                       <input
                         type="file"
                         accept="image/png, image/jpeg, image/webp"
@@ -1608,44 +1605,39 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
                 <div>
                   <Input
                     type="number"
-                    label="Số thành viên tối đa"
-                    error={errors.max_members?.message}
-                    placeholder="Không giới hạn"
+                    label="Giới hạn thành viên"
+                    placeholder="Để trống nếu không giới hạn"
                     disabled={saving}
                     {...register('max_members')}
                   />
                 </div>
               </div>
 
-
-
-              {/* Cấu hình toggles */}
-              <div className="bg-slate-50/50 border border-slate-100 p-4 rounded-2xl space-y-3.5 mt-2">
-                <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Quy tắc đăng ký & chuyên cần</h4>
-                
+              {/* Settings Checkboxes */}
+              <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-700 font-bold">Tự do đăng ký</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Sinh viên được tự đăng ký tham gia</p>
+                    <p className="text-slate-700 font-bold">Cho phép tự đăng ký</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Người dùng có thể tham gia mà không cần chờ duyệt</p>
                   </div>
                   <input
                     type="checkbox"
                     disabled={saving}
                     {...register('settings.allow_self_registration')}
-                    className="w-4 h-4 text-blue-650 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
                   />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-slate-700 font-bold">Yêu cầu phê duyệt</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Ban chủ nhiệm hoặc Cố vấn duyệt đơn</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Ban chủ nhiệm hoặc Cố văn duyệt đơn</p>
                   </div>
                   <input
                     type="checkbox"
                     disabled={saving}
                     {...register('settings.require_approval')}
-                    className="w-4 h-4 text-blue-650 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
                   />
                 </div>
 
@@ -1658,7 +1650,7 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
                     type="checkbox"
                     disabled={saving}
                     {...register('settings.attendance_point_enabled')}
-                    className="w-4 h-4 text-blue-650 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
                   />
                 </div>
 
@@ -1705,6 +1697,211 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
   );
 }
 
+const PATTERN_OPTIONS = [
+  { id: 'minimal', name: 'Tối giản (Minimal)' },
+  { id: 'gold-corners', name: 'Góc vàng (Gold Corners)' },
+  { id: 'soft-waves', name: 'Sóng mềm (Soft Waves)' },
+  { id: 'circuit-corners', name: 'Góc mạch (Circuit Corners)' },
+  { id: 'diagonal-frames', name: 'Khung chéo (Diagonal Frames)' },
+  { id: 'academic-lines', name: 'Đường kẻ học thuật (Academic Lines)' },
+  { id: 'premium-frame', name: 'Khung thượng hạng (Premium Frame)' },
+  { id: 'botanical-corners', name: 'Góc thực vật (Botanical Corners)' },
+  { id: 'geometric-ribbon', name: 'Ruy-băng hình học (Geometric Ribbon)' },
+  { id: 'spark-dot-frame', name: 'Khung chấm sáng (Spark Dot Frame)' },
+  { id: 'wave-corner-mix', name: 'Sóng góc kết hợp (Wave Corner Mix)' },
+  { id: 'campus-badge-frame', name: 'Khung huy hiệu học viện (Campus Badge)' },
+];
+
+const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties => {
+  const c = color || '#3B82F6';
+  
+  let svgString = '';
+  switch (pattern) {
+    case 'gold-corners':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#D97706" stop-opacity="0.15"/>
+    </linearGradient>
+  </defs>
+  <path d="M 0 0 L 40 0 C 40 20, 20 40, 0 40 Z" fill="url(#goldGrad)"/>
+  <path d="M 0 0 L 50 0 C 50 25, 25 50, 0 50 Z" fill="none" stroke="#F59E0B" stroke-width="1.8" opacity="0.35"/>
+  <path d="M 0 0 L 30 0 C 30 15, 15 30, 0 30 Z" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.25"/>
+  <path d="M 300 0 L 260 0 C 260 20, 280 40, 300 40 Z" fill="url(#goldGrad)"/>
+  <path d="M 300 0 L 250 0 C 250 25, 275 50, 300 50 Z" fill="none" stroke="#F59E0B" stroke-width="1.8" opacity="0.35"/>
+  <path d="M 0 320 L 40 320 C 40 300, 20 280, 0 280 Z" fill="url(#goldGrad)"/>
+  <path d="M 0 320 L 50 320 C 50 295, 25 270, 0 270 Z" fill="none" stroke="#F59E0B" stroke-width="1.8" opacity="0.35"/>
+  <path d="M 300 320 L 260 320 C 260 300, 280 280, 300 280 Z" fill="url(#goldGrad)"/>
+  <path d="M 300 320 L 250 320 C 250 295, 275 270, 300 270 Z" fill="none" stroke="#F59E0B" stroke-width="1.8" opacity="0.35"/>
+</svg>`;
+      break;
+    case 'soft-waves':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%">
+  <path d="M -20,100 Q 80,60, 180,120 T 320,80 L 320,340 L -20,340 Z" fill="${c}" opacity="0.12"/>
+  <path d="M -20,140 Q 60,180, 160,110 T 320,160 L 320,340 L -20,340 Z" fill="${c}" opacity="0.08"/>
+  <path d="M -20,180 Q 100,120, 200,200 T 320,150 L 320,340 L -20,340 Z" fill="${c}" opacity="0.1"/>
+</svg>`;
+      break;
+    case 'circuit-corners':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%">
+  <g stroke="${c}" stroke-width="1.5" fill="none" opacity="0.35">
+    <path d="M 10 10 L 40 10 L 60 30 L 100 30" />
+    <path d="M 10 25 L 30 25 L 45 40 L 45 70" />
+    <circle cx="100" cy="30" r="2.5" fill="${c}" />
+    <circle cx="45" cy="70" r="2.5" fill="${c}" />
+  </g>
+  <g stroke="${c}" stroke-width="1.5" fill="none" opacity="0.35" transform="translate(300, 320) scale(-1, -1)">
+    <path d="M 10 10 L 40 10 L 60 30 L 100 30" />
+    <path d="M 10 25 L 30 25 L 45 40 L 45 70" />
+    <circle cx="100" cy="30" r="2.5" fill="${c}" />
+    <circle cx="45" cy="70" r="2.5" fill="${c}" />
+  </g>
+</svg>`;
+      break;
+    case 'diagonal-frames':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%">
+  <rect x="10" y="10" width="280" height="300" rx="10" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.22" />
+  <g stroke="${c}" stroke-width="1.2" opacity="0.22">
+    <line x1="240" y1="10" x2="290" y2="60" />
+    <line x1="255" y1="10" x2="290" y2="45" />
+    <line x1="270" y1="10" x2="290" y2="30" />
+    <line x1="225" y1="10" x2="290" y2="75" />
+  </g>
+  <g stroke="${c}" stroke-width="1.2" opacity="0.22">
+    <line x1="10" y1="240" x2="90" y2="310" />
+    <line x1="10" y1="255" x2="75" y2="310" />
+    <line x1="10" y1="270" x2="60" y2="310" />
+    <line x1="10" y1="225" x2="105" y2="310" />
+  </g>
+</svg>`;
+      break;
+    case 'academic-lines':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%">
+  <defs>
+    <pattern id="acLines" width="100" height="20" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="20" x2="100" y2="20" stroke="${c}" stroke-width="0.8" opacity="0.2" />
+    </pattern>
+  </defs>
+  <line x1="40" y1="0" x2="40" y2="320" stroke="#EF4444" stroke-width="1.2" opacity="0.3" />
+  <rect width="300" height="320" fill="url(#acLines)" />
+</svg>`;
+      break;
+    case 'premium-frame':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+  <rect x="6" y="6" width="288" height="148" rx="8" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.3"/>
+  <path d="M 4 20 L 4 4 L 20 4" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+  <path d="M 296 20 L 296 4 L 280 4" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+  <path d="M 4 140 L 4 156 L 20 156" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+  <path d="M 296 140 L 296 156 L 280 156" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+  <circle cx="10" cy="10" r="1.5" fill="${c}" opacity="0.6"/>
+  <circle cx="290" cy="10" r="1.5" fill="${c}" opacity="0.6"/>
+  <circle cx="10" cy="150" r="1.5" fill="${c}" opacity="0.6"/>
+  <circle cx="290" cy="150" r="1.5" fill="${c}" opacity="0.6"/>
+</svg>`;
+      break;
+    case 'botanical-corners':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+  <g transform="translate(10, 10)" stroke="${c}" fill="none" stroke-width="1.2" opacity="0.5" stroke-linecap="round">
+    <path d="M 0 0 C 15 5, 20 20, 20 25 C 20 20, 5 15, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
+    <path d="M 0 0 C 5 15, 20 20, 25 20 C 20 20, 15 5, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
+    <path d="M 0 0 L 15 15" />
+  </g>
+  <g transform="translate(290, 10) scale(-1, 1)" stroke="${c}" fill="none" stroke-width="1.2" opacity="0.5" stroke-linecap="round">
+    <path d="M 0 0 C 15 5, 20 20, 20 25 C 20 20, 5 15, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
+    <path d="M 0 0 C 5 15, 20 20, 25 20 C 20 20, 15 5, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
+    <path d="M 0 0 L 15 15" />
+  </g>
+  <g transform="translate(10, 150) scale(1, -1)" stroke="${c}" fill="none" stroke-width="1.2" opacity="0.5" stroke-linecap="round">
+    <path d="M 0 0 C 15 5, 20 20, 20 25 C 20 20, 5 15, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
+    <path d="M 0 0 C 5 15, 20 20, 25 20 C 20 20, 15 5, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
+    <path d="M 0 0 L 15 15" />
+  </g>
+  <g transform="translate(290, 150) scale(-1, -1)" stroke="${c}" fill="none" stroke-width="1.2" opacity="0.5" stroke-linecap="round">
+    <path d="M 0 0 C 15 5, 20 20, 20 25 C 20 20, 5 15, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
+    <path d="M 0 0 C 5 15, 20 20, 25 20 C 20 20, 15 5, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
+    <path d="M 0 0 L 15 15" />
+  </g>
+</svg>`;
+      break;
+    case 'geometric-ribbon':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+  <path d="M 0 24 L 24 0 L 36 0 L 0 36 Z" fill="${c}" opacity="0.25"/>
+  <path d="M 0 12 L 12 0 L 16 0 L 0 16 Z" fill="${c}" opacity="0.4"/>
+  <path d="M 300 24 L 276 0 L 264 0 L 300 36 Z" fill="${c}" opacity="0.25"/>
+  <path d="M 300 12 L 288 0 L 284 0 L 300 16 Z" fill="${c}" opacity="0.4"/>
+  <line x1="45" y1="6" x2="255" y2="6" stroke="${c}" stroke-width="1" stroke-dasharray="4 4" opacity="0.3"/>
+  <line x1="45" y1="154" x2="255" y2="154" stroke="${c}" stroke-width="1" stroke-dasharray="4 4" opacity="0.3"/>
+</svg>`;
+      break;
+    case 'spark-dot-frame':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+  <rect x="8" y="8" width="284" height="144" rx="6" fill="none" stroke="${c}" stroke-width="1" stroke-dasharray="6 3" opacity="0.25"/>
+  <g fill="${c}" opacity="0.6">
+    <circle cx="14" cy="14" r="2.5"/>
+    <circle cx="24" cy="14" r="1.5"/>
+    <circle cx="14" cy="24" r="1.5"/>
+    <circle cx="20" cy="20" r="1"/>
+    <circle cx="286" cy="14" r="2.5"/>
+    <circle cx="276" cy="14" r="1.5"/>
+    <circle cx="286" cy="24" r="1.5"/>
+    <circle cx="280" cy="20" r="1"/>
+    <circle cx="14" cy="146" r="2.5"/>
+    <circle cx="24" cy="146" r="1.5"/>
+    <circle cx="14" cy="136" r="1.5"/>
+    <circle cx="20" cy="140" r="1"/>
+    <circle cx="286" cy="146" r="2.5"/>
+    <circle cx="276" cy="146" r="1.5"/>
+    <circle cx="286" cy="136" r="1.5"/>
+    <circle cx="280" cy="140" r="1"/>
+  </g>
+</svg>`;
+      break;
+    case 'wave-corner-mix':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+  <path d="M 0,40 C 20,40 40,20 40,0 L 0,0 Z" fill="${c}" opacity="0.15"/>
+  <path d="M 300,40 C 280,40 260,20 260,0 L 300,0 Z" fill="${c}" opacity="0.15"/>
+  <path d="M 0,120 C 20,120 40,140 40,160 L 0,160 Z" fill="${c}" opacity="0.15"/>
+  <path d="M 300,120 C 280,120 260,140 260,160 L 300,160 Z" fill="${c}" opacity="0.15"/>
+  <path d="M 0,145 Q 75,135 150,145 T 300,145 L 300,160 L 0,160 Z" fill="${c}" opacity="0.08"/>
+</svg>`;
+      break;
+    case 'campus-badge-frame':
+      svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+  <line x1="15" y1="8" x2="285" y2="8" stroke="${c}" stroke-width="1.5" opacity="0.3"/>
+  <line x1="15" y1="12" x2="285" y2="12" stroke="${c}" stroke-width="0.8" opacity="0.2"/>
+  <line x1="15" y1="148" x2="285" y2="148" stroke="${c}" stroke-width="1.5" opacity="0.3"/>
+  <line x1="15" y1="152" x2="285" y2="152" stroke="${c}" stroke-width="0.8" opacity="0.2"/>
+  <path d="M 8 25 L 8 8 L 25 8 C 20 18, 18 20, 8 25 Z" fill="${c}" fill-opacity="0.15" stroke="${c}" stroke-width="1" opacity="0.4"/>
+  <path d="M 292 25 L 292 8 L 275 8 C 280 18, 282 20, 292 25 Z" fill="${c}" fill-opacity="0.15" stroke="${c}" stroke-width="1" opacity="0.4"/>
+  <path d="M 8 135 L 8 152 L 25 152 C 20 142, 18 140, 8 135 Z" fill="${c}" fill-opacity="0.15" stroke="${c}" stroke-width="1" opacity="0.4"/>
+  <path d="M 292 135 L 292 152 L 275 152 C 280 142, 282 140, 292 135 Z" fill="${c}" fill-opacity="0.15" stroke="${c}" stroke-width="1" opacity="0.4"/>
+</svg>`;
+      break;
+    case 'minimal':
+    default:
+      return {};
+  }
+
+  const cleanSvg = svgString.replace(/[\r\n\t]/g, ' ').trim();
+  return {
+    backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(cleanSvg)}")`,
+    backgroundSize: '100% 100%',
+    backgroundRepeat: 'no-repeat',
+  };
+};
+
 function BackgroundSetupModal({
   club,
   onClose,
@@ -1720,6 +1917,10 @@ function BackgroundSetupModal({
   const [backgroundImageUrl, setBackgroundImageUrl] = useState(club.background_config?.backgroundImageUrl || '');
   const [bgFile, setBgFile] = useState<File | null>(null);
   const [bgPreview, setBgPreview] = useState(club.background_config?.backgroundImageUrl ? getImageUrl(club.background_config.backgroundImageUrl) : '');
+  
+  // New States
+  const [selectedPattern, setSelectedPattern] = useState(club.background_config?.pattern || 'minimal');
+
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1762,6 +1963,7 @@ function BackgroundSetupModal({
           accentColor,
           backgroundImageUrl: finalBgUrl,
           useAvatarAsBackground,
+          pattern: selectedPattern,
         },
       });
 
@@ -1778,25 +1980,44 @@ function BackgroundSetupModal({
   const previewCardBgClass = previewPreset ? previewPreset.className : "bg-white border-slate-200";
   const previewCategoryConf = categoryConfigs[club.category] || categoryConfigs.other;
 
+  const previewCustomBgUrl = bgPreview
+    ? bgPreview
+    : (useAvatarAsBackground && club.logo_url)
+      ? getImageUrl(club.logo_url)
+      : null;
+
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white/95 backdrop-blur-md border border-white/80 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col md:flex-row p-6 md:p-8 gap-6 md:gap-8 animate-scale-up">
-        {/* Left Side: Setup Controls */}
-        <form onSubmit={handleSave} className="flex-1 flex flex-col justify-between gap-5 min-w-0">
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                <Palette className="text-blue-500" size={20} /> Thiết lập hình nền thẻ CLB
-              </h2>
-              <p className="text-xs text-slate-400 font-medium mt-1">
-                Tùy chỉnh diện mạo thẻ câu lạc bộ của bạn để tăng tính thẩm mỹ và nhận diện thương hiệu.
-              </p>
-            </div>
+      <form onSubmit={handleSave} className="bg-slate-50 border border-slate-200/60 rounded-3xl shadow-2xl w-full max-w-5xl h-[90vh] max-h-[760px] flex flex-col overflow-hidden animate-scale-up">
+        {/* Sticky Header */}
+        <div className="sticky top-0 bg-white border-b border-slate-200/60 px-6 py-4 md:px-8 md:py-5 flex items-center justify-between z-20 shrink-0">
+          <div>
+            <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+              <Palette className="text-blue-500" size={20} /> Thiết lập hình nền thẻ CLB
+            </h2>
+            <p className="text-xs text-slate-400 font-medium mt-1">
+              Tùy chỉnh diện mạo thẻ câu lạc bộ của bạn để tăng tính thẩm mỹ và nhận diện thương hiệu.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-full transition-all cursor-pointer"
+            aria-label="Đóng"
+          >
+            <X size={20} />
+          </button>
+        </div>
 
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+          {/* Left Column: Setup Controls */}
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 custom-scrollbar">
             {/* Presets Grid */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mẫu chủ đề (Preset)</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {/* Default Category Button */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1804,14 +2025,17 @@ function BackgroundSetupModal({
                     setAccentColor('#3B82F6');
                   }}
                   className={cn(
-                    "p-2.5 rounded-xl border text-xs font-semibold transition-all text-left",
+                    "flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all text-left shadow-sm cursor-pointer",
                     selectedPreset === 'default'
-                      ? "border-blue-500 bg-blue-50/50 text-blue-600 font-bold"
-                      : "border-slate-200 hover:bg-slate-50 text-slate-655"
+                      ? "border-blue-500 bg-blue-50/40 text-blue-600 font-bold ring-2 ring-blue-500/20"
+                      : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
                   )}
                 >
-                  Mặc định (Category)
+                  <span className="w-4 h-4 rounded-full bg-slate-200 border border-slate-300 shrink-0" />
+                  <span className="truncate">Mặc định CLB</span>
                 </button>
+
+                {/* Preset Buttons */}
                 {BACKGROUND_PRESETS.map((p) => (
                   <button
                     key={p.id}
@@ -1821,14 +2045,15 @@ function BackgroundSetupModal({
                       setAccentColor(p.accentColor);
                     }}
                     className={cn(
-                      "p-2.5 rounded-xl border text-xs font-semibold transition-all text-left truncate",
+                      "flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all text-left shadow-sm cursor-pointer truncate",
                       selectedPreset === p.id
-                        ? "border-blue-500 bg-blue-50/50 text-blue-600 font-bold"
-                        : "border-slate-200 hover:bg-slate-50 text-slate-655"
+                        ? "border-blue-500 bg-blue-50/40 text-blue-600 font-bold ring-2 ring-blue-500/20"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
                     )}
                     title={p.name}
                   >
-                    {p.name.split(' (')[0]}
+                    <span className={cn("w-4 h-4 rounded-full border shrink-0", p.className)} />
+                    <span className="truncate">{p.name.split(' (')[0]}</span>
                   </button>
                 ))}
               </div>
@@ -1838,55 +2063,111 @@ function BackgroundSetupModal({
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tông màu chủ đạo (Accent Color)</label>
               <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={accentColor}
-                  onChange={(e) => setAccentColor(e.target.value)}
-                  className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 shrink-0"
-                />
-                <input
-                  type="text"
-                  value={accentColor}
-                  onChange={(e) => setAccentColor(e.target.value)}
-                  className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="#HEX Code"
-                />
+                <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-slate-200 shrink-0 cursor-pointer">
+                  <input
+                    type="color"
+                    value={accentColor}
+                    onChange={(e) => setAccentColor(e.target.value)}
+                    className="absolute inset-0 w-full h-full p-0 border-0 cursor-pointer scale-125 origin-center"
+                  />
+                </div>
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={accentColor}
+                    onChange={(e) => setAccentColor(e.target.value)}
+                    className="w-full pl-3.5 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="#HEX Code"
+                  />
+                  <div 
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-slate-200 shadow-sm transition-all pointer-events-none"
+                    style={{ backgroundColor: accentColor }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Decorative Pattern Selector */}
+            <div className="space-y-2 border-t border-slate-200/60 pt-4">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Họa tiết trang trí (Pattern)</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {PATTERN_OPTIONS.map((pat) => (
+                  <button
+                    key={pat.id}
+                    type="button"
+                    onClick={() => setSelectedPattern(pat.id)}
+                    className={cn(
+                      "group flex flex-col gap-1.5 p-3 rounded-xl border text-xs font-semibold transition-all text-left relative overflow-hidden h-16 justify-between cursor-pointer shadow-sm",
+                      selectedPattern === pat.id
+                        ? "border-blue-500 bg-blue-50/40 text-blue-600 font-bold ring-2 ring-blue-500/20"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                    )}
+                  >
+                    <span className="z-10 text-[11px] font-bold truncate pr-6">{pat.name}</span>
+                    <div 
+                      className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity pointer-events-none z-0" 
+                      style={getPatternStyle(pat.id, accentColor)} 
+                    />
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Avatar as background toggle */}
-            <div className="flex items-center justify-between border-t border-slate-100 pt-3.5">
-              <div>
+            <div className="flex items-center justify-between border-t border-slate-200/60 pt-4">
+              <div className="space-y-0.5">
                 <p className="text-slate-700 font-bold text-sm">Sử dụng Logo làm ảnh bìa</p>
-                <p className="text-[10px] text-slate-400 font-medium">Sử dụng Logo câu lạc bộ phóng to, làm mờ làm nền cho phần banner thẻ.</p>
+                <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+                  Sử dụng Logo câu lạc bộ phóng to, làm mờ làm nền cho phần banner thẻ.
+                  {!club.logo_url && (
+                    <span className="block text-amber-500 font-semibold mt-1">
+                      *(Chưa thiết lập Logo cho Câu lạc bộ)
+                    </span>
+                  )}
+                </p>
               </div>
-              <input
-                type="checkbox"
-                checked={useAvatarAsBackground}
-                onChange={(e) => {
-                  setUseAvatarAsBackground(e.target.checked);
-                  if (e.target.checked) {
-                    setBgPreview('');
-                    setBgFile(null);
-                  }
-                }}
-                className="w-4 h-4 text-blue-650 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
-              />
+              <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                <input
+                  type="checkbox"
+                  checked={useAvatarAsBackground}
+                  disabled={!club.logo_url}
+                  onChange={(e) => {
+                    setUseAvatarAsBackground(e.target.checked);
+                    if (e.target.checked) {
+                      setBgPreview('');
+                      setBgFile(null);
+                      setBackgroundImageUrl('');
+                    }
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
+              </label>
             </div>
 
             {/* Custom Image Upload */}
-            <div className="space-y-2 border-t border-slate-100 pt-3.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tải lên ảnh bìa riêng biệt</label>
-              <div className="flex flex-col gap-3">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-750 hover:file:bg-blue-100 cursor-pointer"
-                />
+            <div className="space-y-3 border-t border-slate-200/60 pt-4">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Tải lên ảnh bìa riêng biệt</label>
+              <div className="flex flex-col gap-3.5">
+                <div className="flex items-center justify-center w-full">
+                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-300 border-dashed rounded-2xl cursor-pointer bg-white hover:bg-slate-50/50 transition-colors">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="w-6 h-6 text-slate-400 mb-1.5" />
+                      <p className="text-[11px] font-bold text-slate-500">Kéo thả hoặc nhấp để tải ảnh lên</p>
+                      <p className="text-[9px] text-slate-400 mt-0.5">PNG, JPG, JPEG (tối đa 5MB)</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
                 {bgPreview && (
-                  <div className="relative w-full h-24 rounded-2xl overflow-hidden border border-slate-200">
+                  <div className="relative w-full h-28 rounded-2xl overflow-hidden border border-slate-200 shadow-inner group/preview">
                     <img src={bgPreview} alt="Preview custom background" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-slate-900/10 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center" />
                     <button
                       type="button"
                       onClick={() => {
@@ -1894,9 +2175,10 @@ function BackgroundSetupModal({
                         setBgFile(null);
                         setBackgroundImageUrl('');
                       }}
-                      className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all cursor-pointer shadow-md"
+                      className="absolute top-2.5 right-2.5 p-2 bg-red-500 hover:bg-red-600 text-white rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+                      title="Xóa ảnh bìa"
                     >
-                      <X size={12} />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 )}
@@ -1904,112 +2186,161 @@ function BackgroundSetupModal({
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-auto">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="px-4 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl transition-all cursor-pointer disabled:opacity-50 text-xs font-bold"
+          {/* Right Column: Live Card Preview */}
+          <div className="w-full lg:w-[400px] bg-slate-100/50 p-6 md:p-8 flex flex-col items-center justify-center gap-4 shrink-0 order-first lg:order-last border-b lg:border-b-0 lg:border-l border-slate-200/60">
+            <p className="text-[10px] font-black text-slate-400 mb-4 uppercase tracking-widest">Bản xem trước thẻ CLB</p>
+            
+            <div
+              className={cn(
+                "relative backdrop-blur-md rounded-2xl overflow-hidden shadow-lg flex flex-col sm:flex-row min-h-[210px] sm:min-h-0 sm:h-[160px] w-full border transition-all duration-300 bg-white p-3.5 sm:p-4 justify-between gap-3.5",
+                previewCardBgClass
+              )}
+              style={{
+                borderTopWidth: '3px',
+                borderTopColor: accentColor || '#3B82F6',
+              }}
             >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-2 text-xs"
-            >
-              {saving ? 'Đang lưu...' : 'Lưu cấu hình'}
-            </button>
-          </div>
-        </form>
+              {/* Preview Whole-card Custom Background under a light gradient filter backdrop blur */}
+              {previewCustomBgUrl && (
+                <>
+                  <div 
+                    className="absolute inset-0 pointer-events-none z-0" 
+                    style={{
+                      backgroundImage: `url(${previewCustomBgUrl})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/85 to-white/90 backdrop-blur-[3px] pointer-events-none z-0" />
+                </>
+              )}
 
-        {/* Right Side: Live Card Preview */}
-        <div className="w-full md:w-80 flex flex-col items-center justify-center p-6 bg-slate-50/50 rounded-3xl border border-slate-200/60 shrink-0">
-          <p className="text-[10px] font-black text-slate-400 mb-4 uppercase tracking-widest">Bản xem trước thẻ CLB</p>
-          
-          <div
-            className={cn(
-              "group relative backdrop-blur-md rounded-2xl overflow-hidden shadow-lg flex flex-col h-[320px] w-full max-w-[260px] border transition-all duration-300 bg-white",
-              previewCardBgClass
-            )}
-            style={{
-              borderTopWidth: '3px',
-              borderTopColor: accentColor || '#3B82F6',
-            }}
-          >
-            {/* Preview Banner Section */}
-            <div 
-              className="h-28 w-full relative bg-center bg-cover"
-              style={
-                (useAvatarAsBackground && club.logo_url) ? {
-                  backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.logo_url)})`
-                } : bgPreview ? {
-                  backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${bgPreview})`
-                } : club.cover_url ? {
-                  backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)), url(${getImageUrl(club.cover_url)})`
-                } : {
-                  background: previewCategoryConf.heroGradient
-                }
-              }
-            >
-              <div className="absolute top-3 left-3 flex gap-1.5 items-center z-10">
-                <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm">
-                  {previewCategoryConf.label}
-                </span>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/90 shadow-sm text-emerald-650">
-                  Hoạt động
-                </span>
-              </div>
-              <div className="absolute bottom-2 left-3 right-3 text-white/20 font-black text-3xl font-mono select-none leading-none text-right">
+              {/* Preview Pattern Overlay */}
+              {selectedPattern && (
+                <div 
+                  className="absolute inset-0 pointer-events-none opacity-65 z-0" 
+                  style={getPatternStyle(selectedPattern, accentColor)} 
+                />
+              )}
+
+              {/* Preview Subtle watermark of the club.code in the background behind the content */}
+              <div className="absolute right-4 bottom-2 text-slate-900/[0.03] font-black text-5xl font-mono select-none pointer-events-none transform rotate-[-10deg] uppercase z-0">
                 {club.code}
               </div>
-            </div>
 
-            {/* Preview Content Section */}
-            <div className="p-4 flex-1 flex flex-col justify-between min-h-0 bg-white/20">
-              <div className="space-y-2">
-                <h3 className="text-sm font-bold text-slate-700 line-clamp-1 leading-snug">
-                  {club.name}
-                </h3>
-                
-                {/* Schedule & Location */}
-                <div className="space-y-1.5 text-xs font-semibold py-1">
-                  <div className="flex items-center gap-2 text-slate-700 bg-blue-50/50 px-2 py-1 rounded-lg border border-blue-100/50">
-                    <Clock size={13} className="text-blue-500 shrink-0" />
+              {/* Left Column */}
+              <div className="flex-1 flex flex-col justify-between min-w-0 z-10">
+                <div>
+                  {/* Preview Top Header Flex Row */}
+                  <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                    <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-white/90 text-slate-800 backdrop-blur-sm shadow-sm border border-slate-200/40">
+                      {previewCategoryConf.label}
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/90 shadow-sm text-emerald-600 border border-slate-200/40">
+                      Hoạt động
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-slate-400 tracking-wider">
+                      {club.code}
+                    </span>
+                  </div>
+
+                  {/* Preview Club Name */}
+                  <h3 className="text-sm font-bold text-slate-800 line-clamp-2 leading-snug mt-2.5">
+                    {club.name}
+                  </h3>
+                </div>
+
+                {/* Preview Footer Info Stats */}
+                <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold pt-2">
+                  <div className="flex items-center gap-1">
+                    <Users size={12} className="text-slate-400 shrink-0" />
+                    <span className="text-[11px] font-bold text-slate-700">{club.active_members_count}/{club.max_members || '∞'}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Heart size={12} className={club.is_favorited ? "fill-pink-500 text-pink-500 shrink-0" : "text-slate-400 shrink-0"} />
+                    <span className="text-[11px] font-bold text-slate-600">{club.favorite_count || 0}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column */}
+              <div className="flex flex-col justify-between items-end sm:w-[170px] shrink-0 z-10 gap-2">
+                {/* Preview Favorite button */}
+                <div className="flex justify-end w-full">
+                  <button
+                    type="button"
+                    className="w-8 h-8 rounded-full bg-white/80 text-slate-400 flex items-center justify-center backdrop-blur-sm shadow-sm border border-slate-100/50"
+                    disabled
+                  >
+                    <Heart size={15} className={club.is_favorited ? "fill-pink-500 text-pink-500" : ""} />
+                  </button>
+                </div>
+
+                {/* Preview Schedule & Location */}
+                <div className="space-y-1 text-xs font-semibold w-full">
+                  <div className="flex items-center gap-1.5 text-slate-700 bg-blue-50/50 px-2 py-0.5 rounded-md border border-blue-100/30">
+                    <Clock size={11} className="text-blue-500 shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <span className="block text-[9px] text-blue-500 font-bold uppercase tracking-wider leading-none mb-0.5">Lịch sinh hoạt</span>
-                      <span className="block text-slate-800 text-[10.5px] font-bold truncate">
+                      <span className="block text-slate-800 text-[10px] font-bold truncate">
                         {club.schedule_time || 'Chưa xếp lịch'}
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-slate-700 bg-amber-50/50 px-2 py-1 rounded-lg border border-amber-100/50">
-                    <MapPin size={13} className="text-amber-500 shrink-0" />
+                  <div className="flex items-center gap-1.5 text-slate-700 bg-amber-50/50 px-2 py-0.5 rounded-md border border-amber-100/30">
+                    <MapPin size={11} className="text-amber-500 shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <span className="block text-[9px] text-amber-500 font-bold uppercase tracking-wider leading-none mb-0.5">Địa điểm</span>
-                      <span className="block text-slate-800 text-[10.5px] font-bold truncate">
+                      <span className="block text-slate-800 text-[10px] font-bold truncate">
                         {club.classroom || 'Chưa xếp phòng'}
                       </span>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Action Button */}
-              <div className="py-1 flex justify-start mt-1">
+                {/* Preview Button */}
                 <Button
-                  variant="default"
+                  variant={
+                    club.membership_status === 'active' ? 'outline' :
+                    club.membership_status === 'pending' ? 'secondary' : 'default'
+                  }
                   size="sm"
                   disabled
-                  className="h-7 text-[10px] px-3 font-bold rounded-lg cursor-default"
+                  className={cn(
+                    "h-7 text-[10px] px-3 font-bold rounded-lg cursor-default shrink-0 truncate",
+                    club.membership_status === 'active' && "border-emerald-500 text-emerald-600 bg-emerald-50 hover:bg-emerald-50",
+                    club.membership_status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100",
+                    (club.status !== 'active' || !club.settings?.allow_self_registration) && "bg-slate-100 text-slate-400 border-slate-200"
+                  )}
                 >
-                  Tham gia
+                  {
+                    club.membership_status === 'active' ? 'Đã tham gia' :
+                    club.membership_status === 'pending' ? 'Chờ duyệt' : 'Tham gia'
+                  }
                 </Button>
               </div>
             </div>
           </div>
         </div>
-      </div>
+
+        {/* Sticky Footer */}
+        <div className="sticky bottom-0 border-t border-slate-200/60 px-6 py-4 md:px-8 bg-white flex justify-end gap-3 shrink-0 z-20">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl transition-all cursor-pointer disabled:opacity-50 text-xs font-bold"
+          >
+            Hủy
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-2 text-xs"
+          >
+            {saving ? 'Đang lưu...' : 'Lưu cấu hình'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

@@ -45,6 +45,7 @@ export interface Club {
     backgroundImageUrl?: string;
     useAvatarAsBackground?: boolean;
     backgroundFrameUrl?: string;
+    pattern?: string;
   };
   createdAt: string;
   updatedAt: string;

@@ -89,11 +89,11 @@ export class ClubsController {
     }),
   )
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Upload cover hoặc logo cho câu lạc bộ' })
+  @ApiOperation({ summary: 'Upload cover, logo hoặc frame cho câu lạc bộ' })
   uploadMedia(
     @UploadedFile() file: Express.Multer.File,
-    @Body('kind') bodyKind?: 'cover' | 'logo',
-    @Query('kind') queryKind?: 'cover' | 'logo',
+    @Body('kind') bodyKind?: 'cover' | 'logo' | 'frame',
+    @Query('kind') queryKind?: 'cover' | 'logo' | 'frame',
   ) {
     if (!file) {
       throw new BadRequestException('Vui lòng chọn file hợp lệ');
