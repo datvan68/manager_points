@@ -644,9 +644,11 @@ export default function ClubsListPage() {
              {paginatedClubs.map((club) => {
               const conf = categoryConfigs[club.category] || categoryConfigs.other;
               const currentUser = tokenStorage.getUser();
-              const preset = BACKGROUND_PRESETS.find((p) => p.id === club.background_config?.preset);
-              const cardBgClass = preset ? preset.className : "bg-white/45 border-white/70";
-              const accentColor = getClubAccentColor(club);
+              const template = BACKGROUND_TEMPLATES.find((t) => t.id === club.background_config?.pattern);
+              const cardBgClass = template 
+                ? template.bgClass 
+                : (BACKGROUND_PRESETS.find((p) => p.id === club.background_config?.preset)?.className || "bg-white/45 border-white/70");
+              const accentColor = club.background_config?.accentColor || (template ? template.accentColor : getClubAccentColor(club));
               const isCustomBg = !!club.background_config?.backgroundImageUrl || (club.background_config?.useAvatarAsBackground && !!club.logo_url);
               const customBgUrl = club.background_config?.backgroundImageUrl
                 ? getImageUrl(club.background_config.backgroundImageUrl)
@@ -677,9 +679,10 @@ export default function ClubsListPage() {
                           backgroundSize: 'cover',
                           backgroundPosition: 'center',
                           backgroundRepeat: 'no-repeat',
+                          filter: 'blur(4.5px)',
                         }}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/85 to-white/90 backdrop-blur-[3px] pointer-events-none z-0" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/85 to-white/90 pointer-events-none z-0" />
                     </>
                   )}
 
@@ -687,14 +690,12 @@ export default function ClubsListPage() {
                   {club.background_config?.pattern && (
                     <div 
                       className="absolute inset-0 pointer-events-none opacity-65 z-0" 
-                      style={getPatternStyle(club.background_config.pattern, accentColor)} 
+                      style={getPatternStyle(
+                        BACKGROUND_TEMPLATES.find((t) => t.id === club.background_config.pattern)?.patternId || club.background_config.pattern, 
+                        accentColor
+                      )} 
                     />
                   )}
-
-                  {/* Subtle watermark of the club.code in the background behind the content */}
-                  <div className="absolute right-4 bottom-2 text-slate-900/[0.03] font-black text-5xl font-mono select-none pointer-events-none transform rotate-[-10deg] uppercase z-0">
-                    {club.code}
-                  </div>
 
                   {/* Left Column */}
                   <div className="flex-1 flex flex-col justify-between min-w-0 z-10">
@@ -1697,19 +1698,57 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
   );
 }
 
-const PATTERN_OPTIONS = [
-  { id: 'minimal', name: 'Tối giản (Minimal)' },
-  { id: 'gold-corners', name: 'Góc vàng (Gold Corners)' },
-  { id: 'soft-waves', name: 'Sóng mềm (Soft Waves)' },
-  { id: 'circuit-corners', name: 'Góc mạch (Circuit Corners)' },
-  { id: 'diagonal-frames', name: 'Khung chéo (Diagonal Frames)' },
-  { id: 'academic-lines', name: 'Đường kẻ học thuật (Academic Lines)' },
-  { id: 'premium-frame', name: 'Khung thượng hạng (Premium Frame)' },
-  { id: 'botanical-corners', name: 'Góc thực vật (Botanical Corners)' },
-  { id: 'geometric-ribbon', name: 'Ruy-băng hình học (Geometric Ribbon)' },
-  { id: 'spark-dot-frame', name: 'Khung chấm sáng (Spark Dot Frame)' },
-  { id: 'wave-corner-mix', name: 'Sóng góc kết hợp (Wave Corner Mix)' },
-  { id: 'campus-badge-frame', name: 'Khung huy hiệu học viện (Campus Badge)' },
+export interface BackgroundTemplate {
+  id: string;
+  name: string;
+  bgClass: string;
+  accentColor: string;
+  patternId: string;
+}
+
+const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
+  {
+    id: 'luxury-gold',
+    name: 'Hoàng gia Gold (Luxury Gold)',
+    bgClass: 'bg-gradient-to-br from-amber-50/60 via-orange-50/10 to-yellow-50/30 border-amber-200',
+    accentColor: '#D97706',
+    patternId: 'premium-frame',
+  },
+  {
+    id: 'cyber-tech',
+    name: 'Cyber Xanh (Cyber Tech)',
+    bgClass: 'bg-gradient-to-br from-cyan-50/30 via-slate-50/10 to-blue-50/30 border-cyan-200',
+    accentColor: '#06B6D4',
+    patternId: 'circuit-corners',
+  },
+  {
+    id: 'academic-prestige',
+    name: 'Học thuật Indigo (Academic)',
+    bgClass: 'bg-gradient-to-br from-indigo-50/40 via-sky-50/10 to-slate-100/40 border-indigo-200',
+    accentColor: '#4F46E5',
+    patternId: 'campus-badge-frame',
+  },
+  {
+    id: 'sunset-wave',
+    name: 'Hoàng hôn Rose (Sunset Wave)',
+    bgClass: 'bg-gradient-to-br from-rose-50/40 via-amber-50/10 to-rose-100/20 border-rose-200',
+    accentColor: '#E11D48',
+    patternId: 'wave-corner-mix',
+  },
+  {
+    id: 'eco-blossom',
+    name: 'Mầm xanh Mint (Eco Blossom)',
+    bgClass: 'bg-gradient-to-br from-emerald-50/40 via-teal-50/10 to-green-50/20 border-emerald-200',
+    accentColor: '#10B981',
+    patternId: 'botanical-corners',
+  },
+  {
+    id: 'minimal-clean',
+    name: 'Tối giản Slate (Minimal Clean)',
+    bgClass: 'bg-white border-slate-200/80',
+    accentColor: '#64748B',
+    patternId: 'spark-dot-frame',
+  }
 ];
 
 const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties => {
@@ -1747,18 +1786,28 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
       break;
     case 'circuit-corners':
       svgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 320" width="100%" height="100%">
-  <g stroke="${c}" stroke-width="1.5" fill="none" opacity="0.35">
-    <path d="M 10 10 L 40 10 L 60 30 L 100 30" />
-    <path d="M 10 25 L 30 25 L 45 40 L 45 70" />
-    <circle cx="100" cy="30" r="2.5" fill="${c}" />
-    <circle cx="45" cy="70" r="2.5" fill="${c}" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
+  <defs>
+    <radialGradient id="cyberGlow" cx="20%" cy="80%" r="50%">
+      <stop offset="0%" stop-color="${c}" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="300" height="160" fill="url(#cyberGlow)" />
+  <g fill="${c}" opacity="0.2">
+    <circle cx="100" cy="40" r="1" />
+    <circle cx="115" cy="40" r="1" />
+    <circle cx="130" cy="40" r="1" />
+    <circle cx="100" cy="55" r="1" />
+    <circle cx="115" cy="55" r="1" />
+    <circle cx="130" cy="55" r="1" />
   </g>
-  <g stroke="${c}" stroke-width="1.5" fill="none" opacity="0.35" transform="translate(300, 320) scale(-1, -1)">
-    <path d="M 10 10 L 40 10 L 60 30 L 100 30" />
-    <path d="M 10 25 L 30 25 L 45 40 L 45 70" />
-    <circle cx="100" cy="30" r="2.5" fill="${c}" />
-    <circle cx="45" cy="70" r="2.5" fill="${c}" />
+  <path d="M 10 135 H 120 L 140 155 H 290" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.35" />
+  <path d="M 20 130 H 115" fill="none" stroke="${c}" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.2" />
+  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.3" transform="translate(160, 45)">
+    <circle cx="0" cy="0" r="5" />
+    <line x1="-8" y1="0" x2="8" y2="0" />
+    <line x1="0" y1="-8" x2="0" y2="8" />
   </g>
 </svg>`;
       break;
@@ -1795,40 +1844,36 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
     case 'premium-frame':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
-  <rect x="6" y="6" width="288" height="148" rx="8" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.3"/>
-  <path d="M 4 20 L 4 4 L 20 4" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
-  <path d="M 296 20 L 296 4 L 280 4" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
-  <path d="M 4 140 L 4 156 L 20 156" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
-  <path d="M 296 140 L 296 156 L 280 156" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
-  <circle cx="10" cy="10" r="1.5" fill="${c}" opacity="0.6"/>
-  <circle cx="290" cy="10" r="1.5" fill="${c}" opacity="0.6"/>
-  <circle cx="10" cy="150" r="1.5" fill="${c}" opacity="0.6"/>
-  <circle cx="290" cy="150" r="1.5" fill="${c}" opacity="0.6"/>
+  <defs>
+    <radialGradient id="goldGlow" cx="80%" cy="20%" r="60%">
+      <stop offset="0%" stop-color="${c}" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="300" height="160" fill="url(#goldGlow)" />
+  <path d="M 0 145 C 80 120, 160 155, 300 130" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.35" />
+  <path d="M 0 150 C 75 125, 155 160, 300 135" fill="none" stroke="${c}" stroke-width="0.8" stroke-dasharray="4 2" opacity="0.2" />
+  <path d="M 120 30 Q 120 36, 126 36 Q 120 36, 120 42 Q 120 36, 114 36 Q 120 36, 120 30 Z" fill="${c}" opacity="0.5" />
+  <path d="M 235 65 Q 235 70, 240 70 Q 235 70, 235 75 Q 235 70, 230 70 Q 235 70, 235 65 Z" fill="${c}" opacity="0.4" />
+  <path d="M 45 100 Q 45 103, 48 103 Q 45 103, 45 106 Q 45 103, 42 103 Q 45 103, 45 100 Z" fill="${c}" opacity="0.3" />
 </svg>`;
       break;
     case 'botanical-corners':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
-  <g transform="translate(10, 10)" stroke="${c}" fill="none" stroke-width="1.2" opacity="0.5" stroke-linecap="round">
-    <path d="M 0 0 C 15 5, 20 20, 20 25 C 20 20, 5 15, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
-    <path d="M 0 0 C 5 15, 20 20, 25 20 C 20 20, 15 5, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
-    <path d="M 0 0 L 15 15" />
-  </g>
-  <g transform="translate(290, 10) scale(-1, 1)" stroke="${c}" fill="none" stroke-width="1.2" opacity="0.5" stroke-linecap="round">
-    <path d="M 0 0 C 15 5, 20 20, 20 25 C 20 20, 5 15, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
-    <path d="M 0 0 C 5 15, 20 20, 25 20 C 20 20, 15 5, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
-    <path d="M 0 0 L 15 15" />
-  </g>
-  <g transform="translate(10, 150) scale(1, -1)" stroke="${c}" fill="none" stroke-width="1.2" opacity="0.5" stroke-linecap="round">
-    <path d="M 0 0 C 15 5, 20 20, 20 25 C 20 20, 5 15, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
-    <path d="M 0 0 C 5 15, 20 20, 25 20 C 20 20, 15 5, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
-    <path d="M 0 0 L 15 15" />
-  </g>
-  <g transform="translate(290, 150) scale(-1, -1)" stroke="${c}" fill="none" stroke-width="1.2" opacity="0.5" stroke-linecap="round">
-    <path d="M 0 0 C 15 5, 20 20, 20 25 C 20 20, 5 15, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
-    <path d="M 0 0 C 5 15, 20 20, 25 20 C 20 20, 15 5, 0 0 Z" fill="${c}" fill-opacity="0.1"/>
-    <path d="M 0 0 L 15 15" />
-  </g>
+  <defs>
+    <radialGradient id="mintGlow" cx="15%" cy="15%" r="50%">
+      <stop offset="0%" stop-color="${c}" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="300" height="160" fill="url(#mintGlow)" />
+  <circle cx="180" cy="35" r="4.5" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.2" />
+  <circle cx="230" cy="115" r="8" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.15" />
+  <circle cx="75" cy="120" r="3.5" fill="none" stroke="${c}" stroke-width="0.6" opacity="0.18" />
+  <path d="M 0,20 C 30,20 40,40 60,30 S 80,10 100,20" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.22" />
+  <path d="M 60,30 C 58,25 50,22 46,24 C 42,26 44,32 60,30 Z" fill="${c}" fill-opacity="0.12" stroke="${c}" stroke-width="0.8" opacity="0.22" />
+  <path d="M 80,10 C 82,15 90,18 94,16 C 98,14 96,8 80,10 Z" fill="${c}" fill-opacity="0.12" stroke="${c}" stroke-width="0.8" opacity="0.22" />
 </svg>`;
       break;
     case 'geometric-ribbon':
@@ -1845,48 +1890,77 @@ const getPatternStyle = (pattern?: string, color?: string): React.CSSProperties 
     case 'spark-dot-frame':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
-  <rect x="8" y="8" width="284" height="144" rx="6" fill="none" stroke="${c}" stroke-width="1" stroke-dasharray="6 3" opacity="0.25"/>
-  <g fill="${c}" opacity="0.6">
-    <circle cx="14" cy="14" r="2.5"/>
-    <circle cx="24" cy="14" r="1.5"/>
-    <circle cx="14" cy="24" r="1.5"/>
-    <circle cx="20" cy="20" r="1"/>
-    <circle cx="286" cy="14" r="2.5"/>
-    <circle cx="276" cy="14" r="1.5"/>
-    <circle cx="286" cy="24" r="1.5"/>
-    <circle cx="280" cy="20" r="1"/>
-    <circle cx="14" cy="146" r="2.5"/>
-    <circle cx="24" cy="146" r="1.5"/>
-    <circle cx="14" cy="136" r="1.5"/>
-    <circle cx="20" cy="140" r="1"/>
-    <circle cx="286" cy="146" r="2.5"/>
-    <circle cx="276" cy="146" r="1.5"/>
-    <circle cx="286" cy="136" r="1.5"/>
-    <circle cx="280" cy="140" r="1"/>
+  <g fill="${c}" opacity="0.1">
+    <circle cx="40" cy="30" r="1" />
+    <circle cx="80" cy="30" r="1" />
+    <circle cx="120" cy="30" r="1" />
+    <circle cx="160" cy="30" r="1" />
+    <circle cx="200" cy="30" r="1" />
+    <circle cx="240" cy="30" r="1" />
+    <circle cx="40" cy="65" r="1" />
+    <circle cx="80" cy="65" r="1" />
+    <circle cx="120" cy="65" r="1" />
+    <circle cx="160" cy="65" r="1" />
+    <circle cx="200" cy="65" r="1" />
+    <circle cx="240" cy="65" r="1" />
+    <circle cx="40" cy="100" r="1" />
+    <circle cx="80" cy="100" r="1" />
+    <circle cx="120" cy="100" r="1" />
+    <circle cx="160" cy="100" r="1" />
+    <circle cx="200" cy="100" r="1" />
+    <circle cx="240" cy="100" r="1" />
+  </g>
+  <g stroke="${c}" stroke-width="0.8" opacity="0.25">
+    <line x1="20" y1="20" x2="35" y2="20" />
+    <line x1="20" y1="20" x2="20" y2="35" />
+    <line x1="20" y1="20" x2="60" y2="20" stroke-dasharray="3 3" />
+    <line x1="280" y1="140" x2="265" y2="140" />
+    <line x1="280" y1="140" x2="280" y2="125" />
+    <line x1="280" y1="140" x2="240" y2="140" stroke-dasharray="3 3" />
   </g>
 </svg>`;
       break;
     case 'wave-corner-mix':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
-  <path d="M 0,40 C 20,40 40,20 40,0 L 0,0 Z" fill="${c}" opacity="0.15"/>
-  <path d="M 300,40 C 280,40 260,20 260,0 L 300,0 Z" fill="${c}" opacity="0.15"/>
-  <path d="M 0,120 C 20,120 40,140 40,160 L 0,160 Z" fill="${c}" opacity="0.15"/>
-  <path d="M 300,120 C 280,120 260,140 260,160 L 300,160 Z" fill="${c}" opacity="0.15"/>
-  <path d="M 0,145 Q 75,135 150,145 T 300,145 L 300,160 L 0,160 Z" fill="${c}" opacity="0.08"/>
+  <defs>
+    <radialGradient id="sunGlow" cx="80%" cy="80%" r="70%">
+      <stop offset="0%" stop-color="${c}" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="300" height="160" fill="url(#sunGlow)" />
+  <path d="M -20,110 C 60,80 140,140 220,105 T 320,125" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.22" />
+  <path d="M -20,120 C 70,95 130,150 210,115 T 320,135" fill="none" stroke="${c}" stroke-width="1" stroke-dasharray="6 3" opacity="0.15" />
+  <circle cx="45" cy="50" r="7" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.18" />
+  <circle cx="49" cy="48" r="1.5" fill="${c}" opacity="0.1" />
+  <circle cx="110" cy="95" r="12" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.14" />
+  <circle cx="210" cy="40" r="5" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.15" />
+  <circle cx="255" cy="100" r="8" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.14" />
 </svg>`;
       break;
     case 'campus-badge-frame':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%">
-  <line x1="15" y1="8" x2="285" y2="8" stroke="${c}" stroke-width="1.5" opacity="0.3"/>
-  <line x1="15" y1="12" x2="285" y2="12" stroke="${c}" stroke-width="0.8" opacity="0.2"/>
-  <line x1="15" y1="148" x2="285" y2="148" stroke="${c}" stroke-width="1.5" opacity="0.3"/>
-  <line x1="15" y1="152" x2="285" y2="152" stroke="${c}" stroke-width="0.8" opacity="0.2"/>
-  <path d="M 8 25 L 8 8 L 25 8 C 20 18, 18 20, 8 25 Z" fill="${c}" fill-opacity="0.15" stroke="${c}" stroke-width="1" opacity="0.4"/>
-  <path d="M 292 25 L 292 8 L 275 8 C 280 18, 282 20, 292 25 Z" fill="${c}" fill-opacity="0.15" stroke="${c}" stroke-width="1" opacity="0.4"/>
-  <path d="M 8 135 L 8 152 L 25 152 C 20 142, 18 140, 8 135 Z" fill="${c}" fill-opacity="0.15" stroke="${c}" stroke-width="1" opacity="0.4"/>
-  <path d="M 292 135 L 292 152 L 275 152 C 280 142, 282 140, 292 135 Z" fill="${c}" fill-opacity="0.15" stroke="${c}" stroke-width="1" opacity="0.4"/>
+  <defs>
+    <radialGradient id="acadGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="${c}" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="300" height="160" fill="url(#acadGlow)" />
+  <line x1="20" y1="50" x2="280" y2="50" stroke="${c}" stroke-width="0.6" opacity="0.12" />
+  <line x1="20" y1="80" x2="280" y2="80" stroke="${c}" stroke-width="0.6" opacity="0.12" />
+  <line x1="20" y1="110" x2="280" y2="110" stroke="${c}" stroke-width="0.6" opacity="0.12" />
+  <path d="M 0 40 A 40 40 0 0 1 40 0" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.2" />
+  <path d="M 0 35 A 35 35 0 0 1 35 0" fill="none" stroke="${c}" stroke-width="0.8" stroke-dasharray="3 2" opacity="0.12" />
+  <path d="M 300 40 A 40 40 0 0 0 260 0" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.2" />
+  <g fill="none" stroke="${c}" stroke-width="1" opacity="0.08" transform="translate(80, 80) scale(1.4)">
+    <path d="M -15 -5 L 0 -12 L 15 -5 L 0 2 Z" />
+    <path d="M -10 -2 L -10 8 C -10 12, 10 12, 10 8 L 10 -2" />
+    <line x1="12" y1="-3" x2="12" y2="8" />
+    <circle cx="12" cy="9" r="1.2" fill="${c}" />
+  </g>
 </svg>`;
       break;
     case 'minimal':
@@ -1976,8 +2050,10 @@ function BackgroundSetupModal({
     }
   };
 
-  const previewPreset = BACKGROUND_PRESETS.find((p) => p.id === selectedPreset);
-  const previewCardBgClass = previewPreset ? previewPreset.className : "bg-white border-slate-200";
+  const previewTemplate = BACKGROUND_TEMPLATES.find((t) => t.id === selectedPattern);
+  const previewCardBgClass = previewTemplate 
+    ? previewTemplate.bgClass 
+    : (BACKGROUND_PRESETS.find((p) => p.id === selectedPreset)?.className || "bg-white border-slate-200");
   const previewCategoryConf = categoryConfigs[club.category] || categoryConfigs.other;
 
   const previewCustomBgUrl = bgPreview
@@ -2013,47 +2089,34 @@ function BackgroundSetupModal({
         <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
           {/* Left Column: Setup Controls */}
           <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 custom-scrollbar">
-            {/* Presets Grid */}
+            {/* Combined Templates Grid */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mẫu chủ đề (Preset)</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mẫu thiết kế kết hợp (Template)</label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {/* Default Category Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedPreset('default');
-                    setAccentColor('#3B82F6');
-                  }}
-                  className={cn(
-                    "flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all text-left shadow-sm cursor-pointer",
-                    selectedPreset === 'default'
-                      ? "border-blue-500 bg-blue-50/40 text-blue-600 font-bold ring-2 ring-blue-500/20"
-                      : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-                  )}
-                >
-                  <span className="w-4 h-4 rounded-full bg-slate-200 border border-slate-300 shrink-0" />
-                  <span className="truncate">Mặc định CLB</span>
-                </button>
-
-                {/* Preset Buttons */}
-                {BACKGROUND_PRESETS.map((p) => (
+                {BACKGROUND_TEMPLATES.map((tpl) => (
                   <button
-                    key={p.id}
+                    key={tpl.id}
                     type="button"
                     onClick={() => {
-                      setSelectedPreset(p.id);
-                      setAccentColor(p.accentColor);
+                      setSelectedPattern(tpl.id);
+                      setSelectedPreset(tpl.id);
+                      setAccentColor(tpl.accentColor);
                     }}
                     className={cn(
-                      "flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all text-left shadow-sm cursor-pointer truncate",
-                      selectedPreset === p.id
-                        ? "border-blue-500 bg-blue-50/40 text-blue-600 font-bold ring-2 ring-blue-500/20"
-                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                      "flex flex-col p-3 rounded-xl border text-xs font-bold transition-all text-left relative overflow-hidden h-16 justify-between cursor-pointer group shadow-sm bg-white",
+                      selectedPattern === tpl.id
+                        ? "border-blue-500 bg-blue-50/30 text-blue-600 ring-2 ring-blue-500/15"
+                        : "border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700"
                     )}
-                    title={p.name}
                   >
-                    <span className={cn("w-4 h-4 rounded-full border shrink-0", p.className)} />
-                    <span className="truncate">{p.name.split(' (')[0]}</span>
+                    <div className="z-10 flex items-center justify-between w-full">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-90">{tpl.name.split(' (')[0]}</span>
+                      <div className={cn("w-3 h-3 rounded-full border border-slate-300/30 shrink-0", tpl.bgClass)} />
+                    </div>
+                    <div 
+                      className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity pointer-events-none z-0" 
+                      style={getPatternStyle(tpl.patternId, accentColor)} 
+                    />
                   </button>
                 ))}
               </div>
@@ -2084,32 +2147,6 @@ function BackgroundSetupModal({
                     style={{ backgroundColor: accentColor }}
                   />
                 </div>
-              </div>
-            </div>
-
-            {/* Decorative Pattern Selector */}
-            <div className="space-y-2 border-t border-slate-200/60 pt-4">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Họa tiết trang trí (Pattern)</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {PATTERN_OPTIONS.map((pat) => (
-                  <button
-                    key={pat.id}
-                    type="button"
-                    onClick={() => setSelectedPattern(pat.id)}
-                    className={cn(
-                      "group flex flex-col gap-1.5 p-3 rounded-xl border text-xs font-semibold transition-all text-left relative overflow-hidden h-16 justify-between cursor-pointer shadow-sm",
-                      selectedPattern === pat.id
-                        ? "border-blue-500 bg-blue-50/40 text-blue-600 font-bold ring-2 ring-blue-500/20"
-                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-                    )}
-                  >
-                    <span className="z-10 text-[11px] font-bold truncate pr-6">{pat.name}</span>
-                    <div 
-                      className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity pointer-events-none z-0" 
-                      style={getPatternStyle(pat.id, accentColor)} 
-                    />
-                  </button>
-                ))}
               </div>
             </div>
 
@@ -2210,9 +2247,10 @@ function BackgroundSetupModal({
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
                       backgroundRepeat: 'no-repeat',
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/85 to-white/90 backdrop-blur-[3px] pointer-events-none z-0" />
+                      filter: 'blur(4.5px)',
+                      }}
+                    />
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/85 to-white/90 pointer-events-none z-0" />
                 </>
               )}
 
@@ -2220,14 +2258,12 @@ function BackgroundSetupModal({
               {selectedPattern && (
                 <div 
                   className="absolute inset-0 pointer-events-none opacity-65 z-0" 
-                  style={getPatternStyle(selectedPattern, accentColor)} 
+                  style={getPatternStyle(
+                    BACKGROUND_TEMPLATES.find((t) => t.id === selectedPattern)?.patternId || selectedPattern, 
+                    accentColor
+                  )} 
                 />
               )}
-
-              {/* Preview Subtle watermark of the club.code in the background behind the content */}
-              <div className="absolute right-4 bottom-2 text-slate-900/[0.03] font-black text-5xl font-mono select-none pointer-events-none transform rotate-[-10deg] uppercase z-0">
-                {club.code}
-              </div>
 
               {/* Left Column */}
               <div className="flex-1 flex flex-col justify-between min-w-0 z-10">
