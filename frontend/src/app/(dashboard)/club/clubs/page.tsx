@@ -26,6 +26,8 @@ import { authApi, tokenStorage } from '@/api/auth-api';
 import { semesterApi, Semester } from '@/api/semester-api';
 import { getClubScheduleSummary, BACKGROUND_PRESETS, getClubAccentColor, ScheduleSummaryRow } from './schedule-helper';
 import { API_ORIGIN } from '@/api/config';
+import ConfirmModal from '@/components/modals/ConfirmModal';
+import { CustomPagination } from '@/components/ui/pagination';
  
 const SHOW_CLUB_AVATAR = false;
 
@@ -132,6 +134,10 @@ export default function ClubsListPage() {
   const [clubs, setClubs] = useState<ClubWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [clubPendingDelete, setClubPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedClubForEdit, setSelectedClubForEdit] = useState<ClubWithStats | null>(null);
   const [filterCategory, setFilterCategory] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -434,16 +440,8 @@ export default function ClubsListPage() {
     return `${diffDays} ngày trước`;
   };
 
-  const handleDeleteClub = async (id: string, name: string) => {
-    if (confirm(`Bạn có chắc chắn muốn vô hiệu hóa CLB "${name}"?`)) {
-      try {
-        await clubApi.delete(id);
-        toast.success(`Đã vô hiệu hóa CLB "${name}"`);
-        loadClubs();
-      } catch {
-        toast.error('Lỗi khi vô hiệu hóa CLB');
-      }
-    }
+  const handleDeleteClub = (id: string, name: string) => {
+    setClubPendingDelete({ id, name });
   };
 
   return (
@@ -526,19 +524,43 @@ export default function ClubsListPage() {
       )}>
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-1">
           {/* Search */}
-          <div className="relative flex-1 md:max-w-md">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Tìm theo tên hoặc mã câu lạc bộ..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full pl-10 pr-4 py-2 bg-white/75 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
-            />
-          </div>
+          {isSearchOpen ? (
+            <div className="relative flex-1 md:max-w-md flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm theo tên hoặc mã câu lạc bộ..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  autoFocus
+                  className="w-full pl-10 pr-10 py-2 bg-white/75 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsSearchOpen(false)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  title="Thu gọn"
+                  aria-label="Thu gọn"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(true)}
+              className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white/75 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm cursor-pointer shrink-0"
+              title="Tìm kiếm"
+              aria-label="Tìm kiếm"
+            >
+              <Search size={18} />
+            </button>
+          )}
           {/* Category Filter */}
           <div className="relative min-w-[160px] w-full sm:w-auto">
             <Filter size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
@@ -1115,13 +1137,13 @@ export default function ClubsListPage() {
                           {canManageClub(club) && (
                             <button
                               onClick={() => {
-                                setSelectedClubForBg(club);
-                                setShowBgSetupModal(true);
+                                setSelectedClubForEdit(club);
+                                setShowEditModal(true);
                               }}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
-                              title="Thiết lập nền"
+                              title="Chỉnh sửa Câu lạc bộ"
                             >
-                              <Palette size={14} />
+                              <Edit2 size={14} />
                             </button>
                           )}
                           <button
@@ -1141,52 +1163,13 @@ export default function ClubsListPage() {
           </div>
 
           {/* Table pagination */}
-          <div className="px-5 py-3.5 border-t border-white/50 flex justify-between items-center bg-white/10 text-xs">
-            <span className="text-slate-400">Trang {currentPage} / {totalPages}</span>
-            <div className="flex items-center gap-1">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(1)}
-                className="p-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40 transition-all cursor-pointer"
-              >
-                «
-              </button>
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(c => Math.max(1, c - 1))}
-                className="px-2.5 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40 transition-all cursor-pointer"
-              >
-                Trước
-              </button>
-              {[...Array(totalPages)].map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentPage(idx + 1)}
-                  className={`px-2.5 py-1 border rounded transition-all cursor-pointer ${
-                    currentPage === idx + 1
-                      ? 'bg-blue-600 border-blue-600 text-white font-bold'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-                  }`}
-                >
-                  {idx + 1}
-                </button>
-              ))}
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(c => Math.min(totalPages, c + 1))}
-                className="px-2.5 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40 transition-all cursor-pointer"
-              >
-                Sau
-              </button>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(totalPages)}
-                className="p-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40 transition-all cursor-pointer"
-              >
-                »
-              </button>
-            </div>
-          </div>
+          <CustomPagination
+            totalItems={sortedAndFiltered.length}
+            pageSize={itemsPerPage}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            label="câu lạc bộ"
+          />
         </div>
       )}
 
@@ -1200,6 +1183,43 @@ export default function ClubsListPage() {
           }}
         />
       )}
+
+      {/* Edit Modal */}
+      {showEditModal && selectedClubForEdit && (
+        <CreateClubModal
+          clubToEdit={selectedClubForEdit}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedClubForEdit(null);
+          }}
+          onSuccess={() => {
+            setShowEditModal(false);
+            setSelectedClubForEdit(null);
+            loadClubs();
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!clubPendingDelete}
+        onClose={() => setClubPendingDelete(null)}
+        onConfirm={async () => {
+          if (!clubPendingDelete) return;
+          try {
+            await clubApi.delete(clubPendingDelete.id);
+            toast.success(`Đã vô hiệu hóa CLB "${clubPendingDelete.name}"`);
+            loadClubs();
+          } catch {
+            toast.error('Lỗi khi vô hiệu hóa CLB');
+          }
+        }}
+        title="Vô hiệu hóa Câu lạc bộ"
+        message={`Bạn có chắc chắn muốn vô hiệu hóa câu lạc bộ "${clubPendingDelete?.name}"?`}
+        confirmLabel="Vô hiệu hóa"
+        cancelLabel="Hủy"
+        variant="danger"
+      />
 
       {/* Background Setup Modal */}
       {showBgSetupModal && selectedClubForBg && (
@@ -1270,7 +1290,7 @@ interface CreateClubFormValues {
   };
 }
 
-function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+function CreateClubModal({ onClose, onSuccess, clubToEdit }: { onClose: () => void; onSuccess: () => void; clubToEdit?: ClubWithStats }) {
   const [users, setUsers] = useState<any[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [loadingData, setLoadingData] = useState(false);
@@ -1279,10 +1299,10 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
   // Device upload states
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [coverPreview, setCoverPreview] = useState<string>('');
-  const [logoPreview, setLogoPreview] = useState<string>('');
-  const [uploadedCoverUrl, setUploadedCoverUrl] = useState<string>('');
-  const [uploadedLogoUrl, setUploadedLogoUrl] = useState<string>('');
+  const [coverPreview, setCoverPreview] = useState<string>(clubToEdit?.cover_url ? getImageUrl(clubToEdit.cover_url) : '');
+  const [logoPreview, setLogoPreview] = useState<string>(clubToEdit?.logo_url ? getImageUrl(clubToEdit.logo_url) : '');
+  const [uploadedCoverUrl, setUploadedCoverUrl] = useState<string>(clubToEdit?.cover_url || '');
+  const [uploadedLogoUrl, setUploadedLogoUrl] = useState<string>(clubToEdit?.logo_url || '');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const teachers = users.filter((u: any) => u.role?.role_code === 'TEACHER');
@@ -1296,7 +1316,26 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
     formState: { errors },
   } = useForm<CreateClubFormValues>({
     resolver: zodResolver(createClubFormSchema as any),
-    defaultValues: {
+    defaultValues: clubToEdit ? {
+      name: clubToEdit.name || '',
+      code: clubToEdit.code || '',
+      classroom: clubToEdit.classroom || '',
+      category: clubToEdit.category || 'other',
+      cover_url: clubToEdit.cover_url || '',
+      logo_url: clubToEdit.logo_url || '',
+      description: clubToEdit.description || '',
+      advisor_id: clubToEdit.advisor_id?._id || clubToEdit.advisor_id || '',
+      max_members: clubToEdit.max_members || undefined,
+      semester_id: clubToEdit.semester_id?._id || clubToEdit.semester_id || '',
+      activity_start_date: clubToEdit.activity_start_date ? format(new Date(clubToEdit.activity_start_date), 'yyyy-MM-dd') : undefined,
+      activity_end_date: clubToEdit.activity_end_date ? format(new Date(clubToEdit.activity_end_date), 'yyyy-MM-dd') : undefined,
+      settings: {
+        allow_self_registration: clubToEdit.settings?.allow_self_registration ?? true,
+        require_approval: clubToEdit.settings?.require_approval ?? true,
+        attendance_point_enabled: clubToEdit.settings?.attendance_point_enabled ?? false,
+        point_per_attendance: clubToEdit.settings?.point_per_attendance ?? 0,
+      }
+    } : {
       name: '',
       code: '',
       classroom: '',
@@ -1436,11 +1475,16 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
         }
       };
 
-      await clubApi.create(payload as any);
-      toast.success('Tạo câu lạc bộ thành công!');
+      if (clubToEdit) {
+        await clubApi.update(clubToEdit._id, payload as any);
+        toast.success('Cập nhật câu lạc bộ thành công!');
+      } else {
+        await clubApi.create(payload as any);
+        toast.success('Tạo câu lạc bộ thành công!');
+      }
       onSuccess();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || 'Lỗi khi tạo câu lạc bộ');
+      toast.error(err?.response?.data?.message || err?.message || (clubToEdit ? 'Lỗi khi cập nhật câu lạc bộ' : 'Lỗi khi tạo câu lạc bộ'));
     } finally {
       setSaving(false);
     }
@@ -1452,8 +1496,12 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
-            <h2 className="text-base font-black text-slate-800 tracking-tight">Tạo Câu lạc bộ Mới</h2>
-            <p className="text-[11px] text-slate-400 mt-0.5">Khai báo cấu hình và người phụ trách cho câu lạc bộ.</p>
+            <h2 className="text-base font-black text-slate-800 tracking-tight">
+              {clubToEdit ? 'Chỉnh sửa Câu lạc bộ' : 'Tạo Câu lạc bộ Mới'}
+            </h2>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {clubToEdit ? 'Cập nhật cấu hình và người phụ trách cho câu lạc bộ.' : 'Khai báo cấu hình và người phụ trách cho câu lạc bộ.'}
+            </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors text-xs font-semibold cursor-pointer">
             Đóng
@@ -1487,7 +1535,7 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
                     required
                     error={errors.code?.message}
                     placeholder="VD: ART"
-                    disabled={saving}
+                    disabled={saving || !!clubToEdit}
                     {...register('code')}
                     onChange={(e) => {
                       e.target.value = e.target.value.toUpperCase();
@@ -1768,7 +1816,7 @@ function CreateClubModal({ onClose, onSuccess }: { onClose: () => void; onSucces
               className="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-2"
             >
               {saving && <Plus size={14} className="animate-spin" />}
-              {saving ? 'Đang tạo...' : 'Tạo câu lạc bộ'}
+              {saving ? (clubToEdit ? 'Đang cập nhật...' : 'Đang tạo...') : (clubToEdit ? 'Lưu thay đổi' : 'Tạo câu lạc bộ')}
             </button>
           </div>
         </form>
