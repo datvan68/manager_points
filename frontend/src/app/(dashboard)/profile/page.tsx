@@ -335,10 +335,20 @@ export default function ProfilePage() {
                         <div className="bg-white/50 backdrop-blur-sm border border-white/80 px-2 py-0.5 rounded-xl text-[10px] font-mono font-bold text-[#64748B] shadow-sm">
                           UUID: {profile?.id?.substring(0, 8).toUpperCase()}
                         </div>
-                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 rounded-xl">
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl border ${
+                          typeof window !== 'undefined' && localStorage.getItem('attendance_location_enabled') === 'true'
+                            ? 'bg-blue-500/10 text-blue-700 border-blue-500/20'
+                            : 'bg-gray-500/10 text-gray-600 border-gray-500/20'
+                        }`}>
+                          <div className={`w-1.5 h-1.5 rounded-full ${
+                            typeof window !== 'undefined' && localStorage.getItem('attendance_location_enabled') === 'true'
+                              ? 'bg-blue-500 animate-pulse'
+                              : 'bg-gray-400'
+                          }`} />
                           <span className="text-[11px] font-bold">
-                            Đang hoạt động
+                            {typeof window !== 'undefined' && localStorage.getItem('attendance_location_enabled') === 'true'
+                              ? 'Đang chia sẻ vị trí'
+                              : 'Vị trí: Tắt'}
                           </span>
                         </div>
                       </div>

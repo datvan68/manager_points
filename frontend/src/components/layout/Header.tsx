@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Search, LayoutGrid, User, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { Bell, Search, LayoutGrid, User, Settings as SettingsIcon, LogOut, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import logoNsg from '@/assets/cropped-logo-nsg.png';
@@ -29,7 +29,13 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);
-    const [isOnline, setIsOnline] = useState(true);
+    const [locationEnabled, setLocationEnabled] = useState(() => {
+      if (typeof window !== 'undefined') {
+        return localStorage.getItem('attendance_location_enabled') === 'true';
+      }
+      return false;
+    });
+    const [locationStatus, setLocationStatus] = useState<'idle' | 'granted' | 'denied' | 'requesting'>('idle');
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isResolvingProfile, setIsResolvingProfile] = useState(false);
@@ -272,7 +278,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                data-id="btn/Profile"
              >
                {user ? getInitials(user.display_name || user.user_name || user.username || '') : '??'}
-               <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+               <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${locationEnabled ? 'bg-blue-500' : 'bg-gray-400'}`}></span>
              </button>
    
              {/* Profile Popup */}
@@ -281,7 +287,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                   <div className="px-4 py-3 border-b border-white/50 flex items-center gap-3">
                       <div className="relative w-10 h-10 rounded-full bg-[#1A73E8]/10 flex items-center justify-center text-[#1A73E8] font-bold text-sm">
                           {user ? getInitials(user.display_name || user.user_name || user.username || '') : '??'}
-                          <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                          <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${locationEnabled ? 'bg-blue-500' : 'bg-gray-400'}`}></span>
                       </div>
                       <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-[#1E293B] truncate">{user?.display_name || user?.user_name || user?.username || 'Guest'}</p>
@@ -291,14 +297,73 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
 
                   <div className="px-4 py-2 flex items-center justify-between border-b border-white/50">
                       <div className="flex flex-col">
-                          <span className="text-sm font-medium text-[#1E293B]">Trạng thái</span>
-                          <span className="text-xs text-[#64748B]">{isOnline ? 'Đang hoạt động' : 'Vắng mặt'}</span>
+                          <span className="text-sm font-medium text-[#1E293B] flex items-center gap-1.5">
+                            <MapPin size={14} className={locationEnabled ? 'text-blue-500' : 'text-gray-400'} />
+                            Vị trí
+                          </span>
+                          <span className="text-xs text-[#64748B]">
+                            {locationStatus === 'requesting' ? 'Đang xin quyền...' :
+                             locationStatus === 'denied' ? 'Quyền bị từ chối' :
+                             locationEnabled ? 'Đang chia sẻ vị trí' : 'Tắt chia sẻ vị trí'}
+                          </span>
                       </div>
                       <button 
-                          onClick={() => setIsOnline(!isOnline)}
-                          className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors duration-200 cursor-pointer ${isOnline ? 'bg-[#1A73E8]' : 'bg-gray-200/80'}`}
+                          onClick={async () => {
+                            if (!locationEnabled) {
+                              // Turn ON: request GPS permission
+                              setLocationStatus('requesting');
+                              try {
+                                const result = await navigator.permissions.query({ name: 'geolocation' });
+                                if (result.state === 'denied') {
+                                  setLocationStatus('denied');
+                                  toast.error('Quyền vị trí bị từ chối. Vui lòng bật trong cài đặt trình duyệt.');
+                                  return;
+                                }
+                                // Request actual position to trigger browser prompt
+                                navigator.geolocation.getCurrentPosition(
+                                  () => {
+                                    setLocationEnabled(true);
+                                    setLocationStatus('granted');
+                                    localStorage.setItem('attendance_location_enabled', 'true');
+                                    toast.success('Đã bật chia sẻ vị trí cho điểm danh.');
+                                  },
+                                  (err) => {
+                                    setLocationStatus('denied');
+                                    if (err.code === err.PERMISSION_DENIED) {
+                                      toast.error('Quyền vị trí bị từ chối. Vui lòng bật trong cài đặt trình duyệt.');
+                                    } else {
+                                      toast.error('Không thể truy cập vị trí. Vui lòng thử lại.');
+                                    }
+                                  },
+                                  { enableHighAccuracy: true, timeout: 10000 },
+                                );
+                              } catch {
+                                // Permissions API not supported, try direct request
+                                navigator.geolocation.getCurrentPosition(
+                                  () => {
+                                    setLocationEnabled(true);
+                                    setLocationStatus('granted');
+                                    localStorage.setItem('attendance_location_enabled', 'true');
+                                    toast.success('Đã bật chia sẻ vị trí cho điểm danh.');
+                                  },
+                                  () => {
+                                    setLocationStatus('denied');
+                                    toast.error('Không thể truy cập vị trí.');
+                                  },
+                                  { enableHighAccuracy: true, timeout: 10000 },
+                                );
+                              }
+                            } else {
+                              // Turn OFF
+                              setLocationEnabled(false);
+                              setLocationStatus('idle');
+                              localStorage.setItem('attendance_location_enabled', 'false');
+                              toast.success('Đã tắt chia sẻ vị trí.');
+                            }
+                          }}
+                          className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors duration-200 cursor-pointer ${locationEnabled ? 'bg-[#1A73E8]' : 'bg-gray-200/80'}`}
                       >
-                          <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isOnline ? 'translate-x-5' : 'translate-x-0'}`} />
+                          <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${locationEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                       </button>
                   </div>
                   

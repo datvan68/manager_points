@@ -485,6 +485,28 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     description: 'Cho phép xuất dữ liệu CLB ra file Excel/PDF.',
   },
 
+  // ── Attendance Sessions (Universal) ──
+  {
+    code: 'ATTENDANCE_SESSION_CREATE',
+    name: 'Mở phiên điểm danh',
+    module: CLUB_MANAGER_GROUP.name,
+    description:
+      'Cho phép mở phiên điểm danh mới (QR Code hoặc Proximity).',
+  },
+  {
+    code: 'ATTENDANCE_SESSION_READ',
+    name: 'Xem phiên điểm danh',
+    module: CLUB_MANAGER_GROUP.name,
+    description:
+      'Cho phép xem danh sách và chi tiết các phiên điểm danh.',
+  },
+  {
+    code: 'ATTENDANCE_SESSION_CLOSE',
+    name: 'Đóng phiên điểm danh',
+    module: CLUB_MANAGER_GROUP.name,
+    description: 'Cho phép đóng phiên điểm danh đang hoạt động.',
+  },
+
   // Nhóm Đề xuất bổ sung (Các quyền CRUD cho trang /permissions chưa có guard)
   {
     code: 'USER_CREATE',

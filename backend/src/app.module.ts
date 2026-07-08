@@ -30,6 +30,7 @@ import { ClubsModule } from './clubs/clubs.module';
 import { ClubSchedulesModule } from './club-schedules/club-schedules.module';
 import { ClubAttendanceModule } from './club-attendance/club-attendance.module';
 import { ClubAttendanceConfigModule } from './club-attendance-config/club-attendance-config.module';
+import { AttendanceSessionsModule } from './attendance-sessions/attendance-sessions.module';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { ClubAttendanceConfigModule } from './club-attendance-config/club-attend
     ClubSchedulesModule,
     ClubAttendanceModule,
     ClubAttendanceConfigModule,
+    AttendanceSessionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

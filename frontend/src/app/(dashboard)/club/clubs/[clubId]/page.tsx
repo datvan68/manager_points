@@ -4,11 +4,19 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Users, Calendar, ClipboardCheck, Settings, ArrowLeft, UserPlus,
-  Crown, Shield, Clock, MapPin, CheckCircle2, XCircle, Loader2, Sparkles, BookOpen, MessageSquare, Award, AlertCircle
+  Crown, Shield, Clock, MapPin, CheckCircle2, XCircle, Loader2, Sparkles, BookOpen, MessageSquare, Award, AlertCircle,
+  QrCode, Radio,
 } from 'lucide-react';
 import { clubApi, clubScheduleApi, Club, ClubMember, ClubSchedule } from '@/api/club-api';
 import { toast } from 'sonner';
 import { API_ORIGIN } from '@/api/config';
+import { useAttendanceSession } from '@/hooks/useAttendanceSession';
+import AttendanceMethodSelector from '@/components/attendance/AttendanceMethodSelector';
+import AttendanceSessionStatus from '@/components/attendance/AttendanceSessionStatus';
+import QrDisplayPanel from '@/components/attendance/QrDisplayPanel';
+import QrScannerModal from '@/components/attendance/QrScannerModal';
+import ProximityPanel from '@/components/attendance/ProximityPanel';
+import ProximityCheckinButton from '@/components/attendance/ProximityCheckinButton';
 
 const getImageUrl = (url?: string) => {
   if (!url) return '';
@@ -113,6 +121,8 @@ export default function ClubDetailPage() {
   const [schedules, setSchedules] = useState<ClubSchedule[]>([]);
   const [activeTab, setActiveTab] = useState<'info' | 'members' | 'schedules' | 'attendance'>('info');
   const [loading, setLoading] = useState(true);
+  const [showMethodSelector, setShowMethodSelector] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   useEffect(() => {
     if (clubId) loadData();
@@ -492,19 +502,15 @@ export default function ClubDetailPage() {
         )}
 
         {activeTab === 'attendance' && (
-          <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-8 shadow-sm shadow-slate-200/40 flex flex-col items-center text-center max-w-lg mx-auto">
-            <ClipboardCheck size={44} className="text-blue-500 mb-4 animate-bounce-slow" />
-            <h3 className="text-base font-extrabold text-slate-800">Quản lý điểm danh sinh hoạt</h3>
-            <p className="text-xs text-slate-450 mt-1.5 mb-6 max-w-sm leading-relaxed font-semibold">
-              Điểm danh chuyên cần và tự động tính toán điểm rèn luyện dựa trên sự tham gia của thành viên CLB.
-            </p>
-            <button
-              onClick={() => router.push('/club/attendance')}
-              className="px-5 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
-            >
-              Đi đến Điểm danh
-            </button>
-          </div>
+          <ClubAttendanceTab
+            clubId={clubId}
+            club={club}
+            schedules={schedules}
+            showMethodSelector={showMethodSelector}
+            setShowMethodSelector={setShowMethodSelector}
+            showQrScanner={showQrScanner}
+            setShowQrScanner={setShowQrScanner}
+          />
         )}
       </div>
     </div>
@@ -516,6 +522,238 @@ function InfoItem({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between items-center py-2 border-b border-slate-250/20 last:border-b-0 text-xs">
       <span className="text-slate-450 font-semibold">{label}</span>
       <span className="text-slate-800 font-bold">{value}</span>
+    </div>
+  );
+}
+
+// ── Club Attendance Tab Component ──
+
+function ClubAttendanceTab({
+  clubId,
+  club,
+  schedules,
+  showMethodSelector,
+  setShowMethodSelector,
+  showQrScanner,
+  setShowQrScanner,
+}: {
+  clubId: string;
+  club: Club;
+  schedules: ClubSchedule[];
+  showMethodSelector: boolean;
+  setShowMethodSelector: (v: boolean) => void;
+  showQrScanner: boolean;
+  setShowQrScanner: (v: boolean) => void;
+}) {
+  const attendance = useAttendanceSession({
+    contextType: 'club',
+    contextId: clubId,
+    enabled: true,
+  });
+
+  const hasActiveSession = attendance.session?.status === 'active';
+  const isQrSession = hasActiveSession && attendance.session?.method === 'qr';
+  const isProximitySession = hasActiveSession && attendance.session?.method === 'proximity';
+
+  const handleOpenSession = async (params: {
+    method: 'qr' | 'proximity';
+    latitude?: number;
+    longitude?: number;
+    radius_meters?: number;
+    qr_refresh_interval?: number;
+  }) => {
+    try {
+      await attendance.openSession({
+        ...params,
+        semester_id: club.semester_id?._id || club.semester_id || '',
+        title: `Điểm danh CLB ${club.name}`,
+      });
+      setShowMethodSelector(false);
+      toast.success('Đã mở phiên điểm danh thành công!');
+    } catch (err: any) {
+      toast.error(err.message || 'Không thể mở phiên điểm danh');
+    }
+  };
+
+  const handleCloseSession = async () => {
+    try {
+      await attendance.closeSession();
+      toast.success('Đã đóng phiên điểm danh');
+    } catch {
+      toast.error('Không thể đóng phiên');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Session Status Bar */}
+      {hasActiveSession && attendance.session && (
+        <AttendanceSessionStatus
+          status={attendance.session.status as any}
+          method={attendance.session.method as any}
+          checkinCount={attendance.session.checkin_count}
+          openedAt={attendance.session.opened_at}
+        />
+      )}
+
+      {/* No active session — show open button or method selector */}
+      {!hasActiveSession && !showMethodSelector && (
+        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-8 shadow-sm shadow-slate-200/40 flex flex-col items-center text-center max-w-lg mx-auto">
+          <ClipboardCheck size={44} className="text-blue-500 mb-4" />
+          <h3 className="text-base font-extrabold text-slate-800">Điểm danh sinh hoạt CLB</h3>
+          <p className="text-xs text-slate-450 mt-1.5 mb-6 max-w-sm leading-relaxed font-semibold">
+            Mở phiên điểm danh bằng QR Code hoặc GPS Proximity để sinh viên tự điểm danh qua thiết bị.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+            <button
+              onClick={() => setShowMethodSelector(true)}
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
+            >
+              <Radio size={15} /> Mở điểm danh
+            </button>
+            <button
+              onClick={() => setShowQrScanner(true)}
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+            >
+              <QrCode size={15} /> Quét QR
+            </button>
+          </div>
+          <button
+            onClick={() => window.location.href = '/club/attendance'}
+            className="mt-4 text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
+          >
+            Xem lịch sử điểm danh →
+          </button>
+        </div>
+      )}
+
+      {/* Method Selector Modal */}
+      {!hasActiveSession && showMethodSelector && (
+        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-6 shadow-sm shadow-slate-200/40">
+          <AttendanceMethodSelector
+            onSelect={handleOpenSession}
+            loading={attendance.loading}
+          />
+          <button
+            onClick={() => setShowMethodSelector(false)}
+            className="w-full mt-4 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            ← Quay lại
+          </button>
+        </div>
+      )}
+
+      {/* Active QR Session — Admin Panel */}
+      {isQrSession && attendance.qrData && (
+        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl shadow-sm shadow-slate-200/40 overflow-hidden">
+          <QrDisplayPanel
+            token={attendance.qrData.token}
+            expiresAt={attendance.qrData.expires_at}
+            refreshInterval={attendance.qrData.refresh_interval}
+            checkinCount={attendance.qrData.checkin_count}
+            onClose={handleCloseSession}
+            sessionTitle={attendance.session?.title}
+          />
+        </div>
+      )}
+
+      {/* Active Proximity Session — Admin Panel */}
+      {isProximitySession && attendance.session && (
+        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl shadow-sm shadow-slate-200/40 overflow-hidden">
+          <ProximityPanel
+            latitude={attendance.session.latitude!}
+            longitude={attendance.session.longitude!}
+            radiusMeters={attendance.session.radius_meters!}
+            checkinCount={attendance.session.checkin_count}
+            checkins={attendance.checkins}
+            onClose={handleCloseSession}
+            sessionTitle={attendance.session.title}
+          />
+        </div>
+      )}
+
+      {/* Student: Proximity Check-in Button (when session active) */}
+      {isProximitySession && attendance.session && (
+        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl shadow-sm shadow-slate-200/40 overflow-hidden">
+          <ProximityCheckinButton
+            sessionLatitude={attendance.session.latitude!}
+            sessionLongitude={attendance.session.longitude!}
+            sessionRadius={attendance.session.radius_meters!}
+            onCheckin={(lat, lng) => attendance.checkinProximity(lat, lng)}
+            checkinStatus={attendance.checkinStatus}
+            checkinError={attendance.checkinError}
+          />
+        </div>
+      )}
+
+      {/* Student: QR Scanner (when active QR session or manual trigger) */}
+      {isQrSession && (
+        <div className="flex justify-center">
+          <button
+            onClick={() => setShowQrScanner(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+          >
+            <QrCode size={18} /> Quét mã để điểm danh
+          </button>
+        </div>
+      )}
+
+      {/* Checkin List */}
+      {hasActiveSession && attendance.checkins.length > 0 && (
+        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-5 shadow-sm shadow-slate-200/40">
+          <h3 className="text-sm font-bold text-slate-800 pb-3 border-b border-white/50 mb-3">
+            Đã điểm danh ({attendance.checkins.length})
+          </h3>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {attendance.checkins.map((c) => (
+              <div
+                key={c._id}
+                className="flex items-center justify-between px-3 py-2.5 bg-white/60 rounded-xl border border-white/80"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-xs font-bold text-blue-600 border border-blue-500/20">
+                    {(c.student_id?.full_name || '?')[0]}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">{c.student_id?.full_name || '—'}</p>
+                    <p className="text-[10px] text-slate-400 font-mono">{c.student_id?.student_code || ''}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
+                    {c.method === 'qr' ? 'QR' : 'GPS'}
+                  </span>
+                  {c.distance_meters != null && (
+                    <p className="text-[10px] text-slate-400 mt-0.5">{c.distance_meters}m</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* QR Scanner Modal */}
+      <QrScannerModal
+        open={showQrScanner}
+        onClose={() => {
+          setShowQrScanner(false);
+          attendance.resetCheckinStatus();
+        }}
+        onScanned={async (token) => {
+          await attendance.checkinQr(token);
+        }}
+        checkinStatus={attendance.checkinStatus}
+        checkinError={attendance.checkinError}
+        onReset={attendance.resetCheckinStatus}
+      />
+
+      {/* Error display */}
+      {attendance.error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-600 font-medium">
+          {attendance.error}
+        </div>
+      )}
     </div>
   );
 }
