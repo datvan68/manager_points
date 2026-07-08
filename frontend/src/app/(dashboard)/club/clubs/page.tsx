@@ -195,12 +195,14 @@ const ClubStatusToggle = ({
   status,
   loading,
   compact = false,
+  disabled = false,
   onChange,
 }: {
   status?: string;
   loading?: boolean;
   compact?: boolean;
-  onChange: (status: ClubStatus) => void;
+  disabled?: boolean;
+  onChange?: (status: ClubStatus) => void;
 }) => {
   const normalizedStatus = toClubStatus(status);
 
@@ -217,26 +219,41 @@ const ClubStatusToggle = ({
         const isSelected = normalizedStatus === option.value;
         const Icon = option.Icon;
 
+        // Custom colors for status buttons when they are not selected
+        const unselectedStyles = 
+          option.value === 'active'
+            ? { text: 'text-emerald-600', icon: 'text-emerald-500', hover: 'hover:bg-emerald-50 hover:text-emerald-700' }
+            : option.value === 'suspended'
+            ? { text: 'text-amber-600', icon: 'text-amber-500', hover: 'hover:bg-amber-50 hover:text-amber-700' }
+            : { text: 'text-slate-500', icon: 'text-slate-400', hover: 'hover:bg-slate-100 hover:text-slate-700' };
+
         return (
           <button
             key={option.value}
             type="button"
             title={option.label}
             aria-pressed={isSelected}
-            disabled={loading}
-            onClick={() => onChange(option.value)}
+            disabled={loading || disabled}
+            onClick={() => !disabled && onChange?.(option.value)}
             className={cn(
-              "inline-flex items-center justify-center gap-1 rounded-lg border text-[10px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-60",
+              "inline-flex items-center justify-center gap-1 rounded-lg border text-[10px] font-bold transition-all disabled:cursor-not-allowed",
               compact ? "h-7 min-w-7 px-1.5" : "h-8 px-2.5",
               isSelected
                 ? option.activeClassName
-                : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                : cn("border-transparent", unselectedStyles.text, unselectedStyles.hover),
+              disabled ? (isSelected ? "opacity-90" : "opacity-45") : (loading ? "opacity-60" : "")
             )}
           >
             {loading && isSelected ? (
               <span className="h-3 w-3 rounded-full border border-current border-t-transparent animate-spin" />
             ) : (
-              <Icon size={12} className="shrink-0" />
+              <Icon 
+                size={12} 
+                className={cn(
+                  "shrink-0 transition-colors duration-200", 
+                  isSelected ? "text-white" : unselectedStyles.icon
+                )} 
+              />
             )}
             <span className={cn(compact && "sr-only")}>
               {compact ? option.shortLabel : option.label}
@@ -1151,14 +1168,6 @@ export default function ClubsListPage() {
                     {/* Actions */}
                     <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                       {canManageClub(club) && (
-                        <ClubStatusToggle
-                          status={club.status}
-                          loading={club.status_loading}
-                          compact
-                          onChange={(status) => handleClubStatusChange(club, status)}
-                        />
-                      )}
-                      {canManageClub(club) && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -1365,17 +1374,15 @@ export default function ClubsListPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        {canManageClub(club) ? (
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <ClubStatusToggle
-                              status={club.status}
-                              loading={club.status_loading}
-                              onChange={(status) => handleClubStatusChange(club, status)}
-                            />
-                          </div>
-                        ) : (
-                          <ClubStatusBadge status={club.status} />
-                        )}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <ClubStatusToggle
+                            status={club.status}
+                            loading={club.status_loading}
+                            compact
+                            disabled={!canManageClub(club)}
+                            onChange={(status) => handleClubStatusChange(club, status)}
+                          />
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-slate-400">
                         {getFriendlyTime(club.updatedAt)}
