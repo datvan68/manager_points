@@ -6,7 +6,7 @@ import {
   Plus, Search, Filter, Users, MapPin, Compass, Grid, List,
   Sparkles, Download, ArrowRight, BookOpen, Clock, Calendar, CheckCircle2,
   AlertCircle, ShieldAlert, MoreVertical, Edit2, Trash2, Eye, Shield, HelpCircle,
-  X, Upload, Heart, BarChart3, Palette
+  X, Upload, Heart, BarChart3, Palette, Settings, Image
 } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/button';
@@ -117,9 +117,136 @@ interface ClubWithStats extends Club {
   membership_status?: 'none' | 'pending' | 'active' | 'inactive' | 'rejected' | 'left';
   favorite_loading?: boolean;
   join_loading?: boolean;
+  status_loading?: boolean;
   schedule_time?: string;
   schedule_summary?: ScheduleSummaryRow[];
 }
+
+type ClubStatus = 'inactive' | 'suspended' | 'active';
+
+const CLUB_STATUS_OPTIONS = [
+  {
+    value: 'inactive',
+    label: 'Không hoạt động',
+    shortLabel: 'Không HĐ',
+    Icon: ShieldAlert,
+    activeClassName: 'bg-slate-700 text-white border-slate-700 shadow-sm',
+  },
+  {
+    value: 'suspended',
+    label: 'Tạm dừng',
+    shortLabel: 'Tạm dừng',
+    Icon: AlertCircle,
+    activeClassName: 'bg-amber-500 text-white border-amber-500 shadow-sm',
+  },
+  {
+    value: 'active',
+    label: 'Hoạt động',
+    shortLabel: 'Hoạt động',
+    Icon: CheckCircle2,
+    activeClassName: 'bg-emerald-500 text-white border-emerald-500 shadow-sm',
+  },
+] as const;
+
+const toClubStatus = (status?: string): ClubStatus => {
+  if (status === 'inactive' || status === 'suspended' || status === 'active') {
+    return status;
+  }
+  return 'inactive';
+};
+
+const getClubStatusLabel = (status?: string) => {
+  const normalizedStatus = toClubStatus(status);
+  return CLUB_STATUS_OPTIONS.find((option) => option.value === normalizedStatus)?.label || 'Không hoạt động';
+};
+
+const ClubStatusBadge = ({ status, isDark = false }: { status?: string; isDark?: boolean }) => {
+  const normalizedStatus = toClubStatus(status);
+
+  return (
+    <span className={cn(
+      "text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm border flex items-center gap-1 transition-all duration-300",
+      normalizedStatus === 'active' ? (
+        isDark
+          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+          : "bg-emerald-50/70 text-emerald-600 border-emerald-200/60"
+      ) : normalizedStatus === 'suspended' ? (
+        isDark
+          ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+          : "bg-amber-50/70 text-amber-600 border-amber-200/60"
+      ) : (
+        isDark
+          ? "bg-slate-500/10 text-slate-400 border-slate-500/20"
+          : "bg-slate-50/70 text-slate-500 border-slate-200/60"
+      )
+    )}>
+      <span className={cn(
+        "w-1 h-1 rounded-full shrink-0",
+        normalizedStatus === 'active' && "bg-emerald-500 animate-pulse",
+        normalizedStatus === 'suspended' && "bg-amber-500",
+        normalizedStatus === 'inactive' && "bg-slate-400"
+      )} />
+      {getClubStatusLabel(normalizedStatus)}
+    </span>
+  );
+};
+
+const ClubStatusToggle = ({
+  status,
+  loading,
+  compact = false,
+  onChange,
+}: {
+  status?: string;
+  loading?: boolean;
+  compact?: boolean;
+  onChange: (status: ClubStatus) => void;
+}) => {
+  const normalizedStatus = toClubStatus(status);
+
+  return (
+    <div
+      role="group"
+      aria-label="Cập nhật trạng thái CLB"
+      className={cn(
+        "inline-flex items-center rounded-xl border border-slate-200 bg-white/85 p-0.5 shadow-sm",
+        compact ? "gap-0.5" : "gap-1"
+      )}
+    >
+      {CLUB_STATUS_OPTIONS.map((option) => {
+        const isSelected = normalizedStatus === option.value;
+        const Icon = option.Icon;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            title={option.label}
+            aria-pressed={isSelected}
+            disabled={loading}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "inline-flex items-center justify-center gap-1 rounded-lg border text-[10px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-60",
+              compact ? "h-7 min-w-7 px-1.5" : "h-8 px-2.5",
+              isSelected
+                ? option.activeClassName
+                : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+            )}
+          >
+            {loading && isSelected ? (
+              <span className="h-3 w-3 rounded-full border border-current border-t-transparent animate-spin" />
+            ) : (
+              <Icon size={12} className="shrink-0" />
+            )}
+            <span className={cn(compact && "sr-only")}>
+              {compact ? option.shortLabel : option.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 const formatScheduleSummary = (schedules: any[], clubId: string) => {
   const summary = getClubScheduleSummary(schedules, clubId);
@@ -489,6 +616,41 @@ export default function ClubsListPage() {
         )
       );
       toast.error(err?.response?.data?.message || err?.message || 'Lỗi khi thay đổi trạng thái yêu thích');
+    }
+  };
+
+  const handleClubStatusChange = async (club: ClubWithStats, status: ClubStatus) => {
+    const previousStatus = toClubStatus(club.status);
+    if (previousStatus === status || club.status_loading) return;
+
+    setClubs((prev) =>
+      prev.map((c) =>
+        c._id === club._id
+          ? { ...c, status, status_loading: true }
+          : c
+      )
+    );
+
+    try {
+      const updatedClub = await clubApi.update(club._id, { status });
+      const nextStatus = toClubStatus(updatedClub.status);
+      setClubs((prev) =>
+        prev.map((c) =>
+          c._id === club._id
+            ? { ...c, ...updatedClub, status: nextStatus, status_loading: false }
+            : c
+        )
+      );
+      toast.success('Đã chuyển CLB "' + club.name + '" sang ' + getClubStatusLabel(nextStatus) + '.');
+    } catch (err: any) {
+      setClubs((prev) =>
+        prev.map((c) =>
+          c._id === club._id
+            ? { ...c, status: previousStatus, status_loading: false }
+            : c
+        )
+      );
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể cập nhật trạng thái CLB');
     }
   };
 
@@ -874,27 +1036,7 @@ export default function ClubsListPage() {
                       </span>
 
                       {/* Status Badge with Live Pulsing Dot */}
-                      <span className={cn(
-                        "text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm border flex items-center gap-1 transition-all duration-300",
-                        club.status === 'active' ? (
-                          isDarkTemplate
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                            : "bg-emerald-50/70 text-emerald-600 border-emerald-200/60"
-                        ) : club.status === 'suspended' ? (
-                          isDarkTemplate
-                            ? "bg-red-500/10 text-red-400 border-red-500/20"
-                            : "bg-red-50/70 text-red-600 border-red-200/60"
-                        ) : (
-                          isDarkTemplate
-                            ? "bg-slate-500/10 text-slate-400 border-slate-500/20"
-                            : "bg-slate-50/70 text-slate-500 border-slate-200/60"
-                        )
-                      )}>
-                        {club.status === 'active' && <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
-                        {club.status === 'suspended' && <span className="w-1 h-1 rounded-full bg-red-500 shrink-0" />}
-                        {club.status === 'inactive' && <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0" />}
-                        {club.status === 'active' ? 'Hoạt động' : club.status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động'}
-                      </span>
+                      <ClubStatusBadge status={club.status} isDark={isDarkTemplate} />
 
                       {/* Club Code */}
                       <span className={cn(
@@ -1008,6 +1150,14 @@ export default function ClubsListPage() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {canManageClub(club) && (
+                        <ClubStatusToggle
+                          status={club.status}
+                          loading={club.status_loading}
+                          compact
+                          onChange={(status) => handleClubStatusChange(club, status)}
+                        />
+                      )}
                       {canManageClub(club) && (
                         <Button
                           variant="outline"
@@ -1215,18 +1365,17 @@ export default function ClubsListPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          club.status === 'active' ? 'bg-emerald-500/10 text-emerald-600' :
-                          club.status === 'suspended' ? 'bg-red-500/10 text-red-600' :
-                          'bg-slate-500/10 text-slate-500'
-                        }`}>
-                          <span className={`w-1 h-1 rounded-full ${
-                            club.status === 'active' ? 'bg-emerald-500' :
-                            club.status === 'suspended' ? 'bg-red-500' :
-                            'bg-slate-500'
-                          }`} />
-                          {club.status === 'active' ? 'Hoạt động' : club.status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động'}
-                        </span>
+                        {canManageClub(club) ? (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <ClubStatusToggle
+                              status={club.status}
+                              loading={club.status_loading}
+                              onChange={(status) => handleClubStatusChange(club, status)}
+                            />
+                          </div>
+                        ) : (
+                          <ClubStatusBadge status={club.status} />
+                        )}
                       </td>
                       <td className="px-4 py-4 text-slate-400">
                         {getFriendlyTime(club.updatedAt)}
@@ -1700,41 +1849,144 @@ function CreateClubModal({ onClose, onSuccess, clubToEdit }: { onClose: () => vo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-100 flex flex-col my-8" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-100 flex flex-col my-8 animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
-            <h2 className="text-base font-black text-slate-800 tracking-tight">
+            <h2 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-blue-500 animate-pulse" />
               {clubToEdit ? 'Chỉnh sửa Câu lạc bộ' : 'Tạo Câu lạc bộ Mới'}
             </h2>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              {clubToEdit ? 'Cập nhật cấu hình và người phụ trách cho câu lạc bộ.' : 'Khai báo cấu hình và người phụ trách cho câu lạc bộ.'}
+            <p className="text-xs text-slate-500 mt-1">
+              {clubToEdit ? 'Cập nhật cấu hình và thông tin vận hành cho câu lạc bộ.' : 'Khai báo cấu hình, giáo viên phụ trách và thiết lập hoạt động.'}
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors text-xs font-semibold cursor-pointer">
-            Đóng
+          <button onClick={onClose} className="p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all cursor-pointer">
+            <X size={18} />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6 text-xs font-semibold overflow-y-auto max-h-[80vh]">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6 overflow-y-auto max-h-[85vh] text-slate-700">
+          
+          {/* Cover & Logo Preview Section */}
+          <div className="relative rounded-2xl overflow-hidden border border-slate-200/80 bg-slate-100/50 shadow-sm group">
+            {/* Cover Image Area */}
+            <div className="h-44 w-full bg-slate-200 relative overflow-hidden flex items-center justify-center transition-all duration-300">
+              {coverPreview ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={coverPreview} alt="Cover Preview" className="object-cover w-full h-full" />
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setCoverFile(null);
+                      setCoverPreview('');
+                      setUploadedCoverUrl('');
+                    }}
+                    className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/60 text-white hover:bg-black/80 transition-all cursor-pointer disabled:opacity-50 z-10"
+                    title="Xóa ảnh bìa"
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              ) : (
+                <div className={cn(
+                  "w-full h-full flex flex-col items-center justify-center gap-1.5 transition-all duration-500",
+                  watch('category') && categoryConfigs[watch('category')]
+                    ? `bg-gradient-to-r ${categoryConfigs[watch('category')].gradient}`
+                    : "bg-gradient-to-r from-slate-400 to-slate-500"
+                )}>
+                  <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer hover:bg-black/10 transition-all gap-1.5 py-8">
+                    <div className="p-2 rounded-full bg-white/20 backdrop-blur-md text-white">
+                      <Image className="h-5 w-5" />
+                    </div>
+                    <span className="text-xs text-white font-bold drop-shadow-sm">Tải lên ảnh bìa</span>
+                    <span className="text-[9px] text-white/80 font-medium">PNG, JPG, WebP tối đa 5MB</span>
+                    <input
+                      type="file"
+                      accept="image/png, image/jpeg, image/webp"
+                      className="hidden"
+                      onChange={handleCoverChange}
+                      disabled={saving}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {/* Logo Image Area (overlapping) */}
+            <div className="absolute left-6 bottom-4 flex items-end gap-4 z-10">
+              <div className="relative h-20 w-20 rounded-2xl overflow-hidden border-4 border-white bg-white shadow-md group/logo shrink-0 flex items-center justify-center">
+                {logoPreview ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={logoPreview} alt="Logo Preview" className="object-cover w-full h-full" />
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        setLogoFile(null);
+                        setLogoPreview('');
+                        setUploadedLogoUrl('');
+                      }}
+                      className="absolute top-1 right-1 p-1 rounded-md bg-black/60 text-white hover:bg-black/85 transition-all cursor-pointer disabled:opacity-50 z-10"
+                      title="Xóa logo"
+                    >
+                      <X size={10} />
+                    </button>
+                  </>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-full bg-slate-50 hover:bg-slate-100 cursor-pointer transition-all gap-1">
+                    <Upload className="h-4 w-4 text-slate-400" />
+                    <span className="text-[9px] text-slate-500 font-bold">Logo</span>
+                    <input
+                      type="file"
+                      accept="image/png, image/jpeg, image/webp"
+                      className="hidden"
+                      onChange={handleLogoChange}
+                      disabled={saving}
+                    />
+                  </label>
+                )}
+              </div>
+              <div className="mb-1 text-left">
+                <p className="text-sm font-bold text-slate-800 drop-shadow-sm bg-white/80 backdrop-blur-md px-2 py-0.5 rounded-lg inline-block border border-slate-100">
+                  {watch('name') || "Tên Câu Lạc Bộ"}
+                </p>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-600 bg-white/80 backdrop-blur-md px-2 py-0.5 rounded-md mt-1 inline-block border border-slate-100">
+                    {watch('code') ? `${watch('code').toUpperCase()}` : "MÃ CLB"} • {watch('category') ? categoryConfigs[watch('category')]?.label : "Phân loại"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Main Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
             
             {/* Cột 1: Thông tin chung */}
-            <div className="space-y-4">
-              <h3 className="text-slate-700 font-bold border-b border-slate-100 pb-2 uppercase tracking-wider text-[10px]">1. Thông tin chung</h3>
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                <div className="p-1 rounded-lg bg-blue-50 text-blue-600">
+                  <Palette className="h-4 w-4" />
+                </div>
+                <h3 className="text-slate-800 font-extrabold uppercase tracking-wider text-[11px]">1. Thông tin chung</h3>
+              </div>
               
               {/* Tên & Mã */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-2">
                   <Input
-                    label="Tên CLB"
+                    label="Tên câu lạc bộ"
                     required
                     error={errors.name?.message}
-                    placeholder="VD: CLB Nghệ thuật"
+                    placeholder="VD: CLB Nghệ thuật sáng tạo"
                     disabled={saving}
+                    className="focus:ring-blue-500/20 focus:border-blue-500"
                     {...register('name')}
                   />
                 </div>
@@ -1745,6 +1997,7 @@ function CreateClubModal({ onClose, onSuccess, clubToEdit }: { onClose: () => vo
                     error={errors.code?.message}
                     placeholder="VD: ART"
                     disabled={saving || !!clubToEdit}
+                    className="focus:ring-blue-500/20 focus:border-blue-500"
                     {...register('code')}
                     onChange={(e) => {
                       e.target.value = e.target.value.toUpperCase();
@@ -1754,20 +2007,12 @@ function CreateClubModal({ onClose, onSuccess, clubToEdit }: { onClose: () => vo
                 </div>
               </div>
 
-              {/* Phòng học mặc định */}
-              <div>
-                <Input
-                  label="Phòng học hoạt động mặc định"
-                  required
-                  error={errors.classroom?.message}
-                  placeholder="VD: Phòng A101"
-                  disabled={saving}
-                  {...register('classroom')}
-                />
-              </div>
-
               {/* Phân loại */}
-              <div>
+              <div className="flex flex-col gap-1.5 w-full">
+                <label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">
+                  Phân loại câu lạc bộ
+                  <span className="text-red-500">*</span>
+                </label>
                 <Controller
                   name="category"
                   control={control}
@@ -1775,17 +2020,18 @@ function CreateClubModal({ onClose, onSuccess, clubToEdit }: { onClose: () => vo
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
-                      label="Phân loại câu lạc bộ"
-                      required
                       error={errors.category?.message}
                     >
-                      <SelectTrigger className="h-10" disabled={saving}>
-                        <SelectValue placeholder="-- Chọn phân loại --" />
+                      <SelectTrigger className="h-10 rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" disabled={saving}>
+                        <SelectValue placeholder="-- Chọn phân loại câu lạc bộ --" />
                       </SelectTrigger>
                       <SelectContent>
                         {Object.entries(categoryConfigs).map(([k, conf]) => (
                           <SelectItem key={k} value={k}>
-                            {conf.label}
+                            <div className="flex items-center gap-2">
+                              <span className={cn("w-2 h-2 rounded-full bg-gradient-to-r", conf.gradient)}></span>
+                              <span className="text-xs font-semibold">{conf.label}</span>
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1794,100 +2040,35 @@ function CreateClubModal({ onClose, onSuccess, clubToEdit }: { onClose: () => vo
                 />
               </div>
 
-              {/* Cover Image Upload */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[13px] font-bold text-[#1E293B] px-1">Ảnh bìa câu lạc bộ (Cover Image)</label>
-                {coverPreview ? (
-                  <div className="relative h-28 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-50 group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={coverPreview} alt="Cover Preview" className="object-cover w-full h-full" />
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => {
-                        setCoverFile(null);
-                        setCoverPreview('');
-                        setUploadedCoverUrl('');
-                      }}
-                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white hover:bg-black/80 transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <label className="flex flex-col items-center justify-center h-28 w-full rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-50/85 cursor-pointer transition-all gap-2 group">
-                    <Upload className="h-5 w-5 text-slate-400 group-hover:text-blue-500 transition-colors" />
-                    <span className="text-[10px] text-slate-500 font-semibold px-2 text-center">Tải lên ảnh bìa (PNG, JPG, WebP tối đa 5MB)</span>
-                    <input
-                      type="file"
-                      accept="image/png, image/jpeg, image/webp"
-                      className="hidden"
-                      onChange={handleCoverChange}
-                      disabled={saving}
-                    />
-                  </label>
-                )}
-              </div>
-
-              {/* Logo Upload */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[13px] font-bold text-[#1E293B] px-1">Logo câu lạc bộ (Logo Image)</label>
-                <div className="flex gap-4 items-center">
-                  {logoPreview ? (
-                    <div className="relative h-20 w-20 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 group shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={logoPreview} alt="Logo Preview" className="object-cover w-full h-full" />
-                      <button
-                        type="button"
-                        disabled={saving}
-                        onClick={() => {
-                          setLogoFile(null);
-                          setLogoPreview('');
-                          setUploadedLogoUrl('');
-                        }}
-                        className="absolute top-1 right-1 p-1 rounded-md bg-black/60 text-white hover:bg-black/85 transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        <X size={10} />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center h-20 w-20 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-50/85 cursor-pointer transition-all gap-1.5 group shrink-0">
-                      <Upload className="h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
-                      <span className="text-[9px] text-slate-500 font-bold text-center leading-tight px-1">Logo</span>
-                      <input
-                        type="file"
-                        accept="image/png, image/jpeg, image/webp"
-                        className="hidden"
-                        onChange={handleLogoChange}
-                        disabled={saving}
-                      />
-                    </label>
-                  )}
-                  <div className="text-[10px] text-slate-400 font-medium">
-                    Logo hiển thị hình vuông (tỉ lệ 1:1). Hỗ trợ PNG, JPG, WebP tối đa 5MB.
-                  </div>
-                </div>
-              </div>
-
               {/* Mô tả */}
               <div>
                 <Input
                   multiline
-                  rows={3}
+                  rows={4}
                   label="Mô tả hoạt động"
-                  placeholder="Mô tả tôn chỉ và phương thức sinh hoạt của câu lạc bộ..."
+                  placeholder="Mô tả chi tiết về tôn chỉ, định hướng hoạt động và phương thức sinh hoạt của câu lạc bộ..."
                   disabled={saving}
+                  className="focus:ring-blue-500/20 focus:border-blue-500"
                   {...register('description')}
                 />
               </div>
             </div>
 
-            {/* Cột 2: Thời gian, Cố vấn & Thiết lập */}
-            <div className="space-y-4">
-              <h3 className="text-slate-700 font-bold border-b border-slate-100 pb-2 uppercase tracking-wider text-[10px]">2. Cố vấn & Cấu hình</h3>
+            {/* Cột 2: Cố vấn & Vận hành */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                <div className="p-1 rounded-lg bg-indigo-50 text-indigo-600">
+                  <Settings className="h-4 w-4" />
+                </div>
+                <h3 className="text-slate-800 font-extrabold uppercase tracking-wider text-[11px]">2. Cố vấn & Vận hành</h3>
+              </div>
               
               {/* Cố vấn phụ trách */}
-              <div>
+              <div className="flex flex-col gap-1.5 w-full">
+                <label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">
+                  Giáo viên phụ trách (Cố vấn)
+                  <span className="text-red-500">*</span>
+                </label>
                 <Controller
                   name="advisor_id"
                   control={control}
@@ -1895,17 +2076,18 @@ function CreateClubModal({ onClose, onSuccess, clubToEdit }: { onClose: () => vo
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
-                      label="Giáo viên phụ trách (Cố vấn)"
-                      required
                       error={errors.advisor_id?.message}
                     >
-                      <SelectTrigger className="h-10" disabled={saving}>
-                        <SelectValue placeholder="-- Chọn cố vấn --" />
+                      <SelectTrigger className="h-10 rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" disabled={saving}>
+                        <SelectValue placeholder="-- Chọn cố vấn phụ trách --" />
                       </SelectTrigger>
                       <SelectContent>
                         {teachers.map(u => (
                           <SelectItem key={u._id || u.id} value={u._id || u.id}>
-                            {`${u.full_name || u.user_name || u.username} (${u.email || 'Không có email'})${u.department ? ` - ${u.department}` : ''}`}
+                            <div className="flex flex-col text-left py-0.5">
+                              <span className="font-bold text-slate-700 text-xs">{u.full_name || u.user_name || u.username}</span>
+                              <span className="text-[10px] text-slate-400 font-semibold">{u.email || 'Không có email'}{u.department ? ` • ${u.department}` : ''}</span>
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1914,9 +2096,12 @@ function CreateClubModal({ onClose, onSuccess, clubToEdit }: { onClose: () => vo
                 />
               </div>
 
-              {/* Học kỳ & Thành viên tối đa */}
+              {/* Học kỳ & Phòng học */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="flex flex-col gap-1.5 w-full">
+                  <label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">
+                    Học kỳ áp dụng
+                  </label>
                   <Controller
                     name="semester_id"
                     control={control}
@@ -1924,15 +2109,16 @@ function CreateClubModal({ onClose, onSuccess, clubToEdit }: { onClose: () => vo
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
-                        label="Học kỳ"
                         error={errors.semester_id?.message}
                       >
-                        <SelectTrigger className="h-10" disabled={saving}>
-                          <SelectValue placeholder="-- Chọn học kỳ --" />
+                        <SelectTrigger className="h-10 rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" disabled={saving}>
+                          <SelectValue placeholder="-- Học kỳ --" />
                         </SelectTrigger>
                         <SelectContent>
                           {semesters.map(s => (
-                            <SelectItem key={s._id} value={s._id}>{s.semester_name}</SelectItem>
+                            <SelectItem key={s._id} value={s._id}>
+                              <span className="text-xs font-semibold">{s.semester_name}</span>
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1941,88 +2127,160 @@ function CreateClubModal({ onClose, onSuccess, clubToEdit }: { onClose: () => vo
                 </div>
                 <div>
                   <Input
-                    type="number"
-                    label="Giới hạn thành viên"
-                    placeholder="Để trống nếu không giới hạn"
+                    label="Phòng hoạt động mặc định"
+                    required
+                    error={errors.classroom?.message}
+                    placeholder="VD: Phòng A101"
                     disabled={saving}
-                    {...register('max_members')}
+                    className="focus:ring-blue-500/20 focus:border-blue-500"
+                    {...register('classroom')}
                   />
                 </div>
               </div>
 
-              {/* Settings Checkboxes */}
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-slate-700 font-bold">Cho phép tự đăng ký</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Người dùng có thể tham gia mà không cần chờ duyệt</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    disabled={saving}
-                    {...register('settings.allow_self_registration')}
-                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-slate-700 font-bold">Yêu cầu phê duyệt</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Ban chủ nhiệm hoặc Cố văn duyệt đơn</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    disabled={saving}
-                    {...register('settings.require_approval')}
-                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                  <div>
-                    <p className="text-slate-700 font-bold">Tích lũy điểm rèn luyện</p>
-                    <p className="text-[10px] text-slate-400 font-medium">Cộng điểm rèn luyện khi đi điểm danh</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    disabled={saving}
-                    {...register('settings.attendance_point_enabled')}
-                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
-                  />
-                </div>
-
-                {watchAttendancePointEnabled && (
-                  <div className="animate-fade-in pl-4 border-l-2 border-blue-500 py-1 transition-all">
-                    <label className="block text-slate-500 mb-1">Số điểm mỗi buổi điểm danh *</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      disabled={saving}
-                      {...register('settings.point_per_attendance')}
-                      className="w-32 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                      placeholder="VD: 0.5"
-                    />
-                    {errors.settings?.point_per_attendance && <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.settings.point_per_attendance.message}</p>}
-                  </div>
-                )}
+              {/* Giới hạn thành viên */}
+              <div>
+                <Input
+                  type="number"
+                  label="Giới hạn thành viên tối đa"
+                  placeholder="Để trống nếu không giới hạn thành viên"
+                  disabled={saving}
+                  className="focus:ring-blue-500/20 focus:border-blue-500"
+                  {...register('max_members')}
+                />
               </div>
             </div>
           </div>
 
+          {/* Quyền hạn & Chế độ hoạt động */}
+          <div className="space-y-4 border-t border-slate-100 pt-5">
+            <div className="flex items-center gap-2">
+              <div className="p-1 rounded-lg bg-rose-50 text-rose-600">
+                <ShieldAlert className="h-4 w-4" />
+              </div>
+              <h3 className="text-slate-800 font-extrabold uppercase tracking-wider text-[11px]">3. Thiết lập hoạt động</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              {/* Card Switch 1: Tự đăng ký */}
+              <div className={cn(
+                "border rounded-2xl p-4 flex items-start justify-between gap-4 transition-all duration-300 bg-slate-50/50 border-slate-100 hover:border-slate-200/80 cursor-pointer",
+                watch('settings.allow_self_registration') && "bg-blue-50/20 border-blue-200/60 shadow-sm"
+              )} onClick={() => setValue('settings.allow_self_registration', !watch('settings.allow_self_registration'))}>
+                <div className="flex gap-3">
+                  <div className={cn(
+                    "p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 transition-colors duration-300",
+                    watch('settings.allow_self_registration') && "bg-blue-100 text-blue-600"
+                  )}>
+                    <Users size={16} />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="font-bold text-slate-800 text-xs">Cho phép tự đăng ký</h4>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-relaxed">Học sinh có thể tự tham gia CLB mà không cần chờ</p>
+                  </div>
+                </div>
+                <div className="relative inline-flex items-center cursor-pointer shrink-0" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    disabled={saving}
+                    {...register('settings.allow_self_registration')}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </div>
+              </div>
+
+              {/* Card Switch 2: Yêu cầu phê duyệt */}
+              <div className={cn(
+                "border rounded-2xl p-4 flex items-start justify-between gap-4 transition-all duration-300 bg-slate-50/50 border-slate-100 hover:border-slate-200/80 cursor-pointer",
+                watch('settings.require_approval') && "bg-blue-50/20 border-blue-200/60 shadow-sm"
+              )} onClick={() => setValue('settings.require_approval', !watch('settings.require_approval'))}>
+                <div className="flex gap-3">
+                  <div className={cn(
+                    "p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 transition-colors duration-300",
+                    watch('settings.require_approval') && "bg-blue-100 text-blue-600"
+                  )}>
+                    <Shield size={16} />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="font-bold text-slate-800 text-xs">Yêu cầu phê duyệt</h4>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-relaxed">Cố vấn hoặc Ban chủ nhiệm phải duyệt đơn tham gia</p>
+                  </div>
+                </div>
+                <div className="relative inline-flex items-center cursor-pointer shrink-0" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    disabled={saving}
+                    {...register('settings.require_approval')}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </div>
+              </div>
+
+              {/* Card Switch 3: Tích lũy điểm rèn luyện */}
+              <div className={cn(
+                "border rounded-2xl p-4 flex items-start justify-between gap-4 transition-all duration-300 bg-slate-50/50 border-slate-100 hover:border-slate-200/80 cursor-pointer",
+                watch('settings.attendance_point_enabled') && "bg-blue-50/20 border-blue-200/60 shadow-sm"
+              )} onClick={() => setValue('settings.attendance_point_enabled', !watch('settings.attendance_point_enabled'))}>
+                <div className="flex gap-3">
+                  <div className={cn(
+                    "p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0 transition-colors duration-300",
+                    watch('settings.attendance_point_enabled') && "bg-blue-100 text-blue-600"
+                  )}>
+                    <Sparkles size={16} />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="font-bold text-slate-800 text-xs">Tích lũy điểm rèn luyện</h4>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-relaxed">Học sinh được cộng điểm rèn luyện khi đi điểm danh</p>
+                  </div>
+                </div>
+                <div className="relative inline-flex items-center cursor-pointer shrink-0" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    disabled={saving}
+                    {...register('settings.attendance_point_enabled')}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Attendance points field block */}
+            {watchAttendancePointEnabled && (
+              <div className="animate-in slide-in-from-top duration-300 pl-4 border-l-4 border-blue-500 py-1 transition-all mt-4">
+                <label className="block text-slate-700 font-bold mb-1.5 text-xs">Số điểm mỗi buổi điểm danh *</label>
+                <div className="relative rounded-xl overflow-hidden max-w-[220px]">
+                  <input
+                    type="number"
+                    step="0.1"
+                    disabled={saving}
+                    {...register('settings.point_per_attendance')}
+                    className="w-full px-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-semibold"
+                    placeholder="VD: 0.5"
+                  />
+                </div>
+                {errors.settings?.point_per_attendance && <p className="text-red-500 text-[10px] mt-1.5 font-bold">{errors.settings.point_per_attendance.message}</p>}
+              </div>
+            )}
+          </div>
+
           {/* Buttons */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-2"
+              className="px-6 py-2.5 bg-blue-600 text-white font-extrabold text-xs rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md shadow-blue-500/25 cursor-pointer flex items-center gap-2"
             >
               {saving && <Plus size={14} className="animate-spin" />}
               {saving ? (clubToEdit ? 'Đang cập nhật...' : 'Đang tạo...') : (clubToEdit ? 'Lưu thay đổi' : 'Tạo câu lạc bộ')}
@@ -3284,27 +3542,7 @@ function BackgroundSetupModal({
                   </span>
 
                   {/* Status Badge with Live Pulsing Dot */}
-                  <span className={cn(
-                    "text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm border flex items-center gap-1 transition-all duration-300",
-                    club.status === 'active' ? (
-                      isPreviewDark
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                        : "bg-emerald-50/70 text-emerald-600 border-emerald-200/60"
-                    ) : club.status === 'suspended' ? (
-                      isPreviewDark
-                        ? "bg-red-500/10 text-red-400 border-red-500/20"
-                        : "bg-red-50/70 text-red-600 border-red-200/60"
-                    ) : (
-                      isPreviewDark
-                        ? "bg-slate-500/10 text-slate-400 border-slate-500/20"
-                        : "bg-slate-50/70 text-slate-500 border-slate-200/60"
-                    )
-                  )}>
-                    {club.status === 'active' && <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
-                    {club.status === 'suspended' && <span className="w-1 h-1 rounded-full bg-red-500 shrink-0" />}
-                    {club.status === 'inactive' && <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0" />}
-                    {club.status === 'active' ? 'Hoạt động' : club.status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động'}
-                  </span>
+                  <ClubStatusBadge status={club.status} isDark={isPreviewDark} />
 
                   {/* Club Code */}
                   <span className={cn(

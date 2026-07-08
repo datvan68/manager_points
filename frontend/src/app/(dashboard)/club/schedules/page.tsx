@@ -5,7 +5,8 @@ import {
   Clock, MapPin, ChevronLeft, ChevronRight,
   Search, Users, Trash2, AlertCircle, CalendarRange, Calendar,
   X, Grid, List, Activity, HelpCircle, Settings, SlidersHorizontal,
-  Sunrise, Sun, Moon, Clock3, Copy
+  Sunrise, Sun, Moon, Clock3, Copy, Plus, Filter, RotateCw, Sparkles,
+  CalendarDays, ChevronDown
 } from 'lucide-react';
 import { clubScheduleApi, clubApi, ClubSchedule, Club } from '@/api/club-api';
 import { semesterApi, Semester } from '@/api/semester-api';
@@ -42,6 +43,7 @@ const accentStyles: Record<AccentColor, {
   icon: string;
   badge: string;
   borderL: string;
+  gradientL: string;
 }> = {
   blue: {
     card: 'bg-blue-500/10 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.06)]',
@@ -49,7 +51,8 @@ const accentStyles: Record<AccentColor, {
     sub: 'text-blue-800/85',
     icon: 'text-blue-500',
     badge: 'bg-blue-500/10 text-blue-600',
-    borderL: 'border-l-blue-500'
+    borderL: 'border-l-blue-500',
+    gradientL: 'from-blue-500 to-indigo-600'
   },
   cyan: {
     card: 'bg-cyan-500/10 border-cyan-500/20 shadow-[0_2px_8px_rgba(6,182,212,0.06)]',
@@ -57,7 +60,8 @@ const accentStyles: Record<AccentColor, {
     sub: 'text-cyan-800/85',
     icon: 'text-cyan-500',
     badge: 'bg-cyan-500/10 text-cyan-600',
-    borderL: 'border-l-cyan-500'
+    borderL: 'border-l-cyan-500',
+    gradientL: 'from-cyan-400 to-blue-500'
   },
   emerald: {
     card: 'bg-emerald-500/10 border-emerald-500/20 shadow-[0_2px_8px_rgba(16,185,129,0.06)]',
@@ -65,7 +69,8 @@ const accentStyles: Record<AccentColor, {
     sub: 'text-emerald-800/85',
     icon: 'text-emerald-500',
     badge: 'bg-emerald-500/10 text-emerald-600',
-    borderL: 'border-l-emerald-500'
+    borderL: 'border-l-emerald-500',
+    gradientL: 'from-emerald-400 to-teal-600'
   },
   amber: {
     card: 'bg-amber-500/10 border-amber-500/20 shadow-[0_2px_8px_rgba(245,158,11,0.06)]',
@@ -73,7 +78,8 @@ const accentStyles: Record<AccentColor, {
     sub: 'text-amber-800/85',
     icon: 'text-amber-500',
     badge: 'bg-amber-500/10 text-amber-600',
-    borderL: 'border-l-amber-500'
+    borderL: 'border-l-amber-500',
+    gradientL: 'from-amber-400 to-orange-600'
   },
   rose: {
     card: 'bg-rose-500/10 border-rose-500/20 shadow-[0_2px_8px_rgba(244,63,94,0.06)]',
@@ -81,7 +87,8 @@ const accentStyles: Record<AccentColor, {
     sub: 'text-rose-800/85',
     icon: 'text-rose-500',
     badge: 'bg-rose-500/10 text-rose-600',
-    borderL: 'border-l-rose-500'
+    borderL: 'border-l-rose-500',
+    gradientL: 'from-rose-400 to-pink-600'
   },
   violet: {
     card: 'bg-violet-500/10 border-violet-500/20 shadow-[0_2px_8px_rgba(139,92,246,0.06)]',
@@ -89,7 +96,8 @@ const accentStyles: Record<AccentColor, {
     sub: 'text-violet-800/85',
     icon: 'text-violet-500',
     badge: 'bg-violet-500/10 text-violet-600',
-    borderL: 'border-l-violet-500'
+    borderL: 'border-l-violet-500',
+    gradientL: 'from-violet-400 to-purple-600'
   },
   slate: {
     card: 'bg-slate-500/10 border-slate-500/20 shadow-[0_2px_8px_rgba(100,116,139,0.06)]',
@@ -97,7 +105,8 @@ const accentStyles: Record<AccentColor, {
     sub: 'text-slate-800/85',
     icon: 'text-slate-500',
     badge: 'bg-slate-500/10 text-slate-600',
-    borderL: 'border-l-slate-500'
+    borderL: 'border-l-slate-500',
+    gradientL: 'from-slate-400 to-slate-600'
   }
 };
 
@@ -924,6 +933,8 @@ export default function SchedulesOverview() {
   const [preRecurrenceWeekOffset, setPreRecurrenceWeekOffset] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterScheduleType, setFilterScheduleType] = useState<string>('all');
+  const [filterClubId, setFilterClubId] = useState<string>('all');
 
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -988,21 +999,21 @@ export default function SchedulesOverview() {
     const isSavedRecurring = !isAnchorInRecurrence && !!schedule.recurrence_id;
     
     let badgeText = '';
-    let badgeStyle = 'text-blue-700 bg-blue-500/10 border-blue-500/20';
+    let badgeStyle = 'text-blue-600 bg-blue-50/70 border-blue-100/60';
 
     if (isAnchorInRecurrence) {
       badgeText = 'Lặp (Anchor)';
-      badgeStyle = 'text-blue-700 bg-blue-500/10 border-blue-500/20';
+      badgeStyle = 'text-blue-600 bg-blue-50/70 border-blue-100/60';
     } else if (isSavedRecurring) {
       const isSource = schedule.recurrence?.source_week_start_date && 
         getMondayDateStr(schedule.start_time) === getMondayDateStr(schedule.recurrence.source_week_start_date);
       
       if (isSource) {
         badgeText = 'Nguồn lặp';
-        badgeStyle = 'text-purple-700 bg-purple-500/10 border-purple-500/20';
+        badgeStyle = 'text-purple-600 bg-purple-50/70 border-purple-100/60';
       } else {
         badgeText = 'Buổi lặp';
-        badgeStyle = 'text-amber-700 bg-amber-500/10 border-amber-500/20';
+        badgeStyle = 'text-amber-600 bg-amber-50/70 border-amber-100/60';
       }
     }
     
@@ -1010,15 +1021,17 @@ export default function SchedulesOverview() {
     
     if (size === 'sm') {
       return (
-        <div className={cn("text-[7px] font-black rounded px-1 py-0.5 mt-1.5 w-fit shrink-0 border", badgeStyle)}>
-          {badgeText}
+        <div className={cn("inline-flex items-center gap-1 text-[7px] font-black rounded-full px-1.5 py-0.5 mt-1.5 w-fit shrink-0 border uppercase tracking-wider", badgeStyle)}>
+          <RotateCw size={7} className="opacity-80" />
+          <span>{badgeText}</span>
         </div>
       );
     }
     
     return (
-      <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded ml-2 uppercase tracking-wide border", badgeStyle)}>
-        {badgeText}
+      <span className={cn("inline-flex items-center gap-1 text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border", badgeStyle)}>
+        <RotateCw size={8} className="opacity-80" />
+        <span>{badgeText}</span>
       </span>
     );
   };
@@ -1925,9 +1938,20 @@ export default function SchedulesOverview() {
       return a.title.localeCompare(b.title);
     });
 
-  const morningSchedules = selectedDaySchedules.filter(s => s.visibleStart.getHours() < 13);
-  const afternoonSchedules = selectedDaySchedules.filter(s => s.visibleStart.getHours() >= 13 && s.visibleStart.getHours() < 18);
-  const eveningSchedules = selectedDaySchedules.filter(s => s.visibleStart.getHours() >= 18);
+  // Filter daily schedules based on type and club selection
+  const filteredDailySchedules = selectedDaySchedules.filter(s => {
+    const matchesType = filterScheduleType === 'all' || s.schedule_type === filterScheduleType;
+    let matchesClub = true;
+    if (filterClubId !== 'all') {
+      const clubId = typeof s.club_id === 'object' ? s.club_id._id : s.club_id;
+      matchesClub = clubId === filterClubId;
+    }
+    return matchesType && matchesClub;
+  });
+
+  const morningSchedules = filteredDailySchedules.filter(s => s.visibleStart.getHours() < 13);
+  const afternoonSchedules = filteredDailySchedules.filter(s => s.visibleStart.getHours() >= 13 && s.visibleStart.getHours() < 18);
+  const eveningSchedules = filteredDailySchedules.filter(s => s.visibleStart.getHours() >= 18);
 
 
 
@@ -2568,324 +2592,598 @@ export default function SchedulesOverview() {
       ) : (
         /* Daily shift timeline view */
         <div className="space-y-6">
-          {/* Day selection header navigation bar */}
-          <div className="flex justify-between items-center bg-white/50 backdrop-blur-md border border-white/60 p-2 rounded-2xl shadow-sm overflow-x-auto">
-            <div className="flex gap-2 w-full justify-between md:justify-start">
+          {/* Date Selector Header & Filter Controls */}
+          <div className="bg-white/45 backdrop-blur-md border border-white/70 p-4 rounded-3xl shadow-sm space-y-4 animate-fadeIn">
+            
+            {/* Header info: Month & Today button */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-blue-500" />
+                <h3 className="text-sm font-black text-slate-800 tracking-tight uppercase">
+                  {selectedDate.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}
+                </h3>
+              </div>
+              
+              <button
+                onClick={() => setSelectedDate(new Date())}
+                className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold rounded-xl transition-all cursor-pointer border border-blue-100"
+              >
+                Hôm nay
+              </button>
+            </div>
+
+            {/* Horizontal Scrollable Date selection strip */}
+            <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex gap-2.5 pb-1 pt-1 snap-x snap-mandatory">
               {weekDates.map((date, idx) => {
                 const isSelected = selectedDate.toDateString() === date.toDateString();
                 const isToday = new Date().toDateString() === date.toDateString();
                 const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+                
+                // Check if this date has any scheduled events
+                const hasEvents = schedules.some(s => s.status !== 'cancelled' && doesScheduleOccurOnDate(s, date));
 
                 return (
                   <button
                     key={idx}
                     onClick={() => setSelectedDate(date)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-xl min-w-[56px] transition-all cursor-pointer ${
+                    className={cn(
+                      "flex flex-col items-center justify-center p-3 rounded-2xl min-w-[62px] snap-center transition-all duration-200 cursor-pointer relative",
                       isSelected
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10'
+                        ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 scale-105"
                         : isToday
-                        ? 'bg-blue-500/10 text-blue-600 hover:bg-blue-500/20'
-                        : 'bg-white/40 text-slate-600 hover:bg-white/80'
-                    }`}
+                        ? "bg-blue-500/10 border border-blue-500/40 text-blue-600 hover:bg-blue-500/20"
+                        : "bg-white/40 text-slate-600 hover:bg-white/80 border border-slate-200/30"
+                    )}
                   >
-                    <span className="text-[10px] font-bold tracking-wider uppercase opacity-80">
+                    <span className={cn(
+                      "text-[10px] font-bold tracking-wider uppercase opacity-80",
+                      isSelected ? "text-white/90" : "text-slate-400"
+                    )}>
                       {idx === 6 ? 'SUN' : dayNames[idx + 1] === 'CN' ? 'SUN' : dayNames[idx + 1]}
                     </span>
-                    <span className="text-lg font-black mt-1">
+                    <span className="text-lg font-black mt-1 leading-none">
                       {date.getDate()}
                     </span>
-                    {isSelected && (
-                      <span className="w-4 h-0.5 bg-white rounded-full mt-1.5" />
+                    
+                    {/* Small dot indicating there are events scheduled for this day */}
+                    {hasEvents && (
+                      <span className={cn(
+                        "w-1 h-1 rounded-full absolute bottom-1.5",
+                        isSelected ? "bg-white" : "bg-blue-500"
+                      )} />
                     )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quick Filters (Capsules) */}
+            <div className="flex flex-wrap gap-2 pt-1.5 border-t border-slate-200/40">
+              
+              {/* Club Dropdown Filter */}
+              <div className="flex items-center gap-1.5 bg-slate-100/80 hover:bg-slate-200/70 px-3 py-1.5 rounded-full text-xs font-bold text-slate-700 cursor-pointer transition-all border border-slate-200/40">
+                <Filter size={12} className="text-slate-500" />
+                <select
+                  value={filterClubId}
+                  onChange={(e) => setFilterClubId(e.target.value)}
+                  className="bg-transparent border-none outline-none cursor-pointer pr-1 text-slate-700 font-bold text-xs"
+                >
+                  <option value="all">Tất cả CLB</option>
+                  {clubs.map(c => (
+                    <option key={c._id} value={c._id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Schedule Type Filters */}
+              {[
+                { value: 'all', label: 'Tất cả', color: 'bg-blue-500' },
+                { value: 'regular', label: 'Sinh hoạt', color: 'bg-blue-500' },
+                { value: 'event', label: 'Sự kiện', color: 'bg-purple-500' },
+                { value: 'exam', label: 'Kiểm tra', color: 'bg-red-500' },
+                { value: 'meeting', label: 'Họp', color: 'bg-amber-500' }
+              ].map(type => {
+                const isActive = filterScheduleType === type.value;
+                return (
+                  <button
+                    key={type.value}
+                    onClick={() => setFilterScheduleType(type.value)}
+                    className={cn(
+                      "px-3.5 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer border border-transparent",
+                      isActive
+                        ? `${type.color} text-white shadow-sm shadow-blue-500/10`
+                        : "bg-slate-100/80 text-slate-600 hover:bg-slate-200/70 hover:text-slate-800"
+                    )}
+                  >
+                    {type.label}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Timeline lists grouped by Shift */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* Morning Shift */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/70 p-3 rounded-xl shadow-sm w-fit">
-                <Sunrise className="h-5 w-5 text-amber-500" />
-                <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Ca Sáng</span>
-                <span className="text-[10px] font-bold text-slate-400">07:00 - 11:30</span>
+          {/* Timeline View list */}
+          {filteredDailySchedules.length === 0 ? (
+            /* Empty State */
+            <div className="flex flex-col items-center justify-center py-16 px-4 bg-white/20 backdrop-blur-md border border-white/60 rounded-3xl text-center space-y-4 max-w-md mx-auto shadow-sm animate-fadeIn">
+              <div className="w-16 h-16 rounded-2xl bg-blue-50/80 flex items-center justify-center text-blue-500 shadow-inner">
+                <CalendarDays size={32} className="opacity-80" />
               </div>
+              <div className="space-y-1">
+                <h4 className="text-base font-extrabold text-slate-800">Hôm nay trống lịch</h4>
+                <p className="text-xs text-slate-500 font-semibold max-w-xs">Không có hoạt động câu lạc bộ nào được tìm thấy theo bộ lọc này.</p>
+              </div>
+              {canManage && (
+                <button
+                  onClick={() => {
+                    const dayIdx = weekDates.findIndex(d => d.toDateString() === selectedDate.toDateString());
+                    handleOpenCreateModal(dayIdx !== -1 ? dayIdx : undefined);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/10 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus size={14} className="stroke-[2.5]" />
+                  <span>Tạo lịch hoạt động</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* 1. Mobile & Tablet Layout: Single unified timeline list (hidden on large desktop) */}
+              <div className="block lg:hidden relative pl-6 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200/60 ml-1 py-1">
+                {filteredDailySchedules.map(schedule => {
+                  const start = schedule.visibleStart;
+                  const end = schedule.visibleEnd;
+                  const accent = getClubAccentColor(schedule);
+                  const styles = accentStyles[accent];
 
-              <div className="relative pl-6 space-y-4 border-l border-slate-200/80 ml-4 py-2">
-                {morningSchedules.length === 0 ? (
-                  <div className="relative p-6 border border-dashed border-slate-300 rounded-2xl bg-white/20 text-center">
-                    <span className="absolute left-[-29px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-slate-300 bg-white" />
-                    <p className="text-xs font-semibold text-slate-400">Không có lịch hoạt động ca sáng</p>
-                  </div>
-                ) : (
-                  morningSchedules.map(schedule => {
-                    const start = schedule.visibleStart;
-                    const end = schedule.visibleEnd;
-                    const accent = getClubAccentColor(schedule);
-                    const styles = accentStyles[accent];
+                  return (
+                    <div key={schedule._id} className="relative group animate-fadeIn">
+                      {/* Timeline Node dot */}
+                      <span className={cn(
+                        "absolute left-[-26px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white ring-4 ring-slate-100 z-10",
+                        styles.icon.replace('text-', 'border-')
+                      )} />
+                      
+                      {/* Mobile Event Card */}
+                      <div
+                        onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
+                        className={cn(
+                          "relative overflow-hidden pl-5 pr-4 py-4 bg-white/70 backdrop-blur-md hover:bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-100/80"
+                        )}
+                      >
+                        {/* Glowing Left Gradient Stripe */}
+                        <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b", styles.gradientL)} />
 
-                    return (
-                      <div key={schedule._id} className="relative group">
-                        {/* Timeline Node dot */}
-                        <span className={cn("absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white", styles.icon.replace('text-', 'border-'))} />
-                        
-                        {/* Event Card */}
-                        <div
-                          onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
-                          className={cn(
-                            "p-4 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all flex justify-between items-start border border-l-4",
-                            styles.card,
-                            styles.borderL
-                          )}
-                        >
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <h3 className={cn("text-sm font-extrabold", styles.title)}>{schedule.title}</h3>
-                              <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">
-                                {typeLabels[schedule.schedule_type]}
-                              </span>
-                              {renderRecurrenceBadge(schedule)}
-                            </div>
-                            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold", styles.sub)}>
-                              <span className="flex items-center gap-1"><Clock size={11} className={styles.icon} /> {start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
-                              <span className="flex items-center gap-1">
-                                <MapPin size={11} className={styles.icon} />{' '}
-                                {schedule.location ||
-                                  (typeof schedule.club_id === 'object'
-                                    ? schedule.club_id?.classroom
-                                    : '')}
-                              </span>
-                              {schedule.max_attendees && <span className="flex items-center gap-1"><Users size={11} className={styles.icon} /> Hạn mức: {schedule.max_attendees}</span>}
-                            </div>
+                        <div className="space-y-2 flex-1 w-full">
+                          {/* Card header meta */}
+                          <div className="flex items-center flex-wrap gap-2 text-[9px] font-bold text-slate-400">
+                            <span className="px-2.5 py-0.5 rounded-full uppercase font-black tracking-wider text-[8px] border border-slate-200/50 bg-slate-50 text-slate-600">
+                              {typeLabels[schedule.schedule_type]}
+                            </span>
+                            {renderRecurrenceBadge(schedule)}
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded", styles.badge)}>Upcoming</span>
-                            {canManage && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleConfigureSaved(schedule);
-                                  }}
-                                  className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
-                                  title="Configure"
-                                >
-                                  <Settings size={13} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteClick(schedule);
-                                  }}
-                                  className="p-1.5 hover:bg-red-50 text-red-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </>
+                          {/* Event title */}
+                          <h3 className="text-sm md:text-base font-extrabold tracking-tight text-slate-800">
+                            {schedule.title}
+                          </h3>
+
+                          {/* Time & Location details */}
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-slate-500">
+                            <span className="flex items-center gap-1.5">
+                              <Clock size={12} className={styles.icon} /> 
+                              <span className="text-slate-600">
+                                {start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </span>
+                            <span className="flex items-center gap-1.5 truncate max-w-[220px]" title={schedule.location || (typeof schedule.club_id === 'object' ? schedule.club_id?.classroom : '')}>
+                              <MapPin size={12} className={styles.icon} />
+                              <span className="text-slate-600 truncate">
+                                {schedule.location || (typeof schedule.club_id === 'object' ? schedule.club_id?.classroom : '')}
+                              </span>
+                            </span>
+                            {schedule.max_attendees && (
+                              <span className="flex items-center gap-1.5">
+                                <Users size={12} className={styles.icon} /> 
+                                <span className="text-slate-600">Hạn mức: {schedule.max_attendees}</span>
+                              </span>
                             )}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
 
-            {/* Afternoon Shift */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/70 p-3 rounded-xl shadow-sm w-fit">
-                <Sun className="h-5 w-5 text-orange-500" />
-                <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Ca Chiều</span>
-                <span className="text-[10px] font-bold text-slate-400">13:00 - 17:30</span>
-              </div>
-
-              <div className="relative pl-6 space-y-4 border-l border-slate-200/80 ml-4 py-2">
-                {afternoonSchedules.length === 0 ? (
-                  <div className="relative p-6 border border-dashed border-slate-300 rounded-2xl bg-white/20 text-center">
-                    <span className="absolute left-[-29px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-slate-300 bg-white" />
-                    <p className="text-xs font-semibold text-slate-400">Nghỉ ngơi / Open Time</p>
-                  </div>
-                ) : (
-                  afternoonSchedules.map(schedule => {
-                    const start = schedule.visibleStart;
-                    const end = schedule.visibleEnd;
-                    const accent = getClubAccentColor(schedule);
-                    const styles = accentStyles[accent];
-
-                    return (
-                      <div key={schedule._id} className="relative group">
-                        {/* Timeline Node dot */}
-                        <span className={cn("absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white", styles.icon.replace('text-', 'border-'))} />
-                        
-                        {/* Event Card */}
-                        <div
-                          onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
-                          className={cn(
-                            "p-4 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all flex justify-between items-start border border-l-4",
-                            styles.card,
-                            styles.borderL
+                        {/* Actions block on mobile */}
+                        <div className="flex items-center justify-between w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-100 flex-shrink-0">
+                          {(() => {
+                            const club = schedule.club_id;
+                            const status = typeof club === 'object' ? club?.status : 'active';
+                            const label = status === 'active' ? 'Hoạt động' : status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động';
+                            const style = status === 'active' 
+                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/60' 
+                              : status === 'suspended'
+                              ? 'bg-red-50 text-red-600 border border-red-100/60'
+                              : 'bg-slate-100 text-slate-500 border border-slate-200/50';
+                            return (
+                              <span className={cn("text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border", style)}>
+                                {label}
+                              </span>
+                            );
+                          })()}
+                          {canManage && (
+                            <div className="flex items-center gap-1 ml-auto">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleConfigureSaved(schedule);
+                                }}
+                                className="p-2 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-200/50"
+                                title="Cấu hình"
+                              >
+                                <Settings size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(schedule);
+                                }}
+                                className="p-2 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-xl transition-all cursor-pointer border border-transparent hover:border-red-100"
+                                title="Xóa"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           )}
-                        >
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <h3 className={cn("text-sm font-extrabold", styles.title)}>{schedule.title}</h3>
-                              <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">
-                                {typeLabels[schedule.schedule_type]}
-                              </span>
-                              {renderRecurrenceBadge(schedule)}
-                            </div>
-                            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold", styles.sub)}>
-                              <span className="flex items-center gap-1"><Clock size={11} className={styles.icon} /> {start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
-                              <span className="flex items-center gap-1">
-                                <MapPin size={11} className={styles.icon} />{' '}
-                                {schedule.location ||
-                                  (typeof schedule.club_id === 'object'
-                                    ? schedule.club_id?.classroom
-                                    : '')}
-                              </span>
-                              {schedule.max_attendees && <span className="flex items-center gap-1"><Users size={11} className={styles.icon} /> Hạn mức: {schedule.max_attendees}</span>}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded", styles.badge)}>Upcoming</span>
-                            {canManage && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleConfigureSaved(schedule);
-                                  }}
-                                  className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
-                                  title="Configure"
-                                >
-                                  <Settings size={13} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteClick(schedule);
-                                  }}
-                                  className="p-1.5 hover:bg-red-50 text-red-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </>
-                            )}
-                          </div>
                         </div>
                       </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Evening Shift */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/70 p-3 rounded-xl shadow-sm w-fit">
-                <Moon className="h-5 w-5 text-blue-600" />
-                <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Ca Tối</span>
-                <span className="text-[10px] font-bold text-slate-400">18:00 - 21:00</span>
+                    </div>
+                  );
+                })}
               </div>
 
-              <div className="relative pl-6 space-y-4 border-l border-slate-200/80 ml-4 py-2">
-                {eveningSchedules.length === 0 ? (
-                  <div className="relative p-6 border border-dashed border-slate-300 rounded-2xl bg-white/20 text-center">
-                    <span className="absolute left-[-29px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-slate-300 bg-white" />
-                    <p className="text-xs font-semibold text-slate-400">Không có lịch hoạt động ca tối</p>
+              {/* 2. Desktop Layout: Original 3-Column Shift Timeline view (visible on large screen) */}
+              <div className="hidden lg:grid grid-cols-3 gap-8">
+                {/* Morning Shift */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/70 p-3 rounded-xl shadow-sm w-fit">
+                    <Sunrise className="h-5 w-5 text-amber-500" />
+                    <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Ca Sáng</span>
+                    <span className="text-[10px] font-bold text-slate-400">07:00 - 11:30</span>
                   </div>
-                ) : (
-                  eveningSchedules.map(schedule => {
-                    const start = schedule.visibleStart;
-                    const end = schedule.visibleEnd;
-                    const accent = getClubAccentColor(schedule);
-                    const styles = accentStyles[accent];
 
-                    return (
-                      <div key={schedule._id} className="relative group">
-                        {/* Timeline Node dot */}
-                        <span className={cn("absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white", styles.icon.replace('text-', 'border-'))} />
-                        
-                        {/* Event Card */}
-                        <div
-                          onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
-                          className={cn(
-                            "p-4 backdrop-blur-md rounded-2xl shadow-sm hover:shadow-md transition-all flex justify-between items-start border border-l-4",
-                            styles.card,
-                            styles.borderL
-                          )}
-                        >
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <h3 className={cn("text-sm font-extrabold", styles.title)}>{schedule.title}</h3>
-                              <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">
-                                {typeLabels[schedule.schedule_type]}
-                              </span>
-                              {renderRecurrenceBadge(schedule)}
-                            </div>
-                            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold", styles.sub)}>
-                              <span className="flex items-center gap-1"><Clock size={11} className={styles.icon} /> {start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
-                              <span className="flex items-center gap-1">
-                                <MapPin size={11} className={styles.icon} />{' '}
-                                {schedule.location ||
-                                  (typeof schedule.club_id === 'object'
-                                    ? schedule.club_id?.classroom
-                                    : '')}
-                              </span>
-                              {schedule.max_attendees && <span className="flex items-center gap-1"><Users size={11} className={styles.icon} /> Hạn mức: {schedule.max_attendees}</span>}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded", styles.badge)}>Upcoming</span>
-                            {canManage && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleConfigureSaved(schedule);
-                                  }}
-                                  className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
-                                  title="Configure"
-                                >
-                                  <Settings size={13} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteClick(schedule);
-                                  }}
-                                  className="p-1.5 hover:bg-red-50 text-red-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
+                  <div className="relative pl-6 space-y-4 border-l border-slate-200/80 ml-4 py-2">
+                    {morningSchedules.length === 0 ? (
+                      <div className="relative p-6 border border-dashed border-slate-300 rounded-2xl bg-white/20 text-center">
+                        <span className="absolute left-[-29px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-slate-300 bg-white" />
+                        <p className="text-xs font-semibold text-slate-400">Không có lịch hoạt động ca sáng</p>
                       </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+                    ) : (
+                      morningSchedules.map(schedule => {
+                        const start = schedule.visibleStart;
+                        const end = schedule.visibleEnd;
+                        const accent = getClubAccentColor(schedule);
+                        const styles = accentStyles[accent];
 
-          </div>
+                        return (
+                          <div key={schedule._id} className="relative group animate-fadeIn">
+                            <span className={cn("absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white", styles.icon.replace('text-', 'border-'))} />
+                            
+                            <div
+                              onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
+                              className={cn(
+                                "relative overflow-hidden pl-5 pr-4 py-4 bg-white/70 backdrop-blur-md hover:bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 flex justify-between items-start border border-slate-100/80 w-full"
+                              )}
+                            >
+                              {/* Glowing Left Gradient Stripe */}
+                              <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b", styles.gradientL)} />
+
+                              <div className="space-y-2 flex-1 min-w-0 pr-2">
+                                <div className="flex items-center flex-wrap gap-2 text-[9px] font-bold text-slate-400">
+                                  <span className="px-2 py-0.5 rounded-full uppercase font-black tracking-wider text-[8px] border border-slate-200/50 bg-slate-50 text-slate-600">
+                                    {typeLabels[schedule.schedule_type]}
+                                  </span>
+                                  {renderRecurrenceBadge(schedule)}
+                                </div>
+                                <h3 className="text-sm font-extrabold tracking-tight text-slate-800 truncate" title={schedule.title}>{schedule.title}</h3>
+                                <div className="flex flex-col gap-1 text-xs font-semibold text-slate-500">
+                                  <span className="flex items-center gap-1.5"><Clock size={12} className={styles.icon} /> <span className="text-slate-600">{start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span></span>
+                                  <span className="flex items-center gap-1.5 truncate" title={schedule.location || (typeof schedule.club_id === 'object' ? schedule.club_id?.classroom : '')}>
+                                    <MapPin size={12} className={styles.icon} />{' '}
+                                    <span className="text-slate-600 truncate">
+                                      {schedule.location ||
+                                        (typeof schedule.club_id === 'object'
+                                          ? schedule.club_id?.classroom
+                                          : '')}
+                                    </span>
+                                  </span>
+                                  {schedule.max_attendees && <span className="flex items-center gap-1.5"><Users size={12} className={styles.icon} /> <span className="text-slate-600">Hạn mức: {schedule.max_attendees}</span></span>}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col items-end justify-between h-full min-h-[72px] flex-shrink-0">
+                                {(() => {
+                                  const club = schedule.club_id;
+                                  const status = typeof club === 'object' ? club?.status : 'active';
+                                  const label = status === 'active' ? 'Hoạt động' : status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động';
+                                  const style = status === 'active' 
+                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/60' 
+                                    : status === 'suspended'
+                                    ? 'bg-red-50 text-red-600 border border-red-100/60'
+                                    : 'bg-slate-100 text-slate-500 border border-slate-200/50';
+                                  return (
+                                    <span className={cn("text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border", style)}>
+                                      {label}
+                                    </span>
+                                  );
+                                })()}
+                                {canManage && (
+                                  <div className="flex items-center gap-1 mt-auto">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleConfigureSaved(schedule);
+                                      }}
+                                      className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-200/50"
+                                      title="Configure"
+                                    >
+                                      <Settings size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteClick(schedule);
+                                      }}
+                                      className="p-1.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-xl transition-all cursor-pointer border border-transparent hover:border-red-100"
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Afternoon Shift */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/70 p-3 rounded-xl shadow-sm w-fit">
+                    <Sun className="h-5 w-5 text-orange-500" />
+                    <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Ca Chiều</span>
+                    <span className="text-[10px] font-bold text-slate-400">13:00 - 17:30</span>
+                  </div>
+
+                  <div className="relative pl-6 space-y-4 border-l border-slate-200/80 ml-4 py-2">
+                    {afternoonSchedules.length === 0 ? (
+                      <div className="relative p-6 border border-dashed border-slate-300 rounded-2xl bg-white/20 text-center">
+                        <span className="absolute left-[-29px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-slate-300 bg-white" />
+                        <p className="text-xs font-semibold text-slate-400">Nghỉ ngơi / Open Time</p>
+                      </div>
+                    ) : (
+                      afternoonSchedules.map(schedule => {
+                        const start = schedule.visibleStart;
+                        const end = schedule.visibleEnd;
+                        const accent = getClubAccentColor(schedule);
+                        const styles = accentStyles[accent];
+
+                        return (
+                          <div key={schedule._id} className="relative group animate-fadeIn">
+                            <span className={cn("absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white", styles.icon.replace('text-', 'border-'))} />
+                            
+                            <div
+                              onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
+                              className={cn(
+                                "relative overflow-hidden pl-5 pr-4 py-4 bg-white/70 backdrop-blur-md hover:bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 flex justify-between items-start border border-slate-100/80 w-full"
+                              )}
+                            >
+                              {/* Glowing Left Gradient Stripe */}
+                              <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b", styles.gradientL)} />
+
+                              <div className="space-y-2 flex-1 min-w-0 pr-2">
+                                <div className="flex items-center flex-wrap gap-2 text-[9px] font-bold text-slate-400">
+                                  <span className="px-2 py-0.5 rounded-full uppercase font-black tracking-wider text-[8px] border border-slate-200/50 bg-slate-50 text-slate-600">
+                                    {typeLabels[schedule.schedule_type]}
+                                  </span>
+                                  {renderRecurrenceBadge(schedule)}
+                                </div>
+                                <h3 className="text-sm font-extrabold tracking-tight text-slate-800 truncate" title={schedule.title}>{schedule.title}</h3>
+                                <div className="flex flex-col gap-1 text-xs font-semibold text-slate-500">
+                                  <span className="flex items-center gap-1.5"><Clock size={12} className={styles.icon} /> <span className="text-slate-600">{start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span></span>
+                                  <span className="flex items-center gap-1.5 truncate" title={schedule.location || (typeof schedule.club_id === 'object' ? schedule.club_id?.classroom : '')}>
+                                    <MapPin size={12} className={styles.icon} />{' '}
+                                    <span className="text-slate-600 truncate">
+                                      {schedule.location ||
+                                        (typeof schedule.club_id === 'object'
+                                          ? schedule.club_id?.classroom
+                                          : '')}
+                                    </span>
+                                  </span>
+                                  {schedule.max_attendees && <span className="flex items-center gap-1.5"><Users size={12} className={styles.icon} /> <span className="text-slate-600">Hạn mức: {schedule.max_attendees}</span></span>}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col items-end justify-between h-full min-h-[72px] flex-shrink-0">
+                                {(() => {
+                                  const club = schedule.club_id;
+                                  const status = typeof club === 'object' ? club?.status : 'active';
+                                  const label = status === 'active' ? 'Hoạt động' : status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động';
+                                  const style = status === 'active' 
+                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/60' 
+                                    : status === 'suspended'
+                                    ? 'bg-red-50 text-red-600 border border-red-100/60'
+                                    : 'bg-slate-100 text-slate-500 border border-slate-200/50';
+                                  return (
+                                    <span className={cn("text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border", style)}>
+                                      {label}
+                                    </span>
+                                  );
+                                })()}
+                                {canManage && (
+                                  <div className="flex items-center gap-1 mt-auto">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleConfigureSaved(schedule);
+                                      }}
+                                      className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-200/50"
+                                      title="Configure"
+                                    >
+                                      <Settings size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteClick(schedule);
+                                      }}
+                                      className="p-1.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-xl transition-all cursor-pointer border border-transparent hover:border-red-100"
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Evening Shift */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/70 p-3 rounded-xl shadow-sm w-fit">
+                    <Moon className="h-5 w-5 text-blue-600" />
+                    <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Ca Tối</span>
+                    <span className="text-[10px] font-bold text-slate-400">18:00 - 21:00</span>
+                  </div>
+
+                  <div className="relative pl-6 space-y-4 border-l border-slate-200/80 ml-4 py-2">
+                    {eveningSchedules.length === 0 ? (
+                      <div className="relative p-6 border border-dashed border-slate-300 rounded-2xl bg-white/20 text-center">
+                        <span className="absolute left-[-29px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-slate-300 bg-white" />
+                        <p className="text-xs font-semibold text-slate-400">Không có lịch hoạt động ca tối</p>
+                      </div>
+                    ) : (
+                      eveningSchedules.map(schedule => {
+                        const start = schedule.visibleStart;
+                        const end = schedule.visibleEnd;
+                        const accent = getClubAccentColor(schedule);
+                        const styles = accentStyles[accent];
+
+                        return (
+                          <div key={schedule._id} className="relative group animate-fadeIn">
+                            <span className={cn("absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white", styles.icon.replace('text-', 'border-'))} />
+                            
+                            <div
+                              onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
+                              className={cn(
+                                "relative overflow-hidden pl-5 pr-4 py-4 bg-white/70 backdrop-blur-md hover:bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 flex justify-between items-start border border-slate-100/80 w-full"
+                              )}
+                            >
+                              {/* Glowing Left Gradient Stripe */}
+                              <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b", styles.gradientL)} />
+
+                              <div className="space-y-2 flex-1 min-w-0 pr-2">
+                                <div className="flex items-center flex-wrap gap-2 text-[9px] font-bold text-slate-400">
+                                  <span className="px-2 py-0.5 rounded-full uppercase font-black tracking-wider text-[8px] border border-slate-200/50 bg-slate-50 text-slate-600">
+                                    {typeLabels[schedule.schedule_type]}
+                                  </span>
+                                  {renderRecurrenceBadge(schedule)}
+                                </div>
+                                <h3 className="text-sm font-extrabold tracking-tight text-slate-800 truncate" title={schedule.title}>{schedule.title}</h3>
+                                <div className="flex flex-col gap-1 text-xs font-semibold text-slate-500">
+                                  <span className="flex items-center gap-1.5"><Clock size={12} className={styles.icon} /> <span className="text-slate-600">{start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span></span>
+                                  <span className="flex items-center gap-1.5 truncate" title={schedule.location || (typeof schedule.club_id === 'object' ? schedule.club_id?.classroom : '')}>
+                                    <MapPin size={12} className={styles.icon} />{' '}
+                                    <span className="text-slate-600 truncate">
+                                      {schedule.location ||
+                                        (typeof schedule.club_id === 'object'
+                                          ? schedule.club_id?.classroom
+                                          : '')}
+                                    </span>
+                                  </span>
+                                  {schedule.max_attendees && <span className="flex items-center gap-1.5"><Users size={12} className={styles.icon} /> <span className="text-slate-600">Hạn mức: {schedule.max_attendees}</span></span>}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col items-end justify-between h-full min-h-[72px] flex-shrink-0">
+                                {(() => {
+                                  const club = schedule.club_id;
+                                  const status = typeof club === 'object' ? club?.status : 'active';
+                                  const label = status === 'active' ? 'Hoạt động' : status === 'suspended' ? 'Tạm dừng' : 'Không hoạt động';
+                                  const style = status === 'active' 
+                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/60' 
+                                    : status === 'suspended'
+                                    ? 'bg-red-50 text-red-600 border border-red-100/60'
+                                    : 'bg-slate-100 text-slate-500 border border-slate-200/50';
+                                  return (
+                                    <span className={cn("text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border", style)}>
+                                      {label}
+                                    </span>
+                                  );
+                                })()}
+                                {canManage && (
+                                  <div className="flex items-center gap-1 mt-auto">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleConfigureSaved(schedule);
+                                      }}
+                                      className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-200/50"
+                                      title="Configure"
+                                    >
+                                      <Settings size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteClick(schedule);
+                                      }}
+                                      className="p-1.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-xl transition-all cursor-pointer border border-transparent hover:border-red-100"
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Floating Action Button (FAB) for Mobile creating schedule */}
+          {canManage && (
+            <button
+              onClick={() => {
+                const dayIdx = weekDates.findIndex(d => d.toDateString() === selectedDate.toDateString());
+                handleOpenCreateModal(dayIdx !== -1 ? dayIdx : undefined);
+              }}
+              className="fixed bottom-6 right-6 lg:hidden z-40 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-full shadow-2xl hover:shadow-lg active:scale-95 transition-all flex items-center justify-center cursor-pointer border border-white/20"
+              title="Tạo lịch hoạt động mới"
+            >
+              <Plus size={24} className="stroke-[3]" />
+            </button>
+          )}
+
         </div>
       )}
 
