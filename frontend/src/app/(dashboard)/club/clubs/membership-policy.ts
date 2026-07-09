@@ -9,7 +9,7 @@ export interface PolicyInput {
 }
 
 export interface PolicyResult {
-  code: 'JOIN' | 'SWITCH' | 'ADMIN_REQUIRED' | 'TEACHER_APPROVAL_REQUIRED' | 'PENDING';
+  code: 'JOIN' | 'SWITCH' | 'ADMIN_REQUIRED' | 'TEACHER_APPROVAL_REQUIRED' | 'PENDING' | 'REJECTED';
   label: string;
   disabled: boolean;
   requiresTeacherApproval: boolean;
@@ -35,6 +35,16 @@ export function getMembershipPolicy(input: PolicyInput): PolicyResult {
       disabled: true,
       requiresTeacherApproval: false,
       message: 'Đăng ký tham gia câu lạc bộ đang chờ duyệt.',
+    };
+  }
+
+  if (targetMembershipStatus === 'rejected') {
+    return {
+      code: 'REJECTED',
+      label: 'Bị từ chối',
+      disabled: true,
+      requiresTeacherApproval: false,
+      message: 'Đăng ký tham gia câu lạc bộ đã bị từ chối.',
     };
   }
 

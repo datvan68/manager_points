@@ -385,4 +385,38 @@ describe('ClubDetailPage Interactions', () => {
       });
     });
   });
+
+  it('should show rejection modal and hide registration button for rejected student, and not call joinClub when closing', async () => {
+    (tokenStorage.getUser as any).mockReturnValue({
+      _id: 'student-1',
+      role: 'student',
+    });
+    (clubApi.getMyClubs as any).mockResolvedValue([
+      { club_id: 'club-1', status: 'rejected' },
+    ]);
+
+    render(<ClubDetailPage />);
+
+    await screen.findByText('Academic Club');
+
+    // Rejection modal should be open
+    await waitFor(() => {
+      expect(screen.queryByTestId('confirm-modal')).not.toBeNull();
+    });
+    expect(screen.getByText('Đăng ký bị từ chối')).toBeDefined();
+    expect(screen.getByText('Bạn bị từ chối gia nhập CLB này.')).toBeDefined();
+
+    // Registration/Join button should not appear
+    expect(screen.queryByText('Đăng ký')).toBeNull();
+
+    // Close modal
+    const closeBtn = screen.getByText('Đóng');
+    fireEvent.click(closeBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('confirm-modal')).toBeNull();
+    });
+
+    expect(clubApi.joinClub).not.toHaveBeenCalled();
+  });
 });

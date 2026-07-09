@@ -57,6 +57,7 @@ describe('ClubsService - Membership Policy & Auditing', () => {
     }
     static findOne = jest.fn();
     static countDocuments = jest.fn();
+    static deleteMany = jest.fn();
   }
 
   class MockScheduleModel {
@@ -87,6 +88,7 @@ describe('ClubsService - Membership Policy & Auditing', () => {
 
     MockTransferModel.findOne.mockReset();
     MockTransferModel.countDocuments.mockReset();
+    MockTransferModel.deleteMany.mockReset();
 
     MockScheduleModel.findOne.mockReset();
     MockStudentModel.findOne.mockReset();
@@ -141,6 +143,7 @@ describe('ClubsService - Membership Policy & Auditing', () => {
 
     MockTransferModel.findOne.mockReturnValue(mockQuery(null));
     MockTransferModel.countDocuments.mockReturnValue(mockQuery(0));
+    MockTransferModel.deleteMany.mockReturnValue(mockQuery({ deletedCount: 0 }));
 
     MockScheduleModel.findOne.mockReturnValue(mockQuery(null));
   });
@@ -224,6 +227,63 @@ describe('ClubsService - Membership Policy & Auditing', () => {
           semester_id: semesterId.toString(),
         })
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject join with ForbiddenException if membership status is rejected', async () => {
+      MockClubMemberModel.findOne
+        .mockReturnValueOnce(mockQuery(null)) // findOccupiedMembership
+        .mockReturnValueOnce(mockQuery(null)) // findLatestLeftMembership
+        .mockReturnValueOnce(mockQuery(new MockClubMemberModel({
+          club_id: clubId,
+          student_id: studentId,
+          semester_id: semesterId,
+          status: 'rejected',
+        })));
+
+    });
+
+    it('should delete old transfer records with the same to_membership_id when rejoining requires teacher approval', async () => {
+      const previousMember = new MockClubMemberModel({
+        _id: new Types.ObjectId(),
+        club_id: new Types.ObjectId(),
+        student_id: studentId,
+        semester_id: semesterId,
+        status: 'left',
+        occupies_slot: false,
+      });
+
+      const targetMemberId = new Types.ObjectId();
+      MockClubMemberModel.findOne
+        .mockReturnValueOnce(mockQuery(null))
+        .mockReturnValueOnce(mockQuery(previousMember))
+        .mockReturnValueOnce(mockQuery(null));
+
+      const startInPast = new Date();
+      startInPast.setHours(startInPast.getHours() - 2);
+      MockScheduleModel.findOne.mockReturnValue(mockQuery({
+        start_time: startInPast,
+        status: 'scheduled',
+      }));
+
+      MockTransferModel.countDocuments.mockReturnValue(mockQuery(0));
+
+      const deleteManySpy = jest.spyOn(MockTransferModel, 'deleteMany');
+      const saveSpy = jest.spyOn(MockClubMemberModel.prototype, 'save').mockImplementation(function (this: any) {
+        this._id = targetMemberId;
+        return Promise.resolve(this);
+      });
+
+      const res = await service.joinClub(clubId.toString(), studentId.toString(), {
+        semester_id: semesterId.toString(),
+      });
+
+      expect(deleteManySpy).toHaveBeenCalledWith({
+        to_membership_id: targetMemberId,
+      });
+      expect(res.requires_teacher_approval).toBe(true);
+      expect(res.transfer).toBeDefined();
+
+      saveSpy.mockRestore();
     });
   });
 
@@ -368,6 +428,83 @@ describe('ClubsService - Membership Policy & Auditing', () => {
           semester_id: semesterId.toString(),
         })
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('should reject switch with ForbiddenException if target membership status is rejected', async () => {
+      const sourceMember = new MockClubMemberModel({
+        _id: new Types.ObjectId(),
+        club_id: sourceClubId,
+        occupies_slot: true,
+      });
+      MockClubMemberModel.findOne
+        .mockReturnValueOnce(mockQuery(sourceMember))
+        .mockReturnValueOnce(mockQuery(new MockClubMemberModel({
+          club_id: targetClubId,
+          student_id: studentId,
+          semester_id: semesterId,
+          status: 'rejected',
+        })));
+
+      const startInFuture = new Date();
+      startInFuture.setHours(startInFuture.getHours() + 2);
+      MockScheduleModel.findOne.mockReturnValue(mockQuery({
+        start_time: startInFuture,
+        status: 'scheduled',
+      }));
+
+      MockTransferModel.countDocuments.mockReturnValue(mockQuery(0));
+
+      await expect(
+        service.switchClub(targetClubId.toString(), studentId.toString(), {
+          semester_id: semesterId.toString(),
+        })
+      ).rejects.toThrow(new ForbiddenException('Bạn đã bị từ chối gia nhập CLB này trong học kỳ hiện tại.'));
+    });
+
+    it('should delete old transfer records with the same to_membership_id to prevent E11000 before creating new transfer', async () => {
+      const sourceMember = new MockClubMemberModel({
+        _id: new Types.ObjectId(),
+        club_id: sourceClubId,
+        student_id: studentId,
+        semester_id: semesterId,
+        status: 'active',
+        occupies_slot: true,
+      });
+
+      const targetMember = new MockClubMemberModel({
+        _id: new Types.ObjectId(),
+        club_id: targetClubId,
+        student_id: studentId,
+        semester_id: semesterId,
+        status: 'left',
+        occupies_slot: false,
+      });
+
+      MockClubMemberModel.findOne
+        .mockReturnValueOnce(mockQuery(sourceMember))
+        .mockReturnValueOnce(mockQuery(targetMember))
+        .mockReturnValueOnce(mockQuery(targetMember));
+
+      const startInFuture = new Date();
+      startInFuture.setHours(startInFuture.getHours() + 2);
+      MockScheduleModel.findOne.mockReturnValue(mockQuery({
+        start_time: startInFuture,
+        status: 'scheduled',
+      }));
+
+      MockTransferModel.countDocuments.mockReturnValue(mockQuery(1));
+
+      const deleteManySpy = jest.spyOn(MockTransferModel, 'deleteMany');
+
+      const res = await service.switchClub(targetClubId.toString(), studentId.toString(), {
+        semester_id: semesterId.toString(),
+      });
+
+      expect(deleteManySpy).toHaveBeenCalledWith({
+        to_membership_id: targetMember._id,
+      });
+      expect(res.membership.status).toBe('active');
+      expect(res.transfer).toBeDefined();
     });
   });
 
@@ -628,6 +765,48 @@ describe('ClubsService - Membership Policy & Auditing', () => {
           semester_id: semesterId.toString(),
         })
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should reactivate a rejected target membership if requester is ADMIN', async () => {
+      MockUserModel.findById.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({
+          _id: adminId,
+          role: { role_code: 'ADMIN' },
+        }),
+      });
+
+      const sourceMember = new MockClubMemberModel({
+        _id: new Types.ObjectId(),
+        club_id: sourceClubId,
+        status: 'active',
+        occupies_slot: true,
+      });
+
+      const rejectedTargetMember = new MockClubMemberModel({
+        _id: new Types.ObjectId(),
+        club_id: targetClubId,
+        student_id: studentId,
+        semester_id: semesterId,
+        status: 'rejected',
+        occupies_slot: false,
+      });
+      const saveSpy = jest.spyOn(rejectedTargetMember, 'save');
+
+      MockClubMemberModel.findOne
+        .mockReturnValueOnce(mockQuery(sourceMember))
+        .mockReturnValueOnce(mockQuery(rejectedTargetMember));
+
+      const res = await service.adminTransferClub(targetClubId.toString(), adminId.toString(), {
+        student_id: studentId.toString(),
+        semester_id: semesterId.toString(),
+      });
+
+      expect(sourceMember.status).toBe('left');
+      expect(rejectedTargetMember.status).toBe('active');
+      expect(rejectedTargetMember.occupies_slot).toBe(true);
+      expect(saveSpy).toHaveBeenCalled();
+      expect(res.membership.status).toBe('active');
     });
   });
 });

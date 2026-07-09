@@ -442,11 +442,14 @@ export class ClubsService {
     let transferRecord: ClubMembershipTransferDocument | null = null;
 
     if (member) {
-      if (member.status !== 'rejected' && member.status !== 'left') {
+      if (member.status === 'rejected') {
+        throw new ForbiddenException('Bạn đã bị từ chối gia nhập CLB này trong học kỳ hiện tại.');
+      }
+      if (member.status !== 'left') {
         throw new BadRequestException('Bạn đã đăng ký CLB này trong học kỳ hiện tại');
       }
       
-      // Rejoining a club they left or got rejected from
+      // Rejoining a club they left
       member.status = (requiresTeacherApproval || club.settings?.require_approval)
         ? 'pending'
         : 'active';
@@ -472,6 +475,9 @@ export class ClubsService {
 
     // Create a transfer record if activity started for the previous club
     if (requiresTeacherApproval && previousMember) {
+      await this.transferModel.deleteMany({
+        to_membership_id: member._id,
+      });
       transferRecord = new this.transferModel({
         student_id: new Types.ObjectId(studentId),
         semester_id: new Types.ObjectId(dto.semester_id),
@@ -640,6 +646,15 @@ export class ClubsService {
 
     const targetClub = await this.validateTargetClub(targetClubId, dto.semester_id, studentId);
 
+    const existingTargetMember = await this.memberModel.findOne({
+      club_id: new Types.ObjectId(targetClubId),
+      student_id: new Types.ObjectId(studentId),
+      semester_id: new Types.ObjectId(dto.semester_id),
+    });
+    if (existingTargetMember && existingTargetMember.status === 'rejected') {
+      throw new ForbiddenException('Bạn đã bị từ chối gia nhập CLB này trong học kỳ hiện tại.');
+    }
+
     // Perform transaction
     const session = await this.connection.startSession();
     session.startTransaction();
@@ -681,6 +696,9 @@ export class ClubsService {
       }
 
       // 3. Create transfer record
+      await this.transferModel.deleteMany({
+        to_membership_id: targetMember._id,
+      }).session(session);
       transferRecord = new this.transferModel({
         student_id: new Types.ObjectId(studentId),
         semester_id: new Types.ObjectId(dto.semester_id),
@@ -788,6 +806,9 @@ export class ClubsService {
       }
 
       // 3. Create transfer record
+      await this.transferModel.deleteMany({
+        to_membership_id: targetMember._id,
+      }).session(session);
       transferRecord = new this.transferModel({
         student_id: new Types.ObjectId(studentId),
         semester_id: new Types.ObjectId(semesterId),

@@ -698,6 +698,10 @@ export default function ClubsListPage() {
       return;
     }
 
+    if (club.membership_status === 'rejected') {
+      return;
+    }
+
     const isStudent = currentUser.role?.toLowerCase() === 'student';
     const isAdmin = currentUser.role?.toLowerCase() === 'admin';
     if (!isStudent && !isAdmin) {
@@ -733,6 +737,14 @@ export default function ClubsListPage() {
 
     if (club.join_loading) {
       return <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />;
+    }
+
+    if (isStudent) {
+      const status = club.membership_status;
+      if (status === 'pending') return 'Đang chờ duyệt';
+      if (status === 'rejected') return 'Bị từ chối';
+      if (status === 'active') return 'Đã tham gia';
+      return 'Đăng ký tham gia';
     }
 
     const targetStatus = club.membership_status;
@@ -1039,6 +1051,7 @@ export default function ClubsListPage() {
              {paginatedClubs.map((club) => {
               const conf = categoryConfigs[club.category] || categoryConfigs.other;
               const currentUser = tokenStorage.getUser();
+              const isStudent = currentUser?.role?.toLowerCase() === 'student';
               const template = BACKGROUND_TEMPLATES.find((t) => t.id === club.background_config?.pattern);
               const isDarkTemplate = !!template?.isDark;
               const cardBgClass = template 
@@ -1247,23 +1260,27 @@ export default function ClubsListPage() {
                           Nền
                         </Button>
                       )}
-                      <Button
-                        variant={
-                          club.membership_status === 'active' ? 'outline' :
-                          club.membership_status === 'pending' ? 'secondary' : 'default'
-                        }
-                        size="sm"
-                        disabled={isJoinButtonDisabled(club)}
-                        onClick={(e) => handleJoinClick(e, club)}
-                        className={cn(
-                          "h-7 text-[10px] px-2.5 font-bold rounded-lg cursor-pointer transition-all truncate max-w-[90px]",
-                          club.membership_status === 'active' && "border-emerald-500 text-emerald-600 bg-emerald-50 hover:bg-emerald-50 cursor-default",
-                          club.membership_status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100 cursor-default",
-                          (club.status !== 'active' || !club.settings?.allow_self_registration) && "bg-slate-100 text-slate-400 border-slate-200"
-                        )}
-                      >
-                        {renderJoinButtonContent(club)}
-                      </Button>
+                      {!(isStudent && club.membership_status === 'active') && (
+                        <Button
+                          variant={
+                            club.membership_status === 'rejected' ? 'default' :
+                            club.membership_status === 'active' ? 'outline' :
+                            club.membership_status === 'pending' ? 'secondary' : 'default'
+                          }
+                          size="sm"
+                          disabled={isJoinButtonDisabled(club)}
+                          onClick={(e) => handleJoinClick(e, club)}
+                          className={cn(
+                            "h-7 text-[10px] px-2.5 font-bold rounded-lg cursor-pointer transition-all truncate max-w-[90px]",
+                            club.membership_status === 'active' && "border-emerald-500 text-emerald-600 bg-emerald-50 hover:bg-emerald-50 cursor-default",
+                            club.membership_status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100 cursor-default",
+                            club.membership_status === 'rejected' && "bg-red-50 text-red-600 hover:bg-red-50 cursor-default border-red-200 border",
+                            (club.status !== 'active' || !club.settings?.allow_self_registration) && club.membership_status !== 'rejected' && "bg-slate-100 text-slate-400 border-slate-200"
+                          )}
+                        >
+                          {renderJoinButtonContent(club)}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1338,6 +1355,7 @@ export default function ClubsListPage() {
                 {paginatedClubs.map((club) => {
                   const conf = categoryConfigs[club.category] || categoryConfigs.other;
                   const currentUser = tokenStorage.getUser();
+                  const isStudent = currentUser?.role?.toLowerCase() === 'student';
                   return (
                     <tr
                       key={club._id}
@@ -1431,23 +1449,27 @@ export default function ClubsListPage() {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant={
-                              club.membership_status === 'active' ? 'outline' :
-                              club.membership_status === 'pending' ? 'secondary' : 'default'
-                            }
-                            size="sm"
-                            disabled={isJoinButtonDisabled(club)}
-                            onClick={(e) => handleJoinClick(e, club)}
-                            className={cn(
-                              "h-7 text-[9px] px-2 font-bold rounded-lg cursor-pointer transition-all mr-1.5",
-                              club.membership_status === 'active' && "border-emerald-500 text-emerald-600 bg-emerald-50 hover:bg-emerald-50 cursor-default",
-                              club.membership_status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100 cursor-default",
-                              (club.status !== 'active' || !club.settings?.allow_self_registration) && "bg-slate-100 text-slate-400 border-slate-200"
-                            )}
-                          >
-                            {renderJoinButtonContent(club)}
-                          </Button>
+                          {!(isStudent && club.membership_status === 'active') && (
+                            <Button
+                              variant={
+                                club.membership_status === 'rejected' ? 'default' :
+                                club.membership_status === 'active' ? 'outline' :
+                                club.membership_status === 'pending' ? 'secondary' : 'default'
+                              }
+                              size="sm"
+                              disabled={isJoinButtonDisabled(club)}
+                              onClick={(e) => handleJoinClick(e, club)}
+                              className={cn(
+                                "h-7 text-[9px] px-2 font-bold rounded-lg cursor-pointer transition-all mr-1.5",
+                                club.membership_status === 'active' && "border-emerald-500 text-emerald-600 bg-emerald-50 hover:bg-emerald-50 cursor-default",
+                                club.membership_status === 'pending' && "bg-amber-100 text-amber-700 hover:bg-amber-100 cursor-default",
+                                club.membership_status === 'rejected' && "bg-red-50 text-red-600 hover:bg-red-50 cursor-default border-red-200 border",
+                                (club.status !== 'active' || !club.settings?.allow_self_registration) && club.membership_status !== 'rejected' && "bg-slate-100 text-slate-400 border-slate-200"
+                              )}
+                            >
+                              {renderJoinButtonContent(club)}
+                            </Button>
+                          )}
                           <button
                             onClick={() => router.push(`/club/clubs/${club._id}`)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"

@@ -27,6 +27,20 @@ describe('Frontend Membership Policy Mapper', () => {
     expect(result.disabled).toBe(true);
   });
 
+  it('should return REJECTED policy if target membership is rejected', () => {
+    const result = getMembershipPolicy({
+      hasOccupiedMembership: true,
+      occupiedClubId: 'club_source',
+      targetClubId: 'club_target',
+      targetMembershipStatus: 'rejected',
+      selfServiceChangesUsed: 0,
+    });
+
+    expect(result.code).toBe('REJECTED');
+    expect(result.label).toBe('Bị từ chối');
+    expect(result.disabled).toBe(true);
+  });
+
   it('should return SWITCH policy with remaining changes message if activity has not started and changes < 3', () => {
     const result = getMembershipPolicy({
       hasOccupiedMembership: true,

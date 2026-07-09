@@ -134,6 +134,7 @@ export default function ClubDetailPage() {
   const [myMembershipStatus, setMyMembershipStatus] = useState<string>('none');
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [leaveLoading, setLeaveLoading] = useState(false);
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
 
   const [studentsList, setStudentsList] = useState<Student[]>([]);
   const [semestersList, setSemestersList] = useState<Semester[]>([]);
@@ -172,6 +173,10 @@ export default function ClubDetailPage() {
       
       const membership = findClubMembership(myMemberships, clubId);
       setMyMembershipStatus(membership?.status || 'none');
+
+      if (currentUser?.role?.toLowerCase() === 'student' && membership?.status === 'rejected') {
+        setShowRejectionModal(true);
+      }
 
       if (timelineResponse) {
         setTimelineData(timelineResponse);
@@ -459,7 +464,7 @@ export default function ClubDetailPage() {
                 )}
                 {club.settings?.allow_self_registration && 
                  (currentUser?.role?.toLowerCase() !== 'student' || 
-                  ['none', 'left', 'inactive', 'rejected'].includes(myMembershipStatus)) && (
+                  ['none', 'left', 'inactive'].includes(myMembershipStatus)) && (
                   <button
                     onClick={async () => {
                       try {
@@ -702,6 +707,17 @@ export default function ClubDetailPage() {
         message={`Bạn có chắc chắn muốn rời khỏi câu lạc bộ "${club.name}"?`}
         confirmLabel={leaveLoading ? 'Đang xử lý...' : 'Rời CLB'}
         cancelLabel="Hủy"
+        variant="danger"
+      />
+
+      <ConfirmModal
+        isOpen={showRejectionModal}
+        onClose={() => setShowRejectionModal(false)}
+        onConfirm={() => setShowRejectionModal(false)}
+        title="Đăng ký bị từ chối"
+        message="Bạn bị từ chối gia nhập CLB này."
+        confirmLabel="Đóng"
+        showCancel={false}
         variant="danger"
       />
     </div>

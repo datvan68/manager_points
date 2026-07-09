@@ -179,8 +179,8 @@ describe('ClubsListPage Interactions', () => {
 
     render(<ClubsListPage />);
 
-    // Since student occupies another club, the button content should map to "Chuyển sang CLB này"
-    const switchBtn = await screen.findByText('Chuyển sang CLB này');
+    // Since student occupies another club, the button content should map to "Đăng ký tham gia"
+    const switchBtn = await screen.findByText('Đăng ký tham gia');
     expect(switchBtn).toBeDefined();
 
     fireEvent.click(switchBtn);
@@ -198,5 +198,48 @@ describe('ClubsListPage Interactions', () => {
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/club/clubs/club-1');
     });
+  });
+
+  it('should hide action button when student is an active member of the club', async () => {
+    const activeClubs = [
+      {
+        ...mockClubs[0],
+        membership_status: 'active',
+      }
+    ];
+    (clubApi.getAll as any).mockResolvedValue(activeClubs);
+    (clubApi.getMyClubs as any).mockResolvedValue([{
+      club_id: { _id: 'club-1' },
+      status: 'active',
+    }]);
+
+    render(<ClubsListPage />);
+
+    await screen.findByText('Academic Club');
+
+    const joinBtn = screen.queryByText('Đã tham gia');
+    expect(joinBtn).toBeNull();
+    const joinBtn2 = screen.queryByText('Đăng ký tham gia');
+    expect(joinBtn2).toBeNull();
+  });
+
+  it('should show "Bị từ chối" label and disable action button when student is rejected', async () => {
+    const rejectedClubs = [
+      {
+        ...mockClubs[0],
+        membership_status: 'rejected',
+      }
+    ];
+    (clubApi.getAll as any).mockResolvedValue(rejectedClubs);
+    (clubApi.getMyClubs as any).mockResolvedValue([{
+      club_id: { _id: 'club-1' },
+      status: 'rejected',
+    }]);
+
+    render(<ClubsListPage />);
+
+    const rejectBtn = await screen.findByText('Bị từ chối');
+    expect(rejectBtn).toBeDefined();
+    expect(rejectBtn).toBeDisabled();
   });
 });
