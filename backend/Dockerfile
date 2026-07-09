@@ -42,4 +42,4 @@ USER app
 
 EXPOSE 8001
 
-CMD ["node", "dist/main"]
+CMD ["node", "--max-old-space-size=384", "dist/main"]

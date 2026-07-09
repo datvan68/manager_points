@@ -65,6 +65,14 @@ export const CLUB_MANAGER_GROUP = {
   status: 'Active',
 };
 
+export const DORMITORY_MANAGER_GROUP = {
+  code: 'G_DORMITORY',
+  name: 'Quản lý Ký túc xá',
+  description:
+    'Quản lý tòa nhà, phòng, giường, đăng ký, hợp đồng, phí, vi phạm và bảo trì KTX.',
+  status: 'Active',
+};
+
 export const PROPOSED_PERMISSION_GROUP = {
   code: 'G_PROPOSED',
   name: 'Đề xuất bổ sung',
@@ -505,6 +513,188 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     name: 'Đóng phiên điểm danh',
     module: CLUB_MANAGER_GROUP.name,
     description: 'Cho phép đóng phiên điểm danh đang hoạt động.',
+  },
+
+  // 8. Nhóm Quản lý Ký túc xá (KTX)
+  {
+    code: 'DORM_PAGE',
+    name: 'Truy cập trang quản lý KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép truy cập menu và giao diện quản lý Ký túc xá.',
+  },
+  {
+    code: 'DORM_BUILDING_READ',
+    name: 'Xem tòa nhà KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xem danh sách và chi tiết tòa nhà KTX.',
+  },
+  {
+    code: 'DORM_BUILDING_CREATE',
+    name: 'Thêm tòa nhà KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép tạo mới tòa nhà KTX.',
+  },
+  {
+    code: 'DORM_BUILDING_UPDATE',
+    name: 'Cập nhật tòa nhà KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép chỉnh sửa thông tin tòa nhà KTX.',
+  },
+  {
+    code: 'DORM_BUILDING_DELETE',
+    name: 'Xóa tòa nhà KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xóa tòa nhà KTX.',
+  },
+  {
+    code: 'DORM_ROOM_READ',
+    name: 'Xem phòng KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xem danh sách và chi tiết phòng KTX.',
+  },
+  {
+    code: 'DORM_ROOM_CREATE',
+    name: 'Thêm phòng KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép tạo mới phòng KTX.',
+  },
+  {
+    code: 'DORM_ROOM_UPDATE',
+    name: 'Cập nhật phòng KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép chỉnh sửa thông tin phòng KTX.',
+  },
+  {
+    code: 'DORM_ROOM_DELETE',
+    name: 'Xóa phòng KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xóa phòng KTX.',
+  },
+  {
+    code: 'DORM_BED_CREATE',
+    name: 'Thêm giường KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép tạo mới giường trong phòng KTX.',
+  },
+  {
+    code: 'DORM_BED_UPDATE',
+    name: 'Cập nhật giường KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép cập nhật trạng thái giường KTX.',
+  },
+  {
+    code: 'DORM_BED_DELETE',
+    name: 'Xóa giường KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xóa giường KTX.',
+  },
+  {
+    code: 'DORM_REG_READ',
+    name: 'Xem đăng ký KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xem danh sách đơn đăng ký ở KTX.',
+  },
+  {
+    code: 'DORM_REG_CREATE',
+    name: 'Tạo đăng ký KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép tạo đơn đăng ký ở KTX.',
+  },
+  {
+    code: 'DORM_REG_APPROVE',
+    name: 'Duyệt đăng ký KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép duyệt hoặc từ chối đơn đăng ký ở KTX, phân phòng.',
+  },
+  {
+    code: 'DORM_CONTRACT_READ',
+    name: 'Xem hợp đồng KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xem danh sách và chi tiết hợp đồng KTX.',
+  },
+  {
+    code: 'DORM_CONTRACT_CREATE',
+    name: 'Lập hợp đồng KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép lập hợp đồng ở KTX cho sinh viên.',
+  },
+  {
+    code: 'DORM_CONTRACT_UPDATE',
+    name: 'Cập nhật hợp đồng KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép hủy, gia hạn, chuyển phòng hợp đồng KTX.',
+  },
+  {
+    code: 'DORM_INVOICE_READ',
+    name: 'Xem hóa đơn KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xem danh sách và chi tiết hóa đơn phí KTX.',
+  },
+  {
+    code: 'DORM_INVOICE_CREATE',
+    name: 'Lập hóa đơn KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép lập hóa đơn phí KTX (đơn lẻ và hàng loạt).',
+  },
+  {
+    code: 'DORM_INVOICE_CONFIRM',
+    name: 'Xác nhận thanh toán KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xác nhận thanh toán hóa đơn phí KTX.',
+  },
+  {
+    code: 'DORM_VIOLATION_READ',
+    name: 'Xem vi phạm KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xem danh sách và chi tiết vi phạm nội quy KTX.',
+  },
+  {
+    code: 'DORM_VIOLATION_CREATE',
+    name: 'Ghi nhận vi phạm KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép ghi nhận vi phạm nội quy KTX.',
+  },
+  {
+    code: 'DORM_VIOLATION_HANDLE',
+    name: 'Xử lý vi phạm KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xử lý vi phạm KTX (cảnh cáo, phạt, buộc rời).',
+  },
+  {
+    code: 'DORM_MAINT_READ',
+    name: 'Xem yêu cầu bảo trì KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xem danh sách yêu cầu bảo trì KTX.',
+  },
+  {
+    code: 'DORM_MAINT_CREATE',
+    name: 'Tạo yêu cầu bảo trì KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép tạo yêu cầu sửa chữa thiết bị KTX.',
+  },
+  {
+    code: 'DORM_MAINT_ASSIGN',
+    name: 'Phân công bảo trì KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép phân công kỹ thuật viên và cập nhật tiến độ bảo trì.',
+  },
+  {
+    code: 'DORM_MAINT_COMPLETE',
+    name: 'Hoàn tất bảo trì KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép đánh dấu hoàn tất yêu cầu bảo trì KTX.',
+  },
+  {
+    code: 'DORM_REPORT_READ',
+    name: 'Xem báo cáo KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xem báo cáo thống kê KTX (lấp đầy, công nợ, vi phạm, bảo trì).',
+  },
+  {
+    code: 'DORM_QR_CHECKIN',
+    name: 'Check-in/out QR KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép quét QR để check-in/check-out phòng KTX.',
   },
 
   // Nhóm Đề xuất bổ sung (Các quyền CRUD cho trang /permissions chưa có guard)

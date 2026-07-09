@@ -679,7 +679,7 @@ function ClubAttendanceTab({
             sessionLatitude={attendance.session.latitude!}
             sessionLongitude={attendance.session.longitude!}
             sessionRadius={attendance.session.radius_meters!}
-            onCheckin={(lat, lng) => attendance.checkinProximity(lat, lng)}
+            onCheckin={async (lat, lng) => { await attendance.checkinProximity(lat, lng); }}
             checkinStatus={attendance.checkinStatus}
             checkinError={attendance.checkinError}
           />

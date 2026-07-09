@@ -30,8 +30,8 @@ async function bootstrap() {
   app.setGlobalPrefix('api', {
     exclude: ['health'],
   });
-  app.use(json({ limit: '50mb' }));
-  app.use(urlencoded({ limit: '50mb', extended: true }));
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ limit: '10mb', extended: true }));
   app.getHttpAdapter().getInstance().set('trust proxy', true);
 
   // Serve static uploads

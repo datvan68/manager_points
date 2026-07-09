@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     "/register",
     "/forgot-password",
     "/reset-password",
-  ].includes(pathname);
+  ].includes(pathname) || pathname.startsWith("/public");
 
   // Permission checking utilities
   const hasPermission = useCallback(

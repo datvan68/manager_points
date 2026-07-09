@@ -31,6 +31,7 @@ import { ClubSchedulesModule } from './club-schedules/club-schedules.module';
 import { ClubAttendanceModule } from './club-attendance/club-attendance.module';
 import { ClubAttendanceConfigModule } from './club-attendance-config/club-attendance-config.module';
 import { AttendanceSessionsModule } from './attendance-sessions/attendance-sessions.module';
+import { DormitoryModule } from './dormitory/dormitory.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { AttendanceSessionsModule } from './attendance-sessions/attendance-sessi
     ClubAttendanceModule,
     ClubAttendanceConfigModule,
     AttendanceSessionsModule,
+    DormitoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

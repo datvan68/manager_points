@@ -513,6 +513,7 @@ export class SummariesPointService {
             .sort({ createdAt: 1, _id: 1 })
             .skip(skip)
             .limit(limit)
+            .lean()
             .exec(),
       this.summaryPointModel.countDocuments(filter).exec(),
     ]);
@@ -939,7 +940,7 @@ export class SummariesPointService {
       filter.student_id = null; // No students to find
     }
 
-    let summaries: SummaryPointDocument[] = [];
+    let summaries: any[] = [];
     if (filter.student_id) {
       summaries = await this.summaryPointModel
         .find(filter)
@@ -947,6 +948,7 @@ export class SummariesPointService {
           path: 'student_id',
           select: 'full_name student_code',
         })
+        .lean()
         .exec();
     }
 
@@ -1474,7 +1476,14 @@ export class SummariesPointService {
 
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process',
+        '--no-zygote',
+      ],
     });
 
     try {
@@ -1694,6 +1703,7 @@ export class SummariesPointService {
   async auditAndRepairDraftScores(): Promise<any> {
     const activeSummaries = await this.summaryPointModel
       .find({ status: { $ne: 'locked' } })
+      .lean()
       .exec();
     const criteria = await this.criterionModel.find().lean().exec();
 
@@ -1914,9 +1924,10 @@ export class SummariesPointService {
       }
 
       if (isModified) {
-        summary.details = details;
-        summary.markModified('details');
-        await summary.save();
+        await this.summaryPointModel.findByIdAndUpdate(
+          summary._id,
+          { $set: { details } },
+        ).exec();
         await this.recomputeTotalScore(summary._id.toString());
         repairedCount++;
       }

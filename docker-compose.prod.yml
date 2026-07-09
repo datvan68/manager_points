@@ -39,6 +39,8 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     restart: unless-stopped
+    mem_limit: 512m
+    memswap_limit: 512m
     logging: *default-logging
     environment:
       NODE_ENV: production
@@ -73,6 +75,8 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
+    mem_limit: 512m
+    memswap_limit: 512m
     logging: *default-logging
     environment:
       NODE_ENV: production
