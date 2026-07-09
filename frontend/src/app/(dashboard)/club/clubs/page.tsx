@@ -301,6 +301,8 @@ export default function ClubsListPage() {
   const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
   const [clubToSwitch, setClubToSwitch] = useState<ClubWithStats | null>(null);
   const [switchLoading, setSwitchLoading] = useState(false);
+  const [showJoinConfirm, setShowJoinConfirm] = useState(false);
+  const [clubToJoin, setClubToJoin] = useState<ClubWithStats | null>(null);
  
   // Bulk selection states
   const [selectedClubIds, setSelectedClubIds] = useState<string[]>([]);
@@ -717,27 +719,8 @@ export default function ClubsListPage() {
       return;
     }
 
-    setClubs((prev) =>
-      prev.map((c) => (c._id === club._id ? { ...c, join_loading: true } : c))
-    );
-
-    try {
-      const res = await clubApi.joinClub(club._id, { semester_id: semesterId });
-      const newStatus = res.membership.status;
-
-      await loadClubs();
-
-      if (newStatus === 'pending') {
-        toast.success('Đã gửi yêu cầu tham gia câu lạc bộ, vui lòng chờ duyệt.');
-      } else {
-        toast.success('Tham gia câu lạc bộ thành công!');
-      }
-    } catch (err: any) {
-      setClubs((prev) =>
-        prev.map((c) => (c._id === club._id ? { ...c, join_loading: false } : c))
-      );
-      toast.error(err?.response?.data?.message || err?.message || 'Không thể đăng ký tham gia câu lạc bộ');
-    }
+    setClubToJoin(club);
+    setShowJoinConfirm(true);
   };
 
   const renderJoinButtonContent = (club: ClubWithStats) => {
@@ -1599,9 +1582,10 @@ export default function ClubsListPage() {
             } else {
               toast.success('Chuyển đổi câu lạc bộ thành công!');
             }
+            const targetId = clubToSwitch._id;
             setShowSwitchConfirm(false);
             setClubToSwitch(null);
-            await loadClubs();
+            router.push(`/club/clubs/${targetId}`);
           } catch (err: any) {
             toast.error(err?.response?.data?.message || err?.message || 'Không thể chuyển đổi câu lạc bộ');
           } finally {
@@ -1623,7 +1607,54 @@ export default function ClubsListPage() {
         }
         confirmLabel={switchLoading ? 'Đang xử lý...' : 'Xác nhận chuyển'}
         cancelLabel="Hủy"
-        variant="primary"
+        variant="info"
+      />
+
+      {/* Join Club Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showJoinConfirm}
+        onClose={() => {
+          setShowJoinConfirm(false);
+          setClubToJoin(null);
+        }}
+        onConfirm={async () => {
+          if (!clubToJoin) return;
+          const semesterId = clubToJoin.semester_id?._id || clubToJoin.semester_id || activeSemesterId;
+          if (!semesterId) {
+            toast.error('Không tìm thấy học kỳ hoạt động hiện tại để đăng ký.');
+            return;
+          }
+
+          setClubs((prev) =>
+            prev.map((c) => (c._id === clubToJoin._id ? { ...c, join_loading: true } : c))
+          );
+
+          try {
+            const res = await clubApi.joinClub(clubToJoin._id, { semester_id: semesterId });
+            const newStatus = res.membership.status;
+
+            if (newStatus === 'pending') {
+              toast.success('Đã gửi yêu cầu tham gia câu lạc bộ, vui lòng chờ duyệt.');
+            } else {
+              toast.success('Tham gia câu lạc bộ thành công!');
+            }
+
+            const targetId = clubToJoin._id;
+            setShowJoinConfirm(false);
+            setClubToJoin(null);
+            router.push(`/club/clubs/${targetId}`);
+          } catch (err: any) {
+            setClubs((prev) =>
+              prev.map((c) => (c._id === clubToJoin._id ? { ...c, join_loading: false } : c))
+            );
+            toast.error(err?.response?.data?.message || err?.message || 'Không thể đăng ký tham gia câu lạc bộ');
+          }
+        }}
+        title="Xác nhận tham gia Câu lạc bộ"
+        message={`Bạn có chắc chắn muốn đăng ký tham gia câu lạc bộ "${clubToJoin?.name}"?`}
+        confirmLabel={clubToJoin?.join_loading ? 'Đang xử lý...' : 'Xác nhận'}
+        cancelLabel="Hủy"
+        variant="info"
       />
 
       {/* Background Setup Modal */}

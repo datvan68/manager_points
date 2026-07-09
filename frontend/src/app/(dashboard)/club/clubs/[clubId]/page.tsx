@@ -21,6 +21,8 @@ import ProximityCheckinButton from '@/components/attendance/ProximityCheckinButt
 import { tokenStorage } from '@/api/auth-api';
 import { studentApi, Student } from '@/api/student-api';
 import { semesterApi, Semester } from '@/api/semester-api';
+import { findClubMembership, isJoinedStudent, filterDetailTabs } from '../student-club-view';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 
 const getImageUrl = (url?: string) => {
   if (!url) return '';
@@ -129,6 +131,9 @@ export default function ClubDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showMethodSelector, setShowMethodSelector] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [myMembershipStatus, setMyMembershipStatus] = useState<string>('none');
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [leaveLoading, setLeaveLoading] = useState(false);
 
   const [studentsList, setStudentsList] = useState<Student[]>([]);
   const [semestersList, setSemestersList] = useState<Semester[]>([]);
@@ -153,17 +158,21 @@ export default function ClubDetailPage() {
       const currentUser = tokenStorage.getUser();
       const isAdmin = currentUser?.role?.toLowerCase() === 'admin';
 
-      const [clubData, membersData, timelineResponse, studentsData, semestersData] = await Promise.all([
+      const [clubData, membersData, timelineResponse, studentsData, semestersData, myMemberships] = await Promise.all([
         clubApi.getById(clubId),
         clubApi.getMembers(clubId, { status: '' }),
         clubScheduleApi.getClubTimeline(clubId).catch(() => null),
         isAdmin ? studentApi.getStudents({ limit: 1000 }).catch(() => []) : Promise.resolve([]),
         isAdmin ? semesterApi.getSemesters().catch(() => []) : Promise.resolve([]),
+        currentUser ? clubApi.getMyClubs().catch(() => []) : Promise.resolve([]),
       ]);
 
       setClub(clubData);
       setMembers(Array.isArray(membersData) ? membersData : []);
       
+      const membership = findClubMembership(myMemberships, clubId);
+      setMyMembershipStatus(membership?.status || 'none');
+
       if (timelineResponse) {
         setTimelineData(timelineResponse);
         setSchedules(timelineResponse.items || []);
@@ -183,7 +192,8 @@ export default function ClubDetailPage() {
           setSelectedSemesterId(semestersData[0]._id);
         }
       }
-    } catch {
+    } catch (err: any) {
+      console.error("LOAD DETAIL ERROR:", err);
       toast.error('Không thể tải thông tin CLB');
     } finally {
       setLoading(false);
@@ -200,6 +210,15 @@ export default function ClubDetailPage() {
     }
   };
 
+  const currentUser = tokenStorage.getUser();
+  const isActiveStudentMember = isJoinedStudent(currentUser?.role, myMembershipStatus);
+
+  useEffect(() => {
+    if (isActiveStudentMember && activeTab === 'members') {
+      setActiveTab('info');
+    }
+  }, [isActiveStudentMember, activeTab]);
+
   if (loading) return (
     <div className="p-6 flex items-center justify-center h-full">
       <Loader2 className="animate-spin text-blue-500" size={28} />
@@ -213,7 +232,6 @@ export default function ClubDetailPage() {
     </div>
   );
 
-  const currentUser = tokenStorage.getUser();
   const isAdvisor = currentUser && club && (
     currentUser._id === club.advisor_id?._id ||
     currentUser.userId === club.advisor_id?._id ||
@@ -235,84 +253,103 @@ export default function ClubDetailPage() {
     { id: 'attendance', label: 'Điểm danh', icon: ClipboardCheck },
   ];
 
+  const filteredTabs = filterDetailTabs(tabs, isActiveStudentMember);
+
   return (
     <div className="p-6 space-y-6 custom-scrollbar overflow-y-auto h-full">
-      {/* Hero Banner Section */}
-      <div className="relative overflow-hidden backdrop-blur-md bg-white/45 border border-white/80 rounded-3xl shadow-md shadow-slate-200/50">
-        {/* Banner cover */}
-        <div 
-          className="h-56 relative w-full flex flex-col justify-end p-6 md:p-8 bg-center bg-cover"
-          style={club.cover_url ? {
-            backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.6)), url(${getImageUrl(club.cover_url)})`
-          } : {
-            background: conf.heroGradient
-          }}
-        >
-          {/* Back button */}
+      {/* Back button and Title Header for Active Student Member (when banner is hidden) */}
+      {isActiveStudentMember && (
+        <div className="flex items-center gap-3">
           <button 
             onClick={() => router.push('/club/clubs')} 
-            className="absolute top-6 left-6 w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white hover:bg-white/30 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-all cursor-pointer shadow-sm"
           >
             <ArrowLeft size={18} />
           </button>
+          <h1 className="text-xl font-bold text-slate-800">{club.name}</h1>
+        </div>
+      )}
 
-          <div className="absolute top-6 right-6 text-white/10 font-black text-8xl select-none leading-none pointer-events-none">
-            {club.code}
-          </div>
+      {/* Hero Banner Section */}
+      {!isActiveStudentMember && (
+        <div className="relative overflow-hidden backdrop-blur-md bg-white/45 border border-white/80 rounded-3xl shadow-md shadow-slate-200/50">
+          {/* Banner cover */}
+          <div 
+            className="h-56 relative w-full flex flex-col justify-end p-6 md:p-8 bg-center bg-cover"
+            style={club.cover_url ? {
+              backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.6)), url(${getImageUrl(club.cover_url)})`
+            } : {
+              background: conf.heroGradient
+            }}
+          >
+            {/* Back button */}
+            <button 
+              onClick={() => router.push('/club/clubs')} 
+              className="absolute top-6 left-6 w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white hover:bg-white/30 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            >
+              <ArrowLeft size={18} />
+            </button>
 
-          <div className="relative z-10 space-y-2">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black tracking-wider text-white bg-white/20 border border-white/30 uppercase">
-              {conf.badge}
-            </span>
-            <h1 className="text-2xl md:text-3xl font-black text-white leading-tight drop-shadow-sm">
-              {club.name}
-            </h1>
-            <p className="text-xs text-white/90 leading-relaxed max-w-3xl font-medium drop-shadow-sm">
-              {club.description || 'Câu lạc bộ sinh viên trực thuộc trường, nơi phát huy tiềm năng và giao lưu học hỏi học thuật.'}
-            </p>
+            <div className="absolute top-6 right-6 text-white/10 font-black text-8xl select-none leading-none pointer-events-none">
+              {club.code}
+            </div>
+
+            <div className="relative z-10 space-y-2">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black tracking-wider text-white bg-white/20 border border-white/30 uppercase">
+                {conf.badge}
+              </span>
+              <h1 className="text-2xl md:text-3xl font-black text-white leading-tight drop-shadow-sm">
+                {club.name}
+              </h1>
+              <p className="text-xs text-white/90 leading-relaxed max-w-3xl font-medium drop-shadow-sm">
+                {club.description || 'Câu lạc bộ sinh viên trực thuộc trường, nơi phát huy tiềm năng và giao lưu học hỏi học thuật.'}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Stats Row Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Stat 1 */}
-        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-2xl p-4 shadow-sm shadow-slate-200/40 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
-            <Users size={22} />
+      {!isActiveStudentMember && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Stat 1 */}
+          <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-2xl p-4 shadow-sm shadow-slate-200/40 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
+              <Users size={22} />
+            </div>
+            <div>
+              <div className="text-xl font-black text-slate-800 leading-none">{activeMembers.length}</div>
+              <div className="text-xs font-semibold text-slate-400 mt-1">Thành viên chính thức</div>
+            </div>
           </div>
-          <div>
-            <div className="text-xl font-black text-slate-800 leading-none">{activeMembers.length}</div>
-            <div className="text-xs font-semibold text-slate-400 mt-1">Thành viên chính thức</div>
-          </div>
-        </div>
 
-        {/* Stat 2 */}
-        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-2xl p-4 shadow-sm shadow-slate-200/40 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600 shrink-0">
-            <Award size={22} />
+          {/* Stat 2 */}
+          <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-2xl p-4 shadow-sm shadow-slate-200/40 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600 shrink-0">
+              <Award size={22} />
+            </div>
+            <div>
+              <div className="text-xl font-black text-slate-800 leading-none">Hoạt động</div>
+              <div className="text-xs font-semibold text-slate-400 mt-1">Đánh giá chung</div>
+            </div>
           </div>
-          <div>
-            <div className="text-xl font-black text-slate-800 leading-none">Hoạt động</div>
-            <div className="text-xs font-semibold text-slate-400 mt-1">Đánh giá chung</div>
-          </div>
-        </div>
 
-        {/* Stat 3 */}
-        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-2xl p-4 shadow-sm shadow-slate-200/40 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
-            <Calendar size={22} />
-          </div>
-          <div>
-            <div className="text-xl font-black text-slate-800 leading-none">{schedules.length}</div>
-            <div className="text-xs font-semibold text-slate-400 mt-1">Sự kiện đã lên lịch</div>
+          {/* Stat 3 */}
+          <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-2xl p-4 shadow-sm shadow-slate-200/40 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
+              <Calendar size={22} />
+            </div>
+            <div>
+              <div className="text-xl font-black text-slate-800 leading-none">{schedules.length}</div>
+              <div className="text-xs font-semibold text-slate-400 mt-1">Sự kiện đã lên lịch</div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Tabs Switcher */}
       <div className="flex gap-1.5 p-1 bg-white/30 backdrop-blur-md rounded-2xl border border-white/50">
-        {tabs.map(tab => {
+        {filteredTabs.map(tab => {
           const Icon = tab.icon;
           return (
             <button
@@ -405,11 +442,30 @@ export default function ClubDetailPage() {
                 </div>
 
                 {/* Self registration CTA */}
-                {club.settings?.allow_self_registration && (
+                {currentUser?.role?.toLowerCase() === 'student' && myMembershipStatus === 'active' && (
+                  <button
+                    onClick={() => setShowLeaveConfirm(true)}
+                    className="w-full flex items-center justify-center gap-2 py-3 mt-4 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-700 shadow-md shadow-red-500/20 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Rời CLB
+                  </button>
+                )}
+                {currentUser?.role?.toLowerCase() === 'student' && myMembershipStatus === 'pending' && (
+                  <button
+                    disabled
+                    className="w-full flex items-center justify-center gap-2 py-3 mt-4 bg-slate-100 text-slate-400 border border-slate-200 text-xs font-bold rounded-xl cursor-not-allowed"
+                  >
+                    Đang chờ duyệt
+                  </button>
+                )}
+                {club.settings?.allow_self_registration && 
+                 (currentUser?.role?.toLowerCase() !== 'student' || 
+                  ['none', 'left', 'inactive', 'rejected'].includes(myMembershipStatus)) && (
                   <button
                     onClick={async () => {
                       try {
-                        await clubApi.joinClub(club._id, { semester_id: club.semester_id || '' });
+                        const semesterId = club.semester_id?._id || club.semester_id || '';
+                        await clubApi.joinClub(club._id, { semester_id: semesterId });
                         toast.success('Đã gửi yêu cầu đăng ký tham gia CLB thành công!');
                         loadData();
                       } catch (err: any) {
@@ -549,7 +605,7 @@ export default function ClubDetailPage() {
                       <option value="">-- Chọn học kỳ --</option>
                       {semestersList.map((s) => (
                         <option key={s._id} value={s._id}>
-                          {s.name} {s.status === 'active' ? '(Hiện tại)' : ''}
+                          {s.semester_name || (s as any).name} {s.status === 'active' ? '(Hiện tại)' : ''}
                         </option>
                       ))}
                     </select>
@@ -620,6 +676,35 @@ export default function ClubDetailPage() {
           />
         )}
       </div>
+
+      {/* Leave Club Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLeaveConfirm}
+        onClose={() => setShowLeaveConfirm(false)}
+        onConfirm={async () => {
+          const semesterId = club.semester_id?._id || club.semester_id;
+          if (!semesterId) {
+            toast.error('Không tìm thấy học kỳ hoạt động để rời CLB.');
+            return;
+          }
+          setLeaveLoading(true);
+          try {
+            await clubApi.leaveClub(club._id, { semester_id: semesterId });
+            toast.success('Rời câu lạc bộ thành công.');
+            setShowLeaveConfirm(false);
+            await loadData();
+          } catch (err: any) {
+            toast.error(err?.response?.data?.message || err?.message || 'Không thể rời câu lạc bộ');
+          } finally {
+            setLeaveLoading(false);
+          }
+        }}
+        title="Xác nhận rời Câu lạc bộ"
+        message={`Bạn có chắc chắn muốn rời khỏi câu lạc bộ "${club.name}"?`}
+        confirmLabel={leaveLoading ? 'Đang xử lý...' : 'Rời CLB'}
+        cancelLabel="Hủy"
+        variant="danger"
+      />
     </div>
   );
 }

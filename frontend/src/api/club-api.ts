@@ -63,6 +63,7 @@ export interface ClubMember {
   approved_by?: any;
   semester_id: any;
   occupies_slot?: boolean;
+  transfer?: any;
   createdAt: string;
 }
 

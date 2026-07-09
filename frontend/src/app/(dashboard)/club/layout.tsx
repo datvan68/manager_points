@@ -3,18 +3,14 @@
 import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
-  Users, Calendar, ClipboardCheck, Settings, Home, BookOpen,
-  UserCheck, LayoutGrid
+  Calendar, Settings, Home, LayoutGrid
 } from 'lucide-react';
 
 const clubNavItems = [
   { label: 'Tổng quan', href: '/club', icon: Home },
   { label: 'Danh sách CLB', href: '/club/clubs', icon: LayoutGrid },
   { label: 'Lịch sinh hoạt', href: '/club/schedules', icon: Calendar },
-  { label: 'Điểm danh', href: '/club/attendance', icon: ClipboardCheck },
-  { label: 'Duyệt điểm danh', href: '/club/attendance/approval', icon: UserCheck },
   { label: 'Cấu hình điểm', href: '/club/config', icon: Settings },
-  { label: 'CLB của tôi', href: '/club/my', icon: BookOpen },
 ];
 
 export default function ClubLayout({ children }: { children: React.ReactNode }) {

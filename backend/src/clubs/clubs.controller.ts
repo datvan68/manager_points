@@ -37,6 +37,9 @@ import {
   UpdateClubMemberDto,
   ApproveMemberDto,
   JoinClubDto,
+  LeaveClubDto,
+  SwitchClubDto,
+  AdminTransferClubDto,
 } from './dto/club-member.dto';
 
 @ApiTags('Clubs')
