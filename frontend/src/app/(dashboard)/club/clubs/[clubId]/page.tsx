@@ -18,6 +18,9 @@ import QrDisplayPanel from '@/components/attendance/QrDisplayPanel';
 import QrScannerModal from '@/components/attendance/QrScannerModal';
 import ProximityPanel from '@/components/attendance/ProximityPanel';
 import ProximityCheckinButton from '@/components/attendance/ProximityCheckinButton';
+import { tokenStorage } from '@/api/auth-api';
+import { studentApi, Student } from '@/api/student-api';
+import { semesterApi, Semester } from '@/api/semester-api';
 
 const getImageUrl = (url?: string) => {
   if (!url) return '';
@@ -127,6 +130,12 @@ export default function ClubDetailPage() {
   const [showMethodSelector, setShowMethodSelector] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
 
+  const [studentsList, setStudentsList] = useState<Student[]>([]);
+  const [semestersList, setSemestersList] = useState<Semester[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string>('');
+  const [adminTransferLoading, setAdminTransferLoading] = useState(false);
+
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'schedules') {
@@ -141,19 +150,38 @@ export default function ClubDetailPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [clubData, membersData, timelineResponse] = await Promise.all([
+      const currentUser = tokenStorage.getUser();
+      const isAdmin = currentUser?.role?.toLowerCase() === 'admin';
+
+      const [clubData, membersData, timelineResponse, studentsData, semestersData] = await Promise.all([
         clubApi.getById(clubId),
         clubApi.getMembers(clubId, { status: '' }),
         clubScheduleApi.getClubTimeline(clubId).catch(() => null),
+        isAdmin ? studentApi.getStudents({ limit: 1000 }).catch(() => []) : Promise.resolve([]),
+        isAdmin ? semesterApi.getSemesters().catch(() => []) : Promise.resolve([]),
       ]);
+
       setClub(clubData);
       setMembers(Array.isArray(membersData) ? membersData : []);
+      
       if (timelineResponse) {
         setTimelineData(timelineResponse);
         setSchedules(timelineResponse.items || []);
       } else {
         setTimelineData(null);
         setSchedules([]);
+      }
+
+      if (isAdmin) {
+        setStudentsList(Array.isArray(studentsData) ? studentsData : (studentsData as any)?.items || []);
+        setSemestersList(semestersData);
+        
+        const activeSem = semestersData.find((s: any) => s.status === 'active');
+        if (activeSem) {
+          setSelectedSemesterId(activeSem._id);
+        } else if (semestersData.length > 0) {
+          setSelectedSemesterId(semestersData[0]._id);
+        }
       }
     } catch {
       toast.error('Không thể tải thông tin CLB');
@@ -184,6 +212,17 @@ export default function ClubDetailPage() {
       <span>Không tìm thấy thông tin Câu lạc bộ</span>
     </div>
   );
+
+  const currentUser = tokenStorage.getUser();
+  const isAdvisor = currentUser && club && (
+    currentUser._id === club.advisor_id?._id ||
+    currentUser.userId === club.advisor_id?._id ||
+    currentUser.id === club.advisor_id?._id ||
+    currentUser._id === club.advisor_id ||
+    currentUser.userId === club.advisor_id ||
+    currentUser.id === club.advisor_id
+  );
+  const isAdmin = currentUser?.role?.toLowerCase() === 'admin';
 
   const conf = categoryConfigs[club.category] || categoryConfigs.other;
   const pendingMembers = members.filter(m => m.status === 'pending');
@@ -396,30 +435,48 @@ export default function ClubDetailPage() {
                   <UserPlus size={16} /> Danh sách chờ duyệt tham gia ({pendingMembers.length})
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {pendingMembers.map(m => (
-                    <div key={m._id} className="flex items-center justify-between p-3.5 bg-white/80 border border-amber-200/30 rounded-xl shadow-sm">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-extrabold text-slate-800 truncate">{(m.student_id as any)?.full_name || '—'}</p>
-                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">{(m.student_id as any)?.student_code || '—'}</p>
+                  {pendingMembers.map(m => {
+                    const isTransfer = m.transfer && m.transfer.mode === 'teacher_approval';
+                    const showControls = !isTransfer || isAdvisor || isAdmin;
+
+                    return (
+                      <div key={m._id} className="flex items-center justify-between p-3.5 bg-white/80 border border-amber-200/30 rounded-xl shadow-sm">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-extrabold text-slate-800 truncate">{(m.student_id as any)?.full_name || '—'}</p>
+                            {isTransfer && (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 shrink-0">
+                                Yêu cầu chuyển
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5">{(m.student_id as any)?.student_code || '—'}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                          {showControls ? (
+                            <>
+                              <button
+                                onClick={() => handleApproveMember(m._id, 'active')}
+                                className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-655 hover:bg-emerald-500/20 cursor-pointer transition-all"
+                                title="Duyệt"
+                              >
+                                <CheckCircle2 size={16} className="text-emerald-655" />
+                              </button>
+                              <button
+                                onClick={() => handleApproveMember(m._id, 'rejected')}
+                                className="p-1.5 rounded-lg bg-red-500/10 text-red-655 hover:bg-red-500/20 cursor-pointer transition-all"
+                                title="Từ chối"
+                              >
+                                <XCircle size={16} className="text-red-655" />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-medium italic">Chờ GV duyệt</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-3">
-                        <button
-                          onClick={() => handleApproveMember(m._id, 'active')}
-                          className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-650 hover:bg-emerald-500/20 cursor-pointer transition-all"
-                          title="Duyệt"
-                        >
-                          <CheckCircle2 size={16} className="text-emerald-650" />
-                        </button>
-                        <button
-                          onClick={() => handleApproveMember(m._id, 'rejected')}
-                          className="p-1.5 rounded-lg bg-red-500/10 text-red-650 hover:bg-red-500/20 cursor-pointer transition-all"
-                          title="Từ chối"
-                        >
-                          <XCircle size={16} className="text-red-650" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -459,6 +516,75 @@ export default function ClubDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Direct Transfer Form (Admin only) */}
+            {isAdmin && (
+              <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-5 shadow-sm shadow-slate-200/40 space-y-4">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 pb-3 border-b border-white/50">
+                  <Sparkles size={16} className="text-blue-500" /> Chuyển câu lạc bộ trực tiếp (Admin)
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase">Chọn Sinh viên</label>
+                    <select
+                      value={selectedStudentId}
+                      onChange={(e) => setSelectedStudentId(e.target.value)}
+                      className="w-full text-xs font-bold text-slate-700 p-2.5 rounded-xl border border-slate-200 bg-white/85 shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">-- Chọn sinh viên --</option>
+                      {studentsList.map((s) => (
+                        <option key={s._id} value={s._id}>
+                          {s.full_name} ({s.student_code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase">Chọn Học kỳ</label>
+                    <select
+                      value={selectedSemesterId}
+                      onChange={(e) => setSelectedSemesterId(e.target.value)}
+                      className="w-full text-xs font-bold text-slate-700 p-2.5 rounded-xl border border-slate-200 bg-white/85 shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">-- Chọn học kỳ --</option>
+                      {semestersList.map((s) => (
+                        <option key={s._id} value={s._id}>
+                          {s.name} {s.status === 'active' ? '(Hiện tại)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={async () => {
+                      if (!selectedStudentId || !selectedSemesterId) {
+                        toast.error('Vui lòng chọn đầy đủ sinh viên và học kỳ.');
+                        return;
+                      }
+                      setAdminTransferLoading(true);
+                      try {
+                        await clubApi.adminTransferClub(clubId, {
+                          student_id: selectedStudentId,
+                          semester_id: selectedSemesterId,
+                        });
+                        toast.success('Chuyển câu lạc bộ trực tiếp thành công!');
+                        setSelectedStudentId('');
+                        loadData();
+                      } catch (err: any) {
+                        toast.error(err?.response?.data?.message || err?.message || 'Lỗi khi thực hiện chuyển đổi');
+                      } finally {
+                        setAdminTransferLoading(false);
+                      }
+                    }}
+                    disabled={adminTransferLoading}
+                    className="px-5 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 disabled:opacity-50 transition-all cursor-pointer animate-all"
+                  >
+                    {adminTransferLoading ? 'Đang thực hiện...' : 'Xác nhận chuyển trực tiếp'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

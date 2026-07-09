@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { BookOpen, Calendar, ClipboardCheck, ArrowRight, Loader2 } from 'lucide-react';
 import { clubApi, clubAttendanceApi, ClubMember } from '@/api/club-api';
 import { toast } from 'sonner';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 
 const categoryColors: Record<string, { bg: string; text: string; gradient: string }> = {
   academic: { bg: 'bg-blue-500/10', text: 'text-blue-600', gradient: 'from-blue-500 to-indigo-600' },
@@ -31,7 +32,34 @@ export default function MyClubsPage() {
   const [myAttendance, setMyAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [membershipToLeave, setMembershipToLeave] = useState<any>(null);
+  const [leaveLoading, setLeaveLoading] = useState(false);
+
   useEffect(() => { loadData(); }, []);
+
+  const handleLeaveClubRequest = (m: any) => {
+    setMembershipToLeave(m);
+    setShowLeaveConfirm(true);
+  };
+
+  const onConfirmLeave = async () => {
+    if (!membershipToLeave) return;
+    setLeaveLoading(true);
+    try {
+      const clubId = membershipToLeave.club_id?._id || membershipToLeave.club_id;
+      const semesterId = membershipToLeave.semester_id?._id || membershipToLeave.semester_id;
+      await clubApi.leaveClub(clubId, { semester_id: semesterId });
+      toast.success('Đã rời câu lạc bộ thành công');
+      setShowLeaveConfirm(false);
+      setMembershipToLeave(null);
+      await loadData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể rời câu lạc bộ');
+    } finally {
+      setLeaveLoading(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -129,7 +157,17 @@ export default function MyClubsPage() {
                       )}
                     </div>
                   </div>
-                  <ArrowRight size={16} className="text-slate-300 group-hover:text-blue-400 transition-colors" />
+                  <div className="flex items-center gap-2 animate-all" onClick={(e) => e.stopPropagation()}>
+                    {(m.status === 'active' || m.status === 'pending') && (
+                      <button
+                        onClick={() => handleLeaveClubRequest(m)}
+                        className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold rounded-lg border border-red-200 transition-all cursor-pointer shrink-0"
+                      >
+                        Rời CLB
+                      </button>
+                    )}
+                    <ArrowRight size={16} className="text-slate-300 group-hover:text-blue-400 transition-colors shrink-0" />
+                  </div>
                 </div>
               </button>
             );
@@ -172,6 +210,30 @@ export default function MyClubsPage() {
           </div>
         </div>
       )}
+
+      {/* Leave Club Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLeaveConfirm}
+        onClose={() => {
+          setShowLeaveConfirm(false);
+          setMembershipToLeave(null);
+        }}
+        onConfirm={onConfirmLeave}
+        title="Xác nhận rời Câu lạc bộ"
+        message={
+          membershipToLeave ? (
+            <div>
+              <p className="mb-2">Bạn có chắc chắn muốn rời câu lạc bộ <strong>{membershipToLeave.club_id?.name}</strong>?</p>
+              <p className="text-red-500 font-bold text-xs">
+                ⚠️ Cảnh báo: Việc rời câu lạc bộ hiện tại không đồng nghĩa với việc bạn sẽ tự động được chấp nhận tham gia một câu lạc bộ khác.
+              </p>
+            </div>
+          ) : ''
+        }
+        confirmLabel={leaveLoading ? 'Đang xử lý...' : 'Rời câu lạc bộ'}
+        cancelLabel="Hủy"
+        variant="danger"
+      />
     </div>
   );
 }

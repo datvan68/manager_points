@@ -16,7 +16,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
 import {
   ApiTags,
@@ -68,7 +68,7 @@ export class ClubsController {
           cb(null, uploadPath);
         },
         filename: (req, file, cb) => {
-          const uniqueSuffix = uuidv4();
+          const uniqueSuffix = randomUUID();
           const ext = extname(file.originalname).toLowerCase();
           cb(null, `${uniqueSuffix}${ext}`);
         },
@@ -124,6 +124,18 @@ export class ClubsController {
     const studentIdOrUserId =
       req.user.studentId || req.user.userId || req.user._id || req.user.id;
     return this.clubsService.getMyClubs(studentIdOrUserId);
+  }
+
+  @Get('my/transfer-policy')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Lấy chính sách chuyển câu lạc bộ của tôi' })
+  getMyTransferPolicy(
+    @Query('semester_id') semester_id: string,
+    @Request() req: any
+  ) {
+    const userId = req.user.userId || req.user._id || req.user.id;
+    return this.clubsService.getMyTransferPolicy(userId, semester_id);
   }
 
   @Get('favorites/me')
@@ -235,7 +247,7 @@ export class ClubsController {
   }
 
   @Post(':id/members/:memberId/approve')
-  @UseGuards(checkPermission('CLUB_MEMBER_MANAGE'))
+  @UseGuards(JwtAuthGuard) // Guard changed to JwtAuthGuard to allow advisors (TEACHER role) who may not have CLUB_MEMBER_MANAGE globally, but check is inside service
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Duyệt/từ chối đăng ký thành viên' })
   approveMember(
@@ -250,6 +262,45 @@ export class ClubsController {
       dto,
       req.user.userId || req.user._id || req.user.id,
     );
+  }
+
+  @Post(':id/leave')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Sinh viên tự rời câu lạc bộ' })
+  leaveClub(
+    @Param('id') id: string,
+    @Body() dto: LeaveClubDto,
+    @Request() req: any,
+  ) {
+    const userId = req.user.userId || req.user._id || req.user.id;
+    return this.clubsService.leaveClub(id, userId, dto);
+  }
+
+  @Post(':id/switch')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Sinh viên tự chuyển đổi sang câu lạc bộ khác' })
+  switchClub(
+    @Param('id') targetClubId: string,
+    @Body() dto: SwitchClubDto,
+    @Request() req: any,
+  ) {
+    const userId = req.user.userId || req.user._id || req.user.id;
+    return this.clubsService.switchClub(targetClubId, userId, dto);
+  }
+
+  @Post(':id/admin-transfer')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Quản trị viên chuyển trực tiếp sinh viên sang CLB khác' })
+  adminTransferClub(
+    @Param('id') targetClubId: string,
+    @Body() dto: AdminTransferClubDto,
+    @Request() req: any,
+  ) {
+    const userId = req.user.userId || req.user._id || req.user.id;
+    return this.clubsService.adminTransferClub(targetClubId, userId, dto);
   }
 
   @Get(':id/stats')

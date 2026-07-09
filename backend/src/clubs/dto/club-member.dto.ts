@@ -56,3 +56,25 @@ export class JoinClubDto {
   @IsMongoId()
   semester_id: string;
 }
+
+export class SwitchClubDto {
+  @ApiProperty({ description: 'Semester ID' })
+  @IsMongoId()
+  semester_id: string;
+}
+
+export class LeaveClubDto {
+  @ApiProperty({ description: 'Semester ID' })
+  @IsMongoId()
+  semester_id: string;
+}
+
+export class AdminTransferClubDto {
+  @ApiProperty({ description: 'Student ID' })
+  @IsMongoId()
+  student_id: string;
+
+  @ApiProperty({ description: 'Semester ID' })
+  @IsMongoId()
+  semester_id: string;
+}

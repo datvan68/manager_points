@@ -62,7 +62,17 @@ export interface ClubMember {
   left_at?: string;
   approved_by?: any;
   semester_id: any;
+  occupies_slot?: boolean;
   createdAt: string;
+}
+
+export interface ClubMembershipPolicyResponse {
+  membership: ClubMember;
+  transfer: any | null;
+  self_service_changes_used: number;
+  self_service_changes_remaining: number;
+  requires_teacher_approval: boolean;
+  first_schedule_start_time: string | null;
 }
 
 export interface ClubSchedule {
@@ -198,6 +208,21 @@ export const clubApi = {
     return handleResponse<ClubMember[]>(res);
   },
 
+  async getMyTransferPolicy(params: { semester_id: string }): Promise<{
+    self_service_changes_used: number;
+    self_service_changes_remaining: number;
+    occupied_club_id: string | null;
+    first_schedule_start_time: string | null;
+  }> {
+    const res = await httpClient(`${API_BASE}/clubs/my/transfer-policy${buildQuery(params)}`);
+    return handleResponse<{
+      self_service_changes_used: number;
+      self_service_changes_remaining: number;
+      occupied_club_id: string | null;
+      first_schedule_start_time: string | null;
+    }>(res);
+  },
+
   async getById(id: string): Promise<Club> {
     const res = await httpClient(`${API_BASE}/clubs/${id}`);
     return handleResponse<Club>(res);
@@ -270,13 +295,40 @@ export const clubApi = {
     return handleResponse<ClubMember>(res);
   },
 
-  async joinClub(clubId: string, data: { semester_id: string }): Promise<ClubMember> {
+  async joinClub(clubId: string, data: { semester_id: string }): Promise<ClubMembershipPolicyResponse> {
     const res = await httpClient(`${API_BASE}/clubs/${clubId}/join`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify(data),
     });
-    return handleResponse<ClubMember>(res);
+    return handleResponse<ClubMembershipPolicyResponse>(res);
+  },
+
+  async leaveClub(clubId: string, data: { semester_id: string }): Promise<ClubMembershipPolicyResponse> {
+    const res = await httpClient(`${API_BASE}/clubs/${clubId}/leave`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ClubMembershipPolicyResponse>(res);
+  },
+
+  async switchClub(targetClubId: string, data: { semester_id: string }): Promise<ClubMembershipPolicyResponse> {
+    const res = await httpClient(`${API_BASE}/clubs/${targetClubId}/switch`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ClubMembershipPolicyResponse>(res);
+  },
+
+  async adminTransferClub(targetClubId: string, data: { student_id: string; semester_id: string }): Promise<ClubMembershipPolicyResponse> {
+    const res = await httpClient(`${API_BASE}/clubs/${targetClubId}/admin-transfer`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ClubMembershipPolicyResponse>(res);
   },
 
   async updateMember(clubId: string, memberId: string, data: any): Promise<ClubMember> {

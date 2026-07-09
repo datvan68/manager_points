@@ -34,12 +34,11 @@ export class ClubMember {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   approved_by?: Types.ObjectId;
 
-  @Prop({
-    type: MongooseSchema.Types.ObjectId,
-    ref: 'Semester',
-    required: true,
-  })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Semester', required: true })
   semester_id: Types.ObjectId;
+
+  @Prop({ type: Boolean, required: true, default: false })
+  occupies_slot: boolean;
 }
 
 export const ClubMemberSchema = SchemaFactory.createForClass(ClubMember);
@@ -50,3 +49,10 @@ ClubMemberSchema.index(
 );
 ClubMemberSchema.index({ student_id: 1 });
 ClubMemberSchema.index({ club_id: 1, status: 1 });
+ClubMemberSchema.index(
+  { student_id: 1, semester_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { occupies_slot: true },
+  },
+);

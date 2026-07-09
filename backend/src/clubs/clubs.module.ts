@@ -11,6 +11,14 @@ import {
 import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Role, RoleSchema } from '../auth/schemas/role.schema';
+import {
+  ClubMembershipTransfer,
+  ClubMembershipTransferSchema,
+} from './schemas/club-membership-transfer.schema';
+import {
+  ClubSchedule,
+  ClubScheduleSchema,
+} from '../club-schedules/schemas/club-schedule.schema';
 
 @Module({
   imports: [
@@ -21,6 +29,11 @@ import { Role, RoleSchema } from '../auth/schemas/role.schema';
       { name: Student.name, schema: StudentSchema },
       { name: User.name, schema: UserSchema },
       { name: Role.name, schema: RoleSchema },
+      {
+        name: ClubMembershipTransfer.name,
+        schema: ClubMembershipTransferSchema,
+      },
+      { name: ClubSchedule.name, schema: ClubScheduleSchema },
     ]),
   ],
   controllers: [ClubsController],

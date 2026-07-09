@@ -28,6 +28,7 @@ import { getClubScheduleSummary, BACKGROUND_PRESETS, getClubAccentColor, Schedul
 import { API_ORIGIN } from '@/api/config';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { CustomPagination } from '@/components/ui/pagination';
+import { getMembershipPolicy } from './membership-policy';
  
 const SHOW_CLUB_AVATAR = false;
 
@@ -290,6 +291,16 @@ export default function ClubsListPage() {
   const [activeSemesterId, setActiveSemesterId] = useState<string | null>(null);
   const [showBgSetupModal, setShowBgSetupModal] = useState(false);
   const [selectedClubForBg, setSelectedClubForBg] = useState<ClubWithStats | null>(null);
+
+  const [transferPolicy, setTransferPolicy] = useState<{
+    self_service_changes_used: number;
+    self_service_changes_remaining: number;
+    occupied_club_id: string | null;
+    first_schedule_start_time: string | null;
+  } | null>(null);
+  const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
+  const [clubToSwitch, setClubToSwitch] = useState<ClubWithStats | null>(null);
+  const [switchLoading, setSwitchLoading] = useState(false);
  
   // Bulk selection states
   const [selectedClubIds, setSelectedClubIds] = useState<string[]>([]);
@@ -325,6 +336,11 @@ export default function ClubsListPage() {
       const activeSem = semestersList.find((s) => s.status === 'active');
       if (activeSem) {
         setActiveSemesterId(activeSem._id);
+        
+        if (currentUser) {
+          const policy = await clubApi.getMyTransferPolicy({ semester_id: activeSem._id }).catch(() => null);
+          setTransferPolicy(policy);
+        }
       }
  
       // Fetch stats for each club to display member count and favorite count
@@ -693,29 +709,23 @@ export default function ClubsListPage() {
       return;
     }
 
+    // Check if user has occupied membership in another club
+    const hasOccupiedElsewhere = transferPolicy && transferPolicy.occupied_club_id && transferPolicy.occupied_club_id !== club._id;
+    if (hasOccupiedElsewhere) {
+      setClubToSwitch(club);
+      setShowSwitchConfirm(true);
+      return;
+    }
+
     setClubs((prev) =>
       prev.map((c) => (c._id === club._id ? { ...c, join_loading: true } : c))
     );
 
     try {
       const res = await clubApi.joinClub(club._id, { semester_id: semesterId });
-      const newStatus = res.status;
+      const newStatus = res.membership.status;
 
-      setClubs((prev) =>
-        prev.map((c) => {
-          if (c._id === club._id) {
-            const isPending = newStatus === 'pending';
-            return {
-              ...c,
-              membership_status: newStatus as any,
-              active_members_count: isPending ? c.active_members_count : c.active_members_count + 1,
-              pending_members_count: isPending ? c.pending_members_count + 1 : c.pending_members_count,
-              join_loading: false,
-            };
-          }
-          return c;
-        })
-      );
+      await loadClubs();
 
       if (newStatus === 'pending') {
         toast.success('Đã gửi yêu cầu tham gia câu lạc bộ, vui lòng chờ duyệt.');
@@ -728,6 +738,66 @@ export default function ClubsListPage() {
       );
       toast.error(err?.response?.data?.message || err?.message || 'Không thể đăng ký tham gia câu lạc bộ');
     }
+  };
+
+  const renderJoinButtonContent = (club: ClubWithStats) => {
+    const currentUser = tokenStorage.getUser();
+    if (!currentUser) return 'Tham gia';
+    
+    const isStudent = currentUser.role?.toLowerCase() === 'student';
+    const isAdmin = currentUser.role?.toLowerCase() === 'admin';
+    if (!isStudent && !isAdmin) return 'Chỉ SV';
+
+    if (club.join_loading) {
+      return <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />;
+    }
+
+    const targetStatus = club.membership_status;
+    
+    const policyInput = {
+      hasOccupiedMembership: !!(transferPolicy && transferPolicy.occupied_club_id),
+      occupiedClubId: transferPolicy?.occupied_club_id || undefined,
+      targetClubId: club._id,
+      targetMembershipStatus: targetStatus !== 'none' ? targetStatus : undefined,
+      selfServiceChangesUsed: transferPolicy?.self_service_changes_used || 0,
+      firstScheduleStartTime: transferPolicy?.first_schedule_start_time,
+      now: new Date(),
+    };
+
+    const policy = getMembershipPolicy(policyInput);
+    return policy.label;
+  };
+
+  const isJoinButtonDisabled = (club: ClubWithStats) => {
+    const currentUser = tokenStorage.getUser();
+    if (!currentUser) return true;
+    
+    const isStudent = currentUser.role?.toLowerCase() === 'student';
+    const isAdmin = currentUser.role?.toLowerCase() === 'admin';
+    if (!isStudent && !isAdmin) return true;
+
+    if (club.join_loading) return true;
+    if (club.status !== 'active') return true;
+
+    if (club.max_members && club.active_members_count >= club.max_members) {
+      if (club.membership_status !== 'active' && club.membership_status !== 'pending') {
+        return true;
+      }
+    }
+
+    const targetStatus = club.membership_status;
+    const policyInput = {
+      hasOccupiedMembership: !!(transferPolicy && transferPolicy.occupied_club_id),
+      occupiedClubId: transferPolicy?.occupied_club_id || undefined,
+      targetClubId: club._id,
+      targetMembershipStatus: targetStatus !== 'none' ? targetStatus : undefined,
+      selfServiceChangesUsed: transferPolicy?.self_service_changes_used || 0,
+      firstScheduleStartTime: transferPolicy?.first_schedule_start_time,
+      now: new Date(),
+    };
+
+    const policy = getMembershipPolicy(policyInput);
+    return policy.disabled;
   };
 
   const totalActiveClubs = clubs.filter((c) => c.status === 'active').length;
@@ -821,6 +891,19 @@ export default function ClubsListPage() {
           </div>
         </div>
       </div>
+
+      {/* Student self-service transfers limit indicator */}
+      {transferPolicy && transferPolicy.self_service_changes_used !== undefined && (
+        <div className="bg-blue-50/70 border border-blue-200/60 rounded-2xl p-4 flex items-center justify-between text-blue-700 text-xs font-bold shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className="text-blue-500 animate-pulse animate-duration-1000" />
+            <span>Số lượt tự chuyển đổi câu lạc bộ đã sử dụng trong học kỳ:</span>
+          </div>
+          <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-extrabold shadow-inner border border-blue-200">
+            {transferPolicy.self_service_changes_used} / 3 lượt
+          </span>
+        </div>
+      )}
 
       {/* Filter and Action Controls */}
       <div className={cn(
@@ -1187,15 +1270,7 @@ export default function ClubsListPage() {
                           club.membership_status === 'pending' ? 'secondary' : 'default'
                         }
                         size="sm"
-                        disabled={
-                          club.join_loading ||
-                          club.membership_status === 'active' ||
-                          club.membership_status === 'pending' ||
-                          club.status !== 'active' ||
-                          !club.settings?.allow_self_registration ||
-                          (club.max_members ? club.active_members_count >= club.max_members : false) ||
-                          (currentUser?.role && currentUser.role.toLowerCase() !== 'student' && currentUser.role.toLowerCase() !== 'admin')
-                        }
+                        disabled={isJoinButtonDisabled(club)}
                         onClick={(e) => handleJoinClick(e, club)}
                         className={cn(
                           "h-7 text-[10px] px-2.5 font-bold rounded-lg cursor-pointer transition-all truncate max-w-[90px]",
@@ -1204,23 +1279,7 @@ export default function ClubsListPage() {
                           (club.status !== 'active' || !club.settings?.allow_self_registration) && "bg-slate-100 text-slate-400 border-slate-200"
                         )}
                       >
-                        {club.join_loading ? (
-                          <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                        ) : club.membership_status === 'active' ? (
-                          'Đã tham gia'
-                        ) : club.membership_status === 'pending' ? (
-                          'Đang chờ'
-                        ) : club.status !== 'active' ? (
-                          'Tạm dừng'
-                        ) : !club.settings?.allow_self_registration ? (
-                          'Khóa'
-                        ) : (club.max_members ? club.active_members_count >= club.max_members : false) ? (
-                          'Đầy'
-                        ) : (currentUser?.role && currentUser.role.toLowerCase() !== 'student' && currentUser.role.toLowerCase() !== 'admin') ? (
-                          'Chỉ SV'
-                        ) : (
-                          'Tham gia'
-                        )}
+                        {renderJoinButtonContent(club)}
                       </Button>
                     </div>
                   </div>
@@ -1395,15 +1454,7 @@ export default function ClubsListPage() {
                               club.membership_status === 'pending' ? 'secondary' : 'default'
                             }
                             size="sm"
-                            disabled={
-                              club.join_loading ||
-                              club.membership_status === 'active' ||
-                              club.membership_status === 'pending' ||
-                              club.status !== 'active' ||
-                              !club.settings?.allow_self_registration ||
-                              (club.max_members ? club.active_members_count >= club.max_members : false) ||
-                              (currentUser?.role && currentUser.role.toLowerCase() !== 'student' && currentUser.role.toLowerCase() !== 'admin')
-                            }
+                            disabled={isJoinButtonDisabled(club)}
                             onClick={(e) => handleJoinClick(e, club)}
                             className={cn(
                               "h-7 text-[9px] px-2 font-bold rounded-lg cursor-pointer transition-all mr-1.5",
@@ -1412,23 +1463,7 @@ export default function ClubsListPage() {
                               (club.status !== 'active' || !club.settings?.allow_self_registration) && "bg-slate-100 text-slate-400 border-slate-200"
                             )}
                           >
-                            {club.join_loading ? (
-                              <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                            ) : club.membership_status === 'active' ? (
-                              'Đã tham gia'
-                            ) : club.membership_status === 'pending' ? (
-                              'Đang chờ'
-                            ) : club.status !== 'active' ? (
-                              'Tạm dừng'
-                            ) : !club.settings?.allow_self_registration ? (
-                              'Khóa đăng ký'
-                            ) : (club.max_members ? club.active_members_count >= club.max_members : false) ? (
-                              'Đầy'
-                            ) : (currentUser?.role && currentUser.role.toLowerCase() !== 'student' && currentUser.role.toLowerCase() !== 'admin') ? (
-                              'Chỉ cho SV'
-                            ) : (
-                              'Tham gia'
-                            )}
+                            {renderJoinButtonContent(club)}
                           </Button>
                           <button
                             onClick={() => router.push(`/club/clubs/${club._id}`)}
@@ -1522,6 +1557,73 @@ export default function ClubsListPage() {
         confirmLabel="Vô hiệu hóa"
         cancelLabel="Hủy"
         variant="danger"
+      />
+
+      {/* Switch Club Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showSwitchConfirm}
+        onClose={() => {
+          setShowSwitchConfirm(false);
+          setClubToSwitch(null);
+        }}
+        onConfirm={async () => {
+          if (!clubToSwitch) return;
+          const semesterId = clubToSwitch.semester_id?._id || clubToSwitch.semester_id || activeSemesterId;
+          if (!semesterId) {
+            toast.error('Không tìm thấy học kỳ hoạt động hiện tại để chuyển đổi.');
+            return;
+          }
+          setSwitchLoading(true);
+          try {
+            const targetStatus = clubToSwitch.membership_status;
+            const policyInput = {
+              hasOccupiedMembership: !!(transferPolicy && transferPolicy.occupied_club_id),
+              occupiedClubId: transferPolicy?.occupied_club_id || undefined,
+              targetClubId: clubToSwitch._id,
+              targetMembershipStatus: targetStatus !== 'none' ? targetStatus : undefined,
+              selfServiceChangesUsed: transferPolicy?.self_service_changes_used || 0,
+              firstScheduleStartTime: transferPolicy?.first_schedule_start_time,
+              now: new Date(),
+            };
+            const policy = getMembershipPolicy(policyInput);
+
+            let res;
+            if (policy.requiresTeacherApproval) {
+              res = await clubApi.joinClub(clubToSwitch._id, { semester_id: semesterId });
+            } else {
+              res = await clubApi.switchClub(clubToSwitch._id, { semester_id: semesterId });
+            }
+
+            if (res.membership.status === 'pending') {
+              toast.success('Đã gửi yêu cầu chuyển đổi câu lạc bộ, vui lòng chờ Giảng viên cố vấn duyệt.');
+            } else {
+              toast.success('Chuyển đổi câu lạc bộ thành công!');
+            }
+            setShowSwitchConfirm(false);
+            setClubToSwitch(null);
+            await loadClubs();
+          } catch (err: any) {
+            toast.error(err?.response?.data?.message || err?.message || 'Không thể chuyển đổi câu lạc bộ');
+          } finally {
+            setSwitchLoading(false);
+          }
+        }}
+        title="Xác nhận chuyển Câu lạc bộ"
+        message={
+          clubToSwitch ? (
+            <div>
+              <p className="mb-2">Bạn có chắc chắn muốn chuyển sang câu lạc bộ <strong>{clubToSwitch.name}</strong>?</p>
+              <p className="text-slate-500 text-xs">
+                {transferPolicy?.first_schedule_start_time && new Date() >= new Date(transferPolicy.first_schedule_start_time)
+                  ? 'Lưu ý: Câu lạc bộ hiện tại đã bắt đầu hoạt động. Yêu cầu chuyển đổi sẽ ở trạng thái chờ duyệt.'
+                  : `Hành động này sẽ rời khỏi câu lạc bộ hiện tại. Bạn còn lại ${transferPolicy ? transferPolicy.self_service_changes_remaining : 3} lượt tự chuyển đổi.`}
+              </p>
+            </div>
+          ) : ''
+        }
+        confirmLabel={switchLoading ? 'Đang xử lý...' : 'Xác nhận chuyển'}
+        cancelLabel="Hủy"
+        variant="primary"
       />
 
       {/* Background Setup Modal */}
