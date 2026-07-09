@@ -529,12 +529,12 @@ export class ClubsService {
       mode: 'teacher_approval',
     }).exec();
 
-    if (transfer) {
-      // Must be the target club's advisor
-      const isAdvisor = club.advisor_id?.toString() === userId.toString();
-      if (!isAdvisor) {
-        throw new ForbiddenException('Chỉ Giảng viên cố vấn của câu lạc bộ đích mới có quyền duyệt yêu cầu chuyển đổi.');
-      }
+    const requester = await this.userModel.findById(userId).populate('role').exec();
+    const isAdminApprover = requester ? isAdminUser(requester) : false;
+    const isAssignedAdvisor = club.advisor_id?.toString() === userId.toString();
+
+    if (!isAdminApprover && !isAssignedAdvisor) {
+      throw new ForbiddenException('Chỉ giáo viên cố vấn được phân công hoặc quản trị viên mới có quyền phê duyệt hoặc từ chối thành viên.');
     }
 
     if (dto.status === 'active') {

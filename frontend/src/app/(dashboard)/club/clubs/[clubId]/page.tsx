@@ -232,15 +232,14 @@ export default function ClubDetailPage() {
     </div>
   );
 
-  const isAdvisor = currentUser && club && (
-    currentUser._id === club.advisor_id?._id ||
-    currentUser.userId === club.advisor_id?._id ||
-    currentUser.id === club.advisor_id?._id ||
-    currentUser._id === club.advisor_id ||
-    currentUser.userId === club.advisor_id ||
-    currentUser.id === club.advisor_id
+  const advisorIdStr = club?.advisor_id?._id || club?.advisor_id;
+  const isAdvisor = currentUser && advisorIdStr && (
+    currentUser._id === advisorIdStr ||
+    currentUser.userId === advisorIdStr ||
+    currentUser.id === advisorIdStr
   );
   const isAdmin = currentUser?.role?.toLowerCase() === 'admin';
+  const canApproveMembers = Boolean(isAdvisor || isAdmin);
 
   const conf = categoryConfigs[club.category] || categoryConfigs.other;
   const pendingMembers = members.filter(m => m.status === 'pending');
@@ -474,7 +473,7 @@ export default function ClubDetailPage() {
                     }}
                     className="w-full flex items-center justify-center gap-2 py-3 mt-4 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
                   >
-                    <UserPlus size={14} /> Gửi Đơn Đăng Ký Tham Gia
+                    <UserPlus size={14} /> Đăng ký
                   </button>
                 )}
               </div>
@@ -493,7 +492,7 @@ export default function ClubDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {pendingMembers.map(m => {
                     const isTransfer = m.transfer && m.transfer.mode === 'teacher_approval';
-                    const showControls = !isTransfer || isAdvisor || isAdmin;
+                    const showControls = canApproveMembers;
 
                     return (
                       <div key={m._id} className="flex items-center justify-between p-3.5 bg-white/80 border border-amber-200/30 rounded-xl shadow-sm">

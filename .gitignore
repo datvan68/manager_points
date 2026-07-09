@@ -22,9 +22,6 @@ yarn-error.log*
 .env.example
 .eslintcache
 *.tsbuildinfo
-.taskscope.md
-taskscope.md
-taskscope-*.md
 # Build outputs
 dist/
 build/

@@ -208,7 +208,7 @@ describe('ClubDetailPage Interactions', () => {
     expect(screen.getByText('Thành viên (1)')).toBeDefined();
 
     // Join button should be visible
-    expect(screen.getByText('Gửi Đơn Đăng Ký Tham Gia')).toBeDefined();
+    expect(screen.getByText('Đăng ký')).toBeDefined();
   });
 
   it('should render disabled waiting status button for pending student', async () => {
@@ -282,7 +282,107 @@ describe('ClubDetailPage Interactions', () => {
 
     // Verify detail UI transitions to non-member state (loadData runs and resolves myMembershipStatus to 'none')
     await waitFor(() => {
-      expect(screen.getByText('Gửi Đơn Đăng Ký Tham Gia')).toBeDefined();
+      expect(screen.getByText('Đăng ký')).toBeDefined();
+    });
+  });
+
+  describe('Role-specific approval controls rendering', () => {
+    beforeEach(() => {
+      (clubApi.getMembers as any).mockResolvedValue([
+        {
+          _id: 'm-pending-ordinary',
+          status: 'pending',
+          role: 'member',
+          student_id: { _id: 'student-2', full_name: 'Ordinary Pending Student', student_code: 'SV02' },
+        },
+        {
+          _id: 'm-pending-transfer',
+          status: 'pending',
+          role: 'member',
+          student_id: { _id: 'student-3', full_name: 'Transfer Pending Student', student_code: 'SV03' },
+          transfer: {
+            _id: 't-1',
+            mode: 'teacher_approval',
+            status: 'pending',
+          },
+        },
+      ]);
+    });
+
+    it('should show approval and rejection controls to the assigned advisor', async () => {
+      (tokenStorage.getUser as any).mockReturnValue({
+        _id: 'advisor-1',
+        role: 'teacher',
+      });
+
+      render(<ClubDetailPage />);
+      await screen.findByText('Academic Club');
+
+      const membersTabButton = await screen.findByText(/Thành viên \(\d+\)/);
+      fireEvent.click(membersTabButton);
+
+      await waitFor(() => {
+        expect(screen.getAllByTitle('Duyệt').length).toBe(2);
+        expect(screen.getAllByTitle('Từ chối').length).toBe(2);
+        expect(screen.queryByText('Chờ GV duyệt')).toBeNull();
+      });
+    });
+
+    it('should show approval and rejection controls to administrators', async () => {
+      (tokenStorage.getUser as any).mockReturnValue({
+        _id: 'admin-1',
+        role: 'admin',
+      });
+
+      render(<ClubDetailPage />);
+      await screen.findByText('Academic Club');
+
+      const membersTabButton = await screen.findByText(/Thành viên \(\d+\)/);
+      fireEvent.click(membersTabButton);
+
+      await waitFor(() => {
+        expect(screen.getAllByTitle('Duyệt').length).toBe(2);
+        expect(screen.getAllByTitle('Từ chối').length).toBe(2);
+        expect(screen.queryByText('Chờ GV duyệt')).toBeNull();
+      });
+    });
+
+    it('should hide approval and rejection controls from other teachers', async () => {
+      (tokenStorage.getUser as any).mockReturnValue({
+        _id: 'teacher-other',
+        role: 'teacher',
+      });
+
+      render(<ClubDetailPage />);
+      await screen.findByText('Academic Club');
+
+      const membersTabButton = await screen.findByText(/Thành viên \(\d+\)/);
+      fireEvent.click(membersTabButton);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTitle('Duyệt').length).toBe(0);
+        expect(screen.queryAllByTitle('Từ chối').length).toBe(0);
+        expect(screen.getAllByText('Chờ GV duyệt').length).toBe(2);
+      });
+    });
+
+    it('should hide approval and rejection controls from students', async () => {
+      (tokenStorage.getUser as any).mockReturnValue({
+        _id: 'student-other',
+        role: 'student',
+      });
+
+      render(<ClubDetailPage />);
+      await screen.findByText('Academic Club');
+
+      const membersTabButton = await screen.findByText(/Thành viên \(\d+\)/);
+      fireEvent.click(membersTabButton);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTitle('Duyệt').length).toBe(0);
+        expect(screen.queryAllByTitle('Từ chối').length).toBe(0);
+        expect(screen.getAllByText('Chờ GV duyệt').length).toBe(2);
+      });
     });
   });
 });

@@ -372,36 +372,199 @@ describe('ClubsService - Membership Policy & Auditing', () => {
   });
 
   describe('approveMember', () => {
-    it('should require target club advisor for teacher approval transfer requests', async () => {
-      const advisorId = new Types.ObjectId();
-      const otherTeacherId = new Types.ObjectId();
-      const clubId = new Types.ObjectId();
-      const memberId = new Types.ObjectId();
+    const advisorId = new Types.ObjectId();
+    const otherTeacherId = new Types.ObjectId();
+    const adminId = new Types.ObjectId();
+    const studentId = new Types.ObjectId();
+    const clubId = new Types.ObjectId();
+    const memberId = new Types.ObjectId();
 
+    beforeEach(() => {
       MockClubModel.findById.mockResolvedValue({
         _id: clubId,
         advisor_id: advisorId,
       });
 
+      MockUserModel.findById.mockImplementation((id: string) => {
+        let val = null;
+        if (id === adminId.toString()) {
+          val = {
+            _id: adminId,
+            role: { role_code: 'ADMIN' },
+          };
+        } else if (id === advisorId.toString()) {
+          val = {
+            _id: advisorId,
+            role: { role_code: 'TEACHER' },
+          };
+        } else if (id === otherTeacherId.toString()) {
+          val = {
+            _id: otherTeacherId,
+            role: { role_code: 'TEACHER' },
+          };
+        } else if (id === studentId.toString()) {
+          val = {
+            _id: studentId,
+            role: { role_code: 'STUDENT' },
+          };
+        }
+        return {
+          populate: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue(val),
+        };
+      });
+    });
+
+    it('should complete approval successfully when requester is the assigned advisor', async () => {
       const mockMember = new MockClubMemberModel({
         _id: memberId,
         club_id: clubId,
         status: 'pending',
       });
+      const saveSpy = jest.spyOn(mockMember, 'save');
       MockClubMemberModel.findOne.mockReturnValue(mockQuery(mockMember));
+      MockTransferModel.findOne.mockReturnValue(mockQuery(null));
 
-      MockTransferModel.findOne.mockReturnValue(mockQuery(new MockTransferModel({
-        _id: new Types.ObjectId(),
+      const res = await service.approveMember(clubId.toString(), memberId.toString(), { status: 'active' }, advisorId.toString());
+
+      expect(res.status).toBe('active');
+      expect(res.approved_by.toString()).toBe(advisorId.toString());
+      expect(saveSpy).toHaveBeenCalled();
+    });
+
+    it('should complete approval successfully when requester is an administrator', async () => {
+      const mockMember = new MockClubMemberModel({
+        _id: memberId,
+        club_id: clubId,
         status: 'pending',
-        mode: 'teacher_approval',
-      })));
+      });
+      const saveSpy = jest.spyOn(mockMember, 'save');
+      MockClubMemberModel.findOne.mockReturnValue(mockQuery(mockMember));
+      MockTransferModel.findOne.mockReturnValue(mockQuery(null));
+
+      const res = await service.approveMember(clubId.toString(), memberId.toString(), { status: 'active' }, adminId.toString());
+
+      expect(res.status).toBe('active');
+      expect(res.approved_by.toString()).toBe(adminId.toString());
+      expect(saveSpy).toHaveBeenCalled();
+    });
+
+    it('should reject with ForbiddenException and not mutate when requester is an unassigned teacher', async () => {
+      const mockMember = new MockClubMemberModel({
+        _id: memberId,
+        club_id: clubId,
+        status: 'pending',
+      });
+      const saveSpy = jest.spyOn(mockMember, 'save');
+      MockClubMemberModel.findOne.mockReturnValue(mockQuery(mockMember));
+      MockTransferModel.findOne.mockReturnValue(mockQuery(null));
 
       await expect(
         service.approveMember(clubId.toString(), memberId.toString(), { status: 'active' }, otherTeacherId.toString())
       ).rejects.toThrow(ForbiddenException);
 
-      const res = await service.approveMember(clubId.toString(), memberId.toString(), { status: 'active' }, advisorId.toString());
+      expect(mockMember.status).toBe('pending');
+      expect(saveSpy).not.toHaveBeenCalled();
+    });
+
+    it('should reject with ForbiddenException and not mutate when requester is a student', async () => {
+      const mockMember = new MockClubMemberModel({
+        _id: memberId,
+        club_id: clubId,
+        status: 'pending',
+      });
+      const saveSpy = jest.spyOn(mockMember, 'save');
+      MockClubMemberModel.findOne.mockReturnValue(mockQuery(mockMember));
+      MockTransferModel.findOne.mockReturnValue(mockQuery(null));
+
+      await expect(
+        service.approveMember(clubId.toString(), memberId.toString(), { status: 'active' }, studentId.toString())
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(mockMember.status).toBe('pending');
+      expect(saveSpy).not.toHaveBeenCalled();
+    });
+
+    it('should allow administrator to handle a pending teacher_approval transfer', async () => {
+      const mockMember = new MockClubMemberModel({
+        _id: memberId,
+        club_id: clubId,
+        status: 'pending',
+      });
+      const memberSaveSpy = jest.spyOn(mockMember, 'save');
+      MockClubMemberModel.findOne.mockReturnValue(mockQuery(mockMember));
+
+      const mockTransfer = new MockTransferModel({
+        _id: new Types.ObjectId(),
+        status: 'pending',
+        mode: 'teacher_approval',
+        to_membership_id: memberId,
+      });
+      const transferSaveSpy = jest.spyOn(mockTransfer, 'save');
+      MockTransferModel.findOne.mockReturnValue(mockQuery(mockTransfer));
+
+      const res = await service.approveMember(clubId.toString(), memberId.toString(), { status: 'active' }, adminId.toString());
+
       expect(res.status).toBe('active');
+      expect(mockTransfer.status).toBe('completed');
+      expect(mockTransfer.decided_by.toString()).toBe(adminId.toString());
+      expect(memberSaveSpy).toHaveBeenCalled();
+      expect(transferSaveSpy).toHaveBeenCalled();
+    });
+
+    it('should allow assigned advisor to handle a pending teacher_approval transfer', async () => {
+      const mockMember = new MockClubMemberModel({
+        _id: memberId,
+        club_id: clubId,
+        status: 'pending',
+      });
+      const memberSaveSpy = jest.spyOn(mockMember, 'save');
+      MockClubMemberModel.findOne.mockReturnValue(mockQuery(mockMember));
+
+      const mockTransfer = new MockTransferModel({
+        _id: new Types.ObjectId(),
+        status: 'pending',
+        mode: 'teacher_approval',
+        to_membership_id: memberId,
+      });
+      const transferSaveSpy = jest.spyOn(mockTransfer, 'save');
+      MockTransferModel.findOne.mockReturnValue(mockQuery(mockTransfer));
+
+      const res = await service.approveMember(clubId.toString(), memberId.toString(), { status: 'active' }, advisorId.toString());
+
+      expect(res.status).toBe('active');
+      expect(mockTransfer.status).toBe('completed');
+      expect(mockTransfer.decided_by.toString()).toBe(advisorId.toString());
+      expect(memberSaveSpy).toHaveBeenCalled();
+      expect(transferSaveSpy).toHaveBeenCalled();
+    });
+
+    it('should reject transfer handling with ForbiddenException and not mutate when requester is unauthorized', async () => {
+      const mockMember = new MockClubMemberModel({
+        _id: memberId,
+        club_id: clubId,
+        status: 'pending',
+      });
+      const memberSaveSpy = jest.spyOn(mockMember, 'save');
+      MockClubMemberModel.findOne.mockReturnValue(mockQuery(mockMember));
+
+      const mockTransfer = new MockTransferModel({
+        _id: new Types.ObjectId(),
+        status: 'pending',
+        mode: 'teacher_approval',
+        to_membership_id: memberId,
+      });
+      const transferSaveSpy = jest.spyOn(mockTransfer, 'save');
+      MockTransferModel.findOne.mockReturnValue(mockQuery(mockTransfer));
+
+      await expect(
+        service.approveMember(clubId.toString(), memberId.toString(), { status: 'active' }, studentId.toString())
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(mockMember.status).toBe('pending');
+      expect(mockTransfer.status).toBe('pending');
+      expect(memberSaveSpy).not.toHaveBeenCalled();
+      expect(transferSaveSpy).not.toHaveBeenCalled();
     });
   });
 
