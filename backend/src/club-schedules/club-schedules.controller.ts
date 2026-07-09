@@ -67,6 +67,17 @@ export class ClubSchedulesController {
     return this.schedulesService.findUpcoming(clubId, limit ? +limit : 10);
   }
 
+  @Get('club/:clubId/timeline')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Lấy timeline sinh hoạt của CLB' })
+  findClubTimeline(
+    @Param('clubId') clubId: string,
+    @Request() req: any,
+  ) {
+    return this.schedulesService.findClubTimeline(clubId, req.user);
+  }
+
   @Get(':id')
   @UseGuards(checkPermission('CLUB_SCHEDULE_READ'))
   @ApiBearerAuth()

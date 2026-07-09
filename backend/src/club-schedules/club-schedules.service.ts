@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -21,6 +22,16 @@ import {
   Semester,
   SemesterDocument,
 } from '../semesters/schemas/semester.schema';
+import {
+  ClubAttendance,
+  ClubAttendanceDocument,
+} from '../club-attendance/schemas/club-attendance.schema';
+import {
+  isStudent,
+  isTeacher,
+  isSupervisor,
+  isAdmin,
+} from '../auth/utils/role.util';
 
 @Injectable()
 export class ClubSchedulesService {
@@ -31,6 +42,8 @@ export class ClubSchedulesService {
     private registrationModel: Model<ScheduleRegistrationDocument>,
     @InjectModel(Semester.name)
     private semesterModel: Model<SemesterDocument>,
+    @InjectModel(ClubAttendance.name)
+    private clubAttendanceModel: Model<ClubAttendanceDocument>,
   ) {}
 
   async create(
@@ -817,5 +830,117 @@ export class ClubSchedulesService {
       throw new NotFoundException('Không tìm thấy buổi sinh hoạt');
     }
     return schedule;
+  }
+
+  async findClubTimeline(
+    clubId: string,
+    requester: any,
+  ): Promise<{ viewer_mode: 'student' | 'staff'; items: any[] }> {
+    if (!Types.ObjectId.isValid(clubId)) {
+      throw new BadRequestException('Mã câu lạc bộ không hợp lệ');
+    }
+
+    let viewerMode: 'student' | 'staff';
+    if (isStudent(requester)) {
+      viewerMode = 'student';
+    } else if (isAdmin(requester) || isSupervisor(requester) || isTeacher(requester)) {
+      viewerMode = 'staff';
+    } else {
+      throw new ForbiddenException('Vai trò không được hỗ trợ để truy cập timeline sinh hoạt');
+    }
+
+    const schedules = await this.scheduleModel
+      .find({ club_id: new Types.ObjectId(clubId) })
+      .sort({ start_time: 1, _id: 1 })
+      .lean()
+      .exec();
+
+    if (schedules.length === 0) {
+      return { viewer_mode: viewerMode, items: [] };
+    }
+
+    const scheduleIds = schedules.map(s => s._id);
+
+    let attendanceList: any[] = [];
+    if (viewerMode === 'student') {
+      const studentId = requester.studentId || requester._id || requester.id;
+      if (studentId) {
+        attendanceList = await this.clubAttendanceModel
+          .find({
+            schedule_id: { $in: scheduleIds },
+            student_id: Types.ObjectId.isValid(studentId) ? new Types.ObjectId(studentId) : studentId,
+          })
+          .lean()
+          .exec();
+      }
+    } else {
+      // staff mode
+      attendanceList = await this.clubAttendanceModel
+        .find({
+          schedule_id: { $in: scheduleIds },
+        })
+        .populate('student_id', 'full_name student_code')
+        .lean()
+        .exec();
+    }
+
+    const groupedAttendance = new Map<string, any[]>();
+    for (const rec of attendanceList) {
+      const sId = rec.schedule_id.toString();
+      let list = groupedAttendance.get(sId);
+      if (!list) {
+        list = [];
+        groupedAttendance.set(sId, list);
+      }
+      list.push(rec);
+    }
+
+    const items = schedules.map(schedule => {
+      const scheduleIdStr = schedule._id.toString();
+      const records = groupedAttendance.get(scheduleIdStr) || [];
+      if (viewerMode === 'student') {
+        const my_attendance = records.length > 0 ? {
+          _id: records[0]._id,
+          club_id: records[0].club_id,
+          schedule_id: records[0].schedule_id,
+          student_id: records[0].student_id,
+          semester_id: records[0].semester_id,
+          status: records[0].status,
+          check_in_time: records[0].check_in_time,
+          check_out_time: records[0].check_out_time,
+          approval_status: records[0].approval_status,
+          recorded_at: records[0].recorded_at,
+          note: records[0].note,
+        } : null;
+        return {
+          ...schedule,
+          my_attendance,
+        };
+      } else {
+        const attendance_records = records.map(rec => ({
+          _id: rec._id,
+          student_id: rec.student_id ? {
+            _id: rec.student_id._id,
+            full_name: rec.student_id.full_name,
+            student_code: rec.student_id.student_code,
+          } : null,
+          status: rec.status,
+          check_in_time: rec.check_in_time,
+          check_out_time: rec.check_out_time,
+          approval_status: rec.approval_status,
+          recorded_at: rec.recorded_at,
+          note: rec.note,
+        }));
+        return {
+          ...schedule,
+          attendance_records,
+        };
+      }
+    });
+
+    return {
+      viewer_mode: viewerMode,
+      items,
+    };
   }
 }

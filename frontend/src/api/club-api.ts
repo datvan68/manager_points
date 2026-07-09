@@ -113,6 +113,33 @@ export interface ClubAttendance {
   createdAt: string;
 }
 
+export interface StudentTimelineItem extends ClubSchedule {
+  my_attendance: ClubAttendance | null;
+}
+
+export interface StaffAttendanceRecord {
+  _id: string;
+  student_id: {
+    _id: string;
+    full_name: string;
+    student_code: string;
+  } | null;
+  status: string;
+  check_in_time?: string;
+  check_out_time?: string;
+  approval_status: string;
+  recorded_at: string;
+  note?: string;
+}
+
+export interface StaffTimelineItem extends ClubSchedule {
+  attendance_records: StaffAttendanceRecord[];
+}
+
+export type ClubTimelineResponse =
+  | { viewer_mode: 'student'; items: StudentTimelineItem[] }
+  | { viewer_mode: 'staff'; items: StaffTimelineItem[] };
+
 export interface AttendanceConfig {
   _id: string;
   club_id?: any;
@@ -300,6 +327,11 @@ export const clubScheduleApi = {
   async getAll(params?: any): Promise<{ items: ClubSchedule[]; total: number }> {
     const res = await httpClient(`${API_BASE}/club-schedules${buildQuery(params)}`);
     return handleResponse(res);
+  },
+
+  async getClubTimeline(clubId: string): Promise<ClubTimelineResponse> {
+    const res = await httpClient(`${API_BASE}/club-schedules/club/${clubId}/timeline`);
+    return handleResponse<ClubTimelineResponse>(res);
   },
 
   async getMySchedules(): Promise<any[]> {

@@ -15,8 +15,7 @@ import {
   Bell,
   User,
   Shield,
-  BarChart3,
-  Building2
+  BarChart3
 } from "lucide-react";
 import { useAuth, isAdminUser } from "@/providers/auth-provider";
 import { isTeacherRole, isStudentRole } from "@/utils/role.util";
@@ -54,7 +53,6 @@ const allMenuItems = [
   { icon: Users, label: "Học sinh sinh viên", href: "/students" },
   { icon: GraduationCap, label: "Rèn luyện", href: "/grading" },
   { icon: BarChart3, label: "Báo cáo", href: "/reports" },
-  { icon: Building2, label: "Ký túc xá", href: "/dormitory" },
   { icon: Settings, label: "Quản trị hệ thống", href: "/system" },
 ];
 

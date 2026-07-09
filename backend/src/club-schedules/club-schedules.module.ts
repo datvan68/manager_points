@@ -12,6 +12,10 @@ import {
 } from './schemas/schedule-registration.schema';
 
 import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
+import {
+  ClubAttendance,
+  ClubAttendanceSchema,
+} from '../club-attendance/schemas/club-attendance.schema';
 
 @Module({
   imports: [
@@ -19,6 +23,7 @@ import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
       { name: ClubSchedule.name, schema: ClubScheduleSchema },
       { name: ScheduleRegistration.name, schema: ScheduleRegistrationSchema },
       { name: Semester.name, schema: SemesterSchema },
+      { name: ClubAttendance.name, schema: ClubAttendanceSchema },
     ]),
   ],
   controllers: [ClubSchedulesController],

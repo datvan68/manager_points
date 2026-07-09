@@ -7,8 +7,9 @@ import {
   Crown, Shield, Clock, MapPin, CheckCircle2, XCircle, Loader2, Sparkles, BookOpen, MessageSquare, Award, AlertCircle,
   QrCode, Radio,
 } from 'lucide-react';
-import { clubApi, clubScheduleApi, Club, ClubMember, ClubSchedule } from '@/api/club-api';
+import { clubApi, clubScheduleApi, Club, ClubMember, ClubSchedule, ClubTimelineResponse } from '@/api/club-api';
 import { toast } from 'sonner';
+import ClubScheduleTimeline from './ClubScheduleTimeline';
 import { API_ORIGIN } from '@/api/config';
 import { useAttendanceSession } from '@/hooks/useAttendanceSession';
 import AttendanceMethodSelector from '@/components/attendance/AttendanceMethodSelector';
@@ -119,6 +120,7 @@ export default function ClubDetailPage() {
   const [club, setClub] = useState<Club | null>(null);
   const [members, setMembers] = useState<ClubMember[]>([]);
   const [schedules, setSchedules] = useState<ClubSchedule[]>([]);
+  const [timelineData, setTimelineData] = useState<ClubTimelineResponse | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'members' | 'schedules' | 'attendance'>('info');
   const [loading, setLoading] = useState(true);
   const [showMethodSelector, setShowMethodSelector] = useState(false);
@@ -131,14 +133,20 @@ export default function ClubDetailPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [clubData, membersData, schedulesData] = await Promise.all([
+      const [clubData, membersData, timelineResponse] = await Promise.all([
         clubApi.getById(clubId),
         clubApi.getMembers(clubId, { status: '' }),
-        clubScheduleApi.getAll({ club_id: clubId, limit: 15 }).then(r => r?.items || []).catch(() => []),
+        clubScheduleApi.getClubTimeline(clubId).catch(() => null),
       ]);
       setClub(clubData);
       setMembers(Array.isArray(membersData) ? membersData : []);
-      setSchedules(Array.isArray(schedulesData) ? schedulesData : []);
+      if (timelineResponse) {
+        setTimelineData(timelineResponse);
+        setSchedules(timelineResponse.items || []);
+      } else {
+        setTimelineData(null);
+        setSchedules([]);
+      }
     } catch {
       toast.error('Không thể tải thông tin CLB');
     } finally {
@@ -458,45 +466,10 @@ export default function ClubDetailPage() {
               </button>
             </div>
             
-            {schedules.length === 0 ? (
-              <div className="py-12 text-center text-xs text-slate-400 font-semibold">Chưa thiết lập lịch sinh hoạt định kỳ</div>
+            {timelineData ? (
+              <ClubScheduleTimeline data={timelineData} />
             ) : (
-              <div className="divide-y divide-slate-150/50">
-                {schedules.map(s => {
-                  const scheduleDate = new Date(s.start_time);
-                  return (
-                    <div key={s._id} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
-                      {/* Date block */}
-                      <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex flex-col items-center justify-center shrink-0 border border-blue-500/20">
-                        <span className="text-[9px] font-black text-blue-500 uppercase leading-none">{scheduleDate.toLocaleDateString('vi-VN', { month: 'short' })}</span>
-                        <span className="text-base font-black text-blue-600 mt-1 leading-none">{scheduleDate.getDate()}</span>
-                      </div>
-                      
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400 font-medium">
-                          <span className="flex items-center gap-1">
-                            <Clock size={11} /> {scheduleDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          {(s.location || club.classroom) && (
-                            <span className="flex items-center gap-1 truncate">
-                              <MapPin size={11} /> {s.location || club.classroom}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full shrink-0 ${
-                        s.status === 'completed' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' :
-                        s.status === 'cancelled' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
-                        'bg-blue-500/10 text-blue-600 border border-blue-500/20'
-                      }`}>
-                        {s.status === 'completed' ? 'Hoàn thành' : s.status === 'cancelled' ? 'Đã hủy' : 'Đã lên lịch'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              <div className="py-12 text-center text-xs text-slate-400 font-semibold">Chưa thiết lập lịch sinh hoạt định kỳ</div>
             )}
           </div>
         )}

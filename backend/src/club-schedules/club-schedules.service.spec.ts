@@ -4,8 +4,9 @@ import { getModelToken } from '@nestjs/mongoose';
 import { ClubSchedule } from './schemas/club-schedule.schema';
 import { ScheduleRegistration } from './schemas/schedule-registration.schema';
 import { Semester } from '../semesters/schemas/semester.schema';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Types } from 'mongoose';
+import { ClubAttendance } from '../club-attendance/schemas/club-attendance.schema';
 
 describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
   let service: ClubSchedulesService;
@@ -46,6 +47,14 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
     }),
   };
 
+  const mockClubAttendanceModel = {
+    find: jest.fn().mockReturnValue({
+      populate: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn(),
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -61,6 +70,10 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
         {
           provide: getModelToken(Semester.name),
           useValue: mockSemesterModel,
+        },
+        {
+          provide: getModelToken(ClubAttendance.name),
+          useValue: mockClubAttendanceModel,
         },
       ],
     }).compile();
@@ -297,6 +310,144 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
       expect(updatedSchedules[0].start_time.toISOString()).toBe(new Date('2026-07-15T09:00:00').toISOString());
       expect(updatedSchedules[1].start_time.toISOString()).toBe(new Date('2026-08-15T09:00:00').toISOString());
       expect(updatedSchedules[2].start_time.toISOString()).toBe(new Date('2026-09-15T09:00:00').toISOString());
+    });
+  });
+
+  describe('findClubTimeline', () => {
+    const clubId = new Types.ObjectId().toString();
+    const mockSchedules = [
+      { _id: new Types.ObjectId(), start_time: new Date('2026-07-06T10:00:00'), title: 'Schedule 1' },
+      { _id: new Types.ObjectId(), start_time: new Date('2026-07-07T10:00:00'), title: 'Schedule 2' },
+    ];
+
+    it('should throw ForbiddenException for unsupported roles', async () => {
+      const requester = { role: 'guest' };
+      await expect(service.findClubTimeline(clubId, requester)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should return empty items when no schedules exist', async () => {
+      mockClubScheduleModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+
+      const requester = { role: 'STUDENT' };
+      const res = await service.findClubTimeline(clubId, requester);
+      expect(res).toEqual({
+        viewer_mode: 'student',
+        items: [],
+      });
+    });
+
+    it('should sort schedules by start_time and then _id ascending', async () => {
+      mockClubScheduleModel.find.mockReturnValue({
+        sort: jest.fn().mockImplementation((sortObj) => {
+          expect(sortObj).toEqual({ start_time: 1, _id: 1 });
+          return {
+            lean: jest.fn().mockReturnThis(),
+            exec: jest.fn().mockResolvedValue(mockSchedules),
+          };
+        }),
+      });
+
+      mockClubAttendanceModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+
+      const requester = { role: 'STUDENT', studentId: 'student123' };
+      const res = await service.findClubTimeline(clubId, requester);
+      expect(res.items.length).toBe(2);
+      expect(res.viewer_mode).toBe('student');
+    });
+
+    it('should filter by student studentId/userId and return my_attendance in student mode', async () => {
+      mockClubScheduleModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockSchedules),
+      });
+
+      const mockAttendance = [
+        {
+          _id: new Types.ObjectId(),
+          schedule_id: mockSchedules[0]._id,
+          student_id: new Types.ObjectId(),
+          status: 'present',
+        },
+      ];
+
+      mockClubAttendanceModel.find.mockImplementation((filter) => {
+        expect(filter.student_id).toBeDefined();
+        expect(filter.schedule_id.$in).toBeDefined();
+        return {
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue(mockAttendance),
+        };
+      });
+
+      const requester = { role: 'STUDENT', studentId: 'student123' };
+      const res = await service.findClubTimeline(clubId, requester);
+      expect(res.viewer_mode).toBe('student');
+      expect(res.items[0].my_attendance).toBeDefined();
+      expect(res.items[0].my_attendance.status).toBe('present');
+      expect(res.items[0].attendance_records).toBeUndefined();
+      expect(res.items[1].my_attendance).toBeNull();
+    });
+
+    it('should return attendance_records containing student full_name and student_code, excluding email in staff mode', async () => {
+      mockClubScheduleModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockSchedules),
+      });
+
+      const mockAttendance = [
+        {
+          _id: new Types.ObjectId(),
+          schedule_id: mockSchedules[0]._id,
+          student_id: {
+            _id: new Types.ObjectId(),
+            full_name: 'John Doe',
+            student_code: 'SV123',
+            email: 'john@example.com',
+          },
+          status: 'present',
+          check_in_time: new Date(),
+          approval_status: 'approved',
+          note: 'Ok',
+        },
+      ];
+
+      mockClubAttendanceModel.find.mockImplementation((filter) => {
+        expect(filter.student_id).toBeUndefined();
+        return {
+          populate: jest.fn().mockImplementation((path, fields) => {
+            expect(path).toBe('student_id');
+            expect(fields).toBe('full_name student_code');
+            return {
+              lean: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue(mockAttendance),
+            };
+          }),
+        };
+      });
+
+      const requester = { role: 'ADMIN' };
+      const res = await service.findClubTimeline(clubId, requester);
+      expect(res.viewer_mode).toBe('staff');
+      expect(res.items[0].my_attendance).toBeUndefined();
+      expect(res.items[0].attendance_records.length).toBe(1);
+      const rec = res.items[0].attendance_records[0];
+      expect(rec.student_id.full_name).toBe('John Doe');
+      expect(rec.student_id.student_code).toBe('SV123');
+      expect(rec.student_id.email).toBeUndefined();
+      expect(rec.status).toBe('present');
+      expect(rec.approval_status).toBe('approved');
+      expect(rec.note).toBe('Ok');
     });
   });
 });
