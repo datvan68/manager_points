@@ -170,7 +170,7 @@ describe('Preview Permissions Helper Logic', () => {
       expect(viewUsersItem?.allowedStatus).toBe('denied');
 
       const createItem = result.find(r => r.code === 'USER_CREATE');
-      expect(createItem?.status).toBe('proposed');
+      expect(createItem?.status).toBe('scope_defined');
 
       const missingItem = result.find(r => r.code === 'MISSING_PERM');
       expect(missingItem?.status).toBe('missing');
@@ -220,6 +220,41 @@ describe('Preview Permissions Helper Logic', () => {
 
       expect(result.length).toBeGreaterThan(0);
       expect(result[0].name).toContain('Fallback');
+    });
+
+    it('should satisfy regression rules for RBAC consolidation', () => {
+      // 1. ROLE_CREATE under /permissions fallback is scope_defined, not proposed
+      const fallbackResult = getPagePreviewScope({
+        routePath: '/permissions',
+        pagePermissionScopes: [],
+        routePermissions: mockRoutePermissions,
+        allPermissions: mockAllPermissions,
+        previewPermissions: [],
+        isPreviewAdmin: false
+      });
+      const roleCreateItem = fallbackResult.find(r => r.code === 'ROLE_CREATE');
+      expect(roleCreateItem).toBeDefined();
+      expect(roleCreateItem?.status).toBe('scope_defined');
+
+      // 2. G_SYSTEM_OPERATIONS-style permissions do not unlock /permissions preview
+      const systemOpsAccess = buildSystemPreviewAccess(['LOGIN_LOG_READ', 'DATABASE_BACKUP_READ'], mockRoles[2]);
+      expect(systemOpsAccess.showPermissions).toBe(false);
+
+      // 3. admin unlocks /permissions preview without requiring ADMIN_FULL
+      const adminOnlyAccess = buildSystemPreviewAccess(['admin'], mockRoles[2]);
+      expect(adminOnlyAccess.showPermissions).toBe(true);
+
+      // 4. ADMIN_FULL still produces admin_override statuses
+      const overrideResult = getPagePreviewScope({
+        routePath: '/permissions',
+        pagePermissionScopes: mockPagePermissionScopes,
+        routePermissions: mockRoutePermissions,
+        allPermissions: mockAllPermissions,
+        previewPermissions: [],
+        isPreviewAdmin: true
+      });
+      const viewUsersItem = overrideResult.find(r => r.code === 'view_users');
+      expect(viewUsersItem?.allowedStatus).toBe('admin_override');
     });
   });
 });

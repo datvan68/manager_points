@@ -71,11 +71,11 @@ export function buildSystemPreviewAccess(permissions: string[], role: any) {
     isPreviewAdmin,
     showStudents: isPreviewAdmin || roleCode === 'TEACHER' || roleCode === 'STUDENT' || hasPreviewPermission('STUDENT_PAGE') || hasPreviewPermission('STUDENT_READ'),
     showGrading: isPreviewAdmin || roleCode === 'TEACHER' || roleCode === 'SUPERVISOR' || hasPreviewPermission('GRADING_PAGE'),
-    showSystem: isPreviewAdmin || [
+    showSystem: [
       'SYSTEM_ADMIN', 'LOGIN_LOG_READ', 'SYSTEM_REQUEST_READ', 'SYSTEM_REQUEST_MANAGE',
-      'DATABASE_BACKUP_READ', 'DATABASE_BACKUP_CREATE', 'DATABASE_BACKUP_DOWNLOAD', 'DATABASE_BACKUP_DELETE'
-    ].some(code => hasPreviewPermission(code)),
-    showPermissions: isPreviewAdmin || hasPreviewPermission('admin'),
+      'DATABASE_BACKUP_READ', 'DATABASE_BACKUP_CREATE', 'DATABASE_BACKUP_DOWNLOAD', 'DATABASE_BACKUP_DELETE', 'DATABASE_BACKUP_RESTORE', 'SYSTEM_PERFORMANCE_READ'
+    ].some(code => permissions.includes(code)),
+    showPermissions: hasPreviewPermission('admin') || hasPreviewPermission('ADMIN_FULL'),
     showReports: isPreviewAdmin || hasPreviewPermission('REPORTS_PAGE') || hasPreviewPermission('REPORTS_READ'),
     
     previewCanReadLogs: hasPreviewPermission("LOGIN_LOG_READ"),
@@ -97,12 +97,26 @@ export interface PreviewPermissionItem {
   allowedStatus: 'allowed' | 'admin_override' | 'denied';
 }
 
-const PROPOSED_PERMISSIONS = [
-  'USER_CREATE', 'USER_UPDATE', 'USER_DELETE',
-  'ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE',
-  'PERMISSION_CREATE', 'PERMISSION_UPDATE', 'PERMISSION_DELETE',
-  'PERMISSION_GROUP_CREATE', 'PERMISSION_GROUP_UPDATE', 'PERMISSION_GROUP_DELETE',
-  'ROUTE_PERMISSION_CREATE', 'ROUTE_PERMISSION_UPDATE', 'ROUTE_PERMISSION_DELETE'
+const ADMIN_RBAC_PERMISSIONS = [
+  'admin',
+  'view_users',
+  'reset_pwd',
+  'ADMIN_FULL',
+  'USER_CREATE',
+  'USER_UPDATE',
+  'USER_DELETE',
+  'ROLE_CREATE',
+  'ROLE_UPDATE',
+  'ROLE_DELETE',
+  'PERMISSION_CREATE',
+  'PERMISSION_UPDATE',
+  'PERMISSION_DELETE',
+  'PERMISSION_GROUP_CREATE',
+  'PERMISSION_GROUP_UPDATE',
+  'PERMISSION_GROUP_DELETE',
+  'ROUTE_PERMISSION_CREATE',
+  'ROUTE_PERMISSION_UPDATE',
+  'ROUTE_PERMISSION_DELETE'
 ];
 
 export function getPagePreviewScope({
@@ -151,14 +165,11 @@ export function getPagePreviewScope({
     const desc = registryPerm?.description || registryPerm?.desc || (isRoute ? 'Quyền truy cập trang con' : 'Quyền thực hiện thao tác nghiệp vụ');
 
     let status: 'route_enforced' | 'scope_defined' | 'proposed' | 'missing' | 'unmapped';
-    const isProposedCode = PROPOSED_PERMISSIONS.includes(code);
     
     if (!registryPerm) {
       status = 'missing';
     } else if (!mappedCodes.has(code)) {
       status = 'unmapped';
-    } else if (isProposedCode) {
-      status = 'proposed';
     } else if (accessCodes.includes(code)) {
       status = 'route_enforced';
     } else {
@@ -192,9 +203,21 @@ function getFallbackScope(routePath: string, previewPermissions: string[], isPre
       { code: 'view_users', name: 'Xem người dùng', desc: 'Quyền xem chi tiết danh sách tài khoản người dùng', isRoute: false },
       { code: 'reset_pwd', name: 'Reset Mật khẩu', desc: 'Reset mật khẩu của một tài khoản khác', isRoute: false },
       { code: 'ADMIN_FULL', name: 'Toàn quyền Admin', desc: 'Toàn quyền thêm, sửa, xóa cấu hình phân quyền', isRoute: false },
-      { code: 'USER_CREATE', name: 'Tạo tài khoản mới', desc: 'Tạo tài khoản người dùng trực tiếp (Đề xuất)', isRoute: false, proposed: true },
-      { code: 'ROLE_DELETE', name: 'Xóa vai trò', desc: 'Quyền xóa vai trò cấu hình (Đề xuất)', isRoute: false, proposed: true },
-      { code: 'PERMISSION_UPDATE', name: 'Cập nhật danh sách quyền', desc: 'Chỉnh sửa định nghĩa quyền hệ thống (Đề xuất)', isRoute: false, proposed: true }
+      { code: 'USER_CREATE', name: 'Tạo tài khoản mới', desc: 'Tạo tài khoản người dùng trực tiếp', isRoute: false },
+      { code: 'USER_UPDATE', name: 'Cập nhật người dùng', desc: 'Chỉnh sửa thông tin người dùng', isRoute: false },
+      { code: 'USER_DELETE', name: 'Xóa người dùng', desc: 'Xóa người dùng', isRoute: false },
+      { code: 'ROLE_CREATE', name: 'Thêm vai trò', desc: 'Tạo mới vai trò', isRoute: false },
+      { code: 'ROLE_UPDATE', name: 'Cập nhật vai trò', desc: 'Chỉnh sửa vai trò', isRoute: false },
+      { code: 'ROLE_DELETE', name: 'Xóa vai trò', desc: 'Quyền xóa vai trò cấu hình', isRoute: false },
+      { code: 'PERMISSION_CREATE', name: 'Thêm quyền', desc: 'Thêm mới mã quyền', isRoute: false },
+      { code: 'PERMISSION_UPDATE', name: 'Cập nhật quyền', desc: 'Cập nhật thông tin quyền', isRoute: false },
+      { code: 'PERMISSION_DELETE', name: 'Xóa quyền', desc: 'Xóa mã quyền', isRoute: false },
+      { code: 'PERMISSION_GROUP_CREATE', name: 'Thêm nhóm quyền', desc: 'Thêm nhóm quyền', isRoute: false },
+      { code: 'PERMISSION_GROUP_UPDATE', name: 'Cập nhật nhóm quyền', desc: 'Cập nhật nhóm quyền', isRoute: false },
+      { code: 'PERMISSION_GROUP_DELETE', name: 'Xóa nhóm quyền', desc: 'Xóa nhóm quyền', isRoute: false },
+      { code: 'ROUTE_PERMISSION_CREATE', name: 'Thêm Route Permission', desc: 'Thêm mapping route permission', isRoute: false },
+      { code: 'ROUTE_PERMISSION_UPDATE', name: 'Cập nhật Route Permission', desc: 'Cập nhật mapping route permission', isRoute: false },
+      { code: 'ROUTE_PERMISSION_DELETE', name: 'Xóa Route Permission', desc: 'Xóa mapping route permission', isRoute: false }
     ],
     '/students': [
       { code: 'STUDENT_READ', name: 'Xem thông tin học sinh', desc: 'Xem danh sách và hồ sơ chi tiết học sinh', isRoute: false },

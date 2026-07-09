@@ -42,6 +42,15 @@ import { RbacService } from './rbac.service';
 import {
   DECLARED_PERMISSION_SEEDS,
   UNGROUPED_PERMISSION_GROUP,
+  ADMIN_RBAC_GROUP,
+  STUDENT_MANAGER_GROUP,
+  GRADING_MANAGER_GROUP,
+  TASK_MANAGER_GROUP,
+  SYSTEM_OPERATIONS_GROUP,
+  REPORT_MANAGER_GROUP,
+  CLUB_MANAGER_GROUP,
+  DORMITORY_MANAGER_GROUP,
+  PROPOSED_PERMISSION_GROUP,
 } from '../permissions.registry';
 import { maskLoginKey } from '../utils/mask.util';
 
@@ -455,10 +464,6 @@ export class AuthService implements OnModuleInit {
           'UPDATE_CLASS_RECORD',
           'DELETE_CLASS_RECORD',
           'CONFIG_RECORD',
-          'READ_STUDENT_TASK',
-          'CREATE_STUDENT_TASK',
-          'UPDATE_STUDENT_TASK',
-          'DELETE_STUDENT_TASK',
         ],
       },
       {
@@ -1117,35 +1122,10 @@ export class AuthService implements OnModuleInit {
 
     const permissions = [
       {
-        code: 'view_users',
-        name: 'Xem danh sách người dùng',
-        module: 'Quản lý Người dùng (Users)',
-        description: 'Cho phép xem danh sách người dùng trong hệ thống.',
-      },
-      {
-        code: 'reset_pwd',
-        name: 'Reset mật khẩu',
-        module: 'Quản lý Người dùng (Users)',
-        description: 'Cho phép đổi/mới mật khẩu cho người dùng.',
-      },
-      {
-        code: 'ADMIN_FULL',
-        name: 'Toàn quyền Admin',
-        module: 'Hệ thống',
-        description:
-          '⚠️ QUYỀN HẠN TỐI CAO: Toàn quyền quản trị và bypass tất cả các cơ chế bảo mật hệ thống.',
-      },
-      {
         code: 'view_revenue',
         name: 'Xem báo cáo doanh thu',
         module: 'Tài chính & Kế toán (Finance)',
         description: 'Cho phép xem báo cáo thống kê doanh thu tài chính.',
-      },
-      {
-        code: 'GRADING_SEMESTER_MANAGE',
-        name: 'Quản lý học kỳ rèn luyện',
-        module: 'Rèn luyện',
-        description: 'Cho phép khởi tạo, đóng học kỳ đánh giá rèn luyện.',
       },
     ];
 
@@ -1155,7 +1135,7 @@ export class AuthService implements OnModuleInit {
           { code: p.code },
           { $set: p },
           { upsert: true, returnDocument: 'after' },
-        )
+         )
         .exec();
       createdPerms[p.code] = perm._id;
     }
@@ -1207,6 +1187,21 @@ export class AuthService implements OnModuleInit {
           createdPerms['admin'],
           createdPerms['view_users'],
           createdPerms['reset_pwd'],
+          createdPerms['USER_CREATE'],
+          createdPerms['USER_UPDATE'],
+          createdPerms['USER_DELETE'],
+          createdPerms['ROLE_CREATE'],
+          createdPerms['ROLE_UPDATE'],
+          createdPerms['ROLE_DELETE'],
+          createdPerms['PERMISSION_CREATE'],
+          createdPerms['PERMISSION_UPDATE'],
+          createdPerms['PERMISSION_DELETE'],
+          createdPerms['PERMISSION_GROUP_CREATE'],
+          createdPerms['PERMISSION_GROUP_UPDATE'],
+          createdPerms['PERMISSION_GROUP_DELETE'],
+          createdPerms['ROUTE_PERMISSION_CREATE'],
+          createdPerms['ROUTE_PERMISSION_UPDATE'],
+          createdPerms['ROUTE_PERMISSION_DELETE'],
         ].filter(Boolean),
       },
       {
@@ -1261,39 +1256,12 @@ export class AuthService implements OnModuleInit {
 
     const groups = [
       {
-        code: 'G_SYSTEM',
-        name: 'Hệ thống',
-        description: 'Các quyền quản trị hệ thống cốt lõi',
-        permissions: [createdPerms['ADMIN_FULL']],
-      },
-      {
-        code: 'G_USER',
-        name: 'Quản lý Người dùng',
-        description: 'Các quyền liên quan đến tài khoản và phân quyền',
-        permissions: [createdPerms['view_users'], createdPerms['reset_pwd']],
-      },
-      {
-        code: 'G_SYSTEM_OPERATIONS',
-        name: 'Quản trị vận hành hệ thống',
-        description:
-          'Các quyền quản trị vận hành hệ thống, xem log đăng nhập, quản lý yêu cầu và sao lưu cơ sở dữ liệu.',
+        constant: ADMIN_RBAC_GROUP,
         permissions: [
-          createdPerms['SYSTEM_ADMIN'],
-          createdPerms['LOGIN_LOG_READ'],
-          createdPerms['SYSTEM_REQUEST_READ'],
-          createdPerms['SYSTEM_REQUEST_MANAGE'],
-          createdPerms['DATABASE_BACKUP_READ'],
-          createdPerms['DATABASE_BACKUP_CREATE'],
-          createdPerms['DATABASE_BACKUP_DOWNLOAD'],
-          createdPerms['DATABASE_BACKUP_DELETE'],
-        ],
-      },
-      {
-        code: 'G_PROPOSED',
-        name: 'Đề xuất bổ sung',
-        description:
-          'Nhóm các quyền được đề xuất để bổ sung cho chức năng tương lai (chưa có guard thực tế).',
-        permissions: [
+          createdPerms['admin'],
+          createdPerms['view_users'],
+          createdPerms['reset_pwd'],
+          createdPerms['ADMIN_FULL'],
           createdPerms['USER_CREATE'],
           createdPerms['USER_UPDATE'],
           createdPerms['USER_DELETE'],
@@ -1309,7 +1277,140 @@ export class AuthService implements OnModuleInit {
           createdPerms['ROUTE_PERMISSION_CREATE'],
           createdPerms['ROUTE_PERMISSION_UPDATE'],
           createdPerms['ROUTE_PERMISSION_DELETE'],
-        ].filter(Boolean),
+        ],
+      },
+      {
+        constant: SYSTEM_OPERATIONS_GROUP,
+        permissions: [
+          createdPerms['SYSTEM_ADMIN'],
+          createdPerms['SYSTEM_PERFORMANCE_READ'],
+          createdPerms['LOGIN_LOG_READ'],
+          createdPerms['SYSTEM_REQUEST_READ'],
+          createdPerms['SYSTEM_REQUEST_MANAGE'],
+          createdPerms['DATABASE_BACKUP_READ'],
+          createdPerms['DATABASE_BACKUP_CREATE'],
+          createdPerms['DATABASE_BACKUP_DOWNLOAD'],
+          createdPerms['DATABASE_BACKUP_DELETE'],
+          createdPerms['DATABASE_BACKUP_RESTORE'],
+        ],
+      },
+      {
+        constant: STUDENT_MANAGER_GROUP,
+        permissions: [
+          createdPerms['STUDENT_PAGE'],
+          createdPerms['STUDENT_READ'],
+          createdPerms['STUDENT_CREATE'],
+          createdPerms['STUDENT_UPDATE'],
+          createdPerms['STUDENT_DELETE'],
+          createdPerms['STUDENT_IMPORT'],
+          createdPerms['STUDENT_EXPORT'],
+          createdPerms['STUDENT_ACCOUNT_ACTIVATE'],
+          createdPerms['STUDENT_ACCOUNT_RESET_PASSWORD'],
+          createdPerms['STUDENT_TRANSFER'],
+          createdPerms['DEPT_CREATE'],
+          createdPerms['DEPT_UPDATE'],
+          createdPerms['DEPT_DELETE'],
+          createdPerms['CLASS_CREATE'],
+          createdPerms['CLASS_UPDATE'],
+          createdPerms['CLASS_DELETE'],
+        ],
+      },
+      {
+        constant: GRADING_MANAGER_GROUP,
+        permissions: [
+          createdPerms['GRADING_PAGE'],
+          createdPerms['GRADING_SEMESTER_MANAGE'],
+          createdPerms['READ_STUDENT_RECORD'],
+          createdPerms['CREATE_STUDENT_RECORD'],
+          createdPerms['UPDATE_STUDENT_RECORD'],
+          createdPerms['DELETE_STUDENT_RECORD'],
+          createdPerms['READ_CLASS_RECORD'],
+          createdPerms['CREATE_CLASS_RECORD'],
+          createdPerms['UPDATE_CLASS_RECORD'],
+          createdPerms['DELETE_CLASS_RECORD'],
+          createdPerms['CONFIG_RECORD'],
+        ],
+      },
+      {
+        constant: TASK_MANAGER_GROUP,
+        permissions: [
+          createdPerms['READ_STUDENT_TASK'],
+          createdPerms['CREATE_STUDENT_TASK'],
+          createdPerms['UPDATE_STUDENT_TASK'],
+          createdPerms['DELETE_STUDENT_TASK'],
+        ],
+      },
+      {
+        constant: REPORT_MANAGER_GROUP,
+        permissions: [
+          createdPerms['REPORTS_PAGE'],
+          createdPerms['REPORTS_READ'],
+        ],
+      },
+      {
+        constant: CLUB_MANAGER_GROUP,
+        permissions: [
+          createdPerms['CLUB_PAGE'],
+          createdPerms['CLUB_READ'],
+          createdPerms['CLUB_CREATE'],
+          createdPerms['CLUB_UPDATE'],
+          createdPerms['CLUB_DELETE'],
+          createdPerms['CLUB_MEMBER_MANAGE'],
+          createdPerms['CLUB_SCHEDULE_READ'],
+          createdPerms['CLUB_SCHEDULE_MANAGE'],
+          createdPerms['CLUB_SCHEDULE_REGISTER'],
+          createdPerms['CLUB_ATTENDANCE_READ'],
+          createdPerms['CLUB_ATTENDANCE_CREATE'],
+          createdPerms['CLUB_ATTENDANCE_UPDATE'],
+          createdPerms['CLUB_ATTENDANCE_APPROVE'],
+          createdPerms['CLUB_ATTENDANCE_DELETE'],
+          createdPerms['CLUB_CONFIG_READ'],
+          createdPerms['CLUB_CONFIG_MANAGE'],
+          createdPerms['CLUB_REPORT_READ'],
+          createdPerms['CLUB_EXPORT'],
+          createdPerms['ATTENDANCE_SESSION_CREATE'],
+          createdPerms['ATTENDANCE_SESSION_READ'],
+          createdPerms['ATTENDANCE_SESSION_CLOSE'],
+        ],
+      },
+      {
+        constant: DORMITORY_MANAGER_GROUP,
+        permissions: [
+          createdPerms['DORM_PAGE'],
+          createdPerms['DORM_BUILDING_READ'],
+          createdPerms['DORM_BUILDING_CREATE'],
+          createdPerms['DORM_BUILDING_UPDATE'],
+          createdPerms['DORM_BUILDING_DELETE'],
+          createdPerms['DORM_ROOM_READ'],
+          createdPerms['DORM_ROOM_CREATE'],
+          createdPerms['DORM_ROOM_UPDATE'],
+          createdPerms['DORM_ROOM_DELETE'],
+          createdPerms['DORM_BED_CREATE'],
+          createdPerms['DORM_BED_UPDATE'],
+          createdPerms['DORM_BED_DELETE'],
+          createdPerms['DORM_REG_READ'],
+          createdPerms['DORM_REG_CREATE'],
+          createdPerms['DORM_REG_APPROVE'],
+          createdPerms['DORM_CONTRACT_READ'],
+          createdPerms['DORM_CONTRACT_CREATE'],
+          createdPerms['DORM_CONTRACT_UPDATE'],
+          createdPerms['DORM_INVOICE_READ'],
+          createdPerms['DORM_INVOICE_CREATE'],
+          createdPerms['DORM_INVOICE_CONFIRM'],
+          createdPerms['DORM_VIOLATION_READ'],
+          createdPerms['DORM_VIOLATION_CREATE'],
+          createdPerms['DORM_VIOLATION_HANDLE'],
+          createdPerms['DORM_MAINT_READ'],
+          createdPerms['DORM_MAINT_CREATE'],
+          createdPerms['DORM_MAINT_ASSIGN'],
+          createdPerms['DORM_MAINT_COMPLETE'],
+          createdPerms['DORM_REPORT_READ'],
+          createdPerms['DORM_QR_CHECKIN'],
+        ],
+      },
+      {
+        constant: PROPOSED_PERMISSION_GROUP,
+        permissions: [],
       },
     ];
 
@@ -1317,15 +1418,15 @@ export class AuthService implements OnModuleInit {
       const validPerms = g.permissions.filter((p) => !!p);
       await this.permissionGroupModel
         .findOneAndUpdate(
-          { code: g.code },
+          { code: g.constant.code },
           {
             $set: {
-              code: g.code,
-              name: g.name,
-              description: g.description,
+              code: g.constant.code,
+              name: g.constant.name,
+              description: g.constant.description,
             },
-            $setOnInsert: {
-              permissions: validPerms,
+            $addToSet: {
+              permissions: { $each: validPerms },
             },
           },
           { upsert: true },
@@ -1343,13 +1444,6 @@ export class AuthService implements OnModuleInit {
         description: 'Lịch sử đăng nhập, request vận hành và backup database',
         permissions: [
           permMap['SYSTEM_ADMIN'],
-          permMap['LOGIN_LOG_READ'],
-          permMap['SYSTEM_REQUEST_READ'],
-          permMap['SYSTEM_REQUEST_MANAGE'],
-          permMap['DATABASE_BACKUP_READ'],
-          permMap['DATABASE_BACKUP_CREATE'],
-          permMap['DATABASE_BACKUP_DOWNLOAD'],
-          permMap['DATABASE_BACKUP_DELETE'],
         ],
         check_type: 'any',
         is_active: true,

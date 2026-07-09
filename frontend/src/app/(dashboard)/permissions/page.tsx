@@ -459,22 +459,11 @@ function PermissionsPageContent() {
           id: group._id,
           name: group.name,
           desc: group.description || `Các quyền thuộc nhóm ${group.name}`,
-          tag: `G_${idx}`,
+          tag: group.code || `G_${idx}`,
           status: group.status || 'Active',
           count: uniquePermissions.length,
           permissions: uniquePermissions
         };
-      });
-
-      const groupsMap: Record<string, any[]> = {};
-      apiGroups.forEach((group: any) => {
-        groupsMap[group.id] = (group.permissions || []).map((perm: any) => ({
-          code: perm.code,
-          name: perm.name,
-          desc: perm.description || perm.name,
-          _id: perm._id,
-          groupId: group.id
-        }));
       });
 
       // Handle permissions NOT in any group (Legacy/Fallback)
@@ -495,19 +484,56 @@ function PermissionsPageContent() {
           id: fallbackId,
           name: 'Chưa phân nhóm',
           desc: 'Các quyền chưa được gán vào nhóm cụ thể',
-          tag: 'G_LEGACY',
+          tag: 'G_UNGROUPED',
           status: 'Active',
           count: ungroupedPerms.length,
           permissions: ungroupedPerms
         });
-        groupsMap[fallbackId] = ungroupedPerms.map(perm => ({
+      }
+
+      // Sort groups in specified order, fallback to sorting by name
+      const groupOrder: Record<string, number> = {
+        'G_ADMIN_RBAC': 1,
+        'G_SYSTEM_OPERATIONS': 2,
+        'G_STUDENT': 3,
+        'G_GRADING': 4,
+        'G_TASK': 5,
+        'G_REPORT': 6,
+        'G_CLUB': 7,
+        'G_DORMITORY': 8,
+        'G_UNGROUPED': 9,
+      };
+
+      apiGroups.sort((a: any, b: any) => {
+        const orderA = groupOrder[a.tag] || 999;
+        const orderB = groupOrder[b.tag] || 999;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name);
+      });
+
+      // Sort permissions inside each group (page access first, then by code)
+      apiGroups.forEach((group: any) => {
+        if (Array.isArray(group.permissions)) {
+          group.permissions.sort((a: any, b: any) => {
+            const isPageA = a.code.endsWith('_PAGE') || a.code === 'admin';
+            const isPageB = b.code.endsWith('_PAGE') || b.code === 'admin';
+            if (isPageA && !isPageB) return -1;
+            if (!isPageA && isPageB) return 1;
+            return a.code.localeCompare(b.code);
+          });
+        }
+      });
+
+      const groupsMap: Record<string, any[]> = {};
+      apiGroups.forEach((group: any) => {
+        groupsMap[group.id] = (group.permissions || []).map((perm: any) => ({
           code: perm.code,
           name: perm.name,
           desc: perm.description || perm.name,
           _id: perm._id,
-          groupId: fallbackId
+          groupId: group.id
         }));
-      }
+      });
 
       setGroups(apiGroups);
       setPermissionsByGroup(groupsMap);
@@ -1582,6 +1608,11 @@ function PermissionsPageContent() {
                                 <div className="pr-40">
                                   <div className="flex items-center gap-3 mb-1 flex-wrap">
                                     <h3 className="text-sm font-bold text-[#1E293B]">{groupData.name}</h3>
+                                    {(groupData.tag === 'G_ADMIN_RBAC' || groupData.tag === 'G_SYSTEM_OPERATIONS') && (
+                                      <span className="px-2 py-0.5 bg-red-105 text-red-700 border border-red-200 text-[9px] font-extrabold rounded-md uppercase tracking-wider shadow-sm animate-pulse">
+                                        High Risk
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="text-[11.5px] text-[#64748B] font-medium">{groupData.desc}</p>
                                 </div>

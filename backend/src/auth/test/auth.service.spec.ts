@@ -447,20 +447,42 @@ describe('AuthService', () => {
   });
 
   describe('seedRbac (RBAC Seeding regression)', () => {
-    it('should use $setOnInsert for permissions to avoid overwriting custom permissions of existing roles', async () => {
+    it('should seed RBAC groups correctly and not overwrite custom role permissions', async () => {
       const roleModel = (service as any).roleModel;
       const permissionModel = (service as any).permissionModel;
       const permissionGroupModel = (service as any).permissionGroupModel;
+      const routePermissionModel = (service as any).routePermissionModel;
 
       permissionModel.deleteMany = jest
         .fn()
         .mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
-      permissionModel.find = jest
-        .fn()
-        .mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
-      permissionModel.findOneAndUpdate = jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ _id: 'mock-perm-id' }),
+      permissionModel.find = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          { _id: 'id-admin', code: 'admin' },
+          { _id: 'id-view_users', code: 'view_users' },
+          { _id: 'id-reset_pwd', code: 'reset_pwd' },
+          { _id: 'id-ADMIN_FULL', code: 'ADMIN_FULL' },
+          { _id: 'id-USER_CREATE', code: 'USER_CREATE' },
+          { _id: 'id-USER_UPDATE', code: 'USER_UPDATE' },
+          { _id: 'id-USER_DELETE', code: 'USER_DELETE' },
+          { _id: 'id-ROLE_CREATE', code: 'ROLE_CREATE' },
+          { _id: 'id-ROLE_UPDATE', code: 'ROLE_UPDATE' },
+          { _id: 'id-ROLE_DELETE', code: 'ROLE_DELETE' },
+          { _id: 'id-PERMISSION_CREATE', code: 'PERMISSION_CREATE' },
+          { _id: 'id-PERMISSION_UPDATE', code: 'PERMISSION_UPDATE' },
+          { _id: 'id-PERMISSION_DELETE', code: 'PERMISSION_DELETE' },
+          { _id: 'id-PERMISSION_GROUP_CREATE', code: 'PERMISSION_GROUP_CREATE' },
+          { _id: 'id-PERMISSION_GROUP_UPDATE', code: 'PERMISSION_GROUP_UPDATE' },
+          { _id: 'id-PERMISSION_GROUP_DELETE', code: 'PERMISSION_GROUP_DELETE' },
+          { _id: 'id-ROUTE_PERMISSION_CREATE', code: 'ROUTE_PERMISSION_CREATE' },
+          { _id: 'id-ROUTE_PERMISSION_UPDATE', code: 'ROUTE_PERMISSION_UPDATE' },
+          { _id: 'id-ROUTE_PERMISSION_DELETE', code: 'ROUTE_PERMISSION_DELETE' },
+          { _id: 'id-SYSTEM_ADMIN', code: 'SYSTEM_ADMIN' },
+        ]),
       });
+      permissionModel.findOneAndUpdate = jest.fn().mockImplementation((query) => ({
+        exec: jest.fn().mockResolvedValue({ _id: `id-${query.code}` }),
+      }));
 
       permissionGroupModel.deleteOne = jest
         .fn()
@@ -474,9 +496,14 @@ describe('AuthService', () => {
       permissionGroupModel.find = jest
         .fn()
         .mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
+      permissionGroupModel.updateOne = jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
 
-      const routePermissionModel = (service as any).routePermissionModel;
       routePermissionModel.deleteOne = jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      routePermissionModel.findOneAndUpdate = jest
         .fn()
         .mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
 
@@ -486,11 +513,10 @@ describe('AuthService', () => {
 
       await (service as any).seedRbac();
 
+      // 1. Verify role permissions are never written with $set
       expect(roleModel.findOneAndUpdate).toHaveBeenCalled();
-
-      const calls = roleModel.findOneAndUpdate.mock.calls;
-      expect(calls.length).toBeGreaterThan(0);
-      calls.forEach((call) => {
+      const roleCalls = roleModel.findOneAndUpdate.mock.calls;
+      roleCalls.forEach((call) => {
         const updateQuery = call[1];
         expect(updateQuery.$setOnInsert).toBeDefined();
         expect(updateQuery.$setOnInsert.permissions).toBeDefined();
@@ -498,6 +524,32 @@ describe('AuthService', () => {
           expect(updateQuery.$set.permissions).toBeUndefined();
         }
       });
+
+      // 2. Verify G_ADMIN_RBAC group is upserted
+      const groupCalls = permissionGroupModel.findOneAndUpdate.mock.calls;
+      expect(groupCalls.length).toBeGreaterThan(0);
+      const adminRbacCall = groupCalls.find((c) => c[0].code === 'G_ADMIN_RBAC');
+      expect(adminRbacCall).toBeDefined();
+      expect(adminRbacCall[1].$set.code).toBe('G_ADMIN_RBAC');
+
+      // 3. Verify G_ADMIN_RBAC receives admin console permissions
+      const adminRbacPerms = adminRbacCall[1].$addToSet.permissions.$each;
+      expect(adminRbacPerms).toContain('id-admin');
+      expect(adminRbacPerms).toContain('id-view_users');
+      expect(adminRbacPerms).toContain('id-reset_pwd');
+      expect(adminRbacPerms).toContain('id-ADMIN_FULL');
+      expect(adminRbacPerms).toContain('id-USER_CREATE');
+      expect(adminRbacPerms).toContain('id-ROLE_CREATE');
+      expect(adminRbacPerms).toContain('id-PERMISSION_GROUP_DELETE');
+
+      // 4. Verify G_SYSTEM_OPERATIONS does not receive USER_CREATE, ROLE_CREATE, PERMISSION_CREATE, or ADMIN_FULL
+      const systemOpsCall = groupCalls.find((c) => c[0].code === 'G_SYSTEM_OPERATIONS');
+      expect(systemOpsCall).toBeDefined();
+      const systemOpsPerms = systemOpsCall[1].$addToSet.permissions.$each;
+      expect(systemOpsPerms).not.toContain('id-USER_CREATE');
+      expect(systemOpsPerms).not.toContain('id-ROLE_CREATE');
+      expect(systemOpsPerms).not.toContain('id-PERMISSION_CREATE');
+      expect(systemOpsPerms).not.toContain('id-ADMIN_FULL');
     });
   });
 });

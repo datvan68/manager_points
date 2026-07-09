@@ -81,14 +81,41 @@ export const PROPOSED_PERMISSION_GROUP = {
   status: 'Active',
 };
 
+export const ADMIN_RBAC_GROUP = {
+  code: 'G_ADMIN_RBAC',
+  name: 'Admin RBAC Console',
+  description:
+    'Admin-only permissions for user, role, permission, permission-group, and route-permission management.',
+  status: 'Active',
+};
+
 export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
   // 1. Nhóm Trang Phân Quyền
   {
     code: 'admin',
     name: 'Truy cập trang quản trị phân quyền',
-    module: SYSTEM_PERMISSIONS_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description:
       'Quyền truy cập trang quản lý phân quyền (RBAC), quản lý người dùng, vai trò và route mappings.',
+  },
+  {
+    code: 'view_users',
+    name: 'Xem danh sách người dùng',
+    module: ADMIN_RBAC_GROUP.name,
+    description: 'Cho phép xem danh sách người dùng trong hệ thống.',
+  },
+  {
+    code: 'reset_pwd',
+    name: 'Reset mật khẩu',
+    module: ADMIN_RBAC_GROUP.name,
+    description: 'Cho phép đổi/mới mật khẩu cho người dùng.',
+  },
+  {
+    code: 'ADMIN_FULL',
+    name: 'Toàn quyền Admin',
+    module: ADMIN_RBAC_GROUP.name,
+    description:
+      '⚠️ QUYỀN HẠN TỐI CAO: Toàn quyền quản trị và bypass tất cả các cơ chế bảo mật hệ thống.',
   },
 
   // 2. Nhóm Quản lý Học Sinh Sinh Viên
@@ -202,6 +229,12 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     module: GRADING_MANAGER_GROUP.name,
     description:
       'Cho phép truy cập menu và giao diện quản lý rèn luyện sinh viên.',
+  },
+  {
+    code: 'GRADING_SEMESTER_MANAGE',
+    name: 'Quản lý học kỳ rèn luyện',
+    module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép khởi tạo, đóng học kỳ đánh giá rèn luyện.',
   },
   {
     code: 'READ_STUDENT_RECORD',
@@ -701,91 +734,91 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
   {
     code: 'USER_CREATE',
     name: 'Thêm người dùng',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Thêm mới người dùng',
   },
   {
     code: 'USER_UPDATE',
     name: 'Cập nhật người dùng',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Chỉnh sửa thông tin người dùng',
   },
   {
     code: 'USER_DELETE',
     name: 'Xóa người dùng',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Xóa người dùng',
   },
   {
     code: 'ROLE_CREATE',
     name: 'Thêm vai trò',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Tạo mới vai trò',
   },
   {
     code: 'ROLE_UPDATE',
     name: 'Cập nhật vai trò',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Chỉnh sửa vai trò',
   },
   {
     code: 'ROLE_DELETE',
     name: 'Xóa vai trò',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Xóa vai trò',
   },
   {
     code: 'PERMISSION_CREATE',
     name: 'Thêm quyền',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Thêm mới mã quyền',
   },
   {
     code: 'PERMISSION_UPDATE',
     name: 'Cập nhật quyền',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Cập nhật thông tin quyền',
   },
   {
     code: 'PERMISSION_DELETE',
     name: 'Xóa quyền',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Xóa mã quyền',
   },
   {
     code: 'PERMISSION_GROUP_CREATE',
     name: 'Thêm nhóm quyền',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Thêm nhóm quyền',
   },
   {
     code: 'PERMISSION_GROUP_UPDATE',
     name: 'Cập nhật nhóm quyền',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Cập nhật nhóm quyền',
   },
   {
     code: 'PERMISSION_GROUP_DELETE',
     name: 'Xóa nhóm quyền',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Xóa nhóm quyền',
   },
   {
     code: 'ROUTE_PERMISSION_CREATE',
     name: 'Thêm Route Permission',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Thêm mapping route permission',
   },
   {
     code: 'ROUTE_PERMISSION_UPDATE',
     name: 'Cập nhật Route Permission',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Cập nhật mapping route permission',
   },
   {
     code: 'ROUTE_PERMISSION_DELETE',
     name: 'Xóa Route Permission',
-    module: PROPOSED_PERMISSION_GROUP.name,
+    module: ADMIN_RBAC_GROUP.name,
     description: 'Đề xuất: Xóa mapping route permission',
   },
 ];
