@@ -31,10 +31,11 @@ export class NotificationsService {
     );
   }
 
-  async create(
+  private normalizePayload(
     createDto: CreateNotificationDto,
     creatorId?: string,
-  ): Promise<NotificationDocument> {
+    deduplicationKey?: string,
+  ): any {
     if (creatorId && !Types.ObjectId.isValid(creatorId)) {
       throw new BadRequestException('Mã định dạng người tạo không hợp lệ');
     }
@@ -45,7 +46,7 @@ export class NotificationsService {
       throw new BadRequestException('Mã định dạng người nhận không hợp lệ');
     }
 
-    const payload: any = {
+    return {
       ...createDto,
       recipientUserId: createDto.recipientUserId
         ? new Types.ObjectId(createDto.recipientUserId)
@@ -53,10 +54,45 @@ export class NotificationsService {
       createdBy: creatorId ? new Types.ObjectId(creatorId) : null,
       readByUserIds: [],
       targetRole: createDto.targetRole || 'all',
+      deduplicationKey: deduplicationKey || undefined,
     };
+  }
 
+  async create(
+    createDto: CreateNotificationDto,
+    creatorId?: string,
+  ): Promise<NotificationDocument> {
+    const payload = this.normalizePayload(createDto, creatorId);
     const created = new this.notificationModel(payload);
     return created.save();
+  }
+
+  async createOnce(
+    createDto: CreateNotificationDto,
+    deduplicationKey: string,
+    creatorId?: string,
+  ): Promise<NotificationDocument> {
+    const normalizedPayload = this.normalizePayload(createDto, creatorId, deduplicationKey);
+    try {
+      const result = await this.notificationModel
+        .findOneAndUpdate(
+          { deduplicationKey },
+          { $setOnInsert: normalizedPayload },
+          { upsert: true, returnDocument: 'after' },
+        )
+        .exec();
+      return result;
+    } catch (error) {
+      if (error.code === 11000 || (error.writeErrors && error.writeErrors.some((e: any) => e.code === 11000))) {
+        const existing = await this.notificationModel
+          .findOne({ deduplicationKey })
+          .exec();
+        if (existing) {
+          return existing;
+        }
+      }
+      throw error;
+    }
   }
 
   async findAll(

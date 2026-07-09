@@ -115,6 +115,8 @@ export interface ClubAttendance {
 
 export interface StudentTimelineItem extends ClubSchedule {
   my_attendance: ClubAttendance | null;
+  is_today: boolean;
+  is_active: boolean;
 }
 
 export interface StaffAttendanceRecord {
@@ -134,11 +136,13 @@ export interface StaffAttendanceRecord {
 
 export interface StaffTimelineItem extends ClubSchedule {
   attendance_records: StaffAttendanceRecord[];
+  is_today: boolean;
+  is_active: boolean;
 }
 
 export type ClubTimelineResponse =
-  | { viewer_mode: 'student'; items: StudentTimelineItem[] }
-  | { viewer_mode: 'staff'; items: StaffTimelineItem[] };
+  | { viewer_mode: 'student'; items: StudentTimelineItem[]; timezone: string; week_start: string; week_end: string }
+  | { viewer_mode: 'staff'; items: StaffTimelineItem[]; timezone: string; week_start: string; week_end: string };
 
 export interface AttendanceConfig {
   _id: string;

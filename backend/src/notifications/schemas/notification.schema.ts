@@ -58,6 +58,9 @@ export class Notification {
 
   @Prop({ type: Date, default: null })
   deletedAt?: Date | null;
+
+  @Prop({ trim: true })
+  deduplicationKey?: string;
 }
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
@@ -69,3 +72,4 @@ NotificationSchema.index({
 });
 NotificationSchema.index({ type: 1, createdAt: -1 });
 NotificationSchema.index({ deletedAt: 1 });
+NotificationSchema.index({ deduplicationKey: 1 }, { unique: true, sparse: true });

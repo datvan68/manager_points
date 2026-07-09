@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Users, Calendar, ClipboardCheck, Settings, ArrowLeft, UserPlus,
   Crown, Shield, Clock, MapPin, CheckCircle2, XCircle, Loader2, Sparkles, BookOpen, MessageSquare, Award, AlertCircle,
@@ -109,7 +109,7 @@ const roleIcons: Record<string, any> = {
 const statusColors: Record<string, string> = {
   active: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
   pending: 'bg-amber-500/10 text-amber-600 border border-amber-500/20',
-  inactive: 'bg-slate-500/10 text-slate-550 border border-slate-500/10',
+  inactive: 'bg-slate-500/10 text-slate-555 border border-slate-500/10',
   rejected: 'bg-red-500/10 text-red-600 border border-red-500/20',
   left: 'bg-gray-500/10 text-gray-500 border border-gray-500/10',
 };
@@ -117,6 +117,7 @@ const statusColors: Record<string, string> = {
 export default function ClubDetailPage() {
   const { clubId } = useParams<{ clubId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [club, setClub] = useState<Club | null>(null);
   const [members, setMembers] = useState<ClubMember[]>([]);
   const [schedules, setSchedules] = useState<ClubSchedule[]>([]);
@@ -125,6 +126,13 @@ export default function ClubDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showMethodSelector, setShowMethodSelector] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'schedules') {
+      setActiveTab('schedules');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (clubId) loadData();

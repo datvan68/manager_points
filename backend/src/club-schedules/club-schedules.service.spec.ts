@@ -316,8 +316,8 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
   describe('findClubTimeline', () => {
     const clubId = new Types.ObjectId().toString();
     const mockSchedules = [
-      { _id: new Types.ObjectId(), start_time: new Date('2026-07-06T10:00:00'), title: 'Schedule 1' },
-      { _id: new Types.ObjectId(), start_time: new Date('2026-07-07T10:00:00'), title: 'Schedule 2' },
+      { _id: new Types.ObjectId(), start_time: new Date('2026-07-06T10:00:00Z'), end_time: new Date('2026-07-06T12:00:00Z'), title: 'Schedule 1', status: 'scheduled' },
+      { _id: new Types.ObjectId(), start_time: new Date('2026-07-07T10:00:00Z'), end_time: new Date('2026-07-07T12:00:00Z'), title: 'Schedule 2', status: 'scheduled' },
     ];
 
     it('should throw ForbiddenException for unsupported roles', async () => {
@@ -336,10 +336,11 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
 
       const requester = { role: 'STUDENT' };
       const res = await service.findClubTimeline(clubId, requester);
-      expect(res).toEqual({
-        viewer_mode: 'student',
-        items: [],
-      });
+      expect(res.viewer_mode).toBe('student');
+      expect(res.items).toEqual([]);
+      expect(res.timezone).toBe('Asia/Ho_Chi_Minh');
+      expect(res.week_start).toBeDefined();
+      expect(res.week_end).toBeDefined();
     });
 
     it('should sort schedules by start_time and then _id ascending', async () => {
@@ -362,6 +363,9 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
       const res = await service.findClubTimeline(clubId, requester);
       expect(res.items.length).toBe(2);
       expect(res.viewer_mode).toBe('student');
+      expect(res.timezone).toBe('Asia/Ho_Chi_Minh');
+      expect(res.week_start).toBeDefined();
+      expect(res.week_end).toBeDefined();
     });
 
     it('should filter by student studentId/userId and return my_attendance in student mode', async () => {
@@ -448,6 +452,31 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
       expect(rec.status).toBe('present');
       expect(rec.approval_status).toBe('approved');
       expect(rec.note).toBe('Ok');
+    });
+
+    it('should apply boundary date filters and exclude cancelled schedules', async () => {
+      mockClubScheduleModel.find.mockImplementation((query) => {
+        expect(query.club_id).toBeDefined();
+        expect(query.start_time.$gte).toBeInstanceOf(Date);
+        expect(query.start_time.$lt).toBeInstanceOf(Date);
+        expect(query.status.$ne).toBe('cancelled');
+        return {
+          sort: jest.fn().mockReturnThis(),
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue(mockSchedules),
+        };
+      });
+
+      mockClubAttendanceModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+
+      const requester = { role: 'STUDENT', studentId: 'student123' };
+      const res = await service.findClubTimeline(clubId, requester);
+      expect(res.items.length).toBe(2);
+      expect(res.items[0].is_today).toBeDefined();
+      expect(res.items[0].is_active).toBeDefined();
     });
   });
 });

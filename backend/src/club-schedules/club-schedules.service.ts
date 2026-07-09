@@ -832,10 +832,52 @@ export class ClubSchedulesService {
     return schedule;
   }
 
+  private getWeekBoundariesInHoChiMinh(now: Date): { weekStart: Date; weekEnd: Date } {
+    const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+    const dayOfWeek = vnTime.getUTCDay(); // CN = 0, T2 = 1, ..., T7 = 6
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+    const mondayVn = new Date(vnTime);
+    mondayVn.setUTCDate(vnTime.getUTCDate() + diffToMonday);
+    mondayVn.setUTCHours(0, 0, 0, 0);
+
+    const weekStartUtc = new Date(mondayVn.getTime() - 7 * 60 * 60 * 1000);
+
+    const nextMondayVn = new Date(mondayVn);
+    nextMondayVn.setUTCDate(mondayVn.getUTCDate() + 7);
+    const weekEndUtc = new Date(nextMondayVn.getTime() - 7 * 60 * 60 * 1000);
+
+    return { weekStart: weekStartUtc, weekEnd: weekEndUtc };
+  }
+
+  private isTodayInHoChiMinh(date: Date, now: Date): boolean {
+    const dateVn = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+    const nowVn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+    return (
+      dateVn.getUTCFullYear() === nowVn.getUTCFullYear() &&
+      dateVn.getUTCMonth() === nowVn.getUTCMonth() &&
+      dateVn.getUTCDate() === nowVn.getUTCDate()
+    );
+  }
+
+  private isActiveSchedule(schedule: { status: string; start_time: Date; end_time: Date }, now: Date): boolean {
+    return (
+      (schedule.status === 'scheduled' || schedule.status === 'ongoing') &&
+      schedule.start_time <= now &&
+      now < schedule.end_time
+    );
+  }
+
   async findClubTimeline(
     clubId: string,
     requester: any,
-  ): Promise<{ viewer_mode: 'student' | 'staff'; items: any[] }> {
+  ): Promise<{
+    viewer_mode: 'student' | 'staff';
+    timezone: string;
+    week_start: string;
+    week_end: string;
+    items: any[];
+  }> {
     if (!Types.ObjectId.isValid(clubId)) {
       throw new BadRequestException('Mã câu lạc bộ không hợp lệ');
     }
@@ -849,14 +891,27 @@ export class ClubSchedulesService {
       throw new ForbiddenException('Vai trò không được hỗ trợ để truy cập timeline sinh hoạt');
     }
 
+    const now = new Date();
+    const { weekStart, weekEnd } = this.getWeekBoundariesInHoChiMinh(now);
+
     const schedules = await this.scheduleModel
-      .find({ club_id: new Types.ObjectId(clubId) })
+      .find({
+        club_id: new Types.ObjectId(clubId),
+        start_time: { $gte: weekStart, $lt: weekEnd },
+        status: { $ne: 'cancelled' },
+      })
       .sort({ start_time: 1, _id: 1 })
       .lean()
       .exec();
 
     if (schedules.length === 0) {
-      return { viewer_mode: viewerMode, items: [] };
+      return {
+        viewer_mode: viewerMode,
+        timezone: 'Asia/Ho_Chi_Minh',
+        week_start: weekStart.toISOString(),
+        week_end: weekEnd.toISOString(),
+        items: [],
+      };
     }
 
     const scheduleIds = schedules.map(s => s._id);
@@ -898,6 +953,9 @@ export class ClubSchedulesService {
     const items = schedules.map(schedule => {
       const scheduleIdStr = schedule._id.toString();
       const records = groupedAttendance.get(scheduleIdStr) || [];
+      const is_today = this.isTodayInHoChiMinh(schedule.start_time, now);
+      const is_active = this.isActiveSchedule(schedule, now);
+
       if (viewerMode === 'student') {
         const my_attendance = records.length > 0 ? {
           _id: records[0]._id,
@@ -914,6 +972,8 @@ export class ClubSchedulesService {
         } : null;
         return {
           ...schedule,
+          is_today,
+          is_active,
           my_attendance,
         };
       } else {
@@ -933,6 +993,8 @@ export class ClubSchedulesService {
         }));
         return {
           ...schedule,
+          is_today,
+          is_active,
           attendance_records,
         };
       }
@@ -940,6 +1002,9 @@ export class ClubSchedulesService {
 
     return {
       viewer_mode: viewerMode,
+      timezone: 'Asia/Ho_Chi_Minh',
+      week_start: weekStart.toISOString(),
+      week_end: weekEnd.toISOString(),
       items,
     };
   }

@@ -16,18 +16,25 @@ import {
   ClubAttendance,
   ClubAttendanceSchema,
 } from '../club-attendance/schemas/club-attendance.schema';
+import { ClubMember, ClubMemberSchema } from '../clubs/schemas/club-member.schema';
+import { Student, StudentSchema } from '../students/schemas/student.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { ClubScheduleActiveNotificationService } from './club-schedule-active-notification.service';
 
 @Module({
   imports: [
+    NotificationsModule,
     MongooseModule.forFeature([
       { name: ClubSchedule.name, schema: ClubScheduleSchema },
       { name: ScheduleRegistration.name, schema: ScheduleRegistrationSchema },
       { name: Semester.name, schema: SemesterSchema },
       { name: ClubAttendance.name, schema: ClubAttendanceSchema },
+      { name: ClubMember.name, schema: ClubMemberSchema },
+      { name: Student.name, schema: StudentSchema },
     ]),
   ],
   controllers: [ClubSchedulesController],
-  providers: [ClubSchedulesService],
+  providers: [ClubSchedulesService, ClubScheduleActiveNotificationService],
   exports: [ClubSchedulesService, MongooseModule],
 })
 export class ClubSchedulesModule {}

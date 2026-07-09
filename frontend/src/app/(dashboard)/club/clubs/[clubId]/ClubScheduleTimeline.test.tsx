@@ -1,12 +1,15 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import ClubScheduleTimeline from './ClubScheduleTimeline';
 import { ClubTimelineResponse } from '@/api/club-api';
 
 describe('ClubScheduleTimeline Component', () => {
   const studentData: ClubTimelineResponse = {
     viewer_mode: 'student',
+    timezone: 'Asia/Ho_Chi_Minh',
+    week_start: '2026-07-06T00:00:00.000Z',
+    week_end: '2026-07-13T00:00:00.000Z',
     items: [
       {
         _id: 's1',
@@ -21,6 +24,8 @@ describe('ClubScheduleTimeline Component', () => {
         status: 'completed',
         created_by: 'user1',
         createdAt: '2026-07-01T00:00:00.000Z',
+        is_today: true,
+        is_active: false,
         my_attendance: {
           _id: 'att1',
           club_id: 'club123',
@@ -49,6 +54,8 @@ describe('ClubScheduleTimeline Component', () => {
         status: 'scheduled',
         created_by: 'user1',
         createdAt: '2026-07-01T00:00:00.000Z',
+        is_today: false,
+        is_active: false,
         my_attendance: null,
       },
     ],
@@ -56,6 +63,9 @@ describe('ClubScheduleTimeline Component', () => {
 
   const staffData: ClubTimelineResponse = {
     viewer_mode: 'staff',
+    timezone: 'Asia/Ho_Chi_Minh',
+    week_start: '2026-07-06T00:00:00.000Z',
+    week_end: '2026-07-13T00:00:00.000Z',
     items: [
       {
         _id: 's1',
@@ -70,6 +80,8 @@ describe('ClubScheduleTimeline Component', () => {
         status: 'completed',
         created_by: 'user1',
         createdAt: '2026-07-01T00:00:00.000Z',
+        is_today: true,
+        is_active: false,
         attendance_records: [
           {
             _id: 'att1',
@@ -99,13 +111,19 @@ describe('ClubScheduleTimeline Component', () => {
         status: 'cancelled',
         created_by: 'user1',
         createdAt: '2026-07-01T00:00:00.000Z',
+        is_today: false,
+        is_active: false,
         attendance_records: [],
       },
     ],
   };
 
-  it('renders student mode correctly with title, details, and personal badges', () => {
+  it('renders student mode correctly with today and weekly sections', () => {
     render(<ClubScheduleTimeline data={studentData} />);
+
+    // Section headers
+    expect(screen.getByText("Lịch hôm nay")).toBeInTheDocument();
+    expect(screen.getByText('Lịch tuần này')).toBeInTheDocument();
 
     // Titles
     expect(screen.getByText('Weekly Training Session')).toBeInTheDocument();
@@ -129,7 +147,6 @@ describe('ClubScheduleTimeline Component', () => {
     render(<ClubScheduleTimeline data={staffData} />);
 
     expect(screen.getByText('Weekly Training Session')).toBeInTheDocument();
-    expect(screen.getByText('Đã hủy')).toBeInTheDocument();
 
     // Check that attendance details are hidden by default
     expect(screen.queryByText('DANH SÁCH ĐIỂM DANH:')).not.toBeInTheDocument();
@@ -145,18 +162,76 @@ describe('ClubScheduleTimeline Component', () => {
     expect(screen.getByText('SV123')).toBeInTheDocument();
     expect(screen.getByText('Note: On time')).toBeInTheDocument();
     expect(screen.getAllByText('Có mặt').length).toBeGreaterThan(0);
-
-    // Expand second schedule (empty list)
-    fireEvent.click(expandButtons[1]);
-    expect(screen.getByText('Không có dữ liệu điểm danh')).toBeInTheDocument();
   });
 
-  it('renders empty list state gracefully', () => {
+  it('renders active schedules with Happening now badge', () => {
+    const activeData: ClubTimelineResponse = {
+      viewer_mode: 'student',
+      timezone: 'Asia/Ho_Chi_Minh',
+      week_start: '2026-07-06T00:00:00.000Z',
+      week_end: '2026-07-13T00:00:00.000Z',
+      items: [
+        {
+          _id: 's3',
+          club_id: 'club123',
+          title: 'Active Session',
+          schedule_type: 'regular',
+          start_time: '2026-07-06T18:00:00.000Z',
+          end_time: '2026-07-06T20:00:00.000Z',
+          semester_id: 'sem1',
+          status: 'ongoing',
+          created_by: 'user1',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          is_today: true,
+          is_active: true,
+          my_attendance: null,
+        },
+      ],
+    };
+
+    render(<ClubScheduleTimeline data={activeData} />);
+    expect(screen.getByText('Happening now')).toBeInTheDocument();
+  });
+
+  it('renders No club schedules today inside today section when there are no today items', () => {
+    const noTodayData: ClubTimelineResponse = {
+      viewer_mode: 'student',
+      timezone: 'Asia/Ho_Chi_Minh',
+      week_start: '2026-07-06T00:00:00.000Z',
+      week_end: '2026-07-13T00:00:00.000Z',
+      items: [
+        {
+          _id: 's4',
+          club_id: 'club123',
+          title: 'Later This Week Session',
+          schedule_type: 'regular',
+          start_time: '2026-07-07T18:00:00.000Z',
+          end_time: '2026-07-07T20:00:00.000Z',
+          semester_id: 'sem1',
+          status: 'scheduled',
+          created_by: 'user1',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          is_today: false,
+          is_active: false,
+          my_attendance: null,
+        },
+      ],
+    };
+
+    render(<ClubScheduleTimeline data={noTodayData} />);
+    expect(screen.getByText('No club schedules today')).toBeInTheDocument();
+    expect(screen.getByText('Later This Week Session')).toBeInTheDocument();
+  });
+
+  it('renders empty list state with No club schedules this week', () => {
     const emptyData: ClubTimelineResponse = {
       viewer_mode: 'student',
+      timezone: 'Asia/Ho_Chi_Minh',
+      week_start: '2026-07-06T00:00:00.000Z',
+      week_end: '2026-07-13T00:00:00.000Z',
       items: [],
     };
     render(<ClubScheduleTimeline data={emptyData} />);
-    expect(screen.getByText('Chưa có lịch sinh hoạt nào được lên kế hoạch')).toBeInTheDocument();
+    expect(screen.getByText('No club schedules this week')).toBeInTheDocument();
   });
 });

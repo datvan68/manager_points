@@ -76,6 +76,12 @@ describe('NotificationsService', () => {
               updateMany: jest.fn().mockReturnValue({
                 exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
               }),
+              findOneAndUpdate: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue({
+                  ...mockNotification,
+                  toObject: () => ({ ...mockNotification }),
+                }),
+              }),
             },
           ),
         },
@@ -106,6 +112,56 @@ describe('NotificationsService', () => {
       await expect(service.create(dto, 'invalid-id')).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('createOnce', () => {
+    it('should successfully create a notification with deduplicationKey', async () => {
+      const dto = {
+        title: 'Unique Title',
+        description: 'Unique Desc',
+        type: 'info' as const,
+      };
+      const key = 'test-key-1';
+      const result = await service.createOnce(dto, key, mockUserId);
+      expect(result).toBeDefined();
+      expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+        { deduplicationKey: key },
+        expect.any(Object),
+        { upsert: true, returnDocument: 'after' },
+      );
+    });
+
+    it('should return existing notification on 11000 duplicate key error', async () => {
+      const dto = {
+        title: 'Unique Title',
+        description: 'Unique Desc',
+        type: 'info' as const,
+      };
+      const key = 'test-key-1';
+
+      // Mock findOneAndUpdate to throw a duplicate key error
+      const mongoError = new Error('Duplicate Key Error') as any;
+      mongoError.code = 11000;
+      model.findOneAndUpdate.mockReturnValueOnce({
+        exec: jest.fn().mockRejectedValue(mongoError),
+      });
+
+      const existingDoc = {
+        _id: new Types.ObjectId(),
+        title: 'Unique Title',
+        description: 'Unique Desc',
+        deduplicationKey: key,
+        toObject: () => ({ title: 'Unique Title' }),
+      };
+      model.findOne.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(existingDoc),
+      });
+
+      const result = await service.createOnce(dto, key, mockUserId);
+      expect(result).toBeDefined();
+      expect(result.deduplicationKey).toEqual(key);
+      expect(model.findOne).toHaveBeenCalledWith({ deduplicationKey: key });
     });
   });
 
