@@ -1,158 +1,119 @@
-# Taskscope: Replace the Club Product Domain with a Unified Activity Domain
+# 1. Task ID + Pipeline
 
-## 1. Task ID + Pipeline
-
-Task ID: `TSK-UNIFIED-ACTIVITY-REBUILD-20260710`
-
+`TSK-ACTIVITY-SCHEDULE-COMPACT-PALETTE-AND-LIST-CONTROLS-20260710`
 Pipeline: `feature_development`
 
-## 2. Risk Level
+# 2. Risk Level
 
-Risk Level: `high`
+Medium â€” this task changes client-side scheduling, membership-state presentation, and manager actions. It does not change database schemas, backend routes, authorization rules, or deployment configuration.
 
-Reason: this task changes the primary domain used by registration, membership, schedules, attendance, and automatic academic records. Existing Club documents and references must continue to resolve during and after the change.
+# 3. Objective
 
-## 3. Objective
+Make the `/activities` manager list and weekly schedule workspace match the established Club-management behavior more closely while preserving the generic Activity module. The schedule must provide more room for the weekly board, keep recurrence and refresh controls in one toolbar, and separate initial attendee-capacity entry from later session configuration.
 
-Replace the product-domain name `Club` with `Activity` so a club, event, activity, or festival is one configurable Activity rather than separate programs. An administrator configures participation requirements and multiple academic-record criteria directly on an Activity.
+# 4. Scope
 
-## 4. Scope
+Modify only the following files:
 
-Change exactly these files and directories:
-
-- `backend/src/clubs/schemas/club.schema.ts`
-- `backend/src/clubs/schemas/club-member.schema.ts`
-- `backend/src/clubs/dto/create-club.dto.ts`
-- `backend/src/clubs/dto/update-club.dto.ts`
-- `backend/src/clubs/dto/club-member.dto.ts`
-- `backend/src/clubs/clubs.controller.ts`
-- `backend/src/clubs/clubs.service.ts`
-- `backend/src/clubs/clubs.module.ts`
-- `backend/src/clubs/clubs.service.spec.ts`
-- `backend/src/club-schedules/club-schedules.controller.ts`
-- `backend/src/club-schedules/club-schedules.service.ts`
-- `backend/src/club-schedules/club-schedules.module.ts`
-- `backend/src/club-schedules/club-schedules.service.spec.ts`
-- `backend/src/club-attendance/club-attendance-sync.service.ts`
-- `backend/src/club-attendance/club-attendance.module.ts`
-- `backend/src/attendance-sessions/attendance-sessions.service.ts`
-- `backend/src/attendance-sessions/attendance-sessions.module.ts`
-- `backend/src/attendance-sessions/attendance-sessions.service.spec.ts`
-- `backend/src/academic-record/academic-record.module.ts`
-- `backend/src/app.module.ts`
-- `backend/src/club-attendance/schemas/activity-completion-rule.schema.ts`
-- `backend/src/club-attendance/schemas/activity-completion-award.schema.ts`
-- `backend/src/club-attendance/dto/activity-completion-rule.dto.ts`
-- `backend/src/club-attendance/activity-completion.service.ts`
-- `backend/src/club-attendance/activity-completion.service.spec.ts`
-- `backend/src/club-attendance/activity-completion.controller.ts`
-- `backend/test/activities.e2e-spec.ts`
-- `backend/scripts/migrate-unified-activities.ts`
-- `frontend/src/api/activity-api.ts`
-- `frontend/src/api/activity-api.test.ts`
-- `frontend/src/components/layout/Sidebar.tsx`
+- `taskscope.md`
+- `frontend/src/components/activities/ActivityCard.tsx`
+- `frontend/src/components/activities/ActivityCard.test.tsx`
+- `frontend/src/components/activities/ActivityListWorkspace.tsx`
+- `frontend/src/components/activities/ActivityListWorkspace.test.tsx` (new)
+- `frontend/src/components/activities/ActivityManagementModals.tsx`
+- `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`
+- `frontend/src/components/activities/ActivityScheduleWorkspace.test.tsx`
 - `frontend/src/app/(dashboard)/activities/page.tsx`
 - `frontend/src/app/(dashboard)/activities/page.test.tsx`
-- `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx`
-- `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`
-- `frontend/src/app/(dashboard)/activities/my/page.tsx`
-- `frontend/src/app/(dashboard)/activities/my/page.test.tsx`
-- `frontend/src/components/activities/ActivityForm.tsx`
-- `frontend/src/components/activities/ActivityMemberTable.tsx`
-- `frontend/src/components/activities/ActivityCompletionRuleForm.tsx`
-- `frontend/src/components/activities/ActivityScheduleTimeline.tsx`
-- `frontend/src/components/activities/StudentActivityCard.tsx`
-- `docs/unified-activities.md`
 
-## 5. Out of Scope
+# 5. Out of Scope
 
-- Do not create a second `attendance-programs` module, collection, route, or user interface.
-- Do not create a separate Event, Festival, or Activity collection. All four types use the existing `clubs` collection.
-- Do not rename physical MongoDB collection names, legacy foreign-key field names, or existing data: `clubs`, `club_members`, `club_schedules`, `club_attendances`, `club_id`, and `Club` persistence classes remain compatibility internals in this delivery.
-- Do not delete existing `/clubs`, `/club-schedules`, or `/club-attendance` endpoints; they remain backward-compatible aliases while new Activity routes are added.
-- Do not change JWT issuance, role assignments, the existing permission registry, `.env*` files, Docker files, CI/CD files, payment flows, notifications, certificates, waiting lists, capacity rules, or production deployment configuration.
-- Do not execute a production migration or modify a production database.
+- Do not change `backend/**`, database schemas, API route contracts, role/authorization policies, or deploy configuration.
+- Do not create a new schedule, membership, bulk-action, or status API. Reuse `activityApi.update`, `activityApi.delete`, `activityApi.joinActivity`, and the existing activity-schedule API methods.
+- Do not change the `/club/**` pages or replace their terminology with Activity terminology.
+- Do not add an activity/semester selector back to `/activities/schedule`.
+- Do not add horizontal scrolling to the weekly calendar.
+- Do not change the public Activity detail tabs, card-design modal behavior, attendance logic, or completion/point rules.
 
-## 6. Context & Dependencies
+# 6. Context & Dependencies
 
-- The Activity product entity is persisted by the existing `Club` Mongoose schema with `collection: 'clubs'`. The code adds `activity_type` with `club`, `event`, `activity`, and `festival`, plus `participation_status` with `draft`, `published`, `completed`, and `cancelled`.
-- Existing Club documents receive `activity_type: 'club'` and `participation_status: 'published'` through the local migration script. No document is copied to another collection.
-- Existing `ClubMember`, `ClubSchedule`, and `ClubAttendance` documents remain Activity members, schedules, and attendance. New public API fields use `activity_id`, while legacy aliases remain accepted.
-- A Club membership consumes the current single-club semester slot. A non-club Activity membership sets `occupies_slot: false` and does not participate in Club transfer limits.
-- `ActivityCompletionRule` belongs to one Activity and semester, has one minimum attendance count and one or more criterion IDs, and is configuration only, not an attendance program.
-- `ActivityCompletionAward` is an immutable audit row with a unique Activity/Student/Criterion tuple.
-- Approved `present` and `late` attendance each count once. When the requirement is reached, the completion service creates one AcademicRecord for every configured criterion using `activity-completion:<activityId>:<studentId>:<criterionId>`.
-- Legacy per-attendance Club scoring remains active only when no ActivityCompletionRule exists for the Activity and semester.
-- Existing `CLUB_*` permissions protect Activity routes in this delivery.
+- `ActivityScheduleWorkspace.tsx` is the shared schedule UI used by `/activities/schedule` and the legacy Club schedule wrapper. Preserve the `activityType="club"` wrapper behavior and the legacy `club_id` schedule payload field.
+- The schedule API already accepts `title`, `description`, `location`, `start_time`, `end_time`, `semester_id`, `max_attendees`, and recurrence fields. The client must preserve a saved `max_attendees` value when the session-configuration form no longer exposes it.
+- `Activity.participation_status` supports `draft`, `published`, `completed`, and `cancelled`. The manager list will expose three direct icon targets: Draft, Published, and Cancelled. `completed` remains a display-only lifecycle state in this list.
+- The existing `ActivityManagementModals` component already has confirmation wording and variants for multi-delete and multi-deactivate. Extend its typed props only when needed by the selection flow; do not duplicate confirmation dialogs in the list component.
+- A student with `membership_status === 'active'` has already registered. The card label must be `Äang tham gia`; `ÄÄƒng kĂ½`, `Chá» duyá»‡t`, and `Bá»‹ tá»« chá»‘i` retain their existing meanings and no duplicate join request is sent.
+- The initial schedule-create form is opened from the explicit create action. The session-configuration form is opened for a dropped, pending, or saved calendar item. These are distinct entry modes even if they share form state and submit code.
 
-## 7. Steps
+# 7. Steps
 
-### PLAN
+## PLAN
 
-1. Inspect `backend/src/clubs/clubs.service.ts`, `backend/src/club-schedules/club-schedules.service.ts`, `backend/src/club-attendance/club-attendance-sync.service.ts`, and `backend/src/attendance-sessions/attendance-sessions.service.ts` for all membership and attendance behavior.
-2. Inspect `frontend/src/api/club-api.ts` and `frontend/src/app/(dashboard)/club/` to preserve existing behavior while creating Activity-first pages.
-3. Add focused tests before modifying membership-slot behavior, scoring precedence, and route aliases.
+1. Inspect the table branch of `ActivityListWorkspace.tsx`, the create/edit/delete state in `activities/page.tsx`, and `ActivityManagementModals.tsx` before changing callbacks. Map every manager action to the existing `activityApi.update` or `activityApi.delete` method and keep student rows read-only for manager-only controls.
+2. Inspect the weekly branch of `ActivityScheduleWorkspace.tsx`: the toolbar near the recurrence and refresh buttons, the `lg:col-span-3` source palette, the seven-day header, the three shift rows, and the modal branches controlled by `isSimplifiedModal`.
 
-### EXECUTE
+## EXECUTE
 
-4. Add indexed `activity_type` and `participation_status` enum fields in `backend/src/clubs/schemas/club.schema.ts`; validate both in `create-club.dto.ts` and `update-club.dto.ts`.
-5. In `backend/src/clubs/clubs.controller.ts` and `clubs.service.ts`, add `/activities` public routes, type filtering, Activity status checks, Activity-neutral responses, and legacy `/clubs` compatibility.
-6. In `clubs.service.ts`, apply slot/transfer rules only when `activity_type === 'club'`; create non-club Activity members with `occupies_slot: false`; reject joining draft, completed, and cancelled Activities.
-7. In `backend/src/club-schedules/club-schedules.controller.ts` and `club-schedules.service.ts`, add `/activity-schedules` aliases and reject schedule changes for completed or cancelled Activities without changing recurrence behavior.
-8. Add the Activity completion schemas, DTO, service, controller, tests, and Mongoose registrations listed in Section 4. Published rules require `minimum_attendance >= 1`, a semester, and at least one count-mode criterion.
-9. In `ActivityCompletionService`, count distinct approved `present` and `late` attendance rows. At the threshold, create one audit award and one AcademicRecord per configured criterion in a transaction with the idempotency key from Section 6.
-10. In `club-attendance-sync.service.ts`, execute completion logic before legacy scoring. A configured rule suppresses per-attendance records; absent a rule preserves current behavior.
-11. In `attendance-sessions.service.ts`, retain `context_type: 'club'` as a storage compatibility value while admitting all Activity types stored in `clubs`.
-12. Create `backend/scripts/migrate-unified-activities.ts` to idempotently backfill missing type/status fields. It logs matched and modified counts and must not run against production.
-13. Create `frontend/src/api/activity-api.ts`, Activity pages, and components listed in Section 4. Use `/activities`, `/activity-schedules`, and completion-rule APIs only; do not create or call Attendance Program APIs.
-14. In `frontend/src/components/layout/Sidebar.tsx`, replace the Club navigation label with Activities and link it to `/activities`; keep `/club/*` routes available for bookmarks.
-15. Write `docs/unified-activities.md` with types, compatibility routes, member-slot rules, completion logic, idempotency, and local migration steps.
+3. In `ActivityScheduleWorkspace.tsx`, replace the split recurrence/refresh control placement with one responsive schedule toolbar containing week navigation/status, the `Cáº¥u hĂ¬nh chuá»—i láº·p` button, and the refresh icon button. Keep the recurrence dialog and refresh handler unchanged; only relocate their triggers into this shared toolbar.
+4. Change the desktop weekly layout from a `3/12` palette plus `9/12` board to a compact `2/12` palette plus `10/12` board. Keep the palette searchable, vertically scrollable inside its fixed panel, and drag-and-drop capable. Ensure the seven day columns shrink within the available board width without `min-width`, `overflow-x-auto`, or a horizontal scrollbar.
+5. Remove vertical day separators from the desktop weekly board: remove `border-r` and `divide-x` classes from the day header, shift label boundary, and day cells. Retain horizontal shift separation and each schedule card's colored left accent because those are not day-divider borders.
+6. Separate the two schedule modal modes in `ActivityScheduleWorkspace.tsx`:
+   - The initial create modal keeps attendee-capacity input together with its existing new-session fields.
+   - The session-configuration modal for dropped, pending, or saved sessions exposes only title, description, location, start time, and end time. It does not expose attendee capacity, activity selection, schedule type, date editing, or recurrence controls.
+   - Preserve the calendar-cell date in configuration mode and preserve an existing `max_attendees` value in its PATCH/create payload. Recurrence remains configurable only through the shared recurrence controls and related dialogs.
+7. In `ActivityCard.tsx`, change only the active-membership visual label from `ÄĂ£ tham gia` to `Äang tham gia`. Keep it non-clickable, prevent card navigation from action clicks, and do not render edit/delete controls on grid cards.
+8. In `ActivityListWorkspace.tsx`, add manager-only table selection state: a header checkbox selects or clears all currently filtered activities, each row checkbox toggles that activity, and selection is cleared after a completed bulk action or when a selected item is no longer in the filtered result set. Show a selection toolbar only when one or more rows are selected, with `VĂ´ hiá»‡u hĂ³a` and `XĂ³a` actions wired to the existing confirmation modal.
+9. In the manager table status column, retain the current status badge and add exactly three compact icon-only buttons with accessible names/tooltips: `ÄÆ°a vá» nhĂ¡p`, `CĂ´ng khai Ä‘Äƒng kĂ½`, and `Há»§y hoáº¡t Ä‘á»™ng`. Wire each button to a page callback that calls `activityApi.update(id, { participation_status: 'draft' | 'published' | 'cancelled' })`, shows success/error feedback, and reloads the activity list. Do not offer direct status changes to students or for a `completed` row.
+10. Replace the manager table's text controls (`Sá»­a`, `XĂ³a`) with icon-only buttons for configure-design, edit, and delete. Keep their existing callbacks, stop row-click propagation, and supply `aria-label` and `title` text. Preserve the favorite button and the student registration-state behavior.
+11. In `activities/page.tsx`, own the selected activity IDs, bulk-confirmation state, single status-change loading state, and callbacks passed to the list/modal. For bulk deactivation, PATCH every selected ID to `cancelled`; for bulk deletion, call the existing delete API for every selected ID. Await the independent requests together, report a single outcome, clear selection only on success, then reload data.
 
-### VERIFY
+## VERIFY
 
-16. Run every command in Section 9. Confirm Club slot consumption, non-club concurrent enrollment, route aliases, multi-criterion completion, duplicate idempotency, and legacy scoring fallback.
+12. Extend `ActivityCard.test.tsx` to assert `Äang tham gia` for active membership and retain the no-grid-edit/delete assertion.
+13. Create `ActivityListWorkspace.test.tsx` to cover manager-only checkboxes, select-all over filtered rows, icon-only edit/delete/design controls with accessible labels, the three direct status callbacks, and absence of those manager controls for students.
+14. Update `activities/page.test.tsx` to verify the exact PATCH payloads for Draft/Published/Cancelled and the bulk deactivate/delete confirmation flows without introducing new API methods.
+15. Update `ActivityScheduleWorkspace.test.tsx` to assert the compact palette heading, one toolbar containing recurrence and refresh controls, no desktop vertical day-divider classes, no horizontal calendar overflow class, and the field difference between initial create and session-configuration modes. Retain tests for recurrence payload creation and absence of activity/semester selectors.
+16. Run focused tests, lint, production build, and whitespace checks. Manually inspect `/activities` in grid/table modes and `/activities/schedule` at desktop and narrow widths after automated checks pass.
 
-### REFINE
+## REFINE
 
-17. For a failed check, change only its scoped file, rerun its focused test, then rerun Section 9. Stop for a Human Gate before database execution outside local development, permission changes, or destructive data operations.
+17. If a focused test, lint, or build check fails, correct only the failing in-scope component or test, rerun the failed command, and stop after three PLAN â†’ EXECUTE â†’ VERIFY iterations if the same issue remains unresolved.
 
-## 8. Acceptance Criteria
+# 8. Acceptance Criteria
 
-- `POST /activities` creates a `clubs` document with an allowed `activity_type`; legacy `POST /clubs` defaults to `club`.
-- `GET /activities?activity_type=event` returns only Event Activities, while `GET /clubs` remains operational.
-- Students can join multiple non-club Activities per semester without consuming the Club slot; Club behavior remains unchanged.
-- Existing schedules and attendance check-in work for every Activity type.
-- A multi-criterion ActivityCompletionRule creates exactly one active AcademicRecord and one ActivityCompletionAward per criterion after the configured minimum approved attendances.
-- Repeated approval or synchronization creates no duplicate ActivityCompletionAward or AcademicRecord.
-- Without an ActivityCompletionRule, legacy Club scoring remains unchanged.
-- The Activity UI has no Attendance Program creation flow, page, or API call.
-- Every command in Section 9 exits successfully.
+- The weekly schedule shows a compact left source palette and a wider seven-day board; the board has no horizontal scrollbar and no vertical divider between day columns.
+- Recurrence configuration and refresh are present in the same responsive schedule toolbar, and their existing dialogs/handlers still work.
+- Initial schedule creation shows the attendee-capacity input. Session configuration for a calendar item shows only title, description, location, start time, and end time; its saved capacity is not lost.
+- An Activity card with active membership displays `Äang tham gia`, cannot issue another join request, and still has no grid-card edit/delete action.
+- Manager table rows have checkboxes, a select-all checkbox, selected-row bulk deactivate/delete confirmations, three direct icon status actions, and icon-only configure-design/edit/delete actions with accessible labels.
+- Students do not see manager checkboxes, bulk controls, manager status icons, or manager edit/delete/design icons.
+- Direct status controls use only PATCH payloads for `draft`, `published`, and `cancelled`; `completed` is not directly changed from this table.
+- All targeted tests, lint, build, and `git diff --check` pass.
 
-## 9. Verification Commands
+# 9. Verification Commands
 
 ```powershell
-Set-Location backend; npm test -- clubs.service.spec.ts club-schedules.service.spec.ts activity-completion.service.spec.ts attendance-sessions.service.spec.ts
-Set-Location backend; npm run test:e2e -- activities.e2e-spec.ts
-Set-Location frontend; npm test -- "src/api/activity-api.test.ts" "src/app/(dashboard)/activities/page.test.tsx" "src/app/(dashboard)/activities/[activityId]/page.test.tsx" "src/app/(dashboard)/activities/my/page.test.tsx"
-Set-Location backend; npm run build
-Set-Location frontend; npm run build
+Set-Location D:\PROJECT\manager_points\frontend
+npm test -- "src/components/activities/ActivityCard.test.tsx" "src/components/activities/ActivityListWorkspace.test.tsx" "src/components/activities/ActivityScheduleWorkspace.test.tsx" "src/app/(dashboard)/activities/page.test.tsx"
+npm run lint
+npm run build
+Set-Location D:\PROJECT\manager_points
+git diff --check
+git status --short
 ```
 
-## 10. Safety Gates
+# 10. Safety Gates
 
-- Require a Human Gate before running `backend/scripts/migrate-unified-activities.ts` against a shared, staging, or production database.
-- Require a Human Gate before deployment, MongoDB index changes, modifying existing production records, deleting Club collections, changing permissions, or changing Club transfer policy.
-- Local source-code and test changes in Section 4 may proceed without a Human Gate.
+- Request human approval before any change to backend code, database schema, authentication/authorization policy, production configuration, deployment, or an API contract.
+- Stop and request direction if the implementation requires a new bulk API, a new status outside `draft`/`published`/`cancelled`, or a behavior change to the legacy `/club/**` routes.
+- No human gate is required for the scoped frontend-only changes when the listed verification commands pass.
 
-## 11. Artifacts to Review
+# 11. Artifacts to Review
 
-- `backend/test/activities.e2e-spec.ts` output.
-- Unit-test output for `clubs.service.spec.ts`, `activity-completion.service.spec.ts`, and `attendance-sessions.service.spec.ts`.
-- `frontend/src/api/activity-api.test.ts` and Activity page test output.
-- Redacted local migration dry-run log.
-- Backend and frontend build logs.
-- `docs/unified-activities.md`.
+- `git diff -- taskscope.md frontend/src/components/activities/ActivityCard.tsx frontend/src/components/activities/ActivityListWorkspace.tsx frontend/src/components/activities/ActivityManagementModals.tsx frontend/src/components/activities/ActivityScheduleWorkspace.tsx frontend/src/app/(dashboard)/activities/page.tsx`
+- Focused Vitest output for the four files listed in the verification command.
+- `npm run lint`, `npm run build`, `git diff --check`, and `git status --short` output.
+- Desktop and narrow-width screenshots of `/activities` table mode and `/activities/schedule` showing the compact palette, unified toolbar, and borderless day columns.
 
-## 12. loop_iterations override
+# 12. loop_iterations override
 
-`3` iterations. The default is required because this task changes a shared domain and needs separate backend, record-generation, and interface verification.
+No override. Use the default maximum of 3 PLAN â†’ EXECUTE â†’ VERIFY â†’ REFINE iterations.
