@@ -21,6 +21,8 @@ import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ClubScheduleActiveNotificationService } from './club-schedule-active-notification.service';
 
+import { Club, ClubSchema } from '../clubs/schemas/club.schema';
+
 @Module({
   imports: [
     NotificationsModule,
@@ -31,6 +33,7 @@ import { ClubScheduleActiveNotificationService } from './club-schedule-active-no
       { name: ClubAttendance.name, schema: ClubAttendanceSchema },
       { name: ClubMember.name, schema: ClubMemberSchema },
       { name: Student.name, schema: StudentSchema },
+      { name: Club.name, schema: ClubSchema },
     ]),
   ],
   controllers: [ClubSchedulesController],

@@ -43,7 +43,7 @@ import {
 } from './dto/club-member.dto';
 
 @ApiTags('Clubs')
-@Controller('clubs')
+@Controller(['clubs', 'activities'])
 export class ClubsController {
   constructor(private readonly clubsService: ClubsService) {}
 
@@ -115,8 +115,12 @@ export class ClubsController {
   @UseGuards(checkPermission('CLUB_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách tất cả câu lạc bộ' })
-  findAll(@Request() req: any) {
-    return this.clubsService.findAll(req.user);
+  findAll(
+    @Request() req: any,
+    @Query('activity_type') activityType?: string,
+    @Query('activityType') activityTypeCamel?: string,
+  ) {
+    return this.clubsService.findAll(req.user, activityType || activityTypeCamel);
   }
 
   @Get('my')

@@ -79,6 +79,20 @@ export class Club {
   @Prop({ required: true, unique: true, uppercase: true, trim: true })
   code: string;
 
+  @Prop({
+    type: String,
+    enum: ['club', 'event', 'activity', 'festival'],
+    default: 'club',
+  })
+  activity_type: string;
+
+  @Prop({
+    type: String,
+    enum: ['draft', 'published', 'completed', 'cancelled'],
+    default: 'published',
+  })
+  participation_status: string;
+
   @Prop({ required: true, trim: true })
   classroom: string;
 
@@ -144,3 +158,4 @@ export const ClubSchema = SchemaFactory.createForClass(Club);
 ClubSchema.index({ advisor_id: 1 });
 ClubSchema.index({ status: 1 });
 ClubSchema.index({ semester_id: 1 });
+ClubSchema.index({ activity_type: 1, participation_status: 1 });

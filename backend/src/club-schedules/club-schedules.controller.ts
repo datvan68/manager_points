@@ -24,7 +24,7 @@ import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { QueryScheduleDto } from './dto/query-schedule.dto';
 
 @ApiTags('Club Schedules')
-@Controller('club-schedules')
+@Controller(['club-schedules', 'activity-schedules'])
 export class ClubSchedulesController {
   constructor(private readonly schedulesService: ClubSchedulesService) {}
 

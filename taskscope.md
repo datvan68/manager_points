@@ -1,111 +1,158 @@
-﻿# Taskscope: Validate Club Favorites and Student Self-Service Transfer Limits
+# Taskscope: Replace the Club Product Domain with a Unified Activity Domain
 
 ## 1. Task ID + Pipeline
 
-Task ID: `TSK-CLUB-FAVORITES-TRANSFER-20260710`
+Task ID: `TSK-UNIFIED-ACTIVITY-REBUILD-20260710`
 
-Pipeline: `pr_review`
+Pipeline: `feature_development`
 
 ## 2. Risk Level
 
-Risk Level: `medium`
+Risk Level: `high`
 
-Reason: the task verifies authenticated-user interactions, per-user counters, and student membership transitions. A regression could expose an action to an unintended user or permit a student to exceed the self-service transfer limit.
+Reason: this task changes the primary domain used by registration, membership, schedules, attendance, and automatic academic records. Existing Club documents and references must continue to resolve during and after the change.
 
 ## 3. Objective
 
-Verify that every authenticated user who can open the club page can favorite and unfavorite a club exactly once, and that the displayed favorite total matches persisted records. Verify that the three self-service club-transfer attempts per active semester are enforced for a student in both the `/club/clubs` UI and backend API.
+Replace the product-domain name `Club` with `Activity` so a club, event, activity, or festival is one configurable Activity rather than separate programs. An administrator configures participation requirements and multiple academic-record criteria directly on an Activity.
 
 ## 4. Scope
 
-Change exactly these files if verification identifies a missing assertion or defect:
+Change exactly these files and directories:
 
+- `backend/src/clubs/schemas/club.schema.ts`
+- `backend/src/clubs/schemas/club-member.schema.ts`
+- `backend/src/clubs/dto/create-club.dto.ts`
+- `backend/src/clubs/dto/update-club.dto.ts`
+- `backend/src/clubs/dto/club-member.dto.ts`
+- `backend/src/clubs/clubs.controller.ts`
 - `backend/src/clubs/clubs.service.ts`
+- `backend/src/clubs/clubs.module.ts`
 - `backend/src/clubs/clubs.service.spec.ts`
-- `backend/test/clubs-favorite.e2e-spec.ts`
-- `frontend/src/app/(dashboard)/club/clubs/page.tsx`
-- `frontend/src/app/(dashboard)/club/clubs/page.test.tsx`
-- `frontend/src/app/(dashboard)/club/clubs/membership-policy.ts`
-- `frontend/src/app/(dashboard)/club/clubs/membership-policy.test.ts`
+- `backend/src/club-schedules/club-schedules.controller.ts`
+- `backend/src/club-schedules/club-schedules.service.ts`
+- `backend/src/club-schedules/club-schedules.module.ts`
+- `backend/src/club-schedules/club-schedules.service.spec.ts`
+- `backend/src/club-attendance/club-attendance-sync.service.ts`
+- `backend/src/club-attendance/club-attendance.module.ts`
+- `backend/src/attendance-sessions/attendance-sessions.service.ts`
+- `backend/src/attendance-sessions/attendance-sessions.module.ts`
+- `backend/src/attendance-sessions/attendance-sessions.service.spec.ts`
+- `backend/src/academic-record/academic-record.module.ts`
+- `backend/src/app.module.ts`
+- `backend/src/club-attendance/schemas/activity-completion-rule.schema.ts`
+- `backend/src/club-attendance/schemas/activity-completion-award.schema.ts`
+- `backend/src/club-attendance/dto/activity-completion-rule.dto.ts`
+- `backend/src/club-attendance/activity-completion.service.ts`
+- `backend/src/club-attendance/activity-completion.service.spec.ts`
+- `backend/src/club-attendance/activity-completion.controller.ts`
+- `backend/test/activities.e2e-spec.ts`
+- `backend/scripts/migrate-unified-activities.ts`
+- `frontend/src/api/activity-api.ts`
+- `frontend/src/api/activity-api.test.ts`
+- `frontend/src/components/layout/Sidebar.tsx`
+- `frontend/src/app/(dashboard)/activities/page.tsx`
+- `frontend/src/app/(dashboard)/activities/page.test.tsx`
+- `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx`
+- `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`
+- `frontend/src/app/(dashboard)/activities/my/page.tsx`
+- `frontend/src/app/(dashboard)/activities/my/page.test.tsx`
+- `frontend/src/components/activities/ActivityForm.tsx`
+- `frontend/src/components/activities/ActivityMemberTable.tsx`
+- `frontend/src/components/activities/ActivityCompletionRuleForm.tsx`
+- `frontend/src/components/activities/ActivityScheduleTimeline.tsx`
+- `frontend/src/components/activities/StudentActivityCard.tsx`
+- `docs/unified-activities.md`
 
 ## 5. Out of Scope
 
-- Do not change MongoDB schema definitions, indexes, or run migrations in `backend/src/clubs/schemas/*.ts`.
-- Do not alter login, JWT issuance, RBAC seed data, role assignments, or permission-guard implementation.
-- Do not change club capacity, advisor approval, schedule, attendance, or point-calculation rules.
-- Do not change API routes, response field names, production `.env*` files, Docker files, CI/CD files, or deployment configuration.
-- Do not modify unrelated frontend routes or shared authentication storage.
+- Do not create a second `attendance-programs` module, collection, route, or user interface.
+- Do not create a separate Event, Festival, or Activity collection. All four types use the existing `clubs` collection.
+- Do not rename physical MongoDB collection names, legacy foreign-key field names, or existing data: `clubs`, `club_members`, `club_schedules`, `club_attendances`, `club_id`, and `Club` persistence classes remain compatibility internals in this delivery.
+- Do not delete existing `/clubs`, `/club-schedules`, or `/club-attendance` endpoints; they remain backward-compatible aliases while new Activity routes are added.
+- Do not change JWT issuance, role assignments, the existing permission registry, `.env*` files, Docker files, CI/CD files, payment flows, notifications, certificates, waiting lists, capacity rules, or production deployment configuration.
+- Do not execute a production migration or modify a production database.
 
 ## 6. Context & Dependencies
 
-- `backend/src/clubs/clubs.controller.ts` protects favorite endpoints with `JwtAuthGuard`, not a role-specific permission guard.
-- `backend/src/clubs/schemas/club-favorite.schema.ts` has a unique `{ club_id, user_id }` index; `ClubsService.getClubStats()` counts favorites by `club_id`.
-- `frontend/src/app/(dashboard)/club/clubs/page.tsx` loads favorite IDs, fetches per-club statistics, optimistically updates a count, then applies the API-returned count.
-- `ClubsService.countCompletedSelfServiceTransfers()` counts only `self_service` and `completed` transfer records for one student and semester. The current limit is three.
-- `ClubsService.switchClub()` resolves the authenticated user to a student profile, rejects a fourth self-service transfer before mutating memberships, and creates the transfer record in a transaction.
-- The frontend calls `GET /clubs/my/transfer-policy?semester_id=<activeSemesterId>` and uses `membership-policy.ts`; the backend remains the authority.
-- Run backend commands from `backend` and frontend commands from `frontend`.
+- The Activity product entity is persisted by the existing `Club` Mongoose schema with `collection: 'clubs'`. The code adds `activity_type` with `club`, `event`, `activity`, and `festival`, plus `participation_status` with `draft`, `published`, `completed`, and `cancelled`.
+- Existing Club documents receive `activity_type: 'club'` and `participation_status: 'published'` through the local migration script. No document is copied to another collection.
+- Existing `ClubMember`, `ClubSchedule`, and `ClubAttendance` documents remain Activity members, schedules, and attendance. New public API fields use `activity_id`, while legacy aliases remain accepted.
+- A Club membership consumes the current single-club semester slot. A non-club Activity membership sets `occupies_slot: false` and does not participate in Club transfer limits.
+- `ActivityCompletionRule` belongs to one Activity and semester, has one minimum attendance count and one or more criterion IDs, and is configuration only, not an attendance program.
+- `ActivityCompletionAward` is an immutable audit row with a unique Activity/Student/Criterion tuple.
+- Approved `present` and `late` attendance each count once. When the requirement is reached, the completion service creates one AcademicRecord for every configured criterion using `activity-completion:<activityId>:<studentId>:<criterionId>`.
+- Legacy per-attendance Club scoring remains active only when no ActivityCompletionRule exists for the Activity and semester.
+- Existing `CLUB_*` permissions protect Activity routes in this delivery.
 
 ## 7. Steps
 
 ### PLAN
 
-1. Inspect favorite endpoint decorators in `backend/src/clubs/clubs.controller.ts` and confirm that valid JWT authentication, rather than role code, controls access.
-2. Trace `favoriteClub()`, `unfavoriteClub()`, and `getClubStats()` in `backend/src/clubs/clubs.service.ts` to verify persistence, duplicate handling, and returned totals.
-3. Trace `countCompletedSelfServiceTransfers()`, `getMyTransferPolicy()`, `switchClub()`, `page.tsx`, and `membership-policy.ts` to map the student transfer rule from API to UI.
+1. Inspect `backend/src/clubs/clubs.service.ts`, `backend/src/club-schedules/club-schedules.service.ts`, `backend/src/club-attendance/club-attendance-sync.service.ts`, and `backend/src/attendance-sessions/attendance-sessions.service.ts` for all membership and attendance behavior.
+2. Inspect `frontend/src/api/club-api.ts` and `frontend/src/app/(dashboard)/club/` to preserve existing behavior while creating Activity-first pages.
+3. Add focused tests before modifying membership-slot behavior, scoring precedence, and route aliases.
 
 ### EXECUTE
 
-4. In `backend/test/clubs-favorite.e2e-spec.ts`, add authenticated `STUDENT`, `TEACHER`, and `ADMIN` cases proving each role can favorite and unfavorite the same club without changing another user's favorite.
-5. In `backend/test/clubs-favorite.e2e-spec.ts`, assert repeated sequential POST requests create one favorite record and `GET /api/clubs/:id/stats` equals the number of persisted records.
-6. In `backend/src/clubs/clubs.service.ts`, only if a concurrent duplicate request returns MongoDB error `11000`, treat it as an idempotent successful favorite and return the current count.
-7. In `backend/src/clubs/clubs.service.spec.ts`, assert that only completed self-service transfers for the requested student and semester count toward the limit and that a fourth request mutates no membership or transfer record.
-8. In `frontend/src/app/(dashboard)/club/clubs/membership-policy.test.ts`, cover zero, two, and three transfers; at three, assert `ADMIN_REQUIRED`, disabled UI, and no self-service request.
-9. In `frontend/src/app/(dashboard)/club/clubs/page.test.tsx`, mock a Student session and policy response to assert the `used / 3` indicator, remaining-attempt text, and `clubApi.switchClub()` only while allowed.
+4. Add indexed `activity_type` and `participation_status` enum fields in `backend/src/clubs/schemas/club.schema.ts`; validate both in `create-club.dto.ts` and `update-club.dto.ts`.
+5. In `backend/src/clubs/clubs.controller.ts` and `clubs.service.ts`, add `/activities` public routes, type filtering, Activity status checks, Activity-neutral responses, and legacy `/clubs` compatibility.
+6. In `clubs.service.ts`, apply slot/transfer rules only when `activity_type === 'club'`; create non-club Activity members with `occupies_slot: false`; reject joining draft, completed, and cancelled Activities.
+7. In `backend/src/club-schedules/club-schedules.controller.ts` and `club-schedules.service.ts`, add `/activity-schedules` aliases and reject schedule changes for completed or cancelled Activities without changing recurrence behavior.
+8. Add the Activity completion schemas, DTO, service, controller, tests, and Mongoose registrations listed in Section 4. Published rules require `minimum_attendance >= 1`, a semester, and at least one count-mode criterion.
+9. In `ActivityCompletionService`, count distinct approved `present` and `late` attendance rows. At the threshold, create one audit award and one AcademicRecord per configured criterion in a transaction with the idempotency key from Section 6.
+10. In `club-attendance-sync.service.ts`, execute completion logic before legacy scoring. A configured rule suppresses per-attendance records; absent a rule preserves current behavior.
+11. In `attendance-sessions.service.ts`, retain `context_type: 'club'` as a storage compatibility value while admitting all Activity types stored in `clubs`.
+12. Create `backend/scripts/migrate-unified-activities.ts` to idempotently backfill missing type/status fields. It logs matched and modified counts and must not run against production.
+13. Create `frontend/src/api/activity-api.ts`, Activity pages, and components listed in Section 4. Use `/activities`, `/activity-schedules`, and completion-rule APIs only; do not create or call Attendance Program APIs.
+14. In `frontend/src/components/layout/Sidebar.tsx`, replace the Club navigation label with Activities and link it to `/activities`; keep `/club/*` routes available for bookmarks.
+15. Write `docs/unified-activities.md` with types, compatibility routes, member-slot rules, completion logic, idempotency, and local migration steps.
 
 ### VERIFY
 
-10. Run focused backend unit, favorite E2E, and focused frontend tests. Confirm the third Student transfer returns `self_service_changes_used: 3` and the fourth returns HTTP 403 without membership mutation.
-11. Run backend and frontend builds to type-check the affected application bundles.
+16. Run every command in Section 9. Confirm Club slot consumption, non-club concurrent enrollment, route aliases, multi-criterion completion, duplicate idempotency, and legacy scoring fallback.
 
 ### REFINE
 
-12. If testing finds a UI/API mismatch, change only scoped code, rerun the failed focused test, then rerun all verification commands. Stop and request direction if a correction requires RBAC changes, a database migration, or changing the three-transfer business rule.
+17. For a failed check, change only its scoped file, rerun its focused test, then rerun Section 9. Stop for a Human Gate before database execution outside local development, permission changes, or destructive data operations.
 
 ## 8. Acceptance Criteria
 
-- Any authenticated user with a valid JWT can favorite and unfavorite a club; unauthenticated requests remain rejected.
-- One user contributes at most one persisted favorite to a club, including repeated sequential and concurrent duplicate requests.
-- `favorite_count` equals the number of persisted favorite records for the club and the UI reconciles to the API response.
-- A Student's policy counts only completed self-service transfers for that Student and semester; `teacher_approval` and `admin_direct` do not consume the allowance.
-- The Student UI displays the used count and prevents a self-service request after three transfers.
-- The backend returns HTTP 403 for a fourth self-service transfer before source or target membership mutation.
-- Every command in Section 9 passes.
+- `POST /activities` creates a `clubs` document with an allowed `activity_type`; legacy `POST /clubs` defaults to `club`.
+- `GET /activities?activity_type=event` returns only Event Activities, while `GET /clubs` remains operational.
+- Students can join multiple non-club Activities per semester without consuming the Club slot; Club behavior remains unchanged.
+- Existing schedules and attendance check-in work for every Activity type.
+- A multi-criterion ActivityCompletionRule creates exactly one active AcademicRecord and one ActivityCompletionAward per criterion after the configured minimum approved attendances.
+- Repeated approval or synchronization creates no duplicate ActivityCompletionAward or AcademicRecord.
+- Without an ActivityCompletionRule, legacy Club scoring remains unchanged.
+- The Activity UI has no Attendance Program creation flow, page, or API call.
+- Every command in Section 9 exits successfully.
 
 ## 9. Verification Commands
 
 ```powershell
-Set-Location backend; npm test -- clubs.service.spec.ts
-Set-Location backend; npm run test:e2e -- clubs-favorite.e2e-spec.ts
-Set-Location frontend; npm test -- "src/app/(dashboard)/club/clubs/membership-policy.test.ts" "src/app/(dashboard)/club/clubs/page.test.tsx"
+Set-Location backend; npm test -- clubs.service.spec.ts club-schedules.service.spec.ts activity-completion.service.spec.ts attendance-sessions.service.spec.ts
+Set-Location backend; npm run test:e2e -- activities.e2e-spec.ts
+Set-Location frontend; npm test -- "src/api/activity-api.test.ts" "src/app/(dashboard)/activities/page.test.tsx" "src/app/(dashboard)/activities/[activityId]/page.test.tsx" "src/app/(dashboard)/activities/my/page.test.tsx"
 Set-Location backend; npm run build
 Set-Location frontend; npm run build
 ```
 
 ## 10. Safety Gates
 
-- No Human Gate is required for local source/test changes in the scoped files.
-- Trigger a Human Gate before any production deployment, database migration/index change, production database modification, RBAC/permission change, or alteration to the three-transfer rule.
-- Request product-owner approval if the required limit is not exactly three transfers per student per semester.
+- Require a Human Gate before running `backend/scripts/migrate-unified-activities.ts` against a shared, staging, or production database.
+- Require a Human Gate before deployment, MongoDB index changes, modifying existing production records, deleting Club collections, changing permissions, or changing Club transfer policy.
+- Local source-code and test changes in Section 4 may proceed without a Human Gate.
 
 ## 11. Artifacts to Review
 
-- `backend/test/clubs-favorite.e2e-spec.ts` output proving role coverage and favorite-count assertions.
-- `backend/src/clubs/clubs.service.spec.ts` output proving semester/mode filtering and fourth-transfer rejection.
-- `frontend/src/app/(dashboard)/club/clubs/membership-policy.test.ts` and `frontend/src/app/(dashboard)/club/clubs/page.test.tsx` outputs proving the Student UI limit.
+- `backend/test/activities.e2e-spec.ts` output.
+- Unit-test output for `clubs.service.spec.ts`, `activity-completion.service.spec.ts`, and `attendance-sessions.service.spec.ts`.
+- `frontend/src/api/activity-api.test.ts` and Activity page test output.
+- Redacted local migration dry-run log.
 - Backend and frontend build logs.
-- Redacted third- and fourth-transfer HTTP responses if a Human Gate is triggered.
+- `docs/unified-activities.md`.
 
 ## 12. loop_iterations override
 
-`2` iterations. The task is verification-focused; one concrete test-driven refinement pass is sufficient and remains below the safety maximum of three.
+`3` iterations. The default is required because this task changes a shared domain and needs separate backend, record-generation, and interface verification.

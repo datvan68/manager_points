@@ -21,7 +21,8 @@
     "test:e2e:diag": "jest --config ./test/jest-e2e.json --runInBand --detectOpenHandles",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:load": "ts-node scripts/load-test.ts",
-    "migrate:club-membership-slots": "ts-node scripts/migrate-club-membership-slots.ts"
+    "migrate:club-membership-slots": "ts-node scripts/migrate-club-membership-slots.ts",
+    "migrate:unified-activities": "ts-node scripts/migrate-unified-activities.ts"
   },
   "dependencies": {
     "@nestjs/cache-manager": "^3.1.0",

@@ -15,7 +15,8 @@ import {
   Bell,
   User,
   Shield,
-  BarChart3
+  BarChart3,
+  Compass
 } from "lucide-react";
 import { useAuth, isAdminUser } from "@/providers/auth-provider";
 import { isTeacherRole, isStudentRole } from "@/utils/role.util";
@@ -51,6 +52,7 @@ async function fetchSidebarMappings(token?: string): Promise<any[]> {
 const allMenuItems = [
   { icon: LayoutDashboard, label: "Trang chủ", href: "/" },
   { icon: Users, label: "Học sinh sinh viên", href: "/students" },
+  { icon: Compass, label: "Hoạt động", href: "/activities" },
   { icon: GraduationCap, label: "Rèn luyện", href: "/grading" },
   { icon: BarChart3, label: "Báo cáo", href: "/reports" },
   { icon: Settings, label: "Quản trị hệ thống", href: "/system" },
@@ -219,6 +221,11 @@ const Sidebar = () => {
             return true;
           }
 
+          // Luôn hiển thị mục "Hoạt động" cho tất cả người dùng đăng nhập
+          if (item.href === "/activities") {
+            return true;
+          }
+
           const mapping = mappings.find(
             (m: any) =>
               m.route_path === item.href &&
@@ -253,6 +260,9 @@ const Sidebar = () => {
 
           if (item.href === "/students") {
             return isStudentUser || isTeacherUser || hasPermission("STUDENT_PAGE") || hasPermission("STUDENT_READ") || hasPermission("READ_STUDENT_TASK");
+          }
+          if (item.href === "/activities") {
+            return true;
           }
           if (item.href === "/grading") {
             return isTeacherUser || hasPermission("GRADING_PAGE") || hasPermission("GRADING_READ");

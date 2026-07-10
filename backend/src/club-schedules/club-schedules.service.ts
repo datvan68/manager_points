@@ -32,6 +32,7 @@ import {
   isSupervisor,
   isAdmin,
 } from '../auth/utils/role.util';
+import { Club, ClubDocument } from '../clubs/schemas/club.schema';
 
 @Injectable()
 export class ClubSchedulesService {
@@ -44,12 +45,22 @@ export class ClubSchedulesService {
     private semesterModel: Model<SemesterDocument>,
     @InjectModel(ClubAttendance.name)
     private clubAttendanceModel: Model<ClubAttendanceDocument>,
+    @InjectModel(Club.name)
+    private clubModel: Model<ClubDocument>,
   ) {}
+
+  private async validateActivityStatus(clubId: string | Types.ObjectId): Promise<void> {
+    const club = await this.clubModel.findById(clubId).exec();
+    if (club && ['completed', 'cancelled'].includes(club.participation_status)) {
+      throw new BadRequestException('Không thể thay đổi lịch sinh hoạt của hoạt động đã hoàn thành hoặc đã hủy');
+    }
+  }
 
   async create(
     dto: CreateScheduleDto,
     userId: string,
   ): Promise<ClubScheduleDocument> {
+    await this.validateActivityStatus(dto.club_id);
     if (new Date(dto.end_time) <= new Date(dto.start_time)) {
       throw new BadRequestException(
         'Thời gian kết thúc phải sau thời gian bắt đầu',
@@ -331,6 +342,7 @@ export class ClubSchedulesService {
     if (!existing) {
       throw new NotFoundException(`Không tìm thấy lịch sinh hoạt với ID: ${id}`);
     }
+    await this.validateActivityStatus(existing.club_id);
 
     if (dto.end_time && dto.start_time && new Date(dto.end_time) <= new Date(dto.start_time)) {
       throw new BadRequestException(
@@ -635,6 +647,7 @@ export class ClubSchedulesService {
     if (!schedule) {
       throw new NotFoundException(`Không tìm thấy lịch sinh hoạt`);
     }
+    await this.validateActivityStatus(schedule.club_id);
 
     if (deleteSeries && schedule.recurrence_id) {
       const schedules = await this.scheduleModel
@@ -675,6 +688,7 @@ export class ClubSchedulesService {
     if (!schedule) {
       throw new NotFoundException(`Không tìm thấy lịch sinh hoạt`);
     }
+    await this.validateActivityStatus(schedule.club_id);
 
     if (!schedule.recurrence_id) {
       throw new BadRequestException('Lịch sinh hoạt không phải là chuỗi lặp');

@@ -123,6 +123,10 @@ describe('ClubsService - Membership Policy & Auditing', () => {
     service = module.get<ClubsService>(ClubsService);
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   const mockQuery = (val: any) => {
     const query: any = {
       exec: jest.fn().mockResolvedValue(val),

@@ -18,6 +18,7 @@ import {
   ClubSchedule,
   ClubScheduleDocument,
 } from '../club-schedules/schemas/club-schedule.schema';
+import { ActivityCompletionService } from './activity-completion.service';
 
 /**
  * Service responsible for syncing approved club attendance records
@@ -40,6 +41,7 @@ export class ClubAttendanceSyncService {
     private clubModel: Model<ClubDocument>,
     @InjectModel(ClubSchedule.name)
     private scheduleModel: Model<ClubScheduleDocument>,
+    private activityCompletionService: ActivityCompletionService,
   ) {}
 
   /**
@@ -61,8 +63,32 @@ export class ClubAttendanceSyncService {
     if (attendance.status !== 'present' && attendance.status !== 'late') {
       return { synced: false, reason: 'Only present/late status earns points' };
     }
-    if (attendance.synced_to_academic_record && attendance.academic_record_id) {
+    if (attendance.synced_to_academic_record) {
       return { synced: false, reason: 'Already synced' };
+    }
+
+    // Check if there is an active ActivityCompletionRule
+    const hasRule = await this.activityCompletionService.hasActiveRule(
+      attendance.club_id,
+      attendance.semester_id,
+    );
+
+    if (hasRule) {
+      // Evaluate completion and award if eligible
+      await this.activityCompletionService.checkAndAwardCompletion(
+        attendance.student_id.toString(),
+        attendance.club_id.toString(),
+        attendance.semester_id.toString(),
+      );
+
+      // Mark as synced to prevent per-attendance legacy scoring, without linking an academic record
+      attendance.synced_to_academic_record = true;
+      await attendance.save();
+
+      return {
+        synced: true,
+        reason: 'Synced and evaluated via Activity Completion Rule',
+      };
     }
 
     // Get effective config

@@ -21,6 +21,17 @@ import {
   ClubScheduleSchema,
 } from '../club-schedules/schemas/club-schedule.schema';
 
+import {
+  ActivityCompletionRule,
+  ActivityCompletionRuleSchema,
+} from './schemas/activity-completion-rule.schema';
+import {
+  ActivityCompletionAward,
+  ActivityCompletionAwardSchema,
+} from './schemas/activity-completion-award.schema';
+import { ActivityCompletionService } from './activity-completion.service';
+import { ActivityCompletionController } from './activity-completion.controller';
+
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -29,10 +40,21 @@ import {
       { name: AcademicRecord.name, schema: AcademicRecordSchema },
       { name: Club.name, schema: ClubSchema },
       { name: ClubSchedule.name, schema: ClubScheduleSchema },
+      { name: ActivityCompletionRule.name, schema: ActivityCompletionRuleSchema },
+      { name: ActivityCompletionAward.name, schema: ActivityCompletionAwardSchema },
     ]),
   ],
-  controllers: [ClubAttendanceController],
-  providers: [ClubAttendanceService, ClubAttendanceSyncService],
-  exports: [ClubAttendanceService, ClubAttendanceSyncService, MongooseModule],
+  controllers: [ClubAttendanceController, ActivityCompletionController],
+  providers: [
+    ClubAttendanceService,
+    ClubAttendanceSyncService,
+    ActivityCompletionService,
+  ],
+  exports: [
+    ClubAttendanceService,
+    ClubAttendanceSyncService,
+    ActivityCompletionService,
+    MongooseModule,
+  ],
 })
 export class ClubAttendanceModule {}

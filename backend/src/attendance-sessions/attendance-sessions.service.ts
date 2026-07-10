@@ -431,7 +431,7 @@ export class AttendanceSessionsService {
       });
       if (!member) {
         throw new BadRequestException(
-          'Bạn không phải thành viên của câu lạc bộ này.',
+          'Bạn không phải thành viên của hoạt động này.',
         );
       }
     }

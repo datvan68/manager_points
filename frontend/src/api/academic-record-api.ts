@@ -14,6 +14,8 @@ export interface AcademicRecord {
   recorded_at?: string;
   status: 'active' | 'inactive';
   is_deleted?: boolean;
+  source_type?: string;
+  source_id?: any;
   createdAt?: string;
   updatedAt?: string;
 

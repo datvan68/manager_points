@@ -187,12 +187,23 @@ export class ClubsService {
       await this.validateAdvisor(dto.advisor_id);
     }
 
-    const club = new this.clubModel({ ...dto, code: dto.code.toUpperCase() });
+    const club = new this.clubModel({
+      ...dto,
+      code: dto.code.toUpperCase(),
+      activity_type: dto.activity_type || 'club',
+      participation_status: dto.participation_status || 'published',
+    });
     return club.save();
   }
 
-  async findAll(user?: any): Promise<ClubDocument[]> {
+  async findAll(
+    user?: any,
+    activityType?: string,
+  ): Promise<ClubDocument[]> {
     const query: any = {};
+    if (activityType) {
+      query.activity_type = activityType;
+    }
 
     if (user && !isAdminUser(user)) {
       // Non-admin: show active clubs or clubs they advise
@@ -401,34 +412,46 @@ export class ClubsService {
     const studentId = await this.resolveStudentId(studentIdOrUserId);
     const userId = studentIdOrUserId;
 
-    // Check occupied membership in other clubs
-    const occupied = await this.findOccupiedMembership(studentId, dto.semester_id);
-    if (occupied) {
-      if (occupied.club_id.toString() === clubId) {
-        throw new BadRequestException('Bạn đã đăng ký CLB này trong học kỳ hiện tại');
-      } else {
-        throw new BadRequestException('Bạn đã có câu lạc bộ hoạt động trong học kỳ này. Vui lòng sử dụng chức năng chuyển câu lạc bộ.');
-      }
+    // Validate target club early
+    const club = await this.validateTargetClub(clubId, dto.semester_id, studentId);
+    if (['draft', 'completed', 'cancelled'].includes(club.participation_status)) {
+      throw new BadRequestException('Không thể đăng ký tham gia hoạt động ở trạng thái nháp, đã hoàn thành hoặc đã hủy');
     }
 
-    const club = await this.validateTargetClub(clubId, dto.semester_id, studentId);
     if (!club.settings?.allow_self_registration) {
       throw new ForbiddenException('CLB không cho phép tự đăng ký');
     }
 
-    // Find previous left membership in this semester
-    const previousMember = await this.findLatestLeftMembership(studentId, dto.semester_id);
-    
-    let firstSchedule: ClubScheduleDocument | null = null;
+    const isClub = !club.activity_type || club.activity_type === 'club';
+    let occupiesSlot = false;
     let requiresTeacherApproval = false;
+    let firstSchedule: ClubScheduleDocument | null = null;
+    let previousMember: ClubMemberDocument | null = null;
 
-    if (previousMember) {
-      firstSchedule = await this.getFirstNonCancelledSchedule(
-        previousMember.club_id.toString(),
-        dto.semester_id,
-      );
-      if (firstSchedule && new Date() >= new Date(firstSchedule.start_time)) {
-        requiresTeacherApproval = true;
+    if (isClub) {
+      occupiesSlot = true;
+
+      // Check occupied membership in other clubs
+      const occupied = await this.findOccupiedMembership(studentId, dto.semester_id);
+      if (occupied) {
+        if (occupied.club_id.toString() === clubId) {
+          throw new BadRequestException('Bạn đã đăng ký CLB này trong học kỳ hiện tại');
+        } else {
+          throw new BadRequestException('Bạn đã có câu lạc bộ hoạt động trong học kỳ này. Vui lòng sử dụng chức năng chuyển câu lạc bộ.');
+        }
+      }
+
+      // Find previous left membership in this semester
+      previousMember = await this.findLatestLeftMembership(studentId, dto.semester_id);
+
+      if (previousMember) {
+        firstSchedule = await this.getFirstNonCancelledSchedule(
+          previousMember.club_id.toString(),
+          dto.semester_id,
+        );
+        if (firstSchedule && new Date() >= new Date(firstSchedule.start_time)) {
+          requiresTeacherApproval = true;
+        }
       }
     }
 
@@ -457,7 +480,7 @@ export class ClubsService {
         ? undefined
         : new Date();
       member.left_at = undefined;
-      member.occupies_slot = true;
+      member.occupies_slot = occupiesSlot;
       await member.save();
     } else {
       // First time registering for this target club
@@ -468,13 +491,13 @@ export class ClubsService {
         status: (requiresTeacherApproval || club.settings?.require_approval) ? 'pending' : 'active',
         joined_at: (requiresTeacherApproval || club.settings?.require_approval) ? undefined : new Date(),
         semester_id: new Types.ObjectId(dto.semester_id),
-        occupies_slot: true,
+        occupies_slot: occupiesSlot,
       });
       await member.save();
     }
 
-    // Create a transfer record if activity started for the previous club
-    if (requiresTeacherApproval && previousMember) {
+    // Create a transfer record if activity started for the previous club (only for 'club' type)
+    if (isClub && requiresTeacherApproval && previousMember) {
       await this.transferModel.deleteMany({
         to_membership_id: member._id,
       });
@@ -493,13 +516,15 @@ export class ClubsService {
       await transferRecord.save();
     }
 
-    const completedChanges = await this.countCompletedSelfServiceTransfers(studentId, dto.semester_id);
+    const completedChanges = isClub
+      ? await this.countCompletedSelfServiceTransfers(studentId, dto.semester_id)
+      : 0;
 
     return {
       membership: member,
       transfer: transferRecord || null,
       self_service_changes_used: completedChanges,
-      self_service_changes_remaining: Math.max(0, 3 - completedChanges),
+      self_service_changes_remaining: isClub ? Math.max(0, 3 - completedChanges) : 0,
       requires_teacher_approval: requiresTeacherApproval,
       first_schedule_start_time: firstSchedule ? firstSchedule.start_time : null,
     };

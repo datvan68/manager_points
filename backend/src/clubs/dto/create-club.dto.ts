@@ -128,6 +128,24 @@ export class CreateClubDto {
   @IsString()
   code: string;
 
+  @ApiPropertyOptional({
+    description: 'Activity type',
+    enum: ['club', 'event', 'activity', 'festival'],
+    default: 'club',
+  })
+  @IsOptional()
+  @IsEnum(['club', 'event', 'activity', 'festival'])
+  activity_type?: string;
+
+  @ApiPropertyOptional({
+    description: 'Participation lifecycle status',
+    enum: ['draft', 'published', 'completed', 'cancelled'],
+    default: 'published',
+  })
+  @IsOptional()
+  @IsEnum(['draft', 'published', 'completed', 'cancelled'])
+  participation_status?: string;
+
   @ApiProperty({ description: 'Default classroom or activity room' })
   @IsString()
   @IsNotEmpty()

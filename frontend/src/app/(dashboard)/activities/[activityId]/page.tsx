@@ -1,0 +1,498 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import {
+  activityApi,
+  activityScheduleApi,
+  activityCompletionRuleApi,
+  Activity,
+  ActivityMember,
+  ActivitySchedule,
+  ActivityCompletionRule
+} from '@/api/activity-api';
+import { useAuth, isAdminUser } from '@/providers/auth-provider';
+import { isTeacherRole, isStudentRole } from '@/utils/role.util';
+import { toast } from 'sonner';
+import {
+  Compass, Calendar, Users, Award, ShieldAlert,
+  ChevronLeft, Sparkles, UserCheck, CalendarDays,
+  Settings, Clock, MapPin, User, Star, CheckCircle2
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import ActivityMemberTable from '@/components/activities/ActivityMemberTable';
+import ActivityScheduleTimeline from '@/components/activities/ActivityScheduleTimeline';
+import ActivityCompletionRuleForm from '@/components/activities/ActivityCompletionRuleForm';
+
+const categoryLabels: Record<string, string> = {
+  academic: 'Học thuật',
+  sports: 'Thể thao',
+  art: 'Nghệ thuật',
+  volunteer: 'Tình nguyện',
+  technology: 'Công nghệ',
+  other: 'Khác',
+};
+
+const typeLabels: Record<string, string> = {
+  club: 'Câu lạc bộ',
+  event: 'Sự kiện',
+  activity: 'Hoạt động',
+  festival: 'Lễ hội',
+};
+
+export default function ActivityDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { user } = useAuth();
+  const activityId = params.activityId as string;
+
+  const [activity, setActivity] = useState<Activity | null>(null);
+  const [members, setMembers] = useState<ActivityMember[]>([]);
+  const [schedules, setSchedules] = useState<ActivitySchedule[]>([]);
+  const [completionRule, setCompletionRule] = useState<ActivityCompletionRule | null>(null);
+  
+  const [activeTab, setActiveTab] = useState<'info' | 'members' | 'schedule' | 'rule'>('info');
+  const [loading, setLoading] = useState(true);
+  const [joining, setJoining] = useState(false);
+
+  const isAdminOrAdvisor = isAdminUser(user) || isTeacherRole(user);
+  const isStudent = isStudentRole(user);
+
+  const loadActivityData = async () => {
+    try {
+      setLoading(true);
+      const [actData, membersData, schedulesResponse, rulesList] = await Promise.all([
+        activityApi.getById(activityId),
+        activityApi.getMembers(activityId).catch(() => []),
+        activityScheduleApi.getActivityTimeline(activityId).catch(() => ({ items: [] } as any)),
+        activityCompletionRuleApi.getAll().catch(() => []),
+      ]);
+
+      setActivity(actData);
+      setMembers(membersData);
+      
+      const timelineItems = Array.isArray(schedulesResponse) 
+        ? schedulesResponse 
+        : schedulesResponse?.items || [];
+      setSchedules(timelineItems);
+
+      // Find the completion rule for this activity
+      const rule = rulesList.find((r: any) => {
+        const rClubId = typeof r.club_id === 'object' ? r.club_id?._id : r.club_id;
+        const rSemId = typeof r.semester_id === 'object' ? r.semester_id?._id : r.semester_id;
+        const actSemId = typeof actData.semester_id === 'object' ? actData.semester_id?._id : actData.semester_id;
+        
+        return rClubId === activityId && rSemId === actSemId;
+      });
+      setCompletionRule(rule || null);
+    } catch (err: any) {
+      toast.error('Lỗi khi tải thông tin hoạt động');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activityId) {
+      loadActivityData();
+    }
+  }, [activityId]);
+
+  // Join activity (student)
+  const handleJoinActivity = async () => {
+    if (!activity) return;
+    setJoining(true);
+    try {
+      const actSemId = typeof activity.semester_id === 'object' 
+        ? activity.semester_id?._id 
+        : activity.semester_id;
+
+      await activityApi.joinActivity(activityId, { semester_id: actSemId });
+      toast.success(
+        activity.settings?.require_approval 
+          ? 'Gửi yêu cầu tham gia thành công. Vui lòng chờ phê duyệt!' 
+          : 'Đăng ký tham gia hoạt động thành công!'
+      );
+      loadActivityData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi khi đăng ký tham gia');
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  // Member functions
+  const handleApproveMember = async (memberId: string) => {
+    await activityApi.approveMember(activityId, memberId, { status: 'active' });
+    loadActivityData();
+  };
+
+  const handleRejectMember = async (memberId: string) => {
+    await activityApi.approveMember(activityId, memberId, { status: 'rejected' });
+    loadActivityData();
+  };
+
+  const handleUpdateMemberRole = async (memberId: string, newRole: string) => {
+    await activityApi.updateMember(activityId, memberId, { role: newRole });
+    loadActivityData();
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    await activityApi.removeMember(activityId, memberId);
+    loadActivityData();
+  };
+
+  // Schedule functions
+  const handleRegisterSchedule = async (scheduleId: string) => {
+    await activityScheduleApi.register(scheduleId, activityId);
+    loadActivityData();
+  };
+
+  const handleCancelRegisterSchedule = async (scheduleId: string) => {
+    await activityScheduleApi.cancelRegistration(scheduleId);
+    loadActivityData();
+  };
+
+  const handleCreateSchedule = async (data: any) => {
+    const actSemId = typeof activity?.semester_id === 'object' 
+      ? activity.semester_id?._id 
+      : activity?.semester_id;
+
+    await activityScheduleApi.create({
+      ...data,
+      club_id: activityId,
+      semester_id: actSemId,
+      schedule_type: 'one_time',
+      status: 'active',
+    });
+    loadActivityData();
+  };
+
+  const handleDeleteSchedule = async (scheduleId: string) => {
+    await activityScheduleApi.delete(scheduleId);
+    loadActivityData();
+  };
+
+  // Completion Rule functions
+  const handleSaveCompletionRule = async (data: any) => {
+    try {
+      if (completionRule) {
+        await activityCompletionRuleApi.update(completionRule._id, data);
+        toast.success('Cập nhật quy tắc hoàn thành thành công');
+      } else {
+        await activityCompletionRuleApi.create(data);
+        toast.success('Thiết lập quy tắc hoàn thành thành công');
+      }
+      loadActivityData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi khi lưu quy tắc hoàn thành');
+    }
+  };
+
+  // Check registration status of current student
+  const studentMembership = members.find(m => {
+    const mStudentId = typeof m.student_id === 'object' ? m.student_id?._id : m.student_id;
+    const mStudentUserId = typeof m.student_id === 'object' ? m.student_id?.user_id?._id || m.student_id?.user_id : '';
+    
+    return mStudentId === user?.studentId || mStudentUserId === user?.id;
+  });
+
+  const memberStatus = studentMembership?.status || 'none';
+
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6 animate-pulse">
+        <div className="h-8 bg-slate-100 rounded-xl w-32" />
+        <div className="h-40 bg-slate-100 rounded-2xl w-full" />
+        <div className="h-10 bg-slate-100 rounded-xl w-80" />
+        <div className="h-64 bg-slate-100 rounded-2xl w-full" />
+      </div>
+    );
+  }
+
+  if (!activity) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-sm font-bold text-slate-500">Không tìm thấy thông tin hoạt động</p>
+        <Button onClick={() => router.push('/activities')} className="mt-4 cursor-pointer">
+          Quay lại danh sách
+        </Button>
+      </div>
+    );
+  }
+
+  const actType = typeLabels[activity.activity_type] || activity.activity_type;
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Back button */}
+      <button
+        onClick={() => router.push('/activities')}
+        className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-500 transition-colors cursor-pointer"
+      >
+        <ChevronLeft size={16} />
+        Danh sách hoạt động
+      </button>
+
+      {/* Hero Banner / Cover */}
+      <div className="relative overflow-hidden bg-white/60 backdrop-blur-md border border-white/70 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
+        {/* Cover background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 -z-10" />
+
+        {/* Logo */}
+        <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 font-black text-2xl uppercase">
+          {activity.logo_url ? (
+            <img src={activity.logo_url} alt={activity.name} className="w-full h-full object-cover rounded-2xl" />
+          ) : (
+            activity.code.slice(0, 2)
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 border border-blue-200 text-[10px] font-black uppercase tracking-wider">
+              {actType}
+            </span>
+            <span className="px-2.5 py-0.5 rounded-lg bg-slate-500/10 text-slate-600 border border-slate-200 text-[10px] font-bold">
+              {categoryLabels[activity.category] || activity.category}
+            </span>
+            <span className="text-xs text-slate-400 font-semibold">
+              Học kỳ: {typeof activity.semester_id === 'object' ? activity.semester_id?.semester_name : '—'}
+            </span>
+          </div>
+
+          <h1 className="text-xl font-black text-slate-800">{activity.name}</h1>
+          
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 font-semibold">
+            <span className="flex items-center gap-1">
+              <User size={14} className="text-slate-400" />
+              Cố vấn: {activity.advisor_id?.full_name || activity.advisor_id?.user_name || 'Chưa phân công'}
+            </span>
+            <span className="flex items-center gap-1">
+              <MapPin size={14} className="text-slate-400" />
+              Phòng: {activity.classroom}
+            </span>
+          </div>
+        </div>
+
+        {/* Registration Button (For Students) */}
+        {isStudent && (
+          <div className="shrink-0 self-stretch md:self-center flex items-center">
+            {memberStatus === 'none' ? (
+              <Button
+                onClick={handleJoinActivity}
+                disabled={joining}
+                className="w-full md:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-750 text-white rounded-xl shadow-md shadow-blue-500/10 font-bold cursor-pointer"
+              >
+                Đăng ký tham gia
+              </Button>
+            ) : memberStatus === 'pending' ? (
+              <div className="px-4 py-2 bg-amber-500/10 border border-amber-200 text-amber-600 font-bold rounded-xl text-xs flex items-center gap-1.5">
+                <Clock size={14} />
+                Chờ duyệt tham gia
+              </div>
+            ) : memberStatus === 'active' ? (
+              <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-200 text-emerald-600 font-bold rounded-xl text-xs flex items-center gap-1.5">
+                <CheckCircle2 size={14} />
+                Đang tham gia hoạt động
+              </div>
+            ) : (
+              <div className="px-4 py-2 bg-red-500/10 border border-red-200 text-red-600 font-bold rounded-xl text-xs">
+                Yêu cầu bị từ chối
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Tabs navigation */}
+      <div className="flex border-b border-slate-200 gap-6">
+        <button
+          onClick={() => setActiveTab('info')}
+          className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'info'
+              ? 'border-blue-500 text-blue-600 font-extrabold'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Compass size={14} />
+          Thông tin chung
+        </button>
+        <button
+          onClick={() => setActiveTab('members')}
+          className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'members'
+              ? 'border-blue-500 text-blue-600 font-extrabold'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Users size={14} />
+          Thành viên ({members.filter(m => m.status === 'active').length})
+        </button>
+        <button
+          onClick={() => setActiveTab('schedule')}
+          className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'schedule'
+              ? 'border-blue-500 text-blue-600 font-extrabold'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <CalendarDays size={14} />
+          Lịch sinh hoạt ({schedules.length})
+        </button>
+        {isAdminOrAdvisor && (
+          <button
+            onClick={() => setActiveTab('rule')}
+            className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'rule'
+                ? 'border-blue-500 text-blue-600 font-extrabold'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Award size={14} />
+            Quy tắc hoàn thành
+          </button>
+        )}
+      </div>
+
+      {/* Tab contents */}
+      <div className="space-y-6">
+        {/* Tab 1: Info */}
+        {activeTab === 'info' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Description & metadata */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl space-y-3">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
+                  Giới thiệu hoạt động
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+                  {activity.description || 'Chưa có thông tin mô tả chi tiết cho hoạt động này.'}
+                </p>
+              </div>
+
+              {/* Completion criteria info for students */}
+              {isStudent && completionRule && (
+                <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-200 p-5 rounded-2xl space-y-3">
+                  <h3 className="text-xs font-extrabold text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Award size={16} className="text-rose-500" />
+                    Cơ chế tích lũy điểm rèn luyện
+                  </h3>
+                  <div className="text-xs font-semibold text-slate-700 space-y-1">
+                    <p>• Yêu cầu tham gia tối thiểu: <span className="text-blue-600 font-black">{completionRule.minimum_attendance} buổi</span></p>
+                    <p>
+                      • Tiêu chí cộng điểm:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 pl-3 pt-1">
+                      {completionRule.criterion_ids?.map((c: any) => (
+                        <span key={c._id || c} className="px-2 py-0.5 bg-white border border-blue-200 text-blue-600 text-[10px] font-bold rounded-lg">
+                          {c.criterion_name || 'Tiêu chí học bạ'}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sidebar metadata */}
+            <div className="space-y-6">
+              <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl space-y-4">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-2">
+                  Chi tiết hoạt động
+                </h3>
+
+                <div className="space-y-3 text-xs font-semibold text-slate-600">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Người quản lý:</span>
+                    <span className="text-slate-700 font-bold">{activity.president_id?.full_name || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Giới hạn thành viên:</span>
+                    <span className="text-slate-700 font-bold">
+                      {activity.max_members ? `${activity.max_members} người` : 'Không giới hạn'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Ngày bắt đầu:</span>
+                    <span className="text-slate-700 font-bold">
+                      {activity.activity_start_date 
+                        ? new Date(activity.activity_start_date).toLocaleDateString('vi-VN') 
+                        : '—'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Ngày kết thúc:</span>
+                    <span className="text-slate-700 font-bold">
+                      {activity.activity_end_date 
+                        ? new Date(activity.activity_end_date).toLocaleDateString('vi-VN') 
+                        : '—'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tự đăng ký:</span>
+                    <span className={`font-bold ${activity.settings?.allow_self_registration ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {activity.settings?.allow_self_registration ? 'Cho phép' : 'Khóa'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Members */}
+        {activeTab === 'members' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-700">Danh sách thành viên</h2>
+            </div>
+            <ActivityMemberTable
+              members={members}
+              onApprove={handleApproveMember}
+              onReject={handleRejectMember}
+              onUpdateRole={handleUpdateMemberRole}
+              onRemove={handleRemoveMember}
+              isAdminOrAdvisor={isAdminOrAdvisor}
+            />
+          </div>
+        )}
+
+        {/* Tab 3: Schedules */}
+        {activeTab === 'schedule' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2>
+            </div>
+            <ActivityScheduleTimeline
+              schedules={schedules}
+              onRegister={handleRegisterSchedule}
+              onCancelRegistration={handleCancelRegisterSchedule}
+              onCreateSchedule={handleCreateSchedule}
+              onDeleteSchedule={handleDeleteSchedule}
+              isAdminOrAdvisor={isAdminOrAdvisor}
+              isStudent={isStudent && memberStatus === 'active'}
+            />
+          </div>
+        )}
+
+        {/* Tab 4: Completion Rules */}
+        {activeTab === 'rule' && isAdminOrAdvisor && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-700">Quy tắc hoàn thành hoạt động</h2>
+            </div>
+            <ActivityCompletionRuleForm
+              initialData={completionRule}
+              activityId={activityId}
+              semesterId={typeof activity.semester_id === 'object' ? activity.semester_id?._id : activity.semester_id}
+              onSubmit={handleSaveCompletionRule}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

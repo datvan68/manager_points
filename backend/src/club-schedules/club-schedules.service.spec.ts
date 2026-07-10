@@ -7,6 +7,7 @@ import { Semester } from '../semesters/schemas/semester.schema';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ClubAttendance } from '../club-attendance/schemas/club-attendance.schema';
+import { Club } from '../clubs/schemas/club.schema';
 
 describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
   let service: ClubSchedulesService;
@@ -55,6 +56,15 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
     }),
   };
 
+  const mockClubModel = {
+    findById: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue({
+        _id: new Types.ObjectId(),
+        participation_status: 'published',
+      }),
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -74,6 +84,10 @@ describe('ClubSchedulesService - Recurrence Date Range Validation', () => {
         {
           provide: getModelToken(ClubAttendance.name),
           useValue: mockClubAttendanceModel,
+        },
+        {
+          provide: getModelToken(Club.name),
+          useValue: mockClubModel,
         },
       ],
     }).compile();
