@@ -98,11 +98,13 @@ export class AuthController {
     const result = await this.authService.login(dto, ip);
 
     const isAdmin = result.user.role === 'Admin';
+    // Session cookie (no maxAge) when remember=false — cleared when browser closes
+    // Persistent cookie when remember=true (30 days) or admin (4 hours)
     const cookieMaxAge = isAdmin
       ? 4 * 60 * 60 * 1000 // 4 hours for admin
       : dto.remember
         ? 30 * 24 * 60 * 60 * 1000 // 30 days for user with remember
-        : 24 * 60 * 60 * 1000; // 24 hours for user without remember
+        : undefined; // session cookie — cleared when browser closes
 
     res.cookie(
       REFRESH_COOKIE_NAME,
@@ -191,10 +193,10 @@ export class AuthController {
     try {
       const result = await this.authService.refreshToken(token);
 
-      const maxAge = Math.max(
-        0,
-        new Date(result.expires_at).getTime() - Date.now(),
-      );
+      // Respect remember flag: session cookie if not remembered, persistent if remembered
+      const maxAge = result.remember
+        ? Math.max(0, new Date(result.expires_at).getTime() - Date.now())
+        : undefined; // session cookie — cleared when browser closes
 
       // Rotate Cookie
       res.cookie(

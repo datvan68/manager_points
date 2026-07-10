@@ -27,6 +27,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Read saved login credentials for pre-fill
+  const savedEmail = tokenStorage.getSavedEmail();
+  const savedRemember = tokenStorage.getRemember();
+
   const {
     register,
     handleSubmit,
@@ -34,9 +38,9 @@ export default function LoginPage() {
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
+      email: savedEmail || '',
       password: '',
-      remember: false,
+      remember: savedRemember,
     },
   });
 
@@ -44,6 +48,17 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const result = await authApi.login(data.email, data.password, !!data.remember);
+
+      // Set remember flag before setAccessToken so it stores in the right place
+      tokenStorage.setRemember(!!data.remember);
+
+      // Save or clear email for pre-fill on next visit
+      if (data.remember) {
+        tokenStorage.setSavedEmail(data.email);
+      } else {
+        tokenStorage.clearSavedEmail();
+      }
+
       tokenStorage.setAccessToken(result.access_token);
       tokenStorage.setUser(result.user);
 

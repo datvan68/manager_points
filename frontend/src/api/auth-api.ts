@@ -432,16 +432,37 @@ export const authApi = {
   },
 };
 
-// Token helpers (localStorage)
+// Token helpers — supports "remember login" persistence
 export const tokenStorage = {
+  // ─── Remember flag ────────────────────────────────
+  setRemember(remember: boolean) {
+    localStorage.setItem('remember_login', remember ? 'true' : 'false');
+  },
+  getRemember(): boolean {
+    return localStorage.getItem('remember_login') === 'true';
+  },
+
+  // ─── Access Token ─────────────────────────────────
+  // remember=true  → localStorage  (persists across browser close)
+  // remember=false → sessionStorage (cleared when browser closes)
   setAccessToken(access_token: string) {
-    sessionStorage.setItem('access_token', access_token);
+    if (this.getRemember()) {
+      localStorage.setItem('access_token', access_token);
+      sessionStorage.removeItem('access_token');
+    } else {
+      sessionStorage.setItem('access_token', access_token);
+      localStorage.removeItem('access_token');
+    }
   },
   getAccessToken(): string | null {
-    return sessionStorage.getItem('access_token');
+    return localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
   },
+
+  // ─── Clear All ────────────────────────────────────
   clearTokens() {
     sessionStorage.removeItem('access_token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('remember_login');
     localStorage.removeItem('user');
     try {
       const keysToRemove: string[] = [];
@@ -456,6 +477,19 @@ export const tokenStorage = {
       console.error('Failed to clear congrats storage keys:', e);
     }
   },
+
+  // ─── Saved Email (for pre-fill on login page) ────
+  setSavedEmail(email: string) {
+    localStorage.setItem('saved_login_email', email);
+  },
+  getSavedEmail(): string | null {
+    return localStorage.getItem('saved_login_email');
+  },
+  clearSavedEmail() {
+    localStorage.removeItem('saved_login_email');
+  },
+
+  // ─── User Info ────────────────────────────────────
   setUser(user: any) {
     localStorage.setItem('user', JSON.stringify(user));
   },
