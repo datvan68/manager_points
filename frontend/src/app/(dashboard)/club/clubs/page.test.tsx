@@ -242,4 +242,60 @@ describe('ClubsListPage Interactions', () => {
     expect(rejectBtn).toBeDefined();
     expect(rejectBtn).toBeDisabled();
   });
+
+  describe('Admin user — transfer policy UI', () => {
+    beforeEach(() => {
+      (tokenStorage.getUser as any).mockReturnValue({
+        _id: 'admin-1',
+        role: 'admin',
+      });
+    });
+
+    it('should show "Chuyển sang CLB này" when admin user has 2 used transfers and occupies another club', async () => {
+      (clubApi.getMyTransferPolicy as any).mockResolvedValue({
+        self_service_changes_used: 2,
+        self_service_changes_remaining: 1,
+        occupied_club_id: 'club-other',
+        first_schedule_start_time: new Date(Date.now() + 1000 * 60 * 60 * 2).toISOString(),
+      });
+
+      render(<ClubsListPage />);
+
+      const switchBtn = await screen.findByText('Chuyển sang CLB này');
+      expect(switchBtn).toBeDefined();
+      expect(switchBtn).not.toBeDisabled();
+    });
+
+    it('should show "Cần Admin hỗ trợ chuyển" disabled when admin user has 3 used transfers', async () => {
+      (clubApi.getMyTransferPolicy as any).mockResolvedValue({
+        self_service_changes_used: 3,
+        self_service_changes_remaining: 0,
+        occupied_club_id: 'club-other',
+        first_schedule_start_time: new Date(Date.now() + 1000 * 60 * 60 * 2).toISOString(),
+      });
+
+      render(<ClubsListPage />);
+
+      const adminBtn = await screen.findByText('Cần Admin hỗ trợ chuyển');
+      expect(adminBtn).toBeDefined();
+      expect(adminBtn).toBeDisabled();
+    });
+
+    it('should NOT call switchClub when transfer limit is exhausted', async () => {
+      (clubApi.getMyTransferPolicy as any).mockResolvedValue({
+        self_service_changes_used: 3,
+        self_service_changes_remaining: 0,
+        occupied_club_id: 'club-other',
+        first_schedule_start_time: new Date(Date.now() + 1000 * 60 * 60 * 2).toISOString(),
+      });
+
+      render(<ClubsListPage />);
+
+      const adminBtn = await screen.findByText('Cần Admin hỗ trợ chuyển');
+      fireEvent.click(adminBtn);
+
+      expect(clubApi.switchClub).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('confirm-modal')).toBeNull();
+    });
+  });
 });

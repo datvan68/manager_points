@@ -999,10 +999,17 @@ export class ClubsService {
     });
 
     if (!existing) {
-      await new this.favoriteModel({
-        club_id: new Types.ObjectId(clubId),
-        user_id: new Types.ObjectId(userId),
-      }).save();
+      try {
+        await new this.favoriteModel({
+          club_id: new Types.ObjectId(clubId),
+          user_id: new Types.ObjectId(userId),
+        }).save();
+      } catch (error: any) {
+        if (error.code !== 11000) {
+          throw error;
+        }
+        // Concurrent duplicate — treat as idempotent success
+      }
     }
 
     const favoriteCount = await this.favoriteModel.countDocuments({

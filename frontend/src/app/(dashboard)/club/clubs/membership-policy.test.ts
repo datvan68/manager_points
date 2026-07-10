@@ -88,4 +88,50 @@ describe('Frontend Membership Policy Mapper', () => {
     expect(result.disabled).toBe(false);
     expect(result.requiresTeacherApproval).toBe(true);
   });
+
+  it('boundary: zero transfers should allow self-service switch with 3 remaining', () => {
+    const result = getMembershipPolicy({
+      hasOccupiedMembership: true,
+      occupiedClubId: 'club_source',
+      targetClubId: 'club_target',
+      selfServiceChangesUsed: 0,
+      firstScheduleStartTime: new Date(Date.now() + 1000 * 60 * 60 * 2).toISOString(),
+      now: new Date(),
+    });
+
+    expect(result.code).toBe('SWITCH');
+    expect(result.disabled).toBe(false);
+    expect(result.message).toContain('còn 3 lượt');
+  });
+
+  it('boundary: two transfers should allow switch with 1 remaining', () => {
+    const result = getMembershipPolicy({
+      hasOccupiedMembership: true,
+      occupiedClubId: 'club_source',
+      targetClubId: 'club_target',
+      selfServiceChangesUsed: 2,
+      firstScheduleStartTime: new Date(Date.now() + 1000 * 60 * 60 * 2).toISOString(),
+      now: new Date(),
+    });
+
+    expect(result.code).toBe('SWITCH');
+    expect(result.disabled).toBe(false);
+    expect(result.message).toContain('còn 1 lượt');
+  });
+
+  it('boundary: three transfers should disable UI and require no teacher approval', () => {
+    const result = getMembershipPolicy({
+      hasOccupiedMembership: true,
+      occupiedClubId: 'club_source',
+      targetClubId: 'club_target',
+      selfServiceChangesUsed: 3,
+      firstScheduleStartTime: new Date(Date.now() + 1000 * 60 * 60 * 2).toISOString(),
+      now: new Date(),
+    });
+
+    expect(result.code).toBe('ADMIN_REQUIRED');
+    expect(result.disabled).toBe(true);
+    expect(result.requiresTeacherApproval).toBe(false);
+    expect(result.message).toContain('dùng hết 3 lượt');
+  });
 });

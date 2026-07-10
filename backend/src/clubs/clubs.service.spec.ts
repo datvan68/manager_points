@@ -809,4 +809,118 @@ describe('ClubsService - Membership Policy & Auditing', () => {
       expect(res.membership.status).toBe('active');
     });
   });
+
+  describe('countCompletedSelfServiceTransfers — mode filtering', () => {
+    const studentId = new Types.ObjectId();
+    const semesterId = new Types.ObjectId();
+    const sourceClubId = new Types.ObjectId();
+    const targetClubId = new Types.ObjectId();
+
+    beforeEach(() => {
+      MockStudentModel.findOne.mockReturnValue(mockQuery({ _id: studentId }));
+      MockClubModel.findById.mockResolvedValue({
+        _id: targetClubId,
+        status: 'active',
+        settings: { allow_self_registration: true },
+      });
+      MockClubMemberModel.countDocuments.mockReturnValue(mockQuery(0));
+    });
+
+    it('should only count self_service completed transfers — teacher_approval and admin_direct do not consume allowance', async () => {
+      // Mock: 1 self_service completed transfer (the only one that should count)
+      // The actual filtering is done in countCompletedSelfServiceTransfers which
+      // queries mode: 'self_service', status: 'completed'
+      MockTransferModel.countDocuments.mockReturnValue(mockQuery(1));
+
+      const sourceMember = new MockClubMemberModel({
+        _id: new Types.ObjectId(),
+        club_id: sourceClubId,
+        student_id: studentId,
+        semester_id: semesterId,
+        status: 'active',
+        occupies_slot: true,
+      });
+
+      MockClubMemberModel.findOne
+        .mockReturnValueOnce(mockQuery(sourceMember))
+        .mockReturnValueOnce(mockQuery(null));
+
+      const startInFuture = new Date();
+      startInFuture.setHours(startInFuture.getHours() + 2);
+      MockScheduleModel.findOne.mockReturnValue(mockQuery({
+        start_time: startInFuture,
+        status: 'scheduled',
+      }));
+
+      const res = await service.switchClub(targetClubId.toString(), studentId.toString(), {
+        semester_id: semesterId.toString(),
+      });
+
+      // Verify countDocuments was called with self_service and completed filters
+      expect(MockTransferModel.countDocuments).toHaveBeenCalledWith({
+        student_id: new Types.ObjectId(studentId.toString()),
+        semester_id: new Types.ObjectId(semesterId.toString()),
+        mode: 'self_service',
+        status: 'completed',
+      });
+
+      // Should allow switch because only 1 self_service completed (not >= 3)
+      expect(res.self_service_changes_used).toBe(2); // 1 existing + 1 new
+      expect(res.self_service_changes_remaining).toBe(1);
+    });
+  });
+
+  describe('switchClub — fourth request rejection without mutation', () => {
+    const studentId = new Types.ObjectId();
+    const semesterId = new Types.ObjectId();
+    const sourceClubId = new Types.ObjectId();
+    const targetClubId = new Types.ObjectId();
+
+    beforeEach(() => {
+      MockStudentModel.findOne.mockReturnValue(mockQuery({ _id: studentId }));
+      MockClubModel.findById.mockResolvedValue({
+        _id: targetClubId,
+        status: 'active',
+        settings: { allow_self_registration: true },
+      });
+      MockClubMemberModel.countDocuments.mockReturnValue(mockQuery(0));
+    });
+
+    it('should reject fourth self-service transfer with 403 and NOT start transaction', async () => {
+      const sourceMember = new MockClubMemberModel({
+        _id: new Types.ObjectId(),
+        club_id: sourceClubId,
+        student_id: studentId,
+        semester_id: semesterId,
+        status: 'active',
+        occupies_slot: true,
+      });
+
+      MockClubMemberModel.findOne.mockReturnValueOnce(mockQuery(sourceMember));
+
+      const startInFuture = new Date();
+      startInFuture.setHours(startInFuture.getHours() + 2);
+      MockScheduleModel.findOne.mockReturnValue(mockQuery({
+        start_time: startInFuture,
+        status: 'scheduled',
+      }));
+
+      // Already used 3 self-service transfers
+      MockTransferModel.countDocuments.mockReturnValue(mockQuery(3));
+
+      await expect(
+        service.switchClub(targetClubId.toString(), studentId.toString(), {
+          semester_id: semesterId.toString(),
+        })
+      ).rejects.toThrow(ForbiddenException);
+
+      // Verify no transaction was started (rejection happens before transaction)
+      expect(mockConnection.startSession).not.toHaveBeenCalled();
+      expect(mockSession.commitTransaction).not.toHaveBeenCalled();
+
+      // Verify source membership was NOT mutated
+      expect(sourceMember.status).toBe('active');
+      expect(sourceMember.occupies_slot).toBe(true);
+    });
+  });
 });
