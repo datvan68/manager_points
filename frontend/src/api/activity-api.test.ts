@@ -13,22 +13,22 @@ describe('activityApi & activityScheduleApi & activityCompletionRuleApi', () => 
     it('should fetch activities with correctly formatted url', async () => {
       const mockResponse = {
         ok: true,
-        text: vi.fn().mockResolvedValue(JSON.stringify([{ _id: 'act1', name: 'Activity 1' }])),
+        text: vi.fn().mockResolvedValue(JSON.stringify([{ _id: '60c72b2f9b1e8a001c8e4a50', name: 'Activity 1' }])),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      const res = await activityApi.getAll({ semester_id: 'sem1' });
+      const res = await activityApi.getAll({ semester_id: '60c72b2f9b1e8a001c8e4a52' });
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const [url] = mockFetch.mock.calls[0];
-      expect(url).toContain('/api/activities?semester_id=sem1');
+      expect(url).toContain('/api/activities?semester_id=60c72b2f9b1e8a001c8e4a52');
       expect(res[0].name).toBe('Activity 1');
     });
 
     it('should create an activity successfully', async () => {
       const mockResponse = {
         ok: true,
-        text: vi.fn().mockResolvedValue(JSON.stringify({ _id: 'act2', name: 'New Activity' })),
+        text: vi.fn().mockResolvedValue(JSON.stringify({ _id: '60c72b2f9b1e8a001c8e4a51', name: 'New Activity' })),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
@@ -63,15 +63,15 @@ describe('activityApi & activityScheduleApi & activityCompletionRuleApi', () => 
     it('should create a completion rule successfully', async () => {
       const mockResponse = {
         ok: true,
-        text: vi.fn().mockResolvedValue(JSON.stringify({ _id: 'rule1', minimum_attendance: 5 })),
+        text: vi.fn().mockResolvedValue(JSON.stringify({ _id: '60c72b2f9b1e8a001c8e4a53', minimum_attendance: 5 })),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
       const res = await activityCompletionRuleApi.create({
-        club_id: 'act1',
-        semester_id: 'sem1',
+        club_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
         minimum_attendance: 5,
-        criterion_ids: ['crit1'],
+        criterion_ids: ['60c72b2f9b1e8a001c8e4a54'],
       });
 
       expect(mockFetch).toHaveBeenCalledTimes(1);

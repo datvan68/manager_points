@@ -177,8 +177,9 @@ function getActivityAccentColor(item: any): AccentColor {
   let id = '';
   if (item.clubId) {
     id = item.clubId;
-  } else if (item.club_id) {
-    id = typeof item.club_id === 'object' ? (item.club_id._id || item.club_id.code || item.club_id.name || '') : item.club_id;
+  } else if (item.activity_id || item.club_id) {
+    const cid = item.activity_id || item.club_id;
+    id = typeof cid === 'object' ? (cid._id || cid.code || cid.name || '') : cid;
   } else if (item._id) {
     id = item._id;
   } else if (item.id) {
@@ -881,7 +882,7 @@ export default function ActivityScheduleWorkspace({
   const sourceActivities = activities.map(act => {
     const savedCount = schedules.filter(s => {
       if (s.status === 'cancelled') return false;
-      const matchesAct = getNormalizedId(s.club_id) === act._id;
+      const matchesAct = getNormalizedId(s.activity_id || s.club_id) === act._id;
       return matchesAct && doesScheduleOverlapRange(s.start_time, s.end_time, startOfWeek, endOfWeek);
     }).length;
 
@@ -918,7 +919,7 @@ export default function ActivityScheduleWorkspace({
       JSON.stringify({
         type: 'schedule',
         scheduleId: schedule._id,
-        clubId: getNormalizedId(schedule.club_id),
+        clubId: getNormalizedId(schedule.activity_id || schedule.club_id),
         originDateStr,
         originShift,
       })
@@ -1020,7 +1021,7 @@ export default function ActivityScheduleWorkspace({
         endTime = formatTimeStr(endHour, endMin);
       }
 
-      const cid = getNormalizedId(existing.club_id);
+      const cid = getNormalizedId(existing.activity_id || existing.club_id);
       const actObj = activities.find(c => c._id === cid);
 
       let recurrence: RecurrenceConfig | null = null;
@@ -1125,7 +1126,7 @@ export default function ActivityScheduleWorkspace({
     if (showCreateModal) return;
     setActivePendingSchedule(null);
 
-    const cid = getNormalizedId(schedule.club_id);
+    const cid = getNormalizedId(schedule.activity_id || schedule.club_id);
     const actObj = activities.find(c => c._id === cid);
 
     setFormClubId(cid);
@@ -1431,7 +1432,7 @@ export default function ActivityScheduleWorkspace({
                 start: config.repeatStartDate ? new Date(config.repeatStartDate).toISOString() : undefined,
               };
 
-              const clubIdNorm = getNormalizedId(s.club_id);
+              const clubIdNorm = getNormalizedId(s.activity_id || s.club_id);
               const semesterIdNorm = getNormalizedId(s.semester_id);
               if (!clubIdNorm || !semesterIdNorm) {
                 toast.error('Mã hoạt động hoặc mã học kỳ không hợp lệ');
@@ -1439,7 +1440,7 @@ export default function ActivityScheduleWorkspace({
               }
 
               const payload = {
-                club_id: clubIdNorm,
+                activity_id: clubIdNorm,
                 title: s.title,
                 description: s.description,
                 location: s.location,
@@ -1548,7 +1549,7 @@ export default function ActivityScheduleWorkspace({
       }
 
       const payload = {
-        club_id: clubIdNorm,
+        activity_id: clubIdNorm,
         title: pending.originalData?.title || `Sinh hoạt ${pending.clubName}`,
         description: pending.originalData?.description || '',
         location: pending.originalData?.location || 'Phòng sinh hoạt',
@@ -1594,7 +1595,7 @@ export default function ActivityScheduleWorkspace({
       setSubmitting(true);
       const { scheduleId, payload } = pendingUpdatePayload;
 
-      const clubIdNorm = getNormalizedId(payload.club_id);
+      const clubIdNorm = getNormalizedId(payload.activity_id || payload.club_id);
       const semesterIdNorm = getNormalizedId(payload.semester_id);
       if (!clubIdNorm || !semesterIdNorm) {
         toast.error('Mã hoạt động hoặc mã học kỳ không hợp lệ');
@@ -1604,7 +1605,7 @@ export default function ActivityScheduleWorkspace({
 
       const payloadWithScalarIds = {
         ...payload,
-        club_id: clubIdNorm,
+        activity_id: clubIdNorm,
         semester_id: semesterIdNorm,
       };
 
@@ -1666,7 +1667,7 @@ export default function ActivityScheduleWorkspace({
         const semesterIdNorm = getNormalizedId(selectedSemesterId);
 
         const payload = {
-          club_id: clubIdNorm,
+          activity_id: clubIdNorm,
           title: p.originalData?.title || `Sinh hoạt ${p.clubName}`,
           description: p.originalData?.description || '',
           location: p.originalData?.location || 'Phòng sinh hoạt',
@@ -1762,7 +1763,7 @@ export default function ActivityScheduleWorkspace({
       }
 
       const payload = {
-        club_id: clubIdNorm,
+        activity_id: clubIdNorm,
         title: formTitle,
         description: formDesc,
         location: formLocation,
@@ -1902,7 +1903,7 @@ export default function ActivityScheduleWorkspace({
     const matchesType = filterScheduleType === 'all' || s.schedule_type === filterScheduleType;
     let matchesClub = true;
     if (filterClubId !== 'all') {
-      const clubId = typeof s.club_id === 'object' ? s.club_id?._id : s.club_id;
+      const clubId = typeof (s.activity_id || s.club_id) === 'object' ? (s.activity_id || s.club_id)?._id : (s.activity_id || s.club_id);
       matchesClub = clubId === filterClubId;
     }
     return matchesType && matchesClub;

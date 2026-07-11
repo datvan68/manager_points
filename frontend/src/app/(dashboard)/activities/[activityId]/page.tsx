@@ -21,6 +21,7 @@ import {
   ClipboardCheck, Radio, QrCode
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ActivityMemberTable from '@/components/activities/ActivityMemberTable';
 import ActivityScheduleTimeline from '@/components/activities/ActivityScheduleTimeline';
 import ActivityCompletionRuleForm from '@/components/activities/ActivityCompletionRuleForm';
@@ -80,6 +81,7 @@ export default function ActivityDetailPage() {
   const [joining, setJoining] = useState(false);
   const [showMethodSelector, setShowMethodSelector] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [showRuleModal, setShowRuleModal] = useState(false);
 
   const isAdminOrAdvisor = isAdminUser(user) || isTeacherRole(user);
   const isStudent = isStudentRole(user);
@@ -181,26 +183,6 @@ export default function ActivityDetailPage() {
     loadActivityData();
   };
 
-  const handleCreateSchedule = async (data: any) => {
-    const actSemId = typeof activity?.semester_id === 'object' 
-      ? activity.semester_id?._id 
-      : activity?.semester_id;
-
-    await activityScheduleApi.create({
-      ...data,
-      club_id: activityId,
-      semester_id: actSemId,
-      schedule_type: 'one_time',
-      status: 'active',
-    });
-    loadActivityData();
-  };
-
-  const handleDeleteSchedule = async (scheduleId: string) => {
-    await activityScheduleApi.delete(scheduleId);
-    loadActivityData();
-  };
-
   // Completion Rule functions
   const handleSaveCompletionRule = async (data: any) => {
     try {
@@ -211,6 +193,7 @@ export default function ActivityDetailPage() {
         await activityCompletionRuleApi.create(data);
         toast.success('Thiết lập quy tắc hoàn thành thành công');
       }
+      setShowRuleModal(false);
       loadActivityData();
     } catch (err: any) {
       toast.error(err.message || 'Lỗi khi lưu quy tắc hoàn thành');
@@ -338,54 +321,54 @@ export default function ActivityDetailPage() {
       </div>
 
       {/* Tabs navigation */}
-      <div className="flex border-b border-slate-200 gap-6">
-        <button
-          onClick={() => handleTabChange('info')}
-          className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'info'
-              ? 'border-blue-500 text-blue-600 font-extrabold'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <Compass size={14} />
-          Thông tin chung
-        </button>
-        <button
-          onClick={() => handleTabChange('members')}
-          className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'members'
-              ? 'border-blue-500 text-blue-600 font-extrabold'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <Users size={14} />
-          Thành viên ({members.filter(m => m.status === 'active').length})
-        </button>
-        <button
-          onClick={() => handleTabChange('schedule')}
-          className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'schedule'
-              ? 'border-blue-500 text-blue-600 font-extrabold'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <CalendarDays size={14} />
-          Lịch sinh hoạt ({schedules.length})
-        </button>
-        {(isAdminOrAdvisor || memberStatus === 'active') && (
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200">
+        <div className="flex gap-6 overflow-x-auto custom-scrollbar w-full sm:w-auto">
           <button
-            onClick={() => handleTabChange('attendance')}
+            onClick={() => handleTabChange('info')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'attendance'
+              activeTab === 'info'
                 ? 'border-blue-500 text-blue-600 font-extrabold'
                 : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
-            <ClipboardCheck size={14} />
-            Điểm danh
+            <Compass size={14} />
+            Thông tin chung
           </button>
-        )}
-        {isAdminOrAdvisor && (
+          <button
+            onClick={() => handleTabChange('members')}
+            className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'members'
+                ? 'border-blue-500 text-blue-600 font-extrabold'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Users size={14} />
+            Thành viên ({members.filter(m => m.status === 'active').length})
+          </button>
+          <button
+            onClick={() => handleTabChange('schedule')}
+            className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'schedule'
+                ? 'border-blue-500 text-blue-600 font-extrabold'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <CalendarDays size={14} />
+            Lịch sinh hoạt ({schedules.length})
+          </button>
+          {(isAdminOrAdvisor || memberStatus === 'active') && (
+            <button
+              onClick={() => handleTabChange('attendance')}
+              className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'attendance'
+                  ? 'border-blue-500 text-blue-600 font-extrabold'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <ClipboardCheck size={14} />
+              Điểm danh
+            </button>
+          )}
           <button
             onClick={() => handleTabChange('rule')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
@@ -397,8 +380,16 @@ export default function ActivityDetailPage() {
             <Award size={14} />
             Quy tắc hoàn thành
           </button>
+        </div>
+        
+        {isAdminOrAdvisor && (
+          <Button 
+            onClick={() => setShowRuleModal(true)} 
+            className="mb-2 shrink-0 h-8 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
+          >
+             <Settings size={14} className="mr-1.5" /> Cấu hình quy tắc hoàn thành
+          </Button>
         )}
-
       </div>
 
       {/* Tab contents */}
@@ -514,8 +505,6 @@ export default function ActivityDetailPage() {
               schedules={schedules}
               onRegister={handleRegisterSchedule}
               onCancelRegistration={handleCancelRegisterSchedule}
-              onCreateSchedule={handleCreateSchedule}
-              onDeleteSchedule={handleDeleteSchedule}
               isAdminOrAdvisor={isAdminOrAdvisor}
               isStudent={isStudent && memberStatus === 'active'}
             />
@@ -523,17 +512,51 @@ export default function ActivityDetailPage() {
         )}
 
         {/* Tab 4: Completion Rules */}
-        {activeTab === 'rule' && isAdminOrAdvisor && (
+        {activeTab === 'rule' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-700">Quy tắc hoàn thành hoạt động</h2>
+              <h2 className="text-sm font-bold text-slate-700">Thông tin quy tắc hoàn thành</h2>
             </div>
-            <ActivityCompletionRuleForm
-              initialData={completionRule}
-              activityId={activityId}
-              semesterId={typeof activity.semester_id === 'object' ? activity.semester_id?._id : activity.semester_id}
-              onSubmit={handleSaveCompletionRule}
-            />
+            {completionRule ? (
+              <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl shadow-sm space-y-4 max-w-2xl">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-xs font-extrabold text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Award size={16} className="text-rose-500" />
+                      Cơ chế tích lũy điểm rèn luyện
+                    </h3>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${completionRule.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                    {completionRule.status === 'active' ? 'Đang áp dụng' : 'Tạm ngưng'}
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-slate-700 space-y-3">
+                  <p className="flex items-center gap-2">
+                    <CheckCircle2 size={16} className="text-blue-500" />
+                    <span>Yêu cầu tham gia tối thiểu: <span className="text-blue-600 font-black">{completionRule.minimum_attendance} buổi</span></span>
+                  </p>
+                  <div>
+                    <p className="flex items-center gap-2 mb-2">
+                      <Star size={16} className="text-amber-500" />
+                      <span>Tiêu chí cộng điểm:</span>
+                    </p>
+                    <div className="flex flex-wrap gap-2 pl-6">
+                      {completionRule.criterion_ids?.map((c: any) => (
+                        <span key={c._id || c} className="px-3 py-1.5 bg-white border border-blue-200 text-blue-700 text-xs font-bold rounded-xl shadow-sm">
+                          {c.criterion_name || c}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white/50 backdrop-blur-md border border-white/60 p-8 rounded-2xl shadow-sm text-center max-w-2xl">
+                <Award size={48} className="text-slate-300 mx-auto mb-3" />
+                <p className="text-sm font-bold text-slate-500">Chưa có quy tắc hoàn thành nào được thiết lập</p>
+                <p className="text-xs text-slate-400 mt-1">Hoạt động này hiện chưa có cơ chế tính điểm rèn luyện tự động.</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -552,6 +575,25 @@ export default function ActivityDetailPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={showRuleModal} onOpenChange={setShowRuleModal}>
+        <DialogContent className="max-w-3xl bg-slate-50/95 backdrop-blur-xl border border-white shadow-2xl p-0 overflow-hidden rounded-[24px]">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="text-lg font-black text-slate-800">
+              Cấu hình quy tắc hoàn thành
+            </DialogTitle>
+          </DialogHeader>
+          <div className="px-6 pb-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+            <ActivityCompletionRuleForm
+              initialData={completionRule}
+              activityId={activityId}
+              semesterId={typeof activity.semester_id === 'object' ? activity.semester_id?._id : activity.semester_id}
+              onSubmit={handleSaveCompletionRule}
+              onCancel={() => setShowRuleModal(false)}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

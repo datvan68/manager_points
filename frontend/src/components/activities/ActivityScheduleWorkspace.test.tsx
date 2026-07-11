@@ -33,11 +33,11 @@ vi.mock('sonner', () => ({
 
 describe('ActivityScheduleWorkspace', () => {
   const mockActivities = [
-    { _id: 'act1', name: 'Academic Club', code: 'AC_CLUB', category: 'academic' },
+    { _id: '60c72b2f9b1e8a001c8e4a50', name: 'Academic Club', code: 'AC_CLUB', category: 'academic' },
   ];
 
   const mockSemesters = [
-    { _id: 'sem1', semester_name: 'Semester 1', start_date: '2026-01-01', end_date: '2026-06-30', status: 'active' },
+    { _id: '60c72b2f9b1e8a001c8e4a52', semester_name: 'Semester 1', start_date: '2026-01-01', end_date: '2026-06-30', status: 'active' },
   ];
 
   beforeEach(() => {
@@ -49,7 +49,7 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('renders dropdown filters and week headers correctly', async () => {
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
       expect(screen.getByText('Hiện tại')).toBeInTheDocument();
@@ -57,7 +57,7 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('does NOT render Activity and Semester selectors on toolbar', async () => {
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
       expect(screen.queryByText('Chọn Hoạt động')).not.toBeInTheDocument();
@@ -66,7 +66,7 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('automatically opens create schedule dialog when openCreateOnLoad is true', async () => {
-    render(<ActivityScheduleWorkspace initialActivityId="act1" openCreateOnLoad={true} />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" openCreateOnLoad={true} />);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Ví dụ: Sinh hoạt định kỳ tuần 12')).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('handles week navigation correctly', async () => {
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
       expect(screen.getByText('Hiện tại')).toBeInTheDocument();
@@ -93,7 +93,7 @@ describe('ActivityScheduleWorkspace', () => {
   it('submits recurring weekly schedule payload matching api schema', async () => {
     vi.mocked(activityScheduleApi.create).mockResolvedValue({ _id: 'new-sched-id' } as any);
 
-    const { container } = render(<ActivityScheduleWorkspace initialActivityId="act1" openCreateOnLoad={true} />);
+    const { container } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" openCreateOnLoad={true} />);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Ví dụ: Sinh hoạt định kỳ tuần 12')).toBeInTheDocument();
@@ -131,7 +131,7 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('renders activities palette on the left side', async () => {
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
     await waitFor(() => {
       expect(screen.getByText('Kéo hoạt động xếp lịch')).toBeInTheDocument();
       expect(screen.getByText('Academic Club')).toBeInTheDocument();
@@ -149,13 +149,13 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Meeting 1',
         start_time: startStr,
         end_time: endStr,
-        club_id: 'act1',
-        semester_id: 'sem1'
+        club_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52'
       }
     ];
     vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockWeekSchedules, total: 1 });
 
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
     await waitFor(() => {
       expect(screen.getByText('Meeting 1')).toBeInTheDocument();
     });
@@ -181,15 +181,15 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Recurring Meeting',
         start_time: startStr,
         end_time: endStr,
-        club_id: 'act1',
-        semester_id: 'sem1',
+        club_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
         recurrence_id: 'rec-series-1'
       }
     ];
     vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockWeekSchedules, total: 1 });
     vi.mocked(activityScheduleApi.cancelRecurrence).mockResolvedValue({} as any);
 
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     // Wait for schedule to render in weekly cell and show action buttons on hover
     await waitFor(() => {
@@ -209,7 +209,7 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('renders a compact layout with col-span-12 lg:col-span-2 palette and col-span-12 lg:col-span-10 board', async () => {
-    const { container } = render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    const { container } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
       expect(screen.getByText('Kéo hoạt động xếp lịch')).toBeInTheDocument();
@@ -225,7 +225,7 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('places recurrence and refresh controls together in the week navigation toolbar', async () => {
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
       expect(screen.getByText('Cấu hình chuỗi lặp')).toBeInTheDocument();
@@ -243,7 +243,7 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('does not have vertical day border-r/divide-x classes on desktop, and has no overflow-x-auto class', async () => {
-    const { container } = render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    const { container } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
       const divideXElements = container.querySelectorAll('.divide-x');
@@ -262,7 +262,7 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('renders all form fields (capacity, date, recurrence) in initial create mode', async () => {
-    render(<ActivityScheduleWorkspace initialActivityId="act1" openCreateOnLoad={true} />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" openCreateOnLoad={true} />);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Ví dụ: Sinh hoạt định kỳ tuần 12')).toBeInTheDocument();
@@ -284,14 +284,14 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Meeting 1',
         start_time: startStr,
         end_time: endStr,
-        club_id: 'act1',
-        semester_id: 'sem1',
+        club_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
         max_attendees: 15
       }
     ];
     vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockWeekSchedules, total: 1 });
 
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
     await waitFor(() => {
       expect(screen.getByText('Meeting 1')).toBeInTheDocument();
     });
@@ -319,8 +319,8 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Existing Meeting',
         start_time: '2026-07-11T08:00:00.000Z',
         end_time: '2026-07-11T10:00:00.000Z',
-        club_id: { _id: 'act1', name: 'Academic Club', code: 'AC_CLUB', category: 'academic' },
-        semester_id: { _id: 'sem1', semester_name: 'Semester 1', start_date: '2026-01-01', end_date: '2026-06-30' },
+        club_id: { _id: '60c72b2f9b1e8a001c8e4a50', name: 'Academic Club', code: 'AC_CLUB', category: 'academic' },
+        semester_id: { _id: '60c72b2f9b1e8a001c8e4a52', semester_name: 'Semester 1', start_date: '2026-01-01', end_date: '2026-06-30' },
         location: 'Room 101',
         schedule_type: 'regular'
       }
@@ -328,7 +328,7 @@ describe('ActivityScheduleWorkspace', () => {
 
     vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSchedules, total: 1 });
 
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
       expect(screen.getByText('Existing Meeting')).toBeInTheDocument();
@@ -365,8 +365,8 @@ describe('ActivityScheduleWorkspace', () => {
       expect(activityScheduleApi.update).toHaveBeenCalledWith(
         'existing-schedule-id',
         expect.objectContaining({
-          club_id: 'act1',
-          semester_id: 'sem1',
+          activity_id: '60c72b2f9b1e8a001c8e4a50',
+          semester_id: '60c72b2f9b1e8a001c8e4a52',
         })
       );
       expect(activityScheduleApi.delete).not.toHaveBeenCalled();
@@ -384,8 +384,8 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Meeting 1',
         start_time: startStr,
         end_time: endStr,
-        club_id: 'act1',
-        semester_id: 'sem1',
+        club_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
         location: 'Room 301',
         schedule_type: 'regular'
       },
@@ -394,8 +394,8 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Meeting 2',
         start_time: startStr,
         end_time: endStr,
-        club_id: 'act1',
-        semester_id: 'sem1',
+        club_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
         location: 'Room 302',
         schedule_type: 'regular'
       }
@@ -403,7 +403,7 @@ describe('ActivityScheduleWorkspace', () => {
 
     vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSchedules, total: 2 });
 
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
       // 1 in sidebar, 2 in compact cards = 3
@@ -430,8 +430,8 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Meeting 1',
         start_time: startStr,
         end_time: endStr,
-        club_id: 'act1',
-        semester_id: 'sem1',
+        club_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
         location: 'Room 301',
         schedule_type: 'regular'
       }
@@ -439,7 +439,7 @@ describe('ActivityScheduleWorkspace', () => {
 
     vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSchedules, total: 1 });
 
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
       expect(screen.getByText('Meeting 1')).toBeInTheDocument();
@@ -450,7 +450,7 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('renders "Lưu tất cả" button on the toolbar, disabled when there are no pending schedules', async () => {
-    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
       expect(screen.getByText(/Lưu tất cả \(0\)/)).toBeInTheDocument();

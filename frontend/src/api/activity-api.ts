@@ -79,7 +79,8 @@ export interface ActivityMembershipPolicyResponse {
 
 export interface ActivitySchedule {
   _id: string;
-  club_id: any; // Mapped to backend club_id
+  club_id?: any; // Mapped to backend club_id
+  activity_id?: any; // New canon activity_id
   title: string;
   description?: string;
   schedule_type: string;
@@ -158,7 +159,8 @@ export type ActivityTimelineResponse =
 
 export interface ActivityCompletionRule {
   _id: string;
-  club_id: any; // backend uses club_id as the activity field
+  club_id?: any; // backend uses club_id as the activity field
+  activity_id?: any;
   semester_id: any;
   minimum_attendance: number;
   criterion_ids: any[];
@@ -191,6 +193,35 @@ function buildQuery(params?: Record<string, any>): string {
 }
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
+
+function normalizeActivityIdPayload(data: any): any {
+  if (!data) return data;
+  const result = { ...data };
+  
+  let rawId = result.activity_id || result.club_id;
+  if (rawId && typeof rawId === 'object' && rawId._id) {
+    rawId = rawId._id;
+  }
+  
+  if (rawId) {
+    if (typeof rawId !== 'string' || !/^[a-f\d]{24}$/i.test(rawId)) {
+      throw new Error(`activity_id must be a mongodb id. Received: ${rawId}`);
+    }
+    result.activity_id = rawId;
+  }
+  
+  delete result.club_id;
+
+  if (result.semester_id && typeof result.semester_id === 'object' && result.semester_id._id) {
+    result.semester_id = result.semester_id._id;
+  }
+  
+  if (result.instructor_id && typeof result.instructor_id === 'object' && result.instructor_id._id) {
+    result.instructor_id = result.instructor_id._id;
+  }
+
+  return result;
+}
 
 // ── Activities API ──
 
@@ -403,19 +434,21 @@ export const activityScheduleApi = {
   },
 
   async create(data: any): Promise<ActivitySchedule> {
+    const payload = normalizeActivityIdPayload(data);
     const res = await httpClient(`${API_BASE}/activity-schedules`, {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     return handleResponse<ActivitySchedule>(res);
   },
 
   async update(id: string, data: any): Promise<ActivitySchedule> {
+    const payload = normalizeActivityIdPayload(data);
     const res = await httpClient(`${API_BASE}/activity-schedules/${id}`, {
       method: 'PATCH',
       headers: jsonHeaders,
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     return handleResponse<ActivitySchedule>(res);
   },
@@ -439,7 +472,7 @@ export const activityScheduleApi = {
     const res = await httpClient(`${API_BASE}/activity-schedules/${id}/register`, {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify({ club_id: activityId }),
+      body: JSON.stringify({ activity_id: activityId }),
     });
     return handleResponse(res);
   },
@@ -506,15 +539,17 @@ export const activityAttendanceApi = {
   },
 
   async batchCreate(data: {
-    club_id: string;
+    activity_id?: string;
+    club_id?: string;
     schedule_id: string;
     semester_id: string;
     entries: { student_id: string; status: string; note?: string }[];
   }): Promise<any> {
+    const payload = normalizeActivityIdPayload(data);
     const res = await httpClient(`${API_BASE}/club-attendance/batch`, {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     return handleResponse(res);
   },
@@ -593,19 +628,21 @@ export const activityCompletionRuleApi = {
   },
 
   async create(data: Partial<ActivityCompletionRule>): Promise<ActivityCompletionRule> {
+    const payload = normalizeActivityIdPayload(data);
     const res = await httpClient(`${API_BASE}/activity-completion-rules`, {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     return handleResponse<ActivityCompletionRule>(res);
   },
 
   async update(id: string, data: Partial<ActivityCompletionRule>): Promise<ActivityCompletionRule> {
+    const payload = normalizeActivityIdPayload(data);
     const res = await httpClient(`${API_BASE}/activity-completion-rules/${id}`, {
       method: 'PATCH',
       headers: jsonHeaders,
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     return handleResponse<ActivityCompletionRule>(res);
   },
