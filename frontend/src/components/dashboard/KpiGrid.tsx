@@ -1,4 +1,5 @@
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Users, 
   Building2, 
@@ -48,12 +49,11 @@ function StatCard({ title, value, description, icon: Icon, color, onClick }: Sta
 
 export default function KpiGrid({ metrics }: KpiGridProps) {
   const { roleScope, kpis } = metrics;
+  const router = useRouter();
 
   // Click handlers for easy navigation
   const handleNav = (path: string) => {
-    if (typeof window !== 'undefined') {
-      window.location.href = path;
-    }
+    router.push(path);
   };
 
   const getKpis = () => {

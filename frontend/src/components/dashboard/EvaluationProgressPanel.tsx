@@ -1,4 +1,5 @@
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Calendar, ArrowRight, Hourglass, ShieldAlert } from 'lucide-react';
 import { DashboardMetrics } from './dashboard-helpers';
 
@@ -8,6 +9,7 @@ interface EvaluationProgressPanelProps {
 
 export default function EvaluationProgressPanel({ metrics }: EvaluationProgressPanelProps) {
   const { roleScope, activePeriod, distributions } = metrics;
+  const router = useRouter();
 
   if (!activePeriod) {
     return (
@@ -193,11 +195,7 @@ export default function EvaluationProgressPanel({ metrics }: EvaluationProgressP
             <p className="text-[10px] text-[#64748B] font-semibold">{cta.subText}</p>
           )}
           <button
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                window.location.href = cta.url;
-              }
-            }}
+            onClick={() => router.push(cta.url)}
             className="w-full rounded-xl border border-white/70 bg-white/40 px-4 py-2 text-xs font-bold text-[#1A73E8] hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer flex items-center justify-center gap-1 shadow-sm"
           >
             <span>{cta.text}</span>

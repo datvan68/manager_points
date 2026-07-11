@@ -1,4 +1,5 @@
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Users, GraduationCap, Building2, ArrowUpRight } from 'lucide-react';
 import { DashboardMetrics } from './dashboard-helpers';
 
@@ -8,6 +9,7 @@ interface AcademicOverviewPanelProps {
 
 export default function AcademicOverviewPanel({ metrics }: AcademicOverviewPanelProps) {
   const { roleScope, distributions, kpis } = metrics;
+  const router = useRouter();
 
   // Student statuses
   const statusLabels: Record<string, { label: string; color: string }> = {
@@ -25,9 +27,7 @@ export default function AcademicOverviewPanel({ metrics }: AcademicOverviewPanel
   const totalStudents = getStatusTotal() || kpis.totalStudents;
 
   const handleNav = (path: string) => {
-    if (typeof window !== 'undefined') {
-      window.location.href = path;
-    }
+    router.push(path);
   };
 
   // Skip showing student distribution to students to maintain focus on their details,

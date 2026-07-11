@@ -1,4 +1,5 @@
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Award, ArrowUpRight } from 'lucide-react';
 import { DashboardMetrics } from './dashboard-helpers';
 
@@ -8,11 +9,10 @@ interface AttendanceRecordPanelProps {
 
 export default function AttendanceRecordPanel({ metrics }: AttendanceRecordPanelProps) {
   const { recentAcademicRecords } = metrics;
+  const router = useRouter();
 
   const handleNav = (path: string) => {
-    if (typeof window !== 'undefined') {
-      window.location.href = path;
-    }
+    router.push(path);
   };
 
   const getRecordStyle = (title?: string) => {

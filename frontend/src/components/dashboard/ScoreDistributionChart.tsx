@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { BarChart3 } from 'lucide-react';
 
 interface ScoreDistributionChartProps {
@@ -59,11 +58,12 @@ export default function ScoreDistributionChart({ distribution }: ScoreDistributi
                         {data.count} sinh viên ({getPercent(data.count)}%)
                       </div>
                       
-                      <motion.div 
-                        initial={{ height: 0 }}
-                        animate={{ height: `${heightPercent || 5}%` }} // Ensure a tiny height so it's clickable
-                        transition={{ delay: i * 0.05, duration: 0.8, ease: 'easeOut' }}
-                        className={`w-full ${data.color} rounded-t-lg group-hover:brightness-95 transition-all cursor-pointer`}
+                      <div 
+                        style={{ 
+                          height: `${heightPercent || 5}%`,
+                          transitionDelay: `${i * 50}ms`
+                        }}
+                        className={`w-full ${data.color} rounded-t-lg group-hover:brightness-95 transition-all duration-700 ease-out cursor-pointer`}
                       />
                     </div>
                     

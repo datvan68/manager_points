@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Award, 
   PlusCircle, 
@@ -21,12 +22,11 @@ interface StudentSpotlightPanelProps {
 export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanelProps) {
   const { roleScope, studentHighlights } = metrics;
   const [activeTab, setActiveTab] = useState<'rewards' | 'bonus' | 'discipline' | 'scores'>('rewards');
+  const router = useRouter();
 
   // Handle navigation
   const handleNav = (path: string) => {
-    if (typeof window !== 'undefined') {
-      window.location.href = path;
-    }
+    router.push(path);
   };
 
   // Helper to generate initials avatar background

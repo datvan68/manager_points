@@ -1,23 +1,13 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { isStudentRole } from '@/utils/role.util';
-import { studentApi } from '@/api/student-api';
-import { classApi } from '@/api/class-api';
-import { departmentApi } from '@/api/department-api';
-import { semesterApi, Semester } from '@/api/semester-api';
-import { evaluationPeriodApi } from '@/api/evaluation-period-api';
-import { summariesPointApi } from '@/api/summaries-point-api';
-import { academicRecordApi } from '@/api/academic-record-api';
-import { studentTaskApi } from '@/api/task-api';
-import { notificationApi } from '@/api/notification-api';
+import { Semester } from '@/api/semester-api';
 import { systemApi } from '@/api/system-api';
-import { criteriaApi } from '@/api/criteria-api';
-import { categoryApi } from '@/api/category-api';
-import { buildDashboardOverview, DashboardMetrics } from '@/components/dashboard/dashboard-helpers';
-import { AlertTriangle, Info, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import type { DashboardMetrics } from '@/components/dashboard/dashboard-helpers';
+import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
 // Dashboard sub-components
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
@@ -26,10 +16,12 @@ import EvaluationProgressPanel from '@/components/dashboard/EvaluationProgressPa
 import AcademicOverviewPanel from '@/components/dashboard/AcademicOverviewPanel';
 import AttendanceRecordPanel from '@/components/dashboard/AttendanceRecordPanel';
 import TaskPanel from '@/components/dashboard/TaskPanel';
-import SystemOperationsPanel from '@/components/dashboard/SystemOperationsPanel';
 import QuickActionsPanel from '@/components/dashboard/QuickActionsPanel';
 import ScoreDistributionChart from '@/components/dashboard/ScoreDistributionChart';
-import StudentSpotlightPanel from '@/components/dashboard/StudentSpotlightPanel';
+
+// Lazy-loaded panels (conditional rendering)
+const SystemOperationsPanel = lazy(() => import('@/components/dashboard/SystemOperationsPanel'));
+const StudentSpotlightPanel = lazy(() => import('@/components/dashboard/StudentSpotlightPanel'));
 
 
 
@@ -47,7 +39,9 @@ export default function DashboardPage() {
 
   // Filtering & State
   const [semestersList, setSemestersList] = useState<Semester[]>([]);
+  const semestersRef = useRef<Semester[]>([]);
   const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(null);
+  const selectedSemesterRef = useRef<string | null>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -64,28 +58,28 @@ export default function DashboardPage() {
     }
 
     try {
-      // 1. Fetch semesters list first if empty
-      let currentSemesters = semestersList;
-      if (semestersList.length === 0) {
-        currentSemesters = await semesterApi.getSemesters().catch(() => []);
-        setSemestersList(currentSemesters);
-      }
+      // 1. Determine the semester ID to load (use refs for stable references)
+      const semIdToLoad = targetSemId !== undefined ? targetSemId : selectedSemesterRef.current;
 
-      // Determine the semester ID to load
-      let semIdToLoad = targetSemId !== undefined ? targetSemId : selectedSemesterId;
-      if (!semIdToLoad && currentSemesters.length > 0) {
-        const activeSem = currentSemesters.find(s => s.status === 'active') || currentSemesters[0];
-        if (activeSem) {
-          semIdToLoad = activeSem._id;
-          setSelectedSemesterId(activeSem._id);
-        }
-      }
-
-      // 2. Fetch metrics
+      // 2. Fetch metrics from backend (single API call)
       const dashboardMetrics = await systemApi.getDashboardMetrics(semIdToLoad || undefined);
       setMetrics(dashboardMetrics);
 
-      // 3. Set system operator data
+      // 3. Update semesters list from metrics if available and not yet loaded
+      if (semestersRef.current.length === 0 && dashboardMetrics.semesters) {
+        semestersRef.current = dashboardMetrics.semesters;
+        setSemestersList(dashboardMetrics.semesters);
+        // Auto-select active semester if none selected
+        if (!selectedSemesterRef.current && dashboardMetrics.semesters.length > 0) {
+          const activeSem = dashboardMetrics.semesters.find((s: Semester) => s.status === 'active') || dashboardMetrics.semesters[0];
+          if (activeSem) {
+            selectedSemesterRef.current = activeSem._id;
+            setSelectedSemesterId(activeSem._id);
+          }
+        }
+      }
+
+      // 4. Set system operator data
       if (dashboardMetrics.systemData) {
         setSystemRequests(dashboardMetrics.systemData.systemRequests || []);
         setBackups(dashboardMetrics.systemData.backups || []);
@@ -98,7 +92,7 @@ export default function DashboardPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user, selectedSemesterId, semestersList]);
+  }, [user]);
 
   // Run initial load
   useEffect(() => {
@@ -112,12 +106,13 @@ export default function DashboardPage() {
   };
 
   const handleSemesterChange = (semesterId: string) => {
+    selectedSemesterRef.current = semesterId;
     setSelectedSemesterId(semesterId);
     loadData(true, semesterId);
   };
 
-  // Compute Attention Warnings
-  const getAttentionItems = () => {
+  // Compute Attention Warnings (memoized to avoid recalculation on every render)
+  const attentionItems = useMemo(() => {
     if (!metrics) return [];
     const items: Array<{ text: string; type: 'warning' | 'danger' | 'info' | 'success' }> = [];
 
@@ -172,7 +167,7 @@ export default function DashboardPage() {
     }
 
     return items;
-  };
+  }, [metrics]);
 
   if (isLoading || !metrics) {
     return (
@@ -191,7 +186,6 @@ export default function DashboardPage() {
   const isSysAdmin = role === 'ADMIN' || (user?.permissions || []).includes('ADMIN_FULL');
   const isSystemOp = (user?.permissions || []).some(p => ['LOGIN_LOG_READ', 'SYSTEM_REQUEST_READ', 'DATABASE_BACKUP_READ'].includes(p));
   const showSystemPanel = isSysAdmin || isSystemOp;
-  const attentionItems = getAttentionItems();
 
   return (
     <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-6 scrollbar-hover">
@@ -213,7 +207,9 @@ export default function DashboardPage() {
         />
 
         {/* Student Spotlight & Leaderboards */}
-        <StudentSpotlightPanel metrics={metrics} />
+        <Suspense fallback={<div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 shadow-sm shadow-slate-300/40 h-32 animate-pulse" />}>
+          <StudentSpotlightPanel metrics={metrics} />
+        </Suspense>
 
         {/* Attention Alerts / Warnings */}
         {attentionItems.length > 0 && (
@@ -284,11 +280,13 @@ export default function DashboardPage() {
 
         {/* System operations dashboard card for admins & operators */}
         {showSystemPanel && (
-          <SystemOperationsPanel 
-            metrics={metrics} 
-            systemRequests={systemRequests}
-            backups={backups}
-          />
+          <Suspense fallback={<div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 shadow-sm shadow-slate-300/40 h-32 animate-pulse" />}>
+            <SystemOperationsPanel 
+              metrics={metrics} 
+              systemRequests={systemRequests}
+              backups={backups}
+            />
+          </Suspense>
         )}
 
       </div>

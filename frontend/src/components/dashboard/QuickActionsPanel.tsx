@@ -1,4 +1,5 @@
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Award, 
   ClipboardCheck, 
@@ -15,11 +16,10 @@ interface QuickActionsPanelProps {
 }
 
 export default function QuickActionsPanel({ roleScope }: QuickActionsPanelProps) {
+  const router = useRouter();
   
   const handleNav = (path: string) => {
-    if (typeof window !== 'undefined') {
-      window.location.href = path;
-    }
+    router.push(path);
   };
 
   const getActions = () => {

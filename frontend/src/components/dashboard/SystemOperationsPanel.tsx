@@ -1,4 +1,5 @@
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Database, FileText, Activity, ShieldAlert, ArrowUpRight, ArrowDown } from 'lucide-react';
 import { DashboardMetrics } from './dashboard-helpers';
 import { useAuth } from '@/providers/auth-provider';
@@ -12,6 +13,7 @@ interface SystemOperationsPanelProps {
 export default function SystemOperationsPanel({ metrics, systemRequests, backups }: SystemOperationsPanelProps) {
   const { kpis } = metrics;
   const { user } = useAuth();
+  const router = useRouter();
 
   const role = (user?.roleCode || user?.roleName || user?.role || '').toUpperCase();
   const isSysAdmin = role === 'ADMIN' || (user?.permissions || []).includes('ADMIN_FULL');
@@ -25,9 +27,7 @@ export default function SystemOperationsPanel({ metrics, systemRequests, backups
   if (visibleColumnsCount === 0) return null;
 
   const handleNav = (path: string) => {
-    if (typeof window !== 'undefined') {
-      window.location.href = path;
-    }
+    router.push(path);
   };
 
   const getBackupStatusBadge = (status?: string) => {
