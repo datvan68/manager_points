@@ -162,6 +162,7 @@ interface ActivityCardProps {
   canManage: boolean;
   onNavigateToDetail: (activityId: string) => void;
   onConfigureDesign?: (activity: any) => void;
+  joinPending?: boolean;
 }
 
 export default function ActivityCard({
@@ -173,6 +174,7 @@ export default function ActivityCard({
   canManage,
   onNavigateToDetail,
   onConfigureDesign,
+  joinPending = false,
 }: ActivityCardProps) {
   const [scheduleSummary, setScheduleSummary] = useState<any[]>(activity.schedule_summary || []);
   const [loadingSchedule, setLoadingSchedule] = useState(!activity.schedule_summary);
@@ -421,14 +423,29 @@ export default function ActivityCard({
             if (status === 'none') {
               return (
                 <Button
+                  disabled={joinPending}
                   onClick={(e) => {
                     e.stopPropagation();
                     onJoinClick(activity);
                   }}
-                  className={cn("h-7 px-2.5 text-[10px] font-black cursor-pointer shadow-sm border-0", btnConfig.bgClass, btnConfig.textClass)}
+                  className={cn("h-7 px-2.5 text-[10px] font-black cursor-pointer shadow-sm border-0 disabled:opacity-50 disabled:cursor-not-allowed", btnConfig.bgClass, btnConfig.textClass)}
                 >
-                  {btnConfig.label}
+                  {joinPending ? "Đang xử lý..." : "Đăng ký"}
                 </Button>
+              );
+            }
+
+            if (status === 'pending') {
+              return (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }}
+                  className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-sm flex items-center gap-0.5 cursor-default select-none opacity-60 cursor-not-allowed", btnConfig.bgClass, btnConfig.textClass)}
+                >
+                  Chờ duyệt
+                </span>
               );
             }
 
@@ -439,7 +456,7 @@ export default function ActivityCard({
                     e.stopPropagation();
                     e.preventDefault();
                   }}
-                  className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-sm flex items-center gap-0.5 cursor-default select-none", btnConfig.bgClass, btnConfig.textClass)}
+                  className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-sm flex items-center gap-0.5 cursor-default select-none opacity-80", btnConfig.bgClass, btnConfig.textClass)}
                 >
                   Đang tham gia
                 </span>
@@ -447,7 +464,13 @@ export default function ActivityCard({
             }
 
             return (
-              <span className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-sm flex items-center gap-0.5", btnConfig.bgClass, btnConfig.textClass)}>
+              <span
+                className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-sm flex items-center gap-0.5", btnConfig.bgClass, btnConfig.textClass)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+              >
                 {status === 'rejected' && <AlertCircle size={10} />}
                 {btnConfig.label}
               </span>

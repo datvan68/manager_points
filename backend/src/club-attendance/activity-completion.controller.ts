@@ -24,7 +24,7 @@ export class ActivityCompletionController {
   ) {}
 
   @Post()
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_CREATE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_CREATE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo quy tắc hoàn thành hoạt động mới' })
   createRule(@Body() dto: CreateActivityCompletionRuleDto) {
@@ -32,7 +32,7 @@ export class ActivityCompletionController {
   }
 
   @Get()
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_READ'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách tất cả quy tắc hoàn thành hoạt động' })
   findAllRules() {
@@ -40,7 +40,7 @@ export class ActivityCompletionController {
   }
 
   @Get(':id')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_READ'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Chi tiết quy tắc hoàn thành hoạt động' })
   findOneRule(@Param('id') id: string) {
@@ -48,7 +48,7 @@ export class ActivityCompletionController {
   }
 
   @Patch(':id')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_UPDATE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_UPDATE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật quy tắc hoàn thành hoạt động' })
   updateRule(
@@ -59,7 +59,7 @@ export class ActivityCompletionController {
   }
 
   @Delete(':id')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_DELETE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_DELETE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa quy tắc hoàn thành hoạt động' })
   removeRule(@Param('id') id: string) {

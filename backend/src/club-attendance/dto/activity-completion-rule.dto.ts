@@ -11,9 +11,9 @@ import {
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 
 export class CreateActivityCompletionRuleDto {
-  @ApiProperty({ description: 'Club/Activity ID' })
+  @ApiProperty({ description: 'Activity/Activity ID' })
   @IsMongoId()
-  club_id: string;
+  activity_id: string;
 
   @ApiProperty({ description: 'Semester ID' })
   @IsMongoId()

@@ -27,10 +27,10 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { StudentTasksModule } from './student-tasks/student-tasks.module';
 import { StudentTaskProgressModule } from './student-task-progress/student-task-progress.module';
 import { SystemModule } from './system/system.module';
-import { ClubsModule } from './clubs/clubs.module';
-import { ClubSchedulesModule } from './club-schedules/club-schedules.module';
-import { ClubAttendanceModule } from './club-attendance/club-attendance.module';
-import { ClubAttendanceConfigModule } from './club-attendance-config/club-attendance-config.module';
+import { ActivitiesModule } from './activities/activities.module';
+import { ActivitySchedulesModule } from './activity-schedules/activity-schedules.module';
+import { ActivityAttendanceModule } from './club-attendance/club-attendance.module';
+import { ActivityAttendanceConfigModule } from './activity-attendance-config/activity-attendance-config.module';
 import { AttendanceSessionsModule } from './attendance-sessions/attendance-sessions.module';
 import { DormitoryModule } from './dormitory/dormitory.module';
 
@@ -83,10 +83,10 @@ import { DormitoryModule } from './dormitory/dormitory.module';
     StudentTasksModule,
     StudentTaskProgressModule,
     SystemModule,
-    ClubsModule,
-    ClubSchedulesModule,
-    ClubAttendanceModule,
-    ClubAttendanceConfigModule,
+    ActivitiesModule,
+    ActivitySchedulesModule,
+    ActivityAttendanceModule,
+    ActivityAttendanceConfigModule,
     AttendanceSessionsModule,
     DormitoryModule,
   ],

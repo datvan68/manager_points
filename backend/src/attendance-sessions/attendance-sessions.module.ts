@@ -11,21 +11,21 @@ import {
   AttendanceCheckinSchema,
 } from './schemas/attendance-checkin.schema';
 import {
-  ClubAttendance,
-  ClubAttendanceSchema,
+  ActivityAttendance,
+  ActivityAttendanceSchema,
 } from '../club-attendance/schemas/club-attendance.schema';
 import {
-  ClubMember,
-  ClubMemberSchema,
-} from '../clubs/schemas/club-member.schema';
+  ActivityMember,
+  ActivityMemberSchema,
+} from '../activities/schemas/activity-member.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: AttendanceSession.name, schema: AttendanceSessionSchema },
       { name: AttendanceCheckin.name, schema: AttendanceCheckinSchema },
-      { name: ClubAttendance.name, schema: ClubAttendanceSchema },
-      { name: ClubMember.name, schema: ClubMemberSchema },
+      { name: ActivityAttendance.name, schema: ActivityAttendanceSchema },
+      { name: ActivityMember.name, schema: ActivityMemberSchema },
     ]),
   ],
   controllers: [AttendanceSessionsController],

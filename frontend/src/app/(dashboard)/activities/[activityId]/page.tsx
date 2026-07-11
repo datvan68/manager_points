@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   activityApi,
   activityScheduleApi,
@@ -51,6 +51,8 @@ const typeLabels: Record<string, string> = {
 export default function ActivityDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
   const { user } = useAuth();
   const activityId = params.activityId as string;
 
@@ -60,6 +62,20 @@ export default function ActivityDetailPage() {
   const [completionRule, setCompletionRule] = useState<ActivityCompletionRule | null>(null);
   
   const [activeTab, setActiveTab] = useState<'info' | 'members' | 'schedule' | 'rule' | 'attendance'>('info');
+
+  useEffect(() => {
+    if (tabParam && ['info', 'members', 'schedule', 'rule', 'attendance'].includes(tabParam)) {
+      setActiveTab(tabParam as any);
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (tab: typeof activeTab) => {
+    setActiveTab(tab);
+    const newParams = new URLSearchParams(window.location.search);
+    newParams.set('tab', tab);
+    router.replace(`/activities/${activityId}?${newParams.toString()}`);
+  };
+
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [showMethodSelector, setShowMethodSelector] = useState(false);
@@ -67,6 +83,7 @@ export default function ActivityDetailPage() {
 
   const isAdminOrAdvisor = isAdminUser(user) || isTeacherRole(user);
   const isStudent = isStudentRole(user);
+
 
   const loadActivityData = async () => {
     try {
@@ -212,7 +229,7 @@ export default function ActivityDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-6 animate-pulse">
+      <div className="h-full min-h-0 overflow-y-auto custom-scrollbar pb-12 p-6 space-y-6 animate-pulse">
         <div className="h-8 bg-slate-100 rounded-xl w-32" />
         <div className="h-40 bg-slate-100 rounded-2xl w-full" />
         <div className="h-10 bg-slate-100 rounded-xl w-80" />
@@ -221,9 +238,10 @@ export default function ActivityDetailPage() {
     );
   }
 
+
   if (!activity) {
     return (
-      <div className="p-6 text-center">
+      <div className="h-full min-h-0 overflow-y-auto custom-scrollbar pb-12 p-6 text-center">
         <p className="text-sm font-bold text-slate-500">Không tìm thấy thông tin hoạt động</p>
         <Button onClick={() => router.push('/activities')} className="mt-4 cursor-pointer">
           Quay lại danh sách
@@ -232,10 +250,12 @@ export default function ActivityDetailPage() {
     );
   }
 
+
   const actType = typeLabels[activity.activity_type] || activity.activity_type;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="h-full min-h-0 overflow-y-auto custom-scrollbar pb-12 p-6 space-y-6">
+
       {/* Back button */}
       <button
         onClick={() => router.push('/activities')}
@@ -320,7 +340,7 @@ export default function ActivityDetailPage() {
       {/* Tabs navigation */}
       <div className="flex border-b border-slate-200 gap-6">
         <button
-          onClick={() => setActiveTab('info')}
+          onClick={() => handleTabChange('info')}
           className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'info'
               ? 'border-blue-500 text-blue-600 font-extrabold'
@@ -331,7 +351,7 @@ export default function ActivityDetailPage() {
           Thông tin chung
         </button>
         <button
-          onClick={() => setActiveTab('members')}
+          onClick={() => handleTabChange('members')}
           className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'members'
               ? 'border-blue-500 text-blue-600 font-extrabold'
@@ -342,7 +362,7 @@ export default function ActivityDetailPage() {
           Thành viên ({members.filter(m => m.status === 'active').length})
         </button>
         <button
-          onClick={() => setActiveTab('schedule')}
+          onClick={() => handleTabChange('schedule')}
           className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'schedule'
               ? 'border-blue-500 text-blue-600 font-extrabold'
@@ -354,7 +374,7 @@ export default function ActivityDetailPage() {
         </button>
         {(isAdminOrAdvisor || memberStatus === 'active') && (
           <button
-            onClick={() => setActiveTab('attendance')}
+            onClick={() => handleTabChange('attendance')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'attendance'
                 ? 'border-blue-500 text-blue-600 font-extrabold'
@@ -367,7 +387,7 @@ export default function ActivityDetailPage() {
         )}
         {isAdminOrAdvisor && (
           <button
-            onClick={() => setActiveTab('rule')}
+            onClick={() => handleTabChange('rule')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'rule'
                 ? 'border-blue-500 text-blue-600 font-extrabold'
@@ -378,6 +398,7 @@ export default function ActivityDetailPage() {
             Quy tắc hoàn thành
           </button>
         )}
+
       </div>
 
       {/* Tab contents */}

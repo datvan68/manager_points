@@ -2,45 +2,45 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
-  ClubAttendance,
-  ClubAttendanceDocument,
+  ActivityAttendance,
+  ActivityAttendanceDocument,
 } from './schemas/club-attendance.schema';
 import {
-  ClubAttendanceConfig,
-  ClubAttendanceConfigDocument,
-} from '../club-attendance-config/schemas/club-attendance-config.schema';
+  ActivityAttendanceConfig,
+  ActivityAttendanceConfigDocument,
+} from '../activity-attendance-config/schemas/activity-attendance-config.schema';
 import {
   AcademicRecord,
   AcademicRecordDocument,
 } from '../academic-record/schemas/academic-record.schema';
-import { Club, ClubDocument } from '../clubs/schemas/club.schema';
+import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
 import {
-  ClubSchedule,
-  ClubScheduleDocument,
-} from '../club-schedules/schemas/club-schedule.schema';
+  ActivitySchedule,
+  ActivityScheduleDocument,
+} from '../activity-schedules/schemas/activity-schedule.schema';
 import { ActivityCompletionService } from './activity-completion.service';
 
 /**
  * Service responsible for syncing approved club attendance records
  * to AcademicRecord entries for training point calculation.
  *
- * Flow: ClubAttendance (approved) → AcademicRecord → SummaryPoints (via projection)
+ * Flow: ActivityAttendance (approved) → AcademicRecord → SummaryPoints (via projection)
  */
 @Injectable()
-export class ClubAttendanceSyncService {
-  private readonly logger = new Logger(ClubAttendanceSyncService.name);
+export class ActivityAttendanceSyncService {
+  private readonly logger = new Logger(ActivityAttendanceSyncService.name);
 
   constructor(
-    @InjectModel(ClubAttendance.name)
-    private attendanceModel: Model<ClubAttendanceDocument>,
-    @InjectModel(ClubAttendanceConfig.name)
-    private configModel: Model<ClubAttendanceConfigDocument>,
+    @InjectModel(ActivityAttendance.name)
+    private attendanceModel: Model<ActivityAttendanceDocument>,
+    @InjectModel(ActivityAttendanceConfig.name)
+    private configModel: Model<ActivityAttendanceConfigDocument>,
     @InjectModel(AcademicRecord.name)
     private academicRecordModel: Model<AcademicRecordDocument>,
-    @InjectModel(Club.name)
-    private clubModel: Model<ClubDocument>,
-    @InjectModel(ClubSchedule.name)
-    private scheduleModel: Model<ClubScheduleDocument>,
+    @InjectModel(Activity.name)
+    private clubModel: Model<ActivityDocument>,
+    @InjectModel(ActivitySchedule.name)
+    private scheduleModel: Model<ActivityScheduleDocument>,
     private activityCompletionService: ActivityCompletionService,
   ) {}
 
@@ -69,7 +69,7 @@ export class ClubAttendanceSyncService {
 
     // Check if there is an active ActivityCompletionRule
     const hasRule = await this.activityCompletionService.hasActiveRule(
-      attendance.club_id,
+      attendance.activity_id,
       attendance.semester_id,
     );
 
@@ -77,7 +77,7 @@ export class ClubAttendanceSyncService {
       // Evaluate completion and award if eligible
       await this.activityCompletionService.checkAndAwardCompletion(
         attendance.student_id.toString(),
-        attendance.club_id.toString(),
+        attendance.activity_id.toString(),
         attendance.semester_id.toString(),
       );
 
@@ -93,7 +93,7 @@ export class ClubAttendanceSyncService {
 
     // Get effective config
     const config = await this.getEffectiveConfig(
-      attendance.club_id.toString(),
+      attendance.activity_id.toString(),
       attendance.semester_id.toString(),
     );
     if (!config) {
@@ -104,15 +104,15 @@ export class ClubAttendanceSyncService {
     }
 
     // Check if club has attendance_point_enabled
-    const club = await this.clubModel.findById(attendance.club_id).lean();
+    const club = await this.clubModel.findById(attendance.activity_id).lean();
     if (!club || !club.settings?.attendance_point_enabled) {
-      return { synced: false, reason: 'Club attendance points not enabled' };
+      return { synced: false, reason: 'Activity attendance points not enabled' };
     }
 
     // Check min_attendance_for_points
     if (config.min_attendance_for_points > 1) {
       const approvedCount = await this.attendanceModel.countDocuments({
-        club_id: attendance.club_id,
+        activity_id: attendance.activity_id,
         student_id: attendance.student_id,
         semester_id: attendance.semester_id,
         approval_status: 'approved',
@@ -137,7 +137,7 @@ export class ClubAttendanceSyncService {
       const existingPoints = await this.calculateExistingPoints(
         attendance.student_id.toString(),
         attendance.semester_id.toString(),
-        attendance.club_id.toString(),
+        attendance.activity_id.toString(),
       );
       if (existingPoints + points > config.max_points_per_semester) {
         return {
@@ -174,8 +174,8 @@ export class ClubAttendanceSyncService {
         student_id: attendance.student_id,
         semester_id: attendance.semester_id,
         criterion_id: config.criterion_id,
-        record_title: `Điểm danh CLB: ${club.name}${schedule ? ` - ${schedule.title}` : ''}`,
-        description: `Điểm danh ${attendance.status === 'present' ? 'có mặt' : 'muộn'} tại CLB ${club.name}`,
+        record_title: `Điểm danh Hoạt động: ${club.name}${schedule ? ` - ${schedule.title}` : ''}`,
+        description: `Điểm danh ${attendance.status === 'present' ? 'có mặt' : 'muộn'} tại Hoạt động ${club.name}`,
         recorded_by: attendance.approved_by || attendance.recorded_by,
         recorded_at: new Date(),
         status: 'active',
@@ -190,7 +190,7 @@ export class ClubAttendanceSyncService {
         source_id: attendance._id.toString(),
         occurred_at: attendance.check_in_time || attendance.recorded_at,
         payload: {
-          club_id: attendance.club_id.toString(),
+          activity_id: attendance.activity_id.toString(),
           club_name: club.name,
           club_code: club.code,
           schedule_id: attendance.schedule_id.toString(),
@@ -231,8 +231,8 @@ export class ClubAttendanceSyncService {
   /**
    * Batch sync all approved but unsynced attendance records for a club in a semester.
    */
-  async batchSyncClubAttendance(
-    clubId: string,
+  async batchSyncActivityAttendance(
+    activityId: string,
     semesterId: string,
   ): Promise<{
     total: number;
@@ -241,7 +241,7 @@ export class ClubAttendanceSyncService {
     errors: string[];
   }> {
     const unsyncedAttendances = await this.attendanceModel.find({
-      club_id: new Types.ObjectId(clubId),
+      activity_id: new Types.ObjectId(activityId),
       semester_id: new Types.ObjectId(semesterId),
       approval_status: 'approved',
       status: { $in: ['present', 'late'] },
@@ -298,12 +298,12 @@ export class ClubAttendanceSyncService {
    * Get effective config for a club (club-specific first, then default fallback).
    */
   private async getEffectiveConfig(
-    clubId: string,
+    activityId: string,
     semesterId: string,
-  ): Promise<ClubAttendanceConfigDocument | null> {
+  ): Promise<ActivityAttendanceConfigDocument | null> {
     // Try club-specific config
     let config = await this.configModel.findOne({
-      club_id: new Types.ObjectId(clubId),
+      activity_id: new Types.ObjectId(activityId),
       semester_id: new Types.ObjectId(semesterId),
       status: 'active',
     });
@@ -311,7 +311,7 @@ export class ClubAttendanceSyncService {
     // Fallback to default config
     if (!config) {
       config = await this.configModel.findOne({
-        club_id: null,
+        activity_id: null,
         semester_id: new Types.ObjectId(semesterId),
         status: 'active',
       });
@@ -326,18 +326,18 @@ export class ClubAttendanceSyncService {
   private async calculateExistingPoints(
     studentId: string,
     semesterId: string,
-    clubId: string,
+    activityId: string,
   ): Promise<number> {
     const syncedAttendances = await this.attendanceModel
       .find({
         student_id: new Types.ObjectId(studentId),
         semester_id: new Types.ObjectId(semesterId),
-        club_id: new Types.ObjectId(clubId),
+        activity_id: new Types.ObjectId(activityId),
         synced_to_academic_record: true,
       })
       .lean();
 
-    const config = await this.getEffectiveConfig(clubId, semesterId);
+    const config = await this.getEffectiveConfig(activityId, semesterId);
     if (!config) return 0;
 
     let totalPoints = 0;

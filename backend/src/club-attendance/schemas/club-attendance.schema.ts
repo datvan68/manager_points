@@ -1,16 +1,16 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
-export type ClubAttendanceDocument = ClubAttendance & Document;
+export type ActivityAttendanceDocument = ActivityAttendance & Document;
 
 @Schema({ timestamps: true, collection: 'club_attendances' })
-export class ClubAttendance {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Club', required: true })
-  club_id: Types.ObjectId;
+export class ActivityAttendance {
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Activity', required: true })
+  activity_id: Types.ObjectId;
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
-    ref: 'ClubSchedule',
+    ref: 'ActivitySchedule',
     required: true,
   })
   schedule_id: Types.ObjectId;
@@ -81,10 +81,10 @@ export class ClubAttendance {
   academic_record_id: Types.ObjectId;
 }
 
-export const ClubAttendanceSchema =
-  SchemaFactory.createForClass(ClubAttendance);
+export const ActivityAttendanceSchema =
+  SchemaFactory.createForClass(ActivityAttendance);
 
-ClubAttendanceSchema.index({ schedule_id: 1, student_id: 1 }, { unique: true });
-ClubAttendanceSchema.index({ club_id: 1, semester_id: 1, approval_status: 1 });
-ClubAttendanceSchema.index({ student_id: 1, semester_id: 1 });
-ClubAttendanceSchema.index({ approval_status: 1 });
+ActivityAttendanceSchema.index({ schedule_id: 1, student_id: 1 }, { unique: true });
+ActivityAttendanceSchema.index({ activity_id: 1, semester_id: 1, approval_status: 1 });
+ActivityAttendanceSchema.index({ student_id: 1, semester_id: 1 });
+ActivityAttendanceSchema.index({ approval_status: 1 });

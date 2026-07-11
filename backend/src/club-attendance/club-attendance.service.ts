@@ -9,8 +9,8 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
-  ClubAttendance,
-  ClubAttendanceDocument,
+  ActivityAttendance,
+  ActivityAttendanceDocument,
 } from './schemas/club-attendance.schema';
 import {
   CreateAttendanceDto,
@@ -18,24 +18,24 @@ import {
   ApproveAttendanceDto,
   QueryAttendanceDto,
 } from './dto/attendance.dto';
-import { ClubAttendanceSyncService } from './club-attendance-sync.service';
+import { ActivityAttendanceSyncService } from './club-attendance-sync.service';
 
 @Injectable()
-export class ClubAttendanceService {
-  private readonly logger = new Logger(ClubAttendanceService.name);
+export class ActivityAttendanceService {
+  private readonly logger = new Logger(ActivityAttendanceService.name);
 
   constructor(
-    @InjectModel(ClubAttendance.name)
-    private attendanceModel: Model<ClubAttendanceDocument>,
-    @Inject(forwardRef(() => ClubAttendanceSyncService))
-    private syncService: ClubAttendanceSyncService,
+    @InjectModel(ActivityAttendance.name)
+    private attendanceModel: Model<ActivityAttendanceDocument>,
+    @Inject(forwardRef(() => ActivityAttendanceSyncService))
+    private syncService: ActivityAttendanceSyncService,
   ) {}
 
   async create(
     dto: CreateAttendanceDto,
     userId: string,
     userRole: string,
-  ): Promise<ClubAttendanceDocument> {
+  ): Promise<ActivityAttendanceDocument> {
     // Check duplicate
     const existing = await this.attendanceModel.findOne({
       schedule_id: new Types.ObjectId(dto.schedule_id),
@@ -48,7 +48,7 @@ export class ClubAttendanceService {
     }
 
     const attendance = new this.attendanceModel({
-      club_id: new Types.ObjectId(dto.club_id),
+      activity_id: new Types.ObjectId(dto.activity_id),
       schedule_id: new Types.ObjectId(dto.schedule_id),
       student_id: new Types.ObjectId(dto.student_id),
       semester_id: new Types.ObjectId(dto.semester_id),
@@ -92,7 +92,7 @@ export class ClubAttendanceService {
         }
 
         const attendance = new this.attendanceModel({
-          club_id: new Types.ObjectId(dto.club_id),
+          activity_id: new Types.ObjectId(dto.activity_id),
           schedule_id: new Types.ObjectId(dto.schedule_id),
           student_id: new Types.ObjectId(entry.student_id),
           semester_id: new Types.ObjectId(dto.semester_id),
@@ -115,14 +115,14 @@ export class ClubAttendanceService {
   }
 
   async findAll(query: QueryAttendanceDto): Promise<{
-    items: ClubAttendanceDocument[];
+    items: ActivityAttendanceDocument[];
     total: number;
     page: number;
     limit: number;
   }> {
     const filter: any = {};
 
-    if (query.club_id) filter.club_id = new Types.ObjectId(query.club_id);
+    if (query.activity_id) filter.activity_id = new Types.ObjectId(query.activity_id);
     if (query.schedule_id)
       filter.schedule_id = new Types.ObjectId(query.schedule_id);
     if (query.student_id)
@@ -141,7 +141,7 @@ export class ClubAttendanceService {
         .find(filter)
         .populate('student_id', 'full_name student_code email')
         .populate('schedule_id', 'title start_time end_time location')
-        .populate('club_id', 'name code')
+        .populate('activity_id', 'name code')
         .populate('recorded_by', 'user_name')
         .populate('approved_by', 'user_name')
         .sort({ recorded_at: -1 })
@@ -155,7 +155,7 @@ export class ClubAttendanceService {
     return { items, total, page, limit };
   }
 
-  async findBySchedule(scheduleId: string): Promise<ClubAttendanceDocument[]> {
+  async findBySchedule(scheduleId: string): Promise<ActivityAttendanceDocument[]> {
     return this.attendanceModel
       .find({ schedule_id: new Types.ObjectId(scheduleId) })
       .populate('student_id', 'full_name student_code email')
@@ -168,27 +168,27 @@ export class ClubAttendanceService {
   async findMyAttendance(
     studentId: string,
     semesterId?: string,
-    clubId?: string,
-  ): Promise<ClubAttendanceDocument[]> {
+    activityId?: string,
+  ): Promise<ActivityAttendanceDocument[]> {
     const filter: any = { student_id: new Types.ObjectId(studentId) };
     if (semesterId) filter.semester_id = new Types.ObjectId(semesterId);
-    if (clubId) filter.club_id = new Types.ObjectId(clubId);
+    if (activityId) filter.activity_id = new Types.ObjectId(activityId);
 
     return this.attendanceModel
       .find(filter)
       .populate('schedule_id', 'title start_time end_time location')
-      .populate('club_id', 'name code')
+      .populate('activity_id', 'name code')
       .sort({ recorded_at: -1 })
       .lean()
       .exec();
   }
 
-  async findOne(id: string): Promise<ClubAttendanceDocument> {
+  async findOne(id: string): Promise<ActivityAttendanceDocument> {
     const attendance = await this.attendanceModel
       .findById(id)
       .populate('student_id', 'full_name student_code email')
       .populate('schedule_id', 'title start_time end_time location')
-      .populate('club_id', 'name code')
+      .populate('activity_id', 'name code')
       .populate('recorded_by', 'user_name')
       .populate('approved_by', 'user_name')
       .exec();
@@ -199,7 +199,7 @@ export class ClubAttendanceService {
     return attendance;
   }
 
-  async update(id: string, updates: any): Promise<ClubAttendanceDocument> {
+  async update(id: string, updates: any): Promise<ActivityAttendanceDocument> {
     const attendance = await this.attendanceModel.findByIdAndUpdate(
       id,
       { $set: updates },
@@ -223,7 +223,7 @@ export class ClubAttendanceService {
     id: string,
     dto: ApproveAttendanceDto,
     userId: string,
-  ): Promise<ClubAttendanceDocument> {
+  ): Promise<ActivityAttendanceDocument> {
     const attendance = await this.attendanceModel.findById(id);
     if (!attendance) {
       throw new NotFoundException('Không tìm thấy bản ghi điểm danh');
@@ -274,7 +274,7 @@ export class ClubAttendanceService {
     id: string,
     dto: ApproveAttendanceDto,
     userId: string,
-  ): Promise<ClubAttendanceDocument> {
+  ): Promise<ActivityAttendanceDocument> {
     return this.approve(id, { ...dto, status: 'rejected' }, userId);
   }
 
@@ -297,11 +297,11 @@ export class ClubAttendanceService {
     return { approved, errors };
   }
 
-  async getSummary(clubId: string, semesterId: string): Promise<any> {
+  async getSummary(activityId: string, semesterId: string): Promise<any> {
     const pipeline = [
       {
         $match: {
-          club_id: new Types.ObjectId(clubId),
+          activity_id: new Types.ObjectId(activityId),
           semester_id: new Types.ObjectId(semesterId),
         },
       },
@@ -370,9 +370,9 @@ export class ClubAttendanceService {
     return this.attendanceModel.aggregate(pipeline);
   }
 
-  async getPendingCount(clubId?: string): Promise<{ count: number }> {
+  async getPendingCount(activityId?: string): Promise<{ count: number }> {
     const filter: any = { approval_status: 'pending' };
-    if (clubId) filter.club_id = new Types.ObjectId(clubId);
+    if (activityId) filter.activity_id = new Types.ObjectId(activityId);
 
     const count = await this.attendanceModel.countDocuments(filter);
     return { count };

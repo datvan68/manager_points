@@ -1,16 +1,24 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+const mockReplace = vi.fn();
+const mockSearchParamsGet = vi.fn().mockReturnValue(null);
 
 // 1. Mock next/navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
+    replace: mockReplace,
   }),
   useParams: () => ({
     activityId: 'act1',
   }),
+  useSearchParams: () => ({
+    get: (key: string) => mockSearchParamsGet(key),
+  }),
 }));
+
 
 // 2. Mock Auth Provider
 vi.mock('@/providers/auth-provider', () => ({
@@ -109,5 +117,36 @@ describe('ActivityDetailPage', () => {
       expect(screen.getByText('Thông tin chung')).toBeInTheDocument();
       expect(screen.getByText('Thành viên (0)')).toBeInTheDocument();
     });
+  });
+
+  it('updates URL search parameters when tab is changed', async () => {
+    const mockActivity = {
+      _id: 'act1',
+      name: 'Dynamic Event Activity',
+      code: 'DYNAMIC_EVENT',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'B.202',
+      advisor_id: { full_name: 'Jane Doe' },
+      semester_id: { _id: 'sem1', semester_name: 'Học kỳ 1' },
+      createdAt: '2026-07-10T00:00:00Z',
+      updatedAt: '2026-07-10T00:00:00Z',
+    };
+
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dynamic Event Activity')).toBeInTheDocument();
+    });
+
+    const membersTab = screen.getByText('Thành viên (0)');
+    fireEvent.click(membersTab);
+
+    expect(mockReplace).toHaveBeenCalledWith(expect.stringContaining('tab=members'));
   });
 });

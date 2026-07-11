@@ -448,4 +448,16 @@ describe('ActivityScheduleWorkspace', () => {
       expect(academicClubs.length).toBe(1);
     });
   });
+
+  it('renders "Lưu tất cả" button on the toolbar, disabled when there are no pending schedules', async () => {
+    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Lưu tất cả \(0\)/)).toBeInTheDocument();
+    });
+
+    const saveAllBtn = screen.getByRole('button', { name: /Lưu tất cả \(0\)/ });
+    expect(saveAllBtn).toBeInTheDocument();
+    expect(saveAllBtn).toBeDisabled();
+  });
 });

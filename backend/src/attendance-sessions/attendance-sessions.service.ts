@@ -19,13 +19,13 @@ import { OpenSessionDto } from './dto/open-session.dto';
 import { CheckinQrDto } from './dto/checkin-qr.dto';
 import { CheckinProximityDto } from './dto/checkin-proximity.dto';
 import {
-  ClubAttendance,
-  ClubAttendanceDocument,
+  ActivityAttendance,
+  ActivityAttendanceDocument,
 } from '../club-attendance/schemas/club-attendance.schema';
 import {
-  ClubMember,
-  ClubMemberDocument,
-} from '../clubs/schemas/club-member.schema';
+  ActivityMember,
+  ActivityMemberDocument,
+} from '../activities/schemas/activity-member.schema';
 
 @Injectable()
 export class AttendanceSessionsService {
@@ -36,10 +36,10 @@ export class AttendanceSessionsService {
     private sessionModel: Model<AttendanceSessionDocument>,
     @InjectModel(AttendanceCheckin.name)
     private checkinModel: Model<AttendanceCheckinDocument>,
-    @InjectModel(ClubAttendance.name)
-    private clubAttendanceModel: Model<ClubAttendanceDocument>,
-    @InjectModel(ClubMember.name)
-    private clubMemberModel: Model<ClubMemberDocument>,
+    @InjectModel(ActivityAttendance.name)
+    private clubAttendanceModel: Model<ActivityAttendanceDocument>,
+    @InjectModel(ActivityMember.name)
+    private clubMemberModel: Model<ActivityMemberDocument>,
   ) {}
 
   // ── Open Session ──
@@ -225,7 +225,7 @@ export class AttendanceSessionsService {
 
     // Sync to club-attendance if applicable
     if (session.context_type === 'club' && session.schedule_id) {
-      await this.syncToClubAttendance(saved, session);
+      await this.syncToActivityAttendance(saved, session);
     }
 
     this.logger.log(
@@ -298,7 +298,7 @@ export class AttendanceSessionsService {
 
     // Sync to club-attendance if applicable
     if (session.context_type === 'club' && session.schedule_id) {
-      await this.syncToClubAttendance(saved, session);
+      await this.syncToActivityAttendance(saved, session);
     }
 
     this.logger.log(
@@ -425,7 +425,7 @@ export class AttendanceSessionsService {
   ): Promise<void> {
     if (session.context_type === 'club') {
       const member = await this.clubMemberModel.findOne({
-        club_id: session.context_id,
+        activity_id: session.context_id,
         student_id: new Types.ObjectId(studentId),
         status: 'active',
       });
@@ -470,9 +470,9 @@ export class AttendanceSessionsService {
 
   /**
    * Sync a check-in to the existing club-attendance system.
-   * Creates a ClubAttendance record with auto-approved status.
+   * Creates a ActivityAttendance record with auto-approved status.
    */
-  private async syncToClubAttendance(
+  private async syncToActivityAttendance(
     checkin: AttendanceCheckinDocument,
     session: AttendanceSessionDocument,
   ): Promise<void> {
@@ -502,7 +502,7 @@ export class AttendanceSessionsService {
 
       // Create new club attendance record
       const clubAttendance = new this.clubAttendanceModel({
-        club_id: session.context_id,
+        activity_id: session.context_id,
         schedule_id: session.schedule_id,
         student_id: checkin.student_id,
         semester_id: session.semester_id,
@@ -525,7 +525,7 @@ export class AttendanceSessionsService {
       await checkin.save();
 
       this.logger.log(
-        `Synced checkin ${checkin._id} → ClubAttendance ${saved._id}`,
+        `Synced checkin ${checkin._id} → ActivityAttendance ${saved._id}`,
       );
     } catch (error: any) {
       // Don't fail the check-in if sync fails (can be retried)

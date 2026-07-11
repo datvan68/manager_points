@@ -2037,25 +2037,11 @@ export default function ActivityScheduleWorkspace({
 
   return (
     <div className="space-y-6">
-      {/* Top Actions: Only Save All Pending if exists */}
-      {pendingSchedules.length > 0 && (
-        <div className="flex items-center justify-end bg-white/30 backdrop-blur-sm p-4 rounded-2xl border border-white/50 shadow-sm">
-          <button
-            onClick={handleSaveAllPending}
-            disabled={submitting}
-            className="flex items-center gap-1.5 px-5 h-10 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl shadow-md cursor-pointer text-xs font-black border-0"
-          >
-            <Copy size={14} />
-            Lưu tất cả ({pendingSchedules.length})
-          </button>
-        </div>
-      )}
-
       {/* Week Navigator & Toolbar */}
-      <div className="flex flex-col xl:flex-row gap-3 items-start xl:items-center justify-between bg-white/30 backdrop-blur-sm p-3 rounded-2xl border border-white/50">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 px-3.5 h-10 bg-white/75 rounded-xl border border-slate-200/50 shadow-sm shrink-0">
-            <Calendar size={15} className="text-blue-500" />
+      <div className="flex flex-col xl:flex-row gap-2 items-start xl:items-center justify-between bg-white/30 backdrop-blur-sm p-2 rounded-xl border border-white/50">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 px-2.5 h-8 bg-white/75 rounded-lg border border-slate-200/50 shadow-sm shrink-0">
+            <Calendar size={13} className="text-blue-500" />
             <h3 className="text-xs font-bold text-slate-700 font-sans">
               {getHeaderDateRangeString()}
             </h3>
@@ -2102,7 +2088,7 @@ export default function ActivityScheduleWorkspace({
               : null;
 
             return (
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold h-10">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold h-8">
                 <span className={cn("px-2.5 py-0.5 rounded-full border text-[10px] uppercase font-black tracking-wide", badgeColor)}>
                   {statusLabel}
                 </span>
@@ -2125,16 +2111,16 @@ export default function ActivityScheduleWorkspace({
           })()}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-start sm:justify-end">
+        <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start sm:justify-end">
           {/* Week Nav controls */}
-          <div className="flex p-1 bg-white/75 rounded-xl border border-slate-200 shadow-sm items-center gap-1 h-10 shrink-0">
-            <button onClick={() => setWeekOffset(prev => prev - 1)} className="p-1.5 hover:bg-slate-105 rounded-lg text-slate-655 transition-all cursor-pointer">
-              <ChevronLeft size={16} />
+          <div className="flex p-0.5 bg-white/75 rounded-lg border border-slate-200 shadow-sm items-center gap-1 h-8 shrink-0">
+            <button onClick={() => setWeekOffset(prev => prev - 1)} className="p-1 hover:bg-slate-105 rounded-md text-slate-655 transition-all cursor-pointer w-7 h-7 flex items-center justify-center">
+              <ChevronLeft size={13} />
             </button>
             <button
               onClick={() => setWeekOffset(0)}
               disabled={weekOffset === 0}
-              className="px-2.5 h-8 flex items-center text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-transparent rounded-lg transition-all cursor-pointer font-sans"
+              className="px-2 h-7 flex items-center text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-transparent rounded-md transition-all cursor-pointer font-sans"
             >
               Hiện tại
             </button>
@@ -2161,62 +2147,75 @@ export default function ActivityScheduleWorkspace({
                 <button
                   onClick={handleGoToSource}
                   disabled={isAlreadySource}
-                  className="px-2.5 h-8 flex items-center text-xs font-bold text-blue-655 hover:bg-blue-50 disabled:opacity-50 disabled:hover:bg-transparent rounded-lg transition-all border-l border-slate-200 pl-2 cursor-pointer"
+                  className="px-2 h-7 flex items-center text-xs font-bold text-blue-655 hover:bg-blue-50 disabled:opacity-50 disabled:hover:bg-transparent rounded-md transition-all border-l border-slate-200 pl-2 cursor-pointer"
                 >
                   Về tuần nguồn
                 </button>
               );
             })()}
 
-            <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-1.5 hover:bg-slate-105 rounded-lg text-slate-655 transition-all cursor-pointer">
-              <ChevronRight size={16} />
+            <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-1 hover:bg-slate-105 rounded-md text-slate-655 transition-all cursor-pointer w-7 h-7 flex items-center justify-center">
+              <ChevronRight size={13} />
             </button>
           </div>
 
           {/* View selector: Tuần vs Ngày */}
-          <div className="flex p-1 bg-slate-200/50 rounded-xl shrink-0 h-10 items-center">
+          <div className="flex p-0.5 bg-slate-200/50 rounded-lg shrink-0 h-8 items-center">
             <button
               onClick={() => setView('weekly')}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all h-8",
+                "flex items-center gap-1.5 px-2.5 text-xs font-bold rounded-md cursor-pointer transition-all h-7",
                 view === 'weekly' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               )}
             >
-              <Grid size={14} /> Lịch Tuần
+              <Grid size={13} /> Lịch Tuần
             </button>
             <button
               onClick={() => { setView('daily'); handleSelectDate(weekDates[0]); }}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all h-8",
+                "flex items-center gap-1.5 px-2.5 text-xs font-bold rounded-md cursor-pointer transition-all h-7",
                 view === 'daily' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               )}
             >
-              <List size={14} /> Lịch Ngày
+              <List size={13} /> Lịch Ngày
             </button>
           </div>
 
           {/* Recurrence config */}
           {canManage && (
-            <button
-              onClick={() => handleOpenRecurrenceModal('default', defaultRecurrence)}
-              className="flex items-center gap-1.5 px-3.5 h-10 border border-slate-200 hover:bg-slate-50 bg-white/75 text-slate-655 rounded-xl cursor-pointer text-xs font-bold shadow-sm shrink-0 transition-all"
-              title="Cấu hình chuỗi lịch lặp lại cho tuần hiện tại"
-            >
-              <RotateCw size={13} className="text-slate-450" />
-              <span>Cấu hình chuỗi lặp</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleSaveAllPending}
+                disabled={pendingSchedules.length === 0 || submitting}
+                className="flex items-center gap-1.5 px-3 h-8 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg cursor-pointer text-xs font-bold shadow-sm shrink-0 transition-all focus:visible border-0"
+              >
+                <Copy size={13} />
+                <span>Lưu tất cả ({pendingSchedules.length})</span>
+              </button>
+
+              <button
+                onClick={() => handleOpenRecurrenceModal('default', defaultRecurrence)}
+                className="flex items-center gap-1.5 px-2.5 h-8 border border-slate-200 hover:bg-slate-50 bg-white/75 text-slate-655 rounded-lg cursor-pointer text-xs font-bold shadow-sm shrink-0 transition-all focus:visible"
+                title="Cấu hình chuỗi lịch lặp lại cho tuần hiện tại"
+              >
+                <RotateCw size={13} className="text-slate-455" />
+                <span>Cấu hình chuỗi lặp</span>
+              </button>
+            </>
           )}
 
           {/* Refresh button */}
           <button
             onClick={loadSchedules}
-            className="w-10 h-10 border border-slate-200 hover:bg-slate-50 bg-white/75 rounded-xl flex items-center justify-center cursor-pointer shadow-sm shrink-0 transition-all text-slate-655"
+            className="w-8 h-8 border border-slate-200 hover:bg-slate-50 bg-white/75 rounded-lg flex items-center justify-center cursor-pointer shadow-sm shrink-0 transition-all text-slate-655 focus:visible"
             title="Làm mới lịch"
           >
-            <RefreshCw size={16} />
+            <RefreshCw size={13} />
           </button>
         </div>
       </div>
+
 
       {/* Main Workspace Layout */}
       {view === 'weekly' ? (

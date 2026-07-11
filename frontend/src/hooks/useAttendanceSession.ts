@@ -6,7 +6,7 @@ import {
   type AttendanceSessionData,
   type AttendanceCheckinData,
   type QrData,
-} from '@/api/club-api';
+} from '@/api/activity-api';
 
 interface UseAttendanceSessionOptions {
   contextType: string;

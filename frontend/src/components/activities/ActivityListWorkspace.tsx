@@ -3,7 +3,7 @@ import { Search, Filter, Plus, Grid, List, MapPin, Users, Clock, Heart, Compass,
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { tokenStorage } from '@/api/auth-api';
-import { activityCategoryLabels } from './activity-view-policy';
+import { activityCategoryLabels, activityTypeLabels, getActivityTypeLabel, activityTypes } from './activity-view-policy';
 import ActivityCard from './ActivityCard';
 
 // Simple status badge
@@ -25,6 +25,7 @@ function ActivityStatusBadge({ status }: { status: string }) {
 
 interface ActivityListWorkspaceProps {
   activities: any[];
+  activityType?: string;
   loading: boolean;
   onJoinClick: (activity: any) => void;
   onFavoriteClick: (activity: any) => Promise<void>;
@@ -41,10 +42,15 @@ interface ActivityListWorkspaceProps {
   onSelectedActivityIdsChange?: (ids: string[]) => void;
   onBulkActionClick?: (actionType: 'deactivate' | 'delete') => void;
   onSingleStatusChange?: (id: string, status: 'draft' | 'published' | 'cancelled') => Promise<void>;
+  onActivityTypeChange?: (type: string) => void;
+  pendingStatusActivityIds?: Record<string, boolean>;
+  activityToJoin?: any;
+  joinLoading?: boolean;
 }
 
 export default function ActivityListWorkspace({
   activities,
+  activityType = '',
   loading,
   onJoinClick,
   onFavoriteClick,
@@ -61,22 +67,40 @@ export default function ActivityListWorkspace({
   onSelectedActivityIdsChange,
   onBulkActionClick,
   onSingleStatusChange,
+  onActivityTypeChange,
+  pendingStatusActivityIds = {},
+  activityToJoin,
+  joinLoading,
 }: ActivityListWorkspaceProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [search, setSearch] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
+  const [filterActivityType, setFilterActivityType] = useState(activityType);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const currentUser = tokenStorage.getUser();
   const isStudent = currentUser?.role?.toLowerCase() === 'student';
+
+  // Sync selector when prop changes to a supported type
+  React.useEffect(() => {
+    if (activityTypes.includes(activityType as any)) {
+      setFilterActivityType(activityType);
+    } else {
+      setFilterActivityType('');
+    }
+  }, [activityType]);
 
   // Local filtering
   const filtered = activities.filter((act) => {
     const matchesSearch =
       act.name?.toLowerCase().includes(search.toLowerCase()) ||
       act.code?.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = !filterCategory || act.category === filterCategory;
-    return matchesSearch && matchesCategory;
+
+    const isActivityTypePropValid = activityTypes.includes(activityType as any);
+    const matchesType = isActivityTypePropValid
+      ? act.activity_type === activityType
+      : (!filterActivityType || act.activity_type === filterActivityType);
+
+    return matchesSearch && matchesType;
   });
 
   // Sync selected activity IDs with filtered results
@@ -88,25 +112,25 @@ export default function ActivityListWorkspace({
         onSelectedActivityIdsChange?.(validSelected);
       }
     }
-  }, [search, filterCategory, activities]);
+  }, [search, filterActivityType, activityType, activities]);
 
   return (
     <div className="space-y-6">
       {/* Controls Bar */}
-      <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-white/30 backdrop-blur-sm p-3 rounded-2xl border border-white/50">
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-1">
+      <div className="flex flex-col md:flex-row gap-2 items-center justify-between bg-white/30 backdrop-blur-sm p-2 rounded-xl border border-white/50">
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto flex-1">
           {/* Search trigger */}
           {isSearchOpen ? (
             <div className="relative flex-1 md:max-w-md flex items-center gap-2">
               <div className="relative flex-1">
-                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Tìm theo tên hoặc mã hoạt động..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   autoFocus
-                  className="w-full pl-10 pr-10 py-2 bg-white/75 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+                  className="w-full pl-8 pr-8 h-8 bg-white/75 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm focus:visible"
                 />
                 <button
                   type="button"
@@ -114,9 +138,9 @@ export default function ActivityListWorkspace({
                     setIsSearchOpen(false);
                     setSearch('');
                   }}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-655 transition-colors w-7 h-7 flex items-center justify-center cursor-pointer"
                 >
-                  <X size={16} />
+                  <X size={13} />
                 </button>
               </div>
             </div>
@@ -124,25 +148,29 @@ export default function ActivityListWorkspace({
             <button
               type="button"
               onClick={() => setIsSearchOpen(true)}
-              className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white/75 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm cursor-pointer shrink-0"
+              className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white/75 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               title="Tìm kiếm"
             >
-              <Search size={18} />
+              <Search size={13} />
             </button>
           )}
 
-          {/* Category Filter */}
+          {/* Type Filter */}
           <div className="relative min-w-[180px] w-full sm:w-auto">
-            <Filter size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
+            <Filter size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
             <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="w-full pl-10 pr-4 h-10 bg-white/75 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm cursor-pointer appearance-none"
+              value={filterActivityType}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFilterActivityType(val);
+                onActivityTypeChange?.(val);
+              }}
+              className="w-full pl-8 pr-4 h-8 bg-white/75 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm cursor-pointer appearance-none"
             >
-              <option value="">Tất cả phân loại</option>
-              {Object.entries(activityCategoryLabels).map(([k, label]) => (
+              <option value="">Tất cả loại hoạt động</option>
+              {activityTypes.map((k) => (
                 <option key={k} value={k}>
-                  {label}
+                  {activityTypeLabels[k] || k}
                 </option>
               ))}
             </select>
@@ -150,63 +178,64 @@ export default function ActivityListWorkspace({
         </div>
 
         {/* Action Button & View Toggle */}
-        <div className="flex items-center justify-end gap-3 w-full md:w-auto shrink-0">
+        <div className="flex items-center justify-end gap-2 w-full md:w-auto shrink-0">
           <Button
             variant="outline"
             onClick={onScheduleClick}
-            className="flex items-center gap-2 px-4 h-10 border-slate-200 bg-white/75 hover:bg-slate-50 rounded-xl cursor-pointer text-xs font-bold text-slate-605 shadow-sm shrink-0"
+            className="flex items-center gap-1.5 px-3 h-8 border-slate-200 bg-white/75 hover:bg-slate-50 rounded-lg cursor-pointer text-xs font-bold text-slate-605 shadow-sm shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             title="Lịch trình hoạt động"
             data-testid="calendar-header-button"
           >
-            <Calendar size={15} />
+            <Calendar size={13} />
             <span>Lịch trình</span>
           </Button>
 
           <Button
             variant="outline"
             onClick={onRefreshClick}
-            className="w-10 h-10 p-0 border-slate-200 bg-white/75 hover:bg-slate-50 rounded-xl cursor-pointer text-slate-605 shadow-sm shrink-0 flex items-center justify-center"
+            className="w-8 h-8 p-0 border-slate-200 bg-white/75 hover:bg-slate-50 rounded-lg cursor-pointer text-slate-605 shadow-sm shrink-0 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             title="Tải lại dữ liệu"
           >
-            <RefreshCw size={16} />
+            <RefreshCw size={13} />
           </Button>
 
           {!isStudent && (
             <Button
               onClick={onCreateClick}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-md transition-all cursor-pointer h-10"
+              className="flex items-center justify-center gap-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-lg shadow-md transition-all cursor-pointer h-8 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
-              <Plus size={16} />
-              Tạo Hoạt động Mới
+              <Plus size={13} />
+              {activityType === 'club' ? 'Tạo Câu lạc bộ Mới' : 'Tạo Hoạt động Mới'}
             </Button>
           )}
 
-          <div className="flex items-center gap-1.5 p-1 bg-slate-200/50 rounded-xl shrink-0">
+          <div className="flex items-center gap-1 p-0.5 bg-slate-200/50 rounded-lg shrink-0">
             <button
               onClick={() => setViewMode('grid')}
               className={cn(
-                "p-2 rounded-lg transition-all cursor-pointer",
+                "p-1.5 rounded-md transition-all cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
                 viewMode === 'grid'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               )}
             >
-              <Grid size={16} />
+              <Grid size={13} />
             </button>
             <button
               onClick={() => setViewMode('table')}
               className={cn(
-                "p-2 rounded-lg transition-all cursor-pointer",
+                "p-1.5 rounded-md transition-all cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
                 viewMode === 'table'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               )}
             >
-              <List size={16} />
+              <List size={13} />
             </button>
           </div>
         </div>
       </div>
+
 
       {/* List Area */}
       {loading ? (
@@ -226,24 +255,44 @@ export default function ActivityListWorkspace({
           </p>
         </div>
       ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 animate-in fade-in duration-350">
-          {filtered.map((act) => {
-            const isManager = canManage(act);
+        <div className="space-y-6 animate-in fade-in duration-350">
+          {activityTypes.map((type) => {
+            const groupActivities = filtered.filter((act) => act.activity_type === type);
+            if (groupActivities.length === 0) return null;
             return (
-              <ActivityCard
-                key={act._id}
-                activity={act}
-                onJoinClick={onJoinClick}
-                onFavoriteClick={onFavoriteClick}
-                onEditClick={onEditClick}
-                onDeleteClick={onDeleteClick}
-                canManage={isManager}
-                onNavigateToDetail={onNavigateToDetail}
-                onConfigureDesign={onConfigureDesign}
-              />
+              <div key={type} className="flex flex-col gap-4 w-full">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex flex-1 items-center">
+                    <span className="text-[14px] font-medium text-[#6b7280] tracking-wide">
+                      {activityTypeLabels[type] || type}
+                    </span>
+                    <div className="flex-1 h-px bg-[#f3f4f6] ml-4" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  {groupActivities.map((act) => {
+                    const isManager = canManage(act);
+                    return (
+                      <ActivityCard
+                        key={act._id}
+                        activity={act}
+                        onJoinClick={onJoinClick}
+                        onFavoriteClick={onFavoriteClick}
+                        onEditClick={onEditClick}
+                        onDeleteClick={onDeleteClick}
+                        canManage={isManager}
+                        onNavigateToDetail={onNavigateToDetail}
+                        onConfigureDesign={onConfigureDesign}
+                        joinPending={activityToJoin?._id === act._id && joinLoading}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
+
       ) : (
         /* Table View */
         <div className="space-y-4 animate-in fade-in duration-350">
@@ -310,6 +359,7 @@ export default function ActivityListWorkspace({
                     <th className="px-5 py-3">Phân loại</th>
                     <th className="px-5 py-3">Phòng</th>
                     <th className="px-5 py-3">Trạng thái</th>
+                    <th className="px-5 py-3">Yêu thích</th>
                     <th className="px-5 py-3 text-right">Thao tác</th>
                   </tr>
                 </thead>
@@ -341,7 +391,10 @@ export default function ActivityListWorkspace({
                           </td>
                         )}
                         <td className="px-5 py-4 font-bold text-slate-700">
-                          {act.name}
+                          <div>{act.name}</div>
+                          <div className="text-[10px] text-slate-400 font-normal mt-0.5">
+                            {getActivityTypeLabel(act.activity_type)}
+                          </div>
                         </td>
                         <td className="px-5 py-4 font-mono font-semibold text-slate-500 uppercase">
                           {act.code}
@@ -358,8 +411,21 @@ export default function ActivityListWorkspace({
                             {isManager && act.participation_status !== 'completed' && (
                               <div className="flex items-center gap-1 bg-slate-100/50 border border-slate-200/50 rounded-lg p-0.5 shadow-xs">
                                 <button
-                                  onClick={() => onSingleStatusChange?.(act._id, 'draft')}
-                                  className="p-1 text-slate-400 hover:text-slate-750 hover:bg-slate-200/60 rounded transition-all cursor-pointer"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (pendingStatusActivityIds?.[act._id]) return;
+                                    onSingleStatusChange?.(act._id, 'draft');
+                                  }}
+                                  disabled={pendingStatusActivityIds?.[act._id]}
+                                  aria-pressed={act.participation_status === 'draft'}
+                                  aria-busy={pendingStatusActivityIds?.[act._id]}
+                                  className={cn(
+                                    "p-1 rounded transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+                                    act.participation_status === 'draft'
+                                      ? "text-amber-600 bg-amber-50 ring-1 ring-amber-500/30"
+                                      : "text-slate-400 hover:text-slate-750 hover:bg-slate-200/60"
+                                  )}
                                   title="Đưa về nháp"
                                   aria-label="Đưa về nháp"
                                 >
@@ -369,8 +435,21 @@ export default function ActivityListWorkspace({
                                   </svg>
                                 </button>
                                 <button
-                                  onClick={() => onSingleStatusChange?.(act._id, 'published')}
-                                  className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-all cursor-pointer"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (pendingStatusActivityIds?.[act._id]) return;
+                                    onSingleStatusChange?.(act._id, 'published');
+                                  }}
+                                  disabled={pendingStatusActivityIds?.[act._id]}
+                                  aria-pressed={act.participation_status === 'published'}
+                                  aria-busy={pendingStatusActivityIds?.[act._id]}
+                                  className={cn(
+                                    "p-1 rounded transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+                                    act.participation_status === 'published'
+                                      ? "text-emerald-600 bg-emerald-50 ring-1 ring-emerald-500/30"
+                                      : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
+                                  )}
                                   title="Công khai đăng ký"
                                   aria-label="Công khai đăng ký"
                                 >
@@ -380,8 +459,21 @@ export default function ActivityListWorkspace({
                                   </svg>
                                 </button>
                                 <button
-                                  onClick={() => onSingleStatusChange?.(act._id, 'cancelled')}
-                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-all cursor-pointer"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (pendingStatusActivityIds?.[act._id]) return;
+                                    onSingleStatusChange?.(act._id, 'cancelled');
+                                  }}
+                                  disabled={pendingStatusActivityIds?.[act._id]}
+                                  aria-pressed={act.participation_status === 'cancelled'}
+                                  aria-busy={pendingStatusActivityIds?.[act._id]}
+                                  className={cn(
+                                    "p-1 rounded transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+                                    act.participation_status === 'cancelled'
+                                      ? "text-red-605 bg-red-50 ring-1 ring-red-500/30"
+                                      : "text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                  )}
                                   title="Hủy hoạt động"
                                   aria-label="Hủy hoạt động"
                                 >
@@ -395,10 +487,18 @@ export default function ActivityListWorkspace({
                             )}
                           </div>
                         </td>
+                        <td className="px-5 py-4 font-medium text-slate-500">
+                          {act.favorite_count ?? 0}
+                        </td>
+
                         <td className="px-5 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={() => onFavoriteClick(act)}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onFavoriteClick(act);
+                              }}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-pink-500 hover:bg-pink-50/50 transition-colors shrink-0 cursor-pointer"
                               title={act.is_favorited ? "Bỏ yêu thích" : "Yêu thích"}
                               aria-label={act.is_favorited ? "Bỏ yêu thích" : "Yêu thích"}
@@ -408,10 +508,15 @@ export default function ActivityListWorkspace({
 
                             {isStudent && act.membership_status === 'none' && (
                               <Button
-                                onClick={() => onJoinClick(act)}
-                                className="h-7 px-2.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold cursor-pointer"
+                                type="button"
+                                disabled={activityToJoin?._id === act._id && joinLoading}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onJoinClick(act);
+                                }}
+                                className="h-7 px-2.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                Tham gia
+                                {activityToJoin?._id === act._id && joinLoading ? "Đang xử lý..." : "Đăng ký"}
                               </Button>
                             )}
 

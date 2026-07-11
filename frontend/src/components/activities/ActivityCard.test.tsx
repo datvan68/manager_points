@@ -231,4 +231,30 @@ describe('ActivityCard', () => {
     expect(onJoinClick).toHaveBeenCalledTimes(1);
     expect(onJoinClick).toHaveBeenCalledWith(activityWithNone);
   });
+
+  it('disables the Đăng ký button when joinPending is true', () => {
+    const activityWithNone = {
+      ...mockActivity,
+      membership_status: 'none',
+    };
+    render(
+      <ActivityCard
+        activity={activityWithNone}
+        onJoinClick={onJoinClick}
+        onFavoriteClick={onFavoriteClick}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        canManage={false}
+        onNavigateToDetail={onNavigateToDetail}
+        joinPending={true}
+      />
+    );
+
+    const joinBtn = screen.getByText('Đang xử lý...');
+    expect(joinBtn).toBeInTheDocument();
+    expect(joinBtn).toBeDisabled();
+
+    fireEvent.click(joinBtn);
+    expect(onJoinClick).not.toHaveBeenCalled();
+  });
 });

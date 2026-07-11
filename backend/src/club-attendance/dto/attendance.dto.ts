@@ -12,14 +12,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class CreateAttendanceDto {
-  @ApiProperty({ description: 'Club ID' })
+  @ApiProperty({ description: 'Activity ID' })
   @IsMongoId()
-  club_id: string;
+  activity_id: string;
 
-  @ApiPropertyOptional({ description: 'Activity ID' })
+  @ApiPropertyOptional({ description: 'Legacy Club ID' })
   @IsOptional()
   @IsMongoId()
-  activity_id?: string;
+  club_id?: string;
 
   @ApiProperty({ description: 'Schedule session ID' })
   @IsMongoId()
@@ -71,14 +71,14 @@ export class AttendanceEntryDto {
 }
 
 export class BatchAttendanceDto {
-  @ApiProperty({ description: 'Club ID' })
+  @ApiProperty({ description: 'Activity ID' })
   @IsMongoId()
-  club_id: string;
+  activity_id: string;
 
-  @ApiPropertyOptional({ description: 'Activity ID' })
+  @ApiPropertyOptional({ description: 'Legacy Club ID' })
   @IsOptional()
   @IsMongoId()
-  activity_id?: string;
+  club_id?: string;
 
   @ApiProperty({ description: 'Schedule session ID' })
   @IsMongoId()
@@ -121,15 +121,15 @@ export class BatchApproveDto {
 }
 
 export class QueryAttendanceDto {
-  @ApiPropertyOptional({ description: 'Filter by club ID' })
-  @IsOptional()
-  @IsMongoId()
-  club_id?: string;
-
   @ApiPropertyOptional({ description: 'Filter by activity ID' })
   @IsOptional()
   @IsMongoId()
   activity_id?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by legacy Club ID' })
+  @IsOptional()
+  @IsMongoId()
+  club_id?: string;
 
   @ApiPropertyOptional({ description: 'Filter by schedule ID' })
   @IsOptional()

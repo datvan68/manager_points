@@ -7,6 +7,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
+  useSearchParams: () => ({
+    get: vi.fn().mockReturnValue(null),
+  }),
 }));
 
 vi.mock('@/components/activities/ActivityForm', () => ({
@@ -53,6 +56,9 @@ vi.mock('@/api/activity-api', () => ({
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    favoriteActivity: vi.fn(),
+    unfavoriteActivity: vi.fn(),
+    joinActivity: vi.fn(),
   },
   activityScheduleApi: {
     getAll: vi.fn().mockResolvedValue({ items: [], total: 0 }),
@@ -244,8 +250,8 @@ describe('ActivitiesPage', () => {
 
   it('handles bulk deactivate confirmation flow and calls activityApi.update for all selected IDs', async () => {
     const mockActivities = [
-      { _id: 'act1', name: 'IT Club Activity', code: 'IT_CLUB', participation_status: 'published' },
-      { _id: 'act2', name: 'Sports Club', code: 'SP_CLUB', participation_status: 'published' },
+      { _id: 'act1', name: 'IT Club Activity', code: 'IT_CLUB', activity_type: 'club', participation_status: 'published' },
+      { _id: 'act2', name: 'Sports Club', code: 'SP_CLUB', activity_type: 'event', participation_status: 'published' },
     ];
     vi.mocked(activityApi.getAll).mockResolvedValue(mockActivities as any);
     vi.mocked(activityApi.update).mockResolvedValue({} as any);
@@ -285,8 +291,8 @@ describe('ActivitiesPage', () => {
 
   it('handles bulk delete confirmation flow and calls activityApi.delete for all selected IDs', async () => {
     const mockActivities = [
-      { _id: 'act1', name: 'IT Club Activity', code: 'IT_CLUB', participation_status: 'published' },
-      { _id: 'act2', name: 'Sports Club', code: 'SP_CLUB', participation_status: 'published' },
+      { _id: 'act1', name: 'IT Club Activity', code: 'IT_CLUB', activity_type: 'club', participation_status: 'published' },
+      { _id: 'act2', name: 'Sports Club', code: 'SP_CLUB', activity_type: 'event', participation_status: 'published' },
     ];
     vi.mocked(activityApi.getAll).mockResolvedValue(mockActivities as any);
     vi.mocked(activityApi.delete).mockResolvedValue({} as any);
@@ -323,5 +329,75 @@ describe('ActivitiesPage', () => {
       expect(activityApi.delete).toHaveBeenCalledWith('act1');
       expect(activityApi.delete).toHaveBeenCalledWith('act2');
     });
+  });
+
+  it('does NOT reload all activities on successful single status change, favorite click, and join confirm', async () => {
+    const mockActivities = [
+      {
+        _id: 'act1',
+        name: 'IT Club Activity',
+        code: 'IT_CLUB',
+        activity_type: 'club',
+        participation_status: 'published',
+        classroom: 'A.101',
+        membership_status: 'none',
+        is_favorited: false,
+        favorite_count: 2,
+        semester_id: { _id: 'sem1' }
+      },
+    ];
+
+    vi.mocked(activityApi.getAll).mockResolvedValue(mockActivities as any);
+    vi.mocked(activityApi.update).mockResolvedValue({ _id: 'act1', participation_status: 'draft' } as any);
+    vi.mocked(activityApi.favoriteActivity).mockResolvedValue({ activity_id: 'act1', is_favorited: true, favorite_count: 3 } as any);
+    vi.mocked(activityApi.joinActivity).mockResolvedValue({ membership: { status: 'pending' } } as any);
+
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('IT Club Activity')).toBeInTheDocument();
+    });
+
+    // Initial load: getAll called 1 time
+    expect(activityApi.getAll).toHaveBeenCalledTimes(1);
+
+    // 1. Trigger join activity in Grid View
+    const joinBtn = screen.getByRole('button', { name: 'Đăng ký' });
+    fireEvent.click(joinBtn);
+
+    // Wait for modal to render and click Confirm
+    await waitFor(() => {
+      expect(screen.getByText('Xác nhận đăng ký tham gia')).toBeInTheDocument();
+    });
+    const confirmJoinBtn = screen.getByRole('button', { name: 'Xác nhận' });
+    fireEvent.click(confirmJoinBtn);
+
+    await waitFor(() => {
+      expect(activityApi.joinActivity).toHaveBeenCalledWith('act1', { semester_id: 'sem1' });
+    });
+
+    // 2. Trigger favorite click in Grid View
+    // Heart button on Grid Card (the only button in Grid view card besides join)
+    const favBtn = screen.getAllByRole('button').find(btn => btn.querySelector('svg.lucide-heart'));
+    expect(favBtn).toBeDefined();
+    fireEvent.click(favBtn!);
+
+    await waitFor(() => {
+      expect(activityApi.favoriteActivity).toHaveBeenCalledWith('act1');
+    });
+
+    // 3. Switch to table view and trigger status change
+    const listBtn = Array.from(screen.getAllByRole('button')).find(btn => btn.querySelector('svg.lucide-list'));
+    fireEvent.click(listBtn!);
+
+    const draftBtn = screen.getByTitle('Đưa về nháp');
+    fireEvent.click(draftBtn);
+
+    await waitFor(() => {
+      expect(activityApi.update).toHaveBeenCalledWith('act1', { participation_status: 'draft' });
+    });
+
+    // Throughout status, favorite, join operations, activityApi.getAll should still only have been called 1 time (the initial load)
+    expect(activityApi.getAll).toHaveBeenCalledTimes(1);
   });
 });

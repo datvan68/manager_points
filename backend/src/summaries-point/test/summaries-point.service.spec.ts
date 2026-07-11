@@ -1402,6 +1402,7 @@ describe('SummariesPointService', () => {
       });
       mockSummaryPointModel.find.mockReturnValue({
         populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([{ _id: 'sum1', total_score: 90 }]),
       });
 
@@ -1440,6 +1441,7 @@ describe('SummariesPointService', () => {
       });
       mockSummaryPointModel.find.mockReturnValue({
         populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
           { _id: 'sum1', total_score: 90 },
           { _id: 'sum2', total_score: 80 },

@@ -19,7 +19,7 @@ export class OpenSessionDto {
   @IsEnum(['club', 'class', 'event', 'dormitory'])
   context_type: string;
 
-  @ApiProperty({ description: 'Context ID (e.g. club_id)' })
+  @ApiProperty({ description: 'Context ID (e.g. activity_id)' })
   @IsMongoId()
   context_id: string;
 

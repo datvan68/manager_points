@@ -10,10 +10,12 @@ import ActivityForm from '@/components/activities/ActivityForm';
 import ActivityListWorkspace from '@/components/activities/ActivityListWorkspace';
 import ActivityManagementModals from '@/components/activities/ActivityManagementModals';
 import ActivityCardDesignModal from '@/components/activities/ActivityCardDesignModal';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function ActivitiesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const activityType = searchParams.get('activityType') || '';
   const { user } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +37,8 @@ export default function ActivitiesPage() {
   // Bulk actions and status selection states
   const [selectedActivityIds, setSelectedActivityIds] = useState<string[]>([]);
   const [bulkConfirmation, setBulkConfirmation] = useState<'deactivate' | 'delete' | null>(null);
-  const [statusLoading, setStatusLoading] = useState(false);
+  const [pendingStatusActivityIds, setPendingStatusActivityIds] = useState<Record<string, boolean>>({});
+  const [pendingFavoriteIds, setPendingFavoriteIds] = useState<Record<string, boolean>>({});
 
   const canManage = (act?: Activity) => isAdminUser(user) || isTeacherRole(user);
 
@@ -112,7 +115,7 @@ export default function ActivitiesPage() {
   };
 
   const handleJoinConfirm = async () => {
-    if (!activityToJoin) return;
+    if (!activityToJoin || joinLoading) return;
     setJoinLoading(true);
     try {
       const activeSemesterId = activityToJoin.semester_id?._id || activityToJoin.semester_id;
@@ -126,8 +129,16 @@ export default function ActivitiesPage() {
       } else {
         toast.success('Đăng ký tham gia thành công!');
       }
+      setActivities(prev => prev.map(item => {
+        if (item._id === activityToJoin._id) {
+          return {
+            ...item,
+            membership_status: res.membership.status
+          };
+        }
+        return item;
+      }));
       setActivityToJoin(null);
-      loadData();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || err?.message || 'Lỗi đăng ký tham gia');
     } finally {
@@ -136,30 +147,55 @@ export default function ActivitiesPage() {
   };
 
   const handleFavoriteClick = async (act: any) => {
+    if (pendingFavoriteIds[act._id]) return;
+    setPendingFavoriteIds(prev => ({ ...prev, [act._id]: true }));
+    const wasFavorited = act.is_favorited;
+    const prevCount = act.favorite_count || 0;
     try {
-      if (act.is_favorited) {
+      if (wasFavorited) {
         await activityApi.unfavoriteActivity(act._id);
         toast.success('Đã bỏ yêu thích');
       } else {
         await activityApi.favoriteActivity(act._id);
         toast.success('Đã thêm vào yêu thích');
       }
-      loadData();
+      setActivities(prev => prev.map(item => {
+        if (item._id === act._id) {
+          const newCount = wasFavorited ? Math.max(0, prevCount - 1) : prevCount + 1;
+          return {
+            ...item,
+            is_favorited: !wasFavorited,
+            favorite_count: newCount
+          };
+        }
+        return item;
+      }));
     } catch {
       toast.error('Lỗi khi cập nhật yêu thích');
+    } finally {
+      setPendingFavoriteIds(prev => {
+        const next = { ...prev };
+        delete next[act._id];
+        return next;
+      });
     }
   };
 
   const handleSingleStatusChange = async (id: string, status: 'draft' | 'published' | 'cancelled') => {
-    setStatusLoading(true);
+    if (pendingStatusActivityIds[id]) return;
+    setPendingStatusActivityIds(prev => ({ ...prev, [id]: true }));
     try {
-      await activityApi.update(id, { participation_status: status });
+      const updated = await activityApi.update(id, { participation_status: status });
       toast.success('Cập nhật trạng thái hoạt động thành công');
-      loadData();
+      setActivities(prev => prev.map(act => act._id === id ? { ...act, participation_status: updated.participation_status } : act));
     } catch (err: any) {
       toast.error(err.message || 'Lỗi khi cập nhật trạng thái hoạt động');
     } finally {
-      setStatusLoading(false);
+      setPendingStatusActivityIds(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     }
   };
 
@@ -205,7 +241,17 @@ export default function ActivitiesPage() {
     <div className="p-6 space-y-6 overflow-y-auto h-full custom-scrollbar">
       <ActivityListWorkspace
         activities={activities}
-        loading={loading || statusLoading}
+        activityType={activityType}
+        onActivityTypeChange={(type) => {
+          const newParams = new URLSearchParams(window.location.search);
+          if (type) {
+            newParams.set('activityType', type);
+          } else {
+            newParams.delete('activityType');
+          }
+          router.replace(`/activities?${newParams.toString()}`);
+        }}
+        loading={loading}
         onJoinClick={(act) => setActivityToJoin(act)}
         onFavoriteClick={handleFavoriteClick}
         onEditClick={(act) => setEditingActivity(act)}
@@ -218,8 +264,11 @@ export default function ActivitiesPage() {
         onSelectedActivityIdsChange={setSelectedActivityIds}
         onBulkActionClick={(actionType: 'deactivate' | 'delete') => setBulkConfirmation(actionType)}
         onSingleStatusChange={handleSingleStatusChange}
-        onScheduleClick={() => router.push('/activities/schedule')}
+        onScheduleClick={() => router.push(activityType ? `/activities/schedule?activityType=${activityType}` : '/activities/schedule')}
         onRefreshClick={loadData}
+        pendingStatusActivityIds={pendingStatusActivityIds}
+        activityToJoin={activityToJoin}
+        joinLoading={joinLoading}
       />
 
       {/* Create Modal */}
@@ -227,9 +276,12 @@ export default function ActivitiesPage() {
         <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
           <DialogContent className="max-w-4xl rounded-3xl overflow-hidden bg-slate-50/95 backdrop-blur-md">
             <DialogHeader>
-              <DialogTitle className="text-sm font-black text-slate-800 uppercase tracking-wider">Tạo hoạt động mới</DialogTitle>
+              <DialogTitle className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                {activityType === 'club' ? 'Tạo câu lạc bộ mới' : 'Tạo hoạt động mới'}
+              </DialogTitle>
             </DialogHeader>
             <ActivityForm
+              initialData={activityType === 'club' ? { activity_type: 'club' } as any : undefined}
               onSubmit={handleCreateActivity}
               onCancel={() => setShowCreateModal(false)}
               saving={saving}

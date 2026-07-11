@@ -33,6 +33,7 @@ describe('ActivityListWorkspace', () => {
       name: 'IT Club Activity',
       code: 'IT_CLUB',
       category: 'academic',
+      activity_type: 'club',
       participation_status: 'published',
       classroom: 'A.101',
       membership_status: 'none',
@@ -43,12 +44,14 @@ describe('ActivityListWorkspace', () => {
       name: 'Sports Club Activity',
       code: 'SP_CLUB',
       category: 'sports',
+      activity_type: 'event',
       participation_status: 'draft',
       classroom: 'B.202',
       membership_status: 'none',
       is_favorited: false,
     }
   ];
+
 
   const onJoinClick = vi.fn();
   const onFavoriteClick = vi.fn();
@@ -129,9 +132,9 @@ describe('ActivityListWorkspace', () => {
       const listBtn = Array.from(container.querySelectorAll('button')).find(btn => btn.querySelector('svg.lucide-list'));
       fireEvent.click(listBtn!);
 
-      // Filter by category "academic"
-      const categorySelect = screen.getByRole('combobox');
-      fireEvent.change(categorySelect, { target: { value: 'academic' } });
+      // Filter by type "club"
+      const typeSelect = screen.getByRole('combobox');
+      fireEvent.change(typeSelect, { target: { value: 'club' } });
 
       // After filtering, only 'IT Club Activity' should be visible.
       // Click header checkbox. It should select only 'act1'
@@ -139,6 +142,7 @@ describe('ActivityListWorkspace', () => {
       fireEvent.click(checkboxes[0]);
       expect(onSelectedActivityIdsChange).toHaveBeenCalledWith(['act1']);
     });
+
 
     it('renders icon-only buttons (edit, delete, configure-design) with accessible names/labels', () => {
       const { container } = renderWorkspace();
@@ -238,6 +242,156 @@ describe('ActivityListWorkspace', () => {
       expect(screen.queryByTitle('Đưa về nháp')).not.toBeInTheDocument();
       expect(screen.queryByTitle('Công khai đăng ký')).not.toBeInTheDocument();
       expect(screen.queryByTitle('Hủy hoạt động')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Canonical types, selector/filtering, grouping headings, table type labels, and aria-pressed states', () => {
+    beforeEach(() => {
+      mockGetUser.mockReturnValue({ role: 'teacher' });
+      canManage.mockReturnValue(true);
+    });
+
+    it('renders the selector with "Tất cả loại hoạt động" and four canonical options', () => {
+      renderWorkspace();
+      const combobox = screen.getByRole('combobox');
+      expect(combobox).toBeInTheDocument();
+      const options = Array.from(combobox.querySelectorAll('option')).map(opt => opt.textContent);
+      expect(options).toEqual([
+        'Tất cả loại hoạt động',
+        'Câu lạc bộ',
+        'Sự kiện',
+        'Hoạt động',
+        'Lễ hội'
+      ]);
+    });
+
+    it('groups records correctly in grid view with headings and flexible dividers without duplicates', () => {
+      const { container } = renderWorkspace();
+      // Grid view headings
+      const headings = Array.from(container.querySelectorAll('span.text-\\[14px\\]')).map(el => el.textContent);
+      expect(headings).toContain('Câu lạc bộ');
+      expect(headings).toContain('Sự kiện');
+      expect(headings).not.toContain('Hoạt động');
+      expect(headings).not.toContain('Lễ hội');
+
+      // Verify no duplicates: IT Club Activity renders exactly once
+      const items = screen.getAllByText('IT Club Activity');
+      expect(items.length).toBe(1);
+    });
+
+    it('renders type label under name in table view', () => {
+      const { container } = renderWorkspace();
+      const listBtn = Array.from(container.querySelectorAll('button')).find(btn => btn.querySelector('svg.lucide-list'));
+      fireEvent.click(listBtn!);
+
+      const rows = container.querySelectorAll('tbody tr');
+      expect(rows[0]).toHaveTextContent('Câu lạc bộ');
+      expect(rows[1]).toHaveTextContent('Sự kiện');
+    });
+
+
+    it('sets correct aria-pressed status and styles for single status action buttons', () => {
+      const { container } = renderWorkspace();
+      const listBtn = Array.from(container.querySelectorAll('button')).find(btn => btn.querySelector('svg.lucide-list'));
+      fireEvent.click(listBtn!);
+
+      // act1 is published, so:
+      // draft button: aria-pressed=false, class includes text-slate-400
+      // published button: aria-pressed=true, class includes text-emerald-600 bg-emerald-50 ring-1 ring-emerald-500/30
+      // cancelled button: aria-pressed=false, class includes text-slate-400
+      const draftBtns = screen.getAllByTitle('Đưa về nháp');
+      const publishBtns = screen.getAllByTitle('Công khai đăng ký');
+      const cancelBtns = screen.getAllByTitle('Hủy hoạt động');
+
+      expect(draftBtns[0]).toHaveAttribute('aria-pressed', 'false');
+      expect(publishBtns[0]).toHaveAttribute('aria-pressed', 'true');
+      expect(cancelBtns[0]).toHaveAttribute('aria-pressed', 'false');
+
+      expect(publishBtns[0]).toHaveClass('text-emerald-600');
+      expect(publishBtns[0]).toHaveClass('bg-emerald-50');
+      expect(publishBtns[0]).toHaveClass('ring-1');
+
+      // act2 is draft, so:
+      // draft button: aria-pressed=true, class includes text-amber-600 bg-amber-50 ring-1 ring-amber-500/30
+      expect(draftBtns[1]).toHaveAttribute('aria-pressed', 'true');
+      expect(draftBtns[1]).toHaveClass('text-amber-600');
+      expect(draftBtns[1]).toHaveClass('bg-amber-50');
+    });
+
+    it('renders favorite count column in table view and displays correct counts', () => {
+      const customActivities = [
+        {
+          _id: 'act1',
+          name: 'IT Club',
+          code: 'IT',
+          category: 'academic',
+          activity_type: 'club',
+          participation_status: 'published',
+          classroom: 'A.101',
+          membership_status: 'none',
+          is_favorited: false,
+          favorite_count: 5,
+        },
+        {
+          _id: 'act2',
+          name: 'Sports Club',
+          code: 'SP',
+          category: 'sports',
+          activity_type: 'event',
+          participation_status: 'draft',
+          classroom: 'B.202',
+          membership_status: 'none',
+          is_favorited: true,
+          favorite_count: 0,
+        }
+      ];
+
+      const { container: customContainer } = render(
+        <ActivityListWorkspace
+          activities={customActivities}
+          loading={false}
+          onJoinClick={onJoinClick}
+          onFavoriteClick={onFavoriteClick}
+          onEditClick={onEditClick}
+          onDeleteClick={onDeleteClick}
+          onCreateClick={onCreateClick}
+          canManage={canManage}
+          onNavigateToDetail={onNavigateToDetail}
+          onConfigureDesign={onConfigureDesign}
+          onSelectedActivityIdsChange={onSelectedActivityIdsChange}
+          onBulkActionClick={onBulkActionClick}
+          onSingleStatusChange={onSingleStatusChange}
+        />
+      );
+
+      const customListBtn = Array.from(customContainer.querySelectorAll('button')).find(btn => btn.querySelector('svg.lucide-list'));
+      fireEvent.click(customListBtn!);
+
+      expect(screen.getByText('Yêu thích')).toBeInTheDocument();
+      expect(screen.getByText('5')).toBeInTheDocument();
+      expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('disables status control buttons and sets aria-busy when row id is in pendingStatusActivityIds', () => {
+      const { container } = renderWorkspace({
+        pendingStatusActivityIds: { 'act1': true }
+      });
+      const listBtn = Array.from(container.querySelectorAll('button')).find(btn => btn.querySelector('svg.lucide-list'));
+      fireEvent.click(listBtn!);
+
+      const draftBtns = screen.getAllByTitle('Đưa về nháp');
+      const publishBtns = screen.getAllByTitle('Công khai đăng ký');
+      const cancelBtns = screen.getAllByTitle('Hủy hoạt động');
+
+      expect(draftBtns[0]).toBeDisabled();
+      expect(draftBtns[0]).toHaveAttribute('aria-busy', 'true');
+      expect(publishBtns[0]).toBeDisabled();
+      expect(publishBtns[0]).toHaveAttribute('aria-busy', 'true');
+      expect(cancelBtns[0]).toBeDisabled();
+      expect(cancelBtns[0]).toHaveAttribute('aria-busy', 'true');
+
+      expect(draftBtns[1]).not.toBeDisabled();
+      expect(draftBtns[1]).not.toHaveAttribute('aria-busy');
     });
   });
 });

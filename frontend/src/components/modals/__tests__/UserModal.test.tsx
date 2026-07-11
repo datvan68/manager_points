@@ -31,7 +31,7 @@ describe('UserModal - Component', () => {
     { _id: 'class_2', name: 'Lớp 1B', advisor_id: null },
   ];
 
-  it('hydrates initialData correctly for edit mode', () => {
+  it('hydrates initialData correctly for edit mode', async () => {
     const initialData = {
       _id: 'user_1',
       username: 'teacher1',
@@ -52,12 +52,14 @@ describe('UserModal - Component', () => {
       />
     );
 
-    expect(screen.getByDisplayValue('teacher1')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('t1@example.com')).toBeInTheDocument();
-    
-    // Tìm text của MultiClassSelect
-    const classSelectText = screen.getByText('2 lớp đã chọn');
-    expect(classSelectText).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('teacher1')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('t1@example.com')).toBeInTheDocument();
+      
+      // Tìm text của MultiClassSelect
+      const classSelectText = screen.getByText('2 lớp đã chọn');
+      expect(classSelectText).toBeInTheDocument();
+    });
   });
 
   it('calls onSave with advisor_class_ids when submitting', async () => {
@@ -83,7 +85,7 @@ describe('UserModal - Component', () => {
       />
     );
 
-    const saveButton = screen.getByRole('button', { name: /Lưu thông tin/i });
+    const saveButton = await screen.findByRole('button', { name: /Lưu thông tin/i });
     fireEvent.click(saveButton);
 
     await waitFor(() => {

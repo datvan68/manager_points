@@ -8,17 +8,18 @@ import { Model, Types } from 'mongoose';
 import { User, UserStatus } from '../src/auth/schemas/user.schema';
 import { Role } from '../src/auth/schemas/role.schema';
 import { Student } from '../src/students/schemas/student.schema';
-import { Club } from '../src/clubs/schemas/club.schema';
+import { Activity } from '../src/activities/schemas/activity.schema';
 import { Semester } from '../src/semesters/schemas/semester.schema';
-import { ClubMember } from '../src/clubs/schemas/club-member.schema';
+import { ActivityMember } from '../src/activities/schemas/activity-member.schema';
 import { ActivityCompletionRule } from '../src/club-attendance/schemas/activity-completion-rule.schema';
 import { ActivityCompletionAward } from '../src/club-attendance/schemas/activity-completion-award.schema';
 import { AcademicRecord } from '../src/academic-record/schemas/academic-record.schema';
-import { ClubSchedule } from '../src/club-schedules/schemas/club-schedule.schema';
-import { ClubAttendance } from '../src/club-attendance/schemas/club-attendance.schema';
+import { ActivitySchedule } from '../src/activity-schedules/schemas/activity-schedule.schema';
+import { ActivityAttendance } from '../src/club-attendance/schemas/club-attendance.schema';
 import { Criterion } from '../src/criteria/schemas/criterion.schema';
 import { Category } from '../src/categories/schemas/category.schema';
 import { ActivityCompletionService } from '../src/club-attendance/activity-completion.service';
+import { Permission } from '../src/auth/schemas/permission.schema';
 import bcrypt from 'bcrypt';
 
 describe('Activities & Completion Rules (e2e)', () => {
@@ -26,16 +27,17 @@ describe('Activities & Completion Rules (e2e)', () => {
   let userModel: Model<User>;
   let roleModel: Model<Role>;
   let studentModel: Model<Student>;
-  let clubModel: Model<Club>;
+  let clubModel: Model<Activity>;
   let semesterModel: Model<Semester>;
-  let memberModel: Model<ClubMember>;
+  let memberModel: Model<ActivityMember>;
   let ruleModel: Model<ActivityCompletionRule>;
   let awardModel: Model<ActivityCompletionAward>;
   let academicRecordModel: Model<AcademicRecord>;
-  let scheduleModel: Model<ClubSchedule>;
-  let attendanceModel: Model<ClubAttendance>;
+  let scheduleModel: Model<ActivitySchedule>;
+  let attendanceModel: Model<ActivityAttendance>;
   let criterionModel: Model<Criterion>;
   let categoryModel: Model<Category>;
+  let permissionModel: Model<Permission>;
   let activityCompletionService: ActivityCompletionService;
 
   let testStudentUserId: Types.ObjectId;
@@ -67,16 +69,17 @@ describe('Activities & Completion Rules (e2e)', () => {
     userModel = moduleFixture.get<Model<User>>(getModelToken(User.name));
     roleModel = moduleFixture.get<Model<Role>>(getModelToken(Role.name));
     studentModel = moduleFixture.get<Model<Student>>(getModelToken(Student.name));
-    clubModel = moduleFixture.get<Model<Club>>(getModelToken(Club.name));
+    clubModel = moduleFixture.get<Model<Activity>>(getModelToken(Activity.name));
     semesterModel = moduleFixture.get<Model<Semester>>(getModelToken(Semester.name));
-    memberModel = moduleFixture.get<Model<ClubMember>>(getModelToken(ClubMember.name));
+    memberModel = moduleFixture.get<Model<ActivityMember>>(getModelToken(ActivityMember.name));
     ruleModel = moduleFixture.get<Model<ActivityCompletionRule>>(getModelToken(ActivityCompletionRule.name));
     awardModel = moduleFixture.get<Model<ActivityCompletionAward>>(getModelToken(ActivityCompletionAward.name));
     academicRecordModel = moduleFixture.get<Model<AcademicRecord>>(getModelToken(AcademicRecord.name));
-    scheduleModel = moduleFixture.get<Model<ClubSchedule>>(getModelToken(ClubSchedule.name));
-    attendanceModel = moduleFixture.get<Model<ClubAttendance>>(getModelToken(ClubAttendance.name));
+    scheduleModel = moduleFixture.get<Model<ActivitySchedule>>(getModelToken(ActivitySchedule.name));
+    attendanceModel = moduleFixture.get<Model<ActivityAttendance>>(getModelToken(ActivityAttendance.name));
     criterionModel = moduleFixture.get<Model<Criterion>>(getModelToken(Criterion.name));
     categoryModel = moduleFixture.get<Model<Category>>(getModelToken(Category.name));
+    permissionModel = moduleFixture.get<Model<Permission>>(getModelToken(Permission.name));
     activityCompletionService = moduleFixture.get<ActivityCompletionService>(ActivityCompletionService);
 
     await app.init();
@@ -97,6 +100,16 @@ describe('Activities & Completion Rules (e2e)', () => {
     await criterionModel.deleteMany({ criterion_code: 'E2E-ACT-CRIT' });
     await categoryModel.deleteMany({ category_code: 'E2E-ACT-CAT' });
 
+    // Ensure ACTIVITY_READ permission exists
+    let activityReadPerm = await permissionModel.findOne({ code: 'ACTIVITY_READ' });
+    if (!activityReadPerm) {
+      activityReadPerm = await permissionModel.create({
+        code: 'ACTIVITY_READ',
+        name: 'Xem Hoạt động',
+        module: 'Quản lý Hoạt động',
+      });
+    }
+
     // 2. Ensure Roles exist
     let studentRole = await roleModel.findOne({ role_code: 'STUDENT' });
     if (!studentRole) {
@@ -104,7 +117,14 @@ describe('Activities & Completion Rules (e2e)', () => {
         name: 'Student',
         role_code: 'STUDENT',
         description: 'Student role',
+        permissions: [activityReadPerm._id],
       });
+    } else {
+      const currentPerms = studentRole.permissions || [];
+      if (!currentPerms.some((p: any) => p.toString() === activityReadPerm._id.toString())) {
+        studentRole.permissions = [...currentPerms, activityReadPerm._id];
+        await studentRole.save();
+      }
     }
 
     let teacherRole = await roleModel.findOne({ role_code: 'TEACHER' });
@@ -207,11 +227,11 @@ describe('Activities & Completion Rules (e2e)', () => {
   afterAll(async () => {
     // Clean up test data
     if (activityId) {
-      await ruleModel.deleteMany({ club_id: new Types.ObjectId(activityId) });
-      await awardModel.deleteMany({ club_id: new Types.ObjectId(activityId) });
-      await scheduleModel.deleteMany({ club_id: new Types.ObjectId(activityId) });
-      await attendanceModel.deleteMany({ club_id: new Types.ObjectId(activityId) });
-      await memberModel.deleteMany({ club_id: new Types.ObjectId(activityId) });
+      await ruleModel.deleteMany({ activity_id: new Types.ObjectId(activityId) });
+      await awardModel.deleteMany({ activity_id: new Types.ObjectId(activityId) });
+      await scheduleModel.deleteMany({ activity_id: new Types.ObjectId(activityId) });
+      await attendanceModel.deleteMany({ activity_id: new Types.ObjectId(activityId) });
+      await memberModel.deleteMany({ activity_id: new Types.ObjectId(activityId) });
       await clubModel.deleteMany({ _id: new Types.ObjectId(activityId) });
     }
     await academicRecordModel.deleteMany({ student_id: testStudentId });
@@ -293,7 +313,7 @@ describe('Activities & Completion Rules (e2e)', () => {
 
     it('4. POST /api/activity-completion-rules - should create a completion rule with min attendance = 2 and 1 criterion', () => {
       const ruleData = {
-        club_id: activityId,
+        activity_id: activityId,
         semester_id: testSemesterId.toString(),
         minimum_attendance: 2,
         criterion_ids: [testCriterionId.toString()],
@@ -315,10 +335,10 @@ describe('Activities & Completion Rules (e2e)', () => {
     it('5. Check-in 2 times - should automatically award training points and completion status', async () => {
       // 5.1 Create schedule 1
       const sched1 = await request(app.getHttpServer())
-        .post('/api/club-schedules')
+        .post('/api/activity-schedules')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({
-          club_id: activityId,
+          activity_id: activityId,
           title: 'Session 1',
           start_time: new Date('2026-07-10T15:00:00Z'),
           end_time: new Date('2026-07-10T16:00:00Z'),
@@ -329,10 +349,10 @@ describe('Activities & Completion Rules (e2e)', () => {
 
       // 5.2 Create schedule 2
       const sched2 = await request(app.getHttpServer())
-        .post('/api/club-schedules')
+        .post('/api/activity-schedules')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({
-          club_id: activityId,
+          activity_id: activityId,
           title: 'Session 2',
           start_time: new Date('2026-07-11T15:00:00Z'),
           end_time: new Date('2026-07-11T16:00:00Z'),
@@ -346,7 +366,7 @@ describe('Activities & Completion Rules (e2e)', () => {
         .post('/api/club-attendance')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({
-          club_id: activityId,
+          activity_id: activityId,
           schedule_id: scheduleId1,
           student_id: testStudentId.toString(),
           semester_id: testSemesterId.toString(),
@@ -363,7 +383,7 @@ describe('Activities & Completion Rules (e2e)', () => {
 
       // Verify that after 1 check-in, NO award is created yet
       const awardAfterOne = await awardModel.findOne({
-        club_id: new Types.ObjectId(activityId),
+        activity_id: new Types.ObjectId(activityId),
         student_id: testStudentId,
       });
       expect(awardAfterOne).toBeNull();
@@ -373,7 +393,7 @@ describe('Activities & Completion Rules (e2e)', () => {
         .post('/api/club-attendance')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({
-          club_id: activityId,
+          activity_id: activityId,
           schedule_id: scheduleId2,
           student_id: testStudentId.toString(),
           semester_id: testSemesterId.toString(),
@@ -390,7 +410,7 @@ describe('Activities & Completion Rules (e2e)', () => {
 
       // 5.7 Verify AcademicRecord and ActivityCompletionAward creation
       const award = await awardModel.findOne({
-        club_id: new Types.ObjectId(activityId),
+        activity_id: new Types.ObjectId(activityId),
         student_id: testStudentId,
         criterion_id: testCriterionId,
       });
@@ -417,7 +437,7 @@ describe('Activities & Completion Rules (e2e)', () => {
 
       // Verify count in database is still exactly 1
       const awardCount = await awardModel.countDocuments({
-        club_id: new Types.ObjectId(activityId),
+        activity_id: new Types.ObjectId(activityId),
         student_id: testStudentId,
         criterion_id: testCriterionId,
       });

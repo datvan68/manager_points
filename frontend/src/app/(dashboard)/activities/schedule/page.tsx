@@ -22,6 +22,7 @@ export default function ActivitiesSchedulePage() {
         initialActivityId={activityId}
         openCreateOnLoad={searchParams.get('openCreate') === '1'}
         isAdminOrAdvisor={isAdminOrAdvisor}
+        activityType={searchParams.get('activityType') || ''}
       />
     </div>
   );

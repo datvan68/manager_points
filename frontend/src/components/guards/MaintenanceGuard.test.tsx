@@ -103,7 +103,7 @@ describe('MaintenanceGuard', () => {
     vi.mocked(isAdminUser).mockReturnValue(false);
     vi.mocked(usePathname).mockReturnValue('/students/tasks');
     vi.mocked(getModuleIdByPath).mockReturnValue('events');
-    vi.mocked(getMainMaintenanceStatesWithCache).mockResolvedValue({
+    vi.mocked(getMaintenanceStatesWithCache).mockResolvedValue({
       events: true,
       attendance: false,
     });
@@ -128,7 +128,7 @@ describe('MaintenanceGuard', () => {
     vi.mocked(isAdminUser).mockReturnValue(false);
     vi.mocked(usePathname).mockReturnValue('/students/tasks');
     vi.mocked(getModuleIdByPath).mockReturnValue('events');
-    vi.mocked(getMainMaintenanceStatesWithCache).mockResolvedValue({
+    vi.mocked(getMaintenanceStatesWithCache).mockResolvedValue({
       events: false,
       attendance: true,
     });

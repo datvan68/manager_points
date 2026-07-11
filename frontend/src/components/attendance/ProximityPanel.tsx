@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { MapPin, Users, Settings2 } from 'lucide-react';
-import type { AttendanceCheckinData } from '@/api/club-api';
+import type { AttendanceCheckinData } from '@/api/activity-api';
 
 interface ProximityPanelProps {
   latitude: number;

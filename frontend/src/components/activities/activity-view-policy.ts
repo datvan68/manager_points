@@ -5,6 +5,8 @@ export const activityTypeLabels: Record<string, string> = {
   'festival': 'Lễ hội',
 };
 
+export const activityTypes = ['club', 'event', 'activity', 'festival'] as const;
+
 export const activityCategoryLabels: Record<string, string> = {
   'academic': 'Học thuật',
   'sports': 'Thể thao',

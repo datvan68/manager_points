@@ -9,8 +9,8 @@ import {
   ActivityCompletionAward,
   ActivityCompletionAwardDocument,
 } from './schemas/activity-completion-award.schema';
-import { ClubAttendance, ClubAttendanceDocument } from './schemas/club-attendance.schema';
-import { Club, ClubDocument } from '../clubs/schemas/club.schema';
+import { ActivityAttendance, ActivityAttendanceDocument } from './schemas/club-attendance.schema';
+import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
 import { AcademicRecord, AcademicRecordDocument } from '../academic-record/schemas/academic-record.schema';
 import { CreateActivityCompletionRuleDto, UpdateActivityCompletionRuleDto } from './dto/activity-completion-rule.dto';
 
@@ -21,10 +21,10 @@ export class ActivityCompletionService {
     private ruleModel: Model<ActivityCompletionRuleDocument>,
     @InjectModel(ActivityCompletionAward.name)
     private awardModel: Model<ActivityCompletionAwardDocument>,
-    @InjectModel(ClubAttendance.name)
-    private attendanceModel: Model<ClubAttendanceDocument>,
-    @InjectModel(Club.name)
-    private clubModel: Model<ClubDocument>,
+    @InjectModel(ActivityAttendance.name)
+    private attendanceModel: Model<ActivityAttendanceDocument>,
+    @InjectModel(Activity.name)
+    private clubModel: Model<ActivityDocument>,
     @InjectModel(AcademicRecord.name)
     private academicRecordModel: Model<AcademicRecordDocument>,
   ) {}
@@ -33,7 +33,7 @@ export class ActivityCompletionService {
 
   async createRule(dto: CreateActivityCompletionRuleDto): Promise<ActivityCompletionRuleDocument> {
     const existing = await this.ruleModel.findOne({
-      club_id: new Types.ObjectId(dto.club_id),
+      activity_id: new Types.ObjectId(dto.activity_id),
       semester_id: new Types.ObjectId(dto.semester_id),
     }).exec();
 
@@ -42,7 +42,7 @@ export class ActivityCompletionService {
     }
 
     const rule = new this.ruleModel({
-      club_id: new Types.ObjectId(dto.club_id),
+      activity_id: new Types.ObjectId(dto.activity_id),
       semester_id: new Types.ObjectId(dto.semester_id),
       minimum_attendance: dto.minimum_attendance,
       criterion_ids: dto.criterion_ids.map(id => new Types.ObjectId(id)),
@@ -54,7 +54,7 @@ export class ActivityCompletionService {
 
   async findAllRules(): Promise<ActivityCompletionRuleDocument[]> {
     return this.ruleModel.find()
-      .populate('club_id', 'name code')
+      .populate('activity_id', 'name code')
       .populate('semester_id', 'name')
       .populate('criterion_ids', 'name')
       .sort({ createdAt: -1 })
@@ -63,7 +63,7 @@ export class ActivityCompletionService {
 
   async findOneRule(id: string): Promise<ActivityCompletionRuleDocument> {
     const rule = await this.ruleModel.findById(id)
-      .populate('club_id', 'name code')
+      .populate('activity_id', 'name code')
       .populate('semester_id', 'name')
       .populate('criterion_ids', 'name')
       .exec();
@@ -80,12 +80,12 @@ export class ActivityCompletionService {
       throw new NotFoundException(`Không tìm thấy quy tắc hoàn thành với ID: ${id}`);
     }
 
-    if (dto.club_id || dto.semester_id) {
-      const clubId = dto.club_id || rule.club_id.toString();
+    if (dto.activity_id || dto.semester_id) {
+      const activityId = dto.activity_id || rule.activity_id.toString();
       const semesterId = dto.semester_id || rule.semester_id.toString();
       const existing = await this.ruleModel.findOne({
         _id: { $ne: rule._id },
-        club_id: new Types.ObjectId(clubId),
+        activity_id: new Types.ObjectId(activityId),
         semester_id: new Types.ObjectId(semesterId),
       }).exec();
 
@@ -94,7 +94,7 @@ export class ActivityCompletionService {
       }
     }
 
-    if (dto.club_id) rule.club_id = new Types.ObjectId(dto.club_id);
+    if (dto.activity_id) rule.activity_id = new Types.ObjectId(dto.activity_id);
     if (dto.semester_id) rule.semester_id = new Types.ObjectId(dto.semester_id);
     if (dto.minimum_attendance !== undefined) rule.minimum_attendance = dto.minimum_attendance;
     if (dto.criterion_ids) rule.criterion_ids = dto.criterion_ids.map(id => new Types.ObjectId(id));
@@ -112,11 +112,11 @@ export class ActivityCompletionService {
   }
 
   async hasActiveRule(
-    clubId: string | Types.ObjectId,
+    activityId: string | Types.ObjectId,
     semesterId: string | Types.ObjectId,
   ): Promise<boolean> {
     const count = await this.ruleModel.countDocuments({
-      club_id: new Types.ObjectId(clubId),
+      activity_id: new Types.ObjectId(activityId),
       semester_id: new Types.ObjectId(semesterId),
       status: 'active',
     }).exec();
@@ -127,12 +127,12 @@ export class ActivityCompletionService {
 
   async checkAndAwardCompletion(
     studentId: string,
-    clubId: string,
+    activityId: string,
     semesterId: string,
     session?: ClientSession,
   ): Promise<void> {
     const rule = await this.ruleModel.findOne({
-      club_id: new Types.ObjectId(clubId),
+      activity_id: new Types.ObjectId(activityId),
       semester_id: new Types.ObjectId(semesterId),
       status: 'active',
     }).session(session || null).exec();
@@ -141,7 +141,7 @@ export class ActivityCompletionService {
 
     // Count approved attendances where status is present or late
     const attendanceCount = await this.attendanceModel.countDocuments({
-      club_id: new Types.ObjectId(clubId),
+      activity_id: new Types.ObjectId(activityId),
       student_id: new Types.ObjectId(studentId),
       semester_id: new Types.ObjectId(semesterId),
       approval_status: 'approved',
@@ -149,21 +149,21 @@ export class ActivityCompletionService {
     }).session(session || null).exec();
 
     if (attendanceCount >= rule.minimum_attendance) {
-      const club = await this.clubModel.findById(clubId).session(session || null).exec();
+      const club = await this.clubModel.findById(activityId).session(session || null).exec();
       if (!club) {
-        throw new NotFoundException(`Không tìm thấy hoạt động với ID: ${clubId}`);
+        throw new NotFoundException(`Không tìm thấy hoạt động với ID: ${activityId}`);
       }
 
       for (const criterionId of rule.criterion_ids) {
         const existingAward = await this.awardModel.findOne({
-          club_id: new Types.ObjectId(clubId),
+          activity_id: new Types.ObjectId(activityId),
           student_id: new Types.ObjectId(studentId),
           criterion_id: criterionId,
         }).session(session || null).exec();
 
         if (!existingAward) {
           let academicRecord;
-          const idempotencyKey = `activity-completion:${clubId}:${studentId}:${criterionId}`;
+          const idempotencyKey = `activity-completion:${activityId}:${studentId}:${criterionId}`;
 
           try {
             academicRecord = new this.academicRecordModel({
@@ -174,7 +174,7 @@ export class ActivityCompletionService {
               record_title: `Hoàn thành hoạt động: ${club.name}`,
               description: `Đạt tối thiểu ${rule.minimum_attendance} buổi điểm danh tại hoạt động ${club.name}`,
               source_type: 'activity_completion',
-              source_id: clubId,
+              source_id: activityId,
               record_type: 'activity',
               action_type: 'count',
               quantity: 1,
@@ -194,7 +194,7 @@ export class ActivityCompletionService {
 
           if (academicRecord) {
             const newAward = new this.awardModel({
-              club_id: new Types.ObjectId(clubId),
+              activity_id: new Types.ObjectId(activityId),
               student_id: new Types.ObjectId(studentId),
               criterion_id: criterionId,
               semester_id: new Types.ObjectId(semesterId),

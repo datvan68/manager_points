@@ -12,10 +12,17 @@ import {
   getActivityBackgroundConfig,
   getStateButtonConfig,
   normalizeBackgroundConfig,
-  DEFAULT_STATE_BUTTONS
+  DEFAULT_STATE_BUTTONS,
+  activityTypes
 } from './activity-view-policy';
 
 describe('activity-view-policy', () => {
+  describe('activityTypes', () => {
+    it('should contain the four canonical types in order', () => {
+      expect(activityTypes).toEqual(['club', 'event', 'activity', 'festival']);
+    });
+  });
+
   describe('isClubType', () => {
     it('should return true for club', () => {
       expect(isClubType('club')).toBe(true);

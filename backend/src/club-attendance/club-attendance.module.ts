@@ -1,25 +1,25 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ClubAttendanceService } from './club-attendance.service';
-import { ClubAttendanceSyncService } from './club-attendance-sync.service';
-import { ClubAttendanceController } from './club-attendance.controller';
+import { ActivityAttendanceService } from './club-attendance.service';
+import { ActivityAttendanceSyncService } from './club-attendance-sync.service';
+import { ActivityAttendanceController } from './club-attendance.controller';
 import {
-  ClubAttendance,
-  ClubAttendanceSchema,
+  ActivityAttendance,
+  ActivityAttendanceSchema,
 } from './schemas/club-attendance.schema';
 import {
-  ClubAttendanceConfig,
-  ClubAttendanceConfigSchema,
-} from '../club-attendance-config/schemas/club-attendance-config.schema';
+  ActivityAttendanceConfig,
+  ActivityAttendanceConfigSchema,
+} from '../activity-attendance-config/schemas/activity-attendance-config.schema';
 import {
   AcademicRecord,
   AcademicRecordSchema,
 } from '../academic-record/schemas/academic-record.schema';
-import { Club, ClubSchema } from '../clubs/schemas/club.schema';
+import { Activity, ActivitySchema } from '../activities/schemas/activity.schema';
 import {
-  ClubSchedule,
-  ClubScheduleSchema,
-} from '../club-schedules/schemas/club-schedule.schema';
+  ActivitySchedule,
+  ActivityScheduleSchema,
+} from '../activity-schedules/schemas/activity-schedule.schema';
 
 import {
   ActivityCompletionRule,
@@ -35,26 +35,26 @@ import { ActivityCompletionController } from './activity-completion.controller';
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: ClubAttendance.name, schema: ClubAttendanceSchema },
-      { name: ClubAttendanceConfig.name, schema: ClubAttendanceConfigSchema },
+      { name: ActivityAttendance.name, schema: ActivityAttendanceSchema },
+      { name: ActivityAttendanceConfig.name, schema: ActivityAttendanceConfigSchema },
       { name: AcademicRecord.name, schema: AcademicRecordSchema },
-      { name: Club.name, schema: ClubSchema },
-      { name: ClubSchedule.name, schema: ClubScheduleSchema },
+      { name: Activity.name, schema: ActivitySchema },
+      { name: ActivitySchedule.name, schema: ActivityScheduleSchema },
       { name: ActivityCompletionRule.name, schema: ActivityCompletionRuleSchema },
       { name: ActivityCompletionAward.name, schema: ActivityCompletionAwardSchema },
     ]),
   ],
-  controllers: [ClubAttendanceController, ActivityCompletionController],
+  controllers: [ActivityAttendanceController, ActivityCompletionController],
   providers: [
-    ClubAttendanceService,
-    ClubAttendanceSyncService,
+    ActivityAttendanceService,
+    ActivityAttendanceSyncService,
     ActivityCompletionService,
   ],
   exports: [
-    ClubAttendanceService,
-    ClubAttendanceSyncService,
+    ActivityAttendanceService,
+    ActivityAttendanceSyncService,
     ActivityCompletionService,
     MongooseModule,
   ],
 })
-export class ClubAttendanceModule {}
+export class ActivityAttendanceModule {}

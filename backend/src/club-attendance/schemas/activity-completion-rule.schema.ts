@@ -5,8 +5,8 @@ export type ActivityCompletionRuleDocument = ActivityCompletionRule & Document;
 
 @Schema({ timestamps: true, collection: 'activity_completion_rules' })
 export class ActivityCompletionRule {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Club', required: true })
-  club_id: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Activity', required: true })
+  activity_id: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Semester', required: true })
   semester_id: Types.ObjectId;
@@ -35,4 +35,4 @@ export class ActivityCompletionRule {
 export const ActivityCompletionRuleSchema =
   SchemaFactory.createForClass(ActivityCompletionRule);
 
-ActivityCompletionRuleSchema.index({ club_id: 1, semester_id: 1 }, { unique: true });
+ActivityCompletionRuleSchema.index({ activity_id: 1, semester_id: 1 }, { unique: true });

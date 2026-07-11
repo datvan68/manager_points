@@ -16,7 +16,7 @@ export class AttendanceSession {
   @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
   context_id: Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'ClubSchedule' })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'ActivitySchedule' })
   schedule_id: Types.ObjectId;
 
   @Prop({

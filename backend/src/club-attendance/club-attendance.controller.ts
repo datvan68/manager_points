@@ -19,8 +19,8 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
-import { ClubAttendanceService } from './club-attendance.service';
-import { ClubAttendanceSyncService } from './club-attendance-sync.service';
+import { ActivityAttendanceService } from './club-attendance.service';
+import { ActivityAttendanceSyncService } from './club-attendance-sync.service';
 import {
   CreateAttendanceDto,
   BatchAttendanceDto,
@@ -31,22 +31,22 @@ import {
 
 @ApiTags('Activity Attendance')
 @Controller(['club-attendance', 'activity-attendance'])
-export class ClubAttendanceController {
+export class ActivityAttendanceController {
   constructor(
-    private readonly attendanceService: ClubAttendanceService,
-    private readonly syncService: ClubAttendanceSyncService,
+    private readonly attendanceService: ActivityAttendanceService,
+    private readonly syncService: ActivityAttendanceSyncService,
   ) {}
 
   @Post()
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_CREATE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_CREATE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ghi nhận điểm danh sinh viên' })
   create(@Body() dto: CreateAttendanceDto, @Request() req: any) {
     if (dto.activity_id && dto.club_id && dto.activity_id !== dto.club_id) {
       throw new BadRequestException('activity_id and club_id must be identical if both are provided');
     }
-    if (dto.activity_id && !dto.club_id) {
-      dto.club_id = dto.activity_id;
+    if (dto.club_id && !dto.activity_id) {
+      dto.activity_id = dto.club_id;
     }
     const role = (
       req.user.role_code ||
@@ -62,15 +62,15 @@ export class ClubAttendanceController {
   }
 
   @Post('batch')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_CREATE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_CREATE'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Điểm danh hàng loạt (GV điểm danh cả lớp CLB)' })
+  @ApiOperation({ summary: 'Điểm danh hàng loạt (GV điểm danh cả lớp Hoạt động)' })
   batchCreate(@Body() dto: BatchAttendanceDto, @Request() req: any) {
     if (dto.activity_id && dto.club_id && dto.activity_id !== dto.club_id) {
       throw new BadRequestException('activity_id and club_id must be identical if both are provided');
     }
-    if (dto.activity_id && !dto.club_id) {
-      dto.club_id = dto.activity_id;
+    if (dto.club_id && !dto.activity_id) {
+      dto.activity_id = dto.club_id;
     }
     return this.attendanceService.batchCreate(
       dto,
@@ -80,15 +80,15 @@ export class ClubAttendanceController {
   }
 
   @Get()
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_READ'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách điểm danh' })
   findAll(@Query() query: QueryAttendanceDto) {
     if (query.activity_id && query.club_id && query.activity_id !== query.club_id) {
       throw new BadRequestException('activity_id and club_id must be identical if both are provided');
     }
-    if (query.activity_id && !query.club_id) {
-      query.club_id = query.activity_id;
+    if (query.club_id && !query.activity_id) {
+      query.activity_id = query.club_id;
     }
     return this.attendanceService.findAll(query);
   }
@@ -98,56 +98,44 @@ export class ClubAttendanceController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lịch sử điểm danh cá nhân' })
   @ApiQuery({ name: 'semester_id', required: false })
-  @ApiQuery({ name: 'club_id', required: false })
   @ApiQuery({ name: 'activity_id', required: false })
   findMyAttendance(
     @Request() req: any,
     @Query('semester_id') semesterId?: string,
-    @Query('club_id') clubId?: string,
     @Query('activity_id') activityId?: string,
   ) {
-    if (activityId && clubId && activityId !== clubId) {
-      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
-    }
-    const resolvedClubId = activityId || clubId;
     return this.attendanceService.findMyAttendance(
       req.user.studentId || req.user._id,
       semesterId,
-      resolvedClubId,
+      activityId,
     );
   }
 
   @Get('pending-count')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_APPROVE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_APPROVE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Số lượng điểm danh chờ duyệt' })
-  @ApiQuery({ name: 'club_id', required: false })
   @ApiQuery({ name: 'activity_id', required: false })
   getPendingCount(
-    @Query('club_id') clubId?: string,
     @Query('activity_id') activityId?: string,
   ) {
-    if (activityId && clubId && activityId !== clubId) {
-      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
-    }
-    const resolvedClubId = activityId || clubId;
-    return this.attendanceService.getPendingCount(resolvedClubId);
+    return this.attendanceService.getPendingCount(activityId);
   }
 
-  @Get('summary/:clubId')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_READ'))
+  @Get('summary/:activityId')
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Thống kê tổng hợp điểm danh CLB' })
+  @ApiOperation({ summary: 'Thống kê tổng hợp điểm danh Hoạt động' })
   @ApiQuery({ name: 'semester_id', required: true })
   getSummary(
-    @Param('clubId') clubId: string,
+    @Param('activityId') activityId: string,
     @Query('semester_id') semesterId: string,
   ) {
-    return this.attendanceService.getSummary(clubId, semesterId);
+    return this.attendanceService.getSummary(activityId, semesterId);
   }
 
   @Get(':id')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_READ'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Chi tiết bản ghi điểm danh' })
   findOne(@Param('id') id: string) {
@@ -155,7 +143,7 @@ export class ClubAttendanceController {
   }
 
   @Patch(':id')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_UPDATE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_UPDATE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật điểm danh' })
   update(@Param('id') id: string, @Body() updates: any) {
@@ -163,7 +151,7 @@ export class ClubAttendanceController {
   }
 
   @Delete(':id')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_DELETE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_DELETE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa bản ghi điểm danh' })
   remove(@Param('id') id: string) {
@@ -171,7 +159,7 @@ export class ClubAttendanceController {
   }
 
   @Post(':id/approve')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_APPROVE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_APPROVE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Duyệt điểm danh' })
   approve(
@@ -183,7 +171,7 @@ export class ClubAttendanceController {
   }
 
   @Post(':id/reject')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_APPROVE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_APPROVE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Từ chối điểm danh' })
   reject(
@@ -195,7 +183,7 @@ export class ClubAttendanceController {
   }
 
   @Post('batch-approve')
-  @UseGuards(checkPermission('CLUB_ATTENDANCE_APPROVE'))
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_APPROVE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Duyệt hàng loạt điểm danh' })
   batchApprove(@Body() dto: BatchApproveDto, @Request() req: any) {
@@ -205,20 +193,20 @@ export class ClubAttendanceController {
     );
   }
 
-  @Post('sync/:clubId')
-  @UseGuards(checkPermission('CLUB_CONFIG_MANAGE'))
+  @Post('sync/:activityId')
+  @UseGuards(checkPermission('ACTIVITY_CONFIG_MANAGE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Batch sync điểm danh đã duyệt → điểm rèn luyện' })
   @ApiQuery({ name: 'semester_id', required: true })
   batchSync(
-    @Param('clubId') clubId: string,
+    @Param('activityId') activityId: string,
     @Query('semester_id') semesterId: string,
   ) {
-    return this.syncService.batchSyncClubAttendance(clubId, semesterId);
+    return this.syncService.batchSyncActivityAttendance(activityId, semesterId);
   }
 
   @Post(':id/retry-sync')
-  @UseGuards(checkPermission('CLUB_CONFIG_MANAGE'))
+  @UseGuards(checkPermission('ACTIVITY_CONFIG_MANAGE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Retry sync 1 bản ghi điểm danh → điểm rèn luyện' })
   retrySync(@Param('id') id: string) {

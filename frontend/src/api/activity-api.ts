@@ -615,3 +615,149 @@ export const activityCompletionRuleApi = {
     return handleResponse(res);
   },
 };
+
+// ── Attendance Session API & Types ──
+
+export interface AttendanceSessionData {
+  _id: string;
+  context_type: string;
+  context_id: string;
+  schedule_id?: string;
+  semester_id: string;
+  method: 'qr' | 'proximity' | 'manual';
+  status: 'active' | 'closed' | 'expired';
+  qr_token?: string;
+  qr_token_expires_at?: string;
+  qr_refresh_interval?: number;
+  latitude?: number;
+  longitude?: number;
+  radius_meters?: number;
+  opened_by: any;
+  opened_at: string;
+  closed_at?: string;
+  auto_close_at?: string;
+  allow_late_checkin: boolean;
+  auto_approve: boolean;
+  max_checkins?: number;
+  title?: string;
+  description?: string;
+  checkin_count: number;
+  createdAt: string;
+}
+
+export interface AttendanceCheckinData {
+  _id: string;
+  session_id: string;
+  student_id: any;
+  method: 'qr' | 'proximity';
+  status: string;
+  checked_in_at: string;
+  latitude?: number;
+  longitude?: number;
+  distance_meters?: number;
+  qr_token_used?: string;
+  synced: boolean;
+  createdAt: string;
+}
+
+export interface QrData {
+  token: string;
+  expires_at: string;
+  refresh_interval: number;
+  checkin_count: number;
+}
+
+export const attendanceSessionApi = {
+  async openSession(data: {
+    context_type: string;
+    context_id: string;
+    schedule_id?: string;
+    semester_id: string;
+    method: 'qr' | 'proximity';
+    latitude?: number;
+    longitude?: number;
+    radius_meters?: number;
+    qr_refresh_interval?: number;
+    auto_approve?: boolean;
+    allow_late_checkin?: boolean;
+    auto_close_at?: string;
+    title?: string;
+    description?: string;
+    max_checkins?: number;
+  }): Promise<AttendanceSessionData> {
+    const res = await httpClient(`${API_BASE}/attendance-sessions`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<AttendanceSessionData>(res);
+  },
+
+  async getActiveSession(params: {
+    context_type: string;
+    context_id: string;
+  }): Promise<AttendanceSessionData | null> {
+    const res = await httpClient(
+      `${API_BASE}/attendance-sessions/active${buildQuery(params)}`,
+    );
+    return handleResponse<AttendanceSessionData | null>(res);
+  },
+
+  async getSessionById(id: string): Promise<AttendanceSessionData> {
+    const res = await httpClient(`${API_BASE}/attendance-sessions/${id}`);
+    return handleResponse<AttendanceSessionData>(res);
+  },
+
+  async getQrData(id: string): Promise<QrData> {
+    const res = await httpClient(`${API_BASE}/attendance-sessions/${id}/qr`);
+    return handleResponse<QrData>(res);
+  },
+
+  async closeSession(id: string): Promise<AttendanceSessionData> {
+    const res = await httpClient(`${API_BASE}/attendance-sessions/${id}/close`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({}),
+    });
+    return handleResponse<AttendanceSessionData>(res);
+  },
+
+  async checkinQr(data: { token: string }): Promise<AttendanceCheckinData> {
+    const res = await httpClient(`${API_BASE}/attendance-sessions/checkin/qr`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<AttendanceCheckinData>(res);
+  },
+
+  async checkinProximity(data: {
+    session_id: string;
+    latitude: number;
+    longitude: number;
+  }): Promise<AttendanceCheckinData> {
+    const res = await httpClient(`${API_BASE}/attendance-sessions/checkin/proximity`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(data),
+    });
+    return handleResponse<AttendanceCheckinData>(res);
+  },
+
+  async getCheckins(sessionId: string): Promise<AttendanceCheckinData[]> {
+    const res = await httpClient(`${API_BASE}/attendance-sessions/${sessionId}/checkins`);
+    return handleResponse<AttendanceCheckinData[]>(res);
+  },
+
+  async getSessionHistory(params: {
+    context_type: string;
+    context_id: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ items: AttendanceSessionData[]; total: number }> {
+    const res = await httpClient(
+      `${API_BASE}/attendance-sessions/history${buildQuery(params)}`,
+    );
+    return handleResponse(res);
+  },
+};

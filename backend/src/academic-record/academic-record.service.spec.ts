@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { normalizeObjectId } from './academic-record.utils';
+import { ScoreEngineService } from './score-engine.service';
+import { CountResolutionService } from './count-resolution.service';
 
 describe('AcademicRecordService - Import Flow', () => {
   let service: AcademicRecordService;
@@ -101,6 +103,8 @@ describe('AcademicRecordService - Import Flow', () => {
           provide: SummariesPointService,
           useValue: mockSummariesPointService,
         },
+        ScoreEngineService,
+        CountResolutionService,
       ],
     }).compile();
 
