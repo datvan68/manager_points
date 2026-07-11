@@ -172,17 +172,26 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
 
   // Tải trước danh sách cấu hình phân quyền động từ Database khi component mount
   useEffect(() => {
+    const controller = new AbortController();
     const fetchMappings = async () => {
       try {
         const { tokenStorage } = await import('@/api/auth-api');
         const token = tokenStorage.getAccessToken() || '';
-        const data = await authApi.getRoutePermissionsPublic(token);
-        setRouteMappings(data);
-      } catch (err) {
-        console.error('Failed to fetch route permission mappings:', err);
+        const data = await authApi.getRoutePermissionsPublic(token, controller.signal);
+        if (!controller.signal.aborted) {
+          setRouteMappings(data);
+        }
+      } catch (err: any) {
+        const isAbort = controller.signal.aborted || err?.name === 'AbortError';
+        if (!isAbort) {
+          console.error('Failed to fetch route permission mappings:', err);
+        }
       }
     };
     fetchMappings();
+    return () => {
+      controller.abort();
+    };
   }, [refreshTrigger]);
 
   // Keep module cards synced with server-backed maintenance states.

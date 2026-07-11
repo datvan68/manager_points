@@ -1,4 +1,4 @@
-import { tokenStorage, authApi, RefreshResponse } from './auth-api';
+import type { RefreshResponse } from './auth-api';
 import { toast } from 'sonner';
 
 export class ApiError extends Error {
@@ -40,7 +40,8 @@ let refreshPromise: Promise<RefreshResponse> | null = null;
 const authChannel = typeof window !== 'undefined' ? new BroadcastChannel('auth_sync_channel') : null;
 
 if (authChannel) {
-  authChannel.onmessage = (event) => {
+  authChannel.onmessage = async (event) => {
+    const { tokenStorage } = await import('./auth-api');
     if (event.data.type === 'TOKEN_REFRESHED') {
       tokenStorage.setAccessToken(event.data.token);
       onRefreshed(event.data.token);
@@ -140,6 +141,7 @@ export async function synchronizedRefreshToken(forceSelf = false): Promise<Refre
     authChannel.postMessage({ type: 'REFRESH_STARTED', ownerId: TAB_ID });
   }
 
+  const { authApi } = await import('./auth-api');
   refreshPromise = authApi.refreshToken().then((result) => {
     if (authChannel) {
       authChannel.postMessage({ type: 'TOKEN_REFRESHED', token: result.access_token });
@@ -159,6 +161,7 @@ export async function synchronizedRefreshToken(forceSelf = false): Promise<Refre
 }
 
 export async function httpClient(url: string, options: RequestInit = {}): Promise<Response> {
+  const { tokenStorage } = await import('./auth-api');
   const token = tokenStorage.getAccessToken();
   const headers = new Headers(options.headers || {});
   
@@ -257,3 +260,58 @@ export async function handleResponse<T>(res: Response): Promise<T> {
   }
   return data as T;
 }
+
+export async function fetchWithRetry(url: string, options: RequestInit = {}): Promise<Response> {
+  const method = (options.method || 'GET').toUpperCase();
+  const isIdempotent = method === 'GET' || method === 'HEAD';
+
+  if (!isIdempotent) {
+    return fetch(url, options);
+  }
+
+  const maxAttempts = 4;
+  const delays = [500, 1000, 2000];
+  const signal = options.signal;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (signal?.aborted) {
+      throw new DOMException('The user aborted a request.', 'AbortError');
+    }
+
+    try {
+      return await fetch(url, options);
+    } catch (error: any) {
+      if (error.name === 'AbortError' || signal?.aborted) {
+        throw error;
+      }
+
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+
+      const delayMs = delays[attempt - 1];
+      await new Promise<void>((resolve, reject) => {
+        let timeoutId: any;
+
+        const onAbort = () => {
+          clearTimeout(timeoutId);
+          reject(new DOMException('The user aborted a request.', 'AbortError'));
+        };
+
+        if (signal) {
+          signal.addEventListener('abort', onAbort);
+        }
+
+        timeoutId = setTimeout(() => {
+          if (signal) {
+            signal.removeEventListener('abort', onAbort);
+          }
+          resolve();
+        }, delayMs);
+      });
+    }
+  }
+
+  throw new Error('Unreachable');
+}
+

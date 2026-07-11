@@ -1,5 +1,6 @@
 import { API_BASE } from './config';
 import { apiCache } from './api-cache';
+import { fetchWithRetry } from './http-client';
 
 export interface LoginResponse {
   access_token: string;
@@ -381,13 +382,14 @@ export const authApi = {
     return handleResponse<any[]>(res);
   },
 
-  async getRoutePermissionsPublic(accessToken?: string): Promise<any[]> {
+  async getRoutePermissionsPublic(accessToken?: string, signal?: AbortSignal): Promise<any[]> {
     const headers: Record<string, string> = {};
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
     }
-    const res = await fetch(`${API_BASE}/auth/route-permissions/all`, {
-      headers
+    const res = await fetchWithRetry(`${API_BASE}/auth/route-permissions/all`, {
+      headers,
+      signal
     });
     return handleResponse<any[]>(res);
   },
