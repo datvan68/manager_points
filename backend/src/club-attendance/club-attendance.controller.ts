@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -28,8 +29,8 @@ import {
   QueryAttendanceDto,
 } from './dto/attendance.dto';
 
-@ApiTags('Club Attendance')
-@Controller('club-attendance')
+@ApiTags('Activity Attendance')
+@Controller(['club-attendance', 'activity-attendance'])
 export class ClubAttendanceController {
   constructor(
     private readonly attendanceService: ClubAttendanceService,
@@ -41,6 +42,12 @@ export class ClubAttendanceController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ghi nhận điểm danh sinh viên' })
   create(@Body() dto: CreateAttendanceDto, @Request() req: any) {
+    if (dto.activity_id && dto.club_id && dto.activity_id !== dto.club_id) {
+      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
+    }
+    if (dto.activity_id && !dto.club_id) {
+      dto.club_id = dto.activity_id;
+    }
     const role = (
       req.user.role_code ||
       req.user.roleName ||
@@ -59,6 +66,12 @@ export class ClubAttendanceController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Điểm danh hàng loạt (GV điểm danh cả lớp CLB)' })
   batchCreate(@Body() dto: BatchAttendanceDto, @Request() req: any) {
+    if (dto.activity_id && dto.club_id && dto.activity_id !== dto.club_id) {
+      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
+    }
+    if (dto.activity_id && !dto.club_id) {
+      dto.club_id = dto.activity_id;
+    }
     return this.attendanceService.batchCreate(
       dto,
       req.user._id || req.user.id,
@@ -71,6 +84,12 @@ export class ClubAttendanceController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách điểm danh' })
   findAll(@Query() query: QueryAttendanceDto) {
+    if (query.activity_id && query.club_id && query.activity_id !== query.club_id) {
+      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
+    }
+    if (query.activity_id && !query.club_id) {
+      query.club_id = query.activity_id;
+    }
     return this.attendanceService.findAll(query);
   }
 
@@ -80,15 +99,21 @@ export class ClubAttendanceController {
   @ApiOperation({ summary: 'Lịch sử điểm danh cá nhân' })
   @ApiQuery({ name: 'semester_id', required: false })
   @ApiQuery({ name: 'club_id', required: false })
+  @ApiQuery({ name: 'activity_id', required: false })
   findMyAttendance(
     @Request() req: any,
     @Query('semester_id') semesterId?: string,
     @Query('club_id') clubId?: string,
+    @Query('activity_id') activityId?: string,
   ) {
+    if (activityId && clubId && activityId !== clubId) {
+      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
+    }
+    const resolvedClubId = activityId || clubId;
     return this.attendanceService.findMyAttendance(
       req.user.studentId || req.user._id,
       semesterId,
-      clubId,
+      resolvedClubId,
     );
   }
 
@@ -97,8 +122,16 @@ export class ClubAttendanceController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Số lượng điểm danh chờ duyệt' })
   @ApiQuery({ name: 'club_id', required: false })
-  getPendingCount(@Query('club_id') clubId?: string) {
-    return this.attendanceService.getPendingCount(clubId);
+  @ApiQuery({ name: 'activity_id', required: false })
+  getPendingCount(
+    @Query('club_id') clubId?: string,
+    @Query('activity_id') activityId?: string,
+  ) {
+    if (activityId && clubId && activityId !== clubId) {
+      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
+    }
+    const resolvedClubId = activityId || clubId;
+    return this.attendanceService.getPendingCount(resolvedClubId);
   }
 
   @Get('summary/:clubId')

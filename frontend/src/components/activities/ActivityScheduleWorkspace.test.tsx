@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, createEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import ActivityScheduleWorkspace from './ActivityScheduleWorkspace';
 import { activityApi, activityScheduleApi } from '@/api/activity-api';
@@ -12,6 +12,7 @@ vi.mock('@/api/activity-api', () => ({
   activityScheduleApi: {
     getAll: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
     delete: vi.fn(),
     cancelRecurrence: vi.fn(),
   },
@@ -44,6 +45,7 @@ describe('ActivityScheduleWorkspace', () => {
     vi.mocked(activityApi.getAll).mockResolvedValue(mockActivities as any);
     vi.mocked(semesterApi.getSemesters).mockResolvedValue(mockSemesters as any);
     vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(activityScheduleApi.update).mockResolvedValue({} as any);
   });
 
   it('renders dropdown filters and week headers correctly', async () => {
@@ -308,5 +310,142 @@ describe('ActivityScheduleWorkspace', () => {
     expect(screen.getByPlaceholderText('Ví dụ: Phòng máy B.202')).toBeInTheDocument();
     expect(screen.getByText('Giờ bắt đầu')).toBeInTheDocument();
     expect(screen.getByText('Giờ kết thúc')).toBeInTheDocument();
+  });
+
+  it('correctly handles drag/save of existing non-recurring schedule with populated objects, calling update with scalar IDs', async () => {
+    const mockSchedules: any[] = [
+      {
+        _id: 'existing-schedule-id',
+        title: 'Existing Meeting',
+        start_time: '2026-07-11T08:00:00.000Z',
+        end_time: '2026-07-11T10:00:00.000Z',
+        club_id: { _id: 'act1', name: 'Academic Club', code: 'AC_CLUB', category: 'academic' },
+        semester_id: { _id: 'sem1', semester_name: 'Semester 1', start_date: '2026-01-01', end_date: '2026-06-30' },
+        location: 'Room 101',
+        schedule_type: 'regular'
+      }
+    ];
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSchedules, total: 1 });
+
+    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Existing Meeting')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Đã xếp lịch')).toBeInTheDocument();
+    expect(screen.queryByText(/Đã xếp \(/)).not.toBeInTheDocument();
+
+    const scheduleCard = screen.getByText('Existing Meeting');
+    const cells = screen.getAllByText('Trống');
+    const dropTarget = cells[0];
+
+    const dragStartEvent = createEvent.dragStart(scheduleCard);
+    const dataTransfer = {
+      data: {} as Record<string, string>,
+      setData(type: string, val: string) { this.data[type] = val; },
+      getData(type: string) { return this.data[type]; }
+    };
+    Object.defineProperty(dragStartEvent, 'dataTransfer', { value: dataTransfer });
+    fireEvent(scheduleCard, dragStartEvent);
+
+    const dropEvent = createEvent.drop(dropTarget);
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
+    fireEvent(dropTarget, dropEvent);
+
+    await waitFor(() => {
+      expect(screen.getByText('Chưa lưu')).toBeInTheDocument();
+    });
+
+    const saveBtn = screen.getByTitle('Lưu');
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(activityScheduleApi.update).toHaveBeenCalledWith(
+        'existing-schedule-id',
+        expect.objectContaining({
+          club_id: 'act1',
+          semester_id: 'sem1',
+        })
+      );
+      expect(activityScheduleApi.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  it('renders compact mode with more than one session, and preserves detailed layout with one session', async () => {
+    const today = new Date();
+    const startStr = today.toISOString();
+    const endStr = new Date(today.getTime() + 7200000).toISOString();
+
+    const mockSchedules: any[] = [
+      {
+        _id: 'sched1',
+        title: 'Meeting 1',
+        start_time: startStr,
+        end_time: endStr,
+        club_id: 'act1',
+        semester_id: 'sem1',
+        location: 'Room 301',
+        schedule_type: 'regular'
+      },
+      {
+        _id: 'sched2',
+        title: 'Meeting 2',
+        start_time: startStr,
+        end_time: endStr,
+        club_id: 'act1',
+        semester_id: 'sem1',
+        location: 'Room 302',
+        schedule_type: 'regular'
+      }
+    ];
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSchedules, total: 2 });
+
+    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+
+    await waitFor(() => {
+      // 1 in sidebar, 2 in compact cards = 3
+      const academicClubs = screen.getAllByText('Academic Club');
+      expect(academicClubs.length).toBe(3);
+    });
+
+    const compactCard = screen.getAllByText('Academic Club')[1];
+    fireEvent.doubleClick(compactCard);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cấu hình buổi sinh hoạt')).toBeInTheDocument();
+    });
+  });
+
+  it('renders detailed layout for single session', async () => {
+    const today = new Date();
+    const startStr = today.toISOString();
+    const endStr = new Date(today.getTime() + 7200000).toISOString();
+
+    const mockSchedules: any[] = [
+      {
+        _id: 'sched1',
+        title: 'Meeting 1',
+        start_time: startStr,
+        end_time: endStr,
+        club_id: 'act1',
+        semester_id: 'sem1',
+        location: 'Room 301',
+        schedule_type: 'regular'
+      }
+    ];
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSchedules, total: 1 });
+
+    render(<ActivityScheduleWorkspace initialActivityId="act1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Meeting 1')).toBeInTheDocument();
+      // Academic Club should only appear 1 time (in sidebar)
+      const academicClubs = screen.getAllByText('Academic Club');
+      expect(academicClubs.length).toBe(1);
+    });
   });
 });

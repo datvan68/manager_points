@@ -15,7 +15,7 @@ export default function ActivitiesSchedulePage() {
   const isAdminOrAdvisor = isAdminUser(user) || isTeacherRole(user);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 overflow-y-auto h-full custom-scrollbar">
 
 
       <ActivityScheduleWorkspace

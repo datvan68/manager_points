@@ -35,13 +35,12 @@ export class ClubScheduleActiveNotificationService {
       // status is scheduled or ongoing
       // start_time <= now
       // now < end_time
-      const activeSchedules = await this.scheduleModel
-        .find({
-          status: { $in: ['scheduled', 'ongoing'] },
-          start_time: { $lte: now },
-          end_time: { $gt: now },
-        })
-        .exec();
+      const query = this.scheduleModel.find({
+        status: { $in: ['scheduled', 'ongoing'] },
+        start_time: { $lte: now },
+        end_time: { $gt: now },
+      });
+      const activeSchedules = await (typeof query.populate === 'function' ? query.populate('club_id') : query).exec();
 
       if (activeSchedules.length === 0) {
         return;
@@ -51,11 +50,19 @@ export class ClubScheduleActiveNotificationService {
 
       for (const schedule of activeSchedules) {
         const scheduleIdStr = schedule._id.toString();
+        const clubObj = schedule.club_id as any;
+        const isClub = clubObj && typeof clubObj === 'object' && clubObj.activity_type !== undefined
+          ? clubObj.activity_type === 'club'
+          : true;
+        const resolvedClubId = clubObj && typeof clubObj === 'object' && clubObj._id
+          ? clubObj._id
+          : schedule.club_id;
+        const clubIdStr = resolvedClubId.toString();
 
         // Retrieve active members of the club for the corresponding semester
         const members = await this.clubMemberModel
           .find({
-            club_id: schedule.club_id,
+            club_id: resolvedClubId,
             semester_id: schedule.semester_id,
             status: 'active',
           })
@@ -92,16 +99,16 @@ export class ClubScheduleActiveNotificationService {
             : `"${schedule.title}" is happening now.`;
 
           const payload = {
-            title: 'Club session is happening now',
+            title: isClub ? 'Club session is happening now' : 'Activity session is happening now',
             description,
             type: 'info' as const,
-            routeUrl: `/club/clubs/${schedule.club_id}?tab=schedules`,
+            routeUrl: `/activities/${clubIdStr}?tab=schedule`,
             recipientUserId,
             targetRole: 'student' as const,
             source: 'club_schedule_active',
             metadata: {
               schedule_id: schedule._id.toString(),
-              club_id: schedule.club_id.toString(),
+              club_id: clubIdStr,
               semester_id: schedule.semester_id.toString(),
               start_time: schedule.start_time.toISOString(),
               end_time: schedule.end_time.toISOString(),

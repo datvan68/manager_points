@@ -15,6 +15,11 @@ export class CreateAttendanceConfigDto {
   @IsMongoId()
   club_id?: string;
 
+  @ApiPropertyOptional({ description: 'Activity ID (null for default config)' })
+  @IsOptional()
+  @IsMongoId()
+  activity_id?: string;
+
   @ApiProperty({ description: 'Semester ID' })
   @IsMongoId()
   semester_id: string;

@@ -83,11 +83,11 @@ const INITIAL_MODULES = [
   {
     id: 'club',
     group: 'Club',
-    name: 'Câu lạc bộ',
-    desc: 'Nơi sinh hoạt ngoại khóa, đăng ký thành viên và lên kế hoạch hoạt động CLB.',
+    name: 'Hoạt động',
+    desc: 'Nơi sinh hoạt ngoại khóa, đăng ký tham gia và lên kế hoạch hoạt động.',
     status: 'ACTIVE',
     stat: { type: 'event', label: 'Đang mở đăng ký' },
-    href: '/club',
+    href: '/activities',
     icon: Compass
   },
   {
@@ -571,12 +571,12 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                 </div>
               )}
 
-              {/* Nhóm Câu lạc bộ */}
+              {/* Nhóm Hoạt động */}
               {filteredModules.some(m => m.group === 'Club') && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <Compass size={16} className="text-slate-400" />
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">NHÓM CÂU LẠC BỘ</span>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">NHÓM HOẠT ĐỘNG</span>
                     <div className="flex-1 h-[1px] bg-slate-100" />
                   </div>
 

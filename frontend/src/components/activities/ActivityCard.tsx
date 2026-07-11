@@ -12,7 +12,7 @@ import {
   getPatternStyle,
   getStateButtonConfig
 } from './activity-view-policy';
-import { getClubScheduleSummary as getActivityScheduleSummary } from '@/app/(dashboard)/club/clubs/schedule-helper';
+import { getClubScheduleSummary as getActivityScheduleSummary } from '@/components/activities/utils/schedule-helper';
 
 // Pet Accent Layer Component
 const PetAccentLayer = ({ type, color }: { type?: string; color: string }) => {

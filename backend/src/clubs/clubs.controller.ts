@@ -42,7 +42,7 @@ import {
   AdminTransferClubDto,
 } from './dto/club-member.dto';
 
-@ApiTags('Clubs')
+@ApiTags('Activities')
 @Controller(['clubs', 'activities'])
 export class ClubsController {
   constructor(private readonly clubsService: ClubsService) {}

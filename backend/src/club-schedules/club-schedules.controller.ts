@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,7 +24,7 @@ import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { QueryScheduleDto } from './dto/query-schedule.dto';
 
-@ApiTags('Club Schedules')
+@ApiTags('Activity Schedules')
 @Controller(['club-schedules', 'activity-schedules'])
 export class ClubSchedulesController {
   constructor(private readonly schedulesService: ClubSchedulesService) {}
@@ -33,6 +34,12 @@ export class ClubSchedulesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo lịch sinh hoạt CLB' })
   create(@Body() dto: CreateScheduleDto, @Request() req: any) {
+    if (dto.activity_id && dto.club_id && dto.activity_id !== dto.club_id) {
+      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
+    }
+    if (dto.activity_id && !dto.club_id) {
+      dto.club_id = dto.activity_id;
+    }
     return this.schedulesService.create(dto, req.user._id || req.user.id);
   }
 
@@ -41,6 +48,12 @@ export class ClubSchedulesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách lịch sinh hoạt' })
   findAll(@Query() query: QueryScheduleDto) {
+    if (query.activity_id && query.club_id && query.activity_id !== query.club_id) {
+      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
+    }
+    if (query.activity_id && !query.club_id) {
+      query.club_id = query.activity_id;
+    }
     return this.schedulesService.findAll(query);
   }
 
@@ -59,12 +72,18 @@ export class ClubSchedulesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lịch sinh hoạt sắp tới' })
   @ApiQuery({ name: 'club_id', required: false })
+  @ApiQuery({ name: 'activity_id', required: false })
   @ApiQuery({ name: 'limit', required: false })
   findUpcoming(
     @Query('club_id') clubId?: string,
+    @Query('activity_id') activityId?: string,
     @Query('limit') limit?: number,
   ) {
-    return this.schedulesService.findUpcoming(clubId, limit ? +limit : 10);
+    if (activityId && clubId && activityId !== clubId) {
+      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
+    }
+    const resolvedClubId = activityId || clubId;
+    return this.schedulesService.findUpcoming(resolvedClubId, limit ? +limit : 10);
   }
 
   @Get('club/:clubId/timeline')

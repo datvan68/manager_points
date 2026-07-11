@@ -69,7 +69,7 @@ export function getActivityStatusLabel(status?: string): string {
 
 // ── Background Configuration & Templates ──
 
-import { BACKGROUND_PRESETS, getClubAccentColor } from '@/app/(dashboard)/club/clubs/schedule-helper';
+import { BACKGROUND_PRESETS, getClubAccentColor } from '@/components/activities/utils/schedule-helper';
 import { API_ORIGIN } from '@/api/config';
 import React from 'react';
 

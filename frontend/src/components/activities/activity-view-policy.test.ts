@@ -11,7 +11,8 @@ import {
   isDarkTemplate,
   getActivityBackgroundConfig,
   getStateButtonConfig,
-  normalizeBackgroundConfig
+  normalizeBackgroundConfig,
+  DEFAULT_STATE_BUTTONS
 } from './activity-view-policy';
 
 describe('activity-view-policy', () => {
@@ -216,7 +217,7 @@ describe('activity-view-policy', () => {
       expect(normalized.backgroundImageUrl).toBe('/path.png');
       expect(normalized.useAvatarAsBackground).toBe(true);
       expect(normalized.petAccentType).toBe('cat-slide');
-      expect(normalized.states).toEqual({});
+      expect(normalized.states).toEqual(DEFAULT_STATE_BUTTONS);
     });
   });
 });

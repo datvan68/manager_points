@@ -12,6 +12,7 @@ export const PATH_TO_MODULE_ID: Record<string, string> = {
   '/students': 'sv-profile',
   '/grading': 'grading',
   '/dormitory': 'dormitory',
+  '/activities': 'club',
   '/club': 'club',
   '/permissions': 'security',
   '/system': 'config',

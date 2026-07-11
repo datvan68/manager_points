@@ -62,6 +62,15 @@ Hệ thống cung cấp song song các endpoint alias phục vụ tương thích
 
 Các API phía frontend đã được chuyển đổi để ưu tiên gọi các Endpoint Mới.
 
+### 4.1 Frontend Redirects (Chuyển hướng Frontend)
+
+Để hỗ trợ người dùng truy cập các đường dẫn cũ, hệ thống tự động chuyển hướng (Server-side redirect) từ `/club/**` sang `/activities/**` như sau:
+- `/club`, `/club/clubs` -> `/activities?activityType=club`
+- `/club/clubs/:id` -> `/activities/:id`
+- `/club/schedules` -> `/activities/schedule?activityType=club`
+- `/club/my` -> `/activities/my?activityType=club`
+- Các trang cấu hình và điểm danh cũ của CLB đều được chuyển hướng về trang danh sách hoạt động `/activities?activityType=club`.
+
 ---
 
 ## 5. Hướng Dẫn Chạy Migration Dữ Liệu Cũ Local

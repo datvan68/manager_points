@@ -202,7 +202,7 @@ export default function ActivitiesPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 overflow-y-auto h-full custom-scrollbar">
       <ActivityListWorkspace
         activities={activities}
         loading={loading || statusLoading}

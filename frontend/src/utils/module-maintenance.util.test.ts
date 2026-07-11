@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getModuleIdByPath, getMaintenanceStatesWithCache } from './module-maintenance.util';
 import { systemApi } from '@/api/system-api';
 
@@ -23,18 +23,23 @@ describe('module-maintenance.util', () => {
       expect(getModuleIdByPath('/grading/score')).toBe('grading');
       expect(getModuleIdByPath('/grading/categories')).toBe('grading');
       expect(getModuleIdByPath('/dormitory')).toBe('dormitory');
+      expect(getModuleIdByPath('/activities')).toBe('club');
+      expect(getModuleIdByPath('/activities/')).toBe('club');
+      expect(getModuleIdByPath('/activities/123')).toBe('club');
       expect(getModuleIdByPath('/club')).toBe('club');
     });
 
     it('should normalize trailing slashes', () => {
       expect(getModuleIdByPath('/students/tasks/')).toBe('events');
       expect(getModuleIdByPath('/grading/score/')).toBe('grading');
+      expect(getModuleIdByPath('/activities/')).toBe('club');
       expect(getModuleIdByPath('/club/')).toBe('club');
     });
 
     it('should strip query parameters and hash anchors', () => {
       expect(getModuleIdByPath('/students/tasks?taskId=123&test=1')).toBe('events');
       expect(getModuleIdByPath('/grading/score?taskId=456#anchor')).toBe('grading');
+      expect(getModuleIdByPath('/activities?tab=attendance')).toBe('club');
       expect(getModuleIdByPath('/club#section-1')).toBe('club');
       expect(getModuleIdByPath('/students/record/?date=today')).toBe('attendance');
     });
@@ -46,11 +51,25 @@ describe('module-maintenance.util', () => {
   });
 
   describe('getMaintenanceStatesWithCache', () => {
+    let mockTime = 1000000;
+
+    beforeEach(() => {
+      mockTime = 1000000;
+      vi.spyOn(Date, 'now').mockImplementation(() => mockTime);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     it('should call systemApi.getModuleMaintenanceStates and cache results', async () => {
       const mockStates = { events: true, grading: false };
       vi.mocked(systemApi.getModuleMaintenanceStates).mockResolvedValue({
         states: mockStates,
       });
+
+      // Advance time to bypass previous tests' cache
+      mockTime += 10000;
 
       // First call
       const res1 = await getMaintenanceStatesWithCache();
@@ -67,22 +86,24 @@ describe('module-maintenance.util', () => {
       const mockStates1 = { events: true };
       const mockStates2 = { events: false };
       vi.mocked(systemApi.getModuleMaintenanceStates)
+        .mockReset()
         .mockResolvedValueOnce({ states: mockStates1 })
         .mockResolvedValueOnce({ states: mockStates2 });
+
+      // Advance time to bypass previous tests' cache
+      mockTime += 20000;
 
       // First call
       await getMaintenanceStatesWithCache();
       expect(systemApi.getModuleMaintenanceStates).toHaveBeenCalledTimes(1);
 
       // Advance time by 6 seconds (TTL is 5s)
-      vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6000);
+      mockTime += 6000;
 
       // Second call (should refetch)
       const res = await getMaintenanceStatesWithCache();
       expect(res).toEqual(mockStates2);
       expect(systemApi.getModuleMaintenanceStates).toHaveBeenCalledTimes(2);
-
-      vi.restoreAllMocks();
     });
   });
 });

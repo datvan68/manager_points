@@ -8,6 +8,11 @@ export class QueryScheduleDto {
   @IsMongoId()
   club_id?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by activity ID' })
+  @IsOptional()
+  @IsMongoId()
+  activity_id?: string;
+
   @ApiPropertyOptional({ description: 'Filter by semester ID' })
   @IsOptional()
   @IsMongoId()

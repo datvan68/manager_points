@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,16 +24,18 @@ import {
   UpdateAttendanceConfigDto,
 } from './dto/attendance-config.dto';
 
-@ApiTags('Club Attendance Config')
-@Controller('club-attendance-config')
+@ApiTags('Activity Attendance Config')
+@Controller(['club-attendance-config', 'activity-attendance-config'])
 export class ClubAttendanceConfigController {
   constructor(private readonly configService: ClubAttendanceConfigService) {}
 
-  @Post()
-  @UseGuards(checkPermission('CLUB_CONFIG_MANAGE'))
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Tạo cấu hình điểm danh → điểm rèn luyện' })
   create(@Body() dto: CreateAttendanceConfigDto, @Request() req: any) {
+    if (dto.activity_id && dto.club_id && dto.activity_id !== dto.club_id) {
+      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
+    }
+    if (dto.activity_id && !dto.club_id) {
+      dto.club_id = dto.activity_id;
+    }
     return this.configService.create(dto, req.user._id || req.user.id);
   }
 
@@ -45,10 +48,10 @@ export class ClubAttendanceConfigController {
     return this.configService.findAll(semesterId);
   }
 
-  @Get('club/:clubId')
+  @Get(['club/:clubId', 'activity/:clubId'])
   @UseGuards(checkPermission('CLUB_CONFIG_READ'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Cấu hình của CLB cụ thể (fallback sang default)' })
+  @ApiOperation({ summary: 'Cấu hình của CLB/Hoạt động cụ thể (fallback sang default)' })
   @ApiQuery({ name: 'semester_id', required: true })
   findByClub(
     @Param('clubId') clubId: string,

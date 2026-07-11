@@ -62,8 +62,8 @@ body {
 
 /* Custom scrollbar: modern, thin and rounded */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -71,13 +71,13 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
+  background-color: rgba(148, 163, 184, 0.25);
   border-radius: 9999px;
   transition: background-color 0.2s;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+  background-color: rgba(148, 163, 184, 0.5);
 }
 
 /* Mobile adjustments for Bottom Nav Bar */

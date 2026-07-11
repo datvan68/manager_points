@@ -74,6 +74,12 @@ export const SHIFT_DEFINITIONS: Record<ShiftType, ShiftDefinition> = {
   },
 };
 
+const shiftShortLabels: Record<ShiftType, string> = {
+  morning: 'AM',
+  afternoon: 'PM',
+  evening: 'EVE',
+};
+
 type AccentColor = 'blue' | 'cyan' | 'emerald' | 'amber' | 'rose' | 'violet' | 'slate';
 
 const ACCENT_COLORS: AccentColor[] = ['blue', 'cyan', 'emerald', 'amber', 'rose', 'violet', 'slate'];
@@ -338,7 +344,7 @@ const ScrollContainer = ({ children, className }: { children: React.ReactNode; c
           e.preventDefault();
         }
       }}
-      className={cn("overflow-y-auto select-none cursor-grab active:cursor-grabbing", className)}
+      className={cn("overflow-y-auto select-none cursor-grab active:cursor-grabbing custom-scrollbar", className)}
     >
       {children}
     </div>
@@ -545,6 +551,16 @@ const CustomTimePicker = ({ value, onChange }: { value: string; onChange: (val: 
     </Popover>
   );
 };
+
+function getNormalizedId(input: any): string {
+  if (typeof input === 'string' && input.trim() !== '') {
+    return input;
+  }
+  if (input && typeof input === 'object' && typeof input._id === 'string' && input._id.trim() !== '') {
+    return input._id;
+  }
+  return '';
+}
 
 interface ActivityScheduleWorkspaceProps {
   initialActivityId?: string;
@@ -865,12 +881,12 @@ export default function ActivityScheduleWorkspace({
   const sourceActivities = activities.map(act => {
     const savedCount = schedules.filter(s => {
       if (s.status === 'cancelled') return false;
-      const matchesAct = s.club_id === act._id;
+      const matchesAct = getNormalizedId(s.club_id) === act._id;
       return matchesAct && doesScheduleOverlapRange(s.start_time, s.end_time, startOfWeek, endOfWeek);
     }).length;
 
     const pendingCount = pendingSchedules.filter(p => {
-      const matchesAct = p.clubId === act._id;
+      const matchesAct = getNormalizedId(p.clubId) === act._id;
       return matchesAct && weekDateStrings.includes(p.dateStr);
     }).length;
 
@@ -902,7 +918,7 @@ export default function ActivityScheduleWorkspace({
       JSON.stringify({
         type: 'schedule',
         scheduleId: schedule._id,
-        clubId: schedule.club_id || '',
+        clubId: getNormalizedId(schedule.club_id),
         originDateStr,
         originShift,
       })
@@ -1004,7 +1020,7 @@ export default function ActivityScheduleWorkspace({
         endTime = formatTimeStr(endHour, endMin);
       }
 
-      const cid = existing.club_id || '';
+      const cid = getNormalizedId(existing.club_id);
       const actObj = activities.find(c => c._id === cid);
 
       let recurrence: RecurrenceConfig | null = null;
@@ -1109,7 +1125,7 @@ export default function ActivityScheduleWorkspace({
     if (showCreateModal) return;
     setActivePendingSchedule(null);
 
-    const cid = schedule.club_id || '';
+    const cid = getNormalizedId(schedule.club_id);
     const actObj = activities.find(c => c._id === cid);
 
     setFormClubId(cid);
@@ -1415,15 +1431,22 @@ export default function ActivityScheduleWorkspace({
                 start: config.repeatStartDate ? new Date(config.repeatStartDate).toISOString() : undefined,
               };
 
+              const clubIdNorm = getNormalizedId(s.club_id);
+              const semesterIdNorm = getNormalizedId(s.semester_id);
+              if (!clubIdNorm || !semesterIdNorm) {
+                toast.error('Mã hoạt động hoặc mã học kỳ không hợp lệ');
+                return;
+              }
+
               const payload = {
-                club_id: s.club_id?._id || s.club_id,
+                club_id: clubIdNorm,
                 title: s.title,
                 description: s.description,
                 location: s.location,
                 schedule_type: s.schedule_type,
                 start_time: s.start_time,
                 end_time: s.end_time,
-                semester_id: s.semester_id?._id || s.semester_id,
+                semester_id: semesterIdNorm,
                 recurrence: recurrencePayload,
                 max_attendees: s.max_attendees || undefined,
               };
@@ -1498,6 +1521,17 @@ export default function ActivityScheduleWorkspace({
       return;
     }
 
+    const clubIdNorm = getNormalizedId(pending.clubId);
+    const semesterIdNorm = getNormalizedId(selectedSemesterId);
+    if (!clubIdNorm) {
+      toast.error('Mã hoạt động không hợp lệ');
+      return;
+    }
+    if (!semesterIdNorm) {
+      toast.error('Mã học kỳ không hợp lệ');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const activeSem = semesters.find(s => s._id === selectedSemesterId) || activeSemester;
@@ -1514,14 +1548,14 @@ export default function ActivityScheduleWorkspace({
       }
 
       const payload = {
-        club_id: pending.clubId,
+        club_id: clubIdNorm,
         title: pending.originalData?.title || `Sinh hoạt ${pending.clubName}`,
         description: pending.originalData?.description || '',
         location: pending.originalData?.location || 'Phòng sinh hoạt',
         schedule_type: pending.originalData?.schedule_type || 'regular',
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
-        semester_id: selectedSemesterId,
+        semester_id: semesterIdNorm,
         max_attendees: pending.originalData?.max_attendees || undefined,
         recurrence: pending.recurrence?.enabled ? {
           type: pending.recurrence.type,
@@ -1536,8 +1570,7 @@ export default function ActivityScheduleWorkspace({
           setPendingUpdatePayload({ scheduleId: pending.scheduleId, payload });
           setShowUpdateSeriesConfirmModal(true);
         } else {
-          await activityScheduleApi.delete(pending.scheduleId, false);
-          await activityScheduleApi.create(payload);
+          await activityScheduleApi.update(pending.scheduleId, payload);
           toast.success('Đã lưu thay đổi lịch sinh hoạt');
           setPendingSchedules(prev => prev.filter(p => p.tempId !== pending.tempId));
           loadSchedules();
@@ -1561,12 +1594,26 @@ export default function ActivityScheduleWorkspace({
       setSubmitting(true);
       const { scheduleId, payload } = pendingUpdatePayload;
 
+      const clubIdNorm = getNormalizedId(payload.club_id);
+      const semesterIdNorm = getNormalizedId(payload.semester_id);
+      if (!clubIdNorm || !semesterIdNorm) {
+        toast.error('Mã hoạt động hoặc mã học kỳ không hợp lệ');
+        setSubmitting(false);
+        return;
+      }
+
+      const payloadWithScalarIds = {
+        ...payload,
+        club_id: clubIdNorm,
+        semester_id: semesterIdNorm,
+      };
+
       if (updateSeries) {
         await activityScheduleApi.delete(scheduleId, true);
-        await activityScheduleApi.create(payload);
+        await activityScheduleApi.create(payloadWithScalarIds);
         toast.success('Đã cập nhật toàn bộ chuỗi lịch lặp');
       } else {
-        const singlePayload = { ...payload, recurrence: undefined };
+        const singlePayload = { ...payloadWithScalarIds, recurrence: undefined };
         await activityScheduleApi.delete(scheduleId, false);
         await activityScheduleApi.create(singlePayload);
         toast.success('Chỉ cập nhật buổi sinh hoạt này');
@@ -1585,6 +1632,21 @@ export default function ActivityScheduleWorkspace({
 
   const handleSaveAllPending = async () => {
     if (pendingSchedules.length === 0) return;
+
+    // Validate all pending schedules first before starting any API mutations
+    for (const p of pendingSchedules) {
+      const clubIdNorm = getNormalizedId(p.clubId);
+      const semesterIdNorm = getNormalizedId(selectedSemesterId);
+      if (!clubIdNorm) {
+        toast.error('Mã hoạt động không hợp lệ');
+        return;
+      }
+      if (!semesterIdNorm) {
+        toast.error('Mã học kỳ không hợp lệ');
+        return;
+      }
+    }
+
     try {
       setSubmitting(true);
       await Promise.all(pendingSchedules.map(async (p) => {
@@ -1600,15 +1662,18 @@ export default function ActivityScheduleWorkspace({
           }
         }
 
+        const clubIdNorm = getNormalizedId(p.clubId);
+        const semesterIdNorm = getNormalizedId(selectedSemesterId);
+
         const payload = {
-          club_id: p.clubId,
+          club_id: clubIdNorm,
           title: p.originalData?.title || `Sinh hoạt ${p.clubName}`,
           description: p.originalData?.description || '',
           location: p.originalData?.location || 'Phòng sinh hoạt',
           schedule_type: p.originalData?.schedule_type || 'regular',
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
-          semester_id: selectedSemesterId,
+          semester_id: semesterIdNorm,
           max_attendees: p.originalData?.max_attendees || undefined,
           recurrence: p.recurrence?.enabled ? {
             type: p.recurrence.type,
@@ -1618,9 +1683,16 @@ export default function ActivityScheduleWorkspace({
         };
 
         if (p.scheduleId) {
-          await activityScheduleApi.delete(p.scheduleId, false);
+          const isRecurring = !!p.originalData?.recurrence_id;
+          if (isRecurring) {
+            await activityScheduleApi.delete(p.scheduleId, false);
+            await activityScheduleApi.create(payload);
+          } else {
+            await activityScheduleApi.update(p.scheduleId, payload);
+          }
+        } else {
+          await activityScheduleApi.create(payload);
         }
-        await activityScheduleApi.create(payload);
       }));
 
       toast.success('Đã lưu toàn bộ lịch trình pending thành công');
@@ -1645,6 +1717,17 @@ export default function ActivityScheduleWorkspace({
 
     if (endDateTime <= startDateTime) {
       toast.error('Giờ kết thúc phải sau giờ bắt đầu');
+      return;
+    }
+
+    const clubIdNorm = getNormalizedId(formClubId);
+    const semesterIdNorm = getNormalizedId(selectedSemesterId);
+    if (!clubIdNorm) {
+      toast.error('Mã hoạt động không hợp lệ');
+      return;
+    }
+    if (!semesterIdNorm) {
+      toast.error('Mã học kỳ không hợp lệ');
       return;
     }
 
@@ -1679,14 +1762,14 @@ export default function ActivityScheduleWorkspace({
       }
 
       const payload = {
-        club_id: formClubId,
+        club_id: clubIdNorm,
         title: formTitle,
         description: formDesc,
         location: formLocation,
         schedule_type: formType,
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
-        semester_id: selectedSemesterId,
+        semester_id: semesterIdNorm,
         max_attendees: maxAttendeesVal,
         recurrence: scheduleRecurrence.enabled ? {
           type: scheduleRecurrence.type,
@@ -1702,8 +1785,7 @@ export default function ActivityScheduleWorkspace({
           setShowCreateModal(false);
           setShowUpdateSeriesConfirmModal(true);
         } else {
-          await activityScheduleApi.delete(formScheduleId, false);
-          await activityScheduleApi.create(payload);
+          await activityScheduleApi.update(formScheduleId, payload);
           toast.success('Cập nhật lịch thành công');
           setShowCreateModal(false);
           if (activePendingSchedule) {
@@ -2157,7 +2239,7 @@ export default function ActivityScheduleWorkspace({
               />
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
               {filteredSourceActivities.length === 0 ? (
                 <p className="text-center text-xs text-slate-400 py-10 font-bold">Không có hoạt động phù hợp</p>
               ) : (
@@ -2175,7 +2257,7 @@ export default function ActivityScheduleWorkspace({
                     <p className="text-[9px] font-bold font-mono text-slate-400 mt-1 uppercase tracking-wider">{act.code}</p>
                     {act.isScheduled && (
                       <span className="absolute bottom-2.5 right-3 text-[8px] font-black px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md border border-blue-100 uppercase tracking-wide">
-                        Đã xếp ({act.scheduledCount})
+                        Đã xếp lịch
                       </span>
                     )}
                   </div>
@@ -2186,13 +2268,13 @@ export default function ActivityScheduleWorkspace({
 
           {/* Right Side: Weekly Scheduler Grid */}
           <div className="col-span-12 lg:col-span-10 bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[600px]">
-            <div className="w-full flex-1">
+            <div className="w-full flex-1 flex flex-col min-h-0">
               <div className="flex flex-col h-full">
                 {/* Header Row */}
-                <div className="grid border-b border-slate-100 bg-slate-50/50 shrink-0" style={{ gridTemplateColumns: '120px repeat(7, minmax(0, 1fr))' }}>
-                  <div className="p-3 text-center border-r lg:border-r-0 border-slate-100 flex items-center justify-center gap-1">
+                <div className="grid border-b border-slate-100 bg-slate-50/50 shrink-0" style={{ gridTemplateColumns: '70px repeat(7, minmax(0, 1fr))' }}>
+                  <div className="p-2 text-center border-r lg:border-r-0 border-slate-100 flex flex-col items-center justify-center gap-0.5">
                     <Clock size={13} className="text-slate-400" />
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider font-sans">Ca sinh hoạt</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider font-sans">Ca</p>
                   </div>
                   {weekDates.map((date, idx) => {
                     const today = isToday(date);
@@ -2210,16 +2292,16 @@ export default function ActivityScheduleWorkspace({
                 </div>
 
                 {/* Grid Body */}
-                <div className="flex-1 flex flex-col divide-y divide-slate-100 overflow-y-auto">
+                <div className="flex-1 flex flex-col divide-y divide-slate-100 overflow-y-auto custom-scrollbar">
                   {(['morning', 'afternoon', 'evening'] as ShiftType[]).map((shift) => {
                     const shiftDef = SHIFT_DEFINITIONS[shift];
                     return (
-                      <div key={shift} className="grid divide-x lg:divide-x-0 divide-slate-150 flex-1 min-h-[160px]" style={{ gridTemplateColumns: '120px repeat(7, minmax(0, 1fr))' }}>
+                      <div key={shift} className="grid divide-x lg:divide-x-0 divide-slate-150 flex-1 min-h-[160px]" style={{ gridTemplateColumns: '70px repeat(7, minmax(0, 1fr))' }}>
                         {/* Left ca label */}
-                        <div className="p-3 flex flex-col justify-center items-center text-center bg-slate-50/30 border-r lg:border-r-0 border-slate-100 gap-1 select-none shrink-0">
-                          <span className="text-lg">{shiftDef.icon}</span>
-                          <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide font-sans">{shiftDef.label}</span>
-                          <span className="text-[9px] font-bold text-slate-400">{shiftDef.range}</span>
+                        <div className="p-2 flex flex-col justify-center items-center text-center bg-slate-50/30 border-r lg:border-r-0 border-slate-100 gap-1 select-none shrink-0 overflow-hidden">
+                          <span className="text-base" title={shiftDef.label}>{shiftDef.icon}</span>
+                          <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide font-sans">{shiftShortLabels[shift]}</span>
+                          <span className="text-[8px] font-bold text-slate-400 font-mono leading-none">{shiftDef.range.replace(/\s+/g, '')}</span>
                         </div>
 
                         {/* Drop cells */}
@@ -2241,13 +2323,15 @@ export default function ActivityScheduleWorkspace({
                             anchorWeekMonday
                           );
 
+                          const isCompactCell = cellSchedules.length + cellPendings.length > 1;
+
                           return (
                             <div
                               key={dayIdx}
                               onDragOver={(e) => e.preventDefault()}
                               onDrop={(e) => handleDrop(e, dayIdx, shift)}
                               className={cn(
-                                "p-1.5 flex flex-col space-y-1.5 overflow-y-auto min-h-[140px] transition-colors relative group/cell",
+                                "p-1.5 flex flex-col space-y-1.5 overflow-y-auto min-h-[140px] transition-colors relative group/cell custom-scrollbar",
                                 isToday(dayDate) && "bg-blue-500/[0.01]",
                                 canManage && "hover:bg-slate-50/80"
                               )}
@@ -2264,6 +2348,11 @@ export default function ActivityScheduleWorkspace({
                                     const isPreview = p.isPreview;
                                     const accent = getActivityAccentColor(p);
                                     const styles = accentStyles[accent];
+
+                                    const pClubIdNorm = getNormalizedId(p.clubId);
+                                    const pResolvedAct = activities.find(a => a._id === pClubIdNorm);
+                                    const pResolvedName = pResolvedAct?.name || p.originalData?.title || `Sinh hoạt ${p.clubName}`;
+
                                     return (
                                       <div
                                         key={p.tempId}
@@ -2273,8 +2362,10 @@ export default function ActivityScheduleWorkspace({
                                           handlePendingDragStart(e, p.tempId, p.dateStr, p.shift);
                                         }}
                                         onDoubleClick={() => canManage && handleConfigurePending(p)}
+                                        title={isCompactCell ? `${pResolvedName} | ${timeStr} | ${p.originalData?.location || 'Phòng sinh hoạt'}` : undefined}
                                         className={cn(
-                                          "p-1.5 border border-l-[3px] rounded-lg text-left relative group select-none shadow-sm flex flex-col justify-between hover:shadow-md transition-all",
+                                          isCompactCell ? "p-1 gap-0.5" : "p-1.5 flex flex-col justify-between",
+                                          "border border-l-[3px] rounded-lg text-left relative group select-none shadow-sm hover:shadow-md transition-all",
                                           isPreview ? "border-dashed opacity-75" : "",
                                           canManage && !isPreview ? "cursor-grab active:cursor-grabbing" : "",
                                           styles.card,
@@ -2282,8 +2373,11 @@ export default function ActivityScheduleWorkspace({
                                         )}
                                       >
                                         <div>
-                                          <p className={cn("text-[10px] font-extrabold leading-snug line-clamp-2 pr-5 break-words", styles.title)}>{p.originalData?.title || `Sinh hoạt ${p.clubName}`}</p>
-                                          <div className={cn("flex flex-col gap-0.5 mt-1 text-[8px] font-bold", styles.sub)}>
+                                          <p className={cn(
+                                            isCompactCell ? "text-[9px] font-extrabold line-clamp-1 leading-tight pr-1" : "text-[10px] font-extrabold leading-snug line-clamp-2 pr-5 break-words",
+                                            styles.title
+                                          )}>{isCompactCell ? pResolvedName : (p.originalData?.title || `Sinh hoạt ${p.clubName}`)}</p>
+                                          <div className={cn("flex flex-col gap-0.5 mt-0.5 text-[8px] font-bold", styles.sub)}>
                                             <div className="flex items-center gap-1 shrink-0 opacity-90">
                                               <Clock size={8} className={cn("shrink-0", styles.icon)} />
                                               <span>{timeStr}</span>
@@ -2295,38 +2389,40 @@ export default function ActivityScheduleWorkspace({
                                           </div>
                                         </div>
 
-                                        <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/50">
-                                          <span className="text-[8px] font-black text-blue-600 bg-blue-100/60 px-1 py-0.2 rounded uppercase tracking-wider">
-                                            {isPreview ? 'Xem trước' : 'Chưa lưu'}
-                                          </span>
+                                        {!isCompactCell && (
+                                          <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/50">
+                                            <span className="text-[8px] font-black text-blue-600 bg-blue-100/60 px-1 py-0.2 rounded uppercase tracking-wider">
+                                              {isPreview ? 'Xem trước' : 'Chưa lưu'}
+                                            </span>
 
-                                          {canManage && !isPreview && (
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                              <button
-                                                onClick={() => handleConfigurePending(p)}
-                                                className="p-0.5 hover:bg-blue-100 text-blue-700 rounded"
-                                                title="Cấu hình"
-                                              >
-                                                <Settings size={9} />
-                                              </button>
-                                              <button
-                                                onClick={() => handleSavePending(p)}
-                                                disabled={submitting}
-                                                className="p-0.5 hover:bg-blue-100 text-green-700 rounded font-black text-[9px]"
-                                                title="Lưu"
-                                              >
-                                                Lưu
-                                              </button>
-                                              <button
-                                                onClick={() => handleRemovePending(p.tempId)}
-                                                className="p-0.5 hover:bg-blue-100 text-red-500 rounded"
-                                                title="Xóa pending"
-                                              >
-                                                <Trash2 size={9} />
-                                              </button>
-                                            </div>
-                                          )}
-                                        </div>
+                                            {canManage && !isPreview && (
+                                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                  onClick={() => handleConfigurePending(p)}
+                                                  className="p-0.5 hover:bg-blue-100 text-blue-700 rounded"
+                                                  title="Cấu hình"
+                                                >
+                                                  <Settings size={9} />
+                                                </button>
+                                                <button
+                                                  onClick={() => handleSavePending(p)}
+                                                  disabled={submitting}
+                                                  className="p-0.5 hover:bg-blue-100 text-green-700 rounded font-black text-[9px]"
+                                                  title="Lưu"
+                                                >
+                                                  Lưu
+                                                </button>
+                                                <button
+                                                  onClick={() => handleRemovePending(p.tempId)}
+                                                  className="p-0.5 hover:bg-blue-100 text-red-500 rounded"
+                                                  title="Xóa pending"
+                                                >
+                                                  <Trash2 size={9} />
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}
@@ -2339,22 +2435,31 @@ export default function ActivityScheduleWorkspace({
                                     const accent = getActivityAccentColor(schedule);
                                     const styles = accentStyles[accent];
 
+                                    const sClubIdNorm = getNormalizedId(schedule.club_id);
+                                    const sResolvedAct = activities.find(a => a._id === sClubIdNorm);
+                                    const sResolvedName = sResolvedAct?.name || schedule.title;
+
                                     return (
                                       <div
                                         key={schedule._id}
                                         draggable={canManage}
                                         onDragStart={(e) => handleScheduleDragStart(e, schedule, cellDateStr, shift)}
                                         onDoubleClick={() => canManage && handleConfigureSaved(schedule)}
+                                        title={isCompactCell ? `${sResolvedName} | ${timeStr} | ${schedule.location || 'Phòng sinh hoạt'}` : undefined}
                                         className={cn(
-                                          "p-1.5 border border-l-[3px] rounded-lg text-left relative group select-none shadow-sm flex flex-col justify-between hover:shadow-md transition-all",
+                                          isCompactCell ? "p-1 gap-0.5" : "p-1.5 flex flex-col justify-between",
+                                          "border border-l-[3px] rounded-lg text-left relative group select-none shadow-sm hover:shadow-md transition-all",
                                           canManage ? "cursor-grab active:cursor-grabbing" : "",
                                           styles.card,
                                           styles.borderL
                                         )}
                                       >
                                         <div>
-                                          <p className={cn("text-[10px] font-extrabold leading-snug line-clamp-2 pr-5 break-words", styles.title)} title={schedule.title}>{schedule.title}</p>
-                                          <div className={cn("flex flex-col gap-0.5 mt-1 text-[8px] font-bold", styles.sub)}>
+                                          <p className={cn(
+                                            isCompactCell ? "text-[9px] font-extrabold line-clamp-1 leading-tight pr-1" : "text-[10px] font-extrabold leading-snug line-clamp-2 pr-5 break-words",
+                                            styles.title
+                                          )} title={schedule.title}>{isCompactCell ? sResolvedName : schedule.title}</p>
+                                          <div className={cn("flex flex-col gap-0.5 mt-0.5 text-[8px] font-bold", styles.sub)}>
                                             <div className="flex items-center gap-1 shrink-0 opacity-90">
                                               <Clock size={8} className={cn("shrink-0", styles.icon)} />
                                               <span>{timeStr}</span>
@@ -2366,40 +2471,42 @@ export default function ActivityScheduleWorkspace({
                                           </div>
                                         </div>
 
-                                        <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/50">
-                                          {renderRecurrenceBadge(schedule, 'sm') || <span />}
+                                        {!isCompactCell && (
+                                          <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/50">
+                                            {renderRecurrenceBadge(schedule, 'sm') || <span />}
 
-                                          {canManage && (
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                              <button
-                                                onClick={() => handleConfigureSaved(schedule)}
-                                                className="p-0.5 hover:bg-slate-100 text-slate-500 rounded"
-                                                title="Cấu hình"
-                                              >
-                                                <Settings size={9} />
-                                              </button>
-                                              {schedule.recurrence_id && (
+                                            {canManage && (
+                                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
-                                                  onClick={() => handleCancelRecurrence(schedule)}
-                                                  className="p-0.5 hover:bg-purple-50 text-purple-500 rounded"
-                                                  title="Dừng lặp từ buổi này"
+                                                  onClick={() => handleConfigureSaved(schedule)}
+                                                  className="p-0.5 hover:bg-slate-100 text-slate-500 rounded"
+                                                  title="Cấu hình"
                                                 >
-                                                  <AlertCircle size={9} />
+                                                  <Settings size={9} />
                                                 </button>
-                                              )}
-                                              <button
-                                                onClick={() => {
-                                                  setSelectedSchedule(schedule);
-                                                  setShowDeleteModal(true);
-                                                }}
-                                                className="p-0.5 hover:bg-red-50 text-red-500 rounded"
-                                                title="Xóa"
-                                              >
-                                                <Trash2 size={9} />
-                                              </button>
-                                            </div>
-                                          )}
-                                        </div>
+                                                {schedule.recurrence_id && (
+                                                  <button
+                                                    onClick={() => handleCancelRecurrence(schedule)}
+                                                    className="p-0.5 hover:bg-purple-50 text-purple-500 rounded"
+                                                    title="Dừng lặp từ buổi này"
+                                                  >
+                                                    <AlertCircle size={9} />
+                                                  </button>
+                                                )}
+                                                <button
+                                                  onClick={() => {
+                                                    setSelectedSchedule(schedule);
+                                                    setShowDeleteModal(true);
+                                                  }}
+                                                  className="p-0.5 hover:bg-red-50 text-red-500 rounded"
+                                                  title="Xóa"
+                                                >
+                                                  <Trash2 size={9} />
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}

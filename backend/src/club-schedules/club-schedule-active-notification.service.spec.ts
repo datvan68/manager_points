@@ -53,6 +53,7 @@ describe('ClubScheduleActiveNotificationService', () => {
           provide: getModelToken(ClubSchedule.name),
           useValue: {
             find: jest.fn().mockReturnValue({
+              populate: jest.fn().mockReturnThis(),
               exec: jest.fn().mockResolvedValue(mockActiveSchedules),
             }),
           },
@@ -112,7 +113,7 @@ describe('ClubScheduleActiveNotificationService', () => {
           title: 'Club session is happening now',
           description: '"Active Workout" is happening now at Gym room.',
           type: 'info',
-          routeUrl: `/club/clubs/${mockClubId}?tab=schedules`,
+          routeUrl: `/activities/${mockClubId}?tab=schedule`,
           recipientUserId: mockUserId.toString(),
           targetRole: 'student',
           source: 'club_schedule_active',
