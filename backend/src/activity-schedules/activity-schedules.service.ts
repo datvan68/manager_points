@@ -888,8 +888,6 @@ export class ActivitySchedulesService {
   ): Promise<{
     viewer_mode: 'student' | 'staff';
     timezone: string;
-    week_start: string;
-    week_end: string;
     items: any[];
   }> {
     if (!Types.ObjectId.isValid(activityId)) {
@@ -906,12 +904,10 @@ export class ActivitySchedulesService {
     }
 
     const now = new Date();
-    const { weekStart, weekEnd } = this.getWeekBoundariesInHoChiMinh(now);
 
     const schedules = await this.scheduleModel
       .find({
         activity_id: new Types.ObjectId(activityId),
-        start_time: { $gte: weekStart, $lt: weekEnd },
         status: { $ne: 'cancelled' },
       })
       .sort({ start_time: 1, _id: 1 })
@@ -922,8 +918,6 @@ export class ActivitySchedulesService {
       return {
         viewer_mode: viewerMode,
         timezone: 'Asia/Ho_Chi_Minh',
-        week_start: weekStart.toISOString(),
-        week_end: weekEnd.toISOString(),
         items: [],
       };
     }
@@ -1017,8 +1011,6 @@ export class ActivitySchedulesService {
     return {
       viewer_mode: viewerMode,
       timezone: 'Asia/Ho_Chi_Minh',
-      week_start: weekStart.toISOString(),
-      week_end: weekEnd.toISOString(),
       items,
     };
   }

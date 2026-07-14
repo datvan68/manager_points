@@ -154,8 +154,8 @@ export interface StaffActivityTimelineItem extends ActivitySchedule {
 }
 
 export type ActivityTimelineResponse =
-  | { viewer_mode: 'student'; items: StudentActivityTimelineItem[]; timezone: string; week_start: string; week_end: string }
-  | { viewer_mode: 'staff'; items: StaffActivityTimelineItem[]; timezone: string; week_start: string; week_end: string };
+  | { viewer_mode: 'student'; items: StudentActivityTimelineItem[]; timezone: string }
+  | { viewer_mode: 'staff'; items: StaffActivityTimelineItem[]; timezone: string };
 
 export interface ActivityCompletionRule {
   _id: string;
@@ -414,7 +414,7 @@ export const activityScheduleApi = {
   },
 
   async getActivityTimeline(activityId: string): Promise<ActivityTimelineResponse> {
-    const res = await httpClient(`${API_BASE}/activity-schedules/club/${activityId}/timeline`);
+    const res = await httpClient(`${API_BASE}/activity-schedules/activity/${activityId}/timeline`);
     return handleResponse<ActivityTimelineResponse>(res);
   },
 

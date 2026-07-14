@@ -83,7 +83,7 @@ export class ActivitySchedulesController {
   @Get('activity/:activityId/timeline')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lấy timeline sinh hoạt của Hoạt động' })
+  @ApiOperation({ summary: 'Lấy timeline sinh hoạt của Hoạt động (tất cả các tuần đã lên lịch)' })
   findActivityTimeline(
     @Param('activityId') activityId: string,
     @Request() req: any,

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ActivityMember } from '@/api/activity-api';
 import { Check, X, ShieldAlert, Trash2, Edit2, User, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 
 interface ActivityMemberTableProps {
   members: ActivityMember[];
@@ -44,6 +45,8 @@ export default function ActivityMemberTable({
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('member');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [pendingRemovalMemberId, setPendingRemovalMemberId] = useState<string | null>(null);
+  const isRemovingRef = useRef(false);
 
   const handleEditRoleClick = (member: ActivityMember) => {
     setEditingMemberId(member._id);
@@ -88,8 +91,15 @@ export default function ActivityMemberTable({
     }
   };
 
-  const handleRemoveClick = async (memberId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa thành viên này khỏi hoạt động không?')) return;
+  const handleRemoveClick = (memberId: string) => {
+    setPendingRemovalMemberId(memberId);
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!pendingRemovalMemberId) return;
+    if (isRemovingRef.current) return;
+    const memberId = pendingRemovalMemberId;
+    isRemovingRef.current = true;
     setUpdatingId(memberId);
     try {
       await onRemove(memberId);
@@ -97,8 +107,15 @@ export default function ActivityMemberTable({
     } catch {
       toast.error('Lỗi khi xóa thành viên');
     } finally {
+      isRemovingRef.current = false;
       setUpdatingId(null);
+      setPendingRemovalMemberId(null);
     }
+  };
+
+  const handleCloseModal = () => {
+    if (updatingId !== null) return;
+    setPendingRemovalMemberId(null);
   };
 
   if (loading) {
@@ -276,6 +293,16 @@ export default function ActivityMemberTable({
           </tbody>
         </table>
       </div>
+      <ConfirmModal
+        isOpen={pendingRemovalMemberId !== null}
+        onClose={handleCloseModal}
+        onConfirm={handleConfirmRemove}
+        title="Xóa thành viên"
+        message="Bạn có chắc chắn muốn xóa thành viên này khỏi hoạt động không? Hành động này không thể hoàn tác."
+        confirmLabel="Xác nhận xóa"
+        cancelLabel="Hủy bỏ"
+        variant="danger"
+      />
     </div>
   );
 }

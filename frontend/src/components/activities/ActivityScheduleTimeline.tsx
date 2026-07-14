@@ -10,6 +10,7 @@ interface ActivityScheduleTimelineProps {
   schedules: any[];
   onRegister?: (scheduleId: string) => Promise<void>;
   onCancelRegistration?: (scheduleId: string) => Promise<void>;
+  onOpenAttendance?: () => void;
   onCreateSchedule?: (data: any) => Promise<void>;
   onDeleteSchedule?: (scheduleId: string) => Promise<void>;
   isAdminOrAdvisor?: boolean;
@@ -21,6 +22,7 @@ export default function ActivityScheduleTimeline({
   schedules,
   onRegister,
   onCancelRegistration,
+  onOpenAttendance,
   onCreateSchedule,
   onDeleteSchedule,
   isAdminOrAdvisor = false,

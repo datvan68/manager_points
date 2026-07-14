@@ -353,8 +353,6 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
       expect(res.viewer_mode).toBe('student');
       expect(res.items).toEqual([]);
       expect(res.timezone).toBe('Asia/Ho_Chi_Minh');
-      expect(res.week_start).toBeDefined();
-      expect(res.week_end).toBeDefined();
     });
 
     it('should sort schedules by start_time and then _id ascending', async () => {
@@ -378,8 +376,6 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
       expect(res.items.length).toBe(2);
       expect(res.viewer_mode).toBe('student');
       expect(res.timezone).toBe('Asia/Ho_Chi_Minh');
-      expect(res.week_start).toBeDefined();
-      expect(res.week_end).toBeDefined();
     });
 
     it('should filter by student studentId/userId and return my_attendance in student mode', async () => {
@@ -468,16 +464,31 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
       expect(rec.note).toBe('Ok');
     });
 
-    it('should apply boundary date filters and exclude cancelled schedules', async () => {
+    it('should query all arranged weeks, exclude cancelled, and enrich details correctly', async () => {
+      const today = new Date();
+      const mockSchedulesWithCancelled = [
+        // Past schedule (10 days ago)
+        { _id: new Types.ObjectId(), start_time: new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000), end_time: new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000), title: 'Past Schedule', status: 'scheduled' },
+        // Today schedule 1
+        { _id: new Types.ObjectId(), start_time: new Date(today), end_time: new Date(today.getTime() + 2 * 60 * 60 * 1000), title: 'Today Schedule 1', status: 'scheduled' },
+        // Today schedule 2
+        { _id: new Types.ObjectId(), start_time: new Date(today.getTime() + 15 * 60 * 1000), end_time: new Date(today.getTime() + 2 * 60 * 60 * 1000 + 15 * 60 * 1000), title: 'Today Schedule 2', status: 'scheduled' },
+        // Future schedule (10 days later)
+        { _id: new Types.ObjectId(), start_time: new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000), end_time: new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000), title: 'Future Schedule', status: 'scheduled' },
+      ];
+
       mockActivityScheduleModel.find.mockImplementation((query) => {
         expect(query.activity_id).toBeDefined();
-        expect(query.start_time.$gte).toBeInstanceOf(Date);
-        expect(query.start_time.$lt).toBeInstanceOf(Date);
-        expect(query.status.$ne).toBe('cancelled');
+        expect(query.start_time).toBeUndefined(); // no start_time filter
+        expect(query.status.$ne).toBe('cancelled'); // status filter present
         return {
-          sort: jest.fn().mockReturnThis(),
-          lean: jest.fn().mockReturnThis(),
-          exec: jest.fn().mockResolvedValue(mockSchedules),
+          sort: jest.fn().mockImplementation((sortObj) => {
+            expect(sortObj).toEqual({ start_time: 1, _id: 1 });
+            return {
+              lean: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue(mockSchedulesWithCancelled),
+            };
+          }),
         };
       });
 
@@ -488,9 +499,13 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
 
       const requester = { role: 'STUDENT', studentId: 'student123' };
       const res = await service.findActivityTimeline(activityId, requester);
-      expect(res.items.length).toBe(2);
-      expect(res.items[0].is_today).toBeDefined();
+      expect(res.items.length).toBe(4);
+      expect(res.items[0].is_today).toBe(false);
+      expect(res.items[1].is_today).toBe(true);
+      expect(res.items[2].is_today).toBe(true);
+      expect(res.items[3].is_today).toBe(false);
       expect(res.items[0].is_active).toBeDefined();
+      expect(res.items[0].my_attendance).toBeNull();
     });
   });
 });

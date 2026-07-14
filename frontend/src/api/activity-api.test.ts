@@ -57,6 +57,48 @@ describe('activityApi & activityScheduleApi & activityCompletionRuleApi', () => 
       expect(url).toContain('/api/activity-schedules');
       expect(res.items).toEqual([]);
     });
+
+    it('should fetch activity timeline with correctly formatted url', async () => {
+      const mockTimeline = {
+        viewer_mode: 'student',
+        timezone: 'Asia/Ho_Chi_Minh',
+        items: [
+          {
+            _id: 's1',
+            title: 'Schedule 1',
+            start_time: '2026-07-06T10:00:00Z',
+            end_time: '2026-07-06T12:00:00Z',
+            is_today: false,
+            is_active: false,
+            my_attendance: null,
+            status: 'scheduled',
+          },
+          {
+            _id: 's2',
+            title: 'Schedule 2',
+            start_time: '2026-07-13T10:00:00Z',
+            end_time: '2026-07-13T12:00:00Z',
+            is_today: true,
+            is_active: true,
+            my_attendance: null,
+            status: 'scheduled',
+          }
+        ]
+      };
+      const mockResponse = {
+        ok: true,
+        text: vi.fn().mockResolvedValue(JSON.stringify(mockTimeline)),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      const res = await activityScheduleApi.getActivityTimeline('activity-123');
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toContain('/api/activity-schedules/activity/activity-123/timeline');
+      expect(url).not.toContain('/club/');
+      expect(res).toEqual(mockTimeline);
+    });
   });
 
   describe('activityCompletionRuleApi', () => {
