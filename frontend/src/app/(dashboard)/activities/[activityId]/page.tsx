@@ -505,6 +505,8 @@ export default function ActivityDetailPage() {
               schedules={schedules}
               onRegister={handleRegisterSchedule}
               onCancelRegistration={handleCancelRegisterSchedule}
+              canViewAttendanceRoster={isAdminOrAdvisor}
+              canViewOwnAttendance={isStudent && memberStatus === 'active'}
               isAdminOrAdvisor={isAdminOrAdvisor}
               isStudent={isStudent && memberStatus === 'active'}
               onOpenAttendance={() => handleTabChange('attendance')}

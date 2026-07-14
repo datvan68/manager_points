@@ -1,140 +1,153 @@
 # 1. Task ID + Pipeline
 
-- Task ID: `ACTIVITIES-TODAY-TIMELINE-READONLY-012`
+- Task ID: `ACTIVITIES-ROLE-AWARE-ATTENDANCE-DETAILS-013`
 - Pipeline: `feature_development`
 
 # 2. Risk Level
 
 - Risk level: `medium`
-- Rationale: This task changes the activity-detail schedule presentation and removes create/delete controls from one UI surface. It does not delete stored schedules, change backend authorization, alter database schemas, or deploy to an environment.
+- Rationale: The task changes a read-only activity timeline response and role-specific attendance presentation. It does not change attendance records, database schemas, production configuration, deployment state, or destructive operations.
 
 # 3. Objective
 
-Restore today''s activity schedules in the activity-detail timeline so they are immediately visible and recognizable. Make this timeline read-only for schedule management by removing its create and delete capabilities while preserving registration, attendance, role-specific attendance details, and the display of schedules from every scheduled week.
+Replace the generic `Đã điểm danh` indicator with real attendance totals and an expandable member-detail view for advisor accounts, preserve a private attendance status for student accounts, and let admin accounts see the detailed roster together with each member's attendance status. This gives each authorized role the required information without exposing the complete attendance roster to student accounts.
 
 # 4. Scope
 
+- `backend/src/activity-schedules/activity-schedules.service.ts`
+  - Keep student accounts restricted to their own `my_attendance` record.
+  - Keep teacher/advisor accounts supplied with `attendance_records` for every returned schedule.
+  - Keep admin accounts supplied with `attendance_records`, including each member's attendance and approval status; do not add an admin-level `my_attendance` field.
+  - Preserve the existing restricted staff record projection: `_id`, `student_id._id`, `student_id.full_name`, `student_id.student_code`, `status`, `check_in_time`, `check_out_time`, `approval_status`, `recorded_at`, and `note`; do not expose email or unrelated student fields.
+- `backend/src/activity-schedules/activity-schedules.service.spec.ts`
+  - Add separate assertions for student, teacher/advisor, and admin timeline payloads.
+  - Verify that admin items contain `attendance_records` with each member's attendance status and do not require `my_attendance`.
+  - Verify that student items never contain `attendance_records` and teacher/advisor items never contain a private status for another user.
+- `frontend/src/api/activity-api.ts`
+  - Keep admin and teacher/advisor responses on the staff timeline item type containing `attendance_records`.
+  - Keep the student response type role-specific and model nullable personal attendance exactly.
 - `frontend/src/components/activities/ActivityScheduleTimeline.tsx`
-  - Derive the rendered collection from the complete `schedules` prop without filtering out past, current-day, or future items.
-  - Sort every item with `is_today === true` before non-today items; sort within each group by valid `start_time` ascending and then by `_id` ascending as the deterministic tie-breaker.
-  - Restore the `Hôm nay` badge and the existing blue highlighted card treatment for every item whose `is_today` value is `true`.
-  - Remove `onCreateSchedule` and `onDeleteSchedule` from `ActivityScheduleTimelineProps` and from component destructuring.
-  - Remove the `Tạo lịch mới` button, create-form state, create-form fields, submit handler, create success/error messages, and imports used only by schedule creation.
-  - Remove the schedule trash button, deletion handler, deletion confirmation, deletion success/error messages, and imports used only by schedule deletion.
-  - Preserve student registration/cancellation actions, today''s attendance action, role-specific attendance output, past-schedule fading, the empty state, and all non-management schedule metadata.
+  - Replace the static staff text with `Đã điểm danh: {attendance_records.length}` and a keyboard-accessible expand/collapse control scoped to each schedule card.
+  - Render expanded attendance members with full name, student code, attendance status, approval status, check-in time when present, and note when present.
+  - Render `Không có dữ liệu điểm danh` when the expanded list is empty.
+  - Render the private `Trạng thái điểm danh` badge only for student accounts; preserve mappings for `present`, `late`, `absent`, `excused`, and the null fallback `Chưa điểm danh`.
+  - Render aggregate count/details only for teacher/advisor accounts and admin accounts.
+  - Preserve today-first ordering, today highlighting, past-schedule fading, registration actions, and the attendance action button.
 - `frontend/src/components/activities/ActivityScheduleTimeline.test.tsx`
-  - Add or revise assertions that today''s schedules render, appear before all non-today schedules, display `Hôm nay`, and retain the blue highlighted card classes.
-  - Add assertions that admin/advisor rendering contains neither `Tạo lịch mới` nor a schedule deletion button.
-  - Keep regression coverage for all-week rendering, deterministic ordering, attendance status/count/details, attendance actions, past-schedule fading, and the empty state.
-- `frontend/src/components/activities/ActivityDetailWorkspace.tsx`
-  - Remove `onCreateSchedule` and `onDeleteSchedule` from `ActivityDetailWorkspaceProps`, component destructuring, and the `ActivityScheduleTimeline` invocation so the legacy workspace compiles with the reduced timeline contract.
+  - Add role-matrix tests proving advisor aggregate/detail output, student-only private output, and admin aggregate/detail output with the status of every listed member.
+  - Verify expand/collapse behavior, empty attendance details, member fields, status labels, approval labels, and absence of roster data for student viewers.
 - `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx`
-  - Pass the `onOpenAttendance` callback (using `handleTabChange('attendance')`) to `ActivityScheduleTimeline` inside the schedule tab.
+  - Pass viewer capabilities that activate aggregate/detail presentation for admin and advisor accounts and private-status presentation only for active student accounts.
+  - Ensure the admin roster renders the attendance status contained in every `attendance_records` entry.
 - `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`
-  - Verify that the timeline response containing a schedule with `is_today: true` renders that schedule in the activity-detail schedule tab.
-  - Verify that the primary activity-detail schedule tab exposes no create-schedule or delete-schedule control to an admin/advisor account.
+  - Add page-level tests for the three role combinations and verify the timeline consumes the API payload without exposing advisor/admin attendance records to student accounts.
 - `taskscope.md`
-  - Replace the previous implementation scope with this exact twelve-section execution contract.
+  - Replace the previous task definition with this exact twelve-section execution contract.
 
 # 5. Out of Scope
 
-- Do not change `frontend/src/app/(dashboard)/activities/schedule/page.tsx` or `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`; the dedicated schedule-management page keeps its authorized creation and management workflow.
-- Do not change activity schedule API methods, backend routes, controllers, services, database models, migrations, or stored schedule records.
-- Do not call a delete API, remove an API endpoint, or delete any existing schedule data.
-- Do not add a second API request dedicated to today''s schedules; use the items returned by `activityScheduleApi.getActivityTimeline(activityId)`.
-- Do not filter the timeline to the current week. Schedules from every week returned for the activity must remain visible.
-- Do not change member registration/cancellation behavior, attendance recording, attendance permissions, completion rules, activity membership, or navigation outside the schedule tab.
-- Do not modify the legacy club timeline under `frontend/src/app/(dashboard)/club/clubs/[clubId]/`.
+- Do not create, update, approve, reject, or delete attendance records.
+- Do not change `backend/src/club-attendance/`, `backend/src/attendance-sessions/`, attendance session opening/check-in behavior, QR behavior, proximity behavior, or academic-record synchronization.
+- Do not change activity schedule creation, deletion, recurrence, registration, or cancellation behavior.
+- Do not change database schemas, indexes, migrations, seed data, or stored user/student relationships.
+- Do not expose attendance member details to student accounts.
+- Do not expose email, phone number, authentication data, or fields outside the restricted projection listed in Section 4.
+- Do not change the legacy club timeline under `frontend/src/app/(dashboard)/club/clubs/[clubId]/`.
+- Do not change the dedicated schedule-management page at `frontend/src/app/(dashboard)/activities/schedule/page.tsx`.
 
 # 6. Context & Dependencies
 
-- The primary page loads schedule data through `activityScheduleApi.getActivityTimeline(activityId)` in `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx` and passes the returned `items` array to `ActivityScheduleTimeline` without a separate today request.
-- The timeline response already identifies current-day entries with `is_today`; UI ordering and highlighting must consume that field directly.
-- Multiple schedules may have `is_today: true`; all of them must render at the beginning of the timeline in chronological order.
-- Previous decisions remain active: show schedules from all scheduled weeks, omit week-range headings, show today first, show role-appropriate attendance information, and fade schedules whose valid `end_time` is strictly earlier than the browser time.
-- `ActivityDetailWorkspace.tsx` still forwards create/delete callbacks to the shared timeline even though the primary detail page does not; its local interface and invocation must be reduced together with the timeline props.
-- Removing create/delete from this timeline is a presentation boundary only. The dedicated `/activities/schedule` workflow and existing API/backend capabilities remain available and unchanged.
-- Preserve unrelated uncommitted work in the current working tree; do not overwrite or revert user changes outside the exact scope in Section 4.
+- `GET /activity-schedules/activity/:activityId/timeline` is implemented by `findActivityTimeline` in `backend/src/activity-schedules/activity-schedules.service.ts`.
+- The current service selects either `student` or `staff` mode. Student mode returns `my_attendance`; staff mode already returns `attendance_records` with a `status` field for each member. Admin and teacher/advisor accounts may remain in staff mode.
+- `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx` currently collapses admin and teacher/advisor into `isAdminOrAdvisor`; this matches their shared aggregate/detail capability, while active students retain a separate private-status capability.
+- `frontend/src/components/activities/ActivityScheduleTimeline.tsx` already displays the personal status and an attendance-record count, but it does not provide an expandable member roster.
+- The existing legacy `ClubScheduleTimeline.tsx` demonstrates the intended local expand/collapse pattern and attendance status labels; implementation may mirror its presentation logic without changing that legacy file.
+- Role detection must continue using existing authenticated requester helpers on the backend and `isAdminUser`, `isTeacherRole`, and `isStudentRole` on the frontend.
+- Admin does not require a private `my_attendance` status. The required admin status is the `status` value of each member inside `attendance_records`.
+- Preserve unrelated uncommitted work and do not revert changes outside Section 4.
 
 # 7. Steps — PLAN → EXECUTE → VERIFY → REFINE
 
 ## PLAN
 
-1. Inspect `ActivityScheduleTimeline.tsx`, its test file, `ActivityDetailWorkspace.tsx`, and the activity-detail page test to identify every create/delete prop, state variable, handler, import, rendered control, and assertion.
-2. Record the existing timeline behaviors for today ordering/highlighting, past fading, attendance, registration, empty state, and all-week rendering before editing so retained behavior has explicit regression coverage.
+1. Inspect the timeline service query, its role helpers, API response types, activity-detail role flags, and existing timeline tests; record the exact payload shape for `STUDENT`, `TEACHER`, and `ADMIN` requesters.
+2. Define explicit presentation capabilities: `canViewAttendanceRoster`, `canViewOwnAttendance`, and `canUseAttendanceAction`; map advisor and admin to the roster capability and map active students to the own-status capability.
 
 ## EXECUTE
 
-3. In `ActivityScheduleTimeline.tsx`, create a non-mutating ordered array from `schedules` by copying it before sorting; compare `is_today` first, valid `start_time` timestamps second, and `_id` strings third.
-4. Render the ordered array instead of the raw `schedules` array, add the literal `Hôm nay` badge for `is_today === true`, and apply the blue today border/background classes before evaluating past-card classes so today highlighting wins for inconsistent fixture data.
-5. Delete the timeline''s create-schedule props, `showCreateForm`, `submitting`, `newSchedule`, `handleCreateSubmit`, header action, form markup, create-only icons/imports, and create toast branches.
-6. Delete the timeline''s delete-schedule prop, `handleDeleteClick`, trash button, delete-only icon/import, confirmation text, and delete toast branches.
-7. In `ActivityDetailWorkspace.tsx`, delete the two schedule-management callback fields from its props interface, destructuring, and timeline invocation; leave unrelated workspace callbacks unchanged.
-8. In `ActivityScheduleTimeline.test.tsx`, use fixtures containing multiple today schedules plus past and future schedules; assert complete rendering, today-first ordering, chronological/tie-break ordering, today badges/highlights, absence of create/delete controls, and preservation of existing non-management behavior.
-9. In `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`, extend the activity-detail schedule-tab scenario to assert a timeline API item marked `is_today: true` is visible and no create/delete control is rendered for staff viewers.
+3. In `activity-schedules.service.ts`, retain the all-record query and restricted student population for teacher/advisor/admin viewers; ensure every mapped `attendance_records` entry includes its `status` and approval metadata.
+4. In `activity-schedules.service.ts`, retain the current student-filtered query for student viewers and omit `attendance_records` from every student item.
+5. In `activity-schedules.service.spec.ts`, add fixtures for teacher, admin, and student; assert the exact allowed and omitted fields for each role and assert each admin roster entry's `status`.
+6. In `activity-api.ts`, keep admin and teacher/advisor on the staff response branch and ensure `StaffActivityAttendanceRecord.status` remains required.
+7. In the activity-detail page, calculate distinct admin, advisor, and active-member flags, then pass explicit roster and personal-status capabilities to `ActivityScheduleTimeline`.
+8. In `ActivityScheduleTimeline.tsx`, store expanded schedule IDs locally, add an `aria-expanded` button beside the real record count, and render the member detail list directly beneath the selected schedule metadata.
+9. In `ActivityScheduleTimeline.tsx`, reuse a single status-label configuration for private badges and roster badges; include approval status, localized check-in time, and optional note in roster rows.
+10. In the two frontend test files, add the three-role matrix, assert every admin roster member's status, exercise expand/collapse, and prove that student rendering contains no other member name or student code.
 
 ## VERIFY
 
-10. Run the focused Vitest files in Section 9 and require every assertion to pass.
-11. Run the frontend TypeScript check in Section 9 and require zero type errors caused by removed props or imports.
-12. Run the diff checks in Section 9; confirm that only Section 4 files changed for this task and that no create/delete schedule control remains in `ActivityScheduleTimeline.tsx`.
+11. Run the focused backend and frontend test commands in Section 9 and require all assertions to pass.
+12. Run backend and frontend type/build checks, then inspect the scoped diff for payload leakage, unrelated changes, and invalid role combinations.
 
 ## REFINE
 
-13. If a focused test fails, change only the scoped implementation or fixture responsible for that failure, then rerun the failed command and the complete focused test command.
-14. If the type check finds another caller of removed timeline props, remove only those obsolete prop arguments and their now-unused local declarations; add the caller file to Section 4 before implementation proceeds if it is not already listed.
-15. Stop after three PLAN → EXECUTE → VERIFY iterations and request direction with the failing command and relevant diff if the acceptance criteria still cannot be met.
+13. If a role-matrix test fails, change only the corresponding scoped role mapping, payload branch, or rendering condition; rerun the failed test followed by all focused tests.
+14. If type checking finds another consumer of the timeline union or changed component props, preserve backward compatibility when possible; if another file must change, stop and add its exact path to Section 4 before editing it.
+15. Stop after three PLAN → EXECUTE → VERIFY iterations and request direction with the failing command, relevant output, and scoped diff if the acceptance criteria remain unmet.
 
 # 8. Acceptance Criteria
 
-- Every schedule returned in the timeline `items` array renders exactly once, including every entry with `is_today: true` and schedules belonging to past or future weeks.
-- All today schedules appear before all non-today schedules; today schedules are ordered by `start_time` ascending and `_id` ascending for equal start times.
-- Every today schedule displays the literal Vietnamese badge `Hôm nay` and the blue highlighted card treatment.
-- No week-range heading such as `Tuần 06/07/2026 - 12/07/2026` is rendered.
-- Admin and advisor viewers do not see `Tạo lịch mới`, the inline creation form, or a schedule deletion button in the activity-detail timeline.
-- `ActivityScheduleTimeline` exposes neither `onCreateSchedule` nor `onDeleteSchedule` in its TypeScript props.
-- `ActivityDetailWorkspace` no longer requires or forwards timeline create/delete callbacks.
-- No frontend action in this timeline calls a schedule create or delete API.
-- Student registration/cancellation, today''s attendance action, private member attendance status, staff attendance count/details, and past-schedule fading continue to work.
-- The dedicated `/activities/schedule` management page and backend/API schedule-management capabilities are unchanged.
-- Focused tests and the frontend TypeScript check pass.
+- A teacher/advisor schedule card displays `Đã điểm danh: N`, where `N` equals `attendance_records.length`, and provides an expand/collapse control for the roster.
+- Expanded teacher/advisor details display each returned member's full name, student code, attendance status, approval status, check-in time when available, and note when available.
+- An active student account displays only its own attendance status for each schedule and never receives or renders `attendance_records`, another member's name, or another member's student code.
+- An admin account displays `Đã điểm danh: N`, expandable member details, and the attendance status of every member returned in `attendance_records`.
+- An admin account does not require or display a private status for the admin identity.
+- Empty staff/admin rosters display count `0` and `Không có dữ liệu điểm danh` after expansion.
+- The backend response does not expose student email or fields outside the restricted projection in Section 4.
+- Existing today-first ordering, `Hôm nay` highlighting, past-schedule fading, registration behavior, and today attendance action remain unchanged.
+- Focused backend tests, focused frontend tests, backend build, frontend type check, and diff checks pass.
 
 # 9. Verification Commands
+
+Run from `D:\PROJECT\manager_points\backend`:
+
+```powershell
+npm test -- --runInBand src/activity-schedules/activity-schedules.service.spec.ts
+npm run build
+```
 
 Run from `D:\PROJECT\manager_points\frontend`:
 
 ```powershell
-npm test -- --runInBand src/components/activities/ActivityScheduleTimeline.test.tsx ''src/app/(dashboard)/activities/[activityId]/page.test.tsx''
+npm test -- --runInBand src/components/activities/ActivityScheduleTimeline.test.tsx 'src/app/(dashboard)/activities/[activityId]/page.test.tsx'
 npm run typecheck
 ```
 
 Run from `D:\PROJECT\manager_points`:
 
 ```powershell
-rg -n "onCreateSchedule|onDeleteSchedule|Tạo lịch mới|handleCreateSubmit|handleDeleteClick|Trash2" frontend/src/components/activities/ActivityScheduleTimeline.tsx frontend/src/components/activities/ActivityDetailWorkspace.tsx
-git diff --check -- taskscope.md frontend/src/components/activities/ActivityScheduleTimeline.tsx frontend/src/components/activities/ActivityScheduleTimeline.test.tsx frontend/src/components/activities/ActivityDetailWorkspace.tsx ''frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx''
-git diff -- taskscope.md frontend/src/components/activities/ActivityScheduleTimeline.tsx frontend/src/components/activities/ActivityScheduleTimeline.test.tsx frontend/src/components/activities/ActivityDetailWorkspace.tsx ''frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx''
+rg -n "attendance_records|my_attendance|Đã điểm danh|Trạng thái điểm danh|aria-expanded" backend/src/activity-schedules/activity-schedules.service.ts frontend/src/api/activity-api.ts frontend/src/components/activities/ActivityScheduleTimeline.tsx 'frontend/src/app/(dashboard)/activities/[activityId]/page.tsx'
+git diff --check -- taskscope.md backend/src/activity-schedules/activity-schedules.service.ts backend/src/activity-schedules/activity-schedules.service.spec.ts frontend/src/api/activity-api.ts frontend/src/components/activities/ActivityScheduleTimeline.tsx frontend/src/components/activities/ActivityScheduleTimeline.test.tsx 'frontend/src/app/(dashboard)/activities/[activityId]/page.tsx' 'frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx'
+git diff -- taskscope.md backend/src/activity-schedules/activity-schedules.service.ts backend/src/activity-schedules/activity-schedules.service.spec.ts frontend/src/api/activity-api.ts frontend/src/components/activities/ActivityScheduleTimeline.tsx frontend/src/components/activities/ActivityScheduleTimeline.test.tsx 'frontend/src/app/(dashboard)/activities/[activityId]/page.tsx' 'frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx'
 git status --short
 ```
 
-Expected result for the `rg` command: no output and exit code `1`, because none of the removed create/delete identifiers or labels may remain in the two scoped timeline consumers.
-
 # 10. Safety Gates
 
-- No Human Gate is required for the documented local frontend changes while risk remains `medium` and no production operation is performed.
-- Trigger a Human Gate before any production deployment, production configuration change, database mutation, deletion of stored schedule data, removal of a backend/API endpoint, or expansion beyond the exact files in Section 4.
-- Trigger a Human Gate if implementation requires changing authorization rules or removing schedule management from the dedicated `/activities/schedule` page.
-- Stop and request clarification if the timeline API does not return today''s schedule items; do not invent records, merge another endpoint, or change backend filtering without approval and a revised scope.
+- No Human Gate is required for the documented local read-only response and UI changes while risk remains `medium`.
+- Trigger a Human Gate before production deployment, production configuration changes, database mutations, destructive attendance operations, authorization expansion beyond admin/teacher access already enforced by the endpoint, or changes outside Section 4.
+- Stop and request clarification if implementation would require resolving a private attendance status for the admin identity; this task authorizes only per-member statuses from `attendance_records`.
+- Stop and request approval if satisfying the requirement requires exposing additional personal fields or changing backend guards.
 - Preserve `.env*` files and never print, modify, or transmit credentials or secrets.
 
 # 11. Artifacts to Review
 
 - Final diff for every file listed in Section 4.
-- Focused Vitest output showing the timeline and activity-detail page tests passed.
-- Frontend TypeScript check output.
-- `rg` output proving removed timeline create/delete identifiers and labels are absent.
-- `git diff --check` output and `git status --short` output.
-- If a Human Gate is triggered, attach the proposed expanded file list, exact commands, affected environment, reason the expansion is necessary, and any relevant failing test or API-response evidence.
+- Focused backend service test output covering student, teacher/advisor, and admin payloads.
+- Focused frontend test output covering the three-role presentation matrix and expand/collapse interaction.
+- Backend build output and frontend type-check output.
+- `git diff --check` and `git status --short` output.
+- If a Human Gate is triggered, attach the exact expanded file list, proposed payload fields, affected roles/environment, reason, and relevant failing test or API evidence.
 
 # 12. loop_iterations Override
 

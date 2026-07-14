@@ -542,4 +542,124 @@ describe('ActivityDetailPage', () => {
       });
     });
   });
+
+  it('page-level tests: consumes student API payload and shows student status without leaking other rosters', async () => {
+    mockAuth.user = {
+      id: 'student-id-123',
+      studentId: 'student-id-123',
+      role: { role_code: 'STUDENT' },
+      roleCode: 'STUDENT',
+    };
+    mockAuth.isAdmin = false;
+
+    const mockActivity = {
+      _id: 'act1',
+      name: 'Test Activity',
+      code: 'TEST_ACT',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'B.202',
+      semester_id: { _id: 'sem1', semester_name: 'Học kỳ 1' },
+    };
+
+    const studentMembership = [
+      {
+        student_id: { _id: 'student-id-123', user_id: 'student-id-123' },
+        status: 'active',
+      }
+    ];
+
+    const mockStudentTimeline = {
+      viewer_mode: 'student',
+      items: [
+        {
+          _id: 's_1',
+          title: 'Timeline Session 1',
+          start_time: '2026-07-14T09:00:00Z',
+          end_time: '2026-07-14T10:00:00Z',
+          my_attendance: { status: 'present' },
+          is_today: true,
+        }
+      ],
+      timezone: 'Asia/Ho_Chi_Minh'
+    };
+
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue(studentMembership as any);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue(mockStudentTimeline as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Activity')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText(/Lịch sinh hoạt/));
+
+    await waitFor(() => {
+      expect(screen.getByText('Timeline Session 1')).toBeInTheDocument();
+      expect(screen.getByText('Trạng thái điểm danh:')).toBeInTheDocument();
+      expect(screen.getByText('Có mặt')).toBeInTheDocument();
+      expect(screen.queryByText('Đã điểm danh:')).not.toBeInTheDocument();
+    });
+  });
+
+  it('page-level tests: consumes staff API payload and shows roster details to advisor accounts', async () => {
+    mockAuth.user = {
+      id: 'advisor-id-123',
+      role: { role_code: 'TEACHER' },
+      roleCode: 'TEACHER',
+    };
+    mockAuth.isAdmin = false;
+
+    const mockActivity = {
+      _id: 'act1',
+      name: 'Test Activity',
+      code: 'TEST_ACT',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'B.202',
+      semester_id: { _id: 'sem1', semester_name: 'Học kỳ 1' },
+    };
+
+    const mockStaffTimeline = {
+      viewer_mode: 'staff',
+      items: [
+        {
+          _id: 's_1',
+          title: 'Timeline Session 1',
+          start_time: '2026-07-14T09:00:00Z',
+          end_time: '2026-07-14T10:00:00Z',
+          attendance_records: [
+            {
+              _id: 'rec_1',
+              student_id: { _id: 'std_1', full_name: 'Bob Johnson', student_code: 'SV001' },
+              status: 'present',
+              approval_status: 'approved',
+            }
+          ],
+          is_today: true,
+        }
+      ],
+      timezone: 'Asia/Ho_Chi_Minh'
+    };
+
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue(mockStaffTimeline as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Activity')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText(/Lịch sinh hoạt/));
+
+    await waitFor(() => {
+      expect(screen.getByText('Timeline Session 1')).toBeInTheDocument();
+      expect(screen.queryByText('Trạng thái điểm danh:')).not.toBeInTheDocument();
+      expect(screen.getByText('Đã điểm danh: 1')).toBeInTheDocument();
+    });
+  });
 });

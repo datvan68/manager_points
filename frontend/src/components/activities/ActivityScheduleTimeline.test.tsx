@@ -295,6 +295,104 @@ describe('ActivityScheduleTimeline', () => {
     expect(screen.queryByRole('button', { name: 'Điểm danh' })).not.toBeInTheDocument();
   });
 
+  it('proves role-matrix behaviors: advisor, student, and admin views with roster toggle, empty details, status labels, and approval labels', () => {
+    const matrixSchedules = [
+      {
+        _id: 's_matrix_1',
+        title: 'Matrix Session 1',
+        start_time: '2026-07-14T09:00:00Z',
+        is_today: true,
+        my_attendance: { status: 'present', approval_status: 'approved' },
+        attendance_records: [
+          {
+            _id: 'rec_1',
+            student_id: { _id: 'std_1', full_name: 'Alice Johnson', student_code: 'SV001' },
+            status: 'present',
+            check_in_time: '2026-07-14T09:05:00Z',
+            approval_status: 'approved',
+            note: 'On time',
+          },
+          {
+            _id: 'rec_2',
+            student_id: { _id: 'std_2', full_name: 'Bob Smith', student_code: 'SV002' },
+            status: 'late',
+            check_in_time: '2026-07-14T09:20:00Z',
+            approval_status: 'pending',
+            note: 'Traffic',
+          }
+        ]
+      }
+    ];
+
+    // Case 1: Student Viewer (canViewOwnAttendance=true, canViewAttendanceRoster=false)
+    const { rerender } = render(
+      <ActivityScheduleTimeline
+        schedules={matrixSchedules}
+        canViewOwnAttendance={true}
+        canViewAttendanceRoster={false}
+      />
+    );
+    expect(screen.getByText('Trạng thái điểm danh:')).toBeInTheDocument();
+    expect(screen.getByText('Có mặt')).toBeInTheDocument();
+    expect(screen.queryByText('Đã điểm danh:')).not.toBeInTheDocument();
+    expect(screen.queryByText('Alice Johnson')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bob Smith')).not.toBeInTheDocument();
+
+    // Case 2: Advisor Viewer (canViewOwnAttendance=false, canViewAttendanceRoster=true)
+    rerender(
+      <ActivityScheduleTimeline
+        schedules={matrixSchedules}
+        canViewOwnAttendance={false}
+        canViewAttendanceRoster={true}
+      />
+    );
+    expect(screen.queryByText('Trạng thái điểm danh:')).not.toBeInTheDocument();
+    expect(screen.getByText('Đã điểm danh: 2')).toBeInTheDocument();
+    
+    // Toggle expand
+    const detailBtn = screen.getByRole('button', { name: 'Chi tiết' });
+    expect(detailBtn).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(detailBtn);
+    expect(detailBtn).toHaveAttribute('aria-expanded', 'true');
+
+    // Verify roster fields
+    expect(screen.getByText('DANH SÁCH ĐIỂM DANH:')).toBeInTheDocument();
+    expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
+    expect(screen.getByText('SV001')).toBeInTheDocument();
+    expect(screen.getByText('Bob Smith')).toBeInTheDocument();
+    expect(screen.getByText('SV002')).toBeInTheDocument();
+    expect(screen.getByText('Note: On time')).toBeInTheDocument();
+    expect(screen.getByText('Note: Traffic')).toBeInTheDocument();
+    expect(screen.getByText('Chờ duyệt')).toBeInTheDocument(); // approval label for pending
+    expect(screen.getAllByText('Đã duyệt').length).toBeGreaterThan(0); // approval status of Alice
+
+    // Toggle collapse
+    fireEvent.click(detailBtn);
+    expect(screen.queryByText('Alice Johnson')).not.toBeInTheDocument();
+
+    // Case 3: Admin Viewer with empty records
+    const emptySchedules = [
+      {
+        _id: 's_empty',
+        title: 'Empty Session',
+        start_time: '2026-07-14T09:00:00Z',
+        is_today: true,
+        attendance_records: [],
+      }
+    ];
+    rerender(
+      <ActivityScheduleTimeline
+        schedules={emptySchedules}
+        canViewOwnAttendance={false}
+        canViewAttendanceRoster={true}
+      />
+    );
+    expect(screen.getByText('Đã điểm danh: 0')).toBeInTheDocument();
+    const emptyDetailBtn = screen.getByRole('button', { name: 'Chi tiết' });
+    fireEvent.click(emptyDetailBtn);
+    expect(screen.getByText('Không có dữ liệu điểm danh')).toBeInTheDocument();
+  });
+
   it('renders explicit empty state without headings or badges when schedules is empty', () => {
     render(<ActivityScheduleTimeline schedules={[]} />);
     expect(screen.queryByText(/Tuần \d+/)).not.toBeInTheDocument();

@@ -464,6 +464,62 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
       expect(rec.note).toBe('Ok');
     });
 
+    it('should assert the exact allowed and omitted fields for student, advisor/teacher, and admin timeline payloads', async () => {
+      mockActivityScheduleModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockSchedules),
+      });
+
+      const mockAttendance = [
+        {
+          _id: new Types.ObjectId(),
+          schedule_id: mockSchedules[0]._id,
+          student_id: {
+            _id: new Types.ObjectId(),
+            full_name: 'John Doe',
+            student_code: 'SV123',
+            email: 'john@example.com',
+          },
+          status: 'present',
+          check_in_time: new Date(),
+          approval_status: 'approved',
+          note: 'Ok',
+        },
+      ];
+
+      mockActivityAttendanceModel.find.mockImplementation(() => ({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockAttendance),
+      }));
+
+      // Test student
+      const studentRequester = { role: 'STUDENT', studentId: 'student123' };
+      const studentRes = await service.findActivityTimeline(activityId, studentRequester);
+      expect(studentRes.viewer_mode).toBe('student');
+      expect(studentRes.items[0].my_attendance).toBeDefined();
+      expect(studentRes.items[0].attendance_records).toBeUndefined();
+
+      // Test advisor/teacher
+      const teacherRequester = { role: 'TEACHER' };
+      const teacherRes = await service.findActivityTimeline(activityId, teacherRequester);
+      expect(teacherRes.viewer_mode).toBe('staff');
+      expect(teacherRes.items[0].my_attendance).toBeUndefined();
+      expect(teacherRes.items[0].attendance_records).toBeDefined();
+      expect(teacherRes.items[0].attendance_records[0].status).toBe('present');
+
+      // Test admin
+      const adminRequester = { role: 'ADMIN' };
+      const adminRes = await service.findActivityTimeline(activityId, adminRequester);
+      expect(adminRes.viewer_mode).toBe('staff');
+      expect(adminRes.items[0].my_attendance).toBeUndefined();
+      expect(adminRes.items[0].attendance_records).toBeDefined();
+      expect(adminRes.items[0].attendance_records[0].status).toBe('present');
+      expect(adminRes.items[0].attendance_records[0].approval_status).toBe('approved');
+    });
+
+
     it('should query all arranged weeks, exclude cancelled, and enrich details correctly', async () => {
       const today = new Date();
       const mockSchedulesWithCancelled = [
