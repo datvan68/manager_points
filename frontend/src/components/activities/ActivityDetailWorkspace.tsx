@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import {
@@ -108,8 +108,6 @@ interface ActivityDetailWorkspaceProps {
   onRejectMember: (memberId: string) => Promise<void>;
   onUpdateMemberRole: (memberId: string, newRole: string) => Promise<void>;
   onRemoveMember: (memberId: string) => Promise<void>;
-  onCreateSchedule: (data: any) => Promise<void>;
-  onDeleteSchedule: (scheduleId: string) => Promise<void>;
   onBackClick: () => void;
   studentsList?: any[];
   semestersList?: any[];
@@ -142,8 +140,6 @@ export default function ActivityDetailWorkspace({
   onRejectMember,
   onUpdateMemberRole,
   onRemoveMember,
-  onCreateSchedule,
-  onDeleteSchedule,
   onBackClick,
   studentsList = [],
   semestersList = [],
@@ -392,8 +388,6 @@ export default function ActivityDetailWorkspace({
               schedules={schedules}
               isAdminOrAdvisor={isAdminOrAdvisor}
               isStudent={isStudent}
-              onCreateSchedule={onCreateSchedule}
-              onDeleteSchedule={onDeleteSchedule}
             />
           </div>
         )}

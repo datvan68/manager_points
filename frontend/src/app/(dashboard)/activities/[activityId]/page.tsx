@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -507,6 +507,7 @@ export default function ActivityDetailPage() {
               onCancelRegistration={handleCancelRegisterSchedule}
               isAdminOrAdvisor={isAdminOrAdvisor}
               isStudent={isStudent && memberStatus === 'active'}
+              onOpenAttendance={() => handleTabChange('attendance')}
             />
           </div>
         )}
