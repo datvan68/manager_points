@@ -174,25 +174,40 @@ export default function ActivityScheduleTimeline({
 
             return (
               <div key={schedule._id} className="relative group">
-                <div className="absolute -left-[35px] top-1.5 w-4 h-4 rounded-full bg-blue-500 border-4 border-white shadow-sm ring-2 ring-blue-100 group-hover:scale-110 transition-transform duration-200" />
-                <div className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col gap-4 ${isToday ? 'border-blue-500 bg-blue-50/50 hover:bg-blue-50/60 shadow-sm' : isPast ? 'border-white/60 bg-white/50 hover:bg-white/75 opacity-60' : 'border-white/60 bg-white/50 hover:bg-white/75'}`}>
+                <div className={`absolute -left-[35px] top-1.5 w-4 h-4 rounded-full border-4 border-white shadow-sm transition-all duration-300 group-hover:scale-110 ${isToday ? 'bg-indigo-600 ring-2 ring-indigo-400/50 scale-110 z-10' : 'bg-blue-500 ring-2 ring-blue-100'}`}>
+                  {isToday && (
+                    <span className="absolute -inset-1 rounded-full bg-indigo-500/40 animate-ping -z-10" />
+                  )}
+                </div>
+                <div className={`p-4 rounded-2xl border transition-all duration-300 flex flex-col gap-4 relative overflow-hidden ${
+                  isToday 
+                    ? 'border-indigo-200 bg-gradient-to-br from-indigo-50/50 via-blue-50/20 to-white/90 hover:from-indigo-50/70 hover:via-blue-50/30 hover:to-white shadow-md shadow-indigo-100/40 border-l-4 border-l-indigo-600 scale-[1.01] transform' 
+                    : isPast 
+                    ? 'border-white/60 bg-white/50 hover:bg-white/75 opacity-60' 
+                    : 'border-white/60 bg-white/50 hover:bg-white/75 shadow-sm hover:shadow'
+                }`}>
                   <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center w-full">
                     <div className="space-y-2 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        {isToday && (<span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 text-[10px] font-bold">Hôm nay</span>)}
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 text-[10px] font-bold">{dateInfo.dateLabel}</span>
-                        <span className="text-[11px] font-bold text-slate-400">{dateInfo.time} - {endDateInfo.time}</span>
+                        {isToday && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-red-500 to-rose-500 text-white text-[10px] font-black uppercase tracking-wider shadow-sm shadow-red-500/20 animate-pulse">
+                            <span className="w-1 h-1 rounded-full bg-white animate-ping shrink-0" />
+                            Hôm nay
+                          </span>
+                        )}
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold ${isToday ? 'bg-indigo-100 text-indigo-700 border border-indigo-200/60' : 'bg-blue-500/10 text-blue-600'}`}>{dateInfo.dateLabel}</span>
+                        <span className={`text-[11px] font-bold ${isToday ? 'text-indigo-600' : 'text-slate-400'}`}>{dateInfo.time} - {endDateInfo.time}</span>
                       </div>
-                      <h4 className="text-sm font-bold text-slate-700">{schedule.title}</h4>
-                      {schedule.description && (<p className="text-xs text-slate-400 font-semibold">{schedule.description}</p>)}
-                      <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1 text-[11px] text-slate-500 font-semibold">
+                      <h4 className={`text-sm font-bold transition-colors ${isToday ? 'text-indigo-950 font-black text-base' : 'text-slate-700'}`}>{schedule.title}</h4>
+                      {schedule.description && (<p className={`text-xs font-semibold ${isToday ? 'text-slate-500' : 'text-slate-400'}`}>{schedule.description}</p>)}
+                      <div className={`flex flex-wrap gap-x-4 gap-y-1.5 pt-1 text-[11px] font-semibold ${isToday ? 'text-indigo-900/80' : 'text-slate-500'}`}>
                         <div className="flex items-center gap-1">
-                          <MapPin size={12} className="text-slate-400" />
+                          <MapPin size={12} className={isToday ? 'text-indigo-500' : 'text-slate-400'} />
                           <span>{schedule.location || 'Chưa có địa điểm'}</span>
                         </div>
                         {maxAtt > 0 && (
                           <div className="flex items-center gap-1">
-                            <Users size={12} className="text-slate-400" />
+                            <Users size={12} className={isToday ? 'text-indigo-500' : 'text-slate-400'} />
                             <span>Đăng ký: {regCount}/{maxAtt} {isFull && <span className="text-red-500 font-bold">(Đầy)</span>}</span>
                           </div>
                         )}
@@ -217,7 +232,7 @@ export default function ActivityScheduleTimeline({
                     </div>
                     <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                       {isToday && onOpenAttendance && (showOwnStatus || showRoster) && (
-                        <Button onClick={onOpenAttendance} className="h-8 px-3 text-xs bg-blue-500 text-white rounded-xl hover:bg-blue-600 cursor-pointer">Điểm danh</Button>
+                        <Button onClick={onOpenAttendance} className="h-8 px-4 text-xs bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded-xl shadow-md shadow-indigo-500/10 active:scale-95 transition-all cursor-pointer font-bold border-0">Điểm danh</Button>
                       )}
                       {isStudent && (
                         <>
