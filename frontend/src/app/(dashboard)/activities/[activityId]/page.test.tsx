@@ -80,6 +80,12 @@ vi.mock('@/api/criteria-api', () => ({
   },
 }));
 
+vi.mock('@/api/semester-api', () => ({
+  semesterApi: {
+    getSemesters: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 // 6. Mock Sonner toast
 vi.mock('sonner', () => ({
   toast: {
@@ -91,6 +97,7 @@ vi.mock('sonner', () => ({
 // 7. Import after mocks
 import { activityApi, activityScheduleApi, activityCompletionRuleApi } from '@/api/activity-api';
 import { criteriaApi } from '@/api/criteria-api';
+import { semesterApi } from '@/api/semester-api';
 import ActivityDetailPage from './page';
 
 describe('ActivityDetailPage', () => {
@@ -104,6 +111,7 @@ describe('ActivityDetailPage', () => {
     };
     mockAuth.isAdmin = true;
     mockSearchParamsGet.mockReturnValue(null);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([]);
   });
 
   it('should render page with mock activity detail', async () => {
@@ -213,8 +221,8 @@ describe('ActivityDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Lịch trình & dòng thời gian')).toBeInTheDocument();
       expect(screen.getByText('Weekly Sync Meeting')).toBeInTheDocument();
-      const card = screen.getByText('Weekly Sync Meeting').closest('.group');
-      attendanceBtn = within(card!).getByRole('button', { name: 'Điểm danh' });
+      const card = screen.getByText('Weekly Sync Meeting').closest('.group') as HTMLElement | null;
+      attendanceBtn = within(card as HTMLElement).getAllByRole('button')[1] as HTMLElement;
       expect(attendanceBtn).toBeInTheDocument();
     });
 
@@ -450,7 +458,7 @@ describe('ActivityDetailPage', () => {
       semester_id: { _id: 'sem1', semester_name: 'Semester 1' },
       minimum_attendance: 4,
       criterion_ids: [{ _id: 'crit-1' }],
-      status: 'active',
+      status: 'active' as const,
     };
 
     const wrongActivityRule = {
@@ -559,7 +567,7 @@ describe('ActivityDetailPage', () => {
       semester_id: 'sem1',
       minimum_attendance: 5,
       criterion_ids: ['crit-1'],
-      status: 'active',
+      status: 'active' as const,
     };
 
     const mockCriteria = [
@@ -718,4 +726,117 @@ describe('ActivityDetailPage', () => {
       expect(screen.getByText('Đã điểm danh: 1')).toBeInTheDocument();
     });
   });
+
+
+  it('uses the active semester from semesterApi instead of activity.semester_id', async () => {
+    const mockActivity = {
+      _id: 'act1',
+      name: 'Semester Source Activity',
+      code: 'SEM_SOURCE',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'B.202',
+      advisor_id: { full_name: 'Jane Doe' },
+      semester_id: 'sem-old',
+    };
+
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([
+      { _id: 'sem-future', semester_name: 'Semester Future', status: 'upcoming' },
+      { _id: 'sem-active', semester_name: 'Semester Active', status: 'active' },
+      { _id: 'sem-old', semester_name: 'Semester Old', status: 'inactive' },
+    ] as any);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(semesterApi.getSemesters).toHaveBeenCalled();
+      expect(document.body.textContent).toContain('Semester Active');
+    });
+  });
+
+  it('renders em dash when no active semester exists', async () => {
+    const mockActivity = {
+      _id: 'act1',
+      name: 'No Active Semester Activity',
+      code: 'NO_ACTIVE',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'B.202',
+      advisor_id: { full_name: 'Jane Doe' },
+      semester_id: { _id: 'sem-old', semester_name: 'Semester Old' },
+    };
+
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([
+      { _id: 'sem-old', semester_name: 'Semester Old', status: 'inactive' },
+      { _id: 'sem-next', semester_name: 'Semester Next', status: 'upcoming' },
+    ] as any);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('\u2014');
+    });
+  });
+
+  it('displays each schedule location before falling back to activity classroom in the schedule tab', async () => {
+    const mockActivity = {
+      _id: 'act1',
+      name: 'Schedule Location Activity',
+      code: 'SCHEDULE_ROOM',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'Default Room',
+      advisor_id: { full_name: 'Jane Doe' },
+      semester_id: { _id: 'sem1', semester_name: 'Semester 1' },
+    };
+
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({
+      items: [
+        {
+          _id: 'sched-1',
+          title: 'Has Specific Room',
+          start_time: '2026-07-14T09:00:00Z',
+          end_time: '2026-07-14T10:00:00Z',
+          location: 'Room 701',
+        },
+        {
+          _id: 'sched-2',
+          title: 'Uses Default Room',
+          start_time: '2026-07-14T11:00:00Z',
+          end_time: '2026-07-14T12:00:00Z',
+          location: '',
+        },
+      ],
+    } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([
+      { _id: 'sem1', semester_name: 'Semester 1', status: 'active' },
+    ] as any);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Schedule Location Activity')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText(/L\u1ecbch sinh ho\u1ea1t/));
+
+    await waitFor(() => {
+      expect(screen.getByText('Has Specific Room')).toBeInTheDocument();
+      expect(screen.getByText('Room 701')).toBeInTheDocument();
+      expect(screen.getByText('Uses Default Room')).toBeInTheDocument();
+      expect(screen.getByText('Default Room')).toBeInTheDocument();
+    });
+  });
+
 });

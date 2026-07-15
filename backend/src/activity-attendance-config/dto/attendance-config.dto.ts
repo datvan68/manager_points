@@ -14,7 +14,7 @@ export class CreateAttendanceConfigDto {
   @IsOptional()
   @IsMongoId()
   activity_id?: string;
-`r`n
+
 
   @ApiProperty({ description: 'Semester ID' })
   @IsMongoId()

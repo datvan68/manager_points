@@ -1,8 +1,8 @@
 ---
-description: Định nghĩa các pipeline chuẩn cho từng loại task phổ biến trong dự án Software Development / DevOps. Orchestrator map task vào pipeline phù hợp và thực thi theo đúng thứ tự / cấu trúc song song được khai báo.
+description: Defines the standard pipelines for each common task type in the Software Development / DevOps project. The orchestrator maps a task to the appropriate pipeline and executes it according to the declared order / parallel structure.
 ---
 
-# Pipeline — Luồng Xử Lý Cụ Thể
+# Pipeline — Concrete Processing Flows
 
 ---
 
@@ -11,7 +11,7 @@ description: Định nghĩa các pipeline chuẩn cho từng loại task phổ b
 ```yaml
 version: 2.0.0
 managed_by: orchestrator
-trigger: orchestrator nhận task và map vào pipeline phù hợp
+trigger: orchestrator receives a task and maps it to the appropriate pipeline
 max_pipeline_duration: 10m
 checkpointing: enabled
 checkpoint_store: redis
@@ -20,14 +20,14 @@ resume_from_last_success: true
 
 ---
 
-## Quy Ước Syntax
+## Syntax Conventions
 
 ```yaml
-# Tuần tự: step chạy sau khi step trước hoàn thành
+# Sequential: step runs after the previous step completes
 - step: N
   agent: agent-id
 
-# Song song: tất cả items trong parallel[] chạy đồng thời
+# Parallel: all items in parallel[] run concurrently
 - step: N
   parallel:
     - agent: agent-a
@@ -36,41 +36,41 @@ resume_from_last_success: true
     - agent: agent-b
       skill: skill_b
       action: "..."
-  sync_at: step_N+1   # chờ toàn bộ nhánh xong mới tiếp tục
+  sync_at: step_N+1   # wait for all branches to finish before continuing
 
-# Có điều kiện: chỉ chạy nếu condition đúng
+# Conditional: only runs if the condition is true
 - step: N
   agent: agent-id
-  condition: "biểu thức điều kiện"
+  condition: "condition expression"
 
 # Human gate
 - step: N
   type: human_gate
-  condition: "biểu thức kích hoạt"
-  message: "Nội dung yêu cầu xác nhận"
+  condition: "triggering expression"
+  message: "Confirmation request content"
 
-# Override số vòng lặp ENG Loop cho step cụ thể (mặc định 3, xem global.md §8)
+# Override the ENG Loop iteration count for a specific step (default 3, see global.md §8)
 - step: N
   agent: agent-id
   skill: skill_id
-  loop_iterations: 5        # step rủi ro cao / cần refine nhiều (vd: fix bug phức tạp)
-  # hoặc
-  loop_iterations: 0        # tắt loop, step chỉ đọc/phân tích, không có gì để refine
+  loop_iterations: 5        # high-risk step / needs heavy refinement (e.g. fixing a complex bug)
+  # or
+  loop_iterations: 0        # disables the loop; step is read/analysis only, nothing to refine
 ```
 
-> **ENG Loop trong pipeline:** mỗi step do sub-agent thực thi tự chạy nội bộ `PLAN → EXECUTE → VERIFY → REFINE` (tối đa `loop_iterations`, mặc định 3) trước khi trả kết quả về orchestrator — xem `global.md §8`. `on_failure` của step chỉ kích hoạt **sau khi** loop nội bộ đã hết, không phải cho từng iteration riêng lẻ. Step thuộc loại `type: human_gate` hoặc có `gate:` luôn nằm **ngoài** vòng lặp — sub-agent không được tự ý lặp lại để né gate.
+> **ENG Loop in the pipeline:** each step executed by a sub-agent internally runs `PLAN → EXECUTE → VERIFY → REFINE` (up to `loop_iterations`, default 3) before returning its result to the orchestrator — see `global.md §8`. A step's `on_failure` only triggers **after** the internal loop is exhausted, not per individual iteration. A step of `type: human_gate` or with a `gate:` always sits **outside** the loop — a sub-agent may not iterate on its own to bypass a gate.
 
 ---
 
 ## Pipeline 1: Feature Development
 
-**Khi nào dùng:** Phát triển tính năng mới từ requirement
+**When to use:** Developing a new feature from a requirement
 
 ```
 ┌─────────────┐     ┌──────────────────────────┐     ┌─────────────┐     ┌─────────────┐
-│  code-agent │────▶│  SONG SONG:               │────▶│review-agent │────▶│  doc-agent  │
-│  sinh code  │     │  test-agent (unit tests)  │     │ review +    │     │  cập nhật   │
-│             │     │  doc-agent  (draft docs)  │     │ security    │     │  tài liệu   │
+│  code-agent │────▶│  PARALLEL:                │────▶│review-agent │────▶│  doc-agent  │
+│ generate    │     │  test-agent (unit tests)  │     │ review +    │     │  update     │
+│ code        │     │  doc-agent  (draft docs)  │     │ security    │     │ documentation│
 └─────────────┘     └──────────────────────────┘     └─────────────┘     └─────────────┘
 ```
 
@@ -80,7 +80,7 @@ steps:
   - step: 1
     agent: code-agent
     skill: code_gen
-    action: "Sinh code theo requirement"
+    action: "Generate code according to the requirement"
     input_from: user
     output_to: step_2
     on_failure: stop
@@ -90,12 +90,12 @@ steps:
     parallel:
       - agent: test-agent
         skill: code_gen (mode=test)
-        action: "Viết unit test cho code vừa sinh"
+        action: "Write unit tests for the code just generated"
         input_from: step_1
         on_failure: retry_once
       - agent: doc-agent
         skill: summarize (mode=draft)
-        action: "Tạo bản nháp docstring và README section"
+        action: "Create a draft docstring and README section"
         input_from: step_1
         on_failure: warn_only
     sync_at: step_3
@@ -104,17 +104,17 @@ steps:
   - step: 3
     agent: review-agent
     skill: search + summarize + security_scan
-    action: "Review code quality, security, performance; kiểm tra test coverage"
+    action: "Review code quality, security, performance; check test coverage"
     input_from: step_1, step_2
     output_to: step_4
     on_failure: stop
-    gate: "review-agent phải approve trước khi tiếp tục"
+    gate: "review-agent must approve before continuing"
     checkpoint: after
 
   - step: 4
     agent: doc-agent
     skill: code_gen (mode=document)
-    action: "Hoàn thiện README, docstring, changelog dựa trên bản nháp (step_2) và kết quả review (step_3)"
+    action: "Finalize README, docstring, changelog based on the draft (step_2) and the review result (step_3)"
     input_from: step_2, step_3
     output_to: orchestrator
     on_failure: warn_only
@@ -129,13 +129,13 @@ steps:
 
 ## Pipeline 2: Bug Fix
 
-**Khi nào dùng:** Sửa lỗi từ bug report hoặc log
+**When to use:** Fixing a bug from a bug report or log
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │  code-agent │────▶│  code-agent │────▶│  test-agent │────▶│review-agent │
-│ phân tích   │     │  fix bug    │     │ regression  │     │ confirm fix │
-│ root cause  │     │             │     │ test        │     │             │
+│ analyze root│     │  fix bug    │     │ regression  │     │ confirm fix │
+│ cause       │     │             │     │ test        │     │             │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
@@ -143,29 +143,29 @@ steps:
 pipeline_id: bug_fix
 steps:
   - step: 1
-    agent: code-agent          # ✅ code-agent chịu trách nhiệm phân tích, không phải orchestrator
+    agent: code-agent          # ✅ code-agent is responsible for analysis, not the orchestrator
     skill: search
-    action: "Phân tích log/error message, xác định root cause"
+    action: "Analyze the log/error message, determine the root cause"
     input_from: user
     output_to: step_2
     on_failure: stop
-    loop_iterations: 0        # step chỉ phân tích/đọc, không có kết quả để tự refine
+    loop_iterations: 0        # step is analysis/read-only, nothing to self-refine
     checkpoint: after
 
   - step: 2
     agent: code-agent
     skill: code_gen (mode=fix)
-    action: "Sửa bug dựa theo root cause từ step_1"
+    action: "Fix the bug based on the root cause from step_1"
     input_from: step_1
     output_to: step_3
     on_failure: stop
-    loop_iterations: 5        # ưu tiên cho code-agent tự refine fix trước khi escalate — bug fix thường cần nhiều vòng thử hơn mặc định
+    loop_iterations: 5        # gives code-agent more room to self-refine the fix before escalating — bug fixes typically need more attempts than the default
     checkpoint: after
 
   - step: 3
     agent: test-agent
     skill: code_gen (mode=test)
-    action: "Viết regression test để đảm bảo bug không tái xuất"
+    action: "Write a regression test to ensure the bug does not reoccur"
     input_from: step_2
     output_to: step_4
     on_failure: warn_only
@@ -179,7 +179,7 @@ steps:
   - step: 4
     agent: review-agent
     skill: summarize + security_scan
-    action: "Xác nhận fix đúng root cause, không introduce bug mới, không có security regression"
+    action: "Confirm the fix addresses the correct root cause, introduces no new bugs, and has no security regression"
     input_from: step_2, step_3
     output_to: orchestrator
     on_failure: stop
@@ -190,13 +190,13 @@ steps:
 
 ## Pipeline 3: DevOps / Infrastructure
 
-**Khi nào dùng:** Tạo/cập nhật Dockerfile, k8s manifest, CI/CD pipeline, Terraform
+**When to use:** Creating/updating a Dockerfile, k8s manifest, CI/CD pipeline, Terraform
 
 ```
 ┌──────────────┐     ┌──────────────────────────────┐     ┌──────────────────┐
-│ devops-agent │────▶│  SONG SONG:                   │────▶│ Human Approval   │
-│ sinh infra   │     │  review-agent (code quality)  │     │ (nếu production) │
-│ code         │     │  devops-agent (security IaC)  │     │                  │
+│ devops-agent │────▶│  PARALLEL:                    │────▶│ Human Approval   │
+│ generate     │     │  review-agent (code quality)  │     │ (if production)  │
+│ infra code   │     │  devops-agent (security IaC)  │     │                  │
 └──────────────┘     └──────────────────────────────┘     └──────────────────┘
 ```
 
@@ -206,7 +206,7 @@ steps:
   - step: 1
     agent: devops-agent
     skill: code_gen (mode=infra)
-    action: "Sinh infrastructure code theo yêu cầu (Dockerfile, k8s manifest, Terraform, CI/CD config)"
+    action: "Generate infrastructure code per the requirement (Dockerfile, k8s manifest, Terraform, CI/CD config)"
     input_from: user
     output_to: step_2
     on_failure: stop
@@ -216,16 +216,16 @@ steps:
     parallel:
       - agent: review-agent
         skill: search + summarize
-        action: "Review code quality, best practices, cấu trúc IaC"
+        action: "Review code quality, best practices, IaC structure"
         input_from: step_1
         on_failure: stop
       - agent: devops-agent
         skill: security_scan
-        action: "Quét security: exposed secrets, overprivileged roles, insecure defaults trong IaC"
+        action: "Scan for security issues: exposed secrets, overprivileged roles, insecure defaults in IaC"
         input_from: step_1
         on_failure: stop
     sync_at: step_3
-    gate: "Cả hai nhánh phải approve mới tiếp tục"
+    gate: "Both branches must approve before continuing"
     checkpoint: after
 
   - step: 3
@@ -239,13 +239,13 @@ steps:
 
 ## Pipeline 4: Code Review (PR Review)
 
-**Khi nào dùng:** Tự động review pull request
+**When to use:** Automatically reviewing a pull request
 
 ```
 ┌─────────────┐     ┌──────────────────────────────────┐     ┌─────────────┐
-│ code-agent  │────▶│  SONG SONG:                       │────▶│  doc-agent  │
-│ lấy git diff│     │  review-agent (logic/security)    │     │ tổng hợp   │
-│             │     │  devops-agent (nếu có infra file) │     │ action items│
+│ code-agent  │────▶│  PARALLEL:                        │────▶│  doc-agent  │
+│ get git diff│     │  review-agent (logic/security)    │     │ synthesize  │
+│             │     │  devops-agent (if infra files)    │     │ action items│
 └─────────────┘     └──────────────────────────────────┘     └─────────────┘
 ```
 
@@ -255,7 +255,7 @@ steps:
   - step: 1
     agent: code-agent
     skill: search (mode=code_search)
-    action: "Lấy git diff của PR, phân loại file thay đổi (source code vs infra files)"
+    action: "Fetch the PR's git diff, classify changed files (source code vs infra files)"
     input_from: user (PR link)
     output_to: step_2
     on_failure: stop
@@ -265,12 +265,12 @@ steps:
     parallel:
       - agent: review-agent
         skill: search + summarize + security_scan
-        action: "Phát hiện bug, security issue, code smell, missing tests trong source code changes"
+        action: "Detect bugs, security issues, code smells, missing tests in source code changes"
         input_from: step_1
         on_failure: stop
       - agent: devops-agent
         skill: search + summarize + security_scan
-        action: "Review IaC changes nếu PR chứa Dockerfile, k8s, Terraform, CI/CD config"
+        action: "Review IaC changes if the PR contains a Dockerfile, k8s, Terraform, or CI/CD config"
         input_from: step_1
         condition: "pr_contains_infra_files == true"
         on_failure: stop
@@ -280,7 +280,7 @@ steps:
   - step: 3
     agent: doc-agent
     skill: summarize (mode=action_items)
-    action: "Tổng hợp toàn bộ comments từ review-agent và devops-agent thành danh sách action items có priority"
+    action: "Synthesize all comments from review-agent and devops-agent into a prioritized action items list"
     input_from: step_2
     output_to: orchestrator
     on_failure: warn_only
@@ -293,28 +293,28 @@ steps:
 
 ---
 
-## Quy Tắc Chung Cho Tất Cả Pipeline
+## General Rules for All Pipelines
 
 ```
-1. Mọi sub-agent đều nhận shared_context đầy đủ từ orchestrator (xem orchestrator.md)
-2. Mỗi step phải trả output đúng schema của orchestrator
-3. Nếu một step fail và on_failure=stop → lưu checkpoint, toàn pipeline dừng
-4. Gate steps: agent phía sau không chạy cho đến khi gate được approve
-5. Thời gian tối đa mỗi pipeline: 10 phút
-6. Checkpoint được lưu sau mỗi step thành công — pipeline có thể resume từ bước tiếp theo
-7. Log toàn bộ bước, kể cả khi thành công, kèm duration_ms
-8. Orchestrator thông báo người dùng khi pipeline hoàn thành, bị gián đoạn, hoặc cần approval
-9. on_failure=warn_only phải kèm notify_on_failure schema — không được warn ngầm
-10. Orchestrator KHÔNG thực thi skill nào trong bất kỳ pipeline nào
-11. Mỗi step có thể tự lặp nội bộ theo ENG Loop (`global.md §8`, mặc định 3 vòng, override qua `loop_iterations`); `on_failure` chỉ áp dụng sau khi loop nội bộ đã hết — không phải cho từng iteration
-12. Step `type: human_gate` hoặc có `gate:` luôn đứng ngoài ENG Loop — không sub-agent nào được tự lặp để né qua gate
+1. Every sub-agent receives full shared_context from the orchestrator (see orchestrator.md)
+2. Every step must return output matching the orchestrator's schema
+3. If a step fails and on_failure=stop → save a checkpoint, the entire pipeline stops
+4. Gate steps: downstream agents do not run until the gate is approved
+5. Maximum duration per pipeline: 10 minutes
+6. Checkpoints are saved after every successful step — the pipeline can resume from the next step
+7. Log every step, including successful ones, with duration_ms
+8. The orchestrator notifies the user when a pipeline completes, is interrupted, or needs approval
+9. on_failure=warn_only must include a notify_on_failure schema — silent warnings are not allowed
+10. The orchestrator does NOT execute any skill in any pipeline
+11. Each step may internally iterate per the ENG Loop (global.md §8, default 3 iterations, overridable via loop_iterations); on_failure only applies after the internal loop is exhausted — not per iteration
+12. A step of type: human_gate or with a gate: always stands outside the ENG Loop — no sub-agent may self-iterate to bypass a gate
 ```
 
 ---
 
-## Mapping Task → Pipeline
+## Task → Pipeline Mapping
 
-| Từ khoá trong task | Pipeline |
+| Keyword in task | Pipeline |
 |---|---|
 | "thêm tính năng", "implement", "viết code mới", "feature" | `feature_development` |
 | "sửa lỗi", "fix bug", "lỗi", "crash", "error", "phân tích log" | `bug_fix` |

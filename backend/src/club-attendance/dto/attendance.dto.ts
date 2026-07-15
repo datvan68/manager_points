@@ -15,7 +15,7 @@ export class CreateAttendanceDto {
   @ApiProperty({ description: 'Activity ID' })
   @IsMongoId()
   activity_id: string;
-`r`n
+
   @ApiProperty({ description: 'Schedule session ID' })
   @IsMongoId()
   schedule_id: string;
@@ -69,7 +69,7 @@ export class BatchAttendanceDto {
   @ApiProperty({ description: 'Activity ID' })
   @IsMongoId()
   activity_id: string;
-`r`n
+
   @ApiProperty({ description: 'Schedule session ID' })
   @IsMongoId()
   schedule_id: string;
@@ -115,7 +115,7 @@ export class QueryAttendanceDto {
   @IsOptional()
   @IsMongoId()
   activity_id?: string;
-`r`n
+
   @ApiPropertyOptional({ description: 'Filter by schedule ID' })
   @IsOptional()
   @IsMongoId()

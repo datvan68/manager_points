@@ -108,10 +108,10 @@ describe('ActivityScheduleTimeline', () => {
     const todayCard2 = screen.getByText('Today Session 2').closest('.rounded-2xl');
     const pastCard1 = screen.getByText('Past Session 1').closest('.rounded-2xl');
 
-    expect(todayCard1).toHaveClass('border-blue-500');
-    expect(todayCard1).toHaveClass('bg-blue-50/50');
-    expect(todayCard2).toHaveClass('border-blue-500');
-    expect(todayCard2).toHaveClass('bg-blue-50/50');
+    expect(todayCard1).toHaveClass('border-indigo-200');
+    expect(todayCard1).toHaveClass('from-indigo-50/50');
+    expect(todayCard2).toHaveClass('border-indigo-200');
+    expect(todayCard2).toHaveClass('from-indigo-50/50');
     
     expect(pastCard1).not.toHaveClass('border-blue-500');
     expect(pastCard1).not.toHaveClass('bg-blue-50/50');
@@ -399,4 +399,53 @@ describe('ActivityScheduleTimeline', () => {
     expect(screen.queryByText('Hôm nay')).not.toBeInTheDocument();
     expect(screen.getByText('Chưa có lịch sinh hoạt nào được lên kế hoạch')).toBeInTheDocument();
   });
+
+
+  it('prioritizes schedule.location over defaultClassroom and falls back when location is empty', () => {
+    render(
+      <ActivityScheduleTimeline
+        schedules={[
+          {
+            _id: 'sched-location',
+            title: 'Scheduled Room',
+            start_time: '2026-07-14T09:00:00Z',
+            end_time: '2026-07-14T10:00:00Z',
+            location: 'Room 305',
+            is_today: true,
+          },
+          {
+            _id: 'sched-fallback',
+            title: 'Fallback Room',
+            start_time: '2026-07-14T11:00:00Z',
+            end_time: '2026-07-14T12:00:00Z',
+            location: '',
+            is_today: false,
+          },
+        ]}
+        defaultClassroom="Main Hall"
+      />
+    );
+
+    expect(screen.getByText('Room 305')).toBeInTheDocument();
+    expect(screen.getByText('Main Hall')).toBeInTheDocument();
+  });
+
+  it('renders final location fallback when neither schedule.location nor defaultClassroom exists', () => {
+    render(
+      <ActivityScheduleTimeline
+        schedules={[
+          {
+            _id: 'sched-no-location',
+            title: 'No Location Session',
+            start_time: '2026-07-14T09:00:00Z',
+            end_time: '2026-07-14T10:00:00Z',
+            is_today: true,
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByText('Ch\u01b0a c\u00f3 \u0111\u1ecba \u0111i\u1ec3m')).toBeInTheDocument();
+  });
+
 });

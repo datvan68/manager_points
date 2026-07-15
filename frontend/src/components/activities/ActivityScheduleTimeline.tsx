@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 
 interface ActivityScheduleTimelineProps {
   schedules: any[];
+  defaultClassroom?: string;
   onRegister?: (scheduleId: string) => Promise<void>;
   onCancelRegistration?: (scheduleId: string) => Promise<void>;
   onOpenAttendance?: () => void;
@@ -64,6 +65,7 @@ const approvalStatusConfig: Record<string, { label: string; bg: string; text: st
 
 export default function ActivityScheduleTimeline({
   schedules,
+  defaultClassroom,
   onRegister,
   onCancelRegistration,
   onOpenAttendance,
@@ -163,6 +165,7 @@ export default function ActivityScheduleTimeline({
           {sortedSchedules.map((schedule) => {
             const dateInfo = formatDate(schedule.start_time);
             const endDateInfo = formatDate(schedule.end_time);
+            const scheduleLocation = schedule.location || defaultClassroom || 'Chưa có địa điểm';
             const isActionLoading = actionLoadingId === schedule._id;
             const regCount = schedule.registration_count || 0;
             const maxAtt = schedule.max_attendees || 0;
@@ -203,7 +206,7 @@ export default function ActivityScheduleTimeline({
                       <div className={`flex flex-wrap gap-x-4 gap-y-1.5 pt-1 text-[11px] font-semibold ${isToday ? 'text-indigo-900/80' : 'text-slate-500'}`}>
                         <div className="flex items-center gap-1">
                           <MapPin size={12} className={isToday ? 'text-indigo-500' : 'text-slate-400'} />
-                          <span>{schedule.location || 'Chưa có địa điểm'}</span>
+                          <span>{scheduleLocation}</span>
                         </div>
                         {maxAtt > 0 && (
                           <div className="flex items-center gap-1">

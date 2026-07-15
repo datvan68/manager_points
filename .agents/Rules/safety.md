@@ -2,18 +2,18 @@
 trigger: always_on
 priority: highest
 applies_to: all_agents
-override: none   # Không agent nào, kể cả orchestrator, được override file này
+override: none   # No agent, not even the orchestrator, may override this file
 ---
 
-# Safety Rules — Giới Hạn An Toàn
+# Safety Rules
 
-> Các quy tắc này có **độ ưu tiên cao nhất** trong toàn bộ hệ thống. Kể cả orchestrator cũng không được override. Mọi vi phạm phải được log và báo cáo ngay lập tức.
+> These rules have the highest priority in the entire system. Even the orchestrator may not override them. Every violation must be logged and reported immediately.
 
 ---
 
-## 1. Lệnh Shell — Whitelist
+## 1. Shell Commands — Whitelist
 
-Chỉ các lệnh sau được phép thực thi. Bất kỳ lệnh nào không có trong danh sách → từ chối, trả `SAFETY_VIOLATION`.
+Only the following commands are permitted. Any command not on this list → refuse, return `SAFETY_VIOLATION`.
 
 ```bash
 # ✅ Version Control
@@ -39,38 +39,38 @@ yarn install | yarn run | yarn test | yarn build
 pip install | pip list | pip show
 pytest | python -m | python3 -m
 
-# ✅ File System (giới hạn trong allowed paths)
+# ✅ File System (restricted to allowed paths)
 ls | cat | grep | find | echo | head | tail | wc
 mkdir | cp | mv | touch | diff | stat
 
-# ✅ Tiện ích thông thường
-jq | yq | curl (GET only, không pipe vào shell) | wget (download only)
+# ✅ Common utilities
+jq | yq | curl (GET only, never piped into a shell) | wget (download only)
 zip | unzip | tar (extract only) | base64 | sha256sum
 ```
 
 ```bash
-# ❌ TUYỆT ĐỐI CẤM — Vi phạm ngay lập tức kích hoạt SAFETY_VIOLATION
-rm -rf /                  # Xóa toàn bộ hệ thống
-rm -rf * (ở root paths)   # Xóa hàng loạt không kiểm soát
-chmod 777                 # Mở quyền không kiểm soát
-chown -R                  # Thay đổi ownership hàng loạt
-curl <url> | bash         # Thực thi script từ internet trực tiếp
-wget <url> | bash         # Tương tự
-sudo su | sudo -i | su -  # Leo thang quyền root
-dd if=/dev/               # Thao tác trực tiếp với disk
-nc | netcat | ncat        # Tạo kết nối mạng tùy ý (reverse shell)
-> /etc/passwd             # Ghi đè file hệ thống
-iptables | ufw            # Thay đổi firewall
-crontab -e                # Thêm scheduled task
-ssh-keygen | ssh-copy-id  # Tạo/phân phối SSH key
-eval "$(...)"`            # Thực thi dynamic string
+# ❌ ABSOLUTELY FORBIDDEN — Immediately triggers SAFETY_VIOLATION
+rm -rf /                  # Wipe the entire filesystem
+rm -rf * (at root paths)  # Uncontrolled mass deletion
+chmod 777                 # Unrestricted permission opening
+chown -R                  # Bulk ownership change
+curl <url> | bash         # Directly execute a script from the internet
+wget <url> | bash         # Same as above
+sudo su | sudo -i | su -  # Root privilege escalation
+dd if=/dev/               # Direct disk manipulation
+nc | netcat | ncat        # Arbitrary network connections (reverse shell)
+> /etc/passwd             # Overwrite system files
+iptables | ufw            # Firewall changes
+crontab -e                # Add a scheduled task
+ssh-keygen | ssh-copy-id  # Generate/distribute SSH keys
+eval "$(...)"`             # Execute a dynamic string
 ```
 
-> **Lưu ý `curl`:** Chỉ được dùng để GET API/JSON data. Tuyệt đối không `curl <url> | bash` hay `curl <url> | sh`.
+> **Note on `curl`:** Only for GET requests against API/JSON data. Never `curl <url> | bash` or `curl <url> | sh`.
 
 ---
 
-## 2. Phạm Vi File System
+## 2. File System Scope
 
 ```yaml
 allowed_read:
@@ -78,17 +78,17 @@ allowed_read:
   - ./tests/**
   - ./docs/**
   - ./configs/**
-  - ./.agents/**          # Đọc agent definitions
+  - ./.agents/**          # Read agent definitions
   - /tmp/agent-workspace/**
 
 allowed_write:
   - ./output/**
   - /tmp/agent-workspace/**
   - ./logs/**
-  - ./docs/**             # doc-agent cập nhật tài liệu
+  - ./docs/**             # doc-agent updates documentation
 
-allowed_read_only:        # Chỉ đọc, tuyệt đối không ghi/xóa
-  - .env                  # Đọc để lấy config, không được log nội dung
+allowed_read_only:        # Read-only, never write/delete
+  - .env                  # Read for config values only, contents must never be logged
   - .env.local
   - .env.staging
   - .env.production
@@ -100,33 +100,33 @@ forbidden_read_write:
   - /proc/**
   - /sys/**
   - /boot/**
-  - .env* (ghi — tuyệt đối cấm ghi vào bất kỳ .env file nào)
+  - .env* (write — writing to any .env file is strictly forbidden)
 ```
 
-> **Quy tắc `.env`:** Agent có thể đọc `.env` để lấy config (ví dụ `DATABASE_URL`), nhưng **tuyệt đối không** log, print, hay truyền nội dung ra ngoài. Giá trị từ `.env` phải được mask ngay khi xuất hiện trong output.
+> **`.env` rule:** Agents may read `.env` for config values (e.g. `DATABASE_URL`), but must **never** log, print, or pass the contents elsewhere. Any value taken from `.env` must be masked immediately wherever it appears in output.
 
 ---
 
-## 3. Giới Hạn Tài Nguyên
+## 3. Resource Limits
 
 ```yaml
-max_execution_time: 300s        # Tối đa 5 phút mỗi task (hard limit)
-max_output_tokens: 8192         # Giới hạn output mỗi lần gọi model
-max_retry_attempts: 2           # Số lần retry khi API_ERROR hoặc TOOL_TIMEOUT
-max_loop_iterations: 3          # Số vòng lặp PLAN-EXECUTE-VERIFY-REFINE tối đa (ENG Loop, xem global.md §8) — tách biệt với max_retry_attempts
-max_concurrent_subagents: 5     # Số sub-agent chạy đồng thời (nhất quán với orchestrator.md)
-max_file_size_write: 10MB       # Kích thước file tối đa được ghi
-max_pipeline_duration: 600s     # Tổng thời gian tối đa một pipeline (10 phút)
-checkpoint_ttl: 3600s           # Checkpoint hết hạn sau 1 giờ nếu không resume
+max_execution_time: 300s        # Max 5 minutes per task (hard limit)
+max_output_tokens: 8192         # Output limit per model call
+max_retry_attempts: 2           # Number of retries for API_ERROR or TOOL_TIMEOUT
+max_loop_iterations: 3          # Max PLAN-EXECUTE-VERIFY-REFINE iterations (ENG Loop, see global.md §8) — separate from max_retry_attempts
+max_concurrent_subagents: 5     # Number of sub-agents running concurrently (consistent with orchestrator.md)
+max_file_size_write: 10MB       # Max file size that can be written
+max_pipeline_duration: 600s     # Max total duration of a pipeline (10 minutes)
+checkpoint_ttl: 3600s           # Checkpoint expires after 1 hour if not resumed
 ```
 
-> Khi `max_execution_time` bị vượt: agent dừng ngay, trả `TOOL_TIMEOUT`, lưu checkpoint nếu có thể.
+> When `max_execution_time` is exceeded: the agent stops immediately, returns `TOOL_TIMEOUT`, and saves a checkpoint if possible.
 
 ---
 
-## 4. Bảo Vệ Thông Tin Nhạy Cảm
+## 4. Sensitive Information Protection
 
-Các pattern sau **không được xuất hiện** trong log, output, payload, hay notification:
+The following patterns must never appear in logs, output, payloads, or notifications:
 
 ```regex
 # API Keys & Secrets
@@ -136,14 +136,14 @@ Các pattern sau **không được xuất hiện** trong log, output, payload, h
 TOKEN\s*=\s*\S+
 PRIVATE_KEY\s*=\s*\S+
 
-# Thông tin cá nhân
+# Personal information
 \b\d{3}-\d{2}-\d{4}\b                            # US SSN
 \b4[0-9]{12}(?:[0-9]{3})?\b                      # Visa card
 \b5[1-5][0-9]{14}\b                              # Mastercard
-[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,} # Email (trong log/payload)
+[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,} # Email (in logs/payloads)
 ```
 
-**Quy trình mask bắt buộc:**
+**Mandatory masking procedure:**
 ```
 Input:   DATABASE_URL=postgres://admin:secretpass@host:5432/db
 Output:  DATABASE_URL=postgres://***REDACTED***@host:5432/db
@@ -152,26 +152,26 @@ Input:   API_KEY=sk-1234abcd
 Output:  API_KEY=***REDACTED***
 ```
 
-> Mask phải xảy ra **trước khi xử lý** — không bao giờ log raw secret dù chỉ để debug.
+> Masking must occur **before** processing — never log a raw secret, even for debugging purposes.
 
 ---
 
-## 5. Giới Hạn Theo Môi Trường
+## 5. Environment-Based Limits
 
 ```yaml
 environment: production
   allowed_actions:
     - read
     - analyze
-    - generate_code      # Sinh code/config nhưng chưa apply
+    - generate_code      # Generate code/config but do not apply it
     - security_scan
   forbidden_actions:
-    - deploy             # Bắt buộc human approval trước
-    - delete_resource    # Bắt buộc human approval trước
-    - modify_database    # Bắt buộc human approval trước
-    - kubectl apply      # Chỉ được dùng sau khi human approve
-    - terraform apply    # Chỉ được dùng sau khi human approve
-  note: "Mọi action thực thi trên production đều cần human_gate trong pipeline"
+    - deploy             # Requires human approval first
+    - delete_resource    # Requires human approval first
+    - modify_database    # Requires human approval first
+    - kubectl apply      # Only usable after human approval
+    - terraform apply    # Only usable after human approval
+  note: "Any action executed on production requires a human_gate in the pipeline"
 
 environment: staging
   allowed_actions:
@@ -179,30 +179,30 @@ environment: staging
     - analyze
     - generate_code
     - security_scan
-    - deploy             # Được phép nhưng phải qua review-agent approve
+    - deploy             # Allowed, but must be approved by review-agent
   forbidden_actions:
     - delete_resource
-    - modify_database    # Schema changes — cần human approval
-  note: "deploy trên staging được phép nhưng phải có review-agent gate"
+    - modify_database    # Schema changes — requires human approval
+  note: "deploy on staging is allowed but requires a review-agent gate"
 
 environment: development
   allowed_actions: all
-  note: "Vẫn áp dụng whitelist lệnh shell và file system rules ở trên"
+  note: "The shell command whitelist and file system rules above still apply"
 ```
 
 ---
 
-## 6. Hành Vi Khi Phát Hiện Vi Phạm
+## 6. Behavior Upon Detecting a Violation
 
-Khi bất kỳ agent nào phát hiện hành động vi phạm safety:
+When any agent detects an action that violates safety rules:
 
 ```
-1. Dừng thực thi ngay lập tức — không thực hiện dù một phần
-2. Log đầy đủ theo schema bên dưới
-3. Trả về status: error với error_code: SAFETY_VIOLATION
-4. Notify orchestrator để escalate
-5. Không tự ý retry hành động bị từ chối
-6. Không tiếp tục pipeline — orchestrator quyết định hướng xử lý
+1. Stop execution immediately — do not proceed even partially
+2. Log fully according to the schema below
+3. Return status: error with error_code: SAFETY_VIOLATION
+4. Notify the orchestrator to escalate
+5. Do not retry the rejected action on its own
+6. Do not continue the pipeline — the orchestrator decides how to proceed
 ```
 
 **Violation Log Schema:**
@@ -210,13 +210,13 @@ Khi bất kỳ agent nào phát hiện hành động vi phạm safety:
 ```json
 {
   "timestamp": "ISO-8601",
-  "agent_id": "tên-agent-vi-phạm",
+  "agent_id": "violating-agent-name",
   "task_id": "uuid-v4",
-  "pipeline_id": "tên-pipeline",
+  "pipeline_id": "pipeline-name",
   "step": 2,
   "violation_type": "SHELL_FORBIDDEN | FILE_FORBIDDEN | ENV_FORBIDDEN | SECRET_EXPOSURE | RESOURCE_LIMIT",
   "action_attempted": "rm -rf /tmp/agent-workspace/../../../etc",
-  "reason": "Lệnh shell không có trong whitelist",
+  "reason": "Shell command not on the whitelist",
   "blocked": true,
   "notify": ["orchestrator"]
 }
@@ -224,25 +224,25 @@ Khi bất kỳ agent nào phát hiện hành động vi phạm safety:
 
 ---
 
-## 7. Human-in-the-Loop (Bắt Buộc)
+## 7. Human-in-the-Loop (Mandatory)
 
-Các tình huống **bắt buộc phải dừng pipeline và hỏi người dùng** trước khi thực hiện — áp dụng cả khi agent đang chạy trong ENG Loop (`global.md §8`); loop phải dừng ngay tại iteration đó và gửi `approval_required`, không được tự refine/retry để né gate:
+The following situations **require the pipeline to stop and ask the user** before proceeding — this also applies while an agent is running inside the ENG Loop (`global.md §8`); the loop must stop immediately at that iteration and send `approval_required`, without self-refining/retrying to bypass the gate:
 
-**Môi trường Production:**
-- [ ] Deploy bất kỳ thứ gì lên production (`kubectl apply`, `terraform apply`, ...)
-- [ ] Xóa resource (database, bucket, service, namespace, IAM role)
-- [ ] Thay đổi cấu hình infrastructure (network, firewall, load balancer)
-- [ ] Thực thi database migration (schema changes)
-- [ ] Tạo hoặc xóa IAM role/policy/permission
+**Production environment:**
+- [ ] Deploy anything to production (`kubectl apply`, `terraform apply`, ...)
+- [ ] Delete a resource (database, bucket, service, namespace, IAM role)
+- [ ] Change infrastructure configuration (network, firewall, load balancer)
+- [ ] Execute a database migration (schema changes)
+- [ ] Create or delete an IAM role/policy/permission
 
-**Mọi môi trường:**
-- [ ] Merge vào branch `main` / `master` / `release/*`
-- [ ] Xóa branch từ remote repository
-- [ ] Reset hoặc rebase history của branch đã share
-- [ ] Thao tác với secrets/credentials (rotate, revoke, generate)
-- [ ] Thay đổi cấu hình CI/CD pipeline ảnh hưởng đến production workflow
+**All environments:**
+- [ ] Merge into `main` / `master` / `release/*` branches
+- [ ] Delete a branch from the remote repository
+- [ ] Reset or rebase history of a shared branch
+- [ ] Operate on secrets/credentials (rotate, revoke, generate)
+- [ ] Change CI/CD pipeline configuration that affects the production workflow
 
-**Human Gate Request Schema** (orchestrator gửi cho người dùng):
+**Human Gate Request Schema** (sent by the orchestrator to the user):
 
 ```json
 {

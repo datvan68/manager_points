@@ -11,6 +11,7 @@ import {
   ActivitySchedule,
   ActivityCompletionRule
 } from '@/api/activity-api';
+import { semesterApi, Semester } from '@/api/semester-api';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { criteriaApi } from '@/api/criteria-api';
 import { isTeacherRole, isStudentRole } from '@/utils/role.util';
@@ -80,6 +81,7 @@ export default function ActivityDetailPage() {
   const [schedules, setSchedules] = useState<ActivitySchedule[]>([]);
   const [completionRule, setCompletionRule] = useState<ActivityCompletionRule | null>(null);
   const [criteriaById, setCriteriaById] = useState<Record<string, string>>({});
+  const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
   
   const [activeTab, setActiveTab] = useState<'info' | 'members' | 'schedule' | 'rule' | 'attendance'>('info');
 
@@ -109,12 +111,13 @@ export default function ActivityDetailPage() {
   const loadActivityData = async () => {
     try {
       setLoading(true);
-      const [actData, membersData, schedulesResponse, rulesList, criteriaList] = await Promise.all([
+      const [actData, membersData, schedulesResponse, rulesList, criteriaList, semesters] = await Promise.all([
         activityApi.getById(activityId),
         activityApi.getMembers(activityId).catch(() => []),
         activityScheduleApi.getActivityTimeline(activityId).catch(() => ({ items: [] } as any)),
         activityCompletionRuleApi.getAll().catch(() => []),
         (async () => criteriaApi.getCriteria())().catch(() => []),
+        semesterApi.getSemesters().catch(() => []),
       ]);
 
       setActivity(actData);
@@ -132,6 +135,9 @@ export default function ActivityDetailPage() {
         ? schedulesResponse 
         : schedulesResponse?.items || [];
       setSchedules(timelineItems);
+      setActiveSemester(
+        (Array.isArray(semesters) ? semesters : []).find((semester) => semester?.status === 'active') || null
+      );
 
       // Find the completion rule for this activity
       const rule = rulesList.find((r: any) => {
@@ -308,7 +314,7 @@ export default function ActivityDetailPage() {
               {categoryLabels[activity.category] || activity.category}
             </span>
             <span className="text-xs text-slate-400 font-semibold">
-              Học kỳ: {typeof activity.semester_id === 'object' ? activity.semester_id?.semester_name : '—'}
+              Học kỳ: {activeSemester?.semester_name || '—'}
             </span>
           </div>
 
@@ -539,6 +545,7 @@ export default function ActivityDetailPage() {
             </div>
             <ActivityScheduleTimeline
               schedules={schedules}
+              defaultClassroom={activity.classroom}
               onRegister={handleRegisterSchedule}
               onCancelRegistration={handleCancelRegisterSchedule}
               canViewAttendanceRoster={isAdminOrAdvisor}

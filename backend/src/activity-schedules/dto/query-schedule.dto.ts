@@ -7,7 +7,7 @@ export class QueryScheduleDto {
   @IsOptional()
   @IsMongoId()
   activity_id?: string;
-`r`n
+
 
   @ApiPropertyOptional({ description: 'Filter by semester ID' })
   @IsOptional()
