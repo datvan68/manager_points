@@ -548,8 +548,17 @@ describe('ActivityScheduleWorkspace', () => {
     });
 
     const modalForm = screen.getByRole('dialog');
-    expect(modalForm).toHaveAttribute('aria-modal', 'true');
+    expect(modalForm).toHaveAttribute('aria-modal', 'false');
     expect(modalForm).toHaveAttribute('aria-labelledby', 'dialog-title');
+
+    const modalContainer = modalForm.parentElement;
+    expect(modalContainer).toBeInTheDocument();
+    expect(modalContainer?.style.position).toBe('fixed');
+    expect(modalContainer?.style.top).toBe('6px');
+    expect(modalContainer?.style.left).toBe('12px');
+    expect(modalContainer?.style.width).toBe('280px');
+    expect(modalContainer?.className).not.toContain('bg-black/40');
+    expect(modalContainer?.className).not.toContain('backdrop-blur-sm');
 
     const titleElement = container.querySelector('#dialog-title');
     expect(titleElement).toBeInTheDocument();

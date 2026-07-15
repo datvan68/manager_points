@@ -504,19 +504,24 @@ function getCellPendingSchedules(
 }
 
 // Time picker
-const CustomTimePicker = ({ value, onChange }: { value: string; onChange: (val: string) => void }) => {
+const CustomTimePicker = ({ value, onChange, size = 'md' }: { value: string; onChange: (val: string) => void; size?: 'sm' | 'md' }) => {
   const [hour, minute] = value.split(':');
   const hours = Array.from({ length: 15 }, (_, i) => String(i + 7).padStart(2, '0')); // 07 to 21
   const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0')); // 00, 05, 10, ...
+
+  const isSm = size === 'sm';
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-850 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all cursor-pointer shadow-sm"
+          className={cn(
+            "flex w-full items-center justify-center border border-slate-200 bg-white text-slate-850 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all cursor-pointer shadow-sm font-semibold",
+            isSm ? "h-8 text-xs rounded-lg px-2 py-1" : "h-10 text-sm rounded-xl px-3 py-2"
+          )}
         >
-          <Clock className="mr-2 h-4 w-4 text-slate-400" />
+          <Clock className={cn("mr-2 text-slate-400 shrink-0", isSm ? "h-3.5 w-3.5" : "h-4 w-4")} />
           {value}
         </button>
       </PopoverTrigger>
@@ -666,6 +671,7 @@ export default function ActivityScheduleWorkspace({
   const [formEndTime, setFormEndTime] = useState('10:00');
   const [formMaxAttendees, setFormMaxAttendees] = useState('');
   const [isSimplifiedModal, setIsSimplifiedModal] = useState(false);
+  const [modalPosition, setModalPosition] = useState<{ top: number; left: number } | null>(null);
   const [formScheduleId, setFormScheduleId] = useState<string | null>(null);
   const [formShift, setFormShift] = useState<ShiftType | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -807,6 +813,19 @@ export default function ActivityScheduleWorkspace({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (showCreateModal && isSimplifiedModal) {
+        setShowCreateModal(false);
+        setActivePendingSchedule(null);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [showCreateModal, isSimplifiedModal]);
 
   useEffect(() => {
     if (
@@ -1172,8 +1191,25 @@ export default function ActivityScheduleWorkspace({
     }
   };
 
-  const handleConfigurePending = (pending: PendingSchedule & { originalTempId?: string }) => {
+  const handleConfigurePending = (pending: PendingSchedule & { originalTempId?: string }, e?: React.MouseEvent) => {
     if (showCreateModal) return;
+
+    if (e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const modalWidth = 280;
+      let left = rect.left;
+      if (left + modalWidth > window.innerWidth) {
+        left = rect.right - modalWidth;
+      }
+      let top = rect.bottom + 6;
+      if (top + 220 > window.innerHeight) {
+        top = rect.top - 220 - 6;
+      }
+      setModalPosition({ top, left: Math.max(12, left) });
+    } else {
+      setModalPosition(null);
+    }
+
     const targetTempId = pending.originalTempId || pending.tempId;
     const originalPending = pendingSchedules.find(p => p.tempId === targetTempId) || pending;
     setActivePendingSchedule(originalPending);
@@ -1212,8 +1248,25 @@ export default function ActivityScheduleWorkspace({
     setShowCreateModal(true);
   };
 
-  const handleConfigureSaved = (schedule: ActivitySchedule) => {
+  const handleConfigureSaved = (schedule: ActivitySchedule, e?: React.MouseEvent) => {
     if (showCreateModal) return;
+
+    if (e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const modalWidth = 280;
+      let left = rect.left;
+      if (left + modalWidth > window.innerWidth) {
+        left = rect.right - modalWidth;
+      }
+      let top = rect.bottom + 6;
+      if (top + 220 > window.innerHeight) {
+        top = rect.top - 220 - 6;
+      }
+      setModalPosition({ top, left: Math.max(12, left) });
+    } else {
+      setModalPosition(null);
+    }
+
     setActivePendingSchedule(null);
 
     const cid = getNormalizedId(schedule.activity_id);
@@ -2043,7 +2096,7 @@ export default function ActivityScheduleWorkspace({
                   <span className={cn("absolute left-[-32px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white", styles.icon.replace('text-', 'border-'))} />
 
                   <div
-                    onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule); }}
+                    onDoubleClick={(e) => { if (!canManage) return; e.stopPropagation(); handleConfigureSaved(schedule, e); }}
                     className={cn(
                       "relative overflow-hidden pl-5 pr-4 py-4 bg-white hover:bg-slate-50/50 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-start border border-slate-100/80 w-full"
                     )}
@@ -2101,7 +2154,7 @@ export default function ActivityScheduleWorkspace({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleConfigureSaved(schedule);
+                              handleConfigureSaved(schedule, e);
                             }}
                             className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-200/50"
                             title="Configure"
@@ -2476,7 +2529,7 @@ export default function ActivityScheduleWorkspace({
                                           if (isPreview) return;
                                           handlePendingDragStart(e, p.tempId, p.dateStr, p.shift);
                                         }}
-                                        onDoubleClick={() => canManage && handleConfigurePending(p)}
+                                        onDoubleClick={(e) => canManage && handleConfigurePending(p, e)}
                                         title={isCompactCell ? `${pResolvedName} | ${timeStr} | ${p.originalData?.location || 'Phòng sinh hoạt'}` : undefined}
                                         className={cn(
                                           isCompactCell ? "p-1 gap-0.5" : "p-1.5 flex flex-col justify-between",
@@ -2513,7 +2566,7 @@ export default function ActivityScheduleWorkspace({
                                             {canManage && !isPreview && (
                                               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
-                                                  onClick={() => handleConfigurePending(p)}
+                                                  onClick={(e) => handleConfigurePending(p, e)}
                                                   className="p-0.5 hover:bg-blue-100 text-blue-700 rounded"
                                                   title="Cấu hình"
                                                 >
@@ -2559,7 +2612,7 @@ export default function ActivityScheduleWorkspace({
                                         key={schedule._id}
                                         draggable={canManage}
                                         onDragStart={(e) => handleScheduleDragStart(e, schedule, cellDateStr, shift)}
-                                        onDoubleClick={() => canManage && handleConfigureSaved(schedule)}
+                                        onDoubleClick={(e) => canManage && handleConfigureSaved(schedule, e)}
                                         title={isCompactCell ? `${sResolvedName} | ${timeStr} | ${schedule.location || 'Phòng sinh hoạt'}` : undefined}
                                         className={cn(
                                           isCompactCell ? "p-1 gap-0.5" : "p-1.5 flex flex-col justify-between",
@@ -2593,7 +2646,7 @@ export default function ActivityScheduleWorkspace({
                                             {canManage && (
                                               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
-                                                  onClick={() => handleConfigureSaved(schedule)}
+                                                  onClick={(e) => handleConfigureSaved(schedule, e)}
                                                   className="p-0.5 hover:bg-slate-100 text-slate-500 rounded"
                                                   title="Cấu hình"
                                                 >
@@ -2806,17 +2859,24 @@ export default function ActivityScheduleWorkspace({
 
       {/* Simplified / Detailed Create/Edit Modal Dialog */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 select-none">
+        <div
+          className={cn(
+            isSimplifiedModal
+              ? "fixed z-50 select-none animate-in fade-in zoom-in-95 duration-150"
+              : "fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 select-none"
+          )}
+          style={isSimplifiedModal && modalPosition ? { position: 'fixed', top: modalPosition.top, left: modalPosition.left, width: '280px' } : undefined}
+        >
           <form
             onSubmit={handleCreateSubmit}
             role="dialog"
-            aria-modal="true"
+            aria-modal={isSimplifiedModal ? "false" : "true"}
             aria-labelledby="dialog-title"
             className={cn(
-              "bg-white w-full rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200",
+              "rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200",
               isSimplifiedModal
-                ? "max-w-sm border border-slate-300 ring-4 ring-slate-900/5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]"
-                : "max-w-lg border border-slate-200 shadow-xl"
+                ? "w-full border border-slate-200/80 ring-1 ring-slate-200/50 shadow-[0_20px_50px_rgba(0,0,0,0.12)] bg-white/95 backdrop-blur-md"
+                : "bg-white w-full max-w-lg border border-slate-200 shadow-xl"
             )}
           >
             <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-b border-slate-100">
@@ -2837,7 +2897,10 @@ export default function ActivityScheduleWorkspace({
               </button>
             </div>
 
-            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+            <div className={cn(
+              "max-h-[60vh] overflow-y-auto",
+              isSimplifiedModal ? "p-3.5 space-y-3" : "p-6 space-y-4"
+            )}>
               {!isSimplifiedModal && !formScheduleId && (
                 <>
                   <div className="flex flex-col gap-1">
@@ -2867,14 +2930,19 @@ export default function ActivityScheduleWorkspace({
 
               <div className={cn("grid gap-4", isSimplifiedModal ? "grid-cols-1" : "grid-cols-2")}>
                 <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Địa điểm</label>
+                  <label className={cn("font-bold text-slate-500 uppercase px-1 font-sans", isSimplifiedModal ? "text-[9px]" : "text-[11px]")}>Địa điểm</label>
                   <input
                     type="text"
                     required
                     value={formLocation}
                     onChange={(e) => setFormLocation(e.target.value)}
                     placeholder="Ví dụ: Phòng máy B.202"
-                    className="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+                    className={cn(
+                      "w-full border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600",
+                      isSimplifiedModal
+                        ? "h-8 text-xs rounded-lg px-2.5 py-1.5"
+                        : "h-10 px-3 py-2 rounded-xl text-sm"
+                    )}
                   />
                 </div>
                 {!isSimplifiedModal && (
@@ -2905,12 +2973,12 @@ export default function ActivityScheduleWorkspace({
                   </div>
                 )}
                 <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Giờ bắt đầu</label>
-                  <CustomTimePicker value={formStartTime} onChange={setFormStartTime} />
+                  <label className={cn("font-bold text-slate-500 uppercase px-1 font-sans", isSimplifiedModal ? "text-[9px]" : "text-[11px]")}>Giờ bắt đầu</label>
+                  <CustomTimePicker value={formStartTime} onChange={setFormStartTime} size={isSimplifiedModal ? 'sm' : 'md'} />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Giờ kết thúc</label>
-                  <CustomTimePicker value={formEndTime} onChange={setFormEndTime} />
+                  <label className={cn("font-bold text-slate-500 uppercase px-1 font-sans", isSimplifiedModal ? "text-[9px]" : "text-[11px]")}>Giờ kết thúc</label>
+                  <CustomTimePicker value={formEndTime} onChange={setFormEndTime} size={isSimplifiedModal ? 'sm' : 'md'} />
                 </div>
               </div>
 
@@ -2978,18 +3046,28 @@ export default function ActivityScheduleWorkspace({
               )}
             </div>
 
-            <div className="flex justify-end gap-3 px-6 py-4 bg-slate-50 border-t border-slate-100">
+            <div className={cn("flex justify-end gap-3 border-t border-slate-100", isSimplifiedModal ? "px-3.5 py-2.5 bg-slate-50/50" : "px-6 py-4 bg-slate-50")}>
               <button
                 type="button"
                 onClick={() => { setShowCreateModal(false); setActivePendingSchedule(null); }}
-                className="h-9 px-4 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+                className={cn(
+                  "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600",
+                  isSimplifiedModal
+                    ? "h-7 px-2.5 text-[10px] rounded-lg font-semibold"
+                    : "h-9 px-4 text-xs font-bold rounded-xl"
+                )}
               >
                 Hủy bỏ
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="h-9 px-5 text-xs bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-750 text-white font-black rounded-xl shadow-md border-0 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+                className={cn(
+                  "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-750 text-white shadow-md border-0 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600",
+                  isSimplifiedModal
+                    ? "h-7 px-3 text-[10px] rounded-lg font-bold"
+                    : "h-9 px-5 text-xs font-black rounded-xl"
+                )}
               >
                 {formScheduleId ? 'Cập Nhật Lịch' : 'Xác Nhận'}
               </button>
