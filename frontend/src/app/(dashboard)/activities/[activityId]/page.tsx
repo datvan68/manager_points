@@ -215,7 +215,7 @@ export default function ActivityDetailPage() {
   const handleSaveCompletionRule = async (data: any) => {
     try {
       const semesterId = normalizeEntityId(activity?.semester_id);
-      const { club_id, ...rest } = data;
+      const { activity_id, ...rest } = data;
       const payload = {
         ...rest,
         activity_id: activityId,
@@ -861,3 +861,4 @@ function ActivityAttendanceTab({
     </div>
   );
 }
+

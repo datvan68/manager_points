@@ -9,7 +9,6 @@ import {
   UseGuards,
   Request,
   Query,
-  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -34,12 +33,6 @@ export class ActivityAttendanceConfigController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo cấu hình điểm danh → điểm rèn luyện' })
   create(@Body() dto: CreateAttendanceConfigDto, @Request() req: any) {
-    if (dto.activity_id && dto.club_id && dto.activity_id !== dto.club_id) {
-      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
-    }
-    if (dto.club_id && !dto.activity_id) {
-      dto.activity_id = dto.club_id;
-    }
     return this.configService.create(dto, req.user._id || req.user.id);
   }
 

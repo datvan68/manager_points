@@ -194,7 +194,7 @@ export default function ActivityCard({
 
     let isMounted = true;
     if (activityScheduleApi && typeof activityScheduleApi.getAll === 'function') {
-      const promise = activityScheduleApi.getAll({ club_id: activity._id });
+      const promise = activityScheduleApi.getAll({ activity_id: activity._id });
       if (promise && typeof promise.then === 'function') {
         promise
           .then((res) => {
@@ -398,12 +398,12 @@ export default function ActivityCard({
           "flex items-center gap-2 text-xs font-semibold shrink-0",
           isDark ? "text-slate-400" : "text-slate-500"
         )}>
-          <div className="flex items-center gap-1" title={`${activity.active_members_count || 0} thành viên`}>
+          <div className="flex items-center gap-1" title={`${activity.active_members_count ?? 0} thành viên`}>
             <Users size={12} className="text-slate-400 shrink-0" />
             <span className={cn(
               "text-[11px] font-bold",
               isDark ? "text-slate-300" : "text-slate-700"
-            )}>{activity.active_members_count || 0}/{activity.max_members || '∞'}</span>
+            )}>{activity.active_members_count ?? 0}/{activity.max_members ?? '∞'}</span>
           </div>
           <div className="flex items-center gap-1" title={`${activity.favorite_count || 0} lượt yêu thích`}>
             <Heart size={12} className={activity.is_favorited ? "fill-pink-500 text-pink-500 shrink-0" : "text-slate-400 shrink-0"} />
@@ -500,3 +500,6 @@ export default function ActivityCard({
     </div>
   );
 }
+
+
+

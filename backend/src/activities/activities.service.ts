@@ -199,7 +199,7 @@ export class ActivitiesService {
   async findAll(
     user?: any,
     activityType?: string,
-  ): Promise<ActivityDocument[]> {
+  ): Promise<any[]> {
     const query: any = {};
     if (activityType) {
       query.activity_type = activityType;
@@ -213,7 +213,7 @@ export class ActivitiesService {
       ];
     }
 
-    return this.activityModel
+    const activities = await this.activityModel
       .find(query)
       .populate('advisor_id', 'user_name email')
       .populate('president_id', 'full_name student_code')
@@ -221,6 +221,60 @@ export class ActivitiesService {
       .sort({ createdAt: -1 })
       .lean()
       .exec();
+
+    if (activities.length === 0) {
+      return [];
+    }
+
+    const activityIds = activities.map((activity: any) => new Types.ObjectId(activity._id));
+    const activitySemesterPairs = activities
+      .filter((activity: any) => activity.semester_id)
+      .map((activity: any) => ({
+        activity_id: new Types.ObjectId(activity._id),
+        semester_id: new Types.ObjectId(
+          typeof activity.semester_id === 'object'
+            ? activity.semester_id._id
+            : activity.semester_id,
+        ),
+      }));
+    const activitiesWithoutSemester = activities
+      .filter((activity: any) => !activity.semester_id)
+      .map((activity: any) => new Types.ObjectId(activity._id));
+
+    const membershipMatch: any = {
+      status: 'active',
+      activity_id: { $in: activityIds },
+    };
+    const semesterFilters: any[] = activitySemesterPairs.map((pair: any) => ({
+      activity_id: pair.activity_id,
+      semester_id: pair.semester_id,
+    }));
+    if (activitiesWithoutSemester.length > 0) {
+      semesterFilters.push({
+        activity_id: { $in: activitiesWithoutSemester },
+      });
+    }
+    if (semesterFilters.length > 0) {
+      membershipMatch.$or = semesterFilters;
+    }
+
+    const memberCounts = await this.memberModel.aggregate([
+      { $match: membershipMatch },
+      {
+        $group: {
+          _id: '$activity_id',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    const countByActivityId = new Map(
+      memberCounts.map((item: any) => [item._id.toString(), item.count]),
+    );
+
+    return activities.map((activity: any) => ({
+      ...activity,
+      active_members_count: countByActivityId.get(activity._id.toString()) || 0,
+    }));
   }
 
   async findOne(id: string): Promise<ActivityDocument> {

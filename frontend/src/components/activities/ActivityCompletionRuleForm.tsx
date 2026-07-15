@@ -64,7 +64,7 @@ export default function ActivityCompletionRuleForm({
     }
 
     const payload = {
-      club_id: activityId,
+      activity_id: activityId,
       semester_id: semesterId,
       minimum_attendance: Number(minimumAttendance),
       criterion_ids: selectedCriterionIds,

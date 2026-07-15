@@ -110,7 +110,7 @@ describe('activityApi & activityScheduleApi & activityCompletionRuleApi', () => 
       mockFetch.mockResolvedValue(mockResponse);
 
       const res = await activityCompletionRuleApi.create({
-        club_id: '60c72b2f9b1e8a001c8e4a50',
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
         semester_id: '60c72b2f9b1e8a001c8e4a52',
         minimum_attendance: 5,
         criterion_ids: ['60c72b2f9b1e8a001c8e4a54'],

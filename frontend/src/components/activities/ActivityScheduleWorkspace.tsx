@@ -179,8 +179,8 @@ function getActivityAccentColor(item: any): AccentColor {
   let id = '';
   if (item.clubId) {
     id = item.clubId;
-  } else if (item.activity_id || item.club_id) {
-    const cid = item.activity_id || item.club_id;
+  } else if (item.activity_id) {
+    const cid = item.activity_id;
     id = typeof cid === 'object' ? (cid._id || cid.code || cid.name || '') : cid;
   } else if (item._id) {
     id = item._id;
@@ -903,7 +903,7 @@ export default function ActivityScheduleWorkspace({
   const sourceActivities = activities.map(act => {
     const savedCount = schedules.filter(s => {
       if (s.status === 'cancelled') return false;
-      const matchesAct = getNormalizedId(s.activity_id || s.club_id) === act._id;
+      const matchesAct = getNormalizedId(s.activity_id) === act._id;
       return matchesAct && doesScheduleOverlapRange(s.start_time, s.end_time, startOfWeek, endOfWeek);
     }).length;
 
@@ -940,7 +940,7 @@ export default function ActivityScheduleWorkspace({
       JSON.stringify({
         type: 'schedule',
         scheduleId: schedule._id,
-        clubId: getNormalizedId(schedule.activity_id || schedule.club_id),
+        clubId: getNormalizedId(schedule.activity_id),
         originDateStr,
         originShift,
       })
@@ -1042,7 +1042,7 @@ export default function ActivityScheduleWorkspace({
         endTime = formatTimeStr(endHour, endMin);
       }
 
-      const cid = getNormalizedId(existing.activity_id || existing.club_id);
+      const cid = getNormalizedId(existing.activity_id);
       const actObj = activities.find(c => c._id === cid);
 
       let recurrence: RecurrenceConfig | null = null;
@@ -1147,7 +1147,7 @@ export default function ActivityScheduleWorkspace({
     if (showCreateModal) return;
     setActivePendingSchedule(null);
 
-    const cid = getNormalizedId(schedule.activity_id || schedule.club_id);
+    const cid = getNormalizedId(schedule.activity_id);
     const actObj = activities.find(c => c._id === cid);
 
     setFormClubId(cid);
@@ -1453,7 +1453,7 @@ export default function ActivityScheduleWorkspace({
                 start: config.repeatStartDate ? new Date(config.repeatStartDate).toISOString() : undefined,
               };
 
-              const clubIdNorm = getNormalizedId(s.activity_id || s.club_id);
+              const clubIdNorm = getNormalizedId(s.activity_id);
               const semesterIdNorm = getNormalizedId(s.semester_id);
               if (!clubIdNorm || !semesterIdNorm) {
                 toast.error('Mã hoạt động hoặc mã học kỳ không hợp lệ');
@@ -1616,7 +1616,7 @@ export default function ActivityScheduleWorkspace({
       setSubmitting(true);
       const { scheduleId, payload } = pendingUpdatePayload;
 
-      const clubIdNorm = getNormalizedId(payload.activity_id || payload.club_id);
+      const clubIdNorm = getNormalizedId(payload.activity_id);
       const semesterIdNorm = getNormalizedId(payload.semester_id);
       if (!clubIdNorm || !semesterIdNorm) {
         toast.error('Mã hoạt động hoặc mã học kỳ không hợp lệ');
@@ -1924,7 +1924,7 @@ export default function ActivityScheduleWorkspace({
     const matchesType = filterScheduleType === 'all' || s.schedule_type === filterScheduleType;
     let matchesClub = true;
     if (filterClubId !== 'all') {
-      const clubId = typeof (s.activity_id || s.club_id) === 'object' ? (s.activity_id || s.club_id)?._id : (s.activity_id || s.club_id);
+      const clubId = typeof (s.activity_id) === 'object' ? (s.activity_id)?._id : (s.activity_id);
       matchesClub = clubId === filterClubId;
     }
     return matchesType && matchesClub;
@@ -2007,7 +2007,7 @@ export default function ActivityScheduleWorkspace({
 
                     <div className="flex flex-col items-end justify-between h-full min-h-[72px] flex-shrink-0">
                       {(() => {
-                        const activityObj = schedule.club_id;
+                        const activityObj = schedule.activity_id;
                         const status = typeof activityObj === 'object' ? (activityObj?.participation_status || activityObj?.status || 'published') : 'published';
                         const labelText = status === 'published' || status === 'active' ? 'Hoạt động' : status === 'completed' ? 'Kết thúc' : 'Nháp/Khác';
                         const styleClass = status === 'published' || status === 'active'
@@ -2456,7 +2456,7 @@ export default function ActivityScheduleWorkspace({
                                     const accent = getActivityAccentColor(schedule);
                                     const styles = accentStyles[accent];
 
-                                    const sClubIdNorm = getNormalizedId(schedule.club_id);
+                                    const sClubIdNorm = getNormalizedId(schedule.activity_id);
                                     const sResolvedAct = activities.find(a => a._id === sClubIdNorm);
                                     const sResolvedName = sResolvedAct?.name || schedule.title;
 
@@ -3150,3 +3150,4 @@ export default function ActivityScheduleWorkspace({
     </div>
   );
 }
+

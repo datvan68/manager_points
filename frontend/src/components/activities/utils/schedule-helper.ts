@@ -31,7 +31,7 @@ export const getClubScheduleSummary = (
 
   // 1. Filter active schedules for this club
   const clubScheds = schedules.filter((s) => {
-    const sClubId = typeof s.club_id === 'object' ? s.club_id?._id : s.club_id;
+    const sClubId = typeof s.activity_id === 'object' ? s.activity_id?._id : s.activity_id;
     return sClubId === clubId && (s.status === 'scheduled' || s.status === 'ongoing');
   });
 

@@ -9,7 +9,6 @@ import {
   UseGuards,
   Request,
   Query,
-  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -42,12 +41,6 @@ export class ActivityAttendanceController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ghi nhận điểm danh sinh viên' })
   create(@Body() dto: CreateAttendanceDto, @Request() req: any) {
-    if (dto.activity_id && dto.club_id && dto.activity_id !== dto.club_id) {
-      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
-    }
-    if (dto.club_id && !dto.activity_id) {
-      dto.activity_id = dto.club_id;
-    }
     const role = (
       req.user.role_code ||
       req.user.roleName ||
@@ -66,12 +59,6 @@ export class ActivityAttendanceController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Điểm danh hàng loạt (GV điểm danh cả lớp Hoạt động)' })
   batchCreate(@Body() dto: BatchAttendanceDto, @Request() req: any) {
-    if (dto.activity_id && dto.club_id && dto.activity_id !== dto.club_id) {
-      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
-    }
-    if (dto.club_id && !dto.activity_id) {
-      dto.activity_id = dto.club_id;
-    }
     return this.attendanceService.batchCreate(
       dto,
       req.user._id || req.user.id,
@@ -84,12 +71,6 @@ export class ActivityAttendanceController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách điểm danh' })
   findAll(@Query() query: QueryAttendanceDto) {
-    if (query.activity_id && query.club_id && query.activity_id !== query.club_id) {
-      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
-    }
-    if (query.club_id && !query.activity_id) {
-      query.activity_id = query.club_id;
-    }
     return this.attendanceService.findAll(query);
   }
 

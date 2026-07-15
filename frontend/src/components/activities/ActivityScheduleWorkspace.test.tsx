@@ -149,7 +149,7 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Meeting 1',
         start_time: startStr,
         end_time: endStr,
-        club_id: '60c72b2f9b1e8a001c8e4a50',
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
         semester_id: '60c72b2f9b1e8a001c8e4a52'
       }
     ];
@@ -182,7 +182,7 @@ describe('ActivityScheduleWorkspace', () => {
           title: 'Shared Control Meeting',
           start_time: startStr,
           end_time: endStr,
-          club_id: '60c72b2f9b1e8a001c8e4a50',
+          activity_id: '60c72b2f9b1e8a001c8e4a50',
           semester_id: '60c72b2f9b1e8a001c8e4a52'
         }
       ],
@@ -233,7 +233,7 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Recurring Meeting',
         start_time: startStr,
         end_time: endStr,
-        club_id: '60c72b2f9b1e8a001c8e4a50',
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
         semester_id: '60c72b2f9b1e8a001c8e4a52',
         recurrence_id: 'rec-series-1'
       }
@@ -336,7 +336,7 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Meeting 1',
         start_time: startStr,
         end_time: endStr,
-        club_id: '60c72b2f9b1e8a001c8e4a50',
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
         semester_id: '60c72b2f9b1e8a001c8e4a52',
         max_attendees: 15
       }
@@ -373,7 +373,7 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Existing Meeting',
         start_time: '2026-07-15T08:00:00.000Z',
         end_time: '2026-07-15T10:00:00.000Z',
-        club_id: { _id: '60c72b2f9b1e8a001c8e4a50', name: 'Academic Club', code: 'AC_CLUB', category: 'academic' },
+        activity_id: { _id: '60c72b2f9b1e8a001c8e4a50', name: 'Academic Club', code: 'AC_CLUB', category: 'academic' },
         semester_id: { _id: '60c72b2f9b1e8a001c8e4a52', semester_name: 'Semester 1', start_date: '2026-01-01', end_date: '2026-06-30' },
         location: 'Room 101',
         schedule_type: 'regular'
@@ -438,7 +438,7 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Meeting 1',
         start_time: startStr,
         end_time: endStr,
-        club_id: '60c72b2f9b1e8a001c8e4a50',
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
         semester_id: '60c72b2f9b1e8a001c8e4a52',
         location: 'Room 301',
         schedule_type: 'regular'
@@ -448,7 +448,7 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Meeting 2',
         start_time: startStr,
         end_time: endStr,
-        club_id: '60c72b2f9b1e8a001c8e4a50',
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
         semester_id: '60c72b2f9b1e8a001c8e4a52',
         location: 'Room 302',
         schedule_type: 'regular'
@@ -484,7 +484,7 @@ describe('ActivityScheduleWorkspace', () => {
         title: 'Meeting 1',
         start_time: startStr,
         end_time: endStr,
-        club_id: '60c72b2f9b1e8a001c8e4a50',
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
         semester_id: '60c72b2f9b1e8a001c8e4a52',
         location: 'Room 301',
         schedule_type: 'regular'

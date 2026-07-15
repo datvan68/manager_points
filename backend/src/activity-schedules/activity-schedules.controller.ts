@@ -9,7 +9,6 @@ import {
   UseGuards,
   Request,
   Query,
-  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -34,12 +33,6 @@ export class ActivitySchedulesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo lịch sinh hoạt Hoạt động' })
   create(@Body() dto: CreateScheduleDto, @Request() req: any) {
-    if (dto.activity_id && dto.club_id && dto.activity_id !== dto.club_id) {
-      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
-    }
-    if (dto.club_id && !dto.activity_id) {
-      dto.activity_id = dto.club_id;
-    }
     return this.schedulesService.create(dto, req.user._id || req.user.id);
   }
 
@@ -48,12 +41,6 @@ export class ActivitySchedulesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách lịch sinh hoạt' })
   findAll(@Query() query: QueryScheduleDto) {
-    if (query.activity_id && query.club_id && query.activity_id !== query.club_id) {
-      throw new BadRequestException('activity_id and club_id must be identical if both are provided');
-    }
-    if (query.club_id && !query.activity_id) {
-      query.activity_id = query.club_id;
-    }
     return this.schedulesService.findAll(query);
   }
 

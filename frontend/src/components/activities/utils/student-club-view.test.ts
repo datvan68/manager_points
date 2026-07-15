@@ -18,8 +18,8 @@ describe('student-club-view helpers', () => {
 
   describe('findClubMembership', () => {
     const mockMemberships = [
-      { club_id: 'club-1', status: 'active' },
-      { club_id: { _id: 'club-2' }, status: 'pending' },
+      { activity_id: 'club-1', status: 'active' },
+      { activity_id: { _id: 'club-2' }, status: 'pending' },
     ];
 
     it('should find club membership by string ID', () => {

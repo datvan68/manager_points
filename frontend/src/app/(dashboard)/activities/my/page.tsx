@@ -89,11 +89,11 @@ export default function MyActivitiesPage() {
       // Filter upcoming schedules for activities student has joined
       const joinedActivityIds = membershipsData
         .filter(m => m.status === 'active')
-        .map(m => typeof m.club_id === 'object' ? m.club_id?._id : m.club_id);
+        .map(m => typeof m.activity_id === 'object' ? m.activity_id?._id : m.activity_id);
 
       const filteredSchedules = schedulesData
         .filter((sch: any) => {
-          const schClubId = typeof sch.club_id === 'object' ? sch.club_id?._id : sch.club_id;
+          const schClubId = typeof sch.activity_id === 'object' ? sch.activity_id?._id : sch.activity_id;
           const schSemId = typeof sch.semester_id === 'object' ? sch.semester_id?._id : sch.semester_id;
           
           return joinedActivityIds.includes(schClubId) && 
@@ -195,16 +195,16 @@ export default function MyActivitiesPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {joinedMemberships.map((membership) => {
-                const actId = typeof membership.club_id === 'object' ? membership.club_id?._id : membership.club_id;
+                const actId = typeof membership.activity_id === 'object' ? membership.activity_id?._id : membership.activity_id;
                 
                 // Find matching activity
-                const activity = allActivities.find(a => a._id === actId) || (membership.club_id as Activity);
+                const activity = allActivities.find(a => a._id === actId) || (membership.activity_id as Activity);
                 if (!activity) return null;
 
                 // Compute present/late count
                 const attendanceCount = myAttendances.filter(
                   (att) => {
-                    const attClubId = typeof att.club_id === 'object' ? att.club_id?._id : att.club_id;
+                    const attClubId = typeof att.activity_id === 'object' ? att.activity_id?._id : att.activity_id;
                     return attClubId === actId && 
                            att.approval_status === 'approved' && 
                            (att.status === 'present' || att.status === 'late');
@@ -213,7 +213,7 @@ export default function MyActivitiesPage() {
 
                 // Find completion rule
                 const rule = rules.find((r: any) => {
-                  const rClubId = typeof r.club_id === 'object' ? r.club_id?._id : r.club_id;
+                  const rClubId = typeof r.activity_id === 'object' ? r.activity_id?._id : r.activity_id;
                   const rSemId = typeof r.semester_id === 'object' ? r.semester_id?._id : r.semester_id;
                   return rClubId === actId && rSemId === selectedSemesterId;
                 });
@@ -261,7 +261,7 @@ export default function MyActivitiesPage() {
                   const date = new Date(schedule.start_time);
                   const dateLabel = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
                   const timeLabel = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-                  const activityName = typeof schedule.club_id === 'object' ? (schedule.club_id as any).name : 'Hoạt động';
+                  const activityName = typeof schedule.activity_id === 'object' ? (schedule.activity_id as any).name : 'Hoạt động';
 
                   return (
                     <div key={schedule._id} className="flex gap-3 items-start border-b border-slate-100/50 pb-3 last:border-0 last:pb-0">

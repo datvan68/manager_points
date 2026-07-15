@@ -7,12 +7,7 @@ export class QueryScheduleDto {
   @IsOptional()
   @IsMongoId()
   activity_id?: string;
-
-  @ApiPropertyOptional({ description: 'Filter by legacy Club ID' })
-  @IsOptional()
-  @IsMongoId()
-  club_id?: string;
-
+`r`n
 
   @ApiPropertyOptional({ description: 'Filter by semester ID' })
   @IsOptional()

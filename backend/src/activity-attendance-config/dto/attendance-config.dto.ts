@@ -14,12 +14,7 @@ export class CreateAttendanceConfigDto {
   @IsOptional()
   @IsMongoId()
   activity_id?: string;
-
-  @ApiPropertyOptional({ description: 'Legacy Club ID' })
-  @IsOptional()
-  @IsMongoId()
-  club_id?: string;
-
+`r`n
 
   @ApiProperty({ description: 'Semester ID' })
   @IsMongoId()

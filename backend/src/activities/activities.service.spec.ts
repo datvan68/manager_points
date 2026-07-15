@@ -40,6 +40,7 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
     }
     static findOne = jest.fn();
     static find = jest.fn();
+    static aggregate = jest.fn();
     static countDocuments = jest.fn();
     static findOneAndUpdate = jest.fn();
   }
@@ -83,6 +84,7 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
 
     MockActivityMemberModel.findOne.mockReset();
     MockActivityMemberModel.find.mockReset();
+    MockActivityMemberModel.aggregate.mockReset();
     MockActivityMemberModel.countDocuments.mockReset();
     MockActivityMemberModel.findOneAndUpdate.mockReset();
 
@@ -142,6 +144,7 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
     // Default mocks
     MockActivityMemberModel.findOne.mockReturnValue(mockQuery(null));
     MockActivityMemberModel.find.mockReturnValue(mockQuery([]));
+    MockActivityMemberModel.aggregate.mockResolvedValue([]);
     MockActivityMemberModel.countDocuments.mockReturnValue(mockQuery(0));
     MockActivityMemberModel.findOneAndUpdate.mockReturnValue(mockQuery(null));
 
@@ -152,6 +155,91 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
     MockScheduleModel.findOne.mockReturnValue(mockQuery(null));
   });
 
+  describe('findAll', () => {
+    const makeActivityFindQuery = (value: any[]) => ({
+      populate: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(value),
+    });
+
+    it('should attach active member counts in one aggregation respecting activity semester', async () => {
+      const semesterId = new Types.ObjectId();
+      const activityWithMembers = {
+        _id: new Types.ObjectId(),
+        name: 'Activity with members',
+        semester_id: { _id: semesterId, name: 'HK1' },
+      };
+      const emptyActivity = {
+        _id: new Types.ObjectId(),
+        name: 'Empty activity',
+        semester_id: { _id: semesterId, name: 'HK1' },
+      };
+
+      MockActivityModel.find.mockReturnValue(makeActivityFindQuery([activityWithMembers, emptyActivity]));
+      MockActivityMemberModel.aggregate.mockResolvedValue([
+        { _id: activityWithMembers._id, count: 2 },
+      ]);
+
+      const result = await service.findAll();
+
+      expect(result).toEqual([
+        { ...activityWithMembers, active_members_count: 2 },
+        { ...emptyActivity, active_members_count: 0 },
+      ]);
+      expect(MockActivityMemberModel.aggregate).toHaveBeenCalledTimes(1);
+      expect(MockActivityMemberModel.countDocuments).not.toHaveBeenCalled();
+      expect(MockActivityMemberModel.aggregate).toHaveBeenCalledWith([
+        {
+          $match: {
+            status: 'active',
+            activity_id: { $in: [activityWithMembers._id, emptyActivity._id] },
+            $or: [
+              { activity_id: activityWithMembers._id, semester_id: semesterId },
+              { activity_id: emptyActivity._id, semester_id: semesterId },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: '$activity_id',
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+    });
+
+    it('should count active memberships for activities without semester without adding a semester filter', async () => {
+      const activity = {
+        _id: new Types.ObjectId(),
+        name: 'No semester activity',
+      };
+
+      MockActivityModel.find.mockReturnValue(makeActivityFindQuery([activity]));
+      MockActivityMemberModel.aggregate.mockResolvedValue([
+        { _id: activity._id, count: 1 },
+      ]);
+
+      const result = await service.findAll();
+
+      expect(result[0].active_members_count).toBe(1);
+      expect(MockActivityMemberModel.aggregate).toHaveBeenCalledWith([
+        {
+          $match: {
+            status: 'active',
+            activity_id: { $in: [activity._id] },
+            $or: [{ activity_id: { $in: [activity._id] } }],
+          },
+        },
+        {
+          $group: {
+            _id: '$activity_id',
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+    });
+  });
   describe('resolveStudentId', () => {
     it('should resolve student ID for a normal student user', async () => {
       const userId = new Types.ObjectId().toString();

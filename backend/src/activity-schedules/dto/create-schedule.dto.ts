@@ -56,12 +56,7 @@ export class CreateScheduleDto {
   @ApiProperty({ description: 'Activity ID' })
   @IsMongoId()
   activity_id: string;
-
-  @ApiPropertyOptional({ description: 'Legacy Club ID' })
-  @IsOptional()
-  @IsMongoId()
-  club_id?: string;
-
+`r`n
 
   @ApiProperty({ description: 'Session title' })
   @IsString()

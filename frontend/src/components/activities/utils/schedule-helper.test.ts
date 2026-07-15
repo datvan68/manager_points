@@ -13,7 +13,7 @@ describe('schedule-helper', () => {
     status = 'scheduled'
   ): ActivitySchedule => ({
     _id: id,
-    club_id: clubId,
+    activity_id: clubId,
     title: 'Sinh hoạt định kỳ',
     schedule_type: 'weekly',
     start_time: start,
@@ -71,6 +71,17 @@ describe('schedule-helper', () => {
       expect(summary[0].weekdays).toEqual(['T4']); // Wednesday
     });
 
+    it('should match schedules by populated activity_id object', () => {
+      const schedule = {
+        ...makeSchedule('s1', '2026-07-06T08:00:00', '2026-07-06T10:00:00', 'Room A'),
+        activity_id: { _id: clubId, name: 'Activity' },
+      } as any;
+
+      const summary = getClubScheduleSummary([schedule], clubId);
+
+      expect(summary).toHaveLength(1);
+      expect(summary[0].timeRange).toBe('08:00 - 10:00');
+    });
     it('should group schedules with identical time range and sort days Monday-Sunday', () => {
       // Monday (T2): 08:00 - 10:00
       const s1 = makeSchedule('s1', '2026-07-06T08:00:00', '2026-07-06T10:00:00', 'Room A');
@@ -160,3 +171,4 @@ describe('schedule-helper', () => {
     });
   });
 });
+

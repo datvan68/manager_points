@@ -4,7 +4,7 @@ import { API_BASE } from './config';
 // ── Types ──
 
 export interface ClubFavoriteState {
-  club_id: string;
+  activity_id: string;
   is_favorited: boolean;
   favorite_count: number;
 }
@@ -54,7 +54,7 @@ export interface Club {
 
 export interface ClubMember {
   _id: string;
-  club_id: any;
+  activity_id: any;
   student_id: any;
   role: string;
   status: string;
@@ -78,7 +78,7 @@ export interface ClubMembershipPolicyResponse {
 
 export interface ClubSchedule {
   _id: string;
-  club_id: any;
+  activity_id: any;
   title: string;
   description?: string;
   schedule_type: string;
@@ -105,7 +105,7 @@ export interface ClubSchedule {
 
 export interface ClubAttendance {
   _id: string;
-  club_id: any;
+  activity_id: any;
   schedule_id: any;
   student_id: any;
   semester_id: any;
@@ -157,7 +157,7 @@ export type ClubTimelineResponse =
 
 export interface AttendanceConfig {
   _id: string;
-  club_id?: any;
+  activity_id?: any;
   semester_id: any;
   criterion_id: any;
   point_per_attendance: number;
@@ -212,14 +212,14 @@ export const clubApi = {
   async getMyTransferPolicy(params: { semester_id: string }): Promise<{
     self_service_changes_used: number;
     self_service_changes_remaining: number;
-    occupied_club_id: string | null;
+    occupied_activity_id: string | null;
     first_schedule_start_time: string | null;
   }> {
     const res = await httpClient(`${API_BASE}/clubs/my/transfer-policy${buildQuery(params)}`);
     return handleResponse<{
       self_service_changes_used: number;
       self_service_changes_remaining: number;
-      occupied_club_id: string | null;
+      occupied_activity_id: string | null;
       first_schedule_start_time: string | null;
     }>(res);
   },
@@ -373,8 +373,8 @@ export const clubApi = {
 
   async getMyFavoriteClubIds(): Promise<string[]> {
     const res = await httpClient(`${API_BASE}/clubs/favorites/me`);
-    const data = await handleResponse<{ club_ids: string[] }>(res);
-    return data.club_ids || [];
+    const data = await handleResponse<{ activity_ids: string[] }>(res);
+    return data.activity_ids || [];
   },
 };
 
@@ -396,7 +396,7 @@ export const clubScheduleApi = {
     return handleResponse(res);
   },
 
-  async getUpcoming(params?: { club_id?: string; limit?: number }): Promise<ClubSchedule[]> {
+  async getUpcoming(params?: { activity_id?: string; limit?: number }): Promise<ClubSchedule[]> {
     const res = await httpClient(`${API_BASE}/club-schedules/upcoming${buildQuery(params)}`);
     return handleResponse<ClubSchedule[]>(res);
   },
@@ -444,7 +444,7 @@ export const clubScheduleApi = {
     const res = await httpClient(`${API_BASE}/club-schedules/${id}/register`, {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify({ club_id: clubId }),
+      body: JSON.stringify({ activity_id: clubId }),
     });
     return handleResponse(res);
   },
@@ -481,13 +481,13 @@ export const clubAttendanceApi = {
     return handleResponse(res);
   },
 
-  async getMyAttendance(params?: { semester_id?: string; club_id?: string }): Promise<ClubAttendance[]> {
+  async getMyAttendance(params?: { semester_id?: string; activity_id?: string }): Promise<ClubAttendance[]> {
     const res = await httpClient(`${API_BASE}/club-attendance/my${buildQuery(params)}`);
     return handleResponse<ClubAttendance[]>(res);
   },
 
   async getPendingCount(clubId?: string): Promise<{ count: number }> {
-    const res = await httpClient(`${API_BASE}/club-attendance/pending-count${buildQuery(clubId ? { club_id: clubId } : {})}`);
+    const res = await httpClient(`${API_BASE}/club-attendance/pending-count${buildQuery(clubId ? { activity_id: clubId } : {})}`);
     return handleResponse(res);
   },
 
@@ -511,7 +511,7 @@ export const clubAttendanceApi = {
   },
 
   async batchCreate(data: {
-    club_id: string;
+    activity_id: string;
     schedule_id: string;
     semester_id: string;
     entries: { student_id: string; status: string; note?: string }[];

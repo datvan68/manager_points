@@ -17,7 +17,7 @@ describe('ActivityMemberTable - ConfirmModal Integration', () => {
   const mockMembers: ActivityMember[] = [
     {
       _id: 'member-1',
-      club_id: 'activity-1',
+      activity_id: 'activity-1',
       student_id: {
         _id: 'student-1',
         full_name: 'Nguyen Van A',

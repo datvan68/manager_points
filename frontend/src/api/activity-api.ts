@@ -24,6 +24,7 @@ export interface Activity {
   president_id?: any;
   vice_president_ids?: any[];
   max_members?: number;
+  active_members_count: number;
   founded_date?: string;
   activity_start_date?: string;
   activity_end_date?: string;
@@ -55,7 +56,7 @@ export interface Activity {
 
 export interface ActivityMember {
   _id: string;
-  club_id: any; // backend database maps to club_id
+  activity_id: any; // backend database maps to activity_id
   student_id: any;
   role: string;
   status: string;
@@ -79,8 +80,7 @@ export interface ActivityMembershipPolicyResponse {
 
 export interface ActivitySchedule {
   _id: string;
-  club_id?: any; // Mapped to backend club_id
-  activity_id?: any; // New canon activity_id
+  activity_id?: any;
   title: string;
   description?: string;
   schedule_type: string;
@@ -107,7 +107,7 @@ export interface ActivitySchedule {
 
 export interface ActivityAttendance {
   _id: string;
-  club_id: any;
+  activity_id: any;
   schedule_id: any;
   student_id: any;
   semester_id: any;
@@ -159,7 +159,6 @@ export type ActivityTimelineResponse =
 
 export interface ActivityCompletionRule {
   _id: string;
-  club_id?: any; // backend uses club_id as the activity field
   activity_id?: any;
   semester_id: any;
   minimum_attendance: number;
@@ -198,7 +197,7 @@ function normalizeActivityIdPayload(data: any): any {
   if (!data) return data;
   const result = { ...data };
   
-  let rawId = result.activity_id || result.club_id;
+  let rawId = result.activity_id;
   if (rawId && typeof rawId === 'object' && rawId._id) {
     rawId = rawId._id;
   }
@@ -209,8 +208,7 @@ function normalizeActivityIdPayload(data: any): any {
     }
     result.activity_id = rawId;
   }
-  
-  delete result.club_id;
+
 
   if (result.semester_id && typeof result.semester_id === 'object' && result.semester_id._id) {
     result.semester_id = result.semester_id._id;
@@ -239,14 +237,14 @@ export const activityApi = {
   async getMyTransferPolicy(params: { semester_id: string }): Promise<{
     self_service_changes_used: number;
     self_service_changes_remaining: number;
-    occupied_club_id: string | null;
+    occupied_activity_id: string | null;
     first_schedule_start_time: string | null;
   }> {
     const res = await httpClient(`${API_BASE}/activities/my/transfer-policy${buildQuery(params)}`);
     return handleResponse<{
       self_service_changes_used: number;
       self_service_changes_remaining: number;
-      occupied_club_id: string | null;
+      occupied_activity_id: string | null;
       first_schedule_start_time: string | null;
     }>(res);
   },
@@ -400,8 +398,8 @@ export const activityApi = {
 
   async getMyFavoriteActivityIds(): Promise<string[]> {
     const res = await httpClient(`${API_BASE}/activities/favorites/me`);
-    const data = await handleResponse<{ club_ids: string[] }>(res);
-    return data.club_ids || [];
+    const data = await handleResponse<{ activity_ids: string[] }>(res);
+    return data.activity_ids || [];
   },
 };
 
@@ -423,7 +421,7 @@ export const activityScheduleApi = {
     return handleResponse(res);
   },
 
-  async getUpcoming(params?: { club_id?: string; limit?: number }): Promise<ActivitySchedule[]> {
+  async getUpcoming(params?: { activity_id?: string; limit?: number }): Promise<ActivitySchedule[]> {
     const res = await httpClient(`${API_BASE}/activity-schedules/upcoming${buildQuery(params)}`);
     return handleResponse<ActivitySchedule[]>(res);
   },
@@ -509,13 +507,13 @@ export const activityAttendanceApi = {
     return handleResponse(res);
   },
 
-  async getMyAttendance(params?: { semester_id?: string; club_id?: string }): Promise<ActivityAttendance[]> {
+  async getMyAttendance(params?: { semester_id?: string; activity_id?: string }): Promise<ActivityAttendance[]> {
     const res = await httpClient(`${API_BASE}/club-attendance/my${buildQuery(params)}`);
     return handleResponse<ActivityAttendance[]>(res);
   },
 
   async getPendingCount(activityId?: string): Promise<{ count: number }> {
-    const res = await httpClient(`${API_BASE}/club-attendance/pending-count${buildQuery(activityId ? { club_id: activityId } : {})}`);
+    const res = await httpClient(`${API_BASE}/club-attendance/pending-count${buildQuery(activityId ? { activity_id: activityId } : {})}`);
     return handleResponse(res);
   },
 
@@ -540,7 +538,6 @@ export const activityAttendanceApi = {
 
   async batchCreate(data: {
     activity_id?: string;
-    club_id?: string;
     schedule_id: string;
     semester_id: string;
     entries: { student_id: string; status: string; note?: string }[];
@@ -798,3 +795,4 @@ export const attendanceSessionApi = {
     return handleResponse(res);
   },
 };
+

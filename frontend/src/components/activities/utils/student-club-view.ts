@@ -12,7 +12,7 @@ export function normalizeRole(role?: string): string {
  */
 export function findClubMembership(memberships: any[], clubId: string): any | undefined {
   return memberships.find((m) => {
-    const mClubId = m.club_id?._id || m.club_id;
+    const mClubId = m.activity_id?._id || m.activity_id;
     return mClubId === clubId;
   });
 }

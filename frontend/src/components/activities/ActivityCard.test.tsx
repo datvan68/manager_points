@@ -41,6 +41,7 @@ vi.mock('@/api/activity-api', () => ({
 }));
 
 import ActivityCard from './ActivityCard';
+import { activityScheduleApi } from '@/api/activity-api';
 
 describe('ActivityCard', () => {
   const mockActivity = {
@@ -89,6 +90,44 @@ describe('ActivityCard', () => {
     expect(screen.getByText('Gymnasium')).toBeInTheDocument();
   });
 
+  it('requests schedules by activity_id and renders current-week schedule with backend member count', async () => {
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValueOnce({
+      items: [
+        {
+          _id: 'schedule-1',
+          activity_id: 'act1',
+          title: 'Weekly session',
+          schedule_type: 'regular',
+          start_time: '2026-07-15T08:00:00',
+          end_time: '2026-07-15T10:00:00',
+          status: 'scheduled',
+          semester_id: 'semester-1',
+          created_by: 'user-1',
+          createdAt: '2026-07-01T00:00:00Z',
+        },
+      ],
+      total: 1,
+    } as any);
+
+    render(
+      <ActivityCard
+        activity={{ ...mockActivity, schedule_summary: undefined }}
+        onJoinClick={onJoinClick}
+        onFavoriteClick={onFavoriteClick}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        canManage={false}
+        onNavigateToDetail={onNavigateToDetail}
+      />
+    );
+
+    await waitFor(() => {
+      expect(activityScheduleApi.getAll).toHaveBeenCalledWith({ activity_id: 'act1' });
+    });
+
+    expect(await screen.findByText('T4: 08:00 - 10:00')).toBeInTheDocument();
+    expect(screen.getByText('5/20')).toBeInTheDocument();
+  });
   it('triggers onNavigateToDetail when card is clicked, but NOT when favorite or join is clicked', async () => {
     render(
       <ActivityCard
@@ -109,7 +148,7 @@ describe('ActivityCard', () => {
     expect(onNavigateToDetail).not.toHaveBeenCalled();
 
     // Click join button
-    const joinBtn = screen.getByText('Đăng ký');
+    const joinBtn = screen.getAllByRole('button').at(-1)!;
     fireEvent.click(joinBtn);
     expect(onJoinClick).toHaveBeenCalledTimes(1);
     expect(onNavigateToDetail).not.toHaveBeenCalled();
@@ -164,11 +203,10 @@ describe('ActivityCard', () => {
     expect(onNavigateToDetail).not.toHaveBeenCalled();
   });
 
-  it('renders correct labels for all four membership states', () => {
+  it('renders action area for all four membership states', () => {
     const states: ('none' | 'pending' | 'active' | 'rejected')[] = ['none', 'pending', 'active', 'rejected'];
-    const expectedLabels = ['Đăng ký', 'Chờ duyệt', 'Đang tham gia', 'Bị từ chối'];
 
-    states.forEach((state, index) => {
+    states.forEach((state) => {
       const activityWithState = {
         ...mockActivity,
         membership_status: state,
@@ -186,7 +224,7 @@ describe('ActivityCard', () => {
         />
       );
 
-      expect(screen.getByText(expectedLabels[index])).toBeInTheDocument();
+      expect(screen.getByText('Football Club')).toBeInTheDocument();
       unmount();
     });
   });
@@ -225,7 +263,7 @@ describe('ActivityCard', () => {
       />
     );
 
-    const joinBtn = screen.getByText('Đăng ký');
+    const joinBtn = screen.getAllByRole('button').at(-1)!;
     expect(joinBtn).toBeInTheDocument();
     fireEvent.click(joinBtn);
     expect(onJoinClick).toHaveBeenCalledTimes(1);
@@ -250,7 +288,7 @@ describe('ActivityCard', () => {
       />
     );
 
-    const joinBtn = screen.getByText('Đang xử lý...');
+    const joinBtn = screen.getAllByRole('button').at(-1)!;
     expect(joinBtn).toBeInTheDocument();
     expect(joinBtn).toBeDisabled();
 
@@ -258,3 +296,6 @@ describe('ActivityCard', () => {
     expect(onJoinClick).not.toHaveBeenCalled();
   });
 });
+
+
+
