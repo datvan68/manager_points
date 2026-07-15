@@ -12,6 +12,8 @@ import { semesterApi, Semester } from '@/api/semester-api';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { cn } from '@/lib/utils';
 
 // --- Shift Constants and Helpers ---
@@ -288,6 +290,25 @@ const isDateInAnchorWeek = (dateStrOrDate: string | Date, anchorWeekMonday: stri
   return getMondayDateStr(dateStrOrDate) === anchorWeekMonday;
 };
 
+const parseLocalDate = (value: string): Date | null => {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatDisplayDate = (value: string): string => {
+  const date = parseLocalDate(value);
+  if (!date) return 'Chọn ngày';
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
 const ScrollContainer = ({ children, className }: { children: React.ReactNode; className?: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -2710,7 +2731,9 @@ export default function ActivityScheduleWorkspace({
             </div>
 
             <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-              <div className="flex flex-col gap-1">
+              {!formScheduleId && (
+                <>
+                  <div className="flex flex-col gap-1">
                 <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Tiêu đề buổi</label>
                 <input
                   type="text"
@@ -2731,7 +2754,9 @@ export default function ActivityScheduleWorkspace({
                   placeholder="Nội dung chi tiết sinh hoạt..."
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
-              </div>
+                  </div>
+                </>
+              )}
 
               <div className={cn("grid gap-4", isSimplifiedModal ? "grid-cols-1" : "grid-cols-2")}>
                 <div className="flex flex-col gap-1">
@@ -2884,16 +2909,17 @@ export default function ActivityScheduleWorkspace({
             <div className="p-6 space-y-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Kiểu kết thúc lặp</label>
-                <select
-                  value={modalUntilType}
-                  onChange={(e: any) => setModalUntilType(e.target.value)}
-                  className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold focus:outline-none appearance-none cursor-pointer"
-                >
-                  <option value="semester">Lặp theo học kỳ hoạt động</option>
-                  <option value="weeks">Lặp theo số tuần cụ thể</option>
-                  <option value="date">Lặp đến ngày tự chọn</option>
-                  <option value="none">Hủy bỏ chuỗi lặp (Trở về một lần)</option>
-                </select>
+                <Select value={modalUntilType} onValueChange={(value) => setModalUntilType(value as typeof modalUntilType)}>
+                  <SelectTrigger className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold focus-within:ring-blue-500/20">
+                    <SelectValue placeholder="Chọn kiểu kết thúc" />
+                  </SelectTrigger>
+                  <SelectContent disablePortal className="max-w-none bg-white">
+                    <SelectItem value="semester">Lặp theo học kỳ hoạt động</SelectItem>
+                    <SelectItem value="weeks">Lặp theo số tuần cụ thể</SelectItem>
+                    <SelectItem value="date">Lặp đến ngày tự chọn</SelectItem>
+                    <SelectItem value="none">Hủy bỏ chuỗi lặp (Trở về một lần)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {modalUntilType !== 'none' && (
@@ -2901,15 +2927,16 @@ export default function ActivityScheduleWorkspace({
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Chu kỳ lặp</label>
-                      <select
-                        value={modalRecurrenceType}
-                        onChange={(e: any) => setModalRecurrenceType(e.target.value)}
-                        className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold focus:outline-none appearance-none cursor-pointer"
-                      >
-                        <option value="weekly">Hàng tuần</option>
-                        <option value="biweekly">2 tuần một lần</option>
-                        <option value="monthly">Hàng tháng</option>
-                      </select>
+                      <Select value={modalRecurrenceType} onValueChange={(value) => setModalRecurrenceType(value as typeof modalRecurrenceType)}>
+                        <SelectTrigger className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold focus-within:ring-blue-500/20">
+                          <SelectValue placeholder="Chọn chu kỳ" />
+                        </SelectTrigger>
+                        <SelectContent disablePortal className="max-w-none bg-white">
+                          <SelectItem value="weekly">Hàng tuần</SelectItem>
+                          <SelectItem value="biweekly">2 tuần một lần</SelectItem>
+                          <SelectItem value="monthly">Hàng tháng</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {modalUntilType === 'weeks' && (
@@ -2928,23 +2955,59 @@ export default function ActivityScheduleWorkspace({
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Ngày bắt đầu lặp</label>
-                      <input
-                        type="date"
-                        value={modalRepeatStartDate}
-                        onChange={(e) => setModalRepeatStartDate(e.target.value)}
-                        className="h-10 px-3 border border-slate-200 rounded-xl text-xs focus:outline-none"
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="h-10 px-3 border border-slate-200 rounded-xl bg-white text-left text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          >
+                            {formatDisplayDate(modalRepeatStartDate)}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto border-0 bg-transparent p-0 shadow-none" align="start">
+                          <CustomCalendar
+                            startDate={parseLocalDate(modalRepeatStartDate)}
+                            endDate={null}
+                            onRangeSelect={() => undefined}
+                            onRangeConfirm={(start) => setModalRepeatStartDate(formatLocalDate(start))}
+                            onCancel={() => undefined}
+                            onConfirm={() => undefined}
+                            minDate={parseLocalDate(anchorWeekMonday) || undefined}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
 
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Ngày kết thúc lặp</label>
-                      <input
-                        type="date"
-                        value={modalRepeatEndDate}
-                        onChange={(e) => setModalRepeatEndDate(e.target.value)}
-                        className="h-10 px-3 border border-slate-200 rounded-xl text-xs focus:outline-none"
-                        disabled={modalUntilType === 'semester' || modalUntilType === 'weeks'}
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            disabled={modalUntilType === 'semester' || modalUntilType === 'weeks'}
+                            className="h-10 px-3 border border-slate-200 rounded-xl bg-white text-left text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                          >
+                            {formatDisplayDate(modalRepeatEndDate)}
+                          </button>
+                        </PopoverTrigger>
+                        {modalUntilType === 'date' && (
+                          <PopoverContent className="w-auto border-0 bg-transparent p-0 shadow-none" align="start">
+                            <CustomCalendar
+                              startDate={parseLocalDate(modalRepeatEndDate)}
+                              endDate={null}
+                              onRangeSelect={() => undefined}
+                              onRangeConfirm={(start) => {
+                                const selectedDate = formatLocalDate(start);
+                                setModalRepeatEndDate(selectedDate);
+                                setModalUntilDate(selectedDate);
+                              }}
+                              onCancel={() => undefined}
+                              onConfirm={() => undefined}
+                              minDate={parseLocalDate(modalRepeatStartDate) || undefined}
+                            />
+                          </PopoverContent>
+                        )}
+                      </Popover>
                     </div>
                   </div>
                 </>

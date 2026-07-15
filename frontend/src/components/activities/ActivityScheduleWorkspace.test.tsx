@@ -170,6 +170,58 @@ describe('ActivityScheduleWorkspace', () => {
     });
   });
 
+  it('uses shared select triggers and CustomCalendar in the advanced recurrence modal', async () => {
+    const today = new Date();
+    const startStr = today.toISOString();
+    const endStr = new Date(today.getTime() + 7200000).toISOString();
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({
+      items: [
+        {
+          _id: 'sched-shared-controls',
+          title: 'Shared Control Meeting',
+          start_time: startStr,
+          end_time: endStr,
+          club_id: '60c72b2f9b1e8a001c8e4a50',
+          semester_id: '60c72b2f9b1e8a001c8e4a52'
+        }
+      ],
+      total: 1
+    });
+
+    const { container } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Shared Control Meeting')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Cấu hình chuỗi lặp'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Cấu hình chuỗi lịch lặp lại')).toBeInTheDocument();
+    });
+
+    const modal = screen.getByText('Cấu hình chuỗi lịch lặp lại').closest('.fixed') as HTMLElement;
+    expect(modal.querySelectorAll('select')).toHaveLength(0);
+    expect(modal.querySelectorAll('input[type="date"]')).toHaveLength(0);
+
+    fireEvent.click(screen.getByPlaceholderText('Chọn kiểu kết thúc'));
+    fireEvent.click(screen.getByText('Lặp theo số tuần cụ thể'));
+    expect(screen.getByDisplayValue('Lặp theo số tuần cụ thể')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByPlaceholderText('Chọn chu kỳ'));
+    fireEvent.click(screen.getByText('2 tuần một lần'));
+    expect(screen.getByDisplayValue('2 tuần một lần')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByDisplayValue('Lặp theo số tuần cụ thể'));
+    fireEvent.click(screen.getByText('Lặp đến ngày tự chọn'));
+
+    const dateButtons = Array.from(modal.querySelectorAll('button')).filter((button) => /\d{2}\/\d{2}\/\d{4}/.test(button.textContent || ''));
+    expect(dateButtons.length).toBeGreaterThanOrEqual(2);
+    fireEvent.click(dateButtons[1]);
+    expect(screen.getByText('T2')).toBeInTheDocument();
+    expect(screen.getByText('Xác nhận')).toBeInTheDocument();
+  });
   it('calls cancelRecurrence API successfully when stopping series', async () => {
     const today = new Date();
     const startStr = today.toISOString();
@@ -273,7 +325,7 @@ describe('ActivityScheduleWorkspace', () => {
     expect(screen.getByText('Thiết lập lặp lại lịch sinh hoạt')).toBeInTheDocument();
   });
 
-  it('renders only basic fields (title, desc, location, times) in session configuration mode (isSimplifiedModal)', async () => {
+  it('hides title and description in session configuration mode while keeping location and times', async () => {
     const today = new Date();
     const startStr = today.toISOString();
     const endStr = new Date(today.getTime() + 7200000).toISOString();
@@ -306,6 +358,8 @@ describe('ActivityScheduleWorkspace', () => {
     expect(screen.queryByText('Giới hạn người tham gia')).not.toBeInTheDocument();
     expect(screen.queryByText('Ngày sinh hoạt')).not.toBeInTheDocument();
     expect(screen.queryByText('Thiết lập lặp lại lịch sinh hoạt')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Ví dụ: Sinh hoạt định kỳ tuần 12')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Nội dung chi tiết sinh hoạt...')).not.toBeInTheDocument();
 
     expect(screen.getByPlaceholderText('Ví dụ: Phòng máy B.202')).toBeInTheDocument();
     expect(screen.getByText('Giờ bắt đầu')).toBeInTheDocument();
@@ -317,8 +371,8 @@ describe('ActivityScheduleWorkspace', () => {
       {
         _id: 'existing-schedule-id',
         title: 'Existing Meeting',
-        start_time: '2026-07-11T08:00:00.000Z',
-        end_time: '2026-07-11T10:00:00.000Z',
+        start_time: '2026-07-15T08:00:00.000Z',
+        end_time: '2026-07-15T10:00:00.000Z',
         club_id: { _id: '60c72b2f9b1e8a001c8e4a50', name: 'Academic Club', code: 'AC_CLUB', category: 'academic' },
         semester_id: { _id: '60c72b2f9b1e8a001c8e4a52', semester_name: 'Semester 1', start_date: '2026-01-01', end_date: '2026-06-30' },
         location: 'Room 101',
