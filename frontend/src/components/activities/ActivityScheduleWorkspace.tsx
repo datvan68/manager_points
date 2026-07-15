@@ -681,6 +681,7 @@ export default function ActivityScheduleWorkspace({
   const [formEndTime, setFormEndTime] = useState('10:00');
   const [formMaxAttendees, setFormMaxAttendees] = useState('');
   const [isSimplifiedModal, setIsSimplifiedModal] = useState(false);
+  const simplifiedDialogRef = useRef<HTMLFormElement | null>(null);
   const [modalPosition, setModalPosition] = useState<{ top: number; left: number } | null>(null);
   const [originatingElement, setOriginatingElement] = useState<HTMLElement | null>(null);
   const [formScheduleId, setFormScheduleId] = useState<string | null>(null);
@@ -830,6 +831,20 @@ export default function ActivityScheduleWorkspace({
       setOriginatingElement(null);
     }
   }, [showCreateModal]);
+
+  useEffect(() => {
+    if (!showCreateModal || !isSimplifiedModal) return;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (!simplifiedDialogRef.current?.contains(e.target as Node)) {
+        setShowCreateModal(false);
+        setActivePendingSchedule(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [showCreateModal, isSimplifiedModal]);
 
   useEffect(() => {
     if (!showCreateModal || !isSimplifiedModal || !originatingElement) return;
@@ -1213,7 +1228,7 @@ export default function ActivityScheduleWorkspace({
         shift,
         startTime: shiftDef.defaultStart,
         endTime: shiftDef.defaultEnd,
-        recurrence: defaultRecurrence && defaultRecurrence.enabled ? { ...defaultRecurrence } : null
+        recurrence: null
       };
 
       setPendingSchedules(prev => [...prev, newPending]);
@@ -1436,13 +1451,12 @@ export default function ActivityScheduleWorkspace({
     };
   };
 
-  const getFirstActivityStartDate = (): Date | null => {
+  const getFirstActivityStartDate = (anchorMondayStr = mondayDate.toISOString().split('T')[0]): Date | null => {
     let earliestDate: Date | null = null;
-    const currentMondayStr = mondayDate.toISOString().split('T')[0];
 
     const savedInAnchor = schedules.filter(s => {
       if (s.status === 'cancelled') return false;
-      return isDateInAnchorWeek(s.start_time, currentMondayStr);
+      return isDateInAnchorWeek(s.start_time, anchorMondayStr);
     });
     for (const s of savedInAnchor) {
       const d = new Date(s.start_time);
@@ -1452,7 +1466,7 @@ export default function ActivityScheduleWorkspace({
     }
 
     const pendingInAnchor = pendingSchedules.filter(p => {
-      return isDateInAnchorWeek(p.dateStr, currentMondayStr);
+      return isDateInAnchorWeek(p.dateStr, anchorMondayStr);
     });
     for (const p of pendingInAnchor) {
       const d = new Date(`${p.dateStr}T${p.startTime}`);
@@ -1465,8 +1479,10 @@ export default function ActivityScheduleWorkspace({
   };
 
   const handleOpenRecurrenceModal = (target: 'default' | 'form', currentConfig: RecurrenceConfig | null) => {
-    const currentMondayStr = mondayDate.toISOString().split('T')[0];
-    const firstActivityDate = getFirstActivityStartDate();
+    const currentMondayStr = target === 'form' && activePendingSchedule
+      ? getMondayDateStr(activePendingSchedule.dateStr)
+      : mondayDate.toISOString().split('T')[0];
+    const firstActivityDate = getFirstActivityStartDate(currentMondayStr);
 
     if (!firstActivityDate) {
       toast.error('Không có buổi sinh hoạt nào được xếp trong tuần hiện tại để thiết lập lặp lại.');
@@ -2890,6 +2906,7 @@ export default function ActivityScheduleWorkspace({
           style={isSimplifiedModal && modalPosition ? { position: 'fixed', top: modalPosition.top, left: modalPosition.left, width: '280px' } : undefined}
         >
           <form
+            ref={isSimplifiedModal ? simplifiedDialogRef : undefined}
             onSubmit={handleCreateSubmit}
             role="dialog"
             aria-modal={isSimplifiedModal ? "false" : "true"}
