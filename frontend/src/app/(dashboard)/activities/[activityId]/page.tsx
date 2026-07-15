@@ -12,6 +12,7 @@ import {
   ActivityCompletionRule
 } from '@/api/activity-api';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
+import { criteriaApi } from '@/api/criteria-api';
 import { isTeacherRole, isStudentRole } from '@/utils/role.util';
 import { toast } from 'sonner';
 import {
@@ -49,6 +50,23 @@ const typeLabels: Record<string, string> = {
   festival: 'Lễ hội',
 };
 
+const normalizeEntityId = (value: any) => {
+  if (value && typeof value === 'object') {
+    return value._id || value.id || '';
+  }
+  return value || '';
+};
+
+const getCriterionLabel = (criterion: any, criteriaById: Record<string, string>) => {
+  const id = normalizeEntityId(criterion);
+
+  if (criterion && typeof criterion === 'object') {
+    return criterion.criterion_name || criterion.name || criteriaById[id] || id || '';
+  }
+
+  return criteriaById[id] || id || '';
+};
+
 export default function ActivityDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -61,6 +79,7 @@ export default function ActivityDetailPage() {
   const [members, setMembers] = useState<ActivityMember[]>([]);
   const [schedules, setSchedules] = useState<ActivitySchedule[]>([]);
   const [completionRule, setCompletionRule] = useState<ActivityCompletionRule | null>(null);
+  const [criteriaById, setCriteriaById] = useState<Record<string, string>>({});
   
   const [activeTab, setActiveTab] = useState<'info' | 'members' | 'schedule' | 'rule' | 'attendance'>('info');
 
@@ -90,15 +109,24 @@ export default function ActivityDetailPage() {
   const loadActivityData = async () => {
     try {
       setLoading(true);
-      const [actData, membersData, schedulesResponse, rulesList] = await Promise.all([
+      const [actData, membersData, schedulesResponse, rulesList, criteriaList] = await Promise.all([
         activityApi.getById(activityId),
         activityApi.getMembers(activityId).catch(() => []),
         activityScheduleApi.getActivityTimeline(activityId).catch(() => ({ items: [] } as any)),
         activityCompletionRuleApi.getAll().catch(() => []),
+        (async () => criteriaApi.getCriteria())().catch(() => []),
       ]);
 
       setActivity(actData);
       setMembers(membersData);
+      setCriteriaById(
+        (Array.isArray(criteriaList) ? criteriaList : []).reduce((acc: Record<string, string>, criterion: any) => {
+          if (criterion?._id && criterion?.criterion_name) {
+            acc[criterion._id] = criterion.criterion_name;
+          }
+          return acc;
+        }, {})
+      );
       
       const timelineItems = Array.isArray(schedulesResponse) 
         ? schedulesResponse 
@@ -107,11 +135,11 @@ export default function ActivityDetailPage() {
 
       // Find the completion rule for this activity
       const rule = rulesList.find((r: any) => {
-        const rClubId = typeof r.club_id === 'object' ? r.club_id?._id : r.club_id;
-        const rSemId = typeof r.semester_id === 'object' ? r.semester_id?._id : r.semester_id;
-        const actSemId = typeof actData.semester_id === 'object' ? actData.semester_id?._id : actData.semester_id;
+        const rActivityId = normalizeEntityId(r.activity_id);
+        const rSemId = normalizeEntityId(r.semester_id);
+        const actSemId = normalizeEntityId(actData.semester_id);
         
-        return rClubId === activityId && rSemId === actSemId;
+        return rActivityId === activityId && rSemId === actSemId;
       });
       setCompletionRule(rule || null);
     } catch (err: any) {
@@ -186,11 +214,19 @@ export default function ActivityDetailPage() {
   // Completion Rule functions
   const handleSaveCompletionRule = async (data: any) => {
     try {
+      const semesterId = normalizeEntityId(activity?.semester_id);
+      const { club_id, ...rest } = data;
+      const payload = {
+        ...rest,
+        activity_id: activityId,
+        semester_id: semesterId,
+      };
+
       if (completionRule) {
-        await activityCompletionRuleApi.update(completionRule._id, data);
+        await activityCompletionRuleApi.update(completionRule._id, payload);
         toast.success('Cập nhật quy tắc hoàn thành thành công');
       } else {
-        await activityCompletionRuleApi.create(data);
+        await activityCompletionRuleApi.create(payload);
         toast.success('Thiết lập quy tắc hoàn thành thành công');
       }
       setShowRuleModal(false);
@@ -545,8 +581,8 @@ export default function ActivityDetailPage() {
                     </p>
                     <div className="flex flex-wrap gap-2 pl-6">
                       {completionRule.criterion_ids?.map((c: any) => (
-                        <span key={c._id || c} className="px-3 py-1.5 bg-white border border-blue-200 text-blue-700 text-xs font-bold rounded-xl shadow-sm">
-                          {c.criterion_name || c}
+                        <span key={normalizeEntityId(c)} className="px-3 py-1.5 bg-white border border-blue-200 text-blue-700 text-xs font-bold rounded-xl shadow-sm">
+                          {getCriterionLabel(c, criteriaById)}
                         </span>
                       ))}
                     </div>

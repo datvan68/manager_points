@@ -430,6 +430,62 @@ describe('ActivityDetailPage', () => {
     });
   });
 
+  it('renders a completion rule whose populated activity_id matches the route activity and semester', async () => {
+    const mockActivity = {
+      _id: 'act1',
+      name: 'Dynamic Event Activity',
+      code: 'DYNAMIC_EVENT',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'B.202',
+      advisor_id: { full_name: 'Jane Doe' },
+      semester_id: { _id: 'sem1', semester_name: 'Semester 1' },
+      createdAt: '2026-07-10T00:00:00Z',
+      updatedAt: '2026-07-10T00:00:00Z',
+    };
+
+    const matchingRule = {
+      _id: 'rule-match',
+      activity_id: { _id: 'act1', name: 'Dynamic Event Activity' },
+      semester_id: { _id: 'sem1', semester_name: 'Semester 1' },
+      minimum_attendance: 4,
+      criterion_ids: [{ _id: 'crit-1' }],
+      status: 'active',
+    };
+
+    const wrongActivityRule = {
+      _id: 'rule-other-activity',
+      activity_id: { _id: 'act-other', name: 'Other Activity' },
+      semester_id: { _id: 'sem1', semester_name: 'Semester 1' },
+      minimum_attendance: 9,
+      criterion_ids: [{ _id: 'crit-2', criterion_name: 'Other Criterion' }],
+      status: 'active',
+    };
+
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([wrongActivityRule, matchingRule] as any);
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue([
+      { _id: 'crit-1', criterion_name: 'Community Service', criterion_code: 'COMMUNITY', max_score: 10 },
+    ] as any);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dynamic Event Activity')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole('button').find((button) => button.textContent?.includes('Quy'))!);
+
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('4');
+      expect(screen.getByText('Community Service')).toBeInTheDocument();
+      expect(screen.queryByText('crit-1')).not.toBeInTheDocument();
+      expect(screen.queryByText('Other Criterion')).not.toBeInTheDocument();
+    });
+  });
+
   it('completion rule configuration flow - handles creation when no rule exists', async () => {
     const mockActivity = {
       _id: 'act1',
@@ -474,7 +530,7 @@ describe('ActivityDetailPage', () => {
 
     await waitFor(() => {
       expect(activityCompletionRuleApi.create).toHaveBeenCalledWith({
-        club_id: 'act1',
+        activity_id: 'act1',
         semester_id: 'sem1',
         minimum_attendance: 3,
         criterion_ids: ['crit-1'],
@@ -499,7 +555,7 @@ describe('ActivityDetailPage', () => {
 
     const mockRule = {
       _id: 'rule-123',
-      club_id: 'act1',
+      activity_id: 'act1',
       semester_id: 'sem1',
       minimum_attendance: 5,
       criterion_ids: ['crit-1'],
@@ -534,7 +590,7 @@ describe('ActivityDetailPage', () => {
 
     await waitFor(() => {
       expect(activityCompletionRuleApi.update).toHaveBeenCalledWith('rule-123', {
-        club_id: 'act1',
+        activity_id: 'act1',
         semester_id: 'sem1',
         minimum_attendance: 5,
         criterion_ids: ['crit-1'],
