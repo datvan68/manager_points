@@ -185,7 +185,7 @@ describe('ActivityScheduleWorkspace', () => {
           activity_id: '60c72b2f9b1e8a001c8e4a50',
           semester_id: '60c72b2f9b1e8a001c8e4a52'
         }
-      ],
+      ] as any,
       total: 1
     });
 
@@ -513,5 +513,271 @@ describe('ActivityScheduleWorkspace', () => {
     const saveAllBtn = screen.getByRole('button', { name: /Lưu tất cả \(0\)/ });
     expect(saveAllBtn).toBeInTheDocument();
     expect(saveAllBtn).toBeDisabled();
+  });
+
+  it('simplified modal layout handles role, attributes, title, field hiding, focus classes, and closure', async () => {
+    const today = new Date();
+    const startStr = today.toISOString();
+    const endStr = new Date(today.getTime() + 7200000).toISOString();
+
+    const mockWeekSchedules: any[] = [
+      {
+        _id: 'sched1',
+        title: 'Meeting 1',
+        start_time: startStr,
+        end_time: endStr,
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
+        location: 'Room 301',
+        schedule_type: 'regular'
+      }
+    ];
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockWeekSchedules, total: 1 });
+
+    const { container } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+    await waitFor(() => {
+      expect(screen.getByText('Meeting 1')).toBeInTheDocument();
+    });
+
+    const meetingCard = screen.getByText('Meeting 1');
+    fireEvent.doubleClick(meetingCard);
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    const modalForm = screen.getByRole('dialog');
+    expect(modalForm).toHaveAttribute('aria-modal', 'true');
+    expect(modalForm).toHaveAttribute('aria-labelledby', 'dialog-title');
+
+    const titleElement = container.querySelector('#dialog-title');
+    expect(titleElement).toBeInTheDocument();
+    expect(titleElement?.textContent).toBe('Cấu hình buổi sinh hoạt');
+
+    // Fields that must be completely hidden:
+    expect(screen.queryByText('Tiêu đề buổi')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mô tả nội dung')).not.toBeInTheDocument();
+    expect(screen.queryByText('Giới hạn người tham gia')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ngày sinh hoạt')).not.toBeInTheDocument();
+    expect(screen.queryByText('Thiết lập lặp lại lịch sinh hoạt')).not.toBeInTheDocument();
+
+    // Fields that must be visible:
+    expect(screen.getByText('Địa điểm')).toBeInTheDocument();
+    expect(screen.getByText('Giờ bắt đầu')).toBeInTheDocument();
+    expect(screen.getByText('Giờ kết thúc')).toBeInTheDocument();
+
+    // Focus classes verification:
+    const locationInput = screen.getByPlaceholderText('Ví dụ: Phòng máy B.202');
+    expect(locationInput.className).toContain('focus:ring-2');
+    expect(locationInput.className).toContain('focus:ring-blue-600');
+    expect(locationInput.className).toContain('focus:border-blue-600');
+
+    const closeBtn = modalForm.querySelector('button'); // First button in header is X button
+    expect(closeBtn?.className).toContain('focus:ring-2');
+    expect(closeBtn?.className).toContain('focus:ring-blue-600');
+    expect(closeBtn?.className).toContain('focus:border-blue-600');
+
+    // Close modal on X click:
+    if (closeBtn) {
+      fireEvent.click(closeBtn);
+    }
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    // Let's test Escape key close
+    fireEvent.doubleClick(screen.getByText('Meeting 1'));
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  it('correctly handles location precedence for saved and pending configurations', async () => {
+    // 1. Saved location exists:
+    const today = new Date();
+    const startStr = today.toISOString();
+    const endStr = new Date(today.getTime() + 7200000).toISOString();
+
+    const mockActivitiesWithClassroom = [
+      { _id: '60c72b2f9b1e8a001c8e4a50', name: 'Academic Club', code: 'AC_CLUB', category: 'academic', classroom: 'Phòng học 102' },
+    ];
+    vi.mocked(activityApi.getAll).mockResolvedValue(mockActivitiesWithClassroom as any);
+
+    const mockSavedScheduleWithLocation: any[] = [
+      {
+        _id: 'sched1',
+        title: 'Meeting 1',
+        start_time: startStr,
+        end_time: endStr,
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
+        location: 'Phòng Máy B.101',
+        schedule_type: 'regular'
+      }
+    ];
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSavedScheduleWithLocation, total: 1 });
+
+    const { unmount } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+    await waitFor(() => {
+      expect(screen.getByText('Meeting 1')).toBeInTheDocument();
+    });
+
+    fireEvent.doubleClick(screen.getByText('Meeting 1'));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Phòng Máy B.101')).toBeInTheDocument();
+    });
+    unmount();
+
+    // 2. Saved location empty/missing -> fallbacks to activity classroom:
+    const mockSavedScheduleNoLocation: any[] = [
+      {
+        _id: 'sched1',
+        title: 'Meeting 1',
+        start_time: startStr,
+        end_time: endStr,
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
+        location: ' ', // empty location
+        schedule_type: 'regular'
+      }
+    ];
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSavedScheduleNoLocation, total: 1 });
+
+    const { unmount: unmount2 } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+    await waitFor(() => {
+      expect(screen.getByText('Meeting 1')).toBeInTheDocument();
+    });
+
+    fireEvent.doubleClick(screen.getByText('Meeting 1'));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Phòng học 102')).toBeInTheDocument();
+    });
+    unmount2();
+
+    // 3. Both saved location and classroom empty -> fallbacks to 'Phòng sinh hoạt':
+    const mockActivitiesNoClassroom = [
+      { _id: '60c72b2f9b1e8a001c8e4a50', name: 'Academic Club', code: 'AC_CLUB', category: 'academic', classroom: ' ' },
+    ];
+    vi.mocked(activityApi.getAll).mockResolvedValue(mockActivitiesNoClassroom as any);
+
+    const { unmount: unmount3 } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+    await waitFor(() => {
+      expect(screen.getByText('Meeting 1')).toBeInTheDocument();
+    });
+
+    fireEvent.doubleClick(screen.getByText('Meeting 1'));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Phòng sinh hoạt')).toBeInTheDocument();
+    });
+    unmount3();
+  });
+
+  it('correctly initializes weekOffset from source_week_start_date and respects navigation lock stability', async () => {
+    // Reset activity mocks for this test:
+    vi.mocked(activityApi.getAll).mockResolvedValue(mockActivities as any);
+
+    // Current date's week monday:
+    const today = new Date();
+    const day = today.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const currentMonday = new Date(today.getTime() + diff * 24 * 60 * 60 * 1000);
+
+    // Target source week: 4 weeks ahead
+    const targetSourceMonday = new Date(currentMonday.getTime() + 4 * 7 * 24 * 60 * 60 * 1000);
+    const sourceWeekStr = targetSourceMonday.toISOString().split('T')[0];
+
+    const mockSchedules: any[] = [
+      {
+        _id: 'sched-with-recurrence',
+        title: 'Meeting 1',
+        start_time: targetSourceMonday.toISOString(),
+        end_time: new Date(targetSourceMonday.getTime() + 7200000).toISOString(),
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
+        status: 'active',
+        recurrence_id: 'rec1',
+        recurrence: {
+          source_week_start_date: sourceWeekStr
+        }
+      }
+    ];
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSchedules, total: 1 });
+
+    const { rerender } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    // Wait for loadSchedules and check that weekOffset became 4:
+    await waitFor(() => {
+      expect(screen.getByText(/Tuần \+4/)).toBeInTheDocument();
+    });
+
+    // Simulate navigation to week +5 (Next week button click)
+    const currentBtn = screen.getByText('Hiện tại');
+    const navContainer = currentBtn.parentElement;
+    const navButtons = navContainer?.querySelectorAll('button') || [];
+    const nextBtn = navButtons[navButtons.length - 1];
+    fireEvent.click(nextBtn);
+    expect(screen.getByText(/Tuần \+5/)).toBeInTheDocument();
+
+    // Rerender (triggering possible hook runs with different prop/data state)
+    // and check that weekOffset remains locked at +5
+    rerender(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" activityType="new-type" />);
+    expect(screen.getByText(/Tuần \+5/)).toBeInTheDocument();
+  });
+
+  it('displays correct visual styles when current week is the source week', async () => {
+    // Current date's week monday:
+    const today = new Date();
+    const day = today.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const currentMonday = new Date(today.getTime() + diff * 24 * 60 * 60 * 1000);
+    const sourceWeekStr = currentMonday.toISOString().split('T')[0];
+
+    const mockSchedules: any[] = [
+      {
+        _id: 'sched-with-recurrence',
+        title: 'Meeting 1',
+        start_time: currentMonday.toISOString(),
+        end_time: new Date(currentMonday.getTime() + 7200000).toISOString(),
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
+        status: 'active',
+        recurrence_id: 'rec1',
+        recurrence: {
+          source_week_start_date: sourceWeekStr
+        }
+      }
+    ];
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSchedules, total: 1 });
+
+    const { container } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Tuần hiện tại & Tuần nguồn')).toBeInTheDocument();
+    });
+
+    const badge = screen.getByText('Tuần hiện tại & Tuần nguồn');
+    expect(badge.className).toContain('bg-purple-600');
+    expect(badge.className).toContain('text-white');
+    expect(badge.className).toContain('border-purple-700');
+
+    // Right Side Grid container:
+    const gridContainer = container.querySelector('.lg\\:col-span-10');
+    expect(gridContainer?.className).toContain('border-purple-300');
+    expect(gridContainer?.className).toContain('ring-2');
+    expect(gridContainer?.className).toContain('ring-purple-500/10');
+
+    // Column header "Nguồn" instead of "Ca"
+    expect(screen.getByText('Nguồn')).toBeInTheDocument();
+    expect(screen.queryByText('Ca')).not.toBeInTheDocument();
   });
 });

@@ -514,7 +514,7 @@ const CustomTimePicker = ({ value, onChange }: { value: string; onChange: (val: 
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-850 hover:bg-slate-50 focus:outline-none transition-all cursor-pointer shadow-sm"
+          className="flex h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-850 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all cursor-pointer shadow-sm"
         >
           <Clock className="mr-2 h-4 w-4 text-slate-400" />
           {value}
@@ -598,6 +598,7 @@ export default function ActivityScheduleWorkspace({
   activityType = '',
 }: ActivityScheduleWorkspaceProps) {
   const canManage = isAdminOrAdvisor;
+  const hasInitializedRef = useRef(false);
 
   // Core data states
   const [schedules, setSchedules] = useState<ActivitySchedule[]>([]);
@@ -749,12 +750,63 @@ export default function ActivityScheduleWorkspace({
   }, [activityType]);
 
   useEffect(() => {
+    hasInitializedRef.current = false;
     if (selectedSemesterId) {
       loadSchedules();
     } else {
       setSchedules([]);
     }
   }, [selectedSemesterId]);
+
+  useEffect(() => {
+    if (!loading && !hasInitializedRef.current) {
+      if (schedules.length === 0) return;
+      const validSchedules = schedules.filter(
+        s => s.status !== 'cancelled' && s.recurrence?.source_week_start_date
+      );
+
+      let targetSourceWeekDateStr: string | undefined;
+
+      const activitySchedules = validSchedules.filter(
+        s => getNormalizedId(s.activity_id) === selectedActivityId
+      );
+
+      if (activitySchedules.length > 0) {
+        activitySchedules.sort((a, b) => {
+          const dateA = new Date(a.recurrence!.source_week_start_date!);
+          const dateB = new Date(b.recurrence!.source_week_start_date!);
+          return dateA.getTime() - dateB.getTime();
+        });
+        targetSourceWeekDateStr = activitySchedules[0].recurrence!.source_week_start_date;
+      } else if (validSchedules.length > 0) {
+        validSchedules.sort((a, b) => {
+          const dateA = new Date(a.recurrence!.source_week_start_date!);
+          const dateB = new Date(b.recurrence!.source_week_start_date!);
+          return dateA.getTime() - dateB.getTime();
+        });
+        targetSourceWeekDateStr = validSchedules[0].recurrence!.source_week_start_date;
+      }
+
+      if (targetSourceWeekDateStr) {
+        const offset = getWeekOffsetFromDate(new Date(targetSourceWeekDateStr));
+        setWeekOffset(offset);
+      }
+      hasInitializedRef.current = true;
+    }
+  }, [loading, schedules, activities, selectedActivityId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowCreateModal(false);
+        setActivePendingSchedule(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     if (
@@ -839,6 +891,7 @@ export default function ActivityScheduleWorkspace({
 
   const loadSchedules = async () => {
     try {
+      setLoading(true);
       const params: any = { limit: 1000 };
       if (selectedSemesterId) {
         params.semester_id = selectedSemesterId;
@@ -847,6 +900,8 @@ export default function ActivityScheduleWorkspace({
       setSchedules(data.items || []);
     } catch {
       toast.error('Không thể cập nhật danh sách lịch');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -899,6 +954,14 @@ export default function ActivityScheduleWorkspace({
     const dd = String(d.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
   });
+
+  const currentMondayStr = getMondayDateStr(mondayDate);
+  const isSourceWeek = schedules.some(s =>
+    s.status !== 'cancelled' &&
+    s.recurrence_id &&
+    s.recurrence?.source_week_start_date &&
+    getMondayDateStr(s.recurrence.source_week_start_date) === currentMondayStr
+  );
 
   const sourceActivities = activities.map(act => {
     const savedCount = schedules.filter(s => {
@@ -1116,12 +1179,18 @@ export default function ActivityScheduleWorkspace({
     setActivePendingSchedule(originalPending);
 
     const actObj = activities.find(c => c._id === pending.clubId);
-    const defaultLoc = actObj?.classroom || 'Phòng sinh hoạt';
 
     setFormClubId(pending.clubId);
     setFormTitle(pending.originalData?.title || `Sinh hoạt ${pending.clubName}`);
     setFormDesc(pending.originalData?.description || '');
-    setFormLocation(pending.originalData?.location || defaultLoc);
+
+    let pendingLoc = 'Phòng sinh hoạt';
+    if (pending.originalData?.location && pending.originalData.location.trim() !== '') {
+      pendingLoc = pending.originalData.location;
+    } else if (actObj?.classroom && actObj.classroom.trim() !== '') {
+      pendingLoc = actObj.classroom;
+    }
+    setFormLocation(pendingLoc);
     setFormType(pending.originalData?.schedule_type || 'regular');
     setFormDate(pending.dateStr);
     setFormStartTime(pending.startTime);
@@ -1153,7 +1222,14 @@ export default function ActivityScheduleWorkspace({
     setFormClubId(cid);
     setFormTitle(schedule.title || `Sinh hoạt ${actObj?.name || ''}`);
     setFormDesc(schedule.description || '');
-    setFormLocation(schedule.location || 'Phòng sinh hoạt');
+
+    let savedLoc = 'Phòng sinh hoạt';
+    if (schedule.location && schedule.location.trim() !== '') {
+      savedLoc = schedule.location;
+    } else if (actObj?.classroom && actObj.classroom.trim() !== '') {
+      savedLoc = actObj.classroom;
+    }
+    setFormLocation(savedLoc);
     setFormType(schedule.schedule_type || 'regular');
 
     const startObj = new Date(schedule.start_time);
@@ -2082,6 +2158,7 @@ export default function ActivityScheduleWorkspace({
             const containsRepeated = repeatedSchedulesInWeek.length > 0;
 
             const isSourceWeek = schedules.some(s =>
+              s.status !== 'cancelled' &&
               s.recurrence_id &&
               s.recurrence?.source_week_start_date &&
               getMondayDateStr(s.recurrence.source_week_start_date) === currentMondayStr
@@ -2092,11 +2169,14 @@ export default function ActivityScheduleWorkspace({
 
             if (isCurrentWeek && isSourceWeek) {
               statusLabel = 'Tuần hiện tại & Tuần nguồn';
-              badgeColor = 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20';
+              badgeColor = 'bg-purple-600 text-white border-purple-700 shadow-sm shadow-purple-500/10 font-bold';
             } else if (isCurrentWeek) {
               statusLabel = 'Tuần hiện tại';
               badgeColor = 'bg-blue-500/10 text-blue-700 border-blue-500/20';
             } else if (isSourceWeek) {
+              statusLabel = 'Tu\u1ea7n ngu\u1ed3n';
+              badgeColor = 'bg-purple-600 text-white border-purple-700 shadow-sm shadow-purple-500/10 font-bold';
+            } else if (false) {
               statusLabel = 'Tuần nguồn lặp';
               badgeColor = 'bg-purple-500/10 text-purple-700 border-purple-500/20';
             } else if (containsRepeated) {
@@ -2288,14 +2368,28 @@ export default function ActivityScheduleWorkspace({
           </div>
 
           {/* Right Side: Weekly Scheduler Grid */}
-          <div className="col-span-12 lg:col-span-10 bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[600px]">
+          <div className={cn(
+            "col-span-12 lg:col-span-10 bg-white rounded-2xl overflow-hidden flex flex-col h-[600px]",
+            isSourceWeek
+              ? "border-purple-300 ring-2 ring-purple-500/10 shadow-[0_4px_20px_rgba(139,92,246,0.08)] bg-purple-50/[0.005]"
+              : "border border-slate-100 shadow-sm"
+          )}>
             <div className="w-full flex-1 flex flex-col min-h-0">
               <div className="flex flex-col h-full">
                 {/* Header Row */}
                 <div className="grid border-b border-slate-100 bg-slate-50/50 shrink-0" style={{ gridTemplateColumns: '70px repeat(7, minmax(0, 1fr))' }}>
                   <div className="p-2 text-center border-r lg:border-r-0 border-slate-100 flex flex-col items-center justify-center gap-0.5">
-                    <Clock size={13} className="text-slate-400" />
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider font-sans">Ca</p>
+                    {isSourceWeek ? (
+                      <>
+                        <RotateCw size={13} className="text-purple-600" />
+                        <p className="text-[9px] font-black text-purple-600 uppercase tracking-wider font-sans">{"Ngu\u1ed3n"}</p>
+                      </>
+                    ) : (
+                      <>
+                        <Clock size={13} className="text-slate-400" />
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider font-sans">Ca</p>
+                      </>
+                    )}
                   </div>
                   {weekDates.map((date, idx) => {
                     const today = isToday(date);
@@ -2715,23 +2809,36 @@ export default function ActivityScheduleWorkspace({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 select-none">
           <form
             onSubmit={handleCreateSubmit}
-            className="bg-white border border-slate-200 w-full max-w-lg rounded-3xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dialog-title"
+            className={cn(
+              "bg-white w-full rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200",
+              isSimplifiedModal
+                ? "max-w-sm border border-slate-300 ring-4 ring-slate-900/5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]"
+                : "max-w-lg border border-slate-200 shadow-xl"
+            )}
           >
             <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-b border-slate-100">
+              <h3 id="dialog-title" className="text-xs font-black text-slate-800 uppercase tracking-wider font-sans">
+                {isSimplifiedModal ? 'C\u1ea5u h\u00ecnh bu\u1ed5i sinh ho\u1ea1t' : (formScheduleId ? 'Ch\u1ec9nh s\u1eeda l\u1ecbch tr\u00ecnh' : 'L\u00ean l\u1ecbch sinh ho\u1ea1t m\u1edbi')}
+              </h3>
+              {false && <>
               <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider font-sans">
                 {formScheduleId ? 'Cấu hình buổi sinh hoạt' : 'Lên lịch sinh hoạt mới'}
               </h3>
+              </>}
               <button
                 type="button"
                 onClick={() => { setShowCreateModal(false); setActivePendingSchedule(null); }}
-                className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors cursor-pointer rounded"
               >
                 <X size={18} />
               </button>
             </div>
 
             <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-              {!formScheduleId && (
+              {!isSimplifiedModal && !formScheduleId && (
                 <>
                   <div className="flex flex-col gap-1">
                 <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Tiêu đề buổi</label>
@@ -2767,7 +2874,7 @@ export default function ActivityScheduleWorkspace({
                     value={formLocation}
                     onChange={(e) => setFormLocation(e.target.value)}
                     placeholder="Ví dụ: Phòng máy B.202"
-                    className="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
                   />
                 </div>
                 {!isSimplifiedModal && (
@@ -2875,14 +2982,14 @@ export default function ActivityScheduleWorkspace({
               <button
                 type="button"
                 onClick={() => { setShowCreateModal(false); setActivePendingSchedule(null); }}
-                className="h-9 px-4 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                className="h-9 px-4 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
               >
                 Hủy bỏ
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="h-9 px-5 text-xs bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-750 text-white font-black rounded-xl shadow-md border-0"
+                className="h-9 px-5 text-xs bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-750 text-white font-black rounded-xl shadow-md border-0 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
               >
                 {formScheduleId ? 'Cập Nhật Lịch' : 'Xác Nhận'}
               </button>

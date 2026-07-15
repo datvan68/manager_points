@@ -1,114 +1,110 @@
 ﻿# 1. Task ID + Pipeline
 
-- Task ID: `ACTIVITY-DETAIL-20260715-003`
+- Task ID: `ACTIVITY-SCHEDULE-20260715-004`
 - Pipeline: `feature_development`
 
 # 2. Risk Level
 
-- Risk level: `low`
-- Human Gate Request Schema classification: frontend display and read-only API consumption only; no production deployment, database mutation, permission change, secret handling, or destructive operation is included.
+- Risk level: `medium`
+- Reversible frontend changes affect initial week selection and saved location, but require no deployment, database, permissions, secrets, destructive actions, or external side effects.
 
 # 3. Objective
 
-Correct the activity detail page so the **Lịch sinh hoạt** tab displays the room assigned to each schedule and the **Học kỳ:** field displays the semester whose status is `active`. This prevents the activity-level semester or classroom metadata from overriding the values that are authoritative for the current view.
+Adjust `/activities/schedule` so **Cấu hình buổi sinh hoạt** is a compact time-configuration dialog, location defaults from the activity's `classroom` while remaining editable, the initial weekly view shows the recurrence source week, and that week is visually distinct.
 
 # 4. Scope
 
-Only the following files may be changed:
-
-- `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx`
-- `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`
-- `frontend/src/components/activities/ActivityScheduleTimeline.tsx`
-- `frontend/src/components/activities/ActivityScheduleTimeline.test.tsx`
+- `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`
+  - Render simplified configuration as a compact dialog containing location, start time, end time, cancel, and save/update controls.
+  - Resolve location from existing/user value, then selected activity `classroom`, then `Phòng sinh hoạt`.
+  - Initialize weekly display from `recurrence.source_week_start_date`, with deterministic selection and current-week fallback.
+  - Add an explicit marker and distinct grid/container styling for the source week.
+- `frontend/src/components/activities/ActivityScheduleWorkspace.test.tsx`
+  - Cover dialog contents, location precedence/persistence, source-week initialization/fallback, navigation stability, and presentation.
+- `taskscope.md`
+  - Record this implementation scope.
 
 # 5. Out of Scope
 
-- Do not change schedule creation, recurring schedule generation, attendance, registration, or completion-rule behavior.
-- Do not change backend controllers, services, DTOs, schemas, database records, or migrations.
-- Do not change the activity create/edit form or the activity list/card UI.
-- Do not change the semester status lifecycle or automatically activate/deactivate semesters.
-- Do not redesign the activity detail page, tab navigation, or schedule timeline layout.
-- Do not replace `activity_id` with another identifier and do not reintroduce `club_id`.
+- Backend controllers, services, DTOs, schemas, recurrence generation, database data, and migrations.
+- The full **Lên lịch sinh hoạt mới** modal, activity forms, and the source of `Activity.classroom`.
+- Daily view, attendance, registration, completion rules, activity detail pages, deployments, dependencies, broad formatting, and unrelated refactoring.
+- Changes to recurrence metadata meanings or timestamp persistence.
 
 # 6. Context & Dependencies
 
-- `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx` currently loads the activity, members, timeline schedules, completion rules, and criteria, but it does not load the semester list through `semesterApi.getSemesters()`.
-- The **Học kỳ:** value currently reads `activity.semester_id.semester_name`. This produces `—` when `semester_id` is an ID or when the populated object uses a different shape, and it does not satisfy the requirement to display the currently active semester.
-- `frontend/src/api/semester-api.ts` already exposes `semesterApi.getSemesters()` and the `Semester` type with `_id`, `semester_name`, and `status`; this API file does not require modification.
-- `ActivitySchedule` exposes `location`, and `ActivityScheduleTimeline` already renders schedule rows. The canonical room for a specific session is `schedule.location`; `activity.classroom` is only the activity default and may be used as a fallback when the schedule location is empty.
-- The activity detail test suite already mocks activity and schedule API calls. It must also mock `semesterApi.getSemesters()` so the active-semester selection is deterministic.
+- The route already renders `ActivityScheduleWorkspace`; its wrapper needs no change.
+- `Activity.classroom` is already exposed by `frontend/src/api/activity-api.ts` and activities are loaded.
+- Pending configuration falls back to `classroom`; saved configuration currently skips it and falls straight to `Phòng sinh hoạt`.
+- `isSimplifiedModal` hides unrelated fields but still uses the full-screen create-modal shell.
+- `weekOffset = 0` opens the current week. Source metadata is used by badges and **Về tuần nguồn**, but the grid is not distinct.
+- If source weeks differ, prefer the selected activity's valid source week; otherwise choose the earliest valid visible source date. With none, keep current week.
+- Initialization must run once per relevant data load and not reset manual navigation.
+- The reference image indicates a small, rounded, high-contrast panel. Reuse current React/Tailwind primitives and accessible dialog semantics.
+- Preserve UTF-8 BOM, Vietnamese content, and line endings; terminal mojibake is not file corruption.
 
 # 7. Steps
 
 ## PLAN
 
-1. Inspect the `loadActivityData` Promise list and hero metadata section in `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx` to identify where semester data must be loaded and rendered.
-2. Inspect the schedule item location block in `frontend/src/components/activities/ActivityScheduleTimeline.tsx` and define the display precedence as `schedule.location` first, then the activity default classroom passed from the detail page, then `Chưa có địa điểm`.
-3. Inspect the mocks and fixtures in both scoped test files and identify the cases for an active semester, a non-active activity semester, a schedule-specific room, and a missing schedule room.
+1. Inspect data loading, filters, week helpers, simplified modal, save payloads, and source-week rendering.
+2. Confirm existing activity and recurrence data require no API changes.
+3. Define focused tests for every acceptance criterion.
 
 ## EXECUTE
 
-1. In `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx`, import `semesterApi` and the `Semester` type from `@/api/semester-api`.
-2. Add state for the resolved active semester and include `semesterApi.getSemesters()` in `loadActivityData`; select the single item whose `status === 'active'` and store it, or store `null` when no active semester exists.
-3. Replace the hero **Học kỳ:** expression with the active semester's `semester_name`; render `—` when the semester endpoint returns no active semester.
-4. Pass `activity.classroom` to `ActivityScheduleTimeline` through an explicitly named optional prop such as `defaultClassroom`.
-5. In `frontend/src/components/activities/ActivityScheduleTimeline.tsx`, add the optional `defaultClassroom` prop to the component contract and render each schedule room using `schedule.location || defaultClassroom || 'Chưa có địa điểm'`.
-6. In `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`, mock `semesterApi.getSemesters()` and add a regression case proving that the displayed **Học kỳ:** value comes from the semester with `status: 'active'`, even when `activity.semester_id` points to a different semester or is an unpopulated ID.
-7. In `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`, add a regression case proving that the **Lịch sinh hoạt** tab displays each schedule's `location` instead of the activity's default `classroom`.
-8. In `frontend/src/components/activities/ActivityScheduleTimeline.test.tsx`, add assertions for both location branches: a non-empty `schedule.location` takes precedence, and an empty location falls back to `defaultClassroom`.
+1. Conditionally render the compact accessible dialog for `isSimplifiedModal`.
+2. Apply location precedence: non-empty saved/user value → activity `classroom` → `Phòng sinh hoạt`.
+3. Persist displayed `formLocation`, unchanged or user-overridden.
+4. Compute source-week Monday after data loads and initialize `weekOffset` once.
+5. Add non-color-only source-week text and distinct grid/container classes.
+6. Add regression tests for all requested behavior.
 
 ## VERIFY
 
-1. Run the two scoped Vitest files with the exact command in section 9.
-2. Run the frontend TypeScript compiler check with the exact command in section 9 to validate the new prop and semester state types.
-3. Confirm the tests cover the no-active-semester fallback and do not rely on the order of semesters returned by the API.
+1. Run scoped Vitest and frontend typecheck.
+2. Inspect final diff for only scoped changes and no whitespace, encoding-only, or line-ending-only changes.
+3. If UI execution is available, verify desktop/narrow dialog fit and source-week distinction.
 
 ## REFINE
 
-1. If a test fails because the semester API mock is missing, define the mock before importing the page module and reset it in the existing test setup.
-2. If duplicate room text makes a page-level query ambiguous, scope the assertion to the active schedule tab or the schedule timeline container instead of weakening the expected value.
-3. If TypeScript reports a prop mismatch, update only the `ActivityScheduleTimeline` props interface and its activity-detail call site; do not broaden the prop to `any`.
-4. Re-run all commands in section 9 after each refinement, for at most the default three loop iterations.
+1. Correct only the initialization guard for load races.
+2. Correct only activity filtering/date tie-breaking for nondeterministic source selection.
+3. Adjust only dialog sizing, labels, focus, and responsive classes for layout/accessibility failures.
+4. Stop on success, Human Gate, scope expansion, or after three iterations.
 
 # 8. Acceptance Criteria
 
-- The activity detail page requests the semester list when loading its data.
-- **Học kỳ:** displays `semester_name` from the semester whose `status` is exactly `active`.
-- **Học kỳ:** displays `—` when no semester has `status: 'active'`.
-- The displayed active semester is independent of `activity.semester_id` and independent of semester array order.
-- Every schedule row in **Lịch sinh hoạt** displays its own non-empty `schedule.location`.
-- A schedule with an empty or missing `location` displays `activity.classroom` as the fallback.
-- A schedule with neither `location` nor an activity classroom displays `Chưa có địa điểm`.
-- Existing schedule ordering, today highlighting, registration controls, and attendance controls remain unchanged.
-- Both scoped Vitest files pass and the frontend TypeScript check completes without errors.
+- **Cấu hình buổi sinh hoạt** appears as a compact, rounded, high-contrast dialog.
+- Only location, start/end time, cancel, and save/update controls appear in simplified mode.
+- The dialog has an accessible name, keyboard controls, visible focus, and fits narrow supported viewports.
+- Empty schedule location initially shows the selected activity's non-empty `classroom`.
+- Non-empty saved/user location takes precedence and remains editable.
+- Saving submits the displayed classroom default or user override.
+- Initial weekly display opens on the applicable source week even when it is not current.
+- No valid source metadata retains current-week fallback.
+- Manual navigation is not reset after initialization.
+- Source week has explicit **Tuần nguồn** text and distinct grid/container treatment; other weeks do not.
+- Existing create, recurrence, drag/drop, filters, daily view, and save behavior outside scope remains unchanged.
+- Scoped tests and typecheck pass; final diff has no unintended changes.
 
 # 9. Verification Commands
 
-Run from the repository root:
-
-```powershell
-cd frontend
-npm test -- --run "src/app/(dashboard)/activities/[activityId]/page.test.tsx" "src/components/activities/ActivityScheduleTimeline.test.tsx"
-npm run type-check
-```
+- `D:\PROJECT\manager_points\frontend :: npm test -- --run "src/components/activities/ActivityScheduleWorkspace.test.tsx" -> 0; scoped tests pass.`
+- `D:\PROJECT\manager_points\frontend :: npm run typecheck -> 0; no TypeScript errors.`
+- `D:\PROJECT\manager_points :: git diff --check -> 0; no whitespace errors.`
+- `D:\PROJECT\manager_points :: git diff -- taskscope.md frontend/src/components/activities/ActivityScheduleWorkspace.tsx frontend/src/components/activities/ActivityScheduleWorkspace.test.tsx -> 0; only scoped changes.`
 
 # 10. Safety Gates
 
-- Human approval is required before any production deployment or production configuration change.
-- Human approval is required if implementation would require a backend contract change, database migration, or data correction, because those actions are outside this task scope.
-- Human approval is required before modifying files not listed in section 4.
-- Stop and request clarification if more than one semester can legitimately have `status: 'active'`; this task assumes the existing semester lifecycle guarantees at most one active semester.
-- Stop immediately if verification exposes secrets or requires writing to any `.env*` file; do not print or modify environment-file contents.
+- Backend/data/recurrence-contract changes or any source file outside section 4: pause for explicit scope/risk approval.
+- Deployment, release, merge, publish, production configuration, secrets, permissions, destructive actions, or external/paid effects: pause for explicit approval.
+- Bulk encoding/line-ending conversion: pause and provide exact files, encodings, and rollback plan for approval.
 
 # 11. Artifacts to Review
 
-- Git diff for the four files listed in section 4.
-- Vitest output for `page.test.tsx` and `ActivityScheduleTimeline.test.tsx`.
-- Output from `npm run type-check`.
-- Screenshot of activity detail showing the active semester in the hero metadata and schedule-specific room values in the **Lịch sinh hoạt** tab, if a Human Gate is triggered for UI review.
+None — no Human Gate triggered. If implementation triggers one, provide the scoped diff, Vitest/typecheck output, and screenshots of the dialog and source-week treatment.
 
 # 12. Loop_iterations Override
 
-- No override. Use the default `3` PLAN → EXECUTE → VERIFY → REFINE iterations defined by the project safety rules.
-
-
+Loop_iterations: 3 (default, stop early on success)
