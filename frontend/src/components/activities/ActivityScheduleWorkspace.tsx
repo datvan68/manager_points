@@ -589,6 +589,16 @@ function getNormalizedId(input: any): string {
   return '';
 }
 
+function getPreferredLocation(primaryLocation?: string | null, fallbackClassroom?: string | null): string {
+  if (typeof primaryLocation === 'string' && primaryLocation.trim() !== '') {
+    return primaryLocation;
+  }
+  if (typeof fallbackClassroom === 'string' && fallbackClassroom.trim() !== '') {
+    return fallbackClassroom;
+  }
+  return 'Ph\u00f2ng sinh ho\u1ea1t';
+}
+
 interface ActivityScheduleWorkspaceProps {
   initialActivityId?: string;
   openCreateOnLoad?: boolean;
@@ -672,6 +682,7 @@ export default function ActivityScheduleWorkspace({
   const [formMaxAttendees, setFormMaxAttendees] = useState('');
   const [isSimplifiedModal, setIsSimplifiedModal] = useState(false);
   const [modalPosition, setModalPosition] = useState<{ top: number; left: number } | null>(null);
+  const [originatingElement, setOriginatingElement] = useState<HTMLElement | null>(null);
   const [formScheduleId, setFormScheduleId] = useState<string | null>(null);
   const [formShift, setFormShift] = useState<ShiftType | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -815,17 +826,36 @@ export default function ActivityScheduleWorkspace({
   }, []);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (showCreateModal && isSimplifiedModal) {
-        setShowCreateModal(false);
-        setActivePendingSchedule(null);
+    if (!showCreateModal) {
+      setOriginatingElement(null);
+    }
+  }, [showCreateModal]);
+
+  useEffect(() => {
+    if (!showCreateModal || !isSimplifiedModal || !originatingElement) return;
+
+    const updateModalPosition = () => {
+      const rect = originatingElement.getBoundingClientRect();
+      const modalWidth = 280;
+      let left = rect.left;
+      if (left + modalWidth > window.innerWidth) {
+        left = rect.right - modalWidth;
       }
+      let top = rect.bottom + 6;
+      if (top + 220 > window.innerHeight) {
+        top = rect.top - 220 - 6;
+      }
+      setModalPosition({ top, left: Math.max(12, left) });
     };
-    window.addEventListener('scroll', handleScroll, true);
+
+    window.addEventListener('scroll', updateModalPosition, true);
+    window.addEventListener('resize', updateModalPosition);
+
     return () => {
-      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('scroll', updateModalPosition, true);
+      window.removeEventListener('resize', updateModalPosition);
     };
-  }, [showCreateModal, isSimplifiedModal]);
+  }, [showCreateModal, isSimplifiedModal, originatingElement]);
 
   useEffect(() => {
     if (
@@ -839,7 +869,7 @@ export default function ActivityScheduleWorkspace({
       setHasAutoOpened(true);
 
       const actObj = activities.find(c => c._id === selectedActivityId);
-      const defaultLoc = actObj?.classroom || 'Phòng sinh hoạt';
+      const defaultLoc = getPreferredLocation(undefined, actObj?.classroom);
 
       setFormClubId(selectedActivityId);
       setFormTitle(`Sinh hoạt ${actObj?.name || ''}`);
@@ -1206,8 +1236,10 @@ export default function ActivityScheduleWorkspace({
         top = rect.top - 220 - 6;
       }
       setModalPosition({ top, left: Math.max(12, left) });
+      setOriginatingElement(e.currentTarget as HTMLElement);
     } else {
       setModalPosition(null);
+      setOriginatingElement(null);
     }
 
     const targetTempId = pending.originalTempId || pending.tempId;
@@ -1219,14 +1251,7 @@ export default function ActivityScheduleWorkspace({
     setFormClubId(pending.clubId);
     setFormTitle(pending.originalData?.title || `Sinh hoạt ${pending.clubName}`);
     setFormDesc(pending.originalData?.description || '');
-
-    let pendingLoc = 'Phòng sinh hoạt';
-    if (pending.originalData?.location && pending.originalData.location.trim() !== '') {
-      pendingLoc = pending.originalData.location;
-    } else if (actObj?.classroom && actObj.classroom.trim() !== '') {
-      pendingLoc = actObj.classroom;
-    }
-    setFormLocation(pendingLoc);
+    setFormLocation(getPreferredLocation(pending.originalData?.location, actObj?.classroom));
     setFormType(pending.originalData?.schedule_type || 'regular');
     setFormDate(pending.dateStr);
     setFormStartTime(pending.startTime);
@@ -1263,8 +1288,10 @@ export default function ActivityScheduleWorkspace({
         top = rect.top - 220 - 6;
       }
       setModalPosition({ top, left: Math.max(12, left) });
+      setOriginatingElement(e.currentTarget as HTMLElement);
     } else {
       setModalPosition(null);
+      setOriginatingElement(null);
     }
 
     setActivePendingSchedule(null);
@@ -1275,14 +1302,7 @@ export default function ActivityScheduleWorkspace({
     setFormClubId(cid);
     setFormTitle(schedule.title || `Sinh hoạt ${actObj?.name || ''}`);
     setFormDesc(schedule.description || '');
-
-    let savedLoc = 'Phòng sinh hoạt';
-    if (schedule.location && schedule.location.trim() !== '') {
-      savedLoc = schedule.location;
-    } else if (actObj?.classroom && actObj.classroom.trim() !== '') {
-      savedLoc = actObj.classroom;
-    }
-    setFormLocation(savedLoc);
+    setFormLocation(getPreferredLocation(schedule.location, actObj?.classroom));
     setFormType(schedule.schedule_type || 'regular');
 
     const startObj = new Date(schedule.start_time);
@@ -1698,11 +1718,12 @@ export default function ActivityScheduleWorkspace({
         untilIso = validation.effectiveEndDate.toISOString();
       }
 
+      const actObj = activities.find(c => c._id === clubIdNorm);
       const payload = {
         activity_id: clubIdNorm,
         title: pending.originalData?.title || `Sinh hoạt ${pending.clubName}`,
         description: pending.originalData?.description || '',
-        location: pending.originalData?.location || 'Phòng sinh hoạt',
+        location: getPreferredLocation(pending.originalData?.location, actObj?.classroom),
         schedule_type: pending.originalData?.schedule_type || 'regular',
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
@@ -1815,12 +1836,13 @@ export default function ActivityScheduleWorkspace({
 
         const clubIdNorm = getNormalizedId(p.clubId);
         const semesterIdNorm = getNormalizedId(selectedSemesterId);
+        const actObj = activities.find(c => c._id === clubIdNorm);
 
         const payload = {
           activity_id: clubIdNorm,
           title: p.originalData?.title || `Sinh hoạt ${p.clubName}`,
           description: p.originalData?.description || '',
-          location: p.originalData?.location || 'Phòng sinh hoạt',
+          location: getPreferredLocation(p.originalData?.location, actObj?.classroom),
           schedule_type: p.originalData?.schedule_type || 'regular',
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
@@ -1968,8 +1990,8 @@ export default function ActivityScheduleWorkspace({
     const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
     const dd = String(targetDate.getDate()).padStart(2, '0');
 
-    const defaultAct = activities[0];
-    const defaultLoc = defaultAct?.classroom || 'Phòng sinh hoạt';
+    const defaultAct = activities.find(a => a._id === selectedActivityId) || activities[0];
+    const defaultLoc = getPreferredLocation(undefined, defaultAct?.classroom);
 
     setFormClubId(defaultAct?._id || '');
     setFormTitle(defaultAct ? `Sinh hoạt ${defaultAct.name}` : '');
@@ -2873,10 +2895,10 @@ export default function ActivityScheduleWorkspace({
             aria-modal={isSimplifiedModal ? "false" : "true"}
             aria-labelledby="dialog-title"
             className={cn(
-              "rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200",
+              "overflow-hidden animate-in zoom-in-95 duration-200",
               isSimplifiedModal
-                ? "w-full border border-slate-200/80 ring-1 ring-slate-200/50 shadow-[0_20px_50px_rgba(0,0,0,0.12)] bg-white/95 backdrop-blur-md"
-                : "bg-white w-full max-w-lg border border-slate-200 shadow-xl"
+                ? "w-full rounded-2xl border border-slate-200/80 ring-1 ring-slate-200/50 shadow-[0_20px_50px_rgba(0,0,0,0.12)] bg-white/95 backdrop-blur-md"
+                : "bg-white w-full max-w-lg rounded-3xl border border-slate-200 shadow-xl"
             )}
           >
             <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-b border-slate-100">
@@ -3222,27 +3244,42 @@ export default function ActivityScheduleWorkspace({
       {/* Delete Confirmation Modal Dialog */}
       {showDeleteModal && selectedSchedule && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 select-none">
-          <div className="bg-white border border-slate-200 w-full max-w-sm rounded-3xl shadow-xl p-6 space-y-4">
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider font-sans">Xác nhận xóa lịch trình</h3>
-            <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-              Bạn có chắc muốn xóa buổi sinh hoạt &quot;{selectedSchedule.title}&quot;?
-              {selectedSchedule.recurrence_id && ' Đây là một buổi nằm trong chuỗi lịch lặp định kỳ.'}
-            </p>
+          <div className="bg-white border border-slate-200 w-full max-w-sm rounded-3xl shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-600 shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <h3 className="text-base font-extrabold text-slate-800 tracking-tight font-sans">
+                Xác nhận xóa lịch trình
+              </h3>
+            </div>
 
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                Bạn có chắc chắn muốn xóa buổi sinh hoạt <strong className="text-slate-800">&quot;{selectedSchedule.title}&quot;</strong>?
+              </p>
+              {selectedSchedule.recurrence_id && (
+                <div className="flex items-start gap-1.5 p-2.5 bg-amber-50/50 border border-amber-100 rounded-xl text-[10px] text-amber-800 font-semibold leading-normal">
+                  <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                  <span>Chú ý: Đây là một buổi sinh hoạt thuộc chuỗi lịch lặp định kỳ.</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 pt-1">
               {selectedSchedule.recurrence_id ? (
                 <>
                   <button
                     type="button"
                     onClick={() => handleDeleteConfirm(true)}
-                    className="w-full h-9 text-xs font-bold bg-red-650 hover:bg-red-750 text-white rounded-xl border-0 cursor-pointer"
+                    className="w-full h-10 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl border-0 cursor-pointer transition-colors"
                   >
                     Xóa TOÀN BỘ chuỗi lịch lặp
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDeleteConfirm(false)}
-                    className="w-full h-9 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-xl cursor-pointer"
+                    className="w-full h-10 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-xl cursor-pointer transition-colors"
                   >
                     Chỉ xóa buổi NÀY
                   </button>
@@ -3251,7 +3288,7 @@ export default function ActivityScheduleWorkspace({
                 <button
                   type="button"
                   onClick={() => handleDeleteConfirm(false)}
-                  className="w-full h-9 text-xs font-bold bg-red-650 hover:bg-red-750 text-white rounded-xl border-0 cursor-pointer"
+                  className="w-full h-10 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl border-0 cursor-pointer transition-colors"
                 >
                   Xóa buổi sinh hoạt
                 </button>
@@ -3259,7 +3296,7 @@ export default function ActivityScheduleWorkspace({
               <button
                 type="button"
                 onClick={() => { setSelectedSchedule(null); setShowDeleteModal(false); }}
-                className="w-full h-9 text-xs font-bold text-slate-550 hover:bg-slate-100 rounded-xl border-0 bg-transparent cursor-pointer"
+                className="w-full h-10 text-xs font-bold text-slate-550 hover:bg-slate-100 rounded-xl border-0 bg-transparent cursor-pointer transition-colors"
               >
                 Hủy bỏ
               </button>
@@ -3307,24 +3344,38 @@ export default function ActivityScheduleWorkspace({
       {/* Cancel Recurrence Confirmation Modal Dialog */}
       {showCancelRecurrenceConfirmModal && selectedSchedule && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 select-none">
-          <div className="bg-white border border-slate-200 w-full max-w-sm rounded-3xl shadow-xl p-6 space-y-4">
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider font-sans">Hủy chuỗi lặp lại</h3>
-            <p className="text-xs text-slate-550 font-semibold leading-relaxed">
-              Bạn có chắc chắn muốn dừng toàn bộ các buổi lặp lại tiếp theo của chuỗi lịch &quot;{selectedSchedule.title}&quot; kể từ thời điểm này trở đi? Các buổi trong quá khứ và buổi hiện tại sẽ được giữ lại.
-            </p>
+          <div className="bg-white border border-slate-200 w-full max-w-sm rounded-3xl shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+                <RotateCw size={18} />
+              </div>
+              <h3 className="text-base font-extrabold text-slate-800 tracking-tight font-sans">
+                Hủy chuỗi lặp lại
+              </h3>
+            </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="space-y-3">
+              <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                Bạn có chắc chắn muốn dừng toàn bộ các buổi lặp lại tiếp theo của chuỗi lịch <strong className="text-slate-800">&quot;{selectedSchedule.title}&quot;</strong> kể từ thời điểm này trở đi?
+              </p>
+              <div className="flex items-start gap-1.5 p-2.5 bg-blue-50/50 border border-blue-100 rounded-xl text-[10px] text-blue-800 font-semibold leading-normal">
+                <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                <span>Các buổi sinh hoạt trong quá khứ và buổi hiện tại sẽ được giữ nguyên.</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => { setShowCancelRecurrenceConfirmModal(false); setSelectedSchedule(null); }}
-                className="h-9 px-4 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600"
+                className="h-10 px-4 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 Không, giữ nguyên
               </button>
               <button
                 type="button"
                 onClick={handleConfirmCancelRecurrence}
-                className="h-9 px-5 text-xs bg-red-650 hover:bg-red-750 text-white font-black rounded-xl shadow-md border-0"
+                className="h-10 px-5 text-xs bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md border-0 transition-colors cursor-pointer"
               >
                 Xác Nhận Dừng Lặp
               </button>

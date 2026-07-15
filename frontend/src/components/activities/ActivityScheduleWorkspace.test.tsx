@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, createEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, createEvent, within } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import ActivityScheduleWorkspace from './ActivityScheduleWorkspace';
 import { activityApi, activityScheduleApi } from '@/api/activity-api';
@@ -550,6 +550,8 @@ describe('ActivityScheduleWorkspace', () => {
     const modalForm = screen.getByRole('dialog');
     expect(modalForm).toHaveAttribute('aria-modal', 'false');
     expect(modalForm).toHaveAttribute('aria-labelledby', 'dialog-title');
+    expect(modalForm.className).toContain('rounded-2xl');
+    expect(modalForm.className).not.toContain('rounded-3xl');
 
     const modalContainer = modalForm.parentElement;
     expect(modalContainer).toBeInTheDocument();
@@ -562,32 +564,29 @@ describe('ActivityScheduleWorkspace', () => {
 
     const titleElement = container.querySelector('#dialog-title');
     expect(titleElement).toBeInTheDocument();
-    expect(titleElement?.textContent).toBe('Cấu hình buổi sinh hoạt');
+    expect(titleElement?.textContent).toBe('C\u1ea5u h\u00ecnh bu\u1ed5i sinh ho\u1ea1t');
 
-    // Fields that must be completely hidden:
-    expect(screen.queryByText('Tiêu đề buổi')).not.toBeInTheDocument();
-    expect(screen.queryByText('Mô tả nội dung')).not.toBeInTheDocument();
-    expect(screen.queryByText('Giới hạn người tham gia')).not.toBeInTheDocument();
-    expect(screen.queryByText('Ngày sinh hoạt')).not.toBeInTheDocument();
-    expect(screen.queryByText('Thiết lập lặp lại lịch sinh hoạt')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ti\u00eau \u0111\u1ec1 bu\u1ed5i')).not.toBeInTheDocument();
+    expect(screen.queryByText('M\u00f4 t\u1ea3 n\u1ed9i dung')).not.toBeInTheDocument();
+    expect(screen.queryByText('Gi\u1edbi h\u1ea1n ng\u01b0\u1eddi tham gia')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ng\u00e0y sinh ho\u1ea1t')).not.toBeInTheDocument();
+    expect(screen.queryByText('Thi\u1ebft l\u1eadp l\u1eb7p l\u1ea1i l\u1ecbch sinh ho\u1ea1t')).not.toBeInTheDocument();
 
-    // Fields that must be visible:
-    expect(screen.getByText('Địa điểm')).toBeInTheDocument();
-    expect(screen.getByText('Giờ bắt đầu')).toBeInTheDocument();
-    expect(screen.getByText('Giờ kết thúc')).toBeInTheDocument();
+    expect(screen.getByText('\u0110\u1ecba \u0111i\u1ec3m')).toBeInTheDocument();
+    expect(screen.getByText('Gi\u1edd b\u1eaft \u0111\u1ea7u')).toBeInTheDocument();
+    expect(screen.getByText('Gi\u1edd k\u1ebft th\u00fac')).toBeInTheDocument();
 
-    // Focus classes verification:
-    const locationInput = screen.getByPlaceholderText('Ví dụ: Phòng máy B.202');
+    const locationInput = screen.getByPlaceholderText('V\u00ed d\u1ee5: Ph\u00f2ng m\u00e1y B.202');
     expect(locationInput.className).toContain('focus:ring-2');
     expect(locationInput.className).toContain('focus:ring-blue-600');
     expect(locationInput.className).toContain('focus:border-blue-600');
+    expect(locationInput.className).toContain('rounded-lg');
 
-    const closeBtn = modalForm.querySelector('button'); // First button in header is X button
+    const closeBtn = modalForm.querySelector('button');
     expect(closeBtn?.className).toContain('focus:ring-2');
     expect(closeBtn?.className).toContain('focus:ring-blue-600');
     expect(closeBtn?.className).toContain('focus:border-blue-600');
 
-    // Close modal on X click:
     if (closeBtn) {
       fireEvent.click(closeBtn);
     }
@@ -595,7 +594,16 @@ describe('ActivityScheduleWorkspace', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    // Let's test Escape key close
+    fireEvent.doubleClick(screen.getByText('Meeting 1'));
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'H\u1ee7y b\u1ecf' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
     fireEvent.doubleClick(screen.getByText('Meeting 1'));
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -604,6 +612,74 @@ describe('ActivityScheduleWorkspace', () => {
     fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps the compact dialog open during scroll and time-picker interaction', async () => {
+    const today = new Date();
+    const startStr = today.toISOString();
+    const endStr = new Date(today.getTime() + 7200000).toISOString();
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({
+      items: [
+        {
+          _id: 'sched-scroll-1',
+          title: 'Meeting Scroll',
+          start_time: startStr,
+          end_time: endStr,
+          activity_id: '60c72b2f9b1e8a001c8e4a50',
+          semester_id: '60c72b2f9b1e8a001c8e4a52',
+          location: 'Room 401',
+          schedule_type: 'regular'
+        } as any
+      ],
+      total: 1
+    });
+
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Meeting Scroll')).toBeInTheDocument();
+    });
+
+    fireEvent.doubleClick(screen.getByText('Meeting Scroll'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    const locationInput = screen.getByPlaceholderText('V\u00ed d\u1ee5: Ph\u00f2ng m\u00e1y B.202');
+    fireEvent.change(locationInput, { target: { value: 'Room 999' } });
+    fireEvent.scroll(window);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Room 999')).toBeInTheDocument();
+
+    const dialog = screen.getByRole('dialog');
+    const timeButtons = within(dialog).getAllByRole('button').filter((button) => /\d{2}:\d{2}/.test(button.textContent || ''));
+    expect(timeButtons.length).toBeGreaterThanOrEqual(2);
+    const initialStartTime = timeButtons[0].textContent || '';
+
+    fireEvent.click(timeButtons[0]);
+    fireEvent.click(screen.getByRole('button', { name: '09' }));
+
+    await waitFor(() => {
+      const updatedMainDialog = screen.getAllByRole('dialog')[0];
+      const updatedTimeButtons = within(updatedMainDialog).getAllByRole('button').filter((button) => /\d{2}:\d{2}/.test(button.textContent || ''));
+      expect(updatedMainDialog).toBeInTheDocument();
+      expect(updatedTimeButtons[0].textContent).not.toBe(initialStartTime);
+    });
+  });
+
+  it('prefills create dialog location from the selected activity classroom when no saved value exists', async () => {
+    vi.mocked(activityApi.getAll).mockResolvedValue([
+      { _id: '60c72b2f9b1e8a001c8e4a50', name: 'Academic Club', code: 'AC_CLUB', category: 'academic', classroom: 'Ph\u00f2ng h\u1ecdc 204' },
+    ] as any);
+
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" openCreateOnLoad={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Ph\u00f2ng h\u1ecdc 204')).toBeInTheDocument();
     });
   });
 
@@ -671,11 +747,12 @@ describe('ActivityScheduleWorkspace', () => {
     });
     unmount2();
 
-    // 3. Both saved location and classroom empty -> fallbacks to 'Phòng sinh hoạt':
+    // 3. Both saved location and classroom empty -> fallback to the default room:
     const mockActivitiesNoClassroom = [
       { _id: '60c72b2f9b1e8a001c8e4a50', name: 'Academic Club', code: 'AC_CLUB', category: 'academic', classroom: ' ' },
     ];
     vi.mocked(activityApi.getAll).mockResolvedValue(mockActivitiesNoClassroom as any);
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockSavedScheduleNoLocation, total: 1 });
 
     const { unmount: unmount3 } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
     await waitFor(() => {
@@ -684,7 +761,7 @@ describe('ActivityScheduleWorkspace', () => {
 
     fireEvent.doubleClick(screen.getByText('Meeting 1'));
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Phòng sinh hoạt')).toBeInTheDocument();
+      expect((screen.getByPlaceholderText('V\u00ed d\u1ee5: Ph\u00f2ng m\u00e1y B.202') as HTMLInputElement).value).toBe('Ph\u00f2ng sinh ho\u1ea1t');
     });
     unmount3();
   });
@@ -788,5 +865,151 @@ describe('ActivityScheduleWorkspace', () => {
     // Column header "Nguồn" instead of "Ca"
     expect(screen.getByText('Nguồn')).toBeInTheDocument();
     expect(screen.queryByText('Ca')).not.toBeInTheDocument();
+  });
+
+  it('updates the position of the compact configuration dialog when scroll events occur', async () => {
+    const today = new Date();
+    const startStr = today.toISOString();
+    const endStr = new Date(today.getTime() + 7200000).toISOString();
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({
+      items: [
+        {
+          _id: 'sched-scroll-test',
+          title: 'Meeting Scroll Test',
+          start_time: startStr,
+          end_time: endStr,
+          activity_id: '60c72b2f9b1e8a001c8e4a50',
+          semester_id: '60c72b2f9b1e8a001c8e4a52',
+          location: 'Room 401',
+          schedule_type: 'regular'
+        } as any
+      ],
+      total: 1
+    });
+
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Meeting Scroll Test')).toBeInTheDocument();
+    });
+
+    const meetingCardText = screen.getByText('Meeting Scroll Test');
+    const cardElement = meetingCardText.closest('.rounded-lg') || meetingCardText;
+
+    cardElement.getBoundingClientRect = vi.fn().mockReturnValue({
+      left: 100,
+      right: 380,
+      top: 150,
+      bottom: 200,
+      width: 280,
+      height: 50,
+    });
+
+    fireEvent.doubleClick(cardElement);
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    const dialog = screen.getByRole('dialog');
+    const containerElement = dialog.parentElement;
+    expect(containerElement?.style.top).toBe('206px'); // bottom (200) + 6 = 206px
+
+    // Simulate card moving on scroll
+    cardElement.getBoundingClientRect = vi.fn().mockReturnValue({
+      left: 100,
+      right: 380,
+      top: 100,
+      bottom: 150,
+      width: 280,
+      height: 50,
+    });
+
+    fireEvent.scroll(window);
+
+    expect(containerElement?.style.top).toBe('156px'); // bottom (150) + 6 = 156px
+  });
+
+  it('renders updated delete modal and invokes handler exactly once', async () => {
+    const today = new Date();
+    const startStr = today.toISOString();
+    const endStr = new Date(today.getTime() + 7200000).toISOString();
+
+    const mockWeekSchedules: any[] = [
+      {
+        _id: 'sched-del-1',
+        title: 'Meeting Delete',
+        start_time: startStr,
+        end_time: endStr,
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
+        recurrence_id: 'rec-series-1'
+      }
+    ];
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockWeekSchedules, total: 1 });
+    vi.mocked(activityScheduleApi.delete).mockResolvedValue({} as any);
+
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Meeting Delete')).toBeInTheDocument();
+    });
+
+    const deleteBtn = screen.getByTitle('Xóa');
+    fireEvent.click(deleteBtn);
+
+    // Verify modal title and copy
+    expect(screen.getByText('Xác nhận xóa lịch trình')).toBeInTheDocument();
+    expect(screen.getByText(/Chú ý: Đây là một buổi sinh hoạt thuộc chuỗi lịch lặp định kỳ/)).toBeInTheDocument();
+
+    const confirmBtn = screen.getByText('Xóa TOÀN BỘ chuỗi lịch lặp');
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(activityScheduleApi.delete).toHaveBeenCalledTimes(1);
+      expect(activityScheduleApi.delete).toHaveBeenCalledWith('sched-del-1', true);
+    });
+  });
+
+  it('renders updated cancel recurrence modal and invokes handler exactly once', async () => {
+    const today = new Date();
+    const startStr = today.toISOString();
+    const endStr = new Date(today.getTime() + 7200000).toISOString();
+
+    const mockWeekSchedules: any[] = [
+      {
+        _id: 'sched-rec-cancel',
+        title: 'Meeting Recurrence Cancel',
+        start_time: startStr,
+        end_time: endStr,
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
+        recurrence_id: 'rec-series-2'
+      }
+    ];
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: mockWeekSchedules, total: 1 });
+    vi.mocked(activityScheduleApi.cancelRecurrence).mockResolvedValue({} as any);
+
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Meeting Recurrence Cancel')).toBeInTheDocument();
+    });
+
+    const stopRecurrenceBtn = screen.getByTitle('Dừng lặp từ buổi này');
+    fireEvent.click(stopRecurrenceBtn);
+
+    // Verify modal title and copy
+    expect(screen.getByText('Hủy chuỗi lặp lại')).toBeInTheDocument();
+    expect(screen.getByText(/Các buổi sinh hoạt trong quá khứ và buổi hiện tại sẽ được giữ nguyên/)).toBeInTheDocument();
+
+    const confirmStopBtn = screen.getByText('Xác Nhận Dừng Lặp');
+    fireEvent.click(confirmStopBtn);
+
+    await waitFor(() => {
+      expect(activityScheduleApi.cancelRecurrence).toHaveBeenCalledTimes(1);
+      expect(activityScheduleApi.cancelRecurrence).toHaveBeenCalledWith('sched-rec-cancel');
+    });
   });
 });
