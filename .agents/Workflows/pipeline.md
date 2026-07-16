@@ -308,6 +308,7 @@ steps:
 10. The orchestrator does NOT execute any skill in any pipeline
 11. Each step may internally iterate per the ENG Loop (global.md §8, default 3 iterations, overridable via loop_iterations); on_failure only applies after the internal loop is exhausted — not per iteration
 12. A step of type: human_gate or with a gate: always stands outside the ENG Loop — no sub-agent may self-iterate to bypass a gate
+13. When a step needs to run a shell command, only use commands permitted for the current environment and command whitelist (safety.md §1, §5). If the intended command is rejected or unavailable, the agent should first try a permitted equivalent command that achieves the same verified outcome, within its own ENG Loop (global.md §8), before failing the step. on_failure only triggers once no permitted equivalent remains to complete the task. This flexibility never applies to commands on the forbidden list in safety.md §1 — those remain a hard stop with no substitution attempt, per safety.md §6 and global.md §8.3
 ```
 
 ---

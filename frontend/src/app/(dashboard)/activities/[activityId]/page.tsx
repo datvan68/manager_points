@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   activityApi,
@@ -20,7 +20,7 @@ import {
   Compass, Calendar, Users, Award, ShieldAlert,
   ChevronLeft, Sparkles, UserCheck, CalendarDays,
   Settings, Clock, MapPin, User, Star, CheckCircle2,
-  ClipboardCheck, Radio, QrCode
+  ClipboardCheck, Radio, QrCode, Camera
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -103,6 +103,8 @@ export default function ActivityDetailPage() {
   const [showMethodSelector, setShowMethodSelector] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showRuleModal, setShowRuleModal] = useState(false);
+  const [updatingLogo, setUpdatingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const isAdminOrAdvisor = isAdminUser(user) || isTeacherRole(user);
   const isStudent = isStudentRole(user);
@@ -206,6 +208,27 @@ export default function ActivityDetailPage() {
     loadActivityData();
   };
 
+  const handleLogoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      toast.error('Tệp ảnh phải là PNG, JPEG hoặc WebP và không vượt quá 5 MB.');
+      return;
+    }
+    setUpdatingLogo(true);
+    try {
+      const uploaded = await activityApi.uploadMedia(file, 'logo');
+      await activityApi.update(activityId, { logo_url: uploaded.url });
+      toast.success('Cập nhật logo thành công');
+      await loadActivityData();
+    } catch (err: any) {
+      toast.error(err.message || 'Không thể cập nhật logo');
+    } finally {
+      setUpdatingLogo(false);
+    }
+  };
+
   const handleRemoveMembers = async (memberIds: string[]) => {
     const result = await activityApi.removeMembers(activityId, memberIds);
     await loadActivityData();
@@ -302,11 +325,25 @@ export default function ActivityDetailPage() {
         <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 -z-10" />
 
         {/* Logo */}
-        <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 font-black text-2xl uppercase">
+        <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 font-black text-2xl uppercase">
           {activity.logo_url ? (
             <img src={activity.logo_url} alt={activity.name} className="w-full h-full object-cover rounded-2xl" />
           ) : (
             activity.code.slice(0, 2)
+          )}
+          {isAdminOrAdvisor && (
+            <>
+              <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} className="hidden" />
+              <button
+                type="button"
+                aria-label="Cập nhật logo"
+                disabled={updatingLogo}
+                onClick={() => logoInputRef.current?.click()}
+                className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/45 opacity-0 hover:opacity-100 focus:opacity-100 transition-opacity disabled:cursor-not-allowed"
+              >
+                {updatingLogo ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera size={20} />}
+              </button>
+            </>
           )}
         </div>
 

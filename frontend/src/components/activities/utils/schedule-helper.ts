@@ -8,6 +8,13 @@ export interface ScheduleSummaryRow {
   location?: string;
 }
 
+const getIdentifierValue = (value: unknown): string => {
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (!value || typeof value !== 'object') return '';
+  const record = value as { _id?: unknown; $oid?: unknown };
+  return getIdentifierValue(record._id ?? record.$oid);
+};
+
 /**
  * Calculates Monday at 00:00:00 of the week containing the given date.
  */
@@ -31,8 +38,9 @@ export const getClubScheduleSummary = (
 
   // 1. Filter active schedules for this club
   const clubScheds = schedules.filter((s) => {
-    const sClubId = typeof s.activity_id === 'object' ? s.activity_id?._id : s.activity_id;
-    return sClubId === clubId && (s.status === 'scheduled' || s.status === 'ongoing');
+    const normalizedScheduleClubId = getIdentifierValue(s.activity_id);
+    return normalizedScheduleClubId === getIdentifierValue(clubId)
+      && (s.status === 'scheduled' || s.status === 'ongoing');
   });
 
   if (clubScheds.length === 0) return [];

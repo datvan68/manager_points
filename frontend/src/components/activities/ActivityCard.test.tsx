@@ -34,6 +34,7 @@ vi.mock('@/api/activity-api', () => ({
   },
   activityScheduleApi: {
     getAll: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    getActivityTimeline: vi.fn().mockResolvedValue({ items: [] }),
     create: vi.fn(),
     delete: vi.fn(),
     cancelRecurrence: vi.fn(),
@@ -128,6 +129,92 @@ describe('ActivityCard', () => {
     expect(await screen.findByText('T4: 08:00 - 10:00')).toBeInTheDocument();
     expect(screen.getByText('5/20')).toBeInTheDocument();
   });
+
+  it('loads schedules when the activity provides an empty schedule summary', async () => {
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValueOnce({
+      items: [
+        {
+          _id: 'schedule-2',
+          activity_id: 'act1',
+          title: 'Empty-summary regression session',
+          schedule_type: 'regular',
+          start_time: '2026-07-15T08:00:00',
+          end_time: '2026-07-15T10:00:00',
+          status: 'scheduled',
+          semester_id: 'semester-1',
+          created_by: 'user-1',
+          createdAt: '2026-07-01T00:00:00Z',
+        },
+      ],
+      total: 1,
+    } as any);
+
+    render(
+      <ActivityCard
+        activity={{ ...mockActivity, schedule_summary: [] }}
+        onJoinClick={onJoinClick}
+        onFavoriteClick={onFavoriteClick}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        canManage={false}
+        onNavigateToDetail={onNavigateToDetail}
+      />
+    );
+
+    await waitFor(() => {
+      expect(activityScheduleApi.getAll).toHaveBeenCalledWith({ activity_id: 'act1' });
+    });
+
+    expect(await screen.findByText('T4: 08:00 - 10:00')).toBeInTheDocument();
+    expect(screen.queryByText('Chưa xếp lịch')).not.toBeInTheDocument();
+  });
+
+  it('loads schedules from a data-wrapped response', async () => {
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValueOnce({
+      data: {
+        items: [{
+          _id: 'schedule-3', activity_id: 'act1', title: 'Wrapped response session',
+          schedule_type: 'regular', start_time: '2026-07-15T08:00:00',
+          end_time: '2026-07-15T10:00:00', status: 'scheduled',
+        }],
+      },
+    } as any);
+
+    render(
+      <ActivityCard
+        activity={{ ...mockActivity, schedule_summary: [] }}
+        onJoinClick={onJoinClick} onFavoriteClick={onFavoriteClick}
+        onEditClick={onEditClick} onDeleteClick={onDeleteClick}
+        canManage={false} onNavigateToDetail={onNavigateToDetail}
+      />
+    );
+
+    expect(await screen.findByText('T4: 08:00 - 10:00')).toBeInTheDocument();
+  });
+
+  it('falls back to the activity timeline when schedule-list access is denied', async () => {
+    vi.mocked(activityScheduleApi.getAll).mockRejectedValueOnce(new Error('Forbidden'));
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValueOnce({
+      items: [{
+        _id: 'timeline-1', activity_id: 'act1', title: 'Timeline session',
+        schedule_type: 'regular', start_time: '2026-07-15T08:00:00',
+        end_time: '2026-07-15T10:00:00', status: 'scheduled',
+      }],
+    } as any);
+
+    render(
+      <ActivityCard
+        activity={{ ...mockActivity, schedule_summary: [] }}
+        onJoinClick={onJoinClick} onFavoriteClick={onFavoriteClick}
+        onEditClick={onEditClick} onDeleteClick={onDeleteClick}
+        canManage={false} onNavigateToDetail={onNavigateToDetail}
+      />
+    );
+
+    expect(await screen.findByText('T4: 08:00 - 10:00')).toBeInTheDocument();
+    expect(activityScheduleApi.getActivityTimeline).toHaveBeenCalledWith('act1');
+  });
+
   it('triggers onNavigateToDetail when card is clicked, but NOT when favorite or join is clicked', async () => {
     render(
       <ActivityCard
@@ -227,6 +314,34 @@ describe('ActivityCard', () => {
       expect(screen.getByText('Football Club')).toBeInTheDocument();
       unmount();
     });
+  });
+
+  it('uses the requested labels for active and rejected memberships', () => {
+    const { rerender } = render(
+      <ActivityCard
+        activity={{ ...mockActivity, membership_status: 'active' }}
+        onJoinClick={onJoinClick}
+        onFavoriteClick={onFavoriteClick}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        canManage={false}
+        onNavigateToDetail={onNavigateToDetail}
+      />
+    );
+    expect(screen.getByText('Đã tham gia')).toBeInTheDocument();
+
+    rerender(
+      <ActivityCard
+        activity={{ ...mockActivity, membership_status: 'rejected' }}
+        onJoinClick={onJoinClick}
+        onFavoriteClick={onFavoriteClick}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        canManage={false}
+        onNavigateToDetail={onNavigateToDetail}
+      />
+    );
+    expect(screen.getByText('Bị từ chối')).toBeInTheDocument();
   });
 
   it('does not render Sửa and Xóa buttons on the grid card even when canManage={true}', () => {

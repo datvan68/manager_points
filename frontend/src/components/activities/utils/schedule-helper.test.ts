@@ -82,6 +82,24 @@ describe('schedule-helper', () => {
       expect(summary).toHaveLength(1);
       expect(summary[0].timeRange).toBe('08:00 - 10:00');
     });
+
+    it('should match schedules whose activity_id uses Mongo extended JSON', () => {
+      const schedule = {
+        ...makeSchedule('s1', '2026-07-06T08:00:00', '2026-07-06T10:00:00'),
+        activity_id: { $oid: clubId },
+      } as any;
+
+      expect(getClubScheduleSummary([schedule], clubId)).toHaveLength(1);
+    });
+
+    it('should match schedules whose populated activity id contains an extended JSON id', () => {
+      const schedule = {
+        ...makeSchedule('s2', '2026-07-06T08:00:00', '2026-07-06T10:00:00'),
+        activity_id: { _id: { $oid: clubId } },
+      } as any;
+
+      expect(getClubScheduleSummary([schedule], clubId)).toHaveLength(1);
+    });
     it('should group schedules with identical time range and sort days Monday-Sunday', () => {
       // Monday (T2): 08:00 - 10:00
       const s1 = makeSchedule('s1', '2026-07-06T08:00:00', '2026-07-06T10:00:00', 'Room A');

@@ -176,8 +176,9 @@ export default function ActivityCard({
   onConfigureDesign,
   joinPending = false,
 }: ActivityCardProps) {
-  const [scheduleSummary, setScheduleSummary] = useState<any[]>(activity.schedule_summary || []);
-  const [loadingSchedule, setLoadingSchedule] = useState(!activity.schedule_summary);
+  const hasScheduleSummary = Array.isArray(activity.schedule_summary) && activity.schedule_summary.length > 0;
+  const [scheduleSummary, setScheduleSummary] = useState<any[]>(hasScheduleSummary ? activity.schedule_summary : []);
+  const [loadingSchedule, setLoadingSchedule] = useState(!hasScheduleSummary);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
 
   const currentUser = tokenStorage.getUser();
@@ -186,8 +187,17 @@ export default function ActivityCard({
   const { cardBgClass, accentColor, isCustomBg, customBgUrl, patternId, isDark } = getActivityBackgroundConfig(activity);
 
   useEffect(() => {
-    if (activity.schedule_summary) {
-      setScheduleSummary(activity.schedule_summary);
+    const providedSummary = Array.isArray(activity.schedule_summary) ? activity.schedule_summary : [];
+    if (providedSummary.length > 0) {
+      setScheduleSummary(providedSummary);
+      setLoadingSchedule(false);
+      return;
+    }
+
+    setScheduleSummary([]);
+    setLoadingSchedule(true);
+
+    if (!activity._id) {
       setLoadingSchedule(false);
       return;
     }
@@ -199,11 +209,35 @@ export default function ActivityCard({
         promise
           .then((res) => {
             if (isMounted) {
-              const summary = getActivityScheduleSummary(res?.items || [], activity._id);
+              const schedulePayload = res?.data ?? res;
+              const scheduleItems = Array.isArray(schedulePayload)
+                ? schedulePayload
+                : (schedulePayload?.items
+                  || schedulePayload?.data?.items
+                  || schedulePayload?.result?.items
+                  || []);
+              const summary = getActivityScheduleSummary(scheduleItems, activity._id);
               setScheduleSummary(summary);
             }
           })
-          .catch((err) => console.error('Error fetching schedules for activity:', activity._id, err))
+          .catch(async (err) => {
+            if (!isMounted || typeof activityScheduleApi.getActivityTimeline !== 'function') {
+              console.error('Error fetching schedules for activity:', activity._id, err);
+              return;
+            }
+
+            try {
+              const timeline = await activityScheduleApi.getActivityTimeline(activity._id);
+              if (isMounted) {
+                const timelineItems = Array.isArray(timeline)
+                  ? timeline
+                  : (timeline?.items || timeline?.data?.items || timeline?.result?.items || []);
+                setScheduleSummary(getActivityScheduleSummary(timelineItems, activity._id));
+              }
+            } catch (timelineError) {
+              console.error('Error fetching activity timeline:', activity._id, timelineError);
+            }
+          })
           .finally(() => {
             if (isMounted) setLoadingSchedule(false);
           });
@@ -458,7 +492,7 @@ export default function ActivityCard({
                   }}
                   className={cn("px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-sm flex items-center gap-0.5 cursor-default select-none opacity-80", btnConfig.bgClass, btnConfig.textClass)}
                 >
-                  Đang tham gia
+                  Đã tham gia
                 </span>
               );
             }
@@ -500,6 +534,3 @@ export default function ActivityCard({
     </div>
   );
 }
-
-
-
