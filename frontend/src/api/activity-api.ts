@@ -25,6 +25,7 @@ export interface Activity {
   vice_president_ids?: any[];
   max_members?: number;
   active_members_count: number;
+  membership_status?: 'none' | 'pending' | 'active' | 'rejected' | 'inactive' | 'left';
   founded_date?: string;
   activity_start_date?: string;
   activity_end_date?: string;

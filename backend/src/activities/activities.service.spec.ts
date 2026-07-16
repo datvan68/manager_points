@@ -184,8 +184,8 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
       const result = await service.findAll();
 
       expect(result).toEqual([
-        { ...activityWithMembers, active_members_count: 2 },
-        { ...emptyActivity, active_members_count: 0 },
+        { ...activityWithMembers, active_members_count: 2, membership_status: 'none' },
+        { ...emptyActivity, active_members_count: 0, membership_status: 'none' },
       ]);
       expect(MockActivityMemberModel.aggregate).toHaveBeenCalledTimes(1);
       expect(MockActivityMemberModel.countDocuments).not.toHaveBeenCalled();

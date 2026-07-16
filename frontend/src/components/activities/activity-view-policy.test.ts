@@ -205,6 +205,12 @@ describe('activity-view-policy', () => {
       expect(getStateButtonConfig(activity, 'active').label).toBe('Đã tham gia');
       expect(getStateButtonConfig(activity, 'rejected').label).toBe('Bị từ chối');
     });
+    it('should use the registration fallback for an unknown state', () => {
+      const activity = {};
+      expect(getStateButtonConfig(activity, 'inactive' as any)).toEqual(
+        getStateButtonConfig(activity, 'none'),
+      );
+    });
   });
 
   describe('normalizeBackgroundConfig', () => {

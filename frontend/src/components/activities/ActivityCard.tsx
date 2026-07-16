@@ -477,7 +477,10 @@ export default function ActivityCard({
         {/* Actions button */}
         <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
           {(() => {
-            const status = activity.membership_status || 'none'; // 'none' | 'pending' | 'active' | 'rejected'
+            const rawStatus = activity.membership_status;
+            const status = ['none', 'pending', 'active', 'rejected'].includes(rawStatus)
+              ? rawStatus
+              : 'none';
             const btnConfig = getStateButtonConfig(activity, status as any);
 
             if (status === 'none') {

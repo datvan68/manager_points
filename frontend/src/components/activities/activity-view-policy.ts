@@ -134,7 +134,7 @@ export function getStateButtonConfig(
   const bgConfig = activity?.background_config || {};
   const statesConfig = bgConfig.states || {};
   const stateConfig = statesConfig[state] || {};
-  const fallback = DEFAULT_STATE_BUTTONS[state];
+  const fallback = DEFAULT_STATE_BUTTONS[state] || DEFAULT_STATE_BUTTONS.none;
 
   return {
     label: stateConfig.label || fallback.label,

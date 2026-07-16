@@ -271,9 +271,56 @@ export class ActivitiesService {
       memberCounts.map((item: any) => [item._id.toString(), item.count]),
     );
 
+    const membershipStatusByActivityId = new Map<string, string>();
+    if (user) {
+      const userId = user.userId || user._id || user.id;
+      if (userId && Types.ObjectId.isValid(userId)) {
+        const membershipOwnerIds: Types.ObjectId[] = [new Types.ObjectId(userId)];
+        const student = await this.studentModel
+          .findOne({ user_id: new Types.ObjectId(userId) })
+          .select('_id')
+          .lean()
+          .exec();
+        if (student?._id) {
+          membershipOwnerIds.push(new Types.ObjectId(student._id));
+        }
+
+        const memberships = await this.memberModel
+          .find({
+            activity_id: { $in: activityIds },
+            $or: [
+              { user_id: { $in: membershipOwnerIds } },
+              { student_id: { $in: membershipOwnerIds } },
+            ],
+          })
+          .select('activity_id status')
+          .lean()
+          .exec();
+
+        const statusPriority: Record<string, number> = {
+          rejected: 4,
+          active: 3,
+          pending: 2,
+          inactive: 1,
+          left: 0,
+        };
+        memberships.forEach((membership: any) => {
+          const activityId = membership.activity_id.toString();
+          const currentStatus = membershipStatusByActivityId.get(activityId);
+          if (
+            !currentStatus
+            || (statusPriority[membership.status] || 0) > (statusPriority[currentStatus] || 0)
+          ) {
+            membershipStatusByActivityId.set(activityId, membership.status);
+          }
+        });
+      }
+    }
+
     return activities.map((activity: any) => ({
       ...activity,
       active_members_count: countByActivityId.get(activity._id.toString()) || 0,
+      membership_status: membershipStatusByActivityId.get(activity._id.toString()) || 'none',
     }));
   }
 
