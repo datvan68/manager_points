@@ -5,7 +5,7 @@ import {
   Clock, MapPin, ChevronLeft, ChevronRight,
   Search, Users, Trash2, AlertCircle, Calendar, CalendarDays,
   X, Grid, List, HelpCircle, Settings, RotateCw,
-  Sunrise, Sun, Moon, RefreshCw, Copy, Plus, Filter
+  Sunrise, Sun, Moon, Camera, Copy, Plus, Filter
 } from 'lucide-react';
 import { activityScheduleApi, activityApi, ActivitySchedule, Activity } from '@/api/activity-api';
 import { semesterApi, Semester } from '@/api/semester-api';
@@ -633,6 +633,8 @@ export default function ActivityScheduleWorkspace({
   const [weekOffset, setWeekOffset] = useState(0);
   const [filterClubId, setFilterClubId] = useState('all');
   const [filterScheduleType, setFilterScheduleType] = useState('all');
+  const scheduleCaptureRef = useRef<HTMLDivElement | null>(null);
+  const [isCapturingSchedule, setIsCapturingSchedule] = useState(false);
 
   const getWeekOffsetForDate = (date: Date) => {
     const today = new Date();
@@ -970,10 +972,87 @@ export default function ActivityScheduleWorkspace({
   const sundayDate = weekDates[6];
 
   const getHeaderDateRangeString = () => {
-    const startStr = mondayDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-    const endStr = sundayDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const monthName = mondayDate.toLocaleDateString('vi-VN', { month: 'long' });
-    return `${monthName}, Tuần ${weekOffset === 0 ? 'hiện tại' : weekOffset > 0 ? `+${weekOffset}` : weekOffset} (${startStr} - ${endStr})`;
+    const formatDayMonth = (date: Date) =>
+      `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const startStr = formatDayMonth(mondayDate);
+    const endStr = formatDayMonth(sundayDate);
+    const startYear = mondayDate.getFullYear();
+    const endYear = sundayDate.getFullYear();
+    return startYear === endYear
+      ? `${startStr} – ${endStr}/${endYear}`
+      : `${startStr}/${startYear} – ${endStr}/${endYear}`;
+  };
+
+  const handleCaptureWeeklySchedule = async () => {
+    const source = scheduleCaptureRef.current;
+    if (isCapturingSchedule || !source) return;
+
+    setIsCapturingSchedule(true);
+    const captureTarget = source.cloneNode(true) as HTMLDivElement;
+    const captureBody = captureTarget.querySelector<HTMLElement>('[data-schedule-grid-body]');
+    const shiftRows = Array.from(captureTarget.querySelectorAll<HTMLElement>('[data-schedule-shift-row]'));
+    const scheduleCells = Array.from(captureTarget.querySelectorAll<HTMLElement>('[data-schedule-cell]'));
+    try {
+      const { toBlob } = await import('html-to-image');
+      captureTarget.setAttribute('aria-hidden', 'true');
+      captureTarget.style.position = 'fixed';
+      // Keep the clone in the browser's paint area: html-to-image can produce a
+      // blank canvas for elements placed far outside the viewport.
+      captureTarget.style.left = '0';
+      captureTarget.style.top = '0';
+      captureTarget.style.zIndex = '-1';
+      captureTarget.style.isolation = 'isolate';
+      captureTarget.style.width = `${source.clientWidth}px`;
+      captureTarget.style.height = 'auto';
+      captureTarget.style.maxHeight = 'none';
+      captureTarget.style.overflow = 'visible';
+      captureTarget.style.backgroundColor = '#ffffff';
+      captureTarget.style.pointerEvents = 'none';
+      document.body.appendChild(captureTarget);
+
+      if (captureBody) {
+        captureBody.style.flex = 'none';
+        captureBody.style.height = 'auto';
+        captureBody.style.overflow = 'visible';
+      }
+      scheduleCells.forEach((cell) => {
+        cell.style.overflow = 'hidden';
+        cell.style.maxHeight = 'none';
+      });
+      shiftRows.forEach((row) => {
+        const cells = Array.from(row.querySelectorAll<HTMLElement>('[data-schedule-cell]'));
+        const requiredHeight = Math.max(160, ...cells.map((cell) => cell.scrollHeight + 2));
+        row.style.flex = 'none';
+        row.style.height = `${requiredHeight}px`;
+        row.style.minHeight = `${requiredHeight}px`;
+      });
+
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+
+      const image = await toBlob(captureTarget, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        width: captureTarget.scrollWidth,
+        height: captureTarget.scrollHeight,
+      });
+      const ClipboardItemConstructor = window.ClipboardItem;
+      if (!image || image.size === 0 || !navigator.clipboard?.write || !ClipboardItemConstructor) {
+        throw new Error('Weekly schedule image is unavailable');
+      }
+
+      await navigator.clipboard.write([
+        new ClipboardItemConstructor({ 'image/png': image }),
+      ]);
+      toast.success('Đã sao chép ảnh lịch tuần');
+    } catch {
+      toast.error('Không thể sao chép ảnh lịch tuần');
+    } finally {
+      captureTarget.remove();
+      setIsCapturingSchedule(false);
+    }
   };
 
   const startOfWeek = new Date(mondayDate);
@@ -2142,6 +2221,9 @@ export default function ActivityScheduleWorkspace({
             <Calendar size={13} className="text-[#1A73E8]" />
             <h3 className="text-xs font-bold text-[#1E293B] font-sans">
               {getHeaderDateRangeString()}
+              <span className="sr-only">
+                Tuần {weekOffset === 0 ? 'hiện tại' : weekOffset > 0 ? `+${weekOffset}` : weekOffset}
+              </span>
             </h3>
           </div>
 
@@ -2309,13 +2391,16 @@ export default function ActivityScheduleWorkspace({
             </>
           )}
 
-          {/* Refresh button */}
+          {/* Weekly schedule capture */}
           <button
-            onClick={loadSchedules}
+            type="button"
+            onClick={handleCaptureWeeklySchedule}
+            disabled={isCapturingSchedule}
             className="w-8 h-8 border border-white/70 hover:bg-white/70 bg-white/40 rounded-xl flex items-center justify-center cursor-pointer shadow-xs shrink-0 transition-all duration-150 ease-out hover:scale-[1.01] text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
-            title="Làm mới lịch"
+            aria-label="Sao chép ảnh lịch tuần"
+            title="Sao chép ảnh lịch tuần"
           >
-            <RefreshCw size={13} />
+            <Camera size={13} className={isCapturingSchedule ? 'animate-pulse' : undefined} />
           </button>
         </div>
       </div>
@@ -2370,7 +2455,7 @@ export default function ActivityScheduleWorkspace({
           </div>
 
           {/* Right Side: Weekly Scheduler Grid */}
-          <div className={cn(
+          <div ref={scheduleCaptureRef} className={cn(
             "col-span-12 lg:col-span-10 bg-white rounded-2xl overflow-hidden flex flex-col h-[600px]",
             isSourceWeek
               ? "border-purple-300 ring-2 ring-purple-500/10 shadow-[0_4px_20px_rgba(139,92,246,0.08)] bg-purple-50/[0.005]"
@@ -2409,11 +2494,11 @@ export default function ActivityScheduleWorkspace({
                 </div>
 
                 {/* Grid Body */}
-                <div className="flex-1 flex flex-col divide-y divide-slate-100 overflow-y-auto custom-scrollbar">
+                <div data-schedule-grid-body className="flex-1 flex flex-col divide-y divide-slate-100 overflow-y-auto custom-scrollbar">
                   {(['morning', 'afternoon', 'evening'] as ShiftType[]).map((shift) => {
                     const shiftDef = SHIFT_DEFINITIONS[shift];
                     return (
-                      <div key={shift} className="grid divide-x lg:divide-x-0 divide-slate-150 flex-1 min-h-[160px]" style={{ gridTemplateColumns: '70px repeat(7, minmax(0, 1fr))' }}>
+                      <div data-schedule-shift-row key={shift} className="grid divide-x lg:divide-x-0 divide-slate-150 flex-1 min-h-[160px]" style={{ gridTemplateColumns: '70px repeat(7, minmax(0, 1fr))' }}>
                         {/* Left ca label */}
                         <div className="p-2 flex flex-col justify-center items-center text-center bg-slate-50/30 border-r lg:border-r-0 border-slate-100 gap-1 select-none shrink-0 overflow-hidden">
                           <span className="text-base" title={shiftDef.label}>{shiftDef.icon}</span>
@@ -2444,6 +2529,7 @@ export default function ActivityScheduleWorkspace({
 
                           return (
                             <div
+                              data-schedule-cell
                               key={dayIdx}
                               onDragOver={(e) => e.preventDefault()}
                               onDrop={(e) => handleDrop(e, dayIdx, shift)}

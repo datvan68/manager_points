@@ -4,6 +4,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import ActivityScheduleWorkspace from './ActivityScheduleWorkspace';
 import { activityApi, activityScheduleApi } from '@/api/activity-api';
 import { semesterApi } from '@/api/semester-api';
+import { toBlob } from 'html-to-image';
 
 vi.mock('@/api/activity-api', () => ({
   activityApi: {
@@ -29,6 +30,10 @@ vi.mock('sonner', () => ({
     success: vi.fn(),
     error: vi.fn(),
   },
+}));
+
+vi.mock('html-to-image', () => ({
+  toBlob: vi.fn().mockResolvedValue({ size: 1, type: 'image/png' } as Blob),
 }));
 
 describe('ActivityScheduleWorkspace', () => {
@@ -273,7 +278,7 @@ describe('ActivityScheduleWorkspace', () => {
     });
 
     const recurrenceBtn = screen.getByText('Cấu hình chuỗi lặp').closest('button');
-    const refreshBtn = screen.getByTitle('Làm mới lịch');
+    const refreshBtn = screen.getByTitle('Sao chép ảnh lịch tuần');
 
     expect(recurrenceBtn).toBeInTheDocument();
     expect(refreshBtn).toBeInTheDocument();
@@ -993,5 +998,41 @@ describe('ActivityScheduleWorkspace', () => {
       expect(activityScheduleApi.cancelRecurrence).toHaveBeenCalledTimes(1);
       expect(activityScheduleApi.cancelRecurrence).toHaveBeenCalledWith('sched-rec-cancel');
     });
+  });
+
+  it('copies a non-empty weekly schedule image through the compact toolbar action', async () => {
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(toBlob).mockResolvedValue({ size: 1, type: 'image/png' } as Blob);
+    const clipboardWrite = vi.fn().mockResolvedValue(undefined);
+    const ClipboardItemMock = class ClipboardItem {
+      constructor(public readonly items: Record<string, Blob>) {}
+    };
+    vi.stubGlobal('ClipboardItem', ClipboardItemMock);
+    Object.defineProperty(window, 'ClipboardItem', {
+      configurable: true,
+      value: ClipboardItemMock,
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { write: clipboardWrite },
+    });
+
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sao chép ảnh lịch tuần' })).toBeInTheDocument());
+    const weeklySchedule = screen.getByText('Ca').closest('.col-span-12');
+    expect(weeklySchedule).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sao chép ảnh lịch tuần' }));
+
+    await waitFor(() => {
+      expect(toBlob).toHaveBeenCalledTimes(1);
+      expect(clipboardWrite).toHaveBeenCalledTimes(1);
+    });
+    const captureTarget = vi.mocked(toBlob).mock.calls[0]?.[0] as HTMLElement;
+    expect(captureTarget).not.toBe(weeklySchedule);
+    expect(captureTarget).not.toBeInTheDocument();
+    expect(toBlob).toHaveBeenCalledWith(captureTarget, expect.objectContaining({ backgroundColor: '#ffffff' }));
+    expect(weeklySchedule).not.toHaveStyle({ height: 'auto', overflow: 'visible' });
+    expect(screen.getByRole('button', { name: 'Sao chép ảnh lịch tuần' })).not.toBeDisabled();
   });
 });
