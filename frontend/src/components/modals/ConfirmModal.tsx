@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Info, CheckCircle2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -8,7 +9,7 @@ import { cn } from '@/lib/utils';
 export interface ConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   title?: string;
   message?: React.ReactNode;
   confirmLabel?: string;
@@ -28,6 +29,10 @@ export default function ConfirmModal({
   variant = "info",
   showCancel = true
 }: ConfirmModalProps) {
+  const [mounted, setMounted] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => setMounted(true), []);
   
   // Icon and style matching based on variant
   const getVariantStyles = () => {
@@ -62,7 +67,9 @@ export default function ConfirmModal({
 
   const styles = getVariantStyles();
 
-  return (
+  if (!mounted || !isOpen) return null;
+
+  return createPortal((
     <AnimatePresence>
       {isOpen && (
         <>
@@ -71,7 +78,7 @@ export default function ConfirmModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.5 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={() => !pending && onClose()}
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-[2px] z-[200]"
           />
 
@@ -103,7 +110,7 @@ export default function ConfirmModal({
 
                   {/* Close button */}
                   <button 
-                    onClick={onClose}
+                    onClick={() => !pending && onClose()}
                     className="shrink-0 p-1 text-slate-400 hover:text-slate-600 transition-colors"
                   >
                     <X size={20} strokeWidth={2} />
@@ -114,17 +121,25 @@ export default function ConfirmModal({
                 <div className="mt-8 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
                   {showCancel && (
                     <button
-                      onClick={onClose}
+                      onClick={() => !pending && onClose()}
+                      disabled={pending}
                       className="w-full sm:w-auto px-6 py-2.5 bg-white border border-[#D0D5DD] rounded-xl text-[14px] font-bold text-[#344054] hover:bg-slate-50 transition-colors"
                     >
                       {cancelLabel}
                     </button>
                   )}
                   <button
-                    onClick={() => {
-                      onConfirm();
-                      onClose();
+                    onClick={async () => {
+                      if (pending) return;
+                      setPending(true);
+                      try {
+                        await onConfirm();
+                        onClose();
+                      } finally {
+                        setPending(false);
+                      }
                     }}
+                    disabled={pending}
                     className={cn("w-full sm:w-auto px-6 py-2.5 rounded-xl text-[14px] font-bold transition-all", styles.confirmBtn)}
                   >
                     {confirmLabel}
@@ -136,5 +151,5 @@ export default function ConfirmModal({
         </>
       )}
     </AnimatePresence>
-  );
+  ), document.body);
 }

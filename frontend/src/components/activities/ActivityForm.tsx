@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Activity } from '@/api/activity-api';
+import { Activity, activityApi } from '@/api/activity-api';
 import { authApi, tokenStorage } from '@/api/auth-api';
 import { studentApi, Student } from '@/api/student-api';
 import { semesterApi, Semester } from '@/api/semester-api';
@@ -19,9 +19,11 @@ interface ActivityFormProps {
   onSubmit: (data: any) => void;
   onCancel: () => void;
   saving?: boolean;
+  mode?: 'create' | 'edit';
 }
 
-export default function ActivityForm({ initialData, onSubmit, onCancel, saving = false }: ActivityFormProps) {
+export default function ActivityForm({ initialData, onSubmit, onCancel, saving = false, mode = initialData ? 'edit' : 'create' }: ActivityFormProps) {
+  const isCreateMode = mode === 'create';
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     code: initialData?.code || '',
@@ -54,6 +56,10 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [submitError, setSubmitError] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   const getDateLabel = () => {
     if (formData.activity_start_date && formData.activity_end_date) {
@@ -86,6 +92,10 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
         const studentsList = Array.isArray(studentsData) ? studentsData : (studentsData as any).data || [];
         setStudents(studentsList);
         setSemesters(semestersData);
+        if (isCreateMode) {
+          const activeSemester = semestersData.find((semester) => semester.status === 'active');
+          if (activeSemester) setFormData(prev => ({ ...prev, semester_id: activeSemester._id }));
+        }
         setCriteria(criteriaData);
       } catch (err) {
         console.error('Failed to load form options:', err);
@@ -130,16 +140,46 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
     }
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFileChange = (kind: 'logo' | 'cover') => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      setSubmitError('Tệp ảnh phải là PNG, JPEG hoặc WebP và không vượt quá 5 MB.');
+      event.target.value = '';
+      return;
+    }
+    setSubmitError('');
+    (kind === 'logo' ? setLogoFile : setCoverFile)(file);
+  };
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving || uploading) return;
+    setSubmitError('');
     if (!formData.name || !formData.code || !formData.classroom || !formData.advisor_id) {
       toast.error('Vui lòng điền đầy đủ các trường bắt buộc');
       return;
     }
 
+    if (isCreateMode && !formData.semester_id) {
+      setSubmitError('Không tìm thấy học kỳ đang hoạt động. Vui lòng thử lại sau.');
+      return;
+    }
+    setUploading(true);
+    const mediaUrls = { logo_url: formData.logo_url, cover_url: formData.cover_url };
+    try {
+      if (isCreateMode && logoFile) mediaUrls.logo_url = (await activityApi.uploadMedia(logoFile, 'logo')).url;
+      if (isCreateMode && coverFile) mediaUrls.cover_url = (await activityApi.uploadMedia(coverFile, 'cover')).url;
+    } catch (error) {
+      console.error('Failed to upload activity media:', error);
+      setSubmitError('Không thể tải ảnh lên. Vui lòng kiểm tra tệp và thử lại.');
+      setUploading(false);
+      return;
+    }
     // Prepare payload
     const payload = {
       ...formData,
+      ...mediaUrls,
+      participation_status: isCreateMode ? 'published' : formData.participation_status,
       max_members: formData.max_members ? Number(formData.max_members) : undefined,
       founded_date: formData.founded_date ? new Date(formData.founded_date) : undefined,
       activity_start_date: formData.activity_start_date ? new Date(formData.activity_start_date) : undefined,
@@ -153,7 +193,9 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
       }
     };
 
+    if (isCreateMode && !formData.president_id) delete payload.president_id;
     onSubmit(payload);
+    setUploading(false);
   };
 
   return (
@@ -226,7 +268,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
                 </SelectContent>
               </Select>
 
-              <Select
+              {!isCreateMode && <Select
                 value={formData.participation_status}
                 onValueChange={(val: any) => setFormData(prev => ({ ...prev, participation_status: val }))}
                 label="Trạng thái"
@@ -240,7 +282,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
                   <SelectItem value="completed">Đã kết thúc (Completed)</SelectItem>
                   <SelectItem value="cancelled">Đã hủy (Cancelled)</SelectItem>
                 </SelectContent>
-              </Select>
+              </Select>}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -319,7 +361,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
               </SelectContent>
             </Select>
 
-            <Select
+            {!isCreateMode && <Select
               value={formData.semester_id}
               onValueChange={(val: string) => setFormData(prev => ({ ...prev, semester_id: val }))}
               label="Học kỳ áp dụng"
@@ -334,7 +376,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
                   </SelectItem>
                 ))}
               </SelectContent>
-            </Select>
+            </Select>}
 
             {/* CustomCalendar + Popover Date Picker */}
             <div className="flex flex-col gap-1.5 w-full">
@@ -369,7 +411,12 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
               </Popover>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {isCreateMode ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Logo" type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange('logo')} />
+                <Input label="Ảnh bìa" type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange('cover')} />
+              </div>
+            ) : <div className="grid grid-cols-2 gap-3">
               <Input
                 label="Logo URL"
                 type="text"
@@ -387,7 +434,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
                 onChange={handleChange}
                 placeholder="https://..."
               />
-            </div>
+            </div>}
           </div>
         </div>
       </div>
@@ -492,12 +539,13 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
       </div>
 
       {/* Form Actions */}
+      {submitError && <p role="alert" className="text-sm font-medium text-red-600">{submitError}</p>}
       <div className="flex items-center justify-end gap-3 border-t border-white/50 pt-4 mt-2">
         <Button
           type="button"
           onClick={onCancel}
           className="rounded-xl px-4 py-2 border border-white/70 bg-white/40 text-[#1E293B] hover:bg-white/70 hover:scale-[1.01] hover:shadow-sm transition-all duration-150 ease-out cursor-pointer"
-          disabled={saving}
+          disabled={saving || uploading}
         >
           <X size={15} className="mr-1.5" />
           Hủy bỏ
@@ -505,10 +553,10 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
         <Button
           type="submit"
           className="rounded-xl px-4 py-2 bg-[#1A73E8] border border-[#1A73E8]/80 text-white font-semibold hover:bg-[#1A73E8]/90 hover:scale-[1.01] hover:shadow-md transition-all duration-150 ease-out cursor-pointer"
-          disabled={saving}
+          disabled={saving || uploading}
         >
           <Save size={15} className="mr-1.5" />
-          {saving ? 'Đang lưu...' : 'Lưu hoạt động'}
+          {uploading ? 'Đang tải ảnh...' : saving ? 'Đang lưu...' : 'Lưu hoạt động'}
         </Button>
       </div>
     </form>

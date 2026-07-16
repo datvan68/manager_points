@@ -8,8 +8,11 @@ export class ActivityMember {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Activity', required: true })
   activity_id: Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', required: true })
-  student_id: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student' })
+  student_id?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  user_id?: Types.ObjectId;
 
   @Prop({
     type: String,
@@ -45,8 +48,9 @@ export const ActivityMemberSchema = SchemaFactory.createForClass(ActivityMember)
 
 ActivityMemberSchema.index(
   { activity_id: 1, student_id: 1, semester_id: 1 },
-  { unique: true },
+  { unique: true, sparse: true },
 );
+ActivityMemberSchema.index({ activity_id: 1, user_id: 1, semester_id: 1 }, { unique: true, sparse: true });
 ActivityMemberSchema.index({ student_id: 1 });
 ActivityMemberSchema.index({ activity_id: 1, status: 1 });
 ActivityMemberSchema.index(

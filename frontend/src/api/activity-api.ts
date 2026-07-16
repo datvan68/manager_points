@@ -57,7 +57,8 @@ export interface Activity {
 export interface ActivityMember {
   _id: string;
   activity_id: any; // backend database maps to activity_id
-  student_id: any;
+  student_id?: any;
+  user_id?: any;
   role: string;
   status: string;
   joined_at?: string;
@@ -368,6 +369,13 @@ export const activityApi = {
 
   async removeMember(activityId: string, memberId: string): Promise<any> {
     const res = await httpClient(`${API_BASE}/activities/${activityId}/members/${memberId}`, { method: 'DELETE' });
+    return handleResponse(res);
+  },
+
+  async removeMembers(activityId: string, memberIds: string[]): Promise<{ failedIds?: string[] }> {
+    const res = await httpClient(`${API_BASE}/activities/${activityId}/members/batch-delete`, {
+      method: 'POST', headers: jsonHeaders, body: JSON.stringify({ member_ids: memberIds }),
+    });
     return handleResponse(res);
   },
 

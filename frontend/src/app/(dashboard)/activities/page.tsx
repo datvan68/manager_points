@@ -281,6 +281,7 @@ export default function ActivitiesPage() {
               </DialogTitle>
             </DialogHeader>
             <ActivityForm
+              mode="create"
               initialData={activityType === 'club' ? { activity_type: 'club' } as any : undefined}
               onSubmit={handleCreateActivity}
               onCancel={() => setShowCreateModal(false)}
@@ -298,6 +299,7 @@ export default function ActivitiesPage() {
               <DialogTitle className="text-sm font-black text-[#1E293B] uppercase tracking-wider">Cập nhật hoạt động</DialogTitle>
             </DialogHeader>
             <ActivityForm
+              mode="edit"
               initialData={editingActivity}
               onSubmit={handleUpdateActivity}
               onCancel={() => setEditingActivity(null)}

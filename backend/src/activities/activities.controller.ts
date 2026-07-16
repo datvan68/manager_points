@@ -40,6 +40,7 @@ import {
   LeaveActivityDto,
   SwitchActivityDto,
   AdminTransferActivityDto,
+  BulkDeleteActivityMembersDto,
 } from './dto/activity-member.dto';
 
 @ApiTags('Activities')
@@ -255,6 +256,13 @@ export class ActivitiesController {
   @ApiOperation({ summary: 'Xóa thành viên khỏi Hoạt động' })
   removeMember(@Param('id') id: string, @Param('memberId') memberId: string) {
     return this.activitiesService.removeMember(id, memberId);
+  }
+
+  @Post(':id/members/batch-delete')
+  @UseGuards(checkPermission('ACTIVITY_MEMBER_MANAGE'))
+  @ApiBearerAuth()
+  bulkRemoveMembers(@Param('id') id: string, @Body() dto: BulkDeleteActivityMembersDto) {
+    return this.activitiesService.removeMembers(id, dto.member_ids);
   }
 
   @Post(':id/members/:memberId/approve')

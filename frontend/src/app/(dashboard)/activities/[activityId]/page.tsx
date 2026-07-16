@@ -206,6 +206,12 @@ export default function ActivityDetailPage() {
     loadActivityData();
   };
 
+  const handleRemoveMembers = async (memberIds: string[]) => {
+    const result = await activityApi.removeMembers(activityId, memberIds);
+    await loadActivityData();
+    return result;
+  };
+
   // Schedule functions
   const handleRegisterSchedule = async (scheduleId: string) => {
     await activityScheduleApi.register(scheduleId, activityId);
@@ -532,6 +538,7 @@ export default function ActivityDetailPage() {
               onReject={handleRejectMember}
               onUpdateRole={handleUpdateMemberRole}
               onRemove={handleRemoveMember}
+              onRemoveMany={handleRemoveMembers}
               isAdminOrAdvisor={isAdminOrAdvisor}
             />
           </div>

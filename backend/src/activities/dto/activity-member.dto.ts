@@ -1,4 +1,4 @@
-import { IsMongoId, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsMongoId, IsEnum, IsOptional, IsString, IsArray, ArrayNotEmpty, ArrayUnique } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AddActivityMemberDto {
@@ -35,6 +35,15 @@ export class UpdateActivityMemberDto {
   @IsOptional()
   @IsEnum(['active', 'inactive', 'left'])
   status?: string;
+}
+
+export class BulkDeleteActivityMembersDto {
+  @ApiProperty({ type: [String], description: 'Membership IDs' })
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayUnique()
+  @IsMongoId({ each: true })
+  member_ids: string[];
 }
 
 export class ApproveMemberDto {

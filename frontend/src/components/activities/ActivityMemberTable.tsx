@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ActivityMember } from '@/api/activity-api';
 import { Check, X, ShieldAlert, Trash2, Edit2, User, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import ConfirmModal from '@/components/modals/ConfirmModal';
+import FloatingActionBar from '@/components/ui/FloatingActionBar';
 
 interface ActivityMemberTableProps {
   members: ActivityMember[];
@@ -13,6 +14,7 @@ interface ActivityMemberTableProps {
   onReject: (memberId: string) => Promise<void>;
   onUpdateRole: (memberId: string, newRole: string) => Promise<void>;
   onRemove: (memberId: string) => Promise<void>;
+  onRemoveMany?: (memberIds: string[]) => Promise<{ failedIds?: string[] }>;
   loading?: boolean;
   isAdminOrAdvisor?: boolean;
 }
@@ -39,6 +41,7 @@ export default function ActivityMemberTable({
   onReject,
   onUpdateRole,
   onRemove,
+  onRemoveMany,
   loading = false,
   isAdminOrAdvisor = false,
 }: ActivityMemberTableProps) {
@@ -46,7 +49,16 @@ export default function ActivityMemberTable({
   const [selectedRole, setSelectedRole] = useState<string>('member');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [pendingRemovalMemberId, setPendingRemovalMemberId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
   const isRemovingRef = useRef(false);
+
+  useEffect(() => setSelectedIds((ids) => ids.filter((id) => members.some((member) => member._id === id))), [members]);
+  const selectableIds = members.filter((member) => member.status !== 'pending').map((member) => member._id);
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id));
+  const toggleSelected = (id: string) => setSelectedIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
+  const toggleAll = () => setSelectedIds(allSelected ? [] : selectableIds);
 
   const handleEditRoleClick = (member: ActivityMember) => {
     setEditingMemberId(member._id);
@@ -118,6 +130,21 @@ export default function ActivityMemberTable({
     setPendingRemovalMemberId(null);
   };
 
+  const handleConfirmBulk = async () => {
+    if (!onRemoveMany || !selectedIds.length || bulkUpdating) return;
+    setBulkUpdating(true);
+    try {
+      const result = await onRemoveMany(selectedIds);
+      const failed = result?.failedIds || [];
+      setSelectedIds(failed);
+      if (failed.length) toast.error(`${failed.length} thành viên chưa được xóa`);
+      else toast.success(`Đã xóa ${selectedIds.length} thành viên`);
+    } finally {
+      setBulkUpdating(false);
+      setBulkConfirmOpen(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-3 py-6">
@@ -143,6 +170,7 @@ export default function ActivityMemberTable({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/50 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <th className="px-5 py-3"><input aria-label="Chọn tất cả thành viên" type="checkbox" checked={allSelected} ref={(el) => { if (el) el.indeterminate = selectedIds.length > 0 && !allSelected; }} onChange={toggleAll} /></th>
               <th className="px-5 py-3">Sinh viên</th>
               <th className="px-5 py-3">Vai trò</th>
               <th className="px-5 py-3">Trạng thái</th>
@@ -163,6 +191,7 @@ export default function ActivityMemberTable({
                     isPending ? 'bg-amber-50/20' : ''
                   }`}
                 >
+                  <td className="px-5 py-4"><input aria-label={`Chọn ${student?.full_name || member.user_id?.user_name || member._id}`} type="checkbox" checked={selectedIds.includes(member._id)} disabled={isPending} onChange={() => toggleSelected(member._id)} /></td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200">
@@ -170,10 +199,10 @@ export default function ActivityMemberTable({
                       </div>
                       <div>
                         <p className="font-bold text-slate-700">
-                          {student?.full_name || 'Không xác định'}
+                          {student?.full_name || member.user_id?.display_name || member.user_id?.user_name || 'Không xác định'}
                         </p>
                         <p className="text-[10px] text-slate-400 font-semibold">
-                          {student?.student_code || '—'} · {student?.email || 'Chưa có email'}
+                          {student?.student_code || '—'} · {student?.email || member.user_id?.email || 'Chưa có email'}
                         </p>
                       </div>
                     </div>
@@ -303,6 +332,8 @@ export default function ActivityMemberTable({
         cancelLabel="Hủy bỏ"
         variant="danger"
       />
+      <ConfirmModal isOpen={bulkConfirmOpen} onClose={() => !bulkUpdating && setBulkConfirmOpen(false)} onConfirm={handleConfirmBulk} title="Xóa nhiều thành viên" message={`Bạn có chắc chắn muốn xóa ${selectedIds.length} thành viên khỏi hoạt động không?`} confirmLabel="Xác nhận xóa" cancelLabel="Hủy bỏ" variant="danger" />
+      <FloatingActionBar selectedCount={selectedIds.length} onClear={() => setSelectedIds([])} itemLabel="thành viên" actions={<Button onClick={() => setBulkConfirmOpen(true)} disabled={!onRemoveMany || bulkUpdating} className="px-3 py-1.5 bg-red-600 text-white rounded-full text-xs">Xóa</Button>} />
     </div>
   );
 }

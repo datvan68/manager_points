@@ -389,8 +389,9 @@ export class ActivitiesService {
       filter.semester_id = new Types.ObjectId(query.semester_id);
 
     const members = await this.memberModel
-      .find(filter)
+      .find({ ...filter, ...(query?.status ? {} : { status: { $ne: 'left' } }) })
       .populate('student_id', 'full_name student_code email sex status')
+      .populate('user_id', 'user_name username email display_name')
       .populate('approved_by', 'user_name')
       .sort({ role: 1, createdAt: -1 })
       .lean()
@@ -463,6 +464,25 @@ export class ActivitiesService {
     studentIdOrUserId: string,
     dto: JoinActivityDto,
   ): Promise<any> {
+    const linkedStudent = Types.ObjectId.isValid(studentIdOrUserId)
+      ? await this.studentModel.findOne({ $or: [{ user_id: new Types.ObjectId(studentIdOrUserId) }, { _id: new Types.ObjectId(studentIdOrUserId) }] }).exec()
+      : null;
+    const principalUser = !linkedStudent && Types.ObjectId.isValid(studentIdOrUserId)
+      ? await this.userModel.findById(studentIdOrUserId).populate('role').exec()
+      : null;
+    if (principalUser && isAdminUser(principalUser) && !linkedStudent) {
+      const activity = await this.validateTargetActivity(activityId, dto.semester_id, principalUser._id.toString());
+      if (!activity.settings?.allow_self_registration) throw new ForbiddenException('Hoạt động không cho phép tự đăng ký');
+      const existing = await this.memberModel.findOne({ activity_id: activity._id, user_id: principalUser._id, semester_id: new Types.ObjectId(dto.semester_id) }).exec();
+      if (existing && existing.status !== 'left') throw new BadRequestException('Bạn đã đăng ký Hoạt động này trong học kỳ hiện tại');
+      const member = existing || new this.memberModel({ activity_id: activity._id, user_id: principalUser._id, role: 'member', semester_id: new Types.ObjectId(dto.semester_id) });
+      member.status = activity.settings?.require_approval ? 'pending' : 'active';
+      member.joined_at = member.status === 'active' ? new Date() : undefined;
+      member.left_at = undefined;
+      member.occupies_slot = false;
+      await member.save();
+      return { membership: member, transfer: null, self_service_changes_used: 0, self_service_changes_remaining: 3, requires_teacher_approval: false, first_schedule_start_time: null };
+    }
     const studentId = await this.resolveStudentId(studentIdOrUserId);
     const userId = studentIdOrUserId;
 
@@ -966,6 +986,16 @@ export class ActivitiesService {
     return { message: 'Đã xóa thành viên khỏi Hoạt động' };
   }
 
+  async removeMembers(activityId: string, memberIds: string[]): Promise<{ deletedIds: string[]; failedIds: string[] }> {
+    const eligible = await this.memberModel.find({ _id: { $in: memberIds.map((id) => new Types.ObjectId(id)) }, activity_id: new Types.ObjectId(activityId), status: { $ne: 'left' } }).select('_id').lean().exec();
+    const deletedIds = eligible.map((member) => member._id.toString());
+    await this.memberModel.updateMany(
+      { _id: { $in: eligible.map((member) => member._id) } },
+      { $set: { status: 'left', left_at: new Date() } },
+    ).exec();
+    return { deletedIds, failedIds: memberIds.filter((id) => !deletedIds.includes(id)) };
+  }
+
   async getMyTransferPolicy(userId: string, semesterId: string): Promise<any> {
     const studentId = await this.resolveStudentId(userId);
     const completedChanges = await this.countCompletedSelfServiceTransfers(studentId, semesterId);
@@ -995,10 +1025,9 @@ export class ActivitiesService {
       } else {
         const user = await this.userModel.findById(studentIdOrUserId).populate('role').exec();
         if (user && isAdminUser(user)) {
-          const testStudent = await this.studentModel.findOne().exec();
-          if (testStudent) {
-            studentId = testStudent._id.toString();
-          }
+          return this.memberModel.find({ user_id: user._id, status: { $in: ['active', 'pending'] } })
+            .populate({ path: 'activity_id', populate: [{ path: 'advisor_id', select: 'user_name email' }, { path: 'president_id', select: 'full_name student_code' }] })
+            .populate('semester_id', 'name').lean().exec();
         }
       }
     }
