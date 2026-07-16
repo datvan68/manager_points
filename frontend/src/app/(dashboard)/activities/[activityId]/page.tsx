@@ -23,6 +23,7 @@ import {
   ClipboardCheck, Radio, QrCode, Camera
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getImageUrl } from '@/components/activities/activity-view-policy';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ActivityMemberTable from '@/components/activities/ActivityMemberTable';
 import ActivityScheduleTimeline from '@/components/activities/ActivityScheduleTimeline';
@@ -104,9 +105,11 @@ export default function ActivityDetailPage() {
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showRuleModal, setShowRuleModal] = useState(false);
   const [updatingLogo, setUpdatingLogo] = useState(false);
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  const isAdminOrAdvisor = isAdminUser(user) || isTeacherRole(user);
+  const isAdmin = isAdminUser(user);
+  const isAdminOrAdvisor = isAdmin || isTeacherRole(user);
   const isStudent = isStudentRole(user);
 
 
@@ -123,6 +126,7 @@ export default function ActivityDetailPage() {
       ]);
 
       setActivity(actData);
+      setLogoLoadFailed(false);
       setMembers(membersData);
       setCriteriaById(
         (Array.isArray(criteriaList) ? criteriaList : []).reduce((acc: Record<string, string>, criterion: any) => {
@@ -229,6 +233,20 @@ export default function ActivityDetailPage() {
     }
   };
 
+  const handleRemoveLogo = async () => {
+    if (!activity?.logo_url || updatingLogo || !window.confirm('Bạn có chắc muốn xóa logo hoạt động không?')) return;
+    setUpdatingLogo(true);
+    try {
+      await activityApi.update(activityId, { logo_url: '' });
+      toast.success('Xóa logo thành công');
+      await loadActivityData();
+    } catch (err: any) {
+      toast.error(err.message || 'Không thể xóa logo');
+    } finally {
+      setUpdatingLogo(false);
+    }
+  };
+
   const handleRemoveMembers = async (memberIds: string[]) => {
     const result = await activityApi.removeMembers(activityId, memberIds);
     await loadActivityData();
@@ -326,23 +344,41 @@ export default function ActivityDetailPage() {
 
         {/* Logo */}
         <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 font-black text-2xl uppercase">
-          {activity.logo_url ? (
-            <img src={activity.logo_url} alt={activity.name} className="w-full h-full object-cover rounded-2xl" />
+          {activity.logo_url && !logoLoadFailed ? (
+            <img
+              src={getImageUrl(activity.logo_url)}
+              alt={activity.name}
+              onError={() => setLogoLoadFailed(true)}
+              className="w-full h-full object-contain object-center rounded-2xl p-1"
+            />
           ) : (
             activity.code.slice(0, 2)
           )}
           {isAdminOrAdvisor && (
             <>
               <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} className="hidden" />
-              <button
-                type="button"
-                aria-label="Cập nhật logo"
-                disabled={updatingLogo}
-                onClick={() => logoInputRef.current?.click()}
-                className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/45 opacity-0 hover:opacity-100 focus:opacity-100 transition-opacity disabled:cursor-not-allowed"
-              >
-                {updatingLogo ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera size={20} />}
-              </button>
+              <div className="absolute inset-0 flex items-center justify-center gap-2 rounded-2xl bg-black/45 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  aria-label="Cập nhật logo"
+                  disabled={updatingLogo}
+                  onClick={() => logoInputRef.current?.click()}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-white hover:bg-white/20 disabled:cursor-not-allowed"
+                >
+                  {updatingLogo ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera size={20} />}
+                </button>
+                {activity.logo_url && (
+                  <button
+                    type="button"
+                    aria-label="Xóa logo"
+                    disabled={updatingLogo}
+                    onClick={handleRemoveLogo}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-white hover:bg-white/20 disabled:cursor-not-allowed"
+                  >
+                    <span aria-hidden="true">×</span>
+                  </button>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -513,6 +549,40 @@ export default function ActivityDetailPage() {
                       ))}
                     </div>
                   </div>
+                </div>
+              )}
+              {isAdmin && (
+                <div className="bg-blue-50/70 border border-blue-200 p-5 rounded-2xl space-y-4">
+                  <h3 className="text-xs font-bold text-blue-700 uppercase tracking-wider border-b border-blue-100 pb-2">
+                    Thông tin đầy đủ dành cho quản trị viên
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-xs font-semibold text-slate-600">
+                    <div><span className="text-slate-400">Mã hoạt động:</span> <span className="text-slate-700 font-bold">{activity.code || '—'}</span></div>
+                    <div><span className="text-slate-400">Loại:</span> <span className="text-slate-700 font-bold">{actType}</span></div>
+                    <div><span className="text-slate-400">Danh mục:</span> <span className="text-slate-700 font-bold">{categoryLabels[activity.category] || activity.category || '—'}</span></div>
+                    <div><span className="text-slate-400">Trạng thái:</span> <span className="text-slate-700 font-bold">{activity.participation_status || '—'}</span></div>
+                    <div><span className="text-slate-400">Học kỳ:</span> <span className="text-slate-700 font-bold">{activity.semester_id?.name || activity.semester_id?.semester_name || '—'}</span></div>
+                    <div><span className="text-slate-400">Phòng:</span> <span className="text-slate-700 font-bold">{activity.classroom || '—'}</span></div>
+                    <div><span className="text-slate-400">Cố vấn:</span> <span className="text-slate-700 font-bold">{activity.advisor_id?.full_name || activity.advisor_id?.user_name || 'Chưa phân công'}</span></div>
+                    <div><span className="text-slate-400">Email cố vấn:</span> <span className="text-slate-700 font-bold">{activity.advisor_id?.email || '—'}</span></div>
+                    <div><span className="text-slate-400">Chủ nhiệm:</span> <span className="text-slate-700 font-bold">{activity.president_id?.full_name || 'Chưa phân công'}</span></div>
+                    <div><span className="text-slate-400">Phó chủ nhiệm:</span> <span className="text-slate-700 font-bold">{activity.vice_president_ids?.map((person: any) => person.full_name).filter(Boolean).join(', ') || 'Chưa phân công'}</span></div>
+                    <div><span className="text-slate-400">Thành viên:</span> <span className="text-slate-700 font-bold">{activity.active_members_count} / {activity.max_members || 'Không giới hạn'}</span></div>
+                    <div><span className="text-slate-400">Ngày thành lập:</span> <span className="text-slate-700 font-bold">{activity.founded_date ? new Date(activity.founded_date).toLocaleDateString('vi-VN') : '—'}</span></div>
+                    <div><span className="text-slate-400">Ngày bắt đầu:</span> <span className="text-slate-700 font-bold">{activity.activity_start_date ? new Date(activity.activity_start_date).toLocaleDateString('vi-VN') : '—'}</span></div>
+                    <div><span className="text-slate-400">Ngày kết thúc:</span> <span className="text-slate-700 font-bold">{activity.activity_end_date ? new Date(activity.activity_end_date).toLocaleDateString('vi-VN') : '—'}</span></div>
+                    <div><span className="text-slate-400">Tự đăng ký:</span> <span className="text-slate-700 font-bold">{activity.settings?.allow_self_registration ? 'Cho phép' : 'Khóa'}</span></div>
+                    <div><span className="text-slate-400">Yêu cầu phê duyệt:</span> <span className="text-slate-700 font-bold">{activity.settings?.require_approval ? 'Có' : 'Không'}</span></div>
+                    <div><span className="text-slate-400">Điểm danh:</span> <span className="text-slate-700 font-bold">{activity.settings?.attendance_point_enabled ? `${activity.settings.point_per_attendance} điểm/buổi` : 'Tắt'}</span></div>
+                    <div><span className="text-slate-400">Tiêu chí:</span> <span className="text-slate-700 font-bold">{activity.settings?.criterion_id ? getCriterionLabel(activity.settings.criterion_id, criteriaById) : '—'}</span></div>
+                  </div>
+                  {completionRule && (
+                    <div className="border-t border-blue-100 pt-3 text-xs font-semibold text-slate-600">
+                      <p className="font-bold text-blue-700">Quy tắc hoàn thành</p>
+                      <p>Tối thiểu: {completionRule.minimum_attendance} buổi · Trạng thái: {completionRule.status}</p>
+                      <p>Tiêu chí: {completionRule.criterion_ids?.map((criterion: any) => getCriterionLabel(criterion, criteriaById)).filter(Boolean).join(', ') || '—'}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

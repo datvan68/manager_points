@@ -53,6 +53,8 @@ vi.mock('@/api/auth-api', () => ({
 vi.mock('@/api/activity-api', () => ({
   activityApi: {
     getById: vi.fn(),
+    uploadMedia: vi.fn(),
+    update: vi.fn(),
     getMembers: vi.fn(),
     joinActivity: vi.fn(),
     approveMember: vi.fn(),
@@ -839,4 +841,155 @@ describe('ActivityDetailPage', () => {
     });
   });
 
+  it('normalizes relative logo URLs and renders the image without cropping', async () => {
+    const mockActivity = {
+      _id: 'act1',
+      name: 'Logo Activity',
+      code: 'LOGO_ACTIVITY',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'A.101',
+      logo_url: '/uploads/logo.png',
+      advisor_id: { full_name: 'Jane Doe' },
+      semester_id: { _id: 'sem1', name: 'Semester 1' },
+      settings: {},
+      createdAt: '2026-07-10T00:00:00Z',
+      updatedAt: '2026-07-10T00:00:00Z',
+    };
+
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      const image = screen.getByRole('img', { name: 'Logo Activity' });
+      expect(image).toHaveAttribute('src', expect.stringContaining('/uploads/logo.png'));
+      expect(image).toHaveClass('object-contain', 'object-center');
+    });
+
+    fireEvent.error(screen.getByRole('img', { name: 'Logo Activity' }));
+
+    await waitFor(() => expect(screen.getByText('LO')).toBeInTheDocument());
+  });
+
+  it('removes a custom logo and restores the activity-code fallback', async () => {
+    const mockActivity = {
+      _id: 'act1',
+      name: 'Removable Logo Activity',
+      code: 'REMOVE_ACTIVITY',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'A.101',
+      logo_url: '/uploads/logo.png',
+      advisor_id: { full_name: 'Jane Doe' },
+      semester_id: { _id: 'sem1', name: 'Semester 1' },
+      settings: {},
+      createdAt: '2026-07-10T00:00:00Z',
+      updatedAt: '2026-07-10T00:00:00Z',
+    };
+    const fallbackActivity = { ...mockActivity, logo_url: '' };
+    vi.mocked(activityApi.getById).mockResolvedValueOnce(mockActivity as any).mockResolvedValue(fallbackActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+    vi.mocked(activityApi.update).mockResolvedValue(fallbackActivity as any);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Xóa logo' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa logo' }));
+
+    await waitFor(() => {
+      expect(activityApi.update).toHaveBeenCalledWith('act1', { logo_url: '' });
+      expect(screen.getByText('RE')).toBeInTheDocument();
+    });
+  });
+
+  it('shows full activity metadata and completion details to administrators', async () => {
+    const mockActivity = {
+      _id: 'act1',
+      name: 'Administrator Activity',
+      code: 'ADMIN_ACTIVITY',
+      activity_type: 'club',
+      participation_status: 'published',
+      category: 'academic',
+      classroom: 'C.303',
+      founded_date: '2026-01-01T00:00:00Z',
+      activity_start_date: '2026-02-01T00:00:00Z',
+      activity_end_date: '2026-06-01T00:00:00Z',
+      advisor_id: { full_name: 'Advisor Name', email: 'advisor@example.com' },
+      president_id: { full_name: 'President Name' },
+      vice_president_ids: [{ full_name: 'Vice President Name' }],
+      semester_id: { _id: 'sem1', name: 'Semester 1' },
+      active_members_count: 12,
+      max_members: 30,
+      settings: {
+        allow_self_registration: true,
+        require_approval: true,
+        attendance_point_enabled: true,
+        point_per_attendance: 2,
+        criterion_id: 'criterion-1',
+      },
+      createdAt: '2026-07-10T00:00:00Z',
+      updatedAt: '2026-07-10T00:00:00Z',
+    };
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([{
+      _id: 'rule-1',
+      activity_id: 'act1',
+      semester_id: 'sem1',
+      minimum_attendance: 3,
+      criterion_ids: ['criterion-1'],
+      status: 'active',
+    }] as any);
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue([{ _id: 'criterion-1', criterion_name: 'Leadership' }] as any);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Thông tin đầy đủ dành cho quản trị viên')).toBeInTheDocument();
+      expect(screen.getByText('ADMIN_ACTIVITY')).toBeInTheDocument();
+      expect(screen.getByText('Advisor Name')).toBeInTheDocument();
+      expect(screen.getByText('Vice President Name')).toBeInTheDocument();
+      expect(screen.getByText(/Tối thiểu: 3 buổi/)).toBeInTheDocument();
+      expect(screen.getAllByText(/Leadership/).length).toBeGreaterThan(0);
+    });
+  });
+
+  it('does not expose administrator metadata or logo controls to unauthorized users', async () => {
+    mockAuth.isAdmin = false;
+    mockAuth.user = { id: 'student-user', studentId: 'student1', role: { role_code: 'STUDENT' }, roleCode: 'STUDENT' } as any;
+    const mockActivity = {
+      _id: 'act1',
+      name: 'Student Activity',
+      code: 'STUDENT_ACTIVITY',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'A.101',
+      logo_url: '/uploads/logo.png',
+      advisor_id: { full_name: 'Jane Doe' },
+      semester_id: { _id: 'sem1', name: 'Semester 1' },
+      settings: {},
+      createdAt: '2026-07-10T00:00:00Z',
+      updatedAt: '2026-07-10T00:00:00Z',
+    };
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Thông tin đầy đủ dành cho quản trị viên')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Xóa logo' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Cập nhật logo' })).not.toBeInTheDocument();
+    });
+  });
 });
