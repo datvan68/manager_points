@@ -203,47 +203,73 @@ export default function ActivityCard({
     }
 
     let isMounted = true;
-    if (activityScheduleApi && typeof activityScheduleApi.getAll === 'function') {
-      const promise = activityScheduleApi.getAll({ activity_id: activity._id });
-      if (promise && typeof promise.then === 'function') {
-        promise
-          .then((res) => {
+
+    // Prioritize getActivityTimeline (no pagination limit) to avoid missing
+    // current-week schedules when getAll's default limit (20) is exceeded
+    // by older completed/cancelled entries.
+    const fetchViaTimeline = activityScheduleApi
+      && typeof activityScheduleApi.getActivityTimeline === 'function';
+    const fetchViaGetAll = activityScheduleApi
+      && typeof activityScheduleApi.getAll === 'function';
+
+    if (fetchViaTimeline) {
+      activityScheduleApi.getActivityTimeline(activity._id)
+        .then((timeline: any) => {
+          if (isMounted) {
+            const timelineItems = Array.isArray(timeline)
+              ? timeline
+              : (timeline?.items || timeline?.data?.items || timeline?.result?.items || []);
+            setScheduleSummary(getActivityScheduleSummary(timelineItems, activity._id));
+          }
+        })
+        .catch(async (err: any) => {
+          // Fallback to getAll with a high limit when timeline access is denied
+          if (!isMounted || !fetchViaGetAll) {
+            console.error('Error fetching activity timeline:', activity._id, err);
+            return;
+          }
+          try {
+            const res = await activityScheduleApi.getAll({
+              activity_id: activity._id,
+              limit: 100,
+            });
             if (isMounted) {
-              const schedulePayload = res?.data ?? res;
+              const schedulePayload = (res as any)?.data ?? res;
               const scheduleItems = Array.isArray(schedulePayload)
                 ? schedulePayload
                 : (schedulePayload?.items
                   || schedulePayload?.data?.items
                   || schedulePayload?.result?.items
                   || []);
-              const summary = getActivityScheduleSummary(scheduleItems, activity._id);
-              setScheduleSummary(summary);
+              setScheduleSummary(getActivityScheduleSummary(scheduleItems, activity._id));
             }
-          })
-          .catch(async (err) => {
-            if (!isMounted || typeof activityScheduleApi.getActivityTimeline !== 'function') {
-              console.error('Error fetching schedules for activity:', activity._id, err);
-              return;
-            }
-
-            try {
-              const timeline = await activityScheduleApi.getActivityTimeline(activity._id);
-              if (isMounted) {
-                const timelineItems = Array.isArray(timeline)
-                  ? timeline
-                  : (timeline?.items || timeline?.data?.items || timeline?.result?.items || []);
-                setScheduleSummary(getActivityScheduleSummary(timelineItems, activity._id));
-              }
-            } catch (timelineError) {
-              console.error('Error fetching activity timeline:', activity._id, timelineError);
-            }
-          })
-          .finally(() => {
-            if (isMounted) setLoadingSchedule(false);
-          });
-      } else {
-        setLoadingSchedule(false);
-      }
+          } catch (fallbackErr) {
+            console.error('Error fetching schedules for activity:', activity._id, fallbackErr);
+          }
+        })
+        .finally(() => {
+          if (isMounted) setLoadingSchedule(false);
+        });
+    } else if (fetchViaGetAll) {
+      activityScheduleApi.getAll({ activity_id: activity._id, limit: 100 })
+        .then((res: any) => {
+          if (isMounted) {
+            const schedulePayload = res?.data ?? res;
+            const scheduleItems = Array.isArray(schedulePayload)
+              ? schedulePayload
+              : (schedulePayload?.items
+                || schedulePayload?.data?.items
+                || schedulePayload?.result?.items
+                || []);
+            setScheduleSummary(getActivityScheduleSummary(scheduleItems, activity._id));
+          }
+        })
+        .catch((err: any) => {
+          console.error('Error fetching schedules for activity:', activity._id, err);
+        })
+        .finally(() => {
+          if (isMounted) setLoadingSchedule(false);
+        });
     } else {
       setLoadingSchedule(false);
     }

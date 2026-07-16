@@ -91,8 +91,8 @@ describe('ActivityCard', () => {
     expect(screen.getByText('Gymnasium')).toBeInTheDocument();
   });
 
-  it('requests schedules by activity_id and renders current-week schedule with backend member count', async () => {
-    vi.mocked(activityScheduleApi.getAll).mockResolvedValueOnce({
+  it('requests schedules via timeline and renders current-week schedule with backend member count', async () => {
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValueOnce({
       items: [
         {
           _id: 'schedule-1',
@@ -107,7 +107,6 @@ describe('ActivityCard', () => {
           createdAt: '2026-07-01T00:00:00Z',
         },
       ],
-      total: 1,
     } as any);
 
     render(
@@ -123,7 +122,7 @@ describe('ActivityCard', () => {
     );
 
     await waitFor(() => {
-      expect(activityScheduleApi.getAll).toHaveBeenCalledWith({ activity_id: 'act1' });
+      expect(activityScheduleApi.getActivityTimeline).toHaveBeenCalledWith('act1');
     });
 
     expect(await screen.findByText('T4: 08:00 - 10:00')).toBeInTheDocument();
@@ -131,7 +130,7 @@ describe('ActivityCard', () => {
   });
 
   it('loads schedules when the activity provides an empty schedule summary', async () => {
-    vi.mocked(activityScheduleApi.getAll).mockResolvedValueOnce({
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValueOnce({
       items: [
         {
           _id: 'schedule-2',
@@ -146,7 +145,6 @@ describe('ActivityCard', () => {
           createdAt: '2026-07-01T00:00:00Z',
         },
       ],
-      total: 1,
     } as any);
 
     render(
@@ -162,15 +160,15 @@ describe('ActivityCard', () => {
     );
 
     await waitFor(() => {
-      expect(activityScheduleApi.getAll).toHaveBeenCalledWith({ activity_id: 'act1' });
+      expect(activityScheduleApi.getActivityTimeline).toHaveBeenCalledWith('act1');
     });
 
     expect(await screen.findByText('T4: 08:00 - 10:00')).toBeInTheDocument();
     expect(screen.queryByText('Chưa xếp lịch')).not.toBeInTheDocument();
   });
 
-  it('loads schedules from a data-wrapped response', async () => {
-    vi.mocked(activityScheduleApi.getAll).mockResolvedValueOnce({
+  it('loads schedules from a data-wrapped timeline response', async () => {
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValueOnce({
       data: {
         items: [{
           _id: 'schedule-3', activity_id: 'act1', title: 'Wrapped response session',
@@ -192,14 +190,15 @@ describe('ActivityCard', () => {
     expect(await screen.findByText('T4: 08:00 - 10:00')).toBeInTheDocument();
   });
 
-  it('falls back to the activity timeline when schedule-list access is denied', async () => {
-    vi.mocked(activityScheduleApi.getAll).mockRejectedValueOnce(new Error('Forbidden'));
-    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValueOnce({
+  it('falls back to getAll when timeline access is denied', async () => {
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockRejectedValueOnce(new Error('Forbidden'));
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValueOnce({
       items: [{
-        _id: 'timeline-1', activity_id: 'act1', title: 'Timeline session',
+        _id: 'fallback-1', activity_id: 'act1', title: 'Fallback session',
         schedule_type: 'regular', start_time: '2026-07-15T08:00:00',
         end_time: '2026-07-15T10:00:00', status: 'scheduled',
       }],
+      total: 1,
     } as any);
 
     render(
@@ -212,7 +211,7 @@ describe('ActivityCard', () => {
     );
 
     expect(await screen.findByText('T4: 08:00 - 10:00')).toBeInTheDocument();
-    expect(activityScheduleApi.getActivityTimeline).toHaveBeenCalledWith('act1');
+    expect(activityScheduleApi.getAll).toHaveBeenCalledWith({ activity_id: 'act1', limit: 100 });
   });
 
   it('triggers onNavigateToDetail when card is clicked, but NOT when favorite or join is clicked', async () => {
@@ -411,6 +410,3 @@ describe('ActivityCard', () => {
     expect(onJoinClick).not.toHaveBeenCalled();
   });
 });
-
-
-
