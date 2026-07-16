@@ -736,6 +736,55 @@ export class ActivitySchedulesService {
     return { message: 'Đã hủy lặp lại và giữ lại lịch tuần hiện tại' };
   }
 
+  async cancelEntireRecurrence(id: string): Promise<{ message: string; cancelledSchedules: number }> {
+    const schedule = await this.scheduleModel.findById(id);
+    if (!schedule) {
+      throw new NotFoundException(`Không tìm thấy lịch sinh hoạt`);
+    }
+    await this.validateActivityStatus(schedule.activity_id);
+
+    const sourceWeekStart = schedule.recurrence?.source_week_start_date;
+    const sourceWeekEnd = schedule.recurrence?.source_week_end_date;
+    if (!schedule.recurrence_id || !sourceWeekStart || !sourceWeekEnd) {
+      throw new BadRequestException('Lịch sinh hoạt không phải là chuỗi lặp');
+    }
+
+    const schedules = await this.scheduleModel.find({
+      semester_id: schedule.semester_id,
+      recurrence_id: { $exists: true },
+      'recurrence.source_week_start_date': sourceWeekStart,
+      'recurrence.source_week_end_date': sourceWeekEnd,
+      status: { $ne: 'cancelled' },
+    }).exec();
+    const repeatedSchedules = schedules.filter((item) =>
+      new Date(item.start_time) < new Date(sourceWeekStart)
+      || new Date(item.start_time) > new Date(sourceWeekEnd),
+    );
+    const sourceSchedules = schedules.filter((item) => !repeatedSchedules.includes(item));
+    const ids = repeatedSchedules.map((item) => item._id);
+
+    if (ids.length > 0) {
+      await this.registrationModel.updateMany(
+        { schedule_id: { $in: ids }, status: 'registered' },
+        { $set: { status: 'cancelled', cancelled_at: new Date() } },
+      );
+
+      await this.scheduleModel.updateMany(
+        { _id: { $in: ids }, status: { $ne: 'cancelled' } },
+        { $set: { status: 'cancelled' } },
+      );
+    }
+
+    if (sourceSchedules.length > 0) {
+      await this.scheduleModel.updateMany(
+        { _id: { $in: sourceSchedules.map((item) => item._id) } },
+        { $unset: { recurrence: '', recurrence_id: '' } },
+      );
+    }
+
+    return { message: 'Đã hủy toàn bộ chuỗi lịch lặp, giữ nguyên tuần nguồn', cancelledSchedules: ids.length };
+  }
+
 
   // ── Registration ──
 

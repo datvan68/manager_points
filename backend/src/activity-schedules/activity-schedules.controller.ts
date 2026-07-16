@@ -114,6 +114,14 @@ export class ActivitySchedulesController {
     return this.schedulesService.cancelRecurrence(id);
   }
 
+  @Post(':id/cancel-entire-recurrence')
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_MANAGE'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Hủy toàn bộ chuỗi lịch sinh hoạt lặp lại' })
+  cancelEntireRecurrence(@Param('id') id: string) {
+    return this.schedulesService.cancelEntireRecurrence(id);
+  }
+
 
   // ── Registration ──
 

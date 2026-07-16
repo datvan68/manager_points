@@ -475,6 +475,15 @@ export const activityScheduleApi = {
     return handleResponse(res);
   },
 
+  async cancelEntireRecurrence(id: string): Promise<{ message: string; cancelledSchedules: number }> {
+    const res = await httpClient(`${API_BASE}/activity-schedules/${id}/cancel-entire-recurrence`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({}),
+    });
+    return handleResponse(res);
+  },
+
   async register(id: string, activityId: string): Promise<any> {
     const res = await httpClient(`${API_BASE}/activity-schedules/${id}/register`, {
       method: 'POST',

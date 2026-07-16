@@ -37,6 +37,7 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
 
   const mockScheduleRegistrationModel = {
     countDocuments: jest.fn(),
+    updateMany: jest.fn(),
   };
 
   const mockSemesterModel = {
@@ -562,6 +563,93 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
       expect(res.items[3].is_today).toBe(false);
       expect(res.items[0].is_active).toBeDefined();
       expect(res.items[0].my_attendance).toBeNull();
+    });
+  });
+
+  describe('cancelEntireRecurrence', () => {
+    it('cancels repeated cards across the source week group and preserves source cards', async () => {
+      const recurrenceId = new Types.ObjectId();
+      const secondRecurrenceId = new Types.ObjectId();
+      const activityId = new Types.ObjectId();
+      const semesterId = new Types.ObjectId();
+      const sourceWeekStart = new Date('2026-07-13T00:00:00.000Z');
+      const sourceWeekEnd = new Date('2026-07-19T23:59:59.999Z');
+      const selectedSchedule = {
+        _id: new Types.ObjectId(),
+        activity_id: activityId,
+        semester_id: semesterId,
+        recurrence_id: recurrenceId,
+        recurrence: { source_week_start_date: sourceWeekStart, source_week_end_date: sourceWeekEnd },
+        start_time: new Date('2026-07-14T09:00:00.000Z'),
+        status: 'scheduled',
+      };
+      const seriesSchedules = [
+        selectedSchedule,
+        {
+          _id: new Types.ObjectId(),
+          activity_id: activityId,
+          semester_id: semesterId,
+          recurrence_id: recurrenceId,
+          recurrence: { source_week_start_date: sourceWeekStart, source_week_end_date: sourceWeekEnd },
+          start_time: new Date('2026-07-21T09:00:00.000Z'),
+          status: 'scheduled',
+        },
+        {
+          _id: new Types.ObjectId(),
+          activity_id: activityId,
+          semester_id: semesterId,
+          recurrence_id: secondRecurrenceId,
+          recurrence: { source_week_start_date: sourceWeekStart, source_week_end_date: sourceWeekEnd },
+          start_time: new Date('2026-07-22T09:00:00.000Z'),
+          status: 'scheduled',
+        },
+      ];
+
+      mockActivityScheduleModel.findById.mockResolvedValue(selectedSchedule);
+      mockActivityScheduleModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(seriesSchedules),
+      });
+      mockScheduleRegistrationModel.updateMany.mockResolvedValue({ modifiedCount: 2 });
+      mockActivityScheduleModel.updateMany.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ modifiedCount: 2 }),
+      });
+
+      const result = await service.cancelEntireRecurrence(selectedSchedule._id.toString());
+
+      expect(mockActivityScheduleModel.find).toHaveBeenCalledWith({
+        semester_id: semesterId,
+        recurrence_id: { $exists: true },
+        'recurrence.source_week_start_date': sourceWeekStart,
+        'recurrence.source_week_end_date': sourceWeekEnd,
+        status: { $ne: 'cancelled' },
+      });
+      expect(mockScheduleRegistrationModel.updateMany).toHaveBeenCalledWith(
+        { schedule_id: { $in: seriesSchedules.slice(1).map((schedule) => schedule._id) }, status: 'registered' },
+        { $set: { status: 'cancelled', cancelled_at: expect.any(Date) } },
+      );
+      expect(mockActivityScheduleModel.updateMany).toHaveBeenCalledWith(
+        { _id: { $in: seriesSchedules.slice(1).map((schedule) => schedule._id) }, status: { $ne: 'cancelled' } },
+        { $set: { status: 'cancelled' } },
+      );
+      expect(mockActivityScheduleModel.updateMany).toHaveBeenCalledWith(
+        { _id: { $in: [selectedSchedule._id] } },
+        { $unset: { recurrence: '', recurrence_id: '' } },
+      );
+      expect(result.cancelledSchedules).toBe(2);
+    });
+
+    it('rejects a schedule without recurrence metadata before bulk updates', async () => {
+      const selectedSchedule = {
+        _id: new Types.ObjectId(),
+        activity_id: new Types.ObjectId(),
+        status: 'scheduled',
+      };
+
+      mockActivityScheduleModel.findById.mockResolvedValue(selectedSchedule);
+
+      await expect(service.cancelEntireRecurrence(selectedSchedule._id.toString())).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockScheduleRegistrationModel.updateMany).not.toHaveBeenCalled();
+      expect(mockActivityScheduleModel.updateMany).not.toHaveBeenCalled();
     });
   });
 });

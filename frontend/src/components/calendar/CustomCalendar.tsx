@@ -154,7 +154,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
   };
 
   return (
-    <div className="flex flex-col font-sans w-[320px] max-w-[calc(100vw-32px)] bg-white sm:bg-[#f8fafb] rounded-[20px] sm:rounded-[16px] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100">
+    <div className="flex max-h-[min(440px,calc(100vh-32px))] w-[320px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[20px] border border-slate-100 bg-white font-sans shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:rounded-[16px] sm:bg-[#f8fafb]">
       {/* Header */}
       <div className="flex justify-between items-center p-4 pb-2 border-b border-slate-100/60 bg-white">
         {view === 'days' ? (
@@ -220,7 +220,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
       </div>
 
       {/* Grid */}
-      <div className="p-4 pt-2.5 relative min-h-[240px]">
+      <div className="relative min-h-0 flex-1 overflow-y-auto p-4 pt-2.5">
         {view === 'days' ? (
           <>
             <div className="grid grid-cols-7 text-center mb-2">
@@ -337,7 +337,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
       </div>
 
       {/* Footer */}
-      <div className="flex justify-between items-center z-10 p-4 border-t border-slate-200 bg-[#f8fafb]">
+      <div className="z-10 flex shrink-0 items-center justify-between border-t border-slate-200 bg-[#f8fafb] p-4">
         <span className="text-[13px] font-medium text-slate-500">
           {tempStart ? formatDate(tempStart) : ''} {tempEnd && tempEnd.getTime() !== tempStart?.getTime() ? `- ${formatDate(tempEnd)}` : ''}
         </span>

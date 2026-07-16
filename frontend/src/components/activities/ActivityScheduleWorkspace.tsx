@@ -671,6 +671,7 @@ export default function ActivityScheduleWorkspace({
   const [showUpdateSeriesConfirmModal, setShowUpdateSeriesConfirmModal] = useState(false);
   const [showCancelRecurrenceConfirmModal, setShowCancelRecurrenceConfirmModal] = useState(false);
   const [cancellingRecurrence, setCancellingRecurrence] = useState(false);
+  const [cancelRecurrenceScope, setCancelRecurrenceScope] = useState<'selected' | 'entire'>('selected');
   const [pendingUpdatePayload, setPendingUpdatePayload] = useState<any>(null);
 
   // Form states
@@ -717,6 +718,7 @@ export default function ActivityScheduleWorkspace({
 
   // Advanced Recurrence Modal states
   const [showRecurrenceModal, setShowRecurrenceModal] = useState(false);
+  const [showRecurrenceRangePicker, setShowRecurrenceRangePicker] = useState(false);
   const [modalRepeatStartDate, setModalRepeatStartDate] = useState<string>('');
   const [modalRepeatEndDate, setModalRepeatEndDate] = useState<string>('');
 
@@ -1339,7 +1341,7 @@ export default function ActivityScheduleWorkspace({
   };
 
   const handleConfigureSaved = (schedule: ActivitySchedule, e?: React.MouseEvent) => {
-    if (showCreateModal && !forceOpen) return;
+    if (showCreateModal) return;
 
     if (e) {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -2006,17 +2008,22 @@ export default function ActivityScheduleWorkspace({
     }
   };
 
-  const handleCancelRecurrence = async (schedule: ActivitySchedule) => {
+  const handleCancelRecurrence = async (schedule: ActivitySchedule, scope: 'selected' | 'entire' = 'selected') => {
     setSelectedSchedule(schedule);
+    setCancelRecurrenceScope(scope);
     setShowCancelRecurrenceConfirmModal(true);
   };
 
   const handleConfirmCancelRecurrence = async () => {
-    if (!selectedSchedule) return;
+    if (!selectedSchedule || cancellingRecurrence) return;
     setCancellingRecurrence(true);
     try {
-      await activityScheduleApi.cancelRecurrence(selectedSchedule._id);
-      toast.success('Đã hủy chuỗi lặp thành công');
+      if (cancelRecurrenceScope === 'entire') {
+        await activityScheduleApi.cancelEntireRecurrence(selectedSchedule._id);
+      } else {
+        await activityScheduleApi.cancelRecurrence(selectedSchedule._id);
+      }
+      toast.success(cancelRecurrenceScope === 'entire' ? 'Đã hủy toàn bộ chuỗi lặp thành công' : 'Đã hủy chuỗi lặp thành công');
       setShowCancelRecurrenceConfirmModal(false);
       setSelectedSchedule(null);
       loadSchedules();
@@ -2362,7 +2369,7 @@ export default function ActivityScheduleWorkspace({
               {cancellableRecurrenceSchedule && (
                 <button
                   type="button"
-                  onClick={() => handleCancelRecurrence(cancellableRecurrenceSchedule)}
+                  onClick={() => handleCancelRecurrence(cancellableRecurrenceSchedule, 'entire')}
                   disabled={cancellingRecurrence}
                   className="flex items-center gap-1.5 px-2.5 h-8 border border-amber-200 hover:bg-amber-50 bg-white/40 text-amber-700 rounded-xl cursor-pointer text-xs font-bold shadow-xs shrink-0 transition-all duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
                   title="Huỷ chuỗi lặp"
@@ -3077,7 +3084,7 @@ export default function ActivityScheduleWorkspace({
             <div className="p-6 space-y-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Khoảng ngày lặp</label>
-                <Popover>
+                <Popover open={showRecurrenceRangePicker} onOpenChange={setShowRecurrenceRangePicker}>
                   <PopoverTrigger asChild>
                     <button
                       type="button"
@@ -3088,7 +3095,13 @@ export default function ActivityScheduleWorkspace({
                         : 'Chọn khoảng ngày'}
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto border-0 bg-transparent p-0 shadow-none" align="start">
+                  <PopoverContent
+                    className="w-auto border-0 bg-transparent p-0 shadow-none"
+                    align="start"
+                    side="bottom"
+                    collisionPadding={16}
+                    avoidCollisions
+                  >
                     <CustomCalendar
                       startDate={parseLocalDate(modalRepeatStartDate)}
                       endDate={parseLocalDate(modalRepeatEndDate)}
@@ -3101,8 +3114,8 @@ export default function ActivityScheduleWorkspace({
                         setModalRepeatStartDate(formatLocalDate(start));
                         setModalRepeatEndDate(formatLocalDate(end));
                       }}
-                      onCancel={() => undefined}
-                      onConfirm={() => undefined}
+                      onCancel={() => setShowRecurrenceRangePicker(false)}
+                      onConfirm={() => setShowRecurrenceRangePicker(false)}
                       minDate={parseLocalDate(anchorWeekMonday) || undefined}
                     />
                   </PopoverContent>
@@ -3245,11 +3258,17 @@ export default function ActivityScheduleWorkspace({
 
             <div className="space-y-3">
               <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                Bạn có chắc chắn muốn dừng toàn bộ các buổi lặp lại tiếp theo của chuỗi lịch <strong className="text-slate-800">&quot;{selectedSchedule.title}&quot;</strong> kể từ thời điểm này trở đi?
+                {cancelRecurrenceScope === 'entire'
+                  ? <>Bạn có chắc chắn muốn hủy toàn bộ chuỗi lịch lặp <strong className="text-slate-800">&quot;{selectedSchedule.title}&quot;</strong>? Tất cả buổi trong chuỗi sẽ bị hủy.</>
+                  : <>Bạn có chắc chắn muốn dừng toàn bộ các buổi lặp lại tiếp theo của chuỗi lịch <strong className="text-slate-800">&quot;{selectedSchedule.title}&quot;</strong> kể từ thời điểm này trở đi?</>}
               </p>
               <div className="flex items-start gap-1.5 p-2.5 bg-blue-50/50 border border-blue-100 rounded-xl text-[10px] text-blue-800 font-semibold leading-normal">
                 <AlertCircle size={12} className="shrink-0 mt-0.5" />
-                <span>Các buổi sinh hoạt trong quá khứ và buổi hiện tại sẽ được giữ nguyên.</span>
+                <span>
+                  {cancelRecurrenceScope === 'entire'
+                    ? 'Các thẻ hoạt động lặp ở các tuần trước và sau sẽ được hủy; các thẻ thuộc tuần nguồn vẫn được giữ nguyên.'
+                    : 'Các buổi sinh hoạt trong quá khứ và buổi hiện tại sẽ được giữ nguyên.'}
+                </span>
               </div>
             </div>
 
@@ -3264,9 +3283,10 @@ export default function ActivityScheduleWorkspace({
               <button
                 type="button"
                 onClick={handleConfirmCancelRecurrence}
-                className="h-10 px-5 text-xs bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md border-0 transition-colors cursor-pointer"
+                disabled={cancellingRecurrence}
+                className="h-10 px-5 text-xs bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md border-0 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Xác Nhận Dừng Lặp
+                {cancellingRecurrence ? 'Đang xử lý...' : 'Xác Nhận Dừng Lặp'}
               </button>
             </div>
           </div>

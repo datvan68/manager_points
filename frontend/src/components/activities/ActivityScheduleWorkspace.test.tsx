@@ -16,6 +16,7 @@ vi.mock('@/api/activity-api', () => ({
     update: vi.fn(),
     delete: vi.fn(),
     cancelRecurrence: vi.fn(),
+    cancelEntireRecurrence: vi.fn(),
   },
 }));
 
@@ -251,6 +252,43 @@ describe('ActivityScheduleWorkspace', () => {
 
     await waitFor(() => {
       expect(activityScheduleApi.cancelRecurrence).toHaveBeenCalledWith('sched-rec-1');
+      expect(activityScheduleApi.cancelEntireRecurrence).not.toHaveBeenCalled();
+    });
+  });
+
+  it('calls complete-series API from the external toolbar cancellation action', async () => {
+    const today = new Date();
+    const startStr = today.toISOString();
+    const endStr = new Date(today.getTime() + 7200000).toISOString();
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({
+      items: [
+        {
+          _id: 'sched-rec-toolbar',
+          title: 'Toolbar Recurring Meeting',
+          start_time: startStr,
+          end_time: endStr,
+          activity_id: '60c72b2f9b1e8a001c8e4a50',
+          semester_id: '60c72b2f9b1e8a001c8e4a52',
+          recurrence_id: 'rec-toolbar',
+        } as any,
+      ],
+      total: 1,
+    });
+    vi.mocked(activityScheduleApi.cancelEntireRecurrence).mockResolvedValue({} as any);
+
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Toolbar Recurring Meeting')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTitle('Huỷ chuỗi lặp'));
+    fireEvent.click(screen.getByText('Xác Nhận Dừng Lặp'));
+
+    await waitFor(() => {
+      expect(activityScheduleApi.cancelEntireRecurrence).toHaveBeenCalledWith('sched-rec-toolbar');
+      expect(activityScheduleApi.cancelRecurrence).not.toHaveBeenCalled();
     });
   });
 
@@ -1073,20 +1111,22 @@ describe('ActivityScheduleWorkspace', () => {
         activity_id: '60c72b2f9b1e8a001c8e4a50',
         semester_id: '60c72b2f9b1e8a001c8e4a52',
         recurrence_id: 'recurrence-1',
-        recurrence: { source_week_start_date: sourceMonday.toISOString().split('T')[0] },
-      }],
+        recurrence: { type: 'weekly', source_week_start_date: sourceMonday.toISOString().split('T')[0] },
+      } as any],
       total: 1,
     });
 
     const { unmount } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Repeated Week Meeting')).toBeInTheDocument();
+      expect(screen.getByText('Hiện tại')).toBeInTheDocument();
     });
 
-    const repeatedMarker = screen.getByLabelText('Buổi lặp');
-    expect(repeatedMarker).toHaveAttribute('data-recurrence-occurrence');
-    expect(repeatedMarker.className).toContain('text-amber-600');
+    fireEvent.click(screen.getByText('Hiện tại'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Repeated Week Meeting')).toBeInTheDocument();
+    });
     expect(screen.queryByText('Lặp (Anchor)')).not.toBeInTheDocument();
     expect(screen.queryByText('Nguồn lặp')).not.toBeInTheDocument();
     expect(screen.queryByText('Buổi lặp')).not.toBeInTheDocument();
@@ -1101,8 +1141,8 @@ describe('ActivityScheduleWorkspace', () => {
         activity_id: '60c72b2f9b1e8a001c8e4a50',
         semester_id: '60c72b2f9b1e8a001c8e4a52',
         recurrence_id: 'recurrence-1',
-        recurrence: { source_week_start_date: monday.toISOString().split('T')[0] },
-      }],
+        recurrence: { type: 'weekly', source_week_start_date: monday.toISOString().split('T')[0] },
+      } as any],
       total: 1,
     });
 
