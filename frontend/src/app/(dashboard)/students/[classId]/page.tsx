@@ -1045,7 +1045,7 @@ function ClassStudentsPageContent() {
                         {permissions.canExportStudent && (
                         <button
                             onClick={handleExport}
-                            className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 text-[12px] font-bold text-slate-600 bg-white/80 border border-slate-200 rounded-full hover:bg-slate-50 transition-all select-none shadow-sm cursor-pointer"
+                            className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 text-[12px] font-bold text-slate-600 bg-white/80 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all select-none shadow-sm cursor-pointer"
                         >
                             <Download className="w-3.5 h-3.5" />
                             <span className="hidden sm:inline">Xuất file</span>
@@ -1056,7 +1056,7 @@ function ClassStudentsPageContent() {
                         <button
                             onClick={handleActivateAccounts}
                             disabled={isDataLoading}
-                            className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 text-[12px] font-bold text-white bg-[#135bec] rounded-full hover:bg-blue-600 active:bg-blue-700 transition-all disabled:opacity-50 select-none shadow-sm shadow-blue-500/10 cursor-pointer"
+                            className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 text-[12px] font-bold text-white bg-[#135bec] rounded-xl hover:bg-blue-600 active:bg-blue-700 transition-all disabled:opacity-50 select-none shadow-sm shadow-blue-500/10 cursor-pointer"
                         >
                             {isDataLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
                             <span className="hidden sm:inline">Kích hoạt</span>

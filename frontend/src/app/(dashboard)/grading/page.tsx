@@ -1639,7 +1639,7 @@ function GradingPage() {
                   <>
                     <button
                       onClick={handleDeleteBulkClick}
-                      className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                      className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
                       title="Xóa bảng điểm"
                     >
                       <Trash2 size={13} strokeWidth={2.5} />
@@ -1648,7 +1648,7 @@ function GradingPage() {
 
                     <button
                       onClick={handleApproveBulkClick}
-                      className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,185,129,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,185,129,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
                       title="Duyệt hàng loạt"
                     >
                       <CheckCircle size={13} strokeWidth={2.5} />
@@ -1657,7 +1657,7 @@ function GradingPage() {
 
                     <button
                       onClick={handleCancelApproveBulk}
-                      className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                      className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
                       title="Hủy duyệt hàng loạt"
                     >
                       <XCircle size={13} strokeWidth={2.5} />
@@ -1668,7 +1668,7 @@ function GradingPage() {
 
                 <button
                   onClick={() => setIsPrintModalOpen(true)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-full flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer h-9 shrink-0 border border-slate-700/60"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer h-9 shrink-0 border border-slate-700/60"
                 >
                   <FileDown size={13} strokeWidth={2.5} />
                   <span className="hidden sm:inline">Xuất PDF</span>

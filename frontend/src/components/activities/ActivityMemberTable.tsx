@@ -49,6 +49,7 @@ export default function ActivityMemberTable({
   const [selectedRole, setSelectedRole] = useState<string>('member');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [pendingRemovalMemberId, setPendingRemovalMemberId] = useState<string | null>(null);
+  const [pendingRejectMemberId, setPendingRejectMemberId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkUpdating, setBulkUpdating] = useState(false);
@@ -90,8 +91,13 @@ export default function ActivityMemberTable({
     }
   };
 
-  const handleRejectClick = async (memberId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn từ chối yêu cầu tham gia này không?')) return;
+  const handleRejectClick = (memberId: string) => {
+    setPendingRejectMemberId(memberId);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!pendingRejectMemberId) return;
+    const memberId = pendingRejectMemberId;
     setUpdatingId(memberId);
     try {
       await onReject(memberId);
@@ -100,6 +106,7 @@ export default function ActivityMemberTable({
       toast.error('Lỗi khi từ chối yêu cầu');
     } finally {
       setUpdatingId(null);
+      setPendingRejectMemberId(null);
     }
   };
 
@@ -285,17 +292,18 @@ export default function ActivityMemberTable({
                         {isPending ? (
                           <>
                             <Button
+                              variant="ghost"
                               onClick={() => handleApproveClick(member._id)}
-                              className="h-8 px-2.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 flex items-center gap-1 cursor-pointer"
+                              className="h-8 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-700 rounded-xl hover:scale-[1.01] transition-all duration-150 ease-out flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-sm shadow-emerald-500/5"
                               disabled={isUpdating}
                             >
                               <Check size={14} />
                               Duyệt
                             </Button>
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               onClick={() => handleRejectClick(member._id)}
-                              className="h-8 px-2.5 text-rose-600 border-rose-200 hover:bg-rose-50 rounded-lg flex items-center gap-1 cursor-pointer"
+                              className="h-8 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-700 rounded-xl hover:scale-[1.01] transition-all duration-150 ease-out flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-sm shadow-rose-500/5"
                               disabled={isUpdating}
                             >
                               <X size={14} />
@@ -332,8 +340,18 @@ export default function ActivityMemberTable({
         cancelLabel="Hủy bỏ"
         variant="danger"
       />
+      <ConfirmModal
+        isOpen={pendingRejectMemberId !== null}
+        onClose={() => setPendingRejectMemberId(null)}
+        onConfirm={handleConfirmReject}
+        title="Từ chối yêu cầu"
+        message="Bạn có chắc chắn muốn từ chối yêu cầu tham gia hoạt động này của thành viên không?"
+        confirmLabel="Từ chối"
+        cancelLabel="Hủy bỏ"
+        variant="danger"
+      />
       <ConfirmModal isOpen={bulkConfirmOpen} onClose={() => !bulkUpdating && setBulkConfirmOpen(false)} onConfirm={handleConfirmBulk} title="Xóa nhiều thành viên" message={`Bạn có chắc chắn muốn xóa ${selectedIds.length} thành viên khỏi hoạt động không?`} confirmLabel="Xác nhận xóa" cancelLabel="Hủy bỏ" variant="danger" />
-      <FloatingActionBar selectedCount={selectedIds.length} onClear={() => setSelectedIds([])} itemLabel="thành viên" actions={<Button onClick={() => setBulkConfirmOpen(true)} disabled={!onRemoveMany || bulkUpdating} className="px-3 py-1.5 bg-red-600 text-white rounded-full text-xs">Xóa</Button>} />
+      <FloatingActionBar selectedCount={selectedIds.length} onClear={() => setSelectedIds([])} itemLabel="thành viên" actions={<Button onClick={() => setBulkConfirmOpen(true)} disabled={!onRemoveMany || bulkUpdating} className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all hover:scale-[1.01]">Xóa</Button>} />
     </div>
   );
 }
