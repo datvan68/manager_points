@@ -154,7 +154,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
   };
 
   return (
-    <div className="flex max-h-[min(440px,calc(100vh-32px))] w-[320px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[20px] border border-slate-100 bg-white font-sans shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:rounded-[16px] sm:bg-[#f8fafb]">
+    <div className="flex max-h-[calc(100dvh-16px)] min-h-0 w-[320px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[20px] border border-slate-100 bg-white font-sans shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:rounded-[16px] sm:bg-[#f8fafb]">
       {/* Header */}
       <div className="flex justify-between items-center p-4 pb-2 border-b border-slate-100/60 bg-white">
         {view === 'days' ? (
@@ -220,16 +220,16 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
       </div>
 
       {/* Grid */}
-      <div className="relative min-h-0 flex-1 overflow-y-auto p-4 pt-2.5">
+      <div className="relative min-h-0 max-h-[calc(100dvh-128px)] overflow-y-auto p-3 pt-2">
         {view === 'days' ? (
           <>
-            <div className="grid grid-cols-7 text-center mb-2">
+            <div className="grid grid-cols-7 text-center mb-1">
               {daysOfWeek.map(d => (
-                <div key={d} className="text-[11px] font-bold text-slate-400 py-1">{d}</div>
+                <div key={d} className="text-[10px] font-bold text-slate-400 py-0.5">{d}</div>
               ))}
             </div>
 
-            <div className="relative w-full min-h-[190px]">
+            <div className="relative w-full min-h-[168px]">
               <AnimatePresence initial={false} custom={direction}>
                 <motion.div
                   key={`${currentYear}-${currentMonth}`}
@@ -239,7 +239,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
                   animate="center"
                   exit="exit"
                   transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
-                  className="grid grid-cols-7 gap-y-1 absolute left-0 right-0"
+                  className="grid grid-cols-7 gap-y-0.5 absolute left-0 right-0"
                 >
                   {generateDays().map((day, idx) => {
                     if (day === null) return <div key={`empty-${idx}`} />;
@@ -278,7 +278,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
                         key={day}
                         onClick={() => !disabled && handleDayClick(day)}
                         disabled={disabled}
-                        className={`w-full max-w-[40px] h-[36px] flex items-center justify-center text-[13px] ${!disabled ? 'hover:font-bold cursor-pointer' : ''} transition-all mx-auto focus:outline-none ${textClass}`}
+                        className={`w-full max-w-[36px] h-[32px] flex items-center justify-center text-[12px] ${!disabled ? 'hover:font-bold cursor-pointer' : ''} transition-all mx-auto focus:outline-none ${textClass}`}
                       >
                         <div className={`w-full h-full flex items-center justify-center ${bgClass} ${roundedClass} ${(!start && !end && !range && !disabled) ? 'hover:bg-slate-200 hover:rounded-lg border border-transparent' : ''} ${today && !start && !end && !range && !disabled ? 'border-blue-200' : ''}`}>
                           {day}
@@ -291,7 +291,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
             </div>
           </>
         ) : view === 'months' ? (
-          <div className="grid grid-cols-3 gap-2.5 pt-2">
+          <div className="grid grid-cols-3 gap-2 pt-1">
             {['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'].map((m, idx) => {
               const isActive = currentMonth === idx;
               return (
@@ -301,7 +301,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
                     setCurrentDate(new Date(currentYear, idx, 1));
                     setView('days');
                   }}
-                  className={`py-3.5 text-xs font-semibold rounded-xl text-center transition-all focus:outline-none ${isActive
+                  className={`py-2.5 text-[11px] font-semibold rounded-lg text-center transition-all focus:outline-none ${isActive
                     ? "bg-[#1a56db] text-white shadow-md shadow-blue-100"
                     : "text-slate-700 hover:bg-slate-100 bg-white border border-slate-100"
                     }`}
@@ -312,7 +312,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
             })}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2.5 pt-1">
+          <div className="grid grid-cols-3 gap-2 pt-1">
             {Array.from({ length: 12 }).map((_, idx) => {
               const y = yearGridStart + idx;
               const isActive = currentYear === y;
@@ -323,7 +323,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
                     setCurrentDate(new Date(y, currentMonth, 1));
                     setView('months'); // Let them choose month next!
                   }}
-                  className={`py-3.5 text-xs font-semibold rounded-xl text-center transition-all focus:outline-none ${isActive
+                  className={`py-2.5 text-[11px] font-semibold rounded-lg text-center transition-all focus:outline-none ${isActive
                     ? "bg-[#1a56db] text-white shadow-md shadow-blue-100"
                     : "text-slate-700 hover:bg-slate-100 bg-white border border-slate-100"
                     }`}
