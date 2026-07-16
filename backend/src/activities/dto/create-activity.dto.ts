@@ -82,6 +82,49 @@ export class CardUiDto {
   style?: string;
 }
 
+export class StateButtonConfigDto {
+  @ApiPropertyOptional({ description: 'Button label' })
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @ApiPropertyOptional({ description: 'Button background class (Tailwind)' })
+  @IsOptional()
+  @IsString()
+  bgClass?: string;
+
+  @ApiPropertyOptional({ description: 'Button text class (Tailwind)' })
+  @IsOptional()
+  @IsString()
+  textClass?: string;
+}
+
+export class BackgroundStatesConfigDto {
+  @ApiPropertyOptional({ description: 'Default state button configuration' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StateButtonConfigDto)
+  none?: StateButtonConfigDto;
+
+  @ApiPropertyOptional({ description: 'Pending state button configuration' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StateButtonConfigDto)
+  pending?: StateButtonConfigDto;
+
+  @ApiPropertyOptional({ description: 'Active state button configuration' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StateButtonConfigDto)
+  active?: StateButtonConfigDto;
+
+  @ApiPropertyOptional({ description: 'Rejected state button configuration' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StateButtonConfigDto)
+  rejected?: StateButtonConfigDto;
+}
+
 export class BackgroundConfigDto {
   @ApiPropertyOptional({ description: 'Preset background style' })
   @IsOptional()
@@ -117,6 +160,12 @@ export class BackgroundConfigDto {
   @IsOptional()
   @IsString()
   petAccentType?: string;
+
+  @ApiPropertyOptional({ description: 'State buttons styling configurations' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BackgroundStatesConfigDto)
+  states?: BackgroundStatesConfigDto;
 }
 
 export class CreateActivityDto {

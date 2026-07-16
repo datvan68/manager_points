@@ -170,7 +170,7 @@ describe('ActivityScheduleWorkspace', () => {
     });
   });
 
-  it('uses shared select triggers and CustomCalendar in the advanced recurrence modal', async () => {
+  it('uses one range calendar and removes obsolete recurrence controls', async () => {
     const today = new Date();
     const startStr = today.toISOString();
     const endStr = new Date(today.getTime() + 7200000).toISOString();
@@ -204,21 +204,10 @@ describe('ActivityScheduleWorkspace', () => {
     const modal = screen.getByText('Cấu hình chuỗi lịch lặp lại').closest('.fixed') as HTMLElement;
     expect(modal.querySelectorAll('select')).toHaveLength(0);
     expect(modal.querySelectorAll('input[type="date"]')).toHaveLength(0);
-
-    fireEvent.click(screen.getByPlaceholderText('Chọn kiểu kết thúc'));
-    fireEvent.click(screen.getByText('Lặp theo số tuần cụ thể'));
-    expect(screen.getByDisplayValue('Lặp theo số tuần cụ thể')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByPlaceholderText('Chọn chu kỳ'));
-    fireEvent.click(screen.getByText('2 tuần một lần'));
-    expect(screen.getByDisplayValue('2 tuần một lần')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByDisplayValue('Lặp theo số tuần cụ thể'));
-    fireEvent.click(screen.getByText('Lặp đến ngày tự chọn'));
-
-    const dateButtons = Array.from(modal.querySelectorAll('button')).filter((button) => /\d{2}\/\d{2}\/\d{4}/.test(button.textContent || ''));
-    expect(dateButtons.length).toBeGreaterThanOrEqual(2);
-    fireEvent.click(dateButtons[1]);
+    expect(screen.queryByText('Kiểu kết thúc lặp')).not.toBeInTheDocument();
+    expect(screen.queryByText('Chu kỳ lặp')).not.toBeInTheDocument();
+    expect(screen.getByText('Khoảng ngày lặp')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Chọn khoảng ngày'));
     expect(screen.getByText('T2')).toBeInTheDocument();
     expect(screen.getByText('Xác nhận')).toBeInTheDocument();
   });

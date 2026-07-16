@@ -126,12 +126,6 @@ export default function ActivityCardDesignModal({
             <Paintbrush size={18} className="text-blue-500" />
             Thiết kế giao diện thẻ hoạt động
           </DialogTitle>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-full hover:bg-slate-100"
-          >
-            <X size={18} />
-          </button>
         </DialogHeader>
 
         {/* Workspace Body */}

@@ -668,6 +668,7 @@ export default function ActivityScheduleWorkspace({
   const [selectedSchedule, setSelectedSchedule] = useState<ActivitySchedule | null>(null);
   const [showUpdateSeriesConfirmModal, setShowUpdateSeriesConfirmModal] = useState(false);
   const [showCancelRecurrenceConfirmModal, setShowCancelRecurrenceConfirmModal] = useState(false);
+  const [cancellingRecurrence, setCancellingRecurrence] = useState(false);
   const [pendingUpdatePayload, setPendingUpdatePayload] = useState<any>(null);
 
   // Form states
@@ -714,10 +715,6 @@ export default function ActivityScheduleWorkspace({
 
   // Advanced Recurrence Modal states
   const [showRecurrenceModal, setShowRecurrenceModal] = useState(false);
-  const [modalRecurrenceType, setModalRecurrenceType] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly');
-  const [modalUntilType, setModalUntilType] = useState<'semester' | 'weeks' | 'date' | 'none'>('semester');
-  const [modalWeeksCount, setModalWeeksCount] = useState<number>(8);
-  const [modalUntilDate, setModalUntilDate] = useState<string>('');
   const [modalRepeatStartDate, setModalRepeatStartDate] = useState<string>('');
   const [modalRepeatEndDate, setModalRepeatEndDate] = useState<string>('');
 
@@ -905,22 +902,6 @@ export default function ActivityScheduleWorkspace({
       setShowCreateModal(true);
     }
   }, [openCreateOnLoad, hasAutoOpened, selectedActivityId, selectedSemesterId, activities, semesters]);
-
-  useEffect(() => {
-    if (showRecurrenceModal) {
-      if (modalUntilType === 'semester') {
-        setModalRepeatStartDate(anchorWeekMonday);
-        if (activeSemester?.end_date) {
-          setModalRepeatEndDate(activeSemester.end_date.split('T')[0]);
-        }
-      } else if (modalUntilType === 'weeks') {
-        setModalRepeatStartDate(anchorWeekMonday);
-        const start = new Date(anchorWeekMonday);
-        const end = new Date(start.getTime() + modalWeeksCount * 7 * 24 * 60 * 60 * 1000);
-        setModalRepeatEndDate(end.toISOString().split('T')[0]);
-      }
-    }
-  }, [modalUntilType, modalWeeksCount, anchorWeekMonday, showRecurrenceModal, activeSemester]);
 
   const loadInitialData = async () => {
     try {
@@ -1499,17 +1480,9 @@ export default function ActivityScheduleWorkspace({
     setRecurrenceModalTarget(target);
 
     if (currentConfig && currentConfig.enabled) {
-      setModalRecurrenceType(currentConfig.type);
-      setModalUntilType('date');
-      setModalWeeksCount(currentConfig.weeksCount || 8);
-      setModalUntilDate(currentConfig.untilDate || currentConfig.repeatEndDate || '');
       setModalRepeatStartDate(currentConfig.repeatStartDate || currentMondayStr);
-      setModalRepeatEndDate(currentConfig.repeatEndDate || '');
+      setModalRepeatEndDate(currentConfig.repeatEndDate || currentConfig.untilDate || '');
     } else {
-      setModalRecurrenceType('weekly');
-      setModalUntilType('date');
-      setModalWeeksCount(8);
-      setModalUntilDate('');
       setModalRepeatStartDate(currentMondayStr);
 
       let endD = '';
@@ -1520,20 +1493,18 @@ export default function ActivityScheduleWorkspace({
         endD = fallbackEnd.toISOString().split('T')[0];
       }
       setModalRepeatEndDate(endD);
-      setModalUntilDate(endD);
     }
     setPreRecurrenceWeekOffset(weekOffset);
     setShowRecurrenceModal(true);
   };
 
   const handleConfirmRecurrence = async () => {
-    const enabled = modalUntilType !== 'none';
+    const enabled = true;
     const config: RecurrenceConfig = {
       enabled,
-      type: enabled ? modalRecurrenceType : 'weekly',
-      untilType: modalUntilType,
-      weeksCount: enabled && modalUntilType === 'weeks' ? modalWeeksCount : undefined,
-      untilDate: enabled && modalUntilType === 'date' ? modalUntilDate : undefined,
+      type: 'weekly',
+      untilType: 'date',
+      untilDate: modalRepeatEndDate,
       repeatStartDate: enabled ? modalRepeatStartDate : undefined,
       repeatEndDate: enabled ? modalRepeatEndDate : undefined,
     };
@@ -1980,6 +1951,7 @@ export default function ActivityScheduleWorkspace({
 
   const handleConfirmCancelRecurrence = async () => {
     if (!selectedSchedule) return;
+    setCancellingRecurrence(true);
     try {
       await activityScheduleApi.cancelRecurrence(selectedSchedule._id);
       toast.success('Đã hủy chuỗi lặp thành công');
@@ -1988,8 +1960,14 @@ export default function ActivityScheduleWorkspace({
       loadSchedules();
     } catch {
       toast.error('Lỗi khi hủy chuỗi lặp');
+    } finally {
+      setCancellingRecurrence(false);
     }
   };
+
+  const cancellableRecurrenceSchedule = schedules.find(
+    schedule => schedule.status !== 'cancelled' && !!schedule.recurrence_id
+  );
 
   const isToday = (date: Date) => {
     return new Date().toDateString() === date.toDateString();
@@ -2316,6 +2294,18 @@ export default function ActivityScheduleWorkspace({
                 <RotateCw size={13} className="text-[#64748B]" />
                 <span>Cấu hình chuỗi lặp</span>
               </button>
+              {cancellableRecurrenceSchedule && (
+                <button
+                  type="button"
+                  onClick={() => handleCancelRecurrence(cancellableRecurrenceSchedule)}
+                  disabled={cancellingRecurrence}
+                  className="flex items-center gap-1.5 px-2.5 h-8 border border-amber-200 hover:bg-amber-50 bg-white/40 text-amber-700 rounded-xl cursor-pointer text-xs font-bold shadow-xs shrink-0 transition-all duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                  title="Huỷ chuỗi lặp"
+                >
+                  <RotateCw size={13} />
+                  <span>Huỷ chuỗi lặp</span>
+                </button>
+              )}
             </>
           )}
 
@@ -2516,14 +2506,13 @@ export default function ActivityScheduleWorkspace({
                                           </div>
                                         </div>
 
-                                        {!isCompactCell && (
-                                          <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/50">
+                                        <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/50">
                                             <span className="text-[8px] font-black text-blue-600 bg-blue-100/60 px-1 py-0.2 rounded uppercase tracking-wider">
                                               {isPreview ? 'Xem trước' : 'Chưa lưu'}
                                             </span>
 
                                             {canManage && !isPreview && (
-                                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                              <div className="flex items-center gap-1 opacity-100 transition-opacity">
                                                 <button
                                                   onClick={(e) => handleConfigurePending(p, e)}
                                                   className="p-0.5 hover:bg-blue-100 text-blue-700 rounded"
@@ -2548,8 +2537,7 @@ export default function ActivityScheduleWorkspace({
                                                 </button>
                                               </div>
                                             )}
-                                          </div>
-                                        )}
+                                        </div>
                                       </div>
                                     );
                                   })}
@@ -2598,12 +2586,11 @@ export default function ActivityScheduleWorkspace({
                                           </div>
                                         </div>
 
-                                        {!isCompactCell && (
-                                          <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/50">
+                                    <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/50">
                                             {renderRecurrenceBadge(schedule, 'sm') || <span />}
 
                                             {canManage && (
-                                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                              <div className="flex items-center gap-1 opacity-100 transition-opacity">
                                                 <button
                                                   onClick={(e) => handleConfigureSaved(schedule, e)}
                                                   className="p-0.5 hover:bg-slate-100 text-slate-500 rounded"
@@ -2632,8 +2619,7 @@ export default function ActivityScheduleWorkspace({
                                                 </button>
                                               </div>
                                             )}
-                                          </div>
-                                        )}
+                                        </div>
                                       </div>
                                     );
                                   })}
@@ -2961,47 +2947,6 @@ export default function ActivityScheduleWorkspace({
                     </div>
                   </div>
 
-                  {scheduleRecurrence.enabled && (
-                    <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-4 animate-in fade-in duration-200">
-                      <div className="flex flex-col gap-1.5 w-full">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase px-1 font-sans">Chu kỳ lặp</label>
-                        <select
-                          value={scheduleRecurrence.type}
-                          onChange={(e: any) => setScheduleRecurrence(prev => ({ ...prev, type: e.target.value }))}
-                          className="h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold focus:outline-none appearance-none cursor-pointer"
-                        >
-                          <option value="weekly">Hàng tuần</option>
-                          <option value="biweekly">2 tuần một lần</option>
-                          <option value="monthly">Hàng tháng</option>
-                        </select>
-                      </div>
-
-                      <div className="flex flex-col gap-1.5 w-full">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase px-1 font-sans">Kết thúc lặp</label>
-                        <select
-                          value={scheduleRecurrence.untilType}
-                          onChange={(e: any) => setScheduleRecurrence(prev => ({ ...prev, untilType: e.target.value }))}
-                          className="h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold focus:outline-none appearance-none cursor-pointer"
-                        >
-                          <option value="semester">Đến hết học kỳ</option>
-                          <option value="date">Đến ngày cụ thể</option>
-                        </select>
-                      </div>
-
-                      {scheduleRecurrence.untilType === 'date' && (
-                        <div className="col-span-2 flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase px-1 font-sans">Ngày kết thúc lặp</label>
-                          <input
-                            type="date"
-                            required
-                            value={scheduleRecurrence.untilDate || ''}
-                            onChange={(e) => setScheduleRecurrence(prev => ({ ...prev, untilDate: e.target.value }))}
-                            className="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -3053,110 +2998,38 @@ export default function ActivityScheduleWorkspace({
 
             <div className="p-6 space-y-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Kiểu kết thúc lặp</label>
-                <Select value={modalUntilType} onValueChange={(value) => setModalUntilType(value as typeof modalUntilType)}>
-                  <SelectTrigger className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold focus-within:ring-blue-500/20">
-                    <SelectValue placeholder="Chọn kiểu kết thúc" />
-                  </SelectTrigger>
-                  <SelectContent disablePortal className="max-w-none bg-white">
-                    <SelectItem value="semester">Lặp theo học kỳ hoạt động</SelectItem>
-                    <SelectItem value="weeks">Lặp theo số tuần cụ thể</SelectItem>
-                    <SelectItem value="date">Lặp đến ngày tự chọn</SelectItem>
-                    <SelectItem value="none">Hủy bỏ chuỗi lặp (Trở về một lần)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Khoảng ngày lặp</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="h-10 px-3 border border-slate-200 rounded-xl bg-white text-left text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      {modalRepeatStartDate && modalRepeatEndDate
+                        ? `${formatDisplayDate(modalRepeatStartDate)} - ${formatDisplayDate(modalRepeatEndDate)}`
+                        : 'Chọn khoảng ngày'}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto border-0 bg-transparent p-0 shadow-none" align="start">
+                    <CustomCalendar
+                      startDate={parseLocalDate(modalRepeatStartDate)}
+                      endDate={parseLocalDate(modalRepeatEndDate)}
+                      onRangeSelect={(start, end) => {
+                        setModalRepeatStartDate(formatLocalDate(start));
+                        setModalRepeatEndDate(formatLocalDate(end));
+                      }}
+                      onRangeConfirm={(start, end) => {
+                        if (!end) return;
+                        setModalRepeatStartDate(formatLocalDate(start));
+                        setModalRepeatEndDate(formatLocalDate(end));
+                      }}
+                      onCancel={() => undefined}
+                      onConfirm={() => undefined}
+                      minDate={parseLocalDate(anchorWeekMonday) || undefined}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
-
-              {modalUntilType !== 'none' && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Chu kỳ lặp</label>
-                      <Select value={modalRecurrenceType} onValueChange={(value) => setModalRecurrenceType(value as typeof modalRecurrenceType)}>
-                        <SelectTrigger className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold focus-within:ring-blue-500/20">
-                          <SelectValue placeholder="Chọn chu kỳ" />
-                        </SelectTrigger>
-                        <SelectContent disablePortal className="max-w-none bg-white">
-                          <SelectItem value="weekly">Hàng tuần</SelectItem>
-                          <SelectItem value="biweekly">2 tuần một lần</SelectItem>
-                          <SelectItem value="monthly">Hàng tháng</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {modalUntilType === 'weeks' && (
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Số tuần lặp lại</label>
-                        <input
-                          type="number"
-                          value={modalWeeksCount}
-                          onChange={(e) => setModalWeeksCount(Number(e.target.value))}
-                          className="h-10 px-3 border border-slate-200 rounded-xl text-sm focus:outline-none"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Ngày bắt đầu lặp</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className="h-10 px-3 border border-slate-200 rounded-xl bg-white text-left text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                          >
-                            {formatDisplayDate(modalRepeatStartDate)}
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto border-0 bg-transparent p-0 shadow-none" align="start">
-                          <CustomCalendar
-                            startDate={parseLocalDate(modalRepeatStartDate)}
-                            endDate={null}
-                            onRangeSelect={() => undefined}
-                            onRangeConfirm={(start) => setModalRepeatStartDate(formatLocalDate(start))}
-                            onCancel={() => undefined}
-                            onConfirm={() => undefined}
-                            minDate={parseLocalDate(anchorWeekMonday) || undefined}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold text-slate-500 uppercase px-1 font-sans">Ngày kết thúc lặp</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            disabled={modalUntilType === 'semester' || modalUntilType === 'weeks'}
-                            className="h-10 px-3 border border-slate-200 rounded-xl bg-white text-left text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-                          >
-                            {formatDisplayDate(modalRepeatEndDate)}
-                          </button>
-                        </PopoverTrigger>
-                        {modalUntilType === 'date' && (
-                          <PopoverContent className="w-auto border-0 bg-transparent p-0 shadow-none" align="start">
-                            <CustomCalendar
-                              startDate={parseLocalDate(modalRepeatEndDate)}
-                              endDate={null}
-                              onRangeSelect={() => undefined}
-                              onRangeConfirm={(start) => {
-                                const selectedDate = formatLocalDate(start);
-                                setModalRepeatEndDate(selectedDate);
-                                setModalUntilDate(selectedDate);
-                              }}
-                              onCancel={() => undefined}
-                              onConfirm={() => undefined}
-                              minDate={parseLocalDate(modalRepeatStartDate) || undefined}
-                            />
-                          </PopoverContent>
-                        )}
-                      </Popover>
-                    </div>
-                  </div>
-                </>
-              )}
             </div>
 
             <div className="flex justify-end gap-3 px-6 py-4 bg-slate-50 border-t border-slate-100">

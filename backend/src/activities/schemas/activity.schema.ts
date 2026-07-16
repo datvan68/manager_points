@@ -46,6 +46,35 @@ export class CardUi {
 export const CardUiSchema = SchemaFactory.createForClass(CardUi);
 
 @Schema({ _id: false })
+export class StateButtonConfig {
+  @Prop({ type: String })
+  label?: string;
+
+  @Prop({ type: String })
+  bgClass?: string;
+
+  @Prop({ type: String })
+  textClass?: string;
+}
+export const StateButtonConfigSchema = SchemaFactory.createForClass(StateButtonConfig);
+
+@Schema({ _id: false })
+export class BackgroundStatesConfig {
+  @Prop({ type: StateButtonConfigSchema })
+  none?: StateButtonConfig;
+
+  @Prop({ type: StateButtonConfigSchema })
+  pending?: StateButtonConfig;
+
+  @Prop({ type: StateButtonConfigSchema })
+  active?: StateButtonConfig;
+
+  @Prop({ type: StateButtonConfigSchema })
+  rejected?: StateButtonConfig;
+}
+export const BackgroundStatesConfigSchema = SchemaFactory.createForClass(BackgroundStatesConfig);
+
+@Schema({ _id: false })
 export class BackgroundConfig {
   @Prop({ type: String, default: 'default' })
   preset?: string;
@@ -67,6 +96,9 @@ export class BackgroundConfig {
 
   @Prop({ type: String })
   petAccentType?: string;
+
+  @Prop({ type: BackgroundStatesConfigSchema, default: () => ({}) })
+  states?: BackgroundStatesConfig;
 }
 
 export const BackgroundConfigSchema = SchemaFactory.createForClass(BackgroundConfig);

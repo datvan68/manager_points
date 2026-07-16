@@ -190,7 +190,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'minimal-clean',
     name: 'Tối giản Slate (Minimal Clean)',
-    bgClass: 'bg-gradient-to-br from-slate-50 to-slate-100/80 border-slate-200/80 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-slate-50 via-slate-100/80 to-zinc-200/50 border-slate-200 shadow-sm hover:shadow-md',
     accentColor: '#64748B',
     patternId: 'spark-dot-frame',
     category: 'classic',
@@ -198,7 +198,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'aurora-glass',
     name: 'Kính Cực quang (Aurora Glass)',
-    bgClass: 'bg-gradient-to-tr from-indigo-50/90 via-purple-50/70 to-pink-50/80 border-indigo-100 backdrop-blur-md shadow-sm',
+    bgClass: 'bg-gradient-to-tr from-indigo-100/40 via-purple-50/30 to-pink-100/40 border-white/50 backdrop-blur-xl shadow-md shadow-indigo-100/20',
     accentColor: '#8B5CF6',
     patternId: 'glass-grid',
     category: 'classic',
@@ -206,7 +206,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'academic-crest',
     name: 'Học thuật Indigo (Academic Crest)',
-    bgClass: 'bg-gradient-to-br from-indigo-50/80 via-blue-50/40 to-slate-50 border-indigo-200/60 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-blue-600/[0.04] via-indigo-600/[0.02] to-slate-100/90 border-indigo-200/50 shadow-sm',
     accentColor: '#4F46E5',
     patternId: 'academic-crest-pattern',
     category: 'classic',
@@ -214,7 +214,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'soft-silk',
     name: 'Lụa Mềm mại (Soft Silk)',
-    bgClass: 'bg-gradient-to-br from-rose-50/70 via-orange-50/40 to-slate-100/60 border-rose-100 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-rose-100/30 via-pink-50/20 to-amber-50/30 border-rose-200/40 shadow-sm',
     accentColor: '#F43F5E',
     patternId: 'soft-waves-pattern',
     category: 'classic',
@@ -222,7 +222,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'eco-leaf',
     name: 'Môi trường Mint (Eco Environment)',
-    bgClass: 'bg-gradient-to-br from-emerald-50/80 via-teal-50/30 to-green-50/40 border-emerald-200/60 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-emerald-100/40 via-teal-50/20 to-green-100/30 border-emerald-200/40 shadow-sm',
     accentColor: '#10B981',
     patternId: 'eco-leaf-pattern',
     category: 'classic',
@@ -230,7 +230,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'medical-pulse',
     name: 'Y sinh Nhịp tim (Medical Pulse)',
-    bgClass: 'bg-gradient-to-br from-cyan-50/80 via-teal-50/20 to-slate-50 border-cyan-200/60 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-cyan-100/30 via-sky-50/20 to-slate-100/60 border-cyan-200/40 shadow-sm',
     accentColor: '#06B6D4',
     patternId: 'medical-pulse-pattern',
     category: 'classic',
@@ -238,7 +238,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'lang-global',
     name: 'Ngôn ngữ Toàn cầu (Global Languages)',
-    bgClass: 'bg-gradient-to-br from-blue-50/70 via-indigo-50/30 to-slate-100/50 border-blue-200/60 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-blue-100/30 via-indigo-50/20 to-slate-100/60 border-blue-200/50 shadow-sm',
     accentColor: '#3B82F6',
     patternId: 'lang-global-pattern',
     category: 'classic',
@@ -248,7 +248,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'royal-gold',
     name: 'Hoàng gia Gold (Royal Gold)',
-    bgClass: 'bg-gradient-to-br from-amber-500/10 via-amber-600/[0.04] to-yellow-500/10 border-amber-300 shadow-md',
+    bgClass: 'bg-gradient-to-br from-amber-500/12 via-yellow-400/[0.02] to-amber-600/10 border-amber-400/40 shadow-md shadow-amber-500/5',
     accentColor: '#D97706',
     patternId: 'premium-frame-pattern',
     category: 'premium',
@@ -256,7 +256,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'cyber-neon',
     name: 'Cyberpunk Neon (Cyber Neon)',
-    bgClass: 'bg-gradient-to-br from-slate-900 via-slate-950 to-zinc-900 border-cyan-500/30 text-white shadow-lg',
+    bgClass: 'bg-gradient-to-br from-slate-950 via-slate-900 to-black border-cyan-500/40 text-slate-100 shadow-lg shadow-cyan-950/25',
     accentColor: '#06B6D4',
     patternId: 'circuit-neon-pattern',
     category: 'premium',
@@ -265,7 +265,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'space-orbit',
     name: 'Vũ trụ Vô tận (Cosmic Space)',
-    bgClass: 'bg-gradient-to-br from-violet-950 via-purple-900 to-indigo-950 border-purple-500/30 text-white shadow-lg',
+    bgClass: 'bg-gradient-to-br from-indigo-950 via-violet-950 to-purple-950 border-purple-500/30 text-slate-100 shadow-lg shadow-purple-950/25',
     accentColor: '#A855F7',
     patternId: 'space-orbit-pattern',
     category: 'premium',
@@ -274,7 +274,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'carbon-3d',
     name: 'Vân Carbon (Carbon Tech)',
-    bgClass: 'bg-gradient-to-br from-zinc-800 to-zinc-900 border-zinc-700/80 text-white shadow-md',
+    bgClass: 'bg-gradient-to-br from-zinc-900 to-neutral-950 border-zinc-700/60 text-slate-200 shadow-md',
     accentColor: '#71717A',
     patternId: 'carbon-3d-pattern',
     category: 'premium',
@@ -283,7 +283,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'abstract-geom',
     name: 'Hình học Trừu tượng (Abstract Geo)',
-    bgClass: 'bg-gradient-to-br from-slate-50 via-sky-50/50 to-indigo-50/40 border-slate-300 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-slate-100 via-sky-50/30 to-indigo-100/20 border-slate-300 shadow-sm',
     accentColor: '#0284C7',
     patternId: 'abstract-geom-pattern',
     category: 'premium',
@@ -291,7 +291,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'tech-ai',
     name: 'Trí tuệ Nhân tạo (AI Cognitive)',
-    bgClass: 'bg-gradient-to-br from-violet-950 via-slate-900 to-zinc-950 border-purple-500/40 text-white shadow-lg',
+    bgClass: 'bg-gradient-to-br from-slate-950 via-purple-950/90 to-slate-900 border-violet-500/40 text-slate-100 shadow-lg shadow-violet-950/25',
     accentColor: '#8B5CF6',
     patternId: 'tech-ai-pattern',
     category: 'premium',
@@ -300,7 +300,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'tech-hardware',
     name: 'Phần cứng Vi mạch (Hardware IoT)',
-    bgClass: 'bg-gradient-to-br from-zinc-900 via-slate-950 to-zinc-950 border-emerald-500/40 text-white shadow-lg',
+    bgClass: 'bg-gradient-to-br from-zinc-950 via-slate-900 to-zinc-950 border-emerald-500/40 text-slate-100 shadow-lg shadow-emerald-950/25',
     accentColor: '#10B981',
     patternId: 'tech-hardware-pattern',
     category: 'premium',
@@ -309,7 +309,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'eng-mechanical',
     name: 'Cơ khí Bánh răng (Mechanical Gear)',
-    bgClass: 'bg-gradient-to-br from-slate-100 via-amber-500/[0.03] to-slate-200/70 border-slate-300 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-slate-50 via-amber-500/[0.02] to-slate-200/80 border-amber-600/15 shadow-sm',
     accentColor: '#B45309',
     patternId: 'eng-mechanical-pattern',
     category: 'premium',
@@ -319,7 +319,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'sport-dynamic',
     name: 'Thể thao Năng động (Sport Dynamic)',
-    bgClass: 'bg-gradient-to-br from-orange-500/10 via-amber-500/[0.03] to-red-500/10 border-orange-300 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-orange-500/12 via-red-500/[0.02] to-amber-500/10 border-orange-300 shadow-sm',
     accentColor: '#EA580C',
     patternId: 'sport-stripes-pattern',
     category: 'active',
@@ -327,7 +327,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'chroma-glow',
     name: 'Chroma Neon (Chroma Glow)',
-    bgClass: 'bg-gradient-to-tr from-fuchsia-500/15 via-rose-500/10 to-amber-500/10 border-fuchsia-300/60 shadow-sm',
+    bgClass: 'bg-gradient-to-tr from-fuchsia-500/15 via-rose-500/10 to-amber-500/12 border-fuchsia-300 shadow-sm',
     accentColor: '#D946EF',
     patternId: 'chroma-glow-pattern',
     category: 'active',
@@ -335,7 +335,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'comic-pop',
     name: 'Comic Halftone (Comic Pop)',
-    bgClass: 'bg-gradient-to-br from-emerald-50 via-teal-50/30 to-cyan-100/40 border-teal-200/80 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-emerald-100/20 via-teal-50/15 to-cyan-100/30 border-teal-200 shadow-sm',
     accentColor: '#0D9488',
     patternId: 'halftone-pop-pattern',
     category: 'active',
@@ -343,7 +343,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'ocean-wave',
     name: 'Sóng biển Mát lạnh (Ocean Wave)',
-    bgClass: 'bg-gradient-to-br from-sky-50 via-cyan-50/40 to-blue-100/30 border-sky-200/80 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-sky-100/30 via-cyan-50/20 to-blue-100/30 border-sky-200 shadow-sm',
     accentColor: '#0284C7',
     patternId: 'ocean-waves-pattern',
     category: 'active',
@@ -351,7 +351,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'sport-soccer',
     name: 'Bóng đá Sân cỏ (Soccer Field)',
-    bgClass: 'bg-gradient-to-br from-green-500/10 via-emerald-500/[0.03] to-emerald-600/10 border-emerald-300 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-green-500/12 via-emerald-500/[0.02] to-teal-500/10 border-green-300 shadow-sm',
     accentColor: '#22C55E',
     patternId: 'sport-soccer-pattern',
     category: 'active',
@@ -359,7 +359,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'sport-basketball',
     name: 'Bóng rổ Đường phố (Street Basketball)',
-    bgClass: 'bg-gradient-to-br from-orange-500/10 via-red-500/[0.04] to-orange-600/10 border-orange-300 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-orange-500/12 via-red-500/[0.03] to-amber-500/10 border-orange-300 shadow-sm',
     accentColor: '#F97316',
     patternId: 'sport-basketball-pattern',
     category: 'active',
@@ -367,7 +367,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'art-music',
     name: 'Nghệ thuật Âm nhạc (Art & Music)',
-    bgClass: 'bg-gradient-to-br from-fuchsia-500/10 via-purple-500/[0.04] to-violet-600/10 border-fuchsia-300 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-fuchsia-500/12 via-purple-500/[0.03] to-indigo-500/8 border-fuchsia-300 shadow-sm',
     accentColor: '#D946EF',
     patternId: 'art-music-pattern',
     category: 'active',
@@ -375,7 +375,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'art-paint',
     name: 'Hội họa Sáng tạo (Creative Canvas)',
-    bgClass: 'bg-gradient-to-tr from-pink-500/10 via-rose-500/[0.04] to-amber-500/10 border-rose-300 shadow-sm',
+    bgClass: 'bg-gradient-to-tr from-pink-500/12 via-rose-500/[0.03] to-amber-500/10 border-rose-300 shadow-sm',
     accentColor: '#F43F5E',
     patternId: 'art-paint-pattern',
     category: 'active',
@@ -385,7 +385,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'paw-paradise',
     name: 'Dấu chân Vui nhộn (Paw Paradise)',
-    bgClass: 'bg-gradient-to-br from-amber-50 via-orange-50/30 to-yellow-50 border-amber-200 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-amber-100/30 via-orange-50/15 to-yellow-100/35 border-amber-200 shadow-sm',
     accentColor: '#D97706',
     patternId: 'paw-print-pattern',
     category: 'pet',
@@ -393,7 +393,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'cat-kingdom',
     name: 'Vương quốc Mèo (Cat Kingdom)',
-    bgClass: 'bg-gradient-to-br from-rose-50 via-pink-50/20 to-rose-100/20 border-rose-200 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-rose-100/30 via-pink-50/15 to-rose-200/15 border-rose-200 shadow-sm',
     accentColor: '#EC4899',
     patternId: 'cat-kingdom-pattern',
     category: 'pet',
@@ -401,7 +401,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'dog-playland',
     name: 'Sân chơi Cún con (Dog Playland)',
-    bgClass: 'bg-gradient-to-br from-sky-50 via-blue-50/20 to-indigo-50/20 border-sky-200 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-sky-100/30 via-blue-50/15 to-indigo-100/20 border-sky-200 shadow-sm',
     accentColor: '#2563EB',
     patternId: 'dog-playland-pattern',
     category: 'pet',
@@ -409,7 +409,7 @@ export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
   {
     id: 'sweet-honey',
     name: 'Ong Mật Ngọt (Sweet Honey)',
-    bgClass: 'bg-gradient-to-br from-yellow-500/10 via-amber-500/[0.04] to-orange-500/10 border-yellow-300 shadow-sm',
+    bgClass: 'bg-gradient-to-br from-yellow-500/12 via-amber-500/[0.03] to-orange-500/10 border-yellow-300 shadow-sm',
     accentColor: '#CA8A04',
     patternId: 'honey-comb-pattern',
     category: 'pet',
@@ -421,6 +421,36 @@ export const getPatternStyle = (pattern?: string, color?: string): React.CSSProp
   
   let targetPattern = pattern;
   const aliasMap: Record<string, string> = {
+    // Template ID to Pattern ID mappings
+    'minimal-clean': 'spark-dot-frame',
+    'aurora-glass': 'glass-grid',
+    'academic-crest': 'academic-crest-pattern',
+    'soft-silk': 'soft-waves-pattern',
+    'eco-leaf': 'eco-leaf-pattern',
+    'medical-pulse': 'medical-pulse-pattern',
+    'lang-global': 'lang-global-pattern',
+    'royal-gold': 'premium-frame-pattern',
+    'cyber-neon': 'circuit-neon-pattern',
+    'space-orbit': 'space-orbit-pattern',
+    'carbon-3d': 'carbon-3d-pattern',
+    'abstract-geom': 'abstract-geom-pattern',
+    'tech-ai': 'tech-ai-pattern',
+    'tech-hardware': 'tech-hardware-pattern',
+    'eng-mechanical': 'eng-mechanical-pattern',
+    'sport-dynamic': 'sport-stripes-pattern',
+    'chroma-glow': 'chroma-glow-pattern',
+    'comic-pop': 'halftone-pop-pattern',
+    'ocean-wave': 'ocean-waves-pattern',
+    'sport-soccer': 'sport-soccer-pattern',
+    'sport-basketball': 'sport-basketball-pattern',
+    'art-music': 'art-music-pattern',
+    'art-paint': 'art-paint-pattern',
+    'paw-paradise': 'paw-print-pattern',
+    'cat-kingdom': 'cat-kingdom-pattern',
+    'dog-playland': 'dog-playland-pattern',
+    'sweet-honey': 'honey-comb-pattern',
+
+    // Other legacy aliases
     'gold-corners': 'premium-frame-pattern',
     'soft-waves': 'soft-waves-pattern',
     'circuit-corners': 'circuit-neon-pattern',
@@ -759,37 +789,99 @@ export const getPatternStyle = (pattern?: string, color?: string): React.CSSProp
     case 'tech-ai-pattern':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
-  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.3">
-    <line x1="60" y1="40" x2="100" y2="80" />
-    <line x1="60" y1="120" x2="100" y2="80" />
-    <line x1="100" y1="80" x2="160" y2="80" />
-    <line x1="160" y1="80" x2="200" y2="40" />
-    <line x1="160" y1="80" x2="200" y2="120" />
-    <circle cx="60" cy="40" r="3.5" fill="#fff" />
-    <circle cx="60" cy="120" r="3.5" fill="#fff" />
-    <circle cx="100" cy="80" r="5" fill="${c}" />
-    <circle cx="160" cy="80" r="5" fill="${c}" />
-    <circle cx="200" cy="40" r="3.5" fill="#fff" />
-    <circle cx="200" cy="120" r="3.5" fill="#fff" />
+  <g stroke="${c}" stroke-width="0.7" fill="none" opacity="0.25">
+    <path d="M 30,30 L 70,50 L 120,30 L 170,60 L 220,40 L 270,70" />
+    <path d="M 30,130 L 80,100 L 130,120 L 180,90 L 230,110 L 270,90" />
+    <path d="M 70,50 L 80,100 M 120,30 L 130,120 M 170,60 L 180,90 M 220,40 L 230,110" />
+    <circle cx="150" cy="75" r="22" stroke-width="1" stroke-dasharray="3 2" />
+    <circle cx="150" cy="75" r="14" stroke-width="1.2" />
+    <circle cx="150" cy="75" r="6" fill="${c}" fill-opacity="0.3" />
+    <line x1="150" y1="53" x2="120" y2="30" />
+    <line x1="150" y1="97" x2="180" y2="120" />
+    <line x1="128" y1="75" x2="80" y2="100" />
+    <line x1="172" y1="75" x2="220" y2="40" />
+    <circle cx="30" cy="30" r="2" fill="${c}" />
+    <circle cx="70" cy="50" r="3" fill="#fff" stroke-width="1.5" stroke="${c}" />
+    <circle cx="120" cy="30" r="2.5" fill="${c}" />
+    <circle cx="170" cy="60" r="2.5" fill="${c}" />
+    <circle cx="220" cy="40" r="3" fill="#fff" stroke-width="1.5" stroke="${c}" />
+    <circle cx="270" cy="70" r="2" fill="${c}" />
+    <circle cx="30" cy="130" r="2" fill="${c}" />
+    <circle cx="80" cy="100" r="2.5" fill="${c}" />
+    <circle cx="130" cy="120" r="3" fill="#fff" stroke-width="1.5" stroke="${c}" />
+    <circle cx="180" cy="90" r="2.5" fill="${c}" />
+    <circle cx="230" cy="110" r="2" fill="${c}" />
+    <circle cx="270" cy="90" r="3" fill="#fff" stroke-width="1.5" stroke="${c}" />
   </g>
 </svg>`;
       break;
     case 'tech-hardware-pattern':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
-  <rect x="20" y="20" width="260" height="120" rx="4" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.25" />
-  <line x1="50" y1="20" x2="50" y2="10" stroke="${c}" stroke-width="0.8" opacity="0.3" />
-  <line x1="100" y1="20" x2="100" y2="10" stroke="${c}" stroke-width="0.8" opacity="0.3" />
-  <line x1="150" y1="20" x2="150" y2="10" stroke="${c}" stroke-width="0.8" opacity="0.3" />
-  <line x1="200" y1="20" x2="200" y2="10" stroke="${c}" stroke-width="0.8" opacity="0.3" />
+  <g stroke="${c}" stroke-width="0.8" fill="none" opacity="0.22">
+    <rect x="10" y="10" width="280" height="140" rx="8" stroke-width="1" opacity="0.4" />
+    <rect x="180" y="50" width="40" height="40" rx="2" fill="${c}" fill-opacity="0.05" stroke-width="1.2" />
+    <path d="M 175,55 H 180 M 175,65 H 180 M 175,75 H 180 M 175,85 H 180" />
+    <path d="M 220,55 H 225 M 220,65 H 225 M 220,75 H 225 M 220,85 H 225" />
+    <path d="M 185,45 V 50 M 195,45 V 50 M 205,45 V 50 M 215,45 V 50" />
+    <path d="M 185,90 V 95 M 195,90 V 95 M 205,90 V 95 M 215,90 V 95" />
+    <path d="M 30,30 H 120 L 140,50 V 90 L 160,110 H 260" />
+    <path d="M 30,50 H 90 L 110,70 V 110 H 170" />
+    <path d="M 30,130 H 150 L 170,110" />
+    <path d="M 195,50 V 30 H 260" />
+    <path d="M 200,90 V 120 H 260" />
+    <circle cx="30" cy="30" r="1.5" fill="${c}" />
+    <circle cx="30" cy="50" r="1.5" fill="${c}" />
+    <circle cx="30" cy="130" r="1.5" fill="${c}" />
+    <circle cx="120" cy="30" r="1.2" fill="${c}" />
+    <circle cx="90" cy="50" r="1.2" fill="${c}" />
+    <circle cx="260" cy="30" r="1.5" fill="${c}" />
+    <circle cx="260" cy="120" r="1.5" fill="${c}" />
+    <circle cx="260" cy="110" r="1.5" fill="${c}" />
+  </g>
 </svg>`;
       break;
     case 'eng-mechanical-pattern':
       svgString = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="100%" height="100%" preserveAspectRatio="none">
-  <circle cx="260" cy="30" r="18" fill="none" stroke="${c}" stroke-width="1.2" opacity="0.22" />
-  <circle cx="260" cy="30" r="6" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.15" />
-  <circle cx="40" cy="120" r="28" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.18" />
+  <g fill="none" stroke="${c}" stroke-width="0.8" opacity="0.22">
+    <g transform="translate(45, 115)">
+      <circle cx="0" cy="0" r="30" stroke-width="1.5" />
+      <circle cx="0" cy="0" r="22" stroke-dasharray="4 3" />
+      <circle cx="0" cy="0" r="10" />
+      <circle cx="0" cy="0" r="3" fill="${c}" fill-opacity="0.2" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(30)" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(60)" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(90)" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(120)" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(150)" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(180)" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(210)" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(240)" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(270)" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(300)" />
+      <path d="M-4,-34 L4,-34 L6,-30 L-6,-30 Z" transform="rotate(330)" />
+      <line x1="0" y1="-30" x2="0" y2="30" />
+      <line x1="-30" y1="0" x2="30" y2="0" />
+    </g>
+    <g transform="translate(255, 35)">
+      <circle cx="0" cy="0" r="20" stroke-width="1.2" />
+      <circle cx="0" cy="0" r="14" stroke-dasharray="3 2" />
+      <circle cx="0" cy="0" r="6" />
+      <path d="M-2.5,-23 L2.5,-23 L4,-20 L-4,-20 Z" />
+      <path d="M-2.5,-23 L2.5,-23 L4,-20 L-4,-20 Z" transform="rotate(45)" />
+      <path d="M-2.5,-23 L2.5,-23 L4,-20 L-4,-20 Z" transform="rotate(90)" />
+      <path d="M-2.5,-23 L2.5,-23 L4,-20 L-4,-20 Z" transform="rotate(135)" />
+      <path d="M-2.5,-23 L2.5,-23 L4,-20 L-4,-20 Z" transform="rotate(180)" />
+      <path d="M-2.5,-23 L2.5,-23 L4,-20 L-4,-20 Z" transform="rotate(225)" />
+      <path d="M-2.5,-23 L2.5,-23 L4,-20 L-4,-20 Z" transform="rotate(270)" />
+      <path d="M-2.5,-23 L2.5,-23 L4,-20 L-4,-20 Z" transform="rotate(315)" />
+      <line x1="0" y1="-20" x2="0" y2="20" />
+      <line x1="-20" y1="0" x2="20" y2="0" />
+    </g>
+    <line x1="45" y1="115" x2="255" y2="35" stroke-dasharray="2 4" opacity="0.3" />
+  </g>
 </svg>`;
       break;
     default:
