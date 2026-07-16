@@ -503,18 +503,11 @@ describe('ActivityScheduleWorkspace', () => {
     });
   });
 
-  it('renders "Lưu tất cả" button on the toolbar, disabled when there are no pending schedules', async () => {
+  it('removes the bulk save button from the toolbar', async () => {
     render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Lưu tất cả \(0\)/)).toBeInTheDocument();
-    });
-
-    const saveAllBtn = screen.getByRole('button', { name: /Lưu tất cả \(0\)/ });
-    expect(saveAllBtn).toBeInTheDocument();
-    expect(saveAllBtn).toBeDisabled();
+    await waitFor(() => expect(screen.getByText('Cấu hình chuỗi lặp')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Lưu tất cả/ })).not.toBeInTheDocument();
   });
-
   it('simplified modal layout handles role, attributes, title, field hiding, focus classes, and closure', async () => {
     const today = new Date();
     const startStr = today.toISOString();

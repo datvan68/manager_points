@@ -274,9 +274,9 @@ export default function ActivitiesPage() {
       {/* Create Modal */}
       {showCreateModal && (
         <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-          <DialogContent className="max-w-4xl rounded-3xl overflow-hidden bg-slate-50/95 backdrop-blur-md">
-            <DialogHeader>
-              <DialogTitle className="text-sm font-black text-slate-800 uppercase tracking-wider">
+          <DialogContent className="max-w-4xl rounded-2xl overflow-hidden bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 p-6">
+            <DialogHeader className="border-b border-white/50 pb-3 mb-4">
+              <DialogTitle className="text-sm font-black text-[#1E293B] uppercase tracking-wider">
                 {activityType === 'club' ? 'Tạo câu lạc bộ mới' : 'Tạo hoạt động mới'}
               </DialogTitle>
             </DialogHeader>
@@ -293,9 +293,9 @@ export default function ActivitiesPage() {
       {/* Edit Modal */}
       {editingActivity && (
         <Dialog open={!!editingActivity} onOpenChange={(open) => !open && setEditingActivity(null)}>
-          <DialogContent className="max-w-4xl rounded-3xl overflow-hidden bg-slate-50/95 backdrop-blur-md">
-            <DialogHeader>
-              <DialogTitle className="text-sm font-black text-slate-800 uppercase tracking-wider">Cập nhật hoạt động</DialogTitle>
+          <DialogContent className="max-w-4xl rounded-2xl overflow-hidden bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 p-6">
+            <DialogHeader className="border-b border-white/50 pb-3 mb-4">
+              <DialogTitle className="text-sm font-black text-[#1E293B] uppercase tracking-wider">Cập nhật hoạt động</DialogTitle>
             </DialogHeader>
             <ActivityForm
               initialData={editingActivity}

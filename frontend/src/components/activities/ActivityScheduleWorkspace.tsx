@@ -525,7 +525,7 @@ const CustomTimePicker = ({ value, onChange, size = 'md' }: { value: string; onC
           {value}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-48 p-3 bg-white border border-slate-100 shadow-xl rounded-2xl" align="start">
+      <PopoverContent data-activity-time-picker className="w-48 p-3 bg-white border border-slate-100 shadow-xl rounded-2xl" align="start">
         <div className="grid grid-cols-2 gap-2 text-center">
           <div>
             <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Giờ</div>
@@ -836,7 +836,8 @@ export default function ActivityScheduleWorkspace({
     if (!showCreateModal || !isSimplifiedModal) return;
 
     const handlePointerDown = (e: PointerEvent) => {
-      if (!simplifiedDialogRef.current?.contains(e.target as Node)) {
+      const target = e.target as Element | null;
+      if (!simplifiedDialogRef.current?.contains(e.target as Node) && !target?.closest('[data-activity-time-picker]')) {
         setShowCreateModal(false);
         setActivePendingSchedule(null);
       }
@@ -1112,6 +1113,10 @@ export default function ActivityScheduleWorkspace({
         return;
       }
       const tempId = payload.tempId;
+      const movedPending = pendingSchedules.find(p => p.tempId === tempId);
+      if (movedPending) {
+        handleConfigurePending({ ...movedPending, dateStr: formattedDate, shift, startTime: shiftDef.defaultStart, endTime: shiftDef.defaultEnd }, undefined, true);
+      }
       setPendingSchedules(prev => prev.map(p => {
         if (p.tempId === tempId) {
           return {
@@ -1212,6 +1217,7 @@ export default function ActivityScheduleWorkspace({
       };
 
       setPendingSchedules(prev => [...prev, newPending]);
+      handleConfigurePending(newPending, undefined, true);
       toast.success('Đã thêm lịch vào trạng thái pending');
     } else {
       const clubId = payload.clubId || '';
@@ -1232,12 +1238,13 @@ export default function ActivityScheduleWorkspace({
       };
 
       setPendingSchedules(prev => [...prev, newPending]);
+      handleConfigurePending(newPending, undefined, true);
       toast.success('Đã thêm lịch mới vào trạng thái pending');
     }
   };
 
-  const handleConfigurePending = (pending: PendingSchedule & { originalTempId?: string }, e?: React.MouseEvent) => {
-    if (showCreateModal) return;
+  const handleConfigurePending = (pending: PendingSchedule & { originalTempId?: string }, e?: React.MouseEvent, forceOpen = false) => {
+    if (showCreateModal && !forceOpen) return;
 
     if (e) {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -1289,7 +1296,7 @@ export default function ActivityScheduleWorkspace({
   };
 
   const handleConfigureSaved = (schedule: ActivitySchedule, e?: React.MouseEvent) => {
-    if (showCreateModal) return;
+    if (showCreateModal && !forceOpen) return;
 
     if (e) {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -1818,82 +1825,6 @@ export default function ActivityScheduleWorkspace({
     }
   };
 
-  const handleSaveAllPending = async () => {
-    if (pendingSchedules.length === 0) return;
-
-    // Validate all pending schedules first before starting any API mutations
-    for (const p of pendingSchedules) {
-      const clubIdNorm = getNormalizedId(p.clubId);
-      const semesterIdNorm = getNormalizedId(selectedSemesterId);
-      if (!clubIdNorm) {
-        toast.error('Mã hoạt động không hợp lệ');
-        return;
-      }
-      if (!semesterIdNorm) {
-        toast.error('Mã học kỳ không hợp lệ');
-        return;
-      }
-    }
-
-    try {
-      setSubmitting(true);
-      await Promise.all(pendingSchedules.map(async (p) => {
-        const startDateTime = new Date(`${p.dateStr}T${p.startTime}`);
-        const endDateTime = new Date(`${p.dateStr}T${p.endTime}`);
-
-        let untilIso: string | undefined = undefined;
-        if (p.recurrence?.enabled) {
-          const activeSem = semesters.find(s => s._id === selectedSemesterId) || activeSemester;
-          const validation = validateRecurrenceConfig(p.recurrence, startDateTime, activeSem);
-          if (validation.effectiveEndDate) {
-            untilIso = validation.effectiveEndDate.toISOString();
-          }
-        }
-
-        const clubIdNorm = getNormalizedId(p.clubId);
-        const semesterIdNorm = getNormalizedId(selectedSemesterId);
-        const actObj = activities.find(c => c._id === clubIdNorm);
-
-        const payload = {
-          activity_id: clubIdNorm,
-          title: p.originalData?.title || `Sinh hoạt ${p.clubName}`,
-          description: p.originalData?.description || '',
-          location: getPreferredLocation(p.originalData?.location, actObj?.classroom),
-          schedule_type: p.originalData?.schedule_type || 'regular',
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
-          semester_id: semesterIdNorm,
-          max_attendees: p.originalData?.max_attendees || undefined,
-          recurrence: p.recurrence?.enabled ? {
-            type: p.recurrence.type,
-            until: untilIso,
-            start: p.recurrence.repeatStartDate ? new Date(p.recurrence.repeatStartDate).toISOString() : startDateTime.toISOString(),
-          } : undefined
-        };
-
-        if (p.scheduleId) {
-          const isRecurring = !!p.originalData?.recurrence_id;
-          if (isRecurring) {
-            await activityScheduleApi.delete(p.scheduleId, false);
-            await activityScheduleApi.create(payload);
-          } else {
-            await activityScheduleApi.update(p.scheduleId, payload);
-          }
-        } else {
-          await activityScheduleApi.create(payload);
-        }
-      }));
-
-      toast.success('Đã lưu toàn bộ lịch trình pending thành công');
-      setPendingSchedules([]);
-      loadSchedules();
-    } catch {
-      toast.error('Lỗi khi lưu một số lịch trình pending');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle || !formLocation || !formDate || !formStartTime || !formEndTime) {
@@ -2227,11 +2158,11 @@ export default function ActivityScheduleWorkspace({
   return (
     <div className="space-y-6">
       {/* Week Navigator & Toolbar */}
-      <div className="flex flex-col xl:flex-row gap-2 items-start xl:items-center justify-between bg-white/30 backdrop-blur-sm p-2 rounded-xl border border-white/50">
+      <div className="flex flex-col xl:flex-row gap-3 items-start xl:items-center justify-between bg-white/45 backdrop-blur-md p-2 rounded-xl border border-white/70 shadow-sm shadow-slate-300/40">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 px-2.5 h-8 bg-white/75 rounded-lg border border-slate-200/50 shadow-sm shrink-0">
-            <Calendar size={13} className="text-blue-500" />
-            <h3 className="text-xs font-bold text-slate-700 font-sans">
+          <div className="flex items-center gap-2 px-2.5 h-8 bg-white/50 backdrop-blur-sm border border-white/75 rounded-xl shadow-xs shrink-0">
+            <Calendar size={13} className="text-[#1A73E8]" />
+            <h3 className="text-xs font-bold text-[#1E293B] font-sans">
               {getHeaderDateRangeString()}
             </h3>
           </div>
@@ -2256,16 +2187,16 @@ export default function ActivityScheduleWorkspace({
             );
 
             let statusLabel = 'Tuần bình thường';
-            let badgeColor = 'bg-slate-100 text-slate-600 border-slate-200/50';
+            let badgeColor = 'bg-slate-500/10 text-[#64748B] border-slate-500/20';
 
             if (isCurrentWeek && isSourceWeek) {
               statusLabel = 'Tuần hiện tại & Tuần nguồn';
               badgeColor = 'bg-purple-600 text-white border-purple-700 shadow-sm shadow-purple-500/10 font-bold';
             } else if (isCurrentWeek) {
               statusLabel = 'Tuần hiện tại';
-              badgeColor = 'bg-blue-500/10 text-blue-700 border-blue-500/20';
+              badgeColor = 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20';
             } else if (isSourceWeek) {
-              statusLabel = 'Tu\u1ea7n ngu\u1ed3n';
+              statusLabel = 'Tuần nguồn';
               badgeColor = 'bg-purple-600 text-white border-purple-700 shadow-sm shadow-purple-500/10 font-bold';
             } else if (false) {
               statusLabel = 'Tuần nguồn lặp';
@@ -2294,7 +2225,7 @@ export default function ActivityScheduleWorkspace({
                   <button
                     type="button"
                     onClick={() => setWeekOffset(preRecurrenceWeekOffset)}
-                    className="ml-1 px-2 py-0.5 bg-amber-500 text-white hover:bg-amber-600 text-[10px] font-black rounded-lg transition-all cursor-pointer animate-pulse"
+                    className="ml-1 px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                   >
                     Quay lại tuần ban đầu
                   </button>
@@ -2306,14 +2237,14 @@ export default function ActivityScheduleWorkspace({
 
         <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start sm:justify-end">
           {/* Week Nav controls */}
-          <div className="flex p-0.5 bg-white/75 rounded-lg border border-slate-200 shadow-sm items-center gap-1 h-8 shrink-0">
-            <button onClick={() => setWeekOffset(prev => prev - 1)} className="p-1 hover:bg-slate-105 rounded-md text-slate-655 transition-all cursor-pointer w-7 h-7 flex items-center justify-center">
+          <div className="flex p-0.5 bg-white/40 border border-white/70 rounded-xl shadow-xs items-center gap-1 h-8 shrink-0">
+            <button onClick={() => setWeekOffset(prev => prev - 1)} className="p-1 hover:bg-white/70 hover:scale-[1.01] rounded-lg text-[#64748B] hover:text-[#1E293B] transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center">
               <ChevronLeft size={13} />
             </button>
             <button
               onClick={() => setWeekOffset(0)}
               disabled={weekOffset === 0}
-              className="px-2 h-7 flex items-center text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-transparent rounded-md transition-all cursor-pointer font-sans"
+              className="px-2 h-7 flex items-center text-xs font-bold text-[#1E293B] hover:bg-white/60 disabled:opacity-50 disabled:hover:bg-transparent rounded-lg transition-all duration-150 ease-out cursor-pointer font-sans"
             >
               Hiện tại
             </button>
@@ -2340,25 +2271,25 @@ export default function ActivityScheduleWorkspace({
                 <button
                   onClick={handleGoToSource}
                   disabled={isAlreadySource}
-                  className="px-2 h-7 flex items-center text-xs font-bold text-blue-655 hover:bg-blue-50 disabled:opacity-50 disabled:hover:bg-transparent rounded-md transition-all border-l border-slate-200 pl-2 cursor-pointer"
+                  className="px-2 h-7 flex items-center text-xs font-bold text-[#1A73E8] hover:bg-white/60 disabled:opacity-50 disabled:hover:bg-transparent rounded-lg transition-all duration-150 ease-out border-l border-white/75 pl-2 cursor-pointer"
                 >
                   Về tuần nguồn
                 </button>
               );
             })()}
 
-            <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-1 hover:bg-slate-105 rounded-md text-slate-655 transition-all cursor-pointer w-7 h-7 flex items-center justify-center">
+            <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-1 hover:bg-white/70 hover:scale-[1.01] rounded-lg text-[#64748B] hover:text-[#1E293B] transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center">
               <ChevronRight size={13} />
             </button>
           </div>
 
           {/* View selector: Tuần vs Ngày */}
-          <div className="flex p-0.5 bg-slate-200/50 rounded-lg shrink-0 h-8 items-center">
+          <div className="flex p-0.5 bg-white/40 border border-white/70 rounded-xl shrink-0 h-8 items-center">
             <button
               onClick={() => setView('weekly')}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 text-xs font-bold rounded-md cursor-pointer transition-all h-7",
-                view === 'weekly' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                "flex items-center gap-1.5 px-2.5 text-xs font-bold rounded-lg cursor-pointer transition-all duration-150 ease-out h-7",
+                view === 'weekly' ? 'bg-white text-[#1A73E8] shadow-xs' : 'text-[#64748B] hover:text-[#1E293B]'
               )}
             >
               <Grid size={13} /> Lịch Tuần
@@ -2366,8 +2297,8 @@ export default function ActivityScheduleWorkspace({
             <button
               onClick={() => { setView('daily'); handleSelectDate(weekDates[0]); }}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 text-xs font-bold rounded-md cursor-pointer transition-all h-7",
-                view === 'daily' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                "flex items-center gap-1.5 px-2.5 text-xs font-bold rounded-lg cursor-pointer transition-all duration-150 ease-out h-7",
+                view === 'daily' ? 'bg-white text-[#1A73E8] shadow-xs' : 'text-[#64748B] hover:text-[#1E293B]'
               )}
             >
               <List size={13} /> Lịch Ngày
@@ -2378,21 +2309,11 @@ export default function ActivityScheduleWorkspace({
           {canManage && (
             <>
               <button
-                type="button"
-                onClick={handleSaveAllPending}
-                disabled={pendingSchedules.length === 0 || submitting}
-                className="flex items-center gap-1.5 px-3 h-8 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg cursor-pointer text-xs font-bold shadow-sm shrink-0 transition-all focus:visible border-0"
-              >
-                <Copy size={13} />
-                <span>Lưu tất cả ({pendingSchedules.length})</span>
-              </button>
-
-              <button
                 onClick={() => handleOpenRecurrenceModal('default', defaultRecurrence)}
-                className="flex items-center gap-1.5 px-2.5 h-8 border border-slate-200 hover:bg-slate-50 bg-white/75 text-slate-655 rounded-lg cursor-pointer text-xs font-bold shadow-sm shrink-0 transition-all focus:visible"
+                className="flex items-center gap-1.5 px-2.5 h-8 border border-white/70 hover:bg-white/70 bg-white/40 text-[#1E293B] rounded-xl cursor-pointer text-xs font-bold shadow-xs shrink-0 transition-all duration-150 ease-out hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
                 title="Cấu hình chuỗi lịch lặp lại cho tuần hiện tại"
               >
-                <RotateCw size={13} className="text-slate-455" />
+                <RotateCw size={13} className="text-[#64748B]" />
                 <span>Cấu hình chuỗi lặp</span>
               </button>
             </>
@@ -2401,7 +2322,7 @@ export default function ActivityScheduleWorkspace({
           {/* Refresh button */}
           <button
             onClick={loadSchedules}
-            className="w-8 h-8 border border-slate-200 hover:bg-slate-50 bg-white/75 rounded-lg flex items-center justify-center cursor-pointer shadow-sm shrink-0 transition-all text-slate-655 focus:visible"
+            className="w-8 h-8 border border-white/70 hover:bg-white/70 bg-white/40 rounded-xl flex items-center justify-center cursor-pointer shadow-xs shrink-0 transition-all duration-150 ease-out hover:scale-[1.01] text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
             title="Làm mới lịch"
           >
             <RefreshCw size={13} />

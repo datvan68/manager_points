@@ -117,7 +117,7 @@ export default function ActivityListWorkspace({
   return (
     <div className="space-y-6">
       {/* Controls Bar */}
-      <div className="flex flex-col md:flex-row gap-2 items-center justify-between bg-white/30 backdrop-blur-sm p-2 rounded-xl border border-white/50">
+      <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-white/45 backdrop-blur-md p-2 rounded-xl border border-white/70 shadow-sm shadow-slate-300/40">
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto flex-1">
           {/* Search trigger */}
           {isSearchOpen ? (
@@ -130,7 +130,7 @@ export default function ActivityListWorkspace({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   autoFocus
-                  className="w-full pl-8 pr-8 h-8 bg-white/75 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm focus:visible"
+                  className="w-full pl-8 pr-8 h-8 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-xs text-[#1E293B] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out shadow-xs focus:visible"
                 />
                 <button
                   type="button"
@@ -138,7 +138,7 @@ export default function ActivityListWorkspace({
                     setIsSearchOpen(false);
                     setSearch('');
                   }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-655 transition-colors w-7 h-7 flex items-center justify-center cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors w-7 h-7 flex items-center justify-center cursor-pointer"
                 >
                   <X size={13} />
                 </button>
@@ -148,7 +148,7 @@ export default function ActivityListWorkspace({
             <button
               type="button"
               onClick={() => setIsSearchOpen(true)}
-              className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white/75 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="flex items-center justify-center h-8 w-8 rounded-xl border border-white/70 bg-white/40 text-[#64748B] hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out shadow-xs cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
               title="Tìm kiếm"
             >
               <Search size={13} />
@@ -165,7 +165,7 @@ export default function ActivityListWorkspace({
                 setFilterActivityType(val);
                 onActivityTypeChange?.(val);
               }}
-              className="w-full pl-8 pr-4 h-8 bg-white/75 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm cursor-pointer appearance-none"
+              className="w-full pl-8 pr-4 h-8 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-xs text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 shadow-xs cursor-pointer appearance-none transition-all duration-150 ease-out hover:bg-white/60"
             >
               <option value="">Tất cả loại hoạt động</option>
               {activityTypes.map((k) => (
@@ -182,7 +182,7 @@ export default function ActivityListWorkspace({
           <Button
             variant="outline"
             onClick={onScheduleClick}
-            className="flex items-center gap-1.5 px-3 h-8 border-slate-200 bg-white/75 hover:bg-slate-50 rounded-lg cursor-pointer text-xs font-bold text-slate-605 shadow-sm shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            className="flex items-center gap-1.5 px-3 h-8 border border-white/70 bg-white/40 hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-bold text-[#1E293B] shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
             title="Lịch trình hoạt động"
             data-testid="calendar-header-button"
           >
@@ -193,7 +193,7 @@ export default function ActivityListWorkspace({
           <Button
             variant="outline"
             onClick={onRefreshClick}
-            className="w-8 h-8 p-0 border-slate-200 bg-white/75 hover:bg-slate-50 rounded-lg cursor-pointer text-slate-605 shadow-sm shrink-0 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            className="w-8 h-8 p-0 border border-white/70 bg-white/40 hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-[#1E293B] shadow-xs shrink-0 flex items-center justify-center transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
             title="Tải lại dữ liệu"
           >
             <RefreshCw size={13} />
@@ -202,21 +202,21 @@ export default function ActivityListWorkspace({
           {!isStudent && (
             <Button
               onClick={onCreateClick}
-              className="flex items-center justify-center gap-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-lg shadow-md transition-all cursor-pointer h-8 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="flex items-center justify-center gap-1.5 px-3 bg-[#1A73E8] border border-[#1A73E8]/80 hover:bg-[#1A73E8]/90 text-white text-xs font-bold rounded-xl shadow-xs transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-sm cursor-pointer h-8 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
             >
               <Plus size={13} />
               {activityType === 'club' ? 'Tạo Câu lạc bộ Mới' : 'Tạo Hoạt động Mới'}
             </Button>
           )}
 
-          <div className="flex items-center gap-1 p-0.5 bg-slate-200/50 rounded-lg shrink-0">
+          <div className="flex items-center gap-1 p-0.5 bg-white/40 border border-white/70 rounded-xl shrink-0">
             <button
               onClick={() => setViewMode('grid')}
               className={cn(
-                "p-1.5 rounded-md transition-all cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
+                "p-1.5 rounded-lg transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50",
                 viewMode === 'grid'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-white text-[#1A73E8] shadow-sm'
+                  : 'text-[#64748B] hover:text-[#1E293B] hover:bg-white/40'
               )}
             >
               <Grid size={13} />
@@ -224,10 +224,10 @@ export default function ActivityListWorkspace({
             <button
               onClick={() => setViewMode('table')}
               className={cn(
-                "p-1.5 rounded-md transition-all cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500",
+                "p-1.5 rounded-lg transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50",
                 viewMode === 'table'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-white text-[#1A73E8] shadow-sm'
+                  : 'text-[#64748B] hover:text-[#1E293B] hover:bg-white/40'
               )}
             >
               <List size={13} />

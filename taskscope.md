@@ -1,105 +1,93 @@
 ### 1. Task ID + Pipeline
 
-- Task ID: `ACTIVITY-SCHEDULE-20260715-007`
+- Task ID: `ACTIVITY-SCHEDULE-20260715-009`
 - Pipeline: `feature_development`
 
 ### 2. Risk Level
 
-Medium — this is a reversible frontend interaction and workflow change in the development workspace with no production, permission, database, secret, paid-service, or external communication impact; incorrect event handling could nevertheless dismiss dialogs unexpectedly or alter schedule-placement behavior.
+Medium — this is a reversible frontend interaction change in the development workspace with no production, database, permission, secret, paid-service, or external side effects; incorrect event handling could still dismiss the dialog unexpectedly or open it for an invalid drop.
 
 ### 3. Objective
 
-Adjust `/activities/schedule` so the compact activity-configuration dialog closes when the user clicks outside it, and so activities can first be placed into any displayed week before the user optionally configures time and recurrence. This separates schedule placement from subsequent configuration while retaining the existing save and recurrence semantics.
+Correct the `Cấu hình buổi sinh hoạt` dialog on `/activities/schedule` so interaction with either time-range control does not dismiss it, and a valid activity drop into the calendar automatically opens configuration for that dropped activity.
 
 ### 4. Scope
 
 - `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`
-  - Compact `Cấu hình buổi sinh hoạt` dialog interaction: detect pointer/click interaction outside the dialog and close it, while preserving interaction inside the dialog.
-  - Dialog cleanup state: clear the active pending target consistently when outside-click dismissal occurs, matching explicit close/cancel behavior.
-  - Activity drag-and-drop placement flow in `handleDrop` and its directly related pending-schedule state: allow an activity to be dropped into a day/shift in any displayed week and create the pending schedule card before configuration.
-  - Pending schedule card actions and directly related configuration handlers: let the user open time configuration and recurrence configuration only after placement, without forcing either dialog during the initial drop.
-  - Recurrence source-week data: use the week containing the placed activity card as the source week when recurrence is configured for that pending schedule.
+  - Keep the compact dialog open during click, drag, and selection in either time-range control, including portal-rendered control content.
+  - In `handleDrop` and directly related pending state, select the newly placed pending activity and open its configuration dialog after a valid drop.
+  - Preserve genuine outside-click, explicit close/cancel, and `Escape` dismissal.
 - `frontend/src/components/activities/ActivityScheduleWorkspace.test.tsx`
-  - Add or adjust focused regression tests for outside-click dismissal, inside-dialog interaction, placement into an arbitrary displayed week, deferred time/recurrence configuration, and source-week selection.
+  - Add or adjust focused regression tests for both time controls, valid-drop auto-open, invalid drops, and outside dismissal.
 - `taskscope.md`
-  - Record the approved implementation scope, acceptance criteria, safety gates, and verified commands for this request.
+  - Record this scope and its verification requirements.
 
 ### 5. Out of Scope
 
-- Backend APIs, controllers, models, database schemas, migrations, and persisted recurrence rules outside the existing frontend payload contract.
-- Changes to semester navigation, week-range generation, activity availability, authorization, or role permissions.
-- Changes to the previously scoped location-default behavior or confirmation-modal visual redesign unless required to keep existing tests passing.
-- Automatic saving of a dropped pending schedule to the backend before the user invokes the existing save action.
-- Deployment, release, merge, branch history changes, dependency upgrades, broad refactoring, repository-wide formatting, or bulk encoding conversion.
+- Backend APIs, database schemas, migrations, or persistence contracts.
+- Time validation, recurrence, source-week, navigation, calendar eligibility, authorization, or permission changes.
+- Dialog visual redesign, classroom/location loading, or save-semantics changes.
+- Dependency upgrades, broad refactoring, repository-wide formatting, deployment, release, merge, history changes, or bulk encoding conversion.
 
 ### 6. Context & Dependencies
 
 - The schedule workspace is implemented in `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`.
-- `handleDrop` currently owns calendar drop handling and pending-schedule creation; `handleConfigurePending` and `handleConfigureSaved` open the compact configuration dialog.
-- The compact dialog is rendered when `showCreateModal` is true and uses `isSimplifiedModal` to distinguish it from the full create/edit modal.
-- Existing explicit close, cancel, `Escape`, validation, save, update-series, and recurrence business behavior must remain available.
-- “Any week” means any week already displayed and accepted by the current calendar navigation and semester constraints; this task does not expand the allowed date range.
-- Initial drop creates frontend pending state only. Time and recurrence remain editable through the existing post-placement configuration actions.
-- Tests use Vitest and Testing Library through the verified `test` script in `frontend/package.json`; TypeScript verification uses the verified `typecheck` script.
-- Environment: Windows, PowerShell, Node.js/npm as configured by the repository.
-- Preserve UTF-8 Vietnamese UI text, the existing BOM convention of each modified file, and existing line-ending conventions. Do not treat terminal mojibake as file corruption.
+- `handleDrop` owns calendar drop handling and pending-schedule creation.
+- A valid drop is one already accepted by the component's existing activity, day, shift, and calendar constraints.
+- Tests use the verified Vitest `test` script and TypeScript `typecheck` script in `frontend/package.json`.
+- Environment: Windows, PowerShell, and repository-configured Node.js/npm.
+- Preserve UTF-8 Vietnamese content, BOM convention, and existing line endings.
 
 ### 7. Steps
 
 #### PLAN
 
-- Inspect the dialog container/ref structure, close-state cleanup, drag/drop handlers, pending schedule model, recurrence source-week derivation, and focused tests.
-- Confirm that all changes remain within the listed files, retain Medium risk, and trigger no Human Gate.
-- Define event boundaries so dialog content clicks are inside interactions and calendar/page clicks are outside interactions.
+- Inspect dialog containment, outside-dismiss handling, both time controls and their portals, `handleDrop`, pending-item activation, and focused tests.
+- Confirm Scope, Medium risk, verification, and absence of a Human Gate.
 
 #### EXECUTE
 
-- In `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`, add a stable reference or equivalent containment check for the compact dialog and register lifecycle-safe outside-pointer/click handling only while it is open; close the dialog and clear its active pending target on an outside interaction, but leave it open for interactions within the dialog.
-- In `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`, adjust `handleDrop` and directly related pending-state initialization so dropping an activity into an eligible day/shift of any displayed week immediately produces a pending schedule card at that location without automatically requiring time or recurrence configuration.
-- In `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`, retain explicit pending-card controls that open time configuration and recurrence configuration after placement, and derive recurrence source-week boundaries from the pending card’s placed date rather than the current real-world week.
-- In `frontend/src/components/activities/ActivityScheduleWorkspace.test.tsx`, add focused tests proving outside click closes once, inside controls remain interactive, drop placement precedes configuration, arbitrary displayed-week placement is retained, and recurrence uses the placed week as its source.
+- In `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`, ensure pointer interactions belonging to either time control are treated as inside the dialog while genuine outside interactions still dismiss it.
+- In the same component, make a valid `handleDrop` result activate the newly created pending item and open `Cấu hình buổi sinh hoạt` exactly once.
+- In `frontend/src/components/activities/ActivityScheduleWorkspace.test.tsx`, add focused regression coverage for both interaction paths.
 
 #### VERIFY
 
-- Run the focused component tests, frontend typecheck, `git diff --check`, and a scoped final diff review.
-- Record exit statuses and relevant failures or passing summaries.
-- Confirm only Scope files changed and no dialog, placement, recurrence, localization, encoding, or line-ending regression is visible in the diff.
+- Run focused tests, frontend typecheck, `git diff --check`, and a scoped diff review.
+- Confirm only Scope files changed and no encoding or line-ending-only diff was introduced.
 
 #### REFINE
 
-- Identify the exact failed acceptance criterion or test assertion.
-- Apply the smallest correction in the scoped component or test file.
-- Re-run the affected focused test first, then the complete verification list after it passes.
-- Stop immediately on success, a Human Gate, required scope expansion, or the iteration limit.
+- Identify the exact failed criterion, apply the smallest scoped correction, and re-run the affected verification first.
+- Stop on success, a Human Gate, scope expansion, or the iteration limit.
 
 ### 8. Acceptance Criteria
 
-- With the compact `Cấu hình buổi sinh hoạt` dialog open, one pointer/click outside its rendered bounds closes it and clears the active pending target.
-- Clicking, typing, selecting, or using buttons inside the compact dialog does not trigger outside-dismissal; explicit close/cancel and `Escape` continue to close it.
-- Dropping an activity into an eligible day/shift in any displayed week creates a visible pending schedule card in that exact week before any time or recurrence dialog is opened.
-- Initial placement does not require recurrence configuration and does not persist the pending item to the backend earlier than the existing save workflow.
-- After placement, the user can open the pending card’s time configuration and recurrence configuration through their existing controls.
-- When recurrence is enabled for a placed pending schedule, its source-week start/end values correspond to the week containing that pending card, not the current real-world week.
-- Existing validation, save/update, cancel, authorization, semester-date constraints, and recurrence payload semantics remain unchanged except for the explicitly scoped ordering and source-week behavior.
-- Focused Vitest tests pass and verify outside/inside interactions, arbitrary-week placement, deferred configuration, and placed-week recurrence source behavior.
-- TypeScript typecheck exits successfully, `git diff --check` reports no whitespace errors, and the final diff contains only intended scoped changes.
-- Existing Vietnamese content remains valid UTF-8, no `U+FFFD` is introduced, file BOM/line endings follow existing conventions, and no encoding-only diff is introduced.
+- Clicking, dragging, or selecting values in the first time-range control leaves the dialog open.
+- Clicking, dragging, or selecting values in the second time-range control leaves the dialog open.
+- Portal-rendered content for either time control is treated as an inside interaction.
+- A genuine outside click still closes the dialog; explicit close/cancel and `Escape` retain existing behavior.
+- A valid activity drop creates or positions the pending activity, selects that exact item, and opens its compact configuration dialog exactly once.
+- An invalid or rejected drop neither creates a pending activity nor opens the dialog.
+- Existing validation, save, recurrence, authorization, and calendar eligibility behavior remains unchanged.
+- Focused Vitest tests and TypeScript typecheck pass; `git diff --check` reports no errors.
+- Vietnamese content remains valid UTF-8, no `U+FFFD` is introduced, and BOM/line endings follow project conventions.
 
 ### 9. Verification Commands
 
-`D:\PROJECT\manager_points\frontend :: npm test -- --run "src/components/activities/ActivityScheduleWorkspace.test.tsx" -> 0; focused ActivityScheduleWorkspace regression tests pass`
+`D:\PROJECT\manager_points\frontend :: npm test -- --run "src/components/activities/ActivityScheduleWorkspace.test.tsx" -> 0; focused regression tests pass`
 
 `D:\PROJECT\manager_points\frontend :: npm run typecheck -> 0; TypeScript reports no errors`
 
 `D:\PROJECT\manager_points :: git diff --check -> 0; no whitespace errors are reported`
 
-`D:\PROJECT\manager_points :: git diff -- taskscope.md frontend/src/components/activities/ActivityScheduleWorkspace.tsx frontend/src/components/activities/ActivityScheduleWorkspace.test.tsx -> 0; review shows only scoped interaction, workflow, test, and taskscope changes`
+`D:\PROJECT\manager_points :: git diff -- taskscope.md frontend/src/components/activities/ActivityScheduleWorkspace.tsx frontend/src/components/activities/ActivityScheduleWorkspace.test.tsx -> 0; only scoped changes are present`
 
 ### 10. Safety Gates
 
-- Trigger: implementation requires a file, module, backend contract, permission behavior, or date-range rule outside Scope, or increases risk above Medium. Pause before that change and obtain explicit user approval for the expanded scope and revised risk.
-- Trigger: any production action, deployment, release, merge, destructive or irreversible operation, database/infrastructure change, secret/authentication/authorization change, external communication, paid service, or bulk encoding conversion becomes necessary. Pause before the action and obtain the specific approval required by `safety.md`.
-- Approval for one trigger does not authorize any unrelated action.
+- Trigger: implementation requires a file, contract, validation rule, permission behavior, or calendar constraint outside Scope, or raises risk above Medium. Pause and obtain explicit user approval.
+- Trigger: any production, deployment, release, merge, destructive, database, infrastructure, secret, authorization, external communication, paid-service, or bulk encoding action becomes necessary. Pause and obtain the approval required by `safety.md`.
+- Approval for one trigger does not authorize unrelated actions.
 
 ### 11. Artifacts to Review
 
