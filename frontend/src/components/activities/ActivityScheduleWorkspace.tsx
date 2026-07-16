@@ -721,43 +721,26 @@ export default function ActivityScheduleWorkspace({
   const [modalRepeatEndDate, setModalRepeatEndDate] = useState<string>('');
 
   const renderRecurrenceBadge = (schedule: ActivitySchedule, size: 'sm' | 'md' = 'md') => {
-    const isAnchorInRecurrence = isDateInAnchorWeek(schedule.start_time, anchorWeekMonday) && defaultRecurrence.enabled;
-    const isSavedRecurring = !isAnchorInRecurrence && !!schedule.recurrence_id;
+    const sourceWeekStartDate = schedule.recurrence?.source_week_start_date;
+    const isRepeatedOccurrence = Boolean(
+      schedule.recurrence_id &&
+      sourceWeekStartDate &&
+      getMondayDateStr(schedule.start_time) !== getMondayDateStr(sourceWeekStartDate)
+    );
 
-    let badgeText = '';
-    let badgeStyle = 'text-blue-600 bg-blue-50/70 border-blue-100/60';
-
-    if (isAnchorInRecurrence) {
-      badgeText = 'Lặp (Anchor)';
-      badgeStyle = 'text-blue-600 bg-blue-50/70 border-blue-100/60';
-    } else if (isSavedRecurring) {
-      const isSource = schedule.recurrence?.source_week_start_date &&
-        getMondayDateStr(schedule.start_time) === getMondayDateStr(schedule.recurrence.source_week_start_date);
-
-      if (isSource) {
-        badgeText = 'Nguồn lặp';
-        badgeStyle = 'text-purple-600 bg-purple-50/70 border-purple-100/60';
-      } else {
-        badgeText = 'Buổi lặp';
-        badgeStyle = 'text-amber-600 bg-amber-50/70 border-amber-100/60';
-      }
-    }
-
-    if (!badgeText) return null;
-
-    if (size === 'sm') {
-      return (
-        <div className={cn("inline-flex items-center gap-1 text-[7px] font-black rounded-full px-1.5 py-0.5 mt-1.5 w-fit shrink-0 border uppercase tracking-wider", badgeStyle)}>
-          <RotateCw size={7} className="opacity-80" />
-          <span>{badgeText}</span>
-        </div>
-      );
-    }
+    if (!isRepeatedOccurrence) return null;
 
     return (
-      <span className={cn("inline-flex items-center gap-1 text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border", badgeStyle)}>
-        <RotateCw size={8} className="opacity-80" />
-        <span>{badgeText}</span>
+      <span
+        aria-label="Buổi lặp"
+        data-recurrence-occurrence
+        title="Buổi lặp"
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-600",
+          size === 'sm' ? "h-4 w-4" : "h-5 w-5"
+        )}
+      >
+        <RotateCw size={size === 'sm' ? 8 : 10} aria-hidden="true" />
       </span>
     );
   };
@@ -2456,7 +2439,7 @@ export default function ActivityScheduleWorkspace({
 
           {/* Right Side: Weekly Scheduler Grid */}
           <div ref={scheduleCaptureRef} className={cn(
-            "col-span-12 lg:col-span-10 bg-white rounded-2xl overflow-hidden flex flex-col h-[600px]",
+            "col-span-12 lg:col-span-10 bg-white rounded-2xl overflow-hidden flex flex-col h-[600px] lg:h-[calc(100dvh-15rem)] lg:min-h-[600px]",
             isSourceWeek
               ? "border-purple-300 ring-2 ring-purple-500/10 shadow-[0_4px_20px_rgba(139,92,246,0.08)] bg-purple-50/[0.005]"
               : "border border-slate-100 shadow-sm"
@@ -2597,7 +2580,16 @@ export default function ActivityScheduleWorkspace({
                                               {isPreview ? 'Xem trước' : 'Chưa lưu'}
                                             </span>
 
-                                            {canManage && !isPreview && (
+                                            {isPreview ? (
+                                              <span
+                                                aria-label="Buổi lặp"
+                                                data-recurrence-occurrence
+                                                title="Buổi lặp"
+                                                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-600"
+                                              >
+                                                <RotateCw size={8} aria-hidden="true" />
+                                              </span>
+                                            ) : canManage && (
                                               <div className="flex items-center gap-1 opacity-100 transition-opacity">
                                                 <button
                                                   onClick={(e) => handleConfigurePending(p, e)}

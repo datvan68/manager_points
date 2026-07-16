@@ -1035,4 +1035,83 @@ describe('ActivityScheduleWorkspace', () => {
     expect(weeklySchedule).not.toHaveStyle({ height: 'auto', overflow: 'visible' });
     expect(screen.getByRole('button', { name: 'Sao chép ảnh lịch tuần' })).not.toBeDisabled();
   });
+
+  it('uses a viewport-aware large-screen height while preserving minimum shift rows', async () => {
+    const { container } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Hiện tại')).toBeInTheDocument();
+    });
+
+    const scheduleGrid = container.querySelector('.lg\\:col-span-10');
+    expect(scheduleGrid?.className).toContain('h-[600px]');
+    expect(scheduleGrid?.className).toContain('lg:h-[calc(100dvh-15rem)]');
+    expect(scheduleGrid?.className).toContain('lg:min-h-[600px]');
+
+    const shiftRows = container.querySelectorAll('[data-schedule-shift-row]');
+    expect(shiftRows).toHaveLength(3);
+    shiftRows.forEach((row) => {
+      expect(row.className).toContain('flex-1');
+      expect(row.className).toContain('min-h-[160px]');
+    });
+  });
+
+  it('renders an icon-only amber recurrence marker only for repeated-week occurrences', async () => {
+    const today = new Date();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + (today.getDay() === 0 ? -6 : 1 - today.getDay()));
+    monday.setHours(9, 0, 0, 0);
+    const sourceMonday = new Date(monday);
+    sourceMonday.setDate(monday.getDate() - 7);
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({
+      items: [{
+        _id: 'sched-repeated-week',
+        title: 'Repeated Week Meeting',
+        start_time: monday.toISOString(),
+        end_time: new Date(monday.getTime() + 7200000).toISOString(),
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
+        recurrence_id: 'recurrence-1',
+        recurrence: { source_week_start_date: sourceMonday.toISOString().split('T')[0] },
+      }],
+      total: 1,
+    });
+
+    const { unmount } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Repeated Week Meeting')).toBeInTheDocument();
+    });
+
+    const repeatedMarker = screen.getByLabelText('Buổi lặp');
+    expect(repeatedMarker).toHaveAttribute('data-recurrence-occurrence');
+    expect(repeatedMarker.className).toContain('text-amber-600');
+    expect(screen.queryByText('Lặp (Anchor)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nguồn lặp')).not.toBeInTheDocument();
+    expect(screen.queryByText('Buổi lặp')).not.toBeInTheDocument();
+    unmount();
+
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({
+      items: [{
+        _id: 'sched-source-week',
+        title: 'Source Week Meeting',
+        start_time: monday.toISOString(),
+        end_time: new Date(monday.getTime() + 7200000).toISOString(),
+        activity_id: '60c72b2f9b1e8a001c8e4a50',
+        semester_id: '60c72b2f9b1e8a001c8e4a52',
+        recurrence_id: 'recurrence-1',
+        recurrence: { source_week_start_date: monday.toISOString().split('T')[0] },
+      }],
+      total: 1,
+    });
+
+    render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Source Week Meeting')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText('Buổi lặp')).not.toBeInTheDocument();
+  });
 });
