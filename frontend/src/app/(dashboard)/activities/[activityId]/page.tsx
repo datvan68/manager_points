@@ -292,7 +292,13 @@ export default function ActivityDetailPage() {
 
   const memberStatus = studentMembership?.status || 'none';
   const canAccessAttendance = isAdminOrAdvisor || memberStatus === 'active';
-  const displayedTab = activeTab === 'attendance' && !canAccessAttendance ? 'info' : activeTab;
+  const isActiveStudentMember = isStudent && memberStatus === 'active';
+  const allowedStudentTabs = isStudent
+    ? (isActiveStudentMember ? ['info', 'attendance'] : ['info'])
+    : ['info', 'members', 'rule', 'attendance'];
+  const displayedTab = allowedStudentTabs.includes(activeTab) && (activeTab !== 'attendance' || canAccessAttendance)
+    ? activeTab
+    : 'info';
 
   if (loading) {
     return (
@@ -407,7 +413,7 @@ export default function ActivityDetailPage() {
         </div>
 
         {/* Member-flow status and registration action */}
-        {canUseMemberFlow && (
+        {canUseMemberFlow && (!isStudent || isActiveStudentMember) && (
           <div className="shrink-0 self-stretch md:self-center flex items-center">
             {memberStatus === 'none' ? (
               <Button
@@ -450,7 +456,7 @@ export default function ActivityDetailPage() {
             <Compass size={14} />
             Thông tin chung
           </button>
-          <button
+          {!isStudent && <button
             onClick={() => handleTabChange('members')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'members'
@@ -460,7 +466,7 @@ export default function ActivityDetailPage() {
           >
             <Users size={14} />
             Thành viên ({members.filter(m => m.status === 'active').length})
-          </button>
+          </button>}
           {canAccessAttendance && (
             <button
               onClick={() => handleTabChange('attendance')}
@@ -474,7 +480,7 @@ export default function ActivityDetailPage() {
               Điểm danh
             </button>
           )}
-          <button
+          {!isStudent && <button
             onClick={() => handleTabChange('rule')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'rule'
@@ -484,7 +490,7 @@ export default function ActivityDetailPage() {
           >
             <Award size={14} />
             Quy tắc hoàn thành
-          </button>
+          </button>}
         </div>
         
         {isAdminOrAdvisor && (
@@ -501,10 +507,22 @@ export default function ActivityDetailPage() {
       <div className="space-y-6">
         {/* Tab 1: Info */}
         {displayedTab === 'info' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Description & metadata */}
-            <div className="lg:col-span-2 space-y-6">
+          isActiveStudentMember ? (
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2>
+                </div>
+                <ActivityScheduleTimeline
+                  schedules={schedules}
+                  defaultClassroom={activity.classroom}
+                  canViewAttendanceRoster={false}
+                  canViewOwnAttendance={true}
+                  isAdminOrAdvisor={false}
+                  isStudent={true}
+                  onOpenAttendance={() => handleTabChange('attendance')}
+                />
+              </div>
               <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl space-y-3">
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
                   Giới thiệu hoạt động
@@ -513,9 +531,7 @@ export default function ActivityDetailPage() {
                   {activity.description || 'Chưa có thông tin mô tả chi tiết cho hoạt động này.'}
                 </p>
               </div>
-
-              {/* Completion criteria summary for member-flow users */}
-              {canUseMemberFlow && completionRule && (
+              {completionRule && (
                 <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-200 p-5 rounded-2xl space-y-3">
                   <h3 className="text-xs font-extrabold text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
                     <Award size={16} className="text-rose-500" />
@@ -523,9 +539,7 @@ export default function ActivityDetailPage() {
                   </h3>
                   <div className="text-xs font-semibold text-slate-700 space-y-1">
                     <p>• Yêu cầu tham gia tối thiểu: <span className="text-blue-600 font-black">{completionRule.minimum_attendance} buổi</span></p>
-                    <p>
-                      • Tiêu chí cộng điểm:
-                    </p>
+                    <p>• Tiêu chí cộng điểm:</p>
                     <div className="flex flex-wrap gap-1.5 pl-3 pt-1">
                       {completionRule.criterion_ids?.map((c: any) => (
                         <span key={c._id || c} className="px-2 py-0.5 bg-white border border-blue-200 text-blue-600 text-[10px] font-bold rounded-lg">
@@ -537,66 +551,44 @@ export default function ActivityDetailPage() {
                 </div>
               )}
             </div>
-
-            {/* Sidebar metadata */}
+          ) : (
             <div className="space-y-6">
-              <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl space-y-4">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-2">
-                  Chi tiết hoạt động
-                </h3>
-
-                <div className="space-y-3 text-xs font-semibold text-slate-600">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Người quản lý:</span>
-                    <span className="text-slate-700 font-bold">{activity.president_id?.full_name || '—'}</span>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl space-y-3">
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">Giới thiệu hoạt động</h3>
+                    <p className="text-xs text-slate-600 leading-relaxed font-semibold">{activity.description || 'Chưa có thông tin mô tả chi tiết cho hoạt động này.'}</p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Giới hạn thành viên:</span>
-                    <span className="text-slate-700 font-bold">
-                      {activity.max_members ? `${activity.max_members} người` : 'Không giới hạn'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Ngày bắt đầu:</span>
-                    <span className="text-slate-700 font-bold">
-                      {activity.activity_start_date 
-                        ? new Date(activity.activity_start_date).toLocaleDateString('vi-VN') 
-                        : '—'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Ngày kết thúc:</span>
-                    <span className="text-slate-700 font-bold">
-                      {activity.activity_end_date 
-                        ? new Date(activity.activity_end_date).toLocaleDateString('vi-VN') 
-                        : '—'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Tự đăng ký:</span>
-                    <span className={`font-bold ${activity.settings?.allow_self_registration ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {activity.settings?.allow_self_registration ? 'Cho phép' : 'Khóa'}
-                    </span>
+                  {canUseMemberFlow && completionRule && (
+                    <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-200 p-5 rounded-2xl space-y-3">
+                      <h3 className="text-xs font-extrabold text-blue-800 uppercase tracking-wider flex items-center gap-1.5"><Award size={16} className="text-rose-500" />Cơ chế tích lũy điểm rèn luyện</h3>
+                      <div className="text-xs font-semibold text-slate-700 space-y-1">
+                        <p>• Yêu cầu tham gia tối thiểu: <span className="text-blue-600 font-black">{completionRule.minimum_attendance} buổi</span></p>
+                        <p>• Tiêu chí cộng điểm:</p>
+                        <div className="flex flex-wrap gap-1.5 pl-3 pt-1">{completionRule.criterion_ids?.map((c: any) => <span key={c._id || c} className="px-2 py-0.5 bg-white border border-blue-200 text-blue-600 text-[10px] font-bold rounded-lg">{c.criterion_name || 'Tiêu chí học bạ'}</span>)}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-6">
+                  <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl space-y-4">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-2">Chi tiết hoạt động</h3>
+                    <div className="space-y-3 text-xs font-semibold text-slate-600">
+                      <div className="flex justify-between"><span className="text-slate-400">Người quản lý:</span><span className="text-slate-700 font-bold">{activity.president_id?.full_name || '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Giới hạn thành viên:</span><span className="text-slate-700 font-bold">{activity.max_members ? `${activity.max_members} người` : 'Không giới hạn'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Ngày bắt đầu:</span><span className="text-slate-700 font-bold">{activity.activity_start_date ? new Date(activity.activity_start_date).toLocaleDateString('vi-VN') : '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Ngày kết thúc:</span><span className="text-slate-700 font-bold">{activity.activity_end_date ? new Date(activity.activity_end_date).toLocaleDateString('vi-VN') : '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Tự đăng ký:</span><span className={`font-bold ${activity.settings?.allow_self_registration ? 'text-emerald-600' : 'text-slate-400'}`}>{activity.settings?.allow_self_registration ? 'Cho phép' : 'Khóa'}</span></div>
+                    </div>
                   </div>
                 </div>
               </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between"><h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2></div>
+                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={isAdminOrAdvisor} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={() => handleTabChange('attendance')} />
+              </div>
             </div>
-          </div>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2>
-            </div>
-            <ActivityScheduleTimeline
-              schedules={schedules}
-              defaultClassroom={activity.classroom}
-              canViewAttendanceRoster={isAdminOrAdvisor}
-              canViewOwnAttendance={isStudent && memberStatus === 'active'}
-              isAdminOrAdvisor={isAdminOrAdvisor}
-              isStudent={isStudent && memberStatus === 'active'}
-              onOpenAttendance={() => handleTabChange('attendance')}
-            />
-          </div>
-          </div>
+          )
         )}
 
         {/* Tab 2: Members */}

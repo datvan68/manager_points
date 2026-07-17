@@ -1104,4 +1104,50 @@ describe('ActivityDetailPage', () => {
       expect(screen.queryByRole('button', { name: 'Cập nhật logo' })).not.toBeInTheDocument();
     });
   });
+  it('limits a non-member student to general information and falls back from unauthorized tabs', async () => {
+    mockAuth.isAdmin = false;
+    mockAuth.user = { id: 'student-user', studentId: 'student1', role: { role_code: 'STUDENT' }, roleCode: 'STUDENT' } as any;
+    mockSearchParamsGet.mockImplementation((key: string) => key === 'tab' ? 'members' : null);
+    vi.mocked(activityApi.getById).mockResolvedValue({ _id: 'act1', name: 'Non-member Activity', code: 'NON_MEMBER', activity_type: 'event', participation_status: 'published', classroom: 'A.101', semester_id: { _id: 'sem1' }, settings: {} } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Thông tin chung')).toBeInTheDocument();
+      expect(screen.queryByText(/Thành viên \(/)).not.toBeInTheDocument();
+      expect(screen.queryByText('Điểm danh')).not.toBeInTheDocument();
+      expect(screen.queryByText('Quy tắc hoàn thành')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Đăng ký tham gia' })).not.toBeInTheDocument();
+      expect(screen.getByText('Giới thiệu hoạt động')).toBeInTheDocument();
+    });
+  });
+
+  it('shows only general information and attendance tabs for an active student member', async () => {
+    mockAuth.isAdmin = false;
+    mockAuth.user = { id: 'student-user', studentId: 'student1', role: { role_code: 'STUDENT' }, roleCode: 'STUDENT' } as any;
+    vi.mocked(activityApi.getById).mockResolvedValue({ _id: 'act1', name: 'Active Student Activity', code: 'ACTIVE_STUDENT', activity_type: 'event', participation_status: 'published', classroom: 'A.101', semester_id: { _id: 'sem1' }, settings: {}, description: 'Student-facing description', president_id: { full_name: 'Manager' } } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([{ _id: 'member-1', student_id: { _id: 'student1', user_id: 'student-user' }, status: 'active' }] as any);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([{ _id: 'rule-1', activity_id: 'act1', semester_id: 'sem1', minimum_attendance: 2, criterion_ids: [{ _id: 'criterion-1', criterion_name: 'Criterion' }], status: 'active' }] as any);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Thông tin chung')).toBeInTheDocument();
+      expect(screen.getByText('Điểm danh')).toBeInTheDocument();
+      expect(screen.queryByText(/Thành viên \(/)).not.toBeInTheDocument();
+      expect(screen.queryByText('Quy tắc hoàn thành')).not.toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Điểm danh' })).toHaveLength(1);
+      expect(screen.queryByText('Chi tiết hoạt động')).not.toBeInTheDocument();
+    });
+
+    const schedule = screen.getByText('Lịch trình & dòng thời gian');
+    const description = screen.getByText('Giới thiệu hoạt động');
+    const mechanism = screen.getByText('Cơ chế tích lũy điểm rèn luyện');
+    expect(schedule.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(description.compareDocumentPosition(mechanism) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
