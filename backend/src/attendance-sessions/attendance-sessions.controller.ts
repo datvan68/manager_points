@@ -48,8 +48,14 @@ export class AttendanceSessionsController {
   getActiveSession(
     @Query('context_type') contextType: string,
     @Query('context_id') contextId: string,
+    @Request() req: any,
   ) {
-    return this.sessionsService.getActiveSession(contextType, contextId);
+    return this.sessionsService.getActiveSession(
+      contextType,
+      contextId,
+      req.user.userId,
+      req.user.roleCode,
+    );
   }
 
   @Get('history')
@@ -106,9 +112,13 @@ export class AttendanceSessionsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Check-in bằng QR code' })
   checkinQr(@Body() dto: CheckinQrDto, @Request() req: any) {
-    const studentId = req.user.studentId || req.user._id;
     const userAgent = req.headers?.['user-agent'];
-    return this.sessionsService.checkinQr(dto, studentId, userAgent);
+    return this.sessionsService.checkinQr(
+      dto,
+      req.user.userId,
+      req.user.roleCode,
+      userAgent,
+    );
   }
 
   @Post('checkin/proximity')
@@ -116,16 +126,24 @@ export class AttendanceSessionsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Check-in bằng proximity (GPS)' })
   checkinProximity(@Body() dto: CheckinProximityDto, @Request() req: any) {
-    const studentId = req.user.studentId || req.user._id;
     const userAgent = req.headers?.['user-agent'];
-    return this.sessionsService.checkinProximity(dto, studentId, userAgent);
+    return this.sessionsService.checkinProximity(
+      dto,
+      req.user.userId,
+      req.user.roleCode,
+      userAgent,
+    );
   }
 
   @Get(':id/checkins')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách đã check-in trong phiên' })
-  getCheckins(@Param('id') id: string) {
-    return this.sessionsService.getCheckins(id);
+  getCheckins(@Param('id') id: string, @Request() req: any) {
+    return this.sessionsService.getCheckins(
+      id,
+      req.user.userId,
+      req.user.roleCode,
+    );
   }
 }

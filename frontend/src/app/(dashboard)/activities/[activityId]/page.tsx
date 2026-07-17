@@ -18,7 +18,7 @@ import { isTeacherRole, isStudentRole } from '@/utils/role.util';
 import { toast } from 'sonner';
 import {
   Compass, Calendar, Users, Award, ShieldAlert,
-  ChevronLeft, Sparkles, UserCheck, CalendarDays,
+  ChevronLeft, Sparkles, UserCheck,
   Settings, Clock, MapPin, User, Star, CheckCircle2,
   ClipboardCheck, Radio, QrCode, Camera
 } from 'lucide-react';
@@ -84,11 +84,13 @@ export default function ActivityDetailPage() {
   const [criteriaById, setCriteriaById] = useState<Record<string, string>>({});
   const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
   
-  const [activeTab, setActiveTab] = useState<'info' | 'members' | 'schedule' | 'rule' | 'attendance'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'members' | 'rule' | 'attendance'>('info');
 
   useEffect(() => {
-    if (tabParam && ['info', 'members', 'schedule', 'rule', 'attendance'].includes(tabParam)) {
-      setActiveTab(tabParam as any);
+    if (tabParam === 'schedule') {
+      setActiveTab('info');
+    } else if (tabParam && ['info', 'members', 'rule', 'attendance'].includes(tabParam)) {
+      setActiveTab(tabParam as typeof activeTab);
     }
   }, [tabParam]);
 
@@ -298,6 +300,8 @@ export default function ActivityDetailPage() {
   });
 
   const memberStatus = studentMembership?.status || 'none';
+  const canAccessAttendance = isAdminOrAdvisor || memberStatus === 'active';
+  const displayedTab = activeTab === 'attendance' && !canAccessAttendance ? 'info' : activeTab;
 
   if (loading) {
     return (
@@ -466,18 +470,7 @@ export default function ActivityDetailPage() {
             <Users size={14} />
             Thành viên ({members.filter(m => m.status === 'active').length})
           </button>
-          <button
-            onClick={() => handleTabChange('schedule')}
-            className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'schedule'
-                ? 'border-blue-500 text-blue-600 font-extrabold'
-                : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <CalendarDays size={14} />
-            Lịch sinh hoạt ({schedules.length})
-          </button>
-          {(isAdminOrAdvisor || memberStatus === 'active') && (
+          {canAccessAttendance && (
             <button
               onClick={() => handleTabChange('attendance')}
               className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
@@ -516,8 +509,9 @@ export default function ActivityDetailPage() {
       {/* Tab contents */}
       <div className="space-y-6">
         {/* Tab 1: Info */}
-        {activeTab === 'info' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {displayedTab === 'info' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Description & metadata */}
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl space-y-3">
@@ -549,40 +543,6 @@ export default function ActivityDetailPage() {
                       ))}
                     </div>
                   </div>
-                </div>
-              )}
-              {isAdmin && (
-                <div className="bg-blue-50/70 border border-blue-200 p-5 rounded-2xl space-y-4">
-                  <h3 className="text-xs font-bold text-blue-700 uppercase tracking-wider border-b border-blue-100 pb-2">
-                    Thông tin đầy đủ dành cho quản trị viên
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-xs font-semibold text-slate-600">
-                    <div><span className="text-slate-400">Mã hoạt động:</span> <span className="text-slate-700 font-bold">{activity.code || '—'}</span></div>
-                    <div><span className="text-slate-400">Loại:</span> <span className="text-slate-700 font-bold">{actType}</span></div>
-                    <div><span className="text-slate-400">Danh mục:</span> <span className="text-slate-700 font-bold">{categoryLabels[activity.category] || activity.category || '—'}</span></div>
-                    <div><span className="text-slate-400">Trạng thái:</span> <span className="text-slate-700 font-bold">{activity.participation_status || '—'}</span></div>
-                    <div><span className="text-slate-400">Học kỳ:</span> <span className="text-slate-700 font-bold">{activity.semester_id?.name || activity.semester_id?.semester_name || '—'}</span></div>
-                    <div><span className="text-slate-400">Phòng:</span> <span className="text-slate-700 font-bold">{activity.classroom || '—'}</span></div>
-                    <div><span className="text-slate-400">Cố vấn:</span> <span className="text-slate-700 font-bold">{activity.advisor_id?.full_name || activity.advisor_id?.user_name || 'Chưa phân công'}</span></div>
-                    <div><span className="text-slate-400">Email cố vấn:</span> <span className="text-slate-700 font-bold">{activity.advisor_id?.email || '—'}</span></div>
-                    <div><span className="text-slate-400">Chủ nhiệm:</span> <span className="text-slate-700 font-bold">{activity.president_id?.full_name || 'Chưa phân công'}</span></div>
-                    <div><span className="text-slate-400">Phó chủ nhiệm:</span> <span className="text-slate-700 font-bold">{activity.vice_president_ids?.map((person: any) => person.full_name).filter(Boolean).join(', ') || 'Chưa phân công'}</span></div>
-                    <div><span className="text-slate-400">Thành viên:</span> <span className="text-slate-700 font-bold">{activity.active_members_count} / {activity.max_members || 'Không giới hạn'}</span></div>
-                    <div><span className="text-slate-400">Ngày thành lập:</span> <span className="text-slate-700 font-bold">{activity.founded_date ? new Date(activity.founded_date).toLocaleDateString('vi-VN') : '—'}</span></div>
-                    <div><span className="text-slate-400">Ngày bắt đầu:</span> <span className="text-slate-700 font-bold">{activity.activity_start_date ? new Date(activity.activity_start_date).toLocaleDateString('vi-VN') : '—'}</span></div>
-                    <div><span className="text-slate-400">Ngày kết thúc:</span> <span className="text-slate-700 font-bold">{activity.activity_end_date ? new Date(activity.activity_end_date).toLocaleDateString('vi-VN') : '—'}</span></div>
-                    <div><span className="text-slate-400">Tự đăng ký:</span> <span className="text-slate-700 font-bold">{activity.settings?.allow_self_registration ? 'Cho phép' : 'Khóa'}</span></div>
-                    <div><span className="text-slate-400">Yêu cầu phê duyệt:</span> <span className="text-slate-700 font-bold">{activity.settings?.require_approval ? 'Có' : 'Không'}</span></div>
-                    <div><span className="text-slate-400">Điểm danh:</span> <span className="text-slate-700 font-bold">{activity.settings?.attendance_point_enabled ? `${activity.settings.point_per_attendance} điểm/buổi` : 'Tắt'}</span></div>
-                    <div><span className="text-slate-400">Tiêu chí:</span> <span className="text-slate-700 font-bold">{activity.settings?.criterion_id ? getCriterionLabel(activity.settings.criterion_id, criteriaById) : '—'}</span></div>
-                  </div>
-                  {completionRule && (
-                    <div className="border-t border-blue-100 pt-3 text-xs font-semibold text-slate-600">
-                      <p className="font-bold text-blue-700">Quy tắc hoàn thành</p>
-                      <p>Tối thiểu: {completionRule.minimum_attendance} buổi · Trạng thái: {completionRule.status}</p>
-                      <p>Tiêu chí: {completionRule.criterion_ids?.map((criterion: any) => getCriterionLabel(criterion, criteriaById)).filter(Boolean).join(', ') || '—'}</p>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -631,28 +591,6 @@ export default function ActivityDetailPage() {
               </div>
             </div>
           </div>
-        )}
-
-        {/* Tab 2: Members */}
-        {activeTab === 'members' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-700">Danh sách thành viên</h2>
-            </div>
-            <ActivityMemberTable
-              members={members}
-              onApprove={handleApproveMember}
-              onReject={handleRejectMember}
-              onUpdateRole={handleUpdateMemberRole}
-              onRemove={handleRemoveMember}
-              onRemoveMany={handleRemoveMembers}
-              isAdminOrAdvisor={isAdminOrAdvisor}
-            />
-          </div>
-        )}
-
-        {/* Tab 3: Schedules */}
-        {activeTab === 'schedule' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2>
@@ -669,10 +607,29 @@ export default function ActivityDetailPage() {
               onOpenAttendance={() => handleTabChange('attendance')}
             />
           </div>
+          </div>
+        )}
+
+        {/* Tab 2: Members */}
+        {displayedTab === 'members' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-700">Danh sách thành viên</h2>
+            </div>
+            <ActivityMemberTable
+              members={members}
+              onApprove={handleApproveMember}
+              onReject={handleRejectMember}
+              onUpdateRole={handleUpdateMemberRole}
+              onRemove={handleRemoveMember}
+              onRemoveMany={handleRemoveMembers}
+              isAdminOrAdvisor={isAdminOrAdvisor}
+            />
+          </div>
         )}
 
         {/* Tab 4: Completion Rules */}
-        {activeTab === 'rule' && (
+        {displayedTab === 'rule' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-700">Thông tin quy tắc hoàn thành</h2>
@@ -721,7 +678,7 @@ export default function ActivityDetailPage() {
         )}
 
         {/* Tab 5: Attendance */}
-        {activeTab === 'attendance' && (isAdminOrAdvisor || memberStatus === 'active') && (
+        {displayedTab === 'attendance' && canAccessAttendance && (
           <div className="space-y-4">
             <ActivityAttendanceTab
               activityId={activityId}

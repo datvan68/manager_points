@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -175,7 +176,8 @@ export class AttendanceSessionsService {
 
   async checkinQr(
     dto: CheckinQrDto,
-    studentId: string,
+    userId: string,
+    roleCode: string,
     userAgent?: string,
   ): Promise<AttendanceCheckinDocument> {
     // Find session by token
@@ -196,8 +198,7 @@ export class AttendanceSessionsService {
       );
     }
 
-    // Validate student is a member (for club context)
-    await this.validateMembership(session, studentId);
+    const studentId = await this.validateMembership(session, userId, roleCode);
 
     // Check duplicate
     await this.checkDuplicate(session._id.toString(), studentId);
@@ -239,7 +240,8 @@ export class AttendanceSessionsService {
 
   async checkinProximity(
     dto: CheckinProximityDto,
-    studentId: string,
+    userId: string,
+    roleCode: string,
     userAgent?: string,
   ): Promise<AttendanceCheckinDocument> {
     const session = await this.sessionModel.findById(dto.session_id);
@@ -253,8 +255,7 @@ export class AttendanceSessionsService {
       throw new BadRequestException('Phiên này không dùng phương thức proximity');
     }
 
-    // Validate membership
-    await this.validateMembership(session, studentId);
+    const studentId = await this.validateMembership(session, userId, roleCode);
 
     // Check duplicate
     await this.checkDuplicate(session._id.toString(), studentId);
@@ -313,6 +314,8 @@ export class AttendanceSessionsService {
   async getActiveSession(
     contextType: string,
     contextId: string,
+    userId: string,
+    roleCode: string,
   ): Promise<AttendanceSessionDocument | null> {
     // Auto-expire sessions past auto_close_at
     await this.sessionModel.updateMany(
@@ -323,7 +326,7 @@ export class AttendanceSessionsService {
       { $set: { status: 'expired', closed_at: new Date() } },
     );
 
-    return this.sessionModel
+    const session = await this.sessionModel
       .findOne({
         context_type: contextType,
         context_id: new Types.ObjectId(contextId),
@@ -332,6 +335,10 @@ export class AttendanceSessionsService {
       .populate('opened_by', 'user_name')
       .lean()
       .exec();
+    if (session) {
+      await this.validateMembership(session, userId, roleCode, true);
+    }
+    return session;
   }
 
   async getSessionById(
@@ -349,7 +356,14 @@ export class AttendanceSessionsService {
 
   async getCheckins(
     sessionId: string,
+    userId: string,
+    roleCode: string,
   ): Promise<AttendanceCheckinDocument[]> {
+    const session = await this.sessionModel.findById(sessionId).lean().exec();
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy phiên điểm danh');
+    }
+    await this.validateMembership(session, userId, roleCode, true);
     return this.checkinModel
       .find({ session_id: new Types.ObjectId(sessionId) })
       .populate('student_id', 'full_name student_code email')
@@ -417,25 +431,33 @@ export class AttendanceSessionsService {
   }
 
   /**
-   * Validate that the student is a member of the context entity.
+   * Resolve an active member before student attendance data is accessed.
    */
   private async validateMembership(
     session: AttendanceSessionDocument,
-    studentId: string,
-  ): Promise<void> {
-    if (session.context_type === 'club') {
-      const member = await this.clubMemberModel.findOne({
-        activity_id: session.context_id,
-        student_id: new Types.ObjectId(studentId),
-        status: 'active',
-      });
-      if (!member) {
-        throw new BadRequestException(
-          'Bạn không phải thành viên của hoạt động này.',
-        );
-      }
+    userId: string,
+    roleCode: string,
+    allowStaff = false,
+  ): Promise<string> {
+    if (allowStaff && ['ADMIN', 'TEACHER'].includes(roleCode)) {
+      return '';
     }
-    // Future: add class, event, dormitory membership checks
+
+    if (!['club', 'activity'].includes(session.context_type)) {
+      throw new ForbiddenException('Attendance access is not available for this context.');
+    }
+
+    const requesterId = new Types.ObjectId(userId);
+    const member = await this.clubMemberModel.findOne({
+      activity_id: session.context_id,
+      status: 'active',
+      $or: [{ user_id: requesterId }, { student_id: requesterId }],
+    });
+    if (!member?.student_id) {
+      throw new ForbiddenException('An active activity membership is required.');
+    }
+
+    return member.student_id.toString();
   }
 
   /**

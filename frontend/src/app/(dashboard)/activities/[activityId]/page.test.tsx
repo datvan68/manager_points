@@ -213,12 +213,7 @@ describe('ActivityDetailPage', () => {
       expect(activityScheduleApi.getActivityTimeline).toHaveBeenCalledWith('act1');
     });
 
-    // Switch to Schedule tab
-    const scheduleTab = screen.getByText(/Lịch sinh hoạt/);
-    expect(scheduleTab.textContent).toContain('Lịch sinh hoạt (3)');
-    fireEvent.click(scheduleTab);
-
-    // Wait for the today schedule card and the attendance button to render
+    // The schedule is rendered with the information panel.
     let attendanceBtn: HTMLElement | null = null;
     await waitFor(() => {
       expect(screen.getByText('Lịch trình & dòng thời gian')).toBeInTheDocument();
@@ -317,12 +312,7 @@ describe('ActivityDetailPage', () => {
       expect(activityScheduleApi.getActivityTimeline).toHaveBeenCalledWith('act1');
     });
 
-    // Switch to Schedule tab
-    const scheduleTab = screen.getByText(/Lịch sinh hoạt/);
-    expect(scheduleTab.textContent).toContain('Lịch sinh hoạt (3)');
-    fireEvent.click(scheduleTab);
-
-    // Wait for timeline to render but attendance button must NOT appear
+    // Wait for timeline to render but attendance button must NOT appear.
     await waitFor(() => {
       expect(screen.getByText('Weekly Sync Meeting')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Điểm danh' })).not.toBeInTheDocument();
@@ -360,7 +350,7 @@ describe('ActivityDetailPage', () => {
     expect(mockReplace).toHaveBeenCalledWith(expect.stringContaining('tab=members'));
   });
 
-  it('calls activityScheduleApi.getActivityTimeline with route ID, renders tab count, and displays earliest and latest schedules', async () => {
+  it('calls activityScheduleApi.getActivityTimeline with route ID and displays schedules with general information', async () => {
     const mockActivity = {
       _id: 'act1',
       name: 'Dynamic Event Activity',
@@ -424,10 +414,6 @@ describe('ActivityDetailPage', () => {
     await waitFor(() => {
       expect(activityScheduleApi.getActivityTimeline).toHaveBeenCalledWith('act1');
     });
-
-    const scheduleTab = screen.getByText(/Lịch sinh hoạt/);
-    expect(scheduleTab.textContent).toContain('Lịch sinh hoạt (3)');
-    fireEvent.click(scheduleTab);
 
     await waitFor(() => {
       // Assert visibility of earliest and latest schedule titles
@@ -660,8 +646,6 @@ describe('ActivityDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Test Activity')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText(/Lịch sinh hoạt/));
-
     await waitFor(() => {
       expect(screen.getByText('Timeline Session 1')).toBeInTheDocument();
       expect(screen.getByText('Trạng thái điểm danh:')).toBeInTheDocument();
@@ -720,8 +704,6 @@ describe('ActivityDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Test Activity')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText(/Lịch sinh hoạt/));
-
     await waitFor(() => {
       expect(screen.getByText('Timeline Session 1')).toBeInTheDocument();
       expect(screen.queryByText('Trạng thái điểm danh:')).not.toBeInTheDocument();
@@ -788,7 +770,7 @@ describe('ActivityDetailPage', () => {
     });
   });
 
-  it('displays each schedule location before falling back to activity classroom in the schedule tab', async () => {
+  it('displays each schedule location before falling back to activity classroom in the combined view', async () => {
     const mockActivity = {
       _id: 'act1',
       name: 'Schedule Location Activity',
@@ -830,8 +812,6 @@ describe('ActivityDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Schedule Location Activity')).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByText(/L\u1ecbch sinh ho\u1ea1t/));
 
     await waitFor(() => {
       expect(screen.getByText('Has Specific Room')).toBeInTheDocument();
@@ -875,6 +855,60 @@ describe('ActivityDetailPage', () => {
     await waitFor(() => expect(screen.getByText('LO')).toBeInTheDocument());
   });
 
+  it.each(['none', 'pending', 'rejected', 'inactive', 'left'])(
+    'keeps the combined detail visible and hides attendance for a %s membership',
+    async (status) => {
+      mockAuth.user = {
+        id: 'student-user',
+        studentId: 'student-1',
+        role: { role_code: 'STUDENT' },
+        roleCode: 'STUDENT',
+      };
+      mockAuth.isAdmin = false;
+      mockSearchParamsGet.mockReturnValue('attendance');
+      vi.mocked(activityApi.getById).mockResolvedValue({
+        _id: 'act1', name: 'Combined Activity', code: 'COMBINED', activity_type: 'event',
+        participation_status: 'published', classroom: 'A.101', semester_id: { _id: 'sem1' },
+      } as any);
+      vi.mocked(activityApi.getMembers).mockResolvedValue(status === 'none' ? [] : [{
+        student_id: { _id: 'student-1', user_id: 'student-user' }, status,
+      }] as any);
+      vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [{
+        _id: 'schedule-1', title: 'Visible Schedule', start_time: '2026-07-14T09:00:00Z', end_time: '2026-07-14T10:00:00Z',
+      }] } as any);
+      vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+      render(<ActivityDetailPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Combined Activity')).toBeInTheDocument();
+        expect(screen.getByText('Visible Schedule')).toBeInTheDocument();
+        expect(screen.queryByText('Điểm danh')).not.toBeInTheDocument();
+        expect(screen.queryByText('Trạng thái điểm danh:')).not.toBeInTheDocument();
+      });
+    },
+  );
+
+  it('shows the combined view for the legacy schedule query', async () => {
+    mockSearchParamsGet.mockReturnValue('schedule');
+    vi.mocked(activityApi.getById).mockResolvedValue({
+      _id: 'act1', name: 'Legacy Schedule Activity', code: 'LEGACY', activity_type: 'event',
+      participation_status: 'published', classroom: 'A.101', semester_id: { _id: 'sem1' },
+    } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [{
+      _id: 'schedule-1', title: 'Legacy Schedule Entry', start_time: '2026-07-14T09:00:00Z', end_time: '2026-07-14T10:00:00Z',
+    }] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Giới thiệu hoạt động')).toBeInTheDocument();
+      expect(screen.getByText('Legacy Schedule Entry')).toBeInTheDocument();
+    });
+  });
+
   it('removes a custom logo and restores the activity-code fallback', async () => {
     const mockActivity = {
       _id: 'act1',
@@ -909,7 +943,7 @@ describe('ActivityDetailPage', () => {
     });
   });
 
-  it('shows full activity metadata and completion details to administrators', async () => {
+  it('does not render the removed administrator metadata card', async () => {
     const mockActivity = {
       _id: 'act1',
       name: 'Administrator Activity',
@@ -953,12 +987,8 @@ describe('ActivityDetailPage', () => {
     render(<ActivityDetailPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Thông tin đầy đủ dành cho quản trị viên')).toBeInTheDocument();
-      expect(screen.getByText('ADMIN_ACTIVITY')).toBeInTheDocument();
-      expect(screen.getByText('Advisor Name')).toBeInTheDocument();
-      expect(screen.getByText('Vice President Name')).toBeInTheDocument();
-      expect(screen.getByText(/Tối thiểu: 3 buổi/)).toBeInTheDocument();
-      expect(screen.getAllByText(/Leadership/).length).toBeGreaterThan(0);
+      expect(screen.queryByText('Thông tin đầy đủ dành cho quản trị viên')).not.toBeInTheDocument();
+      expect(screen.getByText('Chi tiết hoạt động')).toBeInTheDocument();
     });
   });
 
