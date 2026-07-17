@@ -113,6 +113,7 @@ export default function ActivityDetailPage() {
   const isAdmin = isAdminUser(user);
   const isAdminOrAdvisor = isAdmin || isTeacherRole(user);
   const isStudent = isStudentRole(user);
+  const canUseMemberFlow = isStudent || isAdmin;
 
 
   const loadActivityData = async () => {
@@ -255,17 +256,6 @@ export default function ActivityDetailPage() {
     return result;
   };
 
-  // Schedule functions
-  const handleRegisterSchedule = async (scheduleId: string) => {
-    await activityScheduleApi.register(scheduleId, activityId);
-    loadActivityData();
-  };
-
-  const handleCancelRegisterSchedule = async (scheduleId: string) => {
-    await activityScheduleApi.cancelRegistration(scheduleId);
-    loadActivityData();
-  };
-
   // Completion Rule functions
   const handleSaveCompletionRule = async (data: any) => {
     try {
@@ -295,8 +285,9 @@ export default function ActivityDetailPage() {
   const studentMembership = members.find(m => {
     const mStudentId = typeof m.student_id === 'object' ? m.student_id?._id : m.student_id;
     const mStudentUserId = typeof m.student_id === 'object' ? m.student_id?.user_id?._id || m.student_id?.user_id : '';
+    const mUserId = typeof m.user_id === 'object' ? m.user_id?._id : m.user_id;
     
-    return mStudentId === user?.studentId || mStudentUserId === user?.id;
+    return mStudentId === user?.studentId || mStudentUserId === user?.id || mUserId === user?.id;
   });
 
   const memberStatus = studentMembership?.status || 'none';
@@ -415,8 +406,8 @@ export default function ActivityDetailPage() {
           </div>
         </div>
 
-        {/* Registration Button (For Students) */}
-        {isStudent && (
+        {/* Member-flow status and registration action */}
+        {canUseMemberFlow && (
           <div className="shrink-0 self-stretch md:self-center flex items-center">
             {memberStatus === 'none' ? (
               <Button
@@ -523,8 +514,8 @@ export default function ActivityDetailPage() {
                 </p>
               </div>
 
-              {/* Completion criteria info for students */}
-              {isStudent && completionRule && (
+              {/* Completion criteria summary for member-flow users */}
+              {canUseMemberFlow && completionRule && (
                 <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-200 p-5 rounded-2xl space-y-3">
                   <h3 className="text-xs font-extrabold text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
                     <Award size={16} className="text-rose-500" />
@@ -598,8 +589,6 @@ export default function ActivityDetailPage() {
             <ActivityScheduleTimeline
               schedules={schedules}
               defaultClassroom={activity.classroom}
-              onRegister={handleRegisterSchedule}
-              onCancelRegistration={handleCancelRegisterSchedule}
               canViewAttendanceRoster={isAdminOrAdvisor}
               canViewOwnAttendance={isStudent && memberStatus === 'active'}
               isAdminOrAdvisor={isAdminOrAdvisor}

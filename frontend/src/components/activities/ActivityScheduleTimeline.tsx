@@ -3,13 +3,10 @@
 import React, { useState } from 'react';
 import { Calendar, MapPin, Users, ChevronDown, ChevronUp, Clock, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
 
 interface ActivityScheduleTimelineProps {
   schedules: any[];
   defaultClassroom?: string;
-  onRegister?: (scheduleId: string) => Promise<void>;
-  onCancelRegistration?: (scheduleId: string) => Promise<void>;
   onOpenAttendance?: () => void;
   isAdminOrAdvisor?: boolean;
   isStudent?: boolean;
@@ -66,8 +63,6 @@ const approvalStatusConfig: Record<string, { label: string; bg: string; text: st
 export default function ActivityScheduleTimeline({
   schedules,
   defaultClassroom,
-  onRegister,
-  onCancelRegistration,
   onOpenAttendance,
   isAdminOrAdvisor = false,
   isStudent = false,
@@ -75,7 +70,6 @@ export default function ActivityScheduleTimeline({
   canViewOwnAttendance,
   loading = false,
 }: ActivityScheduleTimelineProps) {
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const toggleExpand = (id: string) => {
@@ -84,35 +78,6 @@ export default function ActivityScheduleTimeline({
 
   const showRoster = canViewAttendanceRoster !== undefined ? canViewAttendanceRoster : isAdminOrAdvisor;
   const showOwnStatus = canViewOwnAttendance !== undefined ? canViewOwnAttendance : isStudent;
-
-  const handleRegisterClick = async (scheduleId: string) => {
-    setActionLoadingId(scheduleId);
-    try {
-      if (onRegister) {
-        await onRegister(scheduleId);
-        toast.success('Đăng ký tham gia thành công');
-      }
-    } catch {
-      toast.error('Lỗi khi đăng ký tham gia');
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  const handleCancelRegisterClick = async (scheduleId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn hủy đăng ký tham gia buổi sinh hoạt này?')) return;
-    setActionLoadingId(scheduleId);
-    try {
-      if (onCancelRegistration) {
-        await onCancelRegistration(scheduleId);
-        toast.success('Đã hủy đăng ký tham gia');
-      }
-    } catch {
-      toast.error('Lỗi khi hủy đăng ký');
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -166,11 +131,9 @@ export default function ActivityScheduleTimeline({
             const dateInfo = formatDate(schedule.start_time);
             const endDateInfo = formatDate(schedule.end_time);
             const scheduleLocation = schedule.location || defaultClassroom || 'Chưa có địa điểm';
-            const isActionLoading = actionLoadingId === schedule._id;
             const regCount = schedule.registration_count || 0;
             const maxAtt = schedule.max_attendees || 0;
             const isFull = maxAtt > 0 && regCount >= maxAtt;
-            const isRegistered = schedule.is_registered || (schedule.my_attendance !== null && schedule.my_attendance !== undefined);
             const myAtt = schedule.my_attendance;
             const isToday = schedule.is_today === true;
             const isPast = !isToday && schedule.end_time && new Date(schedule.end_time).getTime() < Date.now();
@@ -236,15 +199,6 @@ export default function ActivityScheduleTimeline({
                     <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                       {isToday && onOpenAttendance && (showOwnStatus || showRoster) && (
                         <Button onClick={onOpenAttendance} className="h-8 px-4 text-xs bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded-xl shadow-md shadow-indigo-500/10 active:scale-95 transition-all cursor-pointer font-bold border-0">Điểm danh</Button>
-                      )}
-                      {isStudent && (
-                        <>
-                          {isRegistered ? (
-                            <Button variant="outline" onClick={() => onCancelRegistration && handleCancelRegisterClick(schedule._id)} className="h-8 px-3 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl cursor-pointer" disabled={isActionLoading}>Hủy đăng ký</Button>
-                          ) : (
-                            <Button onClick={() => onRegister && handleRegisterClick(schedule._id)} className={`h-8 px-3 text-xs text-white rounded-xl shadow-sm cursor-pointer ${isFull ? 'bg-slate-300 hover:bg-slate-300 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-750'}`} disabled={isFull || isActionLoading}>Đăng ký tham gia</Button>
-                          )}
-                        </>
                       )}
                     </div>
                   </div>

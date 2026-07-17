@@ -992,6 +992,88 @@ describe('ActivityDetailPage', () => {
     });
   });
 
+  it('shows the member-flow summary and join action to an administrator without a membership', async () => {
+    mockAuth.user = {
+      id: 'admin-user',
+      role: { role_code: 'ADMIN' },
+      roleCode: 'ADMIN',
+    };
+    mockAuth.isAdmin = true;
+    vi.mocked(activityApi.getById).mockResolvedValue({
+      _id: 'act1',
+      name: 'Administrator Member Flow',
+      code: 'ADMIN_FLOW',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'A.101',
+      semester_id: { _id: 'sem1' },
+      settings: { allow_self_registration: true },
+    } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([{
+      _id: 'rule-1',
+      activity_id: 'act1',
+      semester_id: 'sem1',
+      minimum_attendance: 3,
+      criterion_ids: ['criterion-1'],
+      status: 'active',
+    }] as any);
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue([{
+      _id: 'criterion-1',
+      criterion_name: 'Academic criterion',
+    }] as any);
+    vi.mocked(activityApi.joinActivity).mockResolvedValue({ membership: { status: 'active' } } as any);
+
+    render(<ActivityDetailPage />);
+
+    const joinButton = await screen.findByRole('button', { name: 'Đăng ký tham gia' });
+    expect(screen.getByText('Cơ chế tích lũy điểm rèn luyện')).toBeInTheDocument();
+
+    fireEvent.click(joinButton);
+
+    await waitFor(() => {
+      expect(activityApi.joinActivity).toHaveBeenCalledWith('act1', { semester_id: 'sem1' });
+    });
+  });
+
+  it('shows the active membership state for an administrator membership linked by user ID', async () => {
+    mockAuth.user = {
+      id: 'admin-user',
+      role: { role_code: 'ADMIN' },
+      roleCode: 'ADMIN',
+    };
+    mockAuth.isAdmin = true;
+    vi.mocked(activityApi.getById).mockResolvedValue({
+      _id: 'act1',
+      name: 'Active Administrator Member',
+      code: 'ACTIVE_ADMIN',
+      activity_type: 'event',
+      participation_status: 'published',
+      classroom: 'A.101',
+      semester_id: { _id: 'sem1' },
+      settings: { allow_self_registration: true },
+    } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([{
+      _id: 'member-1',
+      activity_id: 'act1',
+      user_id: { _id: 'admin-user' },
+      role: 'member',
+      status: 'active',
+      semester_id: 'sem1',
+      createdAt: '2026-07-17T00:00:00Z',
+    }] as any);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Đang tham gia hoạt động')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Đăng ký tham gia' })).not.toBeInTheDocument();
+    });
+  });
+
   it('does not expose administrator metadata or logo controls to unauthorized users', async () => {
     mockAuth.isAdmin = false;
     mockAuth.user = { id: 'student-user', studentId: 'student1', role: { role_code: 'STUDENT' }, roleCode: 'STUDENT' } as any;

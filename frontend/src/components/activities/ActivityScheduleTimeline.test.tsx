@@ -295,6 +295,29 @@ describe('ActivityScheduleTimeline', () => {
     expect(screen.queryByRole('button', { name: 'Điểm danh' })).not.toBeInTheDocument();
   });
 
+  it('does not render schedule registration actions for a student viewer', () => {
+    render(
+      <ActivityScheduleTimeline
+        schedules={[
+          {
+            _id: 'student-schedule',
+            title: 'Student Schedule',
+            start_time: '2026-07-14T09:00:00Z',
+            end_time: '2026-07-14T10:00:00Z',
+            is_today: true,
+            is_registered: false,
+          },
+        ]}
+        isStudent={true}
+        onOpenAttendance={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Điểm danh' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Đăng ký tham gia' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hủy đăng ký' })).not.toBeInTheDocument();
+  });
+
   it('proves role-matrix behaviors: advisor, student, and admin views with roster toggle, empty details, status labels, and approval labels', () => {
     const matrixSchedules = [
       {
