@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { getImageUrl } from '@/components/activities/activity-view-policy';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 import ActivityMemberTable from '@/components/activities/ActivityMemberTable';
 import ActivityScheduleTimeline from '@/components/activities/ActivityScheduleTimeline';
 import ActivityCompletionRuleForm from '@/components/activities/ActivityCompletionRuleForm';
@@ -103,6 +104,9 @@ export default function ActivityDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveRemaining, setLeaveRemaining] = useState<number | null>(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showMethodSelector, setShowMethodSelector] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showRuleModal, setShowRuleModal] = useState(false);
@@ -131,6 +135,12 @@ export default function ActivityDetailPage() {
       setActivity(actData);
       setLogoLoadFailed(false);
       setMembers(membersData);
+      const loadedStudentMembership = membersData.find((m: any) => normalizeEntityId(m.student_id) === user?.studentId || normalizeEntityId(m.user_id) === user?.id);
+      const semesterId = normalizeEntityId(actData.semester_id);
+      if (isStudent && actData.activity_type === 'club' && loadedStudentMembership?.status === 'active' && semesterId) {
+        const policy = await activityApi.getMyTransferPolicy({ semester_id: semesterId }).catch(() => null);
+        setLeaveRemaining(policy?.self_service_leaves_remaining ?? null);
+      } else setLeaveRemaining(null);
       setCriteriaById(
         (Array.isArray(criteriaList) ? criteriaList : []).reduce((acc: Record<string, string>, criterion: any) => {
           if (criterion?._id && criterion?.criterion_name) {
@@ -213,6 +223,21 @@ export default function ActivityDetailPage() {
   const handleRemoveMember = async (memberId: string) => {
     await activityApi.removeMember(activityId, memberId);
     loadActivityData();
+  };
+
+  const handleLeaveActivity = async () => {
+    if (!activity || leaving || leaveRemaining === 0) return;
+    const semesterId = normalizeEntityId(activity.semester_id);
+    if (!semesterId) return;
+    setLeaving(true);
+    try {
+      const response = await activityApi.leaveActivity(activityId, { semester_id: semesterId });
+      setLeaveRemaining(response.self_service_leaves_remaining ?? Math.max(0, (leaveRemaining ?? 1) - 1));
+      toast.success('Left activity successfully');
+      await loadActivityData();
+    } catch (err: any) {
+      toast.error(err?.message || 'Unable to leave activity');
+    } finally { setLeaving(false); }
   };
 
   const handleLogoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -429,9 +454,16 @@ export default function ActivityDetailPage() {
                 Chờ duyệt tham gia
               </div>
             ) : memberStatus === 'active' ? (
-              <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-200 text-emerald-600 font-bold rounded-xl text-xs flex items-center gap-1.5">
-                <CheckCircle2 size={14} />
-                Đang tham gia hoạt động
+              <div className="flex items-center gap-2">
+                <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-200 text-emerald-600 font-bold rounded-xl text-xs flex items-center gap-1.5">
+                  <CheckCircle2 size={14} />
+                  Đã tham gia
+                </div>
+                {isStudent && activity.activity_type === 'club' && (
+                  <Button onClick={() => setShowLeaveConfirm(true)} disabled={leaving || leaveRemaining === 0} variant="outline" className="h-auto px-4 py-2 rounded-xl text-xs font-bold text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700">
+                    Rời hoạt động ({leaveRemaining ?? 3})
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="px-4 py-2 bg-red-500/10 border border-red-200 text-red-600 font-bold rounded-xl text-xs">
@@ -692,6 +724,17 @@ export default function ActivityDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal
+        isOpen={showLeaveConfirm}
+        onClose={() => setShowLeaveConfirm(false)}
+        onConfirm={handleLeaveActivity}
+        title="Xác nhận rời hoạt động"
+        message={`Bạn còn ${leaveRemaining ?? 3} lần rời hoạt động trong học kỳ này. Sau khi rời, bạn có thể tham gia lại nếu hoạt động cho phép.`}
+        confirmLabel="Rời hoạt động"
+        cancelLabel="Hủy"
+        variant="danger"
+      />
     </div>
   );
 }

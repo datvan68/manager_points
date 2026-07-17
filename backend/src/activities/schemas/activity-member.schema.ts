@@ -42,6 +42,9 @@ export class ActivityMember {
 
   @Prop({ type: Boolean, required: true, default: false })
   occupies_slot: boolean;
+
+  @Prop({ type: Number, min: 0, default: 0 })
+  self_service_leave_count: number;
 }
 
 export const ActivityMemberSchema = SchemaFactory.createForClass(ActivityMember);

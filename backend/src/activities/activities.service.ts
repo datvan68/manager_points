@@ -324,6 +324,17 @@ export class ActivitiesService {
     }));
   }
 
+  private async countSelfServiceClubLeaves(studentId: string, semesterId: string): Promise<number> {
+    const result = await this.memberModel.aggregate([
+      { $match: { student_id: new Types.ObjectId(studentId), semester_id: new Types.ObjectId(semesterId) } },
+      { $lookup: { from: 'activities', localField: 'activity_id', foreignField: '_id', as: 'activity' } },
+      { $unwind: '$activity' },
+      { $match: { 'activity.activity_type': 'club' } },
+      { $group: { _id: null, total: { $sum: { $ifNull: ['$self_service_leave_count', 0] } } } },
+    ]).exec();
+    return result[0]?.total ?? 0;
+  }
+
   async findOne(id: string): Promise<ActivityDocument> {
     const activity = await this.activityModel
       .findById(id)
@@ -726,6 +737,7 @@ export class ActivitiesService {
     const studentId = await this.resolveStudentId(studentIdOrUserId);
     
     // Find the student's membership in this activity for the given semester
+    const activity = await this.activityModel.findById(activityId);
     const member = await this.memberModel.findOne({
       activity_id: new Types.ObjectId(activityId),
       student_id: new Types.ObjectId(studentId),
@@ -737,18 +749,40 @@ export class ActivitiesService {
       throw new NotFoundException('Không tìm thấy tư cách thành viên đang hoạt động hoặc đang chờ duyệt');
     }
 
-    member.status = 'left';
-    member.left_at = new Date();
-    member.occupies_slot = false;
-    await member.save();
+    const isClubActiveLeave = activity?.activity_type === 'club' && member.status === 'active';
+    const leavesUsed = isClubActiveLeave ? await this.countSelfServiceClubLeaves(studentId, dto.semester_id) : 0;
+    if (isClubActiveLeave && leavesUsed >= 3) throw new BadRequestException('Club leave limit reached');
+    let updated: ActivityMemberDocument | null;
+    if (isClubActiveLeave) {
+      updated = await this.memberModel.findOneAndUpdate(
+        {
+          _id: member._id,
+          status: 'active',
+          $or: [
+            { self_service_leave_count: { $lt: 3 } },
+            { self_service_leave_count: { $exists: false } },
+          ],
+        },
+        { $set: { status: 'left', left_at: new Date(), occupies_slot: false }, $inc: { self_service_leave_count: 1 } },
+        { new: true },
+      ).exec();
+    } else {
+      member.status = 'left'; member.left_at = new Date(); member.occupies_slot = false;
+      await member.save();
+      updated = member;
+    }
+    if (!updated) throw new ConflictException('Membership changed; please retry');
 
     const completedChanges = await this.countCompletedSelfServiceTransfers(studentId, dto.semester_id);
 
+    const updatedLeavesUsed = isClubActiveLeave ? leavesUsed + 1 : 0;
     return {
-      membership: member,
+      membership: updated,
       transfer: null,
       self_service_changes_used: completedChanges,
       self_service_changes_remaining: Math.max(0, 3 - completedChanges),
+      self_service_leaves_used: updatedLeavesUsed,
+      self_service_leaves_remaining: Math.max(0, 3 - updatedLeavesUsed),
       requires_teacher_approval: false,
       first_schedule_start_time: null,
     };
@@ -1047,6 +1081,7 @@ export class ActivitiesService {
     const studentId = await this.resolveStudentId(userId);
     const completedChanges = await this.countCompletedSelfServiceTransfers(studentId, semesterId);
     const occupied = await this.findOccupiedMembership(studentId, semesterId);
+    const leavesUsed = await this.countSelfServiceClubLeaves(studentId, semesterId);
     
     let firstSchedule: ActivityScheduleDocument | null = null;
     if (occupied) {
@@ -1058,6 +1093,8 @@ export class ActivitiesService {
       self_service_changes_remaining: Math.max(0, 3 - completedChanges),
       occupied_activity_id: occupied ? occupied.activity_id.toString() : null,
       first_schedule_start_time: firstSchedule ? firstSchedule.start_time : null,
+      self_service_leaves_used: leavesUsed,
+      self_service_leaves_remaining: Math.max(0, 3 - leavesUsed),
     };
   }
 

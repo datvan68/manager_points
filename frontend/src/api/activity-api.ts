@@ -76,6 +76,8 @@ export interface ActivityMembershipPolicyResponse {
   transfer: any | null;
   self_service_changes_used: number;
   self_service_changes_remaining: number;
+  self_service_leaves_used?: number;
+  self_service_leaves_remaining?: number;
   requires_teacher_approval: boolean;
   first_schedule_start_time: string | null;
 }
@@ -241,6 +243,8 @@ export const activityApi = {
     self_service_changes_remaining: number;
     occupied_activity_id: string | null;
     first_schedule_start_time: string | null;
+    self_service_leaves_used: number;
+    self_service_leaves_remaining: number;
   }> {
     const res = await httpClient(`${API_BASE}/activities/my/transfer-policy${buildQuery(params)}`);
     return handleResponse<{
@@ -248,6 +252,8 @@ export const activityApi = {
       self_service_changes_remaining: number;
       occupied_activity_id: string | null;
       first_schedule_start_time: string | null;
+      self_service_leaves_used: number;
+      self_service_leaves_remaining: number;
     }>(res);
   },
 

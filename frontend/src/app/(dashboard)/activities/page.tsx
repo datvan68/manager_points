@@ -46,7 +46,15 @@ export default function ActivitiesPage() {
     setLoading(true);
     try {
       const activitiesList = await activityApi.getAll().catch(() => []);
-      setActivities(activitiesList);
+      const isStudent = !!user && !isAdminUser(user) && !isTeacherRole(user);
+      if (isStudent) {
+        const activeClub = activitiesList.find((item) => item.activity_type === 'club' && item.membership_status === 'active');
+        setActivities(activeClub
+          ? activitiesList.filter((item) => item.activity_type !== 'club' || item._id === activeClub._id)
+          : activitiesList);
+      } else {
+        setActivities(activitiesList);
+      }
     } catch {
       toast.error('Lỗi khi tải danh sách hoạt động');
     } finally {
@@ -133,7 +141,7 @@ export default function ActivitiesPage() {
         if (item._id === activityToJoin._id) {
           return {
             ...item,
-            membership_status: res.membership.status
+            membership_status: res.membership.status as Activity['membership_status']
           };
         }
         return item;
