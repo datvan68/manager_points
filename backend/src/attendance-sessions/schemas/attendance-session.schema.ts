@@ -8,7 +8,7 @@ export class AttendanceSession {
   // ── Context: xác định phiên thuộc domain nào ──
   @Prop({
     type: String,
-    enum: ['club', 'class', 'event', 'dormitory'],
+    enum: ['club', 'activity', 'class', 'event', 'dormitory'],
     required: true,
   })
   context_type: string;

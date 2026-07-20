@@ -316,7 +316,9 @@ export default function ActivityDetailPage() {
   });
 
   const memberStatus = studentMembership?.status || 'none';
-  const canAccessAttendance = isAdminOrAdvisor || memberStatus === 'active';
+  const canManageAttendance = isAdmin || (memberStatus === 'active' && studentMembership?.role === 'president');
+  const canCheckInAttendance = memberStatus === 'active';
+  const canAccessAttendance = canManageAttendance || canCheckInAttendance;
   const isActiveStudentMember = isStudent && memberStatus === 'active';
   const allowedStudentTabs = isStudent
     ? (isActiveStudentMember ? ['info', 'attendance'] : ['info'])
@@ -701,6 +703,10 @@ export default function ActivityDetailPage() {
               setShowMethodSelector={setShowMethodSelector}
               showQrScanner={showQrScanner}
               setShowQrScanner={setShowQrScanner}
+              canManageAttendance={canManageAttendance}
+              canCheckInAttendance={canCheckInAttendance}
+              currentStudentId={normalizeEntityId(studentMembership?.student_id) || user?.studentId || ''}
+              onAttendanceCompleted={loadActivityData}
             />
           </div>
         )}
@@ -748,6 +754,10 @@ function ActivityAttendanceTab({
   setShowMethodSelector,
   showQrScanner,
   setShowQrScanner,
+  canManageAttendance,
+  canCheckInAttendance,
+  currentStudentId,
+  onAttendanceCompleted,
 }: {
   activityId: string;
   activity: any;
@@ -756,16 +766,33 @@ function ActivityAttendanceTab({
   setShowMethodSelector: (v: boolean) => void;
   showQrScanner: boolean;
   setShowQrScanner: (v: boolean) => void;
+  canManageAttendance: boolean;
+  canCheckInAttendance: boolean;
+  currentStudentId: string;
+  onAttendanceCompleted: () => Promise<void>;
 }) {
   const attendance = useAttendanceSession({
     contextType: activity.activity_type === 'club' ? 'club' : 'activity',
     contextId: activityId,
     enabled: true,
+    canManage: canManageAttendance,
   });
 
   const hasActiveSession = attendance.session?.status === 'active';
   const isQrSession = hasActiveSession && attendance.session?.method === 'qr';
   const isProximitySession = hasActiveSession && attendance.session?.method === 'proximity';
+  const hasCurrentMemberCheckedIn = attendance.checkinStatus === 'success' || attendance.checkins.some(
+    (checkin) => normalizeEntityId(checkin.student_id) === currentStudentId,
+  );
+  const todayInHoChiMinh = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  const todaySchedule = schedules.find((schedule) =>
+    schedule?.status !== 'cancelled'
+    && new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date(schedule.start_time)) === todayInHoChiMinh,
+  );
 
   const handleOpenSession = async (params: {
     method: 'qr' | 'proximity';
@@ -775,8 +802,10 @@ function ActivityAttendanceTab({
     qr_refresh_interval?: number;
   }) => {
     try {
+      if (!todaySchedule?._id) throw new Error('No non-cancelled schedule is available today.');
       await attendance.openSession({
         ...params,
+        schedule_id: todaySchedule._id,
         semester_id: activity.semester_id?._id || activity.semester_id || '',
         title: `Điểm danh hoạt động ${activity.name}`,
       });
@@ -809,7 +838,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* No active session */}
-      {!hasActiveSession && !showMethodSelector && (
+      {!hasActiveSession && !showMethodSelector && canManageAttendance && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-8 shadow-sm text-center max-w-lg mx-auto">
           <ClipboardCheck size={44} className="text-blue-500 mb-4 mx-auto" />
           <h3 className="text-base font-extrabold text-slate-800">Điểm danh hoạt động</h3>
@@ -819,22 +848,25 @@ function ActivityAttendanceTab({
           <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs mx-auto">
             <button
               onClick={() => setShowMethodSelector(true)}
-              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
+              disabled={!todaySchedule}
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Radio size={15} /> Mở điểm danh
-            </button>
-            <button
-              onClick={() => setShowQrScanner(true)}
-              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
-            >
-              <QrCode size={15} /> Quét QR
             </button>
           </div>
         </div>
       )}
 
+      {!hasActiveSession && !showMethodSelector && !canManageAttendance && canCheckInAttendance && (
+        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-8 shadow-sm text-center max-w-lg mx-auto">
+          <ClipboardCheck size={44} className="text-slate-400 mb-4 mx-auto" />
+          <h3 className="text-base font-extrabold text-slate-800">Đang chờ mở điểm danh</h3>
+          <p className="text-xs text-slate-450 mt-1.5 font-semibold">Trạng thái sẽ cập nhật tự động khi Chủ nhiệm hoặc quản trị viên mở phiên.</p>
+        </div>
+      )}
+
       {/* Method Selector Modal */}
-      {!hasActiveSession && showMethodSelector && (
+      {!hasActiveSession && showMethodSelector && canManageAttendance && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-6 shadow-sm">
           <AttendanceMethodSelector
             onSelect={handleOpenSession}
@@ -850,7 +882,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* Active QR Session */}
-      {isQrSession && attendance.qrData && (
+      {isQrSession && attendance.qrData && canManageAttendance && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl shadow-sm overflow-hidden">
           <QrDisplayPanel
             token={attendance.qrData.token}
@@ -864,7 +896,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* Active Proximity Session */}
-      {isProximitySession && attendance.session && (
+      {isProximitySession && attendance.session && canManageAttendance && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl shadow-sm overflow-hidden">
           <ProximityPanel
             latitude={attendance.session.latitude!}
@@ -879,33 +911,39 @@ function ActivityAttendanceTab({
       )}
 
       {/* Student Proximity check-in */}
-      {isProximitySession && attendance.session && (
+      {isProximitySession && attendance.session && canCheckInAttendance && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl shadow-sm overflow-hidden">
           <ProximityCheckinButton
             sessionLatitude={attendance.session.latitude!}
             sessionLongitude={attendance.session.longitude!}
             sessionRadius={attendance.session.radius_meters!}
-            onCheckin={async (lat, lng) => { await attendance.checkinProximity(lat, lng); }}
-            checkinStatus={attendance.checkinStatus}
+            onCheckin={async (lat, lng) => {
+              await attendance.checkinProximity(lat, lng);
+              toast.success('Điểm danh thành công!');
+              await onAttendanceCompleted();
+            }}
+            checkinStatus={hasCurrentMemberCheckedIn ? 'success' : attendance.checkinStatus}
             checkinError={attendance.checkinError}
           />
         </div>
       )}
 
       {/* Student QR Scanner */}
-      {isQrSession && (
+      {isQrSession && canCheckInAttendance && (
         <div className="flex justify-center">
           <button
-            onClick={() => setShowQrScanner(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+            onClick={() => !hasCurrentMemberCheckedIn && setShowQrScanner(true)}
+            disabled={hasCurrentMemberCheckedIn}
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer disabled:bg-emerald-100 disabled:text-emerald-700 disabled:shadow-none disabled:cursor-not-allowed"
           >
-            <QrCode size={18} /> Quét mã để điểm danh
+            {hasCurrentMemberCheckedIn ? <CheckCircle2 size={18} /> : <QrCode size={18} />}
+            {hasCurrentMemberCheckedIn ? 'Đã điểm danh' : 'Quét mã để điểm danh'}
           </button>
         </div>
       )}
 
       {/* Checkins List */}
-      {hasActiveSession && attendance.checkins.length > 0 && (
+      {hasActiveSession && attendance.checkins.length > 0 && canManageAttendance && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-5 shadow-sm">
           <h3 className="text-xs font-bold text-slate-800 pb-3 border-b border-white/50 mb-3">
             Đã điểm danh ({attendance.checkins.length})
@@ -940,7 +978,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* Scanner Modal */}
-      <QrScannerModal
+      {canCheckInAttendance && !hasCurrentMemberCheckedIn && <QrScannerModal
         open={showQrScanner}
         onClose={() => {
           setShowQrScanner(false);
@@ -948,11 +986,13 @@ function ActivityAttendanceTab({
         }}
         onScanned={async (token) => {
           await attendance.checkinQr(token);
+          toast.success('Điểm danh thành công!');
+          await onAttendanceCompleted();
         }}
         checkinStatus={attendance.checkinStatus}
         checkinError={attendance.checkinError}
         onReset={attendance.resetCheckinStatus}
-      />
+      />}
 
       {/* Error */}
       {attendance.error && (

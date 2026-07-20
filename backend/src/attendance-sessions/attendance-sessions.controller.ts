@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Query,
+  Sse,
   UseGuards,
   Request,
 } from '@nestjs/common';
@@ -15,8 +16,8 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { checkPermission } from '../auth/guards/check-permission.guard';
 import { AttendanceSessionsService } from './attendance-sessions.service';
+import { AttendanceRealtimeService } from './attendance-realtime.service';
 import { OpenSessionDto } from './dto/open-session.dto';
 import { CheckinQrDto } from './dto/checkin-qr.dto';
 import { CheckinProximityDto } from './dto/checkin-proximity.dto';
@@ -26,16 +27,18 @@ import { CheckinProximityDto } from './dto/checkin-proximity.dto';
 export class AttendanceSessionsController {
   constructor(
     private readonly sessionsService: AttendanceSessionsService,
+    private readonly realtimeService: AttendanceRealtimeService,
   ) {}
 
   @Post()
-  @UseGuards(checkPermission('ATTENDANCE_SESSION_CREATE'))
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Mở phiên điểm danh mới (QR hoặc Proximity)' })
   openSession(@Body() dto: OpenSessionDto, @Request() req: any) {
     return this.sessionsService.openSession(
       dto,
-      req.user._id || req.user.id,
+      req.user.userId,
+      req.user.roleCode,
     );
   }
 
@@ -56,6 +59,20 @@ export class AttendanceSessionsController {
       req.user.userId,
       req.user.roleCode,
     );
+  }
+
+  @Sse('realtime')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Realtime attendance updates for one activity context' })
+  @ApiQuery({ name: 'context_type', required: true })
+  @ApiQuery({ name: 'context_id', required: true })
+  async realtime(
+    @Query('context_type') contextType: string,
+    @Query('context_id') contextId: string,
+    @Request() req: any,
+  ) {
+    return this.realtimeService.getStream(req.user, contextType, contextId);
   }
 
   @Get('history')
@@ -89,21 +106,22 @@ export class AttendanceSessionsController {
   }
 
   @Get(':id/qr')
-  @UseGuards(checkPermission('ATTENDANCE_SESSION_CREATE'))
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lấy QR data hiện tại (admin polling)' })
-  getQrData(@Param('id') id: string) {
-    return this.sessionsService.getQrData(id);
+  getQrData(@Param('id') id: string, @Request() req: any) {
+    return this.sessionsService.getQrData(id, req.user.userId, req.user.roleCode);
   }
 
   @Post(':id/close')
-  @UseGuards(checkPermission('ATTENDANCE_SESSION_CREATE'))
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Đóng phiên điểm danh' })
   closeSession(@Param('id') id: string, @Request() req: any) {
     return this.sessionsService.closeSession(
       id,
-      req.user._id || req.user.id,
+      req.user.userId,
+      req.user.roleCode,
     );
   }
 

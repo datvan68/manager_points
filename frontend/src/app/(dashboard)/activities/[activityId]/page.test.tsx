@@ -4,6 +4,12 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 const mockReplace = vi.fn();
 const mockSearchParamsGet = vi.fn().mockReturnValue(null);
+const attendanceMocks = vi.hoisted(() => ({
+  checkinQr: vi.fn(),
+  checkinProximity: vi.fn(),
+  resetCheckinStatus: vi.fn(),
+  state: {} as Record<string, unknown>,
+}));
 
 // 1. Mock next/navigation
 vi.mock('next/navigation', () => ({
@@ -96,10 +102,46 @@ vi.mock('sonner', () => ({
   },
 }));
 
+vi.mock('@/hooks/useAttendanceSession', () => ({
+  useAttendanceSession: () => ({
+    session: { _id: 'session1', status: 'active', method: 'qr', checkin_count: 0, opened_at: '2026-07-18T00:00:00Z' },
+    checkins: [],
+    qrData: null,
+    loading: false,
+    error: null,
+    checkinStatus: 'idle',
+    checkinError: null,
+    checkinQr: attendanceMocks.checkinQr,
+    checkinProximity: attendanceMocks.checkinProximity,
+    resetCheckinStatus: attendanceMocks.resetCheckinStatus,
+    openSession: vi.fn(),
+    closeSession: vi.fn(),
+    ...attendanceMocks.state,
+  }),
+}));
+
+vi.mock('@/components/attendance/ProximityCheckinButton', () => ({
+  default: ({ onCheckin, checkinStatus }: { onCheckin: (latitude: number, longitude: number) => Promise<void>; checkinStatus: string }) => (
+    <button
+      disabled={checkinStatus === 'success'}
+      onClick={() => void onCheckin(10.762622, 106.660172)}
+    >
+      {checkinStatus === 'success' ? 'Đã điểm danh GPS' : 'Complete GPS attendance'}
+    </button>
+  ),
+}));
+
+vi.mock('@/components/attendance/QrScannerModal', () => ({
+  default: ({ onScanned }: { onScanned: (token: string) => Promise<void> }) => (
+    <button onClick={() => void onScanned('attendance-token')}>Complete QR attendance</button>
+  ),
+}));
+
 // 7. Import after mocks
 import { activityApi, activityScheduleApi, activityCompletionRuleApi } from '@/api/activity-api';
 import { criteriaApi } from '@/api/criteria-api';
 import { semesterApi } from '@/api/semester-api';
+import { toast } from 'sonner';
 import ActivityDetailPage from './page';
 
 describe('ActivityDetailPage', () => {
@@ -113,6 +155,10 @@ describe('ActivityDetailPage', () => {
     };
     mockAuth.isAdmin = true;
     mockSearchParamsGet.mockReturnValue(null);
+    attendanceMocks.checkinQr.mockReset();
+    attendanceMocks.checkinProximity.mockReset();
+    attendanceMocks.resetCheckinStatus.mockReset();
+    attendanceMocks.state = {};
     vi.mocked(semesterApi.getSemesters).mockResolvedValue([]);
   });
 
@@ -853,6 +899,89 @@ describe('ActivityDetailPage', () => {
     fireEvent.error(screen.getByRole('img', { name: 'Logo Activity' }));
 
     await waitFor(() => expect(screen.getByText('LO')).toBeInTheDocument());
+  });
+
+  it('refreshes the General Information timeline after a successful QR check-in', async () => {
+    mockSearchParamsGet.mockReturnValue('attendance');
+    attendanceMocks.checkinQr.mockResolvedValue({ _id: 'checkin1' });
+    vi.mocked(activityApi.getById).mockResolvedValue({
+      _id: 'act1', name: 'Dynamic Event Activity', code: 'DYNAMIC_EVENT', activity_type: 'event',
+      participation_status: 'published', classroom: 'B.202', semester_id: { _id: 'sem1' },
+    } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([
+      { _id: 'member1', user_id: 'user1', status: 'active', role: 'member' },
+    ] as any);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    await screen.findByRole('button', { name: 'Complete QR attendance' });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete QR attendance' }));
+
+    await waitFor(() => {
+      expect(attendanceMocks.checkinQr).toHaveBeenCalledWith('attendance-token');
+      expect(activityScheduleApi.getActivityTimeline).toHaveBeenCalledTimes(2);
+      expect(toast.success).toHaveBeenCalledWith('Điểm danh thành công!');
+    });
+  });
+
+  it('shows a disabled completed QR action only for the current member check-in', async () => {
+    mockSearchParamsGet.mockReturnValue('attendance');
+    attendanceMocks.state = {
+      checkins: [{ _id: 'other-checkin', student_id: 'student-2' }],
+    };
+    vi.mocked(activityApi.getById).mockResolvedValue({
+      _id: 'act1', name: 'Attendance State Activity', code: 'ATTENDANCE_STATE', activity_type: 'event',
+      participation_status: 'published', classroom: 'B.202', semester_id: { _id: 'sem1' },
+    } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([
+      { _id: 'member1', student_id: 'student1', status: 'active', role: 'president' },
+    ] as any);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    const { rerender } = render(<ActivityDetailPage />);
+
+    const qrAction = await screen.findByRole('button', { name: 'Quét mã để điểm danh' });
+    expect(qrAction).toBeEnabled();
+
+    attendanceMocks.state = {
+      checkins: [{ _id: 'my-checkin', student_id: 'student1' }],
+    };
+    rerender(<ActivityDetailPage />);
+
+    expect(await screen.findByRole('button', { name: 'Đã điểm danh' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Complete QR attendance' })).not.toBeInTheDocument();
+  });
+
+  it('shows a success toast after GPS check-in', async () => {
+    mockSearchParamsGet.mockReturnValue('attendance');
+    attendanceMocks.state = {
+      session: {
+        _id: 'session1', status: 'active', method: 'proximity', checkin_count: 0,
+        opened_at: '2026-07-18T00:00:00Z', latitude: 10.762622, longitude: 106.660172, radius_meters: 50,
+      },
+    };
+    attendanceMocks.checkinProximity.mockResolvedValue({ _id: 'gps-checkin', student_id: 'student1' });
+    vi.mocked(activityApi.getById).mockResolvedValue({
+      _id: 'act1', name: 'GPS Activity', code: 'GPS_ACTIVITY', activity_type: 'event',
+      participation_status: 'published', classroom: 'B.202', semester_id: { _id: 'sem1' },
+    } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([
+      { _id: 'member1', student_id: 'student1', status: 'active', role: 'member' },
+    ] as any);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Complete GPS attendance' }));
+
+    await waitFor(() => {
+      expect(attendanceMocks.checkinProximity).toHaveBeenCalledWith(10.762622, 106.660172);
+      expect(toast.success).toHaveBeenCalledWith('Điểm danh thành công!');
+    });
   });
 
   it.each(['none', 'pending', 'rejected', 'inactive', 'left'])(

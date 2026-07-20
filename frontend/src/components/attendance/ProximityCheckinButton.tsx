@@ -73,6 +73,14 @@ export default function ProximityCheckinButton({
           <p className="font-semibold text-emerald-700">Điểm danh thành công!</p>
           <p className="text-xs text-emerald-600 mt-0.5">Bạn đã được ghi nhận.</p>
         </div>
+        <button
+          type="button"
+          disabled
+          className="w-full py-3 rounded-2xl text-base font-semibold flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 cursor-not-allowed"
+        >
+          <CheckCircle2 className="w-5 h-5" />
+          Đã điểm danh
+        </button>
       </div>
     );
   }

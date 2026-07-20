@@ -764,7 +764,7 @@ export class ActivitiesService {
           ],
         },
         { $set: { status: 'left', left_at: new Date(), occupies_slot: false }, $inc: { self_service_leave_count: 1 } },
-        { new: true },
+        { returnDocument: 'after' },
       ).exec();
     } else {
       member.status = 'left'; member.left_at = new Date(); member.occupies_slot = false;

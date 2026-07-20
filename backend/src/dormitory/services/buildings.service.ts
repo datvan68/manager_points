@@ -58,7 +58,7 @@ export class BuildingsService {
 
   async update(id: string, dto: UpdateBuildingDto, user: any): Promise<Building> {
     const building = await this.buildingModel
-      .findByIdAndUpdate(id, { $set: dto }, { new: true })
+      .findByIdAndUpdate(id, { $set: dto }, { returnDocument: 'after' })
       .exec();
     if (!building) {
       throw new NotFoundException(`Không tìm thấy tòa nhà với ID: ${id}`);

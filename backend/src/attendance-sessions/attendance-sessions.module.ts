@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AttendanceSessionsService } from './attendance-sessions.service';
 import { AttendanceSessionsController } from './attendance-sessions.controller';
+import { AttendanceRealtimeService } from './attendance-realtime.service';
 import {
   AttendanceSession,
   AttendanceSessionSchema,
@@ -18,18 +19,27 @@ import {
   ActivityMember,
   ActivityMemberSchema,
 } from '../activities/schemas/activity-member.schema';
+import {
+  ActivitySchedule,
+  ActivityScheduleSchema,
+} from '../activity-schedules/schemas/activity-schedule.schema';
+import { Student, StudentSchema } from '../students/schemas/student.schema';
+import { ActivityAttendanceModule } from '../club-attendance/club-attendance.module';
 
 @Module({
   imports: [
+    ActivityAttendanceModule,
     MongooseModule.forFeature([
       { name: AttendanceSession.name, schema: AttendanceSessionSchema },
       { name: AttendanceCheckin.name, schema: AttendanceCheckinSchema },
       { name: ActivityAttendance.name, schema: ActivityAttendanceSchema },
       { name: ActivityMember.name, schema: ActivityMemberSchema },
+      { name: ActivitySchedule.name, schema: ActivityScheduleSchema },
+      { name: Student.name, schema: StudentSchema },
     ]),
   ],
   controllers: [AttendanceSessionsController],
-  providers: [AttendanceSessionsService],
+  providers: [AttendanceSessionsService, AttendanceRealtimeService],
   exports: [AttendanceSessionsService],
 })
 export class AttendanceSessionsModule {}

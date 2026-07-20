@@ -27,6 +27,16 @@ import {
   ActivityMember,
   ActivityMemberDocument,
 } from '../activities/schemas/activity-member.schema';
+import {
+  ActivitySchedule,
+  ActivityScheduleDocument,
+} from '../activity-schedules/schemas/activity-schedule.schema';
+import { Student, StudentDocument } from '../students/schemas/student.schema';
+import { ActivityAttendanceSyncService } from '../club-attendance/club-attendance-sync.service';
+import {
+  AttendanceRealtimeEvent,
+  attendanceEventEmitter,
+} from '../system/attendance-event-emitter';
 
 @Injectable()
 export class AttendanceSessionsService {
@@ -41,6 +51,11 @@ export class AttendanceSessionsService {
     private clubAttendanceModel: Model<ActivityAttendanceDocument>,
     @InjectModel(ActivityMember.name)
     private clubMemberModel: Model<ActivityMemberDocument>,
+    @InjectModel(ActivitySchedule.name)
+    private scheduleModel: Model<ActivityScheduleDocument>,
+    @InjectModel(Student.name)
+    private studentModel: Model<StudentDocument>,
+    private activityAttendanceSyncService: ActivityAttendanceSyncService,
   ) {}
 
   // ── Open Session ──
@@ -48,7 +63,10 @@ export class AttendanceSessionsService {
   async openSession(
     dto: OpenSessionDto,
     userId: string,
+    roleCode?: string,
   ): Promise<AttendanceSessionDocument> {
+    await this.ensureManager(dto.context_type, dto.context_id, userId, roleCode);
+    await this.ensureTodaySchedule(dto.context_type, dto.context_id, dto.schedule_id);
     // Check for existing active session in same context
     const existing = await this.sessionModel.findOne({
       context_type: dto.context_type,
@@ -115,6 +133,7 @@ export class AttendanceSessionsService {
     this.logger.log(
       `Session opened: ${saved._id} (${dto.method}) for ${dto.context_type}:${dto.context_id}`,
     );
+    this.emitEvent({ type: 'attendance.session_opened', contextType: saved.context_type, contextId: saved.context_id.toString(), sessionId: saved._id.toString(), checkinCount: saved.checkin_count, session: this.toPublicSession(saved) });
 
     return saved;
   }
@@ -124,6 +143,7 @@ export class AttendanceSessionsService {
   async closeSession(
     sessionId: string,
     userId: string,
+    roleCode?: string,
   ): Promise<AttendanceSessionDocument> {
     const session = await this.sessionModel.findById(sessionId);
     if (!session) {
@@ -132,16 +152,21 @@ export class AttendanceSessionsService {
     if (session.status !== 'active') {
       throw new BadRequestException('Phiên điểm danh đã đóng');
     }
+    await this.ensureManager(session.context_type, session.context_id.toString(), userId, roleCode);
 
     session.status = 'closed';
     session.closed_at = new Date();
-    return session.save();
+    const saved = await session.save();
+    this.emitEvent({ type: 'attendance.session_closed', contextType: saved.context_type, contextId: saved.context_id.toString(), sessionId: saved._id.toString(), checkinCount: saved.checkin_count, session: this.toPublicSession(saved) });
+    return saved;
   }
 
   // ── QR Token Management ──
 
   async getQrData(
     sessionId: string,
+    userId: string,
+    roleCode?: string,
   ): Promise<{ token: string; expires_at: Date; refresh_interval: number; checkin_count: number }> {
     const session = await this.sessionModel.findById(sessionId);
     if (!session) {
@@ -153,6 +178,7 @@ export class AttendanceSessionsService {
     if (session.method !== 'qr') {
       throw new BadRequestException('Phiên này không dùng phương thức QR');
     }
+    await this.ensureManager(session.context_type, session.context_id.toString(), userId, roleCode);
 
     // Auto-rotate if token expired
     const now = new Date();
@@ -162,6 +188,7 @@ export class AttendanceSessionsService {
         now.getTime() + (session.qr_refresh_interval * 1000),
       );
       await session.save();
+      this.emitEvent({ type: 'attendance.qr_rotated', contextType: session.context_type, contextId: session.context_id.toString(), sessionId: session._id.toString(), checkinCount: session.checkin_count });
     }
 
     return {
@@ -223,9 +250,10 @@ export class AttendanceSessionsService {
     await this.sessionModel.findByIdAndUpdate(session._id, {
       $inc: { checkin_count: 1 },
     });
+    this.emitEvent({ type: 'attendance.checkin_created', contextType: session.context_type, contextId: session.context_id.toString(), sessionId: session._id.toString(), checkinCount: session.checkin_count + 1, checkin: this.toRealtimeCheckin(saved) });
 
-    // Sync to club-attendance if applicable
-    if (session.context_type === 'club' && session.schedule_id) {
+    // Sync to activity attendance if applicable.
+    if (['club', 'activity'].includes(session.context_type) && session.schedule_id) {
       await this.syncToActivityAttendance(saved, session);
     }
 
@@ -296,9 +324,10 @@ export class AttendanceSessionsService {
     await this.sessionModel.findByIdAndUpdate(session._id, {
       $inc: { checkin_count: 1 },
     });
+    this.emitEvent({ type: 'attendance.checkin_created', contextType: session.context_type, contextId: session.context_id.toString(), sessionId: session._id.toString(), checkinCount: session.checkin_count + 1, checkin: this.toRealtimeCheckin(saved) });
 
-    // Sync to club-attendance if applicable
-    if (session.context_type === 'club' && session.schedule_id) {
+    // Sync to activity attendance if applicable.
+    if (['club', 'activity'].includes(session.context_type) && session.schedule_id) {
       await this.syncToActivityAttendance(saved, session);
     }
 
@@ -335,9 +364,7 @@ export class AttendanceSessionsService {
       .populate('opened_by', 'user_name')
       .lean()
       .exec();
-    if (session) {
-      await this.validateMembership(session, userId, roleCode, true);
-    }
+    if (session) await this.validateMembership(session, userId, roleCode);
     return session;
   }
 
@@ -363,9 +390,13 @@ export class AttendanceSessionsService {
     if (!session) {
       throw new NotFoundException('Không tìm thấy phiên điểm danh');
     }
-    await this.validateMembership(session, userId, roleCode, true);
+    const studentId = await this.validateMembership(session, userId, roleCode);
+    const isManager = await this.isManager(session, userId, roleCode);
     return this.checkinModel
-      .find({ session_id: new Types.ObjectId(sessionId) })
+      .find({
+        session_id: new Types.ObjectId(sessionId),
+        ...(isManager ? {} : { student_id: new Types.ObjectId(studentId) }),
+      })
       .populate('student_id', 'full_name student_code email')
       .sort({ checked_in_at: -1 })
       .lean()
@@ -437,9 +468,8 @@ export class AttendanceSessionsService {
     session: AttendanceSessionDocument,
     userId: string,
     roleCode: string,
-    allowStaff = false,
   ): Promise<string> {
-    if (allowStaff && ['ADMIN', 'TEACHER'].includes(roleCode)) {
+    if (roleCode === 'ADMIN') {
       return '';
     }
 
@@ -448,16 +478,108 @@ export class AttendanceSessionsService {
     }
 
     const requesterId = new Types.ObjectId(userId);
+    const studentId = await this.resolveRequesterStudentId(requesterId);
+    const membershipOwners: Array<{ user_id?: Types.ObjectId; student_id?: Types.ObjectId }> = [{ user_id: requesterId }];
+    if (studentId) membershipOwners.push({ student_id: new Types.ObjectId(studentId) });
     const member = await this.clubMemberModel.findOne({
       activity_id: session.context_id,
       status: 'active',
-      $or: [{ user_id: requesterId }, { student_id: requesterId }],
+      $or: membershipOwners,
     });
-    if (!member?.student_id) {
+    if (!member) {
       throw new ForbiddenException('An active activity membership is required.');
     }
+    if (member.student_id) return member.student_id.toString();
 
-    return member.student_id.toString();
+    if (!studentId) {
+      throw new ForbiddenException('An active activity membership is required.');
+    }
+    return studentId;
+  }
+
+  private async isManager(session: AttendanceSessionDocument | any, userId: string, roleCode?: string): Promise<boolean> {
+    if (roleCode === 'ADMIN') return true;
+    if (!['club', 'activity'].includes(session.context_type) || !Types.ObjectId.isValid(userId)) return false;
+    const requesterId = new Types.ObjectId(userId);
+    const studentId = await this.resolveRequesterStudentId(requesterId);
+    const membershipOwners: Array<{ user_id?: Types.ObjectId; student_id?: Types.ObjectId }> = [{ user_id: requesterId }];
+    if (studentId) membershipOwners.push({ student_id: new Types.ObjectId(studentId) });
+    const member = await this.clubMemberModel.findOne({
+      activity_id: session.context_id,
+      status: 'active',
+      role: 'president',
+      $or: membershipOwners,
+    });
+    return Boolean(member);
+  }
+
+  private async resolveRequesterStudentId(requesterId: Types.ObjectId): Promise<string | null> {
+    const student = await this.studentModel
+      .findOne({ user_id: requesterId })
+      .select('_id')
+      .lean()
+      .exec();
+    return student?._id?.toString() || null;
+  }
+
+  private async ensureManager(contextType: string, contextId: string, userId: string, roleCode?: string): Promise<void> {
+    if (roleCode === 'ADMIN') return;
+    if (!['club', 'activity'].includes(contextType) || !Types.ObjectId.isValid(contextId)) {
+      throw new ForbiddenException('Attendance management is not available for this context.');
+    }
+    const manager = await this.isManager({ context_type: contextType, context_id: new Types.ObjectId(contextId) }, userId, roleCode);
+    if (!manager) throw new ForbiddenException('Only an administrator or active president can manage attendance.');
+  }
+
+  private async ensureTodaySchedule(
+    contextType: string,
+    contextId: string,
+    scheduleId: string,
+  ): Promise<void> {
+    if (!['club', 'activity'].includes(contextType) || !Types.ObjectId.isValid(scheduleId)) {
+      throw new BadRequestException('Attendance requires a valid activity schedule for today.');
+    }
+
+    const schedule = await this.scheduleModel.findOne({
+      _id: new Types.ObjectId(scheduleId),
+      activity_id: new Types.ObjectId(contextId),
+      status: { $ne: 'cancelled' },
+    }).lean().exec();
+    if (!schedule || this.toHoChiMinhDate(schedule.start_time) !== this.toHoChiMinhDate(new Date())) {
+      throw new BadRequestException('Attendance requires a non-cancelled activity schedule for today.');
+    }
+  }
+
+  private toHoChiMinhDate(value: Date): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(value);
+  }
+
+  private emitEvent(event: AttendanceRealtimeEvent): void {
+    attendanceEventEmitter.emit('attendance_event', event);
+  }
+
+  private toPublicSession(session: AttendanceSessionDocument | any): Record<string, unknown> {
+    return {
+      _id: session._id.toString(), context_type: session.context_type,
+      context_id: session.context_id.toString(), method: session.method,
+      status: session.status, opened_at: session.opened_at, closed_at: session.closed_at,
+      latitude: session.latitude, longitude: session.longitude,
+      radius_meters: session.radius_meters, title: session.title,
+      checkin_count: session.checkin_count,
+    };
+  }
+
+  private toRealtimeCheckin(checkin: AttendanceCheckinDocument | any) {
+    return {
+      _id: checkin._id?.toString() || '', student_id: checkin.student_id.toString(),
+      method: checkin.method, status: checkin.status,
+      checked_in_at: checkin.checked_in_at, distance_meters: checkin.distance_meters,
+    };
   }
 
   /**
@@ -519,6 +641,7 @@ export class AttendanceSessionsService {
         checkin.synced = true;
         checkin.synced_record_id = existing._id;
         await checkin.save();
+        await this.syncApprovedActivityAttendance(existing);
         return;
       }
 
@@ -545,6 +668,7 @@ export class AttendanceSessionsService {
       checkin.synced = true;
       checkin.synced_record_id = saved._id;
       await checkin.save();
+      await this.syncApprovedActivityAttendance(saved);
 
       this.logger.log(
         `Synced checkin ${checkin._id} → ActivityAttendance ${saved._id}`,
@@ -560,6 +684,24 @@ export class AttendanceSessionsService {
           `Failed to sync checkin ${checkin._id} to club attendance: ${error.message}`,
         );
       }
+    }
+  }
+
+  private async syncApprovedActivityAttendance(
+    attendance: ActivityAttendanceDocument,
+  ): Promise<void> {
+    if (attendance.approval_status !== 'approved') return;
+
+    try {
+      const result = await this.activityAttendanceSyncService
+        .syncAttendanceToAcademicRecord(attendance._id.toString());
+      this.logger.log(
+        `Activity attendance ${attendance._id} evaluation: ${result.synced ? 'OK' : result.reason}`,
+      );
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to evaluate activity attendance ${attendance._id}: ${error.message}`,
+      );
     }
   }
 }

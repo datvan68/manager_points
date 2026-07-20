@@ -66,7 +66,7 @@ export class BedsService {
     user: any,
   ): Promise<Bed> {
     const bed = await this.bedModel
-      .findByIdAndUpdate(id, { $set: { trang_thai } }, { new: true })
+      .findByIdAndUpdate(id, { $set: { trang_thai } }, { returnDocument: 'after' })
       .exec();
     if (!bed) {
       throw new NotFoundException(`Không tìm thấy giường: ${id}`);

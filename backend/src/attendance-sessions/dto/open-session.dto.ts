@@ -14,19 +14,18 @@ import { Type } from 'class-transformer';
 export class OpenSessionDto {
   @ApiProperty({
     description: 'Context type',
-    enum: ['club', 'class', 'event', 'dormitory'],
+    enum: ['club', 'activity', 'class', 'event', 'dormitory'],
   })
-  @IsEnum(['club', 'class', 'event', 'dormitory'])
+  @IsEnum(['club', 'activity', 'class', 'event', 'dormitory'])
   context_type: string;
 
   @ApiProperty({ description: 'Context ID (e.g. activity_id)' })
   @IsMongoId()
   context_id: string;
 
-  @ApiPropertyOptional({ description: 'Schedule ID (optional link)' })
-  @IsOptional()
+  @ApiProperty({ description: 'Schedule ID for today\'s activity schedule' })
   @IsMongoId()
-  schedule_id?: string;
+  schedule_id: string;
 
   @ApiProperty({ description: 'Semester ID' })
   @IsMongoId()

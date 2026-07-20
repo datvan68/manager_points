@@ -107,7 +107,7 @@ export class RoomsService {
 
   async update(id: string, dto: UpdateRoomDto, user: any): Promise<Room> {
     const room = await this.roomModel
-      .findByIdAndUpdate(id, { $set: dto }, { new: true })
+      .findByIdAndUpdate(id, { $set: dto }, { returnDocument: 'after' })
       .exec();
     if (!room) {
       throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
