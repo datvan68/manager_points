@@ -35,6 +35,7 @@ import AttendanceSessionStatus from '@/components/attendance/AttendanceSessionSt
 import QrDisplayPanel from '@/components/attendance/QrDisplayPanel';
 import QrScannerModal from '@/components/attendance/QrScannerModal';
 import ProximityPanel from '@/components/attendance/ProximityPanel';
+import ProximityCheckinModal from '@/components/attendance/ProximityCheckinModal';
 import ProximityCheckinButton from '@/components/attendance/ProximityCheckinButton';
 
 const categoryLabels: Record<string, string> = {
@@ -109,6 +110,7 @@ export default function ActivityDetailPage() {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showMethodSelector, setShowMethodSelector] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [showMemberProximity, setShowMemberProximity] = useState(false);
   const [showRuleModal, setShowRuleModal] = useState(false);
   const [updatingLogo, setUpdatingLogo] = useState(false);
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
@@ -118,6 +120,15 @@ export default function ActivityDetailPage() {
   const isAdminOrAdvisor = isAdmin || isTeacherRole(user);
   const isStudent = isStudentRole(user);
   const canUseMemberFlow = isStudent || isAdmin;
+
+  const attendance = useAttendanceSession({
+    contextType: activity?.activity_type === 'club' ? 'club' : 'activity',
+    contextId: activityId,
+    enabled: Boolean(activityId),
+    canManage: isAdmin || members.some((member) => member.status === 'active' && member.role === 'president' && (
+      normalizeEntityId(member.student_id) === user?.studentId || normalizeEntityId(member.user_id) === user?.id
+    )),
+  });
 
 
   const loadActivityData = async () => {
@@ -321,11 +332,34 @@ export default function ActivityDetailPage() {
   const canAccessAttendance = canManageAttendance || canCheckInAttendance;
   const isActiveStudentMember = isStudent && memberStatus === 'active';
   const allowedStudentTabs = isStudent
-    ? (isActiveStudentMember ? ['info', 'attendance'] : ['info'])
+    ? ['info']
     : ['info', 'members', 'rule', 'attendance'];
-  const displayedTab = allowedStudentTabs.includes(activeTab) && (activeTab !== 'attendance' || canAccessAttendance)
+  const displayedTab = allowedStudentTabs.includes(activeTab) && (activeTab !== 'attendance' || canManageAttendance)
     ? activeTab
     : 'info';
+
+  const hasCurrentMemberCheckedIn = attendance.checkinStatus === 'success' || attendance.checkins.some(
+    (checkin) => normalizeEntityId(checkin.student_id) === normalizeEntityId(studentMembership?.student_id || user?.studentId),
+  );
+
+  const handleScheduleAttendance = (schedule: ActivitySchedule) => {
+    if (!canCheckInAttendance) {
+      if (canManageAttendance) handleTabChange('attendance');
+      return;
+    }
+    if (hasCurrentMemberCheckedIn) {
+      setShowMemberProximity(attendance.session?.method === 'proximity');
+      setShowQrScanner(attendance.session?.method === 'qr');
+      return;
+    }
+    if (!attendance.session || attendance.session.status !== 'active') {
+      toast.info('Phiên điểm danh hiện chưa được mở.');
+      return;
+    }
+    if (attendance.session.method === 'proximity') setShowMemberProximity(true);
+    else if (attendance.session.method === 'qr') setShowQrScanner(true);
+    else toast.info('Phương thức điểm danh chưa được hỗ trợ.');
+  };
 
   if (loading) {
     return (
@@ -501,7 +535,7 @@ export default function ActivityDetailPage() {
             <Users size={14} />
             Thành viên ({members.filter(m => m.status === 'active').length})
           </button>}
-          {canAccessAttendance && (
+          {canManageAttendance && (
             <button
               onClick={() => handleTabChange('attendance')}
               className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
@@ -554,7 +588,7 @@ export default function ActivityDetailPage() {
                   canViewOwnAttendance={true}
                   isAdminOrAdvisor={false}
                   isStudent={true}
-                  onOpenAttendance={() => handleTabChange('attendance')}
+                  onOpenAttendance={handleScheduleAttendance}
                 />
               </div>
               <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl space-y-3">
@@ -619,7 +653,7 @@ export default function ActivityDetailPage() {
               </div>
               <div className="space-y-4">
                 <div className="flex items-center justify-between"><h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2></div>
-                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={isAdminOrAdvisor} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={() => handleTabChange('attendance')} />
+                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={isAdminOrAdvisor} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={handleScheduleAttendance} />
               </div>
             </div>
           )
@@ -693,7 +727,7 @@ export default function ActivityDetailPage() {
         )}
 
         {/* Tab 5: Attendance */}
-        {displayedTab === 'attendance' && canAccessAttendance && (
+        {displayedTab === 'attendance' && canManageAttendance && (
           <div className="space-y-4">
             <ActivityAttendanceTab
               activityId={activityId}
@@ -706,6 +740,7 @@ export default function ActivityDetailPage() {
               canManageAttendance={canManageAttendance}
               canCheckInAttendance={canCheckInAttendance}
               currentStudentId={normalizeEntityId(studentMembership?.student_id) || user?.studentId || ''}
+              attendance={attendance}
               onAttendanceCompleted={loadActivityData}
             />
           </div>
@@ -730,6 +765,36 @@ export default function ActivityDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ProximityCheckinModal
+        open={showMemberProximity}
+        onClose={() => {
+          setShowMemberProximity(false);
+          attendance.resetCheckinStatus();
+        }}
+        alreadyCheckedIn={hasCurrentMemberCheckedIn}
+        onCheckin={async (latitude, longitude) => {
+          await attendance.checkinProximity(latitude, longitude);
+          toast.success('Điểm danh thành công!');
+          await loadActivityData();
+        }}
+      />
+
+      {canCheckInAttendance && !hasCurrentMemberCheckedIn && <QrScannerModal
+        open={showQrScanner}
+        onClose={() => {
+          setShowQrScanner(false);
+          attendance.resetCheckinStatus();
+        }}
+        onScanned={async (token) => {
+          await attendance.checkinQr(token);
+          toast.success('Điểm danh thành công!');
+          await loadActivityData();
+        }}
+        checkinStatus={attendance.checkinStatus}
+        checkinError={attendance.checkinError}
+        onReset={attendance.resetCheckinStatus}
+      />}
 
       <ConfirmModal
         isOpen={showLeaveConfirm}
@@ -757,6 +822,7 @@ function ActivityAttendanceTab({
   canManageAttendance,
   canCheckInAttendance,
   currentStudentId,
+  attendance,
   onAttendanceCompleted,
 }: {
   activityId: string;
@@ -769,15 +835,9 @@ function ActivityAttendanceTab({
   canManageAttendance: boolean;
   canCheckInAttendance: boolean;
   currentStudentId: string;
+  attendance: ReturnType<typeof useAttendanceSession>;
   onAttendanceCompleted: () => Promise<void>;
 }) {
-  const attendance = useAttendanceSession({
-    contextType: activity.activity_type === 'club' ? 'club' : 'activity',
-    contextId: activityId,
-    enabled: true,
-    canManage: canManageAttendance,
-  });
-
   const hasActiveSession = attendance.session?.status === 'active';
   const isQrSession = hasActiveSession && attendance.session?.method === 'qr';
   const isProximitySession = hasActiveSession && attendance.session?.method === 'proximity';
@@ -911,7 +971,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* Student Proximity check-in */}
-      {isProximitySession && attendance.session && canCheckInAttendance && (
+      {false && isProximitySession && attendance.session && canCheckInAttendance && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl shadow-sm overflow-hidden">
           <ProximityCheckinButton
             sessionLatitude={attendance.session.latitude!}
@@ -929,7 +989,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* Student QR Scanner */}
-      {isQrSession && canCheckInAttendance && (
+      {false && isQrSession && canCheckInAttendance && (
         <div className="flex justify-center">
           <button
             onClick={() => !hasCurrentMemberCheckedIn && setShowQrScanner(true)}
@@ -978,7 +1038,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* Scanner Modal */}
-      {canCheckInAttendance && !hasCurrentMemberCheckedIn && <QrScannerModal
+      {false && canCheckInAttendance && !hasCurrentMemberCheckedIn && <QrScannerModal
         open={showQrScanner}
         onClose={() => {
           setShowQrScanner(false);

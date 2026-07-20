@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 interface ActivityScheduleTimelineProps {
   schedules: any[];
   defaultClassroom?: string;
-  onOpenAttendance?: () => void;
+  onOpenAttendance?: (schedule: any) => void;
   isAdminOrAdvisor?: boolean;
   isStudent?: boolean;
   canViewAttendanceRoster?: boolean;
@@ -197,8 +197,8 @@ export default function ActivityScheduleTimeline({
                       )}
                     </div>
                     <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                      {isToday && onOpenAttendance && (showOwnStatus || showRoster) && (
-                        <Button onClick={onOpenAttendance} className="h-8 px-4 text-xs bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded-xl shadow-md shadow-indigo-500/10 active:scale-95 transition-all cursor-pointer font-bold border-0">Điểm danh</Button>
+                      {isToday && onOpenAttendance && showOwnStatus && (
+                        <Button onClick={() => onOpenAttendance(schedule)} className="h-8 px-4 text-xs bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded-xl shadow-md shadow-indigo-500/10 active:scale-95 transition-all cursor-pointer font-bold border-0">Điểm danh</Button>
                       )}
                     </div>
                   </div>

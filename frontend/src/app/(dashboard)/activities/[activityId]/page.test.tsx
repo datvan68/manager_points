@@ -190,7 +190,7 @@ describe('ActivityDetailPage', () => {
     });
   });
 
-  it('navigates to attendance tab when a valid user clicks the attendance button on a today schedule', async () => {
+  it('does not expose member self-check-in action to an administrator without membership', async () => {
     // Switch to Schedule tab click
     // 1. Setup mock activity, schedules (including today)
     const mockActivity = {
@@ -265,15 +265,11 @@ describe('ActivityDetailPage', () => {
       expect(screen.getByText('Lịch trình & dòng thời gian')).toBeInTheDocument();
       expect(screen.getByText('Weekly Sync Meeting')).toBeInTheDocument();
       const card = screen.getByText('Weekly Sync Meeting').closest('.group') as HTMLElement | null;
-      attendanceBtn = within(card as HTMLElement).getAllByRole('button')[1] as HTMLElement;
-      expect(attendanceBtn).toBeInTheDocument();
+      attendanceBtn = within(card as HTMLElement).queryByRole('button', { name: 'Điểm danh' });
     });
 
-    // Click the attendance button
-    fireEvent.click(attendanceBtn!);
-
-    // Expect replace called with tab=attendance
-    expect(mockReplace).toHaveBeenCalledWith(expect.stringContaining('tab=attendance'));
+    expect(attendanceBtn).toBeNull();
+    expect(mockReplace).not.toHaveBeenCalledWith(expect.stringContaining('tab=attendance'));
   });
 
   it('does not show attendance button for an invalid user (not active member/not admin)', async () => {
@@ -941,17 +937,10 @@ describe('ActivityDetailPage', () => {
     vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
     vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
 
-    const { rerender } = render(<ActivityDetailPage />);
+    render(<ActivityDetailPage />);
 
-    const qrAction = await screen.findByRole('button', { name: 'Quét mã để điểm danh' });
-    expect(qrAction).toBeEnabled();
-
-    attendanceMocks.state = {
-      checkins: [{ _id: 'my-checkin', student_id: 'student1' }],
-    };
-    rerender(<ActivityDetailPage />);
-
-    expect(await screen.findByRole('button', { name: 'Đã điểm danh' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Quét mã để điểm danh' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Đã điểm danh' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Complete QR attendance' })).not.toBeInTheDocument();
   });
 
@@ -976,12 +965,9 @@ describe('ActivityDetailPage', () => {
 
     render(<ActivityDetailPage />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Complete GPS attendance' }));
+    render(<ActivityDetailPage />);
 
-    await waitFor(() => {
-      expect(attendanceMocks.checkinProximity).toHaveBeenCalledWith(10.762622, 106.660172);
-      expect(toast.success).toHaveBeenCalledWith('Điểm danh thành công!');
-    });
+    expect(screen.queryByRole('button', { name: 'Complete GPS attendance' })).not.toBeInTheDocument();
   });
 
   it.each(['none', 'pending', 'rejected', 'inactive', 'left'])(
@@ -1198,7 +1184,7 @@ describe('ActivityDetailPage', () => {
     render(<ActivityDetailPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Đang tham gia hoạt động')).toBeInTheDocument();
+      expect(screen.getByText('Đã tham gia')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Đăng ký tham gia' })).not.toBeInTheDocument();
     });
   });
@@ -1254,7 +1240,7 @@ describe('ActivityDetailPage', () => {
     });
   });
 
-  it('shows only general information and attendance tabs for an active student member', async () => {
+  it('shows only general information tab for an active student member', async () => {
     mockAuth.isAdmin = false;
     mockAuth.user = { id: 'student-user', studentId: 'student1', role: { role_code: 'STUDENT' }, roleCode: 'STUDENT' } as any;
     vi.mocked(activityApi.getById).mockResolvedValue({ _id: 'act1', name: 'Active Student Activity', code: 'ACTIVE_STUDENT', activity_type: 'event', participation_status: 'published', classroom: 'A.101', semester_id: { _id: 'sem1' }, settings: {}, description: 'Student-facing description', president_id: { full_name: 'Manager' } } as any);
@@ -1266,10 +1252,10 @@ describe('ActivityDetailPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Thông tin chung')).toBeInTheDocument();
-      expect(screen.getByText('Điểm danh')).toBeInTheDocument();
+      expect(screen.queryByText('Điểm danh')).not.toBeInTheDocument();
       expect(screen.queryByText(/Thành viên \(/)).not.toBeInTheDocument();
       expect(screen.queryByText('Quy tắc hoàn thành')).not.toBeInTheDocument();
-      expect(screen.getAllByRole('button', { name: 'Điểm danh' })).toHaveLength(1);
+      expect(screen.queryByRole('button', { name: 'Điểm danh' })).not.toBeInTheDocument();
       expect(screen.queryByText('Chi tiết hoạt động')).not.toBeInTheDocument();
     });
 

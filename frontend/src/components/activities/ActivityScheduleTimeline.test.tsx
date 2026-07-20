@@ -258,7 +258,7 @@ describe('ActivityScheduleTimeline', () => {
 
     // Click nút và verify callback
     fireEvent.click(attendBtns[0]);
-    expect(onOpenAttendanceMock).toHaveBeenCalledTimes(1);
+    expect(onOpenAttendanceMock).toHaveBeenCalledWith(mixedSchedules[0]);
 
     // Case 2: isAdminOrAdvisor=true, has onOpenAttendance. Nút Điểm danh hiển thị trên s1
     onOpenAttendanceMock.mockClear();
@@ -269,10 +269,7 @@ describe('ActivityScheduleTimeline', () => {
         onOpenAttendance={onOpenAttendanceMock}
       />
     );
-    const attendBtnsAdmin = screen.getAllByRole('button', { name: 'Điểm danh' });
-    expect(attendBtnsAdmin.length).toBe(1);
-    fireEvent.click(attendBtnsAdmin[0]);
-    expect(onOpenAttendanceMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Điểm danh' })).not.toBeInTheDocument();
 
     // Case 3: viewer không hợp lệ (không phải student cũng không phải admin/advisor)
     rerender(
