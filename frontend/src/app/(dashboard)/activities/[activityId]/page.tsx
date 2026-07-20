@@ -20,7 +20,7 @@ import {
   Compass, Calendar, Users, Award, ShieldAlert,
   ChevronLeft, Sparkles, UserCheck,
   Settings, Clock, MapPin, User, Star, CheckCircle2,
-  ClipboardCheck, Radio, QrCode, Camera
+  ClipboardCheck, Radio, QrCode, Camera, UserPlus, LogOut, XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getImageUrl } from '@/components/activities/activity-view-policy';
@@ -372,7 +372,6 @@ export default function ActivityDetailPage() {
     );
   }
 
-
   if (!activity) {
     return (
       <div className="h-full min-h-0 overflow-y-auto custom-scrollbar pb-12 p-6 text-center">
@@ -384,7 +383,6 @@ export default function ActivityDetailPage() {
     );
   }
 
-
   const actType = typeLabels[activity.activity_type] || activity.activity_type;
 
   return (
@@ -393,89 +391,104 @@ export default function ActivityDetailPage() {
       {/* Back button */}
       <button
         onClick={() => router.push('/activities')}
-        className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-500 transition-colors cursor-pointer"
+        className="hidden md:flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-500 transition-colors cursor-pointer"
       >
         <ChevronLeft size={16} />
         Danh sách hoạt động
       </button>
 
       {/* Hero Banner / Cover */}
-      <div className="relative overflow-hidden bg-white/60 backdrop-blur-md border border-white/70 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
+      <div className="relative overflow-hidden bg-white/60 backdrop-blur-md border border-white/70 rounded-2xl p-3.5 md:p-6 shadow-sm flex flex-col md:flex-row gap-3 md:gap-6 justify-between">
         {/* Cover background gradient */}
         <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 -z-10" />
 
-        {/* Logo */}
-        <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 font-black text-2xl uppercase">
-          {activity.logo_url && !logoLoadFailed ? (
-            <img
-              src={getImageUrl(activity.logo_url)}
-              alt={activity.name}
-              onError={() => setLogoLoadFailed(true)}
-              className="w-full h-full object-contain object-center rounded-2xl p-1"
-            />
-          ) : (
-            activity.code.slice(0, 2)
-          )}
-          {isAdminOrAdvisor && (
-            <>
-              <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} className="hidden" />
-              <div className="absolute inset-0 flex items-center justify-center gap-2 rounded-2xl bg-black/45 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                <button
-                  type="button"
-                  aria-label="Cập nhật logo"
-                  disabled={updatingLogo}
-                  onClick={() => logoInputRef.current?.click()}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-white hover:bg-white/20 disabled:cursor-not-allowed"
-                >
-                  {updatingLogo ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera size={20} />}
-                </button>
-                {activity.logo_url && (
+        {/* Top Info Row (Logo + Title/Cố vấn + Status Badge on Mobile) */}
+        <div className="flex flex-row items-center gap-3.5 md:gap-6 flex-1 min-w-0">
+          {/* Logo */}
+          <div className="relative w-12 h-12 md:w-20 md:h-20 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 font-black text-base md:text-2xl uppercase">
+            {activity.logo_url && !logoLoadFailed ? (
+              <img
+                src={getImageUrl(activity.logo_url)}
+                alt={activity.name}
+                onError={() => setLogoLoadFailed(true)}
+                className="w-full h-full object-contain object-center rounded-2xl p-1"
+              />
+            ) : (
+              activity.code.slice(0, 2)
+            )}
+            {isAdminOrAdvisor && (
+              <>
+                <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} className="hidden" />
+                <div className="absolute inset-0 flex items-center justify-center gap-2 rounded-2xl bg-black/45 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity">
                   <button
                     type="button"
-                    aria-label="Xóa logo"
+                    aria-label="Cập nhật logo"
                     disabled={updatingLogo}
-                    onClick={handleRemoveLogo}
+                    onClick={() => logoInputRef.current?.click()}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-white hover:bg-white/20 disabled:cursor-not-allowed"
                   >
-                    <span aria-hidden="true">×</span>
+                    {updatingLogo ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera size={20} />}
                   </button>
-                )}
+                  {activity.logo_url && (
+                    <button
+                      type="button"
+                      aria-label="Xóa logo"
+                      disabled={updatingLogo}
+                      onClick={handleRemoveLogo}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-white hover:bg-white/20 disabled:cursor-not-allowed"
+                    >
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 space-y-0.5 md:space-y-2 min-w-0">
+            <div className="hidden md:flex flex-wrap items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 border border-blue-200 text-[10px] font-black uppercase tracking-wider">
+                {actType}
+              </span>
+              <span className="px-2.5 py-0.5 rounded-lg bg-slate-500/10 text-slate-600 border border-slate-200 text-[10px] font-bold">
+                {categoryLabels[activity.category] || activity.category}
+              </span>
+              <span className="text-xs text-slate-400 font-semibold">
+                Học kỳ: {activeSemester?.semester_name || '—'}
+              </span>
+            </div>
+
+            <h1 className="text-base md:text-xl font-black text-slate-800 leading-tight">{activity.name}</h1>
+            
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 font-semibold">
+              <span className="flex items-center gap-1 text-slate-600">
+                <User size={14} className="text-slate-400 shrink-0" />
+                <span>Cố vấn: {activity.advisor_id?.full_name || activity.advisor_id?.user_name || 'Chưa phân công'}</span>
+              </span>
+              <span className="hidden md:flex items-center gap-1">
+                <MapPin size={14} className="text-slate-400 shrink-0" />
+                <span>Phòng: {activity.classroom}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Status badge on mobile */}
+          {canUseMemberFlow && (!isStudent || isActiveStudentMember) && memberStatus === 'active' && (
+            <div className="md:hidden shrink-0">
+              <div
+                title="Đã tham gia"
+                className="p-2 bg-emerald-500/10 border border-emerald-200 text-emerald-600 font-bold rounded-xl flex items-center justify-center"
+              >
+                <CheckCircle2 size={18} className="shrink-0" />
               </div>
-            </>
+            </div>
           )}
         </div>
 
-        {/* Info */}
-        <div className="flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 border border-blue-200 text-[10px] font-black uppercase tracking-wider">
-              {actType}
-            </span>
-            <span className="px-2.5 py-0.5 rounded-lg bg-slate-500/10 text-slate-600 border border-slate-200 text-[10px] font-bold">
-              {categoryLabels[activity.category] || activity.category}
-            </span>
-            <span className="text-xs text-slate-400 font-semibold">
-              Học kỳ: {activeSemester?.semester_name || '—'}
-            </span>
-          </div>
-
-          <h1 className="text-xl font-black text-slate-800">{activity.name}</h1>
-          
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 font-semibold">
-            <span className="flex items-center gap-1">
-              <User size={14} className="text-slate-400" />
-              Cố vấn: {activity.advisor_id?.full_name || activity.advisor_id?.user_name || 'Chưa phân công'}
-            </span>
-            <span className="flex items-center gap-1">
-              <MapPin size={14} className="text-slate-400" />
-              Phòng: {activity.classroom}
-            </span>
-          </div>
-        </div>
-
-        {/* Member-flow status and registration action */}
+        {/* Member-flow status & action buttons */}
         {canUseMemberFlow && (!isStudent || isActiveStudentMember) && (
-          <div className="shrink-0 self-stretch md:self-center flex items-center">
+          <div className="shrink-0 flex items-center justify-end">
             {memberStatus === 'none' ? (
               <Button
                 onClick={handleJoinActivity}
@@ -485,24 +498,30 @@ export default function ActivityDetailPage() {
                 Đăng ký tham gia
               </Button>
             ) : memberStatus === 'pending' ? (
-              <div className="px-4 py-2 bg-amber-500/10 border border-amber-200 text-amber-600 font-bold rounded-xl text-xs flex items-center gap-1.5">
-                <Clock size={14} />
+              <div className="w-full md:w-auto px-4 py-2 bg-amber-500/10 border border-amber-200 text-amber-600 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5">
+                <Clock size={16} />
                 Chờ duyệt tham gia
               </div>
             ) : memberStatus === 'active' ? (
-              <div className="flex items-center gap-2">
-                <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-200 text-emerald-600 font-bold rounded-xl text-xs flex items-center gap-1.5">
-                  <CheckCircle2 size={14} />
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="hidden md:flex px-4 py-2 bg-emerald-500/10 border border-emerald-200 text-emerald-600 font-bold rounded-xl text-xs items-center gap-1.5 whitespace-nowrap">
+                  <CheckCircle2 size={16} className="shrink-0" />
                   Đã tham gia
                 </div>
                 {isStudent && activity.activity_type === 'club' && (
-                  <Button onClick={() => setShowLeaveConfirm(true)} disabled={leaving || leaveRemaining === 0} variant="outline" className="h-auto px-4 py-2 rounded-xl text-xs font-bold text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700">
-                    Rời hoạt động ({leaveRemaining ?? 3})
+                  <Button
+                    onClick={() => setShowLeaveConfirm(true)}
+                    disabled={leaving || leaveRemaining === 0}
+                    variant="outline"
+                    className="w-full md:w-auto px-4 py-2 rounded-xl text-xs font-bold text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 flex items-center justify-center gap-1.5 whitespace-nowrap"
+                  >
+                    <LogOut size={16} className="shrink-0" />
+                    <span>Rời hoạt động ({leaveRemaining ?? 3})</span>
                   </Button>
                 )}
               </div>
             ) : (
-              <div className="px-4 py-2 bg-red-500/10 border border-red-200 text-red-600 font-bold rounded-xl text-xs">
+              <div className="w-full md:w-auto px-4 py-2 bg-red-500/10 border border-red-200 text-red-600 font-bold rounded-xl text-xs text-center">
                 Yêu cầu bị từ chối
               </div>
             )}
