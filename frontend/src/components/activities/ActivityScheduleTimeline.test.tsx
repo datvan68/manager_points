@@ -246,6 +246,7 @@ describe('ActivityScheduleTimeline', () => {
         schedules={mixedSchedules}
         isStudent={true}
         onOpenAttendance={onOpenAttendanceMock}
+        activeSession={{ _id: 'session-1', schedule_id: 's1', status: 'active' }}
       />
     );
 
@@ -307,6 +308,7 @@ describe('ActivityScheduleTimeline', () => {
         ]}
         isStudent={true}
         onOpenAttendance={vi.fn()}
+        activeSession={{ _id: 'session-1', schedule_id: 'student-schedule', status: 'active' }}
       />
     );
 

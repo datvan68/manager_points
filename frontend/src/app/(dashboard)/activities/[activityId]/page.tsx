@@ -589,6 +589,8 @@ export default function ActivityDetailPage() {
                   isAdminOrAdvisor={false}
                   isStudent={true}
                   onOpenAttendance={handleScheduleAttendance}
+                  activeSession={attendance.session}
+                  ownCheckinCompleted={attendance.checkinStatus === 'success'}
                 />
               </div>
               <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl space-y-3">
@@ -653,7 +655,7 @@ export default function ActivityDetailPage() {
               </div>
               <div className="space-y-4">
                 <div className="flex items-center justify-between"><h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2></div>
-                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={isAdminOrAdvisor} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={handleScheduleAttendance} />
+                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={isAdminOrAdvisor} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
               </div>
             </div>
           )

@@ -13,6 +13,8 @@ interface ActivityScheduleTimelineProps {
   canViewAttendanceRoster?: boolean;
   canViewOwnAttendance?: boolean;
   loading?: boolean;
+  activeSession?: any;
+  ownCheckinCompleted?: boolean;
 }
 
 const attStatusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -69,6 +71,8 @@ export default function ActivityScheduleTimeline({
   canViewAttendanceRoster,
   canViewOwnAttendance,
   loading = false,
+  activeSession = null,
+  ownCheckinCompleted = false,
 }: ActivityScheduleTimelineProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -137,6 +141,9 @@ export default function ActivityScheduleTimeline({
             const myAtt = schedule.my_attendance;
             const isToday = schedule.is_today === true;
             const isPast = !isToday && schedule.end_time && new Date(schedule.end_time).getTime() < Date.now();
+            const sessionMatches = activeSession?.schedule_id && String(activeSession.schedule_id) === String(schedule._id);
+            const hasCompletedAttendance = myAtt?.status === 'present' || myAtt?.status === 'late' || (sessionMatches && ownCheckinCompleted);
+            const attendanceButtonLabel = hasCompletedAttendance ? 'Đã điểm danh' : sessionMatches && activeSession?.status === 'active' ? 'Điểm danh' : 'Chưa mở';
 
             return (
               <div key={schedule._id} className="relative group">
@@ -198,7 +205,7 @@ export default function ActivityScheduleTimeline({
                     </div>
                     <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                       {isToday && onOpenAttendance && showOwnStatus && (
-                        <Button onClick={() => onOpenAttendance(schedule)} className="h-8 px-4 text-xs bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded-xl shadow-md shadow-indigo-500/10 active:scale-95 transition-all cursor-pointer font-bold border-0">Điểm danh</Button>
+                        <Button disabled={!sessionMatches || hasCompletedAttendance || activeSession?.status !== 'active'} onClick={() => onOpenAttendance(schedule)} className="h-8 px-4 text-xs bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded-xl shadow-md shadow-indigo-500/10 active:scale-95 transition-all cursor-pointer font-bold border-0 disabled:opacity-60 disabled:cursor-not-allowed">{attendanceButtonLabel}</Button>
                       )}
                     </div>
                   </div>

@@ -567,6 +567,7 @@ export class AttendanceSessionsService {
     return {
       _id: session._id.toString(), context_type: session.context_type,
       context_id: session.context_id.toString(), method: session.method,
+      schedule_id: session.schedule_id?.toString(),
       status: session.status, opened_at: session.opened_at, closed_at: session.closed_at,
       latitude: session.latitude, longitude: session.longitude,
       radius_meters: session.radius_meters, title: session.title,
