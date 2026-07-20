@@ -1,9 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import logoNsg from "@/assets/cropped-logo-nsg.png";
 import {
   LayoutDashboard,
   Users,
@@ -24,6 +22,7 @@ import { authApi } from "@/api/auth-api";
 import { studentApi } from "@/api/student-api";
 import { toast } from "sonner";
 import SubsystemPopup from "@/components/popups/SubsystemPopup";
+import { appIconUrl, useAppBranding } from "@/providers/app-branding-provider";
 
 // Cache (shared with RouteGuard via same API)
 let sidebarCachedMappings: any[] | null = null;
@@ -76,6 +75,7 @@ const skeletonWidths = ["w-2/3", "w-1/2", "w-3/4"];
  * the user simply moves the cursor across the screen.
  */
 const Sidebar = () => {
+  const branding = useAppBranding();
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = React.useState(globalIsCollapsed);
   const closeTimeoutRef = React.useRef<any>(null);
@@ -303,16 +303,10 @@ const Sidebar = () => {
             <div className="flex items-center justify-between w-full mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 min-w-[32px] flex items-center justify-center rounded-xl overflow-hidden shadow-sm bg-white/80">
-                  <Image
-                    src={logoNsg}
-                    alt="NSG Logo"
-                    width={32}
-                    height={32}
-                    className="object-contain"
-                  />
+                  <img src={appIconUrl('192', branding.version)} alt={`${branding.shortName} icon`} className="h-8 w-8 object-contain" />
                 </div>
                 <span className="text-[14px] font-black glassmorphic-text tracking-wide whitespace-nowrap animate-in fade-in duration-200">
-                  HOCSINHSINHVIEN
+                  {branding.shortName}
                 </span>
               </div>
               <button
@@ -331,19 +325,13 @@ const Sidebar = () => {
               data-id="btn/Compact"
               title="Mở rộng"
             >
-              <Image
-                src={logoNsg}
-                alt="NSG Logo"
-                width={32}
-                height={32}
-                className="object-contain"
-              />
+              <img src={appIconUrl('192', branding.version)} alt={`${branding.shortName} icon`} className="h-8 w-8 object-contain" />
             </button>
           )}
           
           {isExpanded && (
             <div className="text-[11px] text-[#64748B] font-semibold px-1 animate-in fade-in duration-200">
-              Quản lý sinh viên
+              {branding.name}
             </div>
           )}
         </div>

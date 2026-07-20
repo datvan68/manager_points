@@ -7,142 +7,108 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
+type InstallState = 'hidden' | 'ready' | 'requesting' | 'accepted' | 'ios' | 'dismissed' | 'error' | 'installed'
 const DISMISS_KEY = 'hssv-pwa-install-prompt-dismissed'
 
 function isStandalone() {
-  const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean }
-  return window.matchMedia?.('(display-mode: standalone)').matches || navigatorWithStandalone.standalone === true
+  const iosNavigator = navigator as Navigator & { standalone?: boolean }
+  return Boolean(window.matchMedia?.('(display-mode: standalone)').matches || iosNavigator.standalone)
 }
-
-function isIOS() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent)
-}
-
-function canRegisterServiceWorker() {
-  return window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname)
-}
+function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) }
+function canRegisterServiceWorker() { return window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname) }
 
 export function PwaInstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null)
-  const [dismissed, setDismissed] = useState(true)
-  const [installed, setInstalled] = useState(false)
-  const [showIosInstructions, setShowIosInstructions] = useState(false)
+  const promptRef = useRef<BeforeInstallPromptEvent | null>(null)
+  const installedRef = useRef(false)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [state, setState] = useState<InstallState>('hidden')
+
+  const clearTimeoutState = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    timeoutRef.current = null
+  }
 
   useEffect(() => {
-    const standalone = isStandalone()
-    const wasDismissed = window.localStorage.getItem(DISMISS_KEY) === 'true'
-
-    setInstalled(standalone)
-    setDismissed(wasDismissed)
-    setShowIosInstructions(!standalone && !wasDismissed && isIOS())
+    installedRef.current = isStandalone()
+    if (installedRef.current) setState('installed')
+    else if (window.localStorage.getItem(DISMISS_KEY) !== 'true' && isIOS()) setState('ios')
 
     if ('serviceWorker' in navigator && canRegisterServiceWorker()) {
-      void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
-        // Installation UI remains available if registration is temporarily unavailable.
-      })
+      void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => undefined)
     }
 
-    const handleBeforeInstallPrompt = (event: Event) => {
+    const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault()
-      const installPrompt = event as BeforeInstallPromptEvent
-      deferredPromptRef.current = installPrompt
-      setDeferredPrompt(installPrompt)
+      promptRef.current = event as BeforeInstallPromptEvent
+      if (!installedRef.current && window.localStorage.getItem(DISMISS_KEY) !== 'true') setState('ready')
     }
-
-    const handleAppInstalled = () => {
-      setInstalled(true)
-      deferredPromptRef.current = null
-      setDeferredPrompt(null)
-      setShowIosInstructions(false)
+    const onAppInstalled = () => {
+      installedRef.current = true
+      promptRef.current = null
+      clearTimeoutState()
+      setState('installed')
     }
-
-    const handleInstallRequest = () => {
-      if (standalone) {
-        return
-      }
-
-      if (deferredPromptRef.current) {
-        void install(deferredPromptRef.current)
-        return
-      }
-
-      if (isIOS()) {
-        setDismissed(false)
-        setShowIosInstructions(true)
-      }
+    const onInstallRequest = () => {
+      if (installedRef.current) return
+      if (isIOS()) { setState('ios'); return }
+      const prompt = promptRef.current
+      if (!prompt) { setState('error'); return }
+      void install(prompt)
     }
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-    window.addEventListener('appinstalled', handleAppInstalled)
-    window.addEventListener('hssv-pwa-install-request', handleInstallRequest)
-
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+    window.addEventListener('appinstalled', onAppInstalled)
+    window.addEventListener('hssv-pwa-install-request', onInstallRequest)
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-      window.removeEventListener('appinstalled', handleAppInstalled)
-      window.removeEventListener('hssv-pwa-install-request', handleInstallRequest)
+      clearTimeoutState()
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', onAppInstalled)
+      window.removeEventListener('hssv-pwa-install-request', onInstallRequest)
     }
   }, [])
 
   const dismiss = () => {
     window.localStorage.setItem(DISMISS_KEY, 'true')
-    setDismissed(true)
-    setShowIosInstructions(false)
-    deferredPromptRef.current = null
-    setDeferredPrompt(null)
+    promptRef.current = null
+    clearTimeoutState()
+    setState('dismissed')
   }
 
-  const install = async (promptEvent = deferredPromptRef.current) => {
-    if (!promptEvent) return
-
-    await promptEvent.prompt()
-    const choice = await promptEvent.userChoice
-    deferredPromptRef.current = null
-    setDeferredPrompt(null)
-
-    if (choice.outcome === 'dismissed') {
-      dismiss()
+  async function install(prompt = promptRef.current) {
+    if (!prompt) { setState('error'); return }
+    try {
+      setState('requesting')
+      await prompt.prompt()
+      const choice = await prompt.userChoice
+      promptRef.current = null
+      if (choice.outcome === 'dismissed') { dismiss(); return }
+      setState('accepted')
+      timeoutRef.current = setTimeout(() => setState((current) => current === 'accepted' ? 'error' : current), 15000)
+    } catch {
+      setState('error')
     }
   }
 
-  if (installed || dismissed || (!deferredPrompt && !showIosInstructions)) {
-    return null
-  }
+  if (state === 'hidden' || state === 'dismissed' || state === 'installed') return null
+  const isIos = state === 'ios'
+  const isBusy = state === 'requesting' || state === 'accepted'
+  const copy = state === 'requesting' ? 'Đang mở hộp thoại cài đặt của trình duyệt…'
+    : state === 'accepted' ? 'Đã xác nhận. Đang hoàn tất cài đặt; biểu tượng sẽ xuất hiện trên thiết bị.'
+    : state === 'error' ? 'Chưa thể mở cài đặt. Hãy dùng menu của trình duyệt để cài ứng dụng.'
+    : isIos ? 'Trong Safari, nhấn Chia sẻ rồi chọn Thêm vào Màn hình chính.'
+    : 'Mở nhanh hơn từ biểu tượng ứng dụng trên màn hình chính hoặc máy tính.'
 
   return (
-    <aside
-      aria-label="Cài đặt ứng dụng"
-      className="fixed bottom-4 left-4 right-4 z-[70] mx-auto max-w-md rounded-xl border border-blue-100 bg-white p-4 shadow-xl sm:left-auto sm:right-6"
-    >
-      <div className="flex gap-3">
+    <aside aria-label="Cài đặt ứng dụng" className="fixed bottom-4 left-4 right-4 z-[70] mx-auto max-w-md rounded-2xl border border-white/70 bg-white/70 p-4 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md">
+      <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-slate-900">Thêm HSSV vào thiết bị</p>
-          {showIosInstructions ? (
-            <p className="mt-1 text-sm leading-5 text-slate-600">
-              Trong Safari, nhấn Chia sẻ rồi chọn <span className="font-medium">Thêm vào Màn hình chính</span>.
-            </p>
-          ) : (
-            <p className="mt-1 text-sm leading-5 text-slate-600">
-              Mở nhanh hơn từ biểu tượng ứng dụng trên màn hình chính hoặc máy tính.
-            </p>
-          )}
+          <p className="text-[18px] font-semibold leading-6">Thêm HSSV vào thiết bị</p>
+          <p aria-live="polite" className="mt-1 text-sm leading-5 text-[#64748B]">{copy}</p>
         </div>
-        <button
-          aria-label="Đóng hướng dẫn cài đặt"
-          className="h-8 w-8 rounded-md text-lg leading-none text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-          onClick={dismiss}
-          type="button"
-        >
-          ×
-        </button>
+        {!isBusy && <button aria-label="Đóng hướng dẫn cài đặt" className="flex h-8 w-8 items-center justify-center rounded-xl text-lg text-[#64748B] transition-all duration-150 ease-out hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1A73E8]" onClick={dismiss} type="button">×</button>}
       </div>
-      {!showIosInstructions && (
-        <button
-          className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-          onClick={() => void install()}
-          type="button"
-        >
-          Cài đặt ứng dụng
+      {!isIos && (
+        <button className="mt-3 w-full rounded-xl bg-[#1A73E8] px-4 py-2.5 text-sm font-semibold text-white transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1A73E8] disabled:cursor-wait disabled:opacity-70" disabled={isBusy} onClick={() => void install()} type="button">
+          {state === 'error' ? 'Thử lại' : isBusy ? 'Đang cài đặt ứng dụng…' : 'Cài đặt ứng dụng'}
         </button>
       )}
     </aside>

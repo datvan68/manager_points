@@ -66,9 +66,18 @@ import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { EJSON } from 'bson';
 import { StringDecoder } from 'string_decoder';
+import { EventEmitter } from 'events';
 
 const execFileAsync = promisify(execFile);
 const MODULE_MAINTENANCE_SETTING_KEY = 'SYSTEM_MODULE_MAINTENANCE';
+const APP_BRANDING_SETTING_KEY = 'APP_BRANDING';
+const BRANDING_ICON_SIZES = ['180', '192', '512', 'maskable-512'] as const;
+
+export interface AppBranding {
+  name: string;
+  shortName: string;
+  version: string;
+}
 
 class DatabaseBackupStream extends Readable {
   private collectionNames: string[];
@@ -126,6 +135,8 @@ export class SystemService {
     'storage',
     'backups',
   );
+  private readonly brandingDir = path.resolve(process.cwd(), 'storage', 'app-branding');
+  private readonly brandingEvents = new EventEmitter();
 
   constructor(
     @InjectModel(SystemRequest.name)
@@ -152,9 +163,72 @@ export class SystemService {
     if (!fs.existsSync(this.importDir)) {
       fs.mkdirSync(this.importDir, { recursive: true });
     }
+    if (!fs.existsSync(this.brandingDir)) {
+      fs.mkdirSync(this.brandingDir, { recursive: true });
+    }
   }
 
   private readonly importDir: string;
+
+  private defaultBranding(): AppBranding {
+    return { name: 'HOCSINHSINHVIEN - Hệ thống quản lý', shortName: 'HSSV', version: 'static' };
+  }
+
+  async getAppBranding(): Promise<AppBranding> {
+    const setting = await this.systemSettingModel.findOne({ key: APP_BRANDING_SETTING_KEY }).lean();
+    const value = setting?.value;
+    if (!value || typeof value.name !== 'string' || typeof value.shortName !== 'string' || typeof value.version !== 'string') {
+      return this.defaultBranding();
+    }
+    return { name: value.name, shortName: value.shortName, version: value.version };
+  }
+
+  getAppBrandingStream() {
+    return this.brandingEvents;
+  }
+
+  async updateAppBranding(dto: { name: string; shortName: string }, files: Record<string, Express.Multer.File | undefined>): Promise<AppBranding> {
+    const expected = BRANDING_ICON_SIZES.map((size) => `icon-${size}`);
+    for (const field of expected) {
+      const file = files[field];
+      if (!file || file.mimetype !== 'image/png' || !file.buffer?.length) {
+        throw new BadRequestException('All PNG icon variants are required');
+      }
+    }
+
+    const version = Date.now().toString(36);
+    const temporaryFiles: string[] = [];
+    try {
+      for (const size of BRANDING_ICON_SIZES) {
+        const temporaryPath = path.join(this.brandingDir, `${size}.${version}.tmp`);
+        fs.writeFileSync(temporaryPath, files[`icon-${size}`]!.buffer, { flag: 'wx' });
+        temporaryFiles.push(temporaryPath);
+      }
+      for (const size of BRANDING_ICON_SIZES) {
+        fs.renameSync(path.join(this.brandingDir, `${size}.${version}.tmp`), path.join(this.brandingDir, `${size}.${version}.png`));
+      }
+      const branding = { name: dto.name.trim(), shortName: dto.shortName.trim(), version };
+      await this.systemSettingModel.findOneAndUpdate(
+        { key: APP_BRANDING_SETTING_KEY },
+        { key: APP_BRANDING_SETTING_KEY, value: branding, description: 'Global PWA application branding' },
+        { upsert: true, returnDocument: 'after' },
+      );
+      this.brandingEvents.emit('changed', branding);
+      return branding;
+    } finally {
+      for (const file of temporaryFiles) {
+        if (fs.existsSync(file)) fs.unlinkSync(file);
+      }
+    }
+  }
+
+  async getAppBrandingIcon(size: string, version: string): Promise<Buffer | null> {
+    if (!BRANDING_ICON_SIZES.includes(size as (typeof BRANDING_ICON_SIZES)[number])) return null;
+    const branding = await this.getAppBranding();
+    if (branding.version !== version || version === 'static') return null;
+    const filePath = path.join(this.brandingDir, `${size}.${version}.png`);
+    return fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
+  }
 
   private toObjectId(id: string): Types.ObjectId {
     if (!id || !Types.ObjectId.isValid(id)) {

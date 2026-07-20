@@ -3,6 +3,7 @@
 import React from "react";
 import { RouteGuard } from "@/components/guards/RouteGuard";
 import MailSettingsForm from "./_components/MailSettingsForm";
+import AppBrandingSettingsForm from "./_components/AppBrandingSettingsForm";
 
 export default function SystemSettingsPage() {
   return (
@@ -24,6 +25,7 @@ export default function SystemSettingsPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-6">
+              <AppBrandingSettingsForm />
               <MailSettingsForm />
             </div>
 

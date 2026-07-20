@@ -6,6 +6,29 @@ export interface MessageResponse {
   message: string;
 }
 
+export interface AppBranding {
+  name: string;
+  shortName: string;
+  version: string;
+}
+
+export const appBrandingApi = {
+  publicUrl: `${API_BASE}/app-branding`,
+  iconUrl(size: '180' | '192' | '512' | 'maskable-512', version: string) {
+    return `${API_BASE}/app-branding/icons/${size}/${version}.png`;
+  },
+  async get(): Promise<AppBranding> {
+    return handleResponse<AppBranding>(await fetch(`${API_BASE}/app-branding`, { cache: 'no-store' }));
+  },
+  async update(payload: { name: string; shortName: string; icons: Record<string, Blob> }): Promise<AppBranding> {
+    const formData = new FormData();
+    formData.set('name', payload.name);
+    formData.set('shortName', payload.shortName);
+    Object.entries(payload.icons).forEach(([name, icon]) => formData.append('icons', icon, `${name}.png`));
+    return handleResponse<AppBranding>(await httpClient(`${API_BASE}/app-branding`, { method: 'PATCH', body: formData }));
+  },
+};
+
 export interface LoginLog {
   _id: string;
   user_id: {

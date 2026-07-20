@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/providers/auth-provider'
 import { Suspense } from 'react'
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt'
+import { AppBrandingProvider } from '@/providers/app-branding-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -38,9 +39,11 @@ export default function RootLayout({
       <body className={inter.className} suppressHydrationWarning>
         <Suspense fallback={null}>
           <AuthProvider>
-            {children}
-            <Toaster position="top-right" richColors />
-            <PwaInstallPrompt />
+            <AppBrandingProvider>
+              {children}
+              <Toaster position="top-right" richColors />
+              <PwaInstallPrompt />
+            </AppBrandingProvider>
           </AuthProvider>
         </Suspense>
       </body>

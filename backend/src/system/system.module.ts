@@ -26,6 +26,7 @@ import {
   SystemSettingSchema,
 } from './schemas/system-setting.schema';
 import { RestoreTypeRegistry } from './restore-type-registry';
+import { AppBrandingController } from './app-branding.controller';
 
 @Module({
   imports: [
@@ -48,7 +49,7 @@ import { RestoreTypeRegistry } from './restore-type-registry';
       },
     ]),
   ],
-  controllers: [SystemController],
+  controllers: [SystemController, AppBrandingController],
   providers: [SystemService, RestoreTypeRegistry],
   exports: [SystemService],
 })

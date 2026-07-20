@@ -395,6 +395,18 @@ export class UpdateMailSettingsDto {
   from: string;
 }
 
+export class UpdateAppBrandingDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(24)
+  shortName: string;
+}
+
 export class UpdateModuleMaintenanceDto {
   @IsBoolean()
   isMaintenance: boolean;

@@ -15,7 +15,6 @@ import { studentApi } from '@/api/student-api';
 import { isAuthError } from '@/api/http-client';
 import { toast } from 'sonner';
 import StudentCongratsModalGate from './StudentCongratsModalGate';
-import ConfirmModal from '@/components/modals/ConfirmModal';
 import { useHeader } from '@/providers/header-provider';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
 import { useNotificationRealtime } from '@/hooks/useNotificationRealtime';
@@ -30,7 +29,6 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const headerContext = useHeader();
     const customMappings = headerContext ? { ...headerContext.customMappings, ...propMappings } : propMappings;
     const [isProfileOpen, setIsProfileOpen] = useState(false);
-    const [isPwaInstallConfirmOpen, setIsPwaInstallConfirmOpen] = useState(false);
     const [isPwaInstalled, setIsPwaInstalled] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);
@@ -415,7 +413,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                       {!isPwaInstalled && <button
                           onClick={() => {
                               setIsProfileOpen(false);
-                              setIsPwaInstallConfirmOpen(true);
+                              window.dispatchEvent(new Event('hssv-pwa-install-request'));
                           }}
                           className="w-full text-left px-3 py-1.5 text-sm text-[#1E293B] hover:bg-white/60 rounded-lg flex items-center gap-2 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01]"
                       >
@@ -443,18 +441,6 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
       </header>
       <SubsystemPopup isOpen={isSubsystemOpen} onClose={() => setIsSubsystemOpen(false)} />
       <StudentCongratsModalGate />
-      <ConfirmModal
-        isOpen={isPwaInstallConfirmOpen}
-        onClose={() => setIsPwaInstallConfirmOpen(false)}
-        onConfirm={() => {
-          window.dispatchEvent(new Event('hssv-pwa-install-request'));
-        }}
-        title="Mở ứng dụng"
-        message="Bạn có muốn cài đặt ứng dụng này trên thiết bị không?"
-        confirmLabel="Tiếp tục"
-        cancelLabel="Hủy"
-        variant="info"
-      />
     </>
   );
 };

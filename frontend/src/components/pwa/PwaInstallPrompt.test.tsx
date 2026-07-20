@@ -81,6 +81,20 @@ describe('PwaInstallPrompt', () => {
     })
   })
 
+  it('keeps progress visible after acceptance until the browser confirms installation', async () => {
+    render(<PwaInstallPrompt />)
+    let installEvent: ReturnType<typeof dispatchInstallPrompt>
+    await act(async () => {
+      installEvent = dispatchInstallPrompt('accepted')
+    })
+
+    fireEvent(window, new Event('hssv-pwa-install-request'))
+    expect(await screen.findByText(/Đã xác nhận/)).toBeInTheDocument()
+
+    fireEvent(window, new Event('appinstalled'))
+    await waitFor(() => expect(screen.queryByLabelText('Cài đặt ứng dụng')).not.toBeInTheDocument())
+  })
+
   it('persists dismissal and does not render the prompt again', () => {
     window.localStorage.setItem('hssv-pwa-install-prompt-dismissed', 'true')
 
