@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   AlertTriangle, Sparkles, ClipboardList, Info, 
   ChevronRight, BellOff, CheckCircle2 
@@ -9,6 +9,8 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import NotificationDestination from '@/components/notifications/NotificationDestination';
+import NotificationDetailModal from '@/components/modals/NotificationDetailModal';
 
 export interface NotificationItem {
   id: string;
@@ -36,15 +38,18 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({
   onMarkRead
 }) => {
   const router = useRouter();
+  const [detailItem, setDetailItem] = useState<NotificationItem | null>(null);
 
   if (!isOpen) return null;
 
   const handleNotificationClick = (item: NotificationItem) => {
     onMarkRead(item.id);
-    onClose();
-    if (item.routeUrl) {
+    if (item.routeUrl?.trim()) {
+      onClose();
       toast.info(`Chuyển hướng đến: ${item.title}`);
-      router.push(item.routeUrl);
+      router.push(item.routeUrl.trim());
+    } else {
+      setDetailItem(item);
     }
   };
 
@@ -147,6 +152,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({
                 <span className="text-[10px] text-[#64748B] font-medium mt-1.5 block">
                   {formatTime(item.createdAt)}
                 </span>
+                <div className="mt-1.5"><NotificationDestination routeUrl={item.routeUrl} compact /></div>
               </div>
             </div>
           ))
@@ -172,6 +178,12 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({
           <ChevronRight size={14} className="text-gray-400" />
         </button>
       </div>
+      <NotificationDetailModal
+        isOpen={Boolean(detailItem)}
+        notification={detailItem}
+        onClose={() => setDetailItem(null)}
+        onNavigate={(routeUrl) => { setDetailItem(null); router.push(routeUrl); }}
+      />
     </div>
   );
 };

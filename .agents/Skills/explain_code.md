@@ -1,192 +1,137 @@
-# Skill: Explain Code — Giải Thích Code
+# Skill: Explain Code
 
-> Skill giúp agent phân tích và giải thích code TypeScript/Node.js ở nhiều cấp độ khác nhau:
-> cho người mới, cho người review, hoặc để tạo tài liệu kỹ thuật.
-
----
+> Produce an evidence-linked explanation of code, behavior, or architecture at the requested level without modifying implementation files.
 
 ## Metadata
 
 ```yaml
 skill_id: explain_code
-version: 1.0.0
-language: TypeScript
-supported_agents:
-  - review-agent
-  - doc-agent
-  - orchestrator
-tools_required:
-  - gemini_generate
-  - code_search
-use_cases:
-  - Onboarding developer mới vào module
-  - Tạo tài liệu API / architecture
-  - Code review — giải thích tại sao code có vấn đề
-  - Debug — trace luồng xử lý
+version: 2.0.0
+supported_agents: [review-agent, doc-agent]
+capabilities: [search, summarize]
+supported_stacks: repository_defined
+default_mode: read_only
 ```
 
----
+## Modes
 
-## Các Chế Độ Giải Thích
+| Mode | Primary output |
+|---|---|
+| `beginner` | Concepts and a small step-by-step example |
+| `technical` | Contracts, control/data flow, dependencies, trade-offs |
+| `architecture` | Boundaries, ownership, runtime flow, failure modes |
+| `debug` | Execution path, state transitions, evidence gaps |
+| `review` | Evidence-linked risks and actionable improvements |
+| `docs` | Repository-ready documentation following existing style |
 
-| Mode | Đối tượng | Output |
-|---|---|---|
-| `beginner` | Developer mới, junior | Giải thích từng dòng, ví dụ thực tế |
-| `technical` | Senior dev, reviewer | Tập trung pattern, trade-off, potential issues |
-| `architecture` | Tech lead, architect | Luồng dữ liệu, dependency, design decision |
-| `debug` | Developer đang fix bug | Trace execution path, identify failure points |
-| `review` | Code reviewer | Highlight vấn đề, suggest improvement |
-| `docs` | Tạo tài liệu | JSDoc, README section, API reference |
-
----
-
-## Input Schema
+## Input
 
 ```json
 {
-  "mode": "beginner | technical | architecture | debug | review | docs",
-  "code": "đoạn code TypeScript cần giải thích",
-  "file_path": "./src/modules/payment/payment.service.ts",
-  "focus": "phần cụ thể cần giải thích sâu (tuỳ chọn)",
-  "context": {
-    "related_files": ["./src/types/payment.types.ts"],
-    "error_if_any": "thông báo lỗi nếu đang debug (tuỳ chọn)",
-    "question": "câu hỏi cụ thể của developer (tuỳ chọn)"
-  },
-  "output_format": "markdown | inline_comments | jsdoc"
+  "protocol_version": "3.0",
+  "task_id": "uuid-v4",
+  "pipeline_id": "explain_or_document",
+  "step_id": "inspect",
+  "mode": "technical",
+  "targets": [
+    {"path": "packages/api/src/orders/service.ts", "symbol": "createOrder"}
+  ],
+  "focus": "transaction and failure behavior",
+  "question": "How does the operation remain idempotent?",
+  "audience": "backend engineer",
+  "output_format": "markdown | inline_comments | jsdoc | structured",
+  "context_refs": []
 }
 ```
 
----
+Source content should normally be loaded from repository paths and artifact references. Do not embed entire large files in the input.
 
-## Output Schema
+## Output
+
+Return the common result envelope with:
 
 ```json
 {
-  "agent_id": "review-agent",
-  "status": "success | error",
-  "result": {
-    "explanation": "nội dung giải thích chính bằng Tiếng Việt",
-    "annotated_code": "code với comment giải thích được chèn vào (nếu output_format=inline_comments)",
-    "key_concepts": ["concept 1", "concept 2"],
-    "potential_issues": [
-      {
-        "line": 42,
-        "severity": "warning | error | info",
-        "issue": "mô tả vấn đề",
-        "suggestion": "cách khắc phục"
-      }
-    ],
-    "related_docs": ["link tài liệu liên quan"]
-  },
-  "next_action": null,
-  "message": "Đã phân tích xong"
+  "summary": "Concise explanation.",
+  "flow": [
+    {"order": 1, "path": "...", "symbol": "...", "behavior": "..."}
+  ],
+  "contracts": [],
+  "dependencies": [],
+  "failure_modes": [],
+  "design_decisions": [
+    {"decision": "...", "evidence_ref": {"path": "...", "symbol": "..."}}
+  ],
+  "potential_issues": [
+    {
+      "severity": "critical | warning | suggestion",
+      "path": "...",
+      "symbol": "...",
+      "description": "...",
+      "evidence": "...",
+      "suggestion": "..."
+    }
+  ],
+  "artifact_refs": []
 }
 ```
 
----
+Potential issues are observations, not authorization to modify code. Route implementation through the appropriate pipeline.
 
-## Ví Dụ Theo Từng Mode
+## Method
 
-### Mode: `technical` — Phân tích chuyên sâu
-```
-Input code:
-  async function processPayment(orderId: string): Promise<Result<Payment>> {
-    const order = await orderRepo.findById(orderId)
-    if (!order) return { success: false, error: new NotFoundError(orderId) }
-    const payment = await paymentGateway.charge(order.amount, order.currency)
-    await orderRepo.updateStatus(orderId, 'paid')
-    return { success: true, data: payment }
-  }
+1. Resolve the exact commit, path, symbol, and question.
+2. Read the target plus only direct interfaces and dependencies needed to answer.
+3. Distinguish observed behavior, inferred intent, and undocumented assumptions.
+4. Trace control flow, data transformations, side effects, state transitions, and error paths.
+5. Explain why the current design exists only when evidence supports it; otherwise label the rationale as unknown.
+6. Match depth, terminology, and examples to the requested audience.
+7. Reference paths and symbols; use line numbers only when the commit is pinned and the location is stable.
 
-Output explanation mong đợi:
-  - Nhận diện pattern: Result type thay vì throw/catch
-  - Race condition tiềm ẩn: nếu updateStatus fail sau khi charge thành công
-  - Missing: transaction / idempotency key
-  - Missing: retry logic cho payment gateway
-  - Suggest: dùng outbox pattern hoặc saga cho distributed transaction
-```
+## Mode requirements
 
-### Mode: `debug` — Trace lỗi
-```
-Khi nhận error_if_any, agent phải:
-  1. Xác định dòng code nào có thể gây ra lỗi này
-  2. Trace ngược execution path từ điểm lỗi
-  3. Liệt kê các state có thể dẫn đến lỗi
-  4. Đề xuất thêm logging / assertion để confirm nguyên nhân
-```
+### Beginner
 
-### Mode: `review` — Code review chuyên nghiệp
-```
-Phân tích theo thứ tự ưu tiên:
-  🔴 Critical (phải sửa trước khi merge):
-    - Security vulnerabilities
-    - Logic errors / incorrect behaviour
-    - Missing error handling cho critical path
+- Define unfamiliar terms briefly.
+- Explain the main path before exceptions.
+- Use one representative example rather than narrating every line.
 
-  🟡 Warning (nên sửa):
-    - Performance issues
-    - Code smell, violation of SOLID
-    - Missing test coverage cho edge cases
+### Technical
 
-  🟢 Suggestion (cân nhắc):
-    - Readability improvement
-    - Better naming
-    - More idiomatic TypeScript
-```
+- Cover input/output contracts, invariants, dependencies, side effects, complexity, concurrency, and error behavior.
+- Identify trade-offs without forcing a different architecture.
 
----
+### Architecture
 
-## Chuẩn Viết Giải Thích
+- Start from module/service boundaries and ownership.
+- Describe synchronous and asynchronous flows, persistence, external systems, security boundaries, and failure recovery.
+- Use a diagram artifact only when relationships are clearer visually.
 
-### Cấu trúc giải thích chuẩn (mode `technical` / `architecture`)
-```markdown
-## Tổng quan
-[1–2 câu: file/function này làm gì trong hệ thống]
+### Debug
 
-## Luồng xử lý
-[Mô tả step-by-step, dùng số thứ tự]
-1. ...
-2. ...
+- Trace from the failure observation to candidate state transitions.
+- State evidence gaps and checks needed; do not present hypotheses as confirmed causes.
 
-## Design decisions
-[Tại sao code viết như vậy — không phải cách khác]
+### Review
 
-## Vấn đề tiềm ẩn
-[Những gì có thể xảy ra trong production]
+- Prioritize correctness and security before performance and maintainability.
+- Every issue needs concrete evidence and an actionable alternative.
 
-## Đề xuất cải thiện
-[Concrete, actionable — không chung chung]
-```
+### Docs
 
-### Quy tắc khi giải thích
-```
-✅ Dùng Tiếng Việt cho giải thích, giữ Tiếng Anh cho tên hàm/biến
-✅ Giải thích "tại sao" chứ không chỉ "cái gì"
-✅ Đưa ví dụ cụ thể khi giải thích concept trừu tượng
-✅ Chỉ ra potential issue thay vì chỉ nói "code sai"
-✅ Khi review, luôn đề xuất code thay thế cụ thể
+- Follow repository terminology, templates, heading hierarchy, and link style.
+- Do not duplicate source code that will drift; document contracts and usage.
 
-❌ Không giải thích theo kiểu "dòng này print ra màn hình"
-❌ Không dùng "obviously" hay "clearly" — nếu rõ thì không cần giải thích
-❌ Không đánh giá chủ quan như "code này rất tệ"
-❌ Không bỏ sót security issues dù nhỏ
-```
+## Large-codebase guidance
 
----
+- Begin with the module manifest and dependency graph.
+- Build explanations in layers: system -> module -> symbol -> edge cases.
+- Shard read-only inspection by independent module, then deduplicate at synthesis.
+- Store long inventories or diagrams as artifacts and keep the user-facing explanation focused.
 
-## Tích Hợp Với Các Skill Khác
+## Quality rules
 
-```yaml
-explain_code → write_test:
-  Khi phát hiện code thiếu test coverage
-  → Tự động trigger write_test với danh sách function cần test
-
-explain_code → implement_feature:
-  Khi phát hiện bug trong quá trình review
-  → Trả về potential_issues để code-agent fix
-
-explain_code → docs:
-  Khi mode=docs
-  → Output được dùng trực tiếp làm nội dung README / API docs
-```
+- Explain why and when, not merely what each statement does.
+- Preserve code identifiers in English; user-facing prose follows the requested language.
+- Never claim a security issue, race, or performance defect without an executable path or evidence.
+- Never modify code in this skill.

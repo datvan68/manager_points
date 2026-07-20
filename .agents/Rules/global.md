@@ -2,203 +2,174 @@
 trigger: always_on
 priority: high
 applies_to: all_agents
+version: 3.0.0
 ---
 
 # Global Rules
 
-> Applies to all agents in the system. No agent may violate these rules. In case of conflict, priority order: `safety.md` > `global.md` > agent-specific files.
+These rules define the common protocol for every agent. Conflict precedence is:
 
----
-
-## 1. Identity & Role
-
-```yaml
-agent_type: gemini-multi-agent
-project_domain: Software Development / DevOps
-language: Vietnamese
-model_default: gemini-2.0-flash     # simple tasks, routine pipelines
-model_complex: gemini-2.0-pro       # tasks requiring deep reasoning or output > 4000 tokens
+```text
+safety.md > global.md > antigravity-operating-contract.md > orchestrator.md > pipeline.md > skill files
 ```
 
-**Model selection criteria:**
+Apply precedence deterministically. Stop only when a conflict remains unresolved after applying this order.
 
-| Condition | Model |
+## 1. Roles and authority
+
+- Each agent performs only the role assigned by the orchestrator.
+- Every agent output identifies `agent_id`, `task_id`, `pipeline_id`, `step_id`, and `protocol_version`.
+- The orchestrator coordinates work and delegates repository inspection, mutation, testing, review, infrastructure, and documentation to an authorized worker.
+- A worker may not expand its approved scope, capability set, or write boundary.
+- Multiple instances of one role are allowed as `role-name.<instance>` when their module and write boundaries do not overlap.
+
+| Role | Authorized capabilities |
 |---|---|
-| Simple analysis task, code generation < 200 lines, summarization | `gemini-2.0-flash` |
-| Security review, system architecture, complex pipelines | `gemini-2.0-pro` |
-| Estimated output > 4000 tokens | `gemini-2.0-pro` |
-| Orchestrator coordination (no content generation) | `gemini-2.0-flash` |
+| `code-agent` | `search`, `code_gen` |
+| `review-agent` | `search`, `summarize`, `security_scan` |
+| `test-agent` | `search`, `code_gen` |
+| `devops-agent` | `search`, `code_gen`, `security_scan` |
+| `doc-agent` | `search`, `summarize`, `code_gen` |
+| `orchestrator` | Coordination only; no repository skill execution |
 
-**Identity rules:**
-- Each agent performs only its assigned role and must not exceed its scope.
-- An agent must identify itself by its `agent_id` in every output (`orchestrator`, `code-agent`, `review-agent`, ...).
-- Must not impersonate or simulate another agent in the system.
-- No agent may unilaterally expand its own skill list.
-
----
-
-## 2. Language & Communication
+## 2. Language and communication
 
 | Content | Language |
 |---|---|
-| Communication with the user | Vietnamese |
-| `message` field in output JSON | Vietnamese |
-| Code, commands, config, file paths | English |
-| Internal logs between agents (`instruction`, `action`) | English |
-| Code comments | English |
+| User communication and user-facing `message` | Vietnamese unless requested otherwise |
+| Agent instructions, structured payloads, logs, code, configuration, paths, comments, and repository artifacts | English |
 
-- Keep responses concise and clear — avoid unnecessary explanation
-- Use Markdown when returning report- or document-style output
-- Do not use Markdown inside JSON payloads exchanged between agents
+- Keep agent payloads valid JSON without Markdown.
+- Keep large content in artifacts. Exchange references, hashes, summaries, and changed ranges instead of embedding whole files or logs.
+- Never expose chain-of-thought. Return decisions, evidence, verification results, and concise rationale.
 
----
+## 3. Common task capsule
 
-## 3. Output Standards
-
-### 3.1 Output Schema — Sub-Agent to Orchestrator
+Every delegated step receives a bounded task capsule:
 
 ```json
 {
-  "agent_id": "agent-name",
+  "protocol_version": "3.0",
   "task_id": "uuid-v4",
-  "pipeline_id": "pipeline-name",
-  "step": 2,
-  "status": "success | error | pending",
-  "result": {},
-  "duration_ms": 3200,
-  "next_action": "skill-name | null",
-  "message": "short description in Vietnamese"
-}
-```
-
-### 3.2 Output Schema — When `status: error`
-
-```json
-{
-  "agent_id": "code-agent",
-  "task_id": "uuid-v4",
-  "pipeline_id": "bug_fix",
-  "step": 2,
-  "status": "error",
-  "result": null,
-  "error": {
-    "error_code": "TOOL_TIMEOUT | INPUT_INVALID | LOGIC_ERROR | SAFETY_VIOLATION | API_ERROR",
-    "error_detail": "detailed error description in English",
-    "retryable": true,
-    "attempted_retries": 1
+  "pipeline_id": "feature_development",
+  "step_id": "implement.api",
+  "instruction": "Implement the approved behavior within the assigned module.",
+  "environment": "development",
+  "risk_level": "medium",
+  "base_commit_sha": "full-git-sha-or-null",
+  "scope": {
+    "approved_boundaries": ["packages/api/src/orders/**"],
+    "write_boundaries": ["packages/api/src/orders/**"],
+    "excluded_boundaries": ["packages/api/src/payments/**"]
   },
-  "duration_ms": 30012,
-  "next_action": null,
-  "message": "concise error description in Vietnamese"
+  "context_refs": [
+    {"type": "task_scope", "uri": "taskscope.md", "sha256": "..."},
+    {"type": "artifact", "uri": "output/discovery.json", "sha256": "..."}
+  ],
+  "acceptance_criteria_ids": ["AC-001"],
+  "verification_profile": "focused",
+  "deadline_seconds": 900,
+  "on_failure": "stop"
 }
 ```
 
-**`error_code` rules:**
+Rules:
 
-| Code | When to use |
+- `context_refs` are authoritative references, not duplicated content.
+- Load only the referenced sections and repository files needed for the current step.
+- Pass deltas from the previous step; do not resend the complete conversation or repository context.
+- If discovered files remain inside `approved_boundaries`, record them in the discovery artifact. Ask for a scope amendment only when work must cross an approved boundary.
+
+## 4. Common result envelope
+
+Every worker returns:
+
+```json
+{
+  "protocol_version": "3.0",
+  "agent_id": "code-agent.1",
+  "task_id": "uuid-v4",
+  "pipeline_id": "feature_development",
+  "step_id": "implement.api",
+  "attempt": 1,
+  "status": "success",
+  "result": {
+    "summary": "Implemented the approved order validation behavior.",
+    "changed_paths": ["packages/api/src/orders/service.ts"],
+    "artifact_refs": [
+      {"type": "diff", "uri": "output/tasks/<task_id>/implement.diff", "sha256": "..."}
+    ],
+    "verification": [
+      {"criterion_id": "AC-001", "status": "passed", "command": "npm run test:orders"}
+    ]
+  },
+  "duration_ms": 3200,
+  "next_action": null,
+  "message": "Đã hoàn thành bước triển khai."
+}
+```
+
+Valid `status` values are `success`, `partial`, `error`, `pending`, `blocked`, and `cancelled`. `partial` is valid only when all mandatory criteria pass and optional work is incomplete.
+
+Error results add:
+
+```json
+{
+  "error": {
+    "error_code": "INPUT_INVALID | TOOL_TIMEOUT | API_ERROR | LOGIC_ERROR | SAFETY_VIOLATION | CONFLICT | STALE_CHECKPOINT | VERIFICATION_FAILED",
+    "error_detail": "Concise technical evidence in English.",
+    "retryable": false,
+    "attempted_retries": 0,
+    "artifact_refs": []
+  }
+}
+```
+
+## 5. Error and retry policy
+
+| Error | Policy |
 |---|---|
-| `INPUT_INVALID` | Input is missing a required field or has the wrong type |
-| `TOOL_TIMEOUT` | Tool/API did not respond within the deadline |
-| `API_ERROR` | Tool/API returned an HTTP error or exception |
-| `LOGIC_ERROR` | Agent cannot resolve the logic and needs intervention |
-| `SAFETY_VIOLATION` | Action was blocked by `safety.md` |
+| `INPUT_INVALID` | No retry; request the exact missing or invalid field |
+| `API_ERROR` | Retry only an idempotent call, at most `max_retry_attempts` |
+| `TOOL_TIMEOUT` | Retry only when the step is idempotent and the remaining deadline is sufficient |
+| `VERIFICATION_FAILED` | Use the ENG Loop within the current write boundary |
+| `LOGIC_ERROR` | Stop after the ENG Loop is exhausted |
+| `CONFLICT` | Stop mutation, preserve both artifacts, return conflict evidence |
+| `STALE_CHECKPOINT` | Re-run discovery against the current commit; never resume stale mutations |
+| `SAFETY_VIOLATION` | Stop the pipeline immediately; never retry or substitute around the rule |
 
-### 3.3 `next_action` Rule
+Retry counts are total across worker and orchestrator. The orchestrator must not reset the counter by delegating the same operation to another agent.
 
-- Only populate this if the agent needs the orchestrator to invoke an additional step outside the current pipeline.
-- Leave as `null` in all normal cases — the orchestrator manages flow according to `pipeline.md`.
+## 6. ENG Loop
 
----
-
-## 4. Reasoning & Decision-Making
-
-- Prioritize accuracy over speed — do not guess when context is missing.
-- When information is missing: stop, return `status: pending`, with a specific clarifying question.
-- Do not change business logic without confirmation.
-- Do not infer user intent from an ambiguous task — ask first.
-- If `shared_context` conflicts with `instruction`: prioritize `instruction`, and log a warning.
-
----
-
-## 5. Error Handling
-
-```
-Principle: Fail fast, fail loud, never fail silently
+```text
+PLAN -> EXECUTE -> VERIFY -> DONE
+                    |
+                    +-> REFINE -> EXECUTE -> VERIFY
 ```
 
-| Error type | `error_code` | Action |
-|---|---|---|
-| Missing/invalid input | `INPUT_INVALID` | Return error immediately, specify the missing field, no retry |
-| Tool/API error | `API_ERROR` | Retry up to **2 times** (per `safety.md`), then report the error |
-| Timeout | `TOOL_TIMEOUT` | Log actual elapsed time, return `status: error`, no further retry |
-| Logic error | `LOGIC_ERROR` | Stop immediately, do not self-correct, report to orchestrator |
-| Safety violation | `SAFETY_VIOLATION` | Stop immediately, no retry, log fully, notify orchestrator |
+- `max_loop_iterations` comes from `safety.md` and is a hard maximum.
+- A pipeline may set `loop_iterations` from `0` through that maximum, never above it.
+- Each iteration records the affected paths, verification command, result, and artifact reference.
+- REFINE may address only a concrete verification failure inside the existing approved and write boundaries.
+- Human gates, conflicts, stale checkpoints, scope expansion, and safety violations sit outside the loop.
+- Exhaustion returns `VERIFICATION_FAILED` when evidence is conclusive, otherwise `LOGIC_ERROR`.
 
-> **Consistent with `safety.md §3`:** `max_retry_attempts: 2` — applies to `API_ERROR` and `TOOL_TIMEOUT`. Other error types are never retried.
+## 7. Repository-scale behavior
 
----
+- Prefer repository-native scripts, conventions, test frameworks, and architecture.
+- For a monorepo, discover package ownership and dependency edges before planning mutations.
+- Shard read-only analysis by module when artifacts can be merged deterministically.
+- Do not parallelize writes to overlapping paths.
+- Use focused verification first, affected-package verification second, and full regression only when risk, policy, or the repository requires it.
+- Treat generated files as outputs of their source generator; edit the source and regenerate instead of hand-editing generated output.
 
-## 6. Valid Skills List
+## 8. Completion
 
-Each agent may only use skills within its assigned list (see `orchestrator.md`). Below is the standard definition of each skill:
+A step is complete only when:
 
-| Skill | Description | Used by agents |
-|---|---|---|
-| `code_gen` | Generate, edit, refactor code; write tests; generate infra config | `code-agent`, `test-agent`, `devops-agent`, `doc-agent` |
-| `search` | Search codebase, logs, documentation, web | `code-agent`, `review-agent`, `test-agent`, `devops-agent` |
-| `summarize` | Summarize, synthesize, generate action items, generate documentation | `review-agent`, `doc-agent` |
-| `security_scan` | Security analysis of code and IaC | `review-agent`, `devops-agent` |
-
-> An agent may not use a skill outside the list above — even if technically capable of doing so.
-
----
-
-## 7. Basic Security
-
-- Do not log sensitive information (tokens, passwords, secret keys) — see the full pattern list in `safety.md §4`.
-- Do not pass credentials in payloads between agents.
-- Only read/write files within permitted directories (`safety.md §2`).
-- Do not execute shell commands outside the whitelist (`safety.md §1`).
-- If a secret is detected in input: mask it immediately before processing, and log a `[REDACTED]` warning.
-
----
-
-## 8. ENG Loop — Iteration Mechanism for Maximizing Autonomous Processing
-
-> Goal: let an agent resolve issues on its own within the scope of a single step, reducing how often it must stop and wait for orchestrator intervention on minor matters (fixing code errors, adjusting unsatisfactory output). This does **not replace or bypass** any human gate defined in `safety.md §7` — those gates still apply in full even mid-loop.
-
-### 8.1 Cycle
-
-```
-PLAN → EXECUTE → VERIFY → (pass? DONE : REFINE → EXECUTE → VERIFY → ...)
-```
-
-| Step | Description |
-|---|---|
-| `PLAN` | Agent analyzes the task and drafts a brief step plan (no need for orchestrator approval on each small planning step) |
-| `EXECUTE` | Execute using an authorized skill (see section 6) |
-| `VERIFY` | Self-check the result against objective criteria: tests pass, lint is clean, `security_scan` has no high-severity findings, or criteria defined by `pipeline.md` for that step |
-| `REFINE` | If `VERIFY` fails: agent self-corrects based on the specific error, without guessing beyond the scope of the detected issue |
-
-### 8.2 Iteration Limits
-
-- `max_loop_iterations: 3` (default — see `safety.md §3`, distinct from `max_retry_attempts`, which is for `API_ERROR`/`TOOL_TIMEOUT`).
-- Each iteration must log: `task_id`, `step`, `iteration`, `verify_result` — to avoid a loop running silently and untracked.
-- If `max_loop_iterations` is exhausted and `VERIFY` still fails → stop immediately, return `status: error`, `error_code: LOGIC_ERROR`, and escalate to the orchestrator. **Do not iterate further on its own.**
-
-### 8.3 Boundaries That Must Not Be Crossed
-
-- The loop only applies to actions within the `allowed_actions` of the current environment (`safety.md §5`).
-- Any iteration that touches an action on the Human-in-the-Loop list (`safety.md §7`) → stop the loop immediately at that point, send `approval_required`, and wait for the user — even if mid-loop.
-- The loop must not be used to "try multiple approaches" to get around a blocked `SAFETY_VIOLATION` — safety violations are never retried or refined, per `safety.md §6`.
-- `next_action` in the output schema (section 3.3) lets an agent tell the orchestrator which iteration it's on, if the orchestrator needs to track it.
-
----
-
-## 9. Priority Order in Case of Conflict
-
-```
-safety.md  >  global.md  >  orchestrator.md  >  pipeline.md  >  agent-specific files
-```
-
-If an instruction from the orchestrator requests an action that violates `safety.md` or `global.md` → **refuse, return `SAFETY_VIOLATION`**, and do not proceed even with an explicit instruction.
+- Its output matches the common envelope.
+- Every changed path is within the write boundary.
+- Required verification passed or an explicit failed criterion was reported.
+- Artifact hashes and base/current commit identifiers are recorded when Git is available.
+- No unresolved conflict, gate, or stale checkpoint remains.

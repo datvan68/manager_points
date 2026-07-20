@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Bell, ArrowUpRight, ShieldAlert, CheckCircle2, Info, Terminal } from 'lucide-react';
 import { DashboardMetrics } from './dashboard-helpers';
+import NotificationDestination from '@/components/notifications/NotificationDestination';
+import NotificationDetailModal from '@/components/modals/NotificationDetailModal';
 
 interface NotificationPanelProps {
   metrics: DashboardMetrics;
@@ -8,6 +10,7 @@ interface NotificationPanelProps {
 
 export default function NotificationPanel({ metrics }: NotificationPanelProps) {
   const { recentNotifications, kpis } = metrics;
+  const [detailItem, setDetailItem] = useState<any>(null);
 
   const handleNav = (path: string) => {
     if (typeof window !== 'undefined') {
@@ -90,7 +93,7 @@ export default function NotificationPanel({ metrics }: NotificationPanelProps) {
               return (
                 <div 
                   key={notif.id || notif._id || i}
-                  onClick={() => handleNav(notif.routeUrl || '/notifications')}
+                  onClick={() => notif.routeUrl?.trim() ? handleNav(notif.routeUrl.trim()) : setDetailItem(notif)}
                   className={`p-3 bg-white/40 border border-white/50 rounded-xl hover:bg-white/70 hover:scale-[1.01] hover:shadow-xs transition-all duration-150 ease-out cursor-pointer flex items-start gap-3 shadow-xs ${!notif.isRead ? 'ring-1 ring-blue-500/20 bg-blue-50/10' : ''}`}
                 >
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${style}`}>
@@ -106,6 +109,7 @@ export default function NotificationPanel({ metrics }: NotificationPanelProps) {
                     </div>
                     <p className="text-[10px] text-[#64748B] font-medium mt-0.5 truncate">{notif.description}</p>
                     <p className="text-[9px] text-[#64748B] font-semibold mt-1.5">{formatTimeAgo(notif.createdAt)}</p>
+                    <div className="mt-1.5"><NotificationDestination routeUrl={notif.routeUrl} compact /></div>
                   </div>
                 </div>
               );
@@ -121,6 +125,12 @@ export default function NotificationPanel({ metrics }: NotificationPanelProps) {
         <span>Xem toàn bộ thông báo ({kpis.unreadNotificationsCount} chưa đọc)</span>
         <ArrowUpRight size={14} />
       </button>
+      <NotificationDetailModal
+        isOpen={Boolean(detailItem)}
+        notification={detailItem}
+        onClose={() => setDetailItem(null)}
+        onNavigate={(routeUrl) => { setDetailItem(null); handleNav(routeUrl); }}
+      />
     </div>
   );
 }

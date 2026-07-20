@@ -19,6 +19,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { isAuthError } from '@/api/http-client';
 import { HeaderCustomMappings } from '@/providers/header-provider';
+import NotificationDestination from '@/components/notifications/NotificationDestination';
+import NotificationDetailModal from '@/components/modals/NotificationDetailModal';
 
 function NotificationsPageContent() {
   const router = useRouter();
@@ -56,6 +58,7 @@ function NotificationsPageContent() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [mobileView, setMobileView] = useState<'filters' | 'list'>('filters');
+  const [detailNotification, setDetailNotification] = useState<NotificationItem | null>(null);
 
   useEffect(() => {
     setSelectedIds([]);
@@ -237,12 +240,23 @@ function NotificationsPageContent() {
         console.error(err);
       }
     }
-    if (item.routeUrl) {
+    if (item.routeUrl?.trim()) {
       toast.info(`Chuyển hướng đến: ${item.title}`);
-      router.push(item.routeUrl);
+      router.push(item.routeUrl.trim());
     } else {
-      toast.error('Thông báo này không có liên kết trang.');
+      setDetailNotification(item);
     }
+  };
+
+  const handleCardClick = async (item: NotificationItem) => {
+    try {
+      await notificationApi.markRead(item.id);
+      window.dispatchEvent(new Event('notifications-updated'));
+    } catch (err) {
+      if (!isAuthError(err)) console.error(err);
+    }
+    if (item.routeUrl?.trim()) router.push(item.routeUrl.trim());
+    else setDetailNotification(item);
   };
 
   const getIcon = (type: NotificationItem['type']) => {
@@ -441,9 +455,7 @@ function NotificationsPageContent() {
                           setReadersNotificationId(item.id);
                           setReadersNotificationTitle(item.title);
                           setIsReadersModalOpen(true);
-                        } else {
-                          handleMarkRead(item.id);
-                        }
+                        } else handleCardClick(item);
                       }}
                       className={`p-4 flex gap-3.5 md:gap-4 transition-all duration-250 ease-out hover:-translate-y-0.5 hover:shadow-md cursor-pointer relative group rounded-2xl border ${
                         !item.isRead && activeFilter !== 'views'
@@ -526,15 +538,7 @@ function NotificationsPageContent() {
                                 Lượt xem: {item.readByUserIds?.length || 0}
                               </span>
                             ) : (
-                              item.routeUrl && (
-                                <button
-                                  onClick={(e) => handleNavigate(item, e)}
-                                  className="text-[10px] font-bold text-[#1A73E8] hover:text-[#155cc4] flex items-center gap-0.5 hover:underline cursor-pointer"
-                                >
-                                  <ExternalLink size={10} />
-                                  Đi tới trang liên kết
-                                </button>
-                              )
+                              <NotificationDestination routeUrl={item.routeUrl} />
                             )}
                           </div>
 
@@ -680,6 +684,13 @@ function NotificationsPageContent() {
         confirmLabel="Xóa"
         cancelLabel="Hủy"
         variant="danger"
+      />
+
+      <NotificationDetailModal
+        isOpen={Boolean(detailNotification)}
+        notification={detailNotification}
+        onClose={() => setDetailNotification(null)}
+        onNavigate={(routeUrl) => { setDetailNotification(null); router.push(routeUrl); }}
       />
 
       <ConfirmModal

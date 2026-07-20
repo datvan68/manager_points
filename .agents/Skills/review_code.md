@@ -1,239 +1,138 @@
-# Skill: Review Code — Kiểm Tra Chất Lượng Code
+# Skill: Review Code
 
-> Skill review code tự động cho TypeScript/Node.js trước khi merge.
-> Một PR không được merge nếu chưa qua review và chưa có test.
-
----
+> Produce a deterministic, evidence-linked verdict for a pinned diff or file set. Review is read-only and does not authorize fixes or merge actions.
 
 ## Metadata
 
 ```yaml
 skill_id: review_code
-version: 1.0.0
-language: TypeScript
-supported_agents:
-  - review-agent
-triggers:
-  - Tự động sau implement_feature + write_test hoàn thành
-  - Khi có PR mới cần review
-  - Khi orchestrator yêu cầu kiểm tra code quality
-tools_required:
-  - code_search
-  - explain_code
-  - gemini_generate
+version: 2.0.0
+supported_agents: [review-agent]
+capabilities: [search, summarize, security_scan]
+supported_stacks: repository_defined
 ```
 
----
-
-## Input Schema
+## Input
 
 ```json
 {
-  "review_target": {
-    "type": "files | git_diff | pr",
-    "content": "<code hoặc diff cần review>",
-    "file_paths": ["./src/modules/user/user.service.ts"],
-    "pr_description": "mô tả PR (tuỳ chọn)"
+  "protocol_version": "3.0",
+  "task_id": "uuid-v4",
+  "pipeline_id": "feature_development | bug_fix | refactor | test_only | devops_infra | pr_review",
+  "step_id": "review.parallel.module-a",
+  "target": {
+    "type": "files | git_diff | pull_request | artifact",
+    "base_commit_sha": "...",
+    "head_commit_sha": "...",
+    "paths": ["packages/api/src/orders/service.ts"],
+    "diff_ref": {"uri": "output/tasks/<task_id>/change.diff", "sha256": "..."}
   },
-  "context": {
-    "related_test_files": ["./tests/unit/user.service.test.ts"],
-    "acceptance_criteria": ["danh sách tiêu chí cần đáp ứng"],
-    "environment": "development | staging | production"
-  },
-  "review_level": "standard | strict | security_focus"
+  "acceptance_criteria_ids": [],
+  "test_result_refs": [],
+  "review_profile": "standard | strict | security_focus | architecture",
+  "assigned_boundary": "packages/api/**"
 }
 ```
 
----
+Reject a review target whose base/head or artifact hash cannot be verified.
 
-## Output Schema
+## Output
+
+Return the common result envelope with:
 
 ```json
 {
-  "agent_id": "review-agent",
-  "status": "approved | changes_requested | blocked",
-  "result": {
-    "verdict": "approved | changes_required | blocked",
-    "verdict_reason": "lý do bằng Tiếng Việt",
-    "issues": [
-      {
-        "id": "R001",
-        "severity": "critical | warning | suggestion",
-        "category": "security | logic | performance | test | style",
-        "file": "./src/modules/user/user.service.ts",
-        "line": 42,
-        "description": "mô tả vấn đề bằng Tiếng Việt",
-        "current_code": "code hiện tại",
-        "suggested_code": "code đề xuất thay thế",
-        "must_fix": true
-      }
-    ],
-    "test_coverage_check": {
-      "has_tests": true,
-      "test_file_path": "./tests/unit/user.service.test.ts",
-      "missing_test_cases": ["getUserById với id null chưa được test"],
-      "coverage_adequate": true
-    },
-    "summary": {
-      "total_issues": 3,
-      "critical": 0,
-      "warnings": 2,
-      "suggestions": 1
+  "verdict": "approved | changes_requested | blocked",
+  "verdict_reason": "Concise evidence-based reason.",
+  "findings": [
+    {
+      "id": "R-001",
+      "severity": "critical | warning | suggestion",
+      "category": "security | correctness | data | concurrency | performance | compatibility | test | operability | maintainability",
+      "path": "packages/api/src/orders/service.ts",
+      "symbol": "createOrder",
+      "line": null,
+      "description": "Observable problem.",
+      "impact": "Concrete failure or risk.",
+      "evidence": "Execution path, test, contract, or source fact.",
+      "recommendation": "Smallest actionable correction.",
+      "must_fix": true,
+      "fingerprint": "stable-deduplication-hash"
     }
+  ],
+  "criteria_check": [],
+  "test_impact": {
+    "adequate": true,
+    "missing_behaviors": [],
+    "evidence_refs": []
   },
-  "next_action": "implement_feature (fix issues) | null (nếu approved)",
-  "message": "2 warnings cần sửa trước khi merge"
+  "artifact_refs": []
 }
 ```
 
----
+Do not include large code blocks. Use the smallest snippet necessary or reference the path, symbol, commit, and artifact.
 
-## Tiêu Chí Review — Theo Mức Độ Ưu Tiên
+## Review order
 
-### 🔴 Critical — Chặn merge ngay lập tức
+1. Acceptance criteria and user-visible behavior.
+2. Authorization, data exposure, injection, secret handling, and trust boundaries.
+3. Data integrity, transactions, migrations, backward compatibility, and rollback.
+4. Control flow, error paths, async ordering, retries, idempotency, and races.
+5. Test adequacy for changed risk and behavior.
+6. Performance and resource use on demonstrable execution paths.
+7. Operability, observability, maintainability, and repository conventions.
 
-```typescript
-// [CRITICAL] SQL Injection — không dùng parameterized query
-const query = `SELECT * FROM users WHERE email = '${email}'`
-// ✅ Fix: dùng parameterized query
-const query = db.query('SELECT * FROM users WHERE email = $1', [email])
+Style-only preferences never override established project convention.
 
-// [CRITICAL] Lưu password plaintext
-await db.users.create({ email, password }) // password chưa hash!
-// ✅ Fix: hash trước khi lưu
-await db.users.create({ email, password: await bcrypt.hash(password, 10) })
+## Severity
 
-// [CRITICAL] Expose sensitive data trong response
-return { id, email, password, apiKey } // Trả về thông tin nhạy cảm!
-// ✅ Fix: chỉ trả về field cần thiết
-return { id, email }
+### Critical
 
-// [CRITICAL] Bỏ qua error handling cho critical operation
-await db.users.delete(userId) // Không check result, không handle lỗi
-// ✅ Fix: handle result và throw nếu cần
-const deleted = await db.users.delete(userId)
-if (!deleted) throw new NotFoundError(userId)
+Use when the change can cause exploitation, unauthorized access, secret exposure, persistent data loss/corruption, materially incorrect core behavior, unsafe deployment, or an unmitigated breaking contract. Any critical finding produces `blocked`.
 
-// [CRITICAL] Missing authentication middleware trên route nhạy cảm
-router.delete('/users/:id', deleteUser) // Ai cũng xoá được!
-// ✅ Fix:
-router.delete('/users/:id', authenticate, authorize('admin'), deleteUser)
-```
+### Warning
 
-### 🟡 Warning — Nên sửa trước khi merge
+Use for a reproducible or strongly evidenced defect, missing required test, reliability/concurrency risk, meaningful performance regression, or violation of an acceptance criterion. A must-fix warning produces `changes_requested`.
 
-```typescript
-// [WARNING] Sử dụng any type
-function processData(data: any): any { ... }
-// ✅ Fix: define proper types
-function processData(data: ProcessDataInput): ProcessDataResult { ... }
+### Suggestion
 
-// [WARNING] Không xử lý Promise rejection
-fetch(url).then(r => r.json()) // Nếu fetch fail thì sao?
-// ✅ Fix:
-const result = await fetch(url)
-if (!result.ok) throw new ExternalServiceError(result.status)
+Use for optional readability, consistency, or design improvement without a demonstrated correctness or risk impact. Suggestions do not block approval.
 
-// [WARNING] Magic numbers
-if (attempts > 3) { ... }     // 3 là gì?
-// ✅ Fix:
-const MAX_LOGIN_ATTEMPTS = 3
-if (attempts > MAX_LOGIN_ATTEMPTS) { ... }
-
-// [WARNING] God function — làm quá nhiều thứ
-async function handleUserRegistration(dto) {
-  // validate input (20 dòng)
-  // hash password (5 dòng)
-  // save to DB (10 dòng)
-  // send welcome email (15 dòng)
-  // create audit log (10 dòng)
-}
-// ✅ Fix: tách thành các function nhỏ, single responsibility
-```
-
-### 🟢 Suggestion — Cải thiện chất lượng
-
-```typescript
-// [SUGGESTION] Tên biến không rõ ý nghĩa
-const d = new Date()
-const u = await getUser(id)
-// ✅ Better:
-const registrationDate = new Date()
-const existingUser = await getUser(id)
-
-// [SUGGESTION] Điều kiện phức tạp, khó đọc
-if (user && user.role === 'admin' && user.isActive && !user.isBanned) { ... }
-// ✅ Extract thành named predicate:
-const canAccess = (user: User) =>
-  user.role === 'admin' && user.isActive && !user.isBanned
-if (canAccess(user)) { ... }
-
-// [SUGGESTION] Lặp code (DRY violation)
-// Cùng logic validate email xuất hiện ở 3 file khác nhau
-// ✅ Fix: extract thành shared utility
-```
-
----
-
-## Checklist Review Bắt Buộc
-
-### Kiểm tra Test
-```
-[ ] File test tồn tại và đặt đúng path (tests/unit/ hoặc tests/integration/)
-[ ] Happy path được test
-[ ] Error cases được test (không chỉ test khi mọi thứ OK)
-[ ] Tên test cases rõ ràng: "nên [kết quả] khi [điều kiện]"
-[ ] Không có test chỉ để pass coverage mà không assert gì có nghĩa
-[ ] Mock đúng — unit test không gọi DB/API thật
-```
-
-### Kiểm tra Security
-```
-[ ] Input được validate trước khi xử lý
-[ ] Không lưu/log sensitive data (password, token, secret)
-[ ] Authentication/Authorization đúng chỗ
-[ ] Không có SQL injection / NoSQL injection
-[ ] Rate limiting trên các endpoint public
-[ ] Error message không tiết lộ internal info
-```
-
-### Kiểm tra TypeScript
-```
-[ ] Không có any type không có lý do
-[ ] Return type được khai báo tường minh cho public function
-[ ] Interface/Type được dùng nhất quán
-[ ] Không dùng ts-ignore trừ có comment giải thích
-[ ] Strict mode không bị tắt
-```
-
-### Kiểm tra Logic
-```
-[ ] Tất cả code path đều được handle
-[ ] Không có off-by-one errors (< vs <=)
-[ ] Điều kiện boolean không bị đảo ngược
-[ ] Async/await đúng — không bỏ quên await
-[ ] Không có race condition tiềm ẩn
-```
-
----
-
-## Quy Tắc Ra Verdict
+## Verdict
 
 ```yaml
 approved:
-  - Không có critical issues
-  - Có test đầy đủ (happy path + error cases)
-  - Không có security vulnerabilities
-  - Warning ≤ 3 (hoặc đã được giải thích rõ lý do chấp nhận)
+  - no critical findings
+  - no must-fix warnings
+  - all applicable acceptance criteria supported by evidence
+  - required verification and test impact are adequate
 
 changes_requested:
-  - Có warning cần sửa
-  - Test thiếu một số edge cases quan trọng
-  - Code style không nhất quán với codebase
+  - one or more must-fix warnings
+  - missing required verification or regression protection
+  - acceptance criterion not demonstrated
 
 blocked:
-  - Có bất kỳ critical issue nào
-  - Hoàn toàn không có test
-  - Security vulnerability rõ ràng
-  - Logic sai so với acceptance criteria
+  - any critical finding
+  - unreviewable, stale, incomplete, or tampered target
+  - safety or Human Gate violation
 ```
+
+Do not approve based on a warning-count threshold. One warning can block when its impact is material.
+
+## Review quality
+
+- Trace the changed execution path; do not review only isolated lines.
+- Verify whether an apparent issue is already handled by a caller, framework, database constraint, or shared middleware.
+- Avoid speculative findings. State missing evidence as a question or verification gap.
+- Do not demand a new abstraction, dependency, framework, or pattern unless required by correctness or accepted convention.
+- Separate pre-existing issues from regressions introduced by the target.
+- Deduplicate findings by root cause/fingerprint across sharded reviewers.
+
+## Large-diff strategy
+
+- First classify generated, vendored, source, test, migration, and infrastructure paths.
+- Review public contracts and high-risk entry points before internal helpers.
+- Shard by independent module with pinned base/head commits.
+- Synthesize findings only after all required shards finish; if a shard fails, the target is incomplete rather than silently approved.
+- Store inventories and scan output as artifacts; keep the verdict concise.

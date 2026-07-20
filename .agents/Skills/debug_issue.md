@@ -1,260 +1,143 @@
-# Skill: Debug Issue — Phân Tích & Tìm Nguyên Nhân Lỗi
+# Skill: Debug Issue
 
-> Skill phân tích lỗi có hệ thống cho TypeScript/Node.js.
-> Mục tiêu: tìm **root cause**, không chỉ fix **symptom**.
-
----
+> Diagnose root cause from evidence, establish reproducibility, and produce a bounded fix handoff. Do not modify code unless the assigned pipeline step explicitly authorizes it.
 
 ## Metadata
 
 ```yaml
 skill_id: debug_issue
-version: 1.0.0
-language: TypeScript
-supported_agents:
-  - code-agent
-  - review-agent
-  - orchestrator
-tools_required:
-  - code_search
-  - search (web_search cho known issues)
-  - explain_code
-  - gemini_generate
-output_triggers:
-  - Sau debug thành công → gọi implement_feature (mode=fix)
-  - Sau fix → gọi write_test (viết regression test)
+version: 2.0.0
+supported_agents: [code-agent, review-agent]
+capabilities: [search]
+supported_stacks: repository_defined
+default_mode: read_only
 ```
 
----
-
-## Input Schema
+## Input
 
 ```json
 {
-  "error_type": "runtime_error | logic_error | performance | type_error | test_failure",
-  "evidence": {
-    "error_message": "full stack trace hoặc error message",
-    "logs": "relevant log lines (không cần toàn bộ log)",
-    "reproduction_steps": ["bước 1", "bước 2"],
+  "protocol_version": "3.0",
+  "task_id": "uuid-v4",
+  "pipeline_id": "bug_fix",
+  "step_id": "diagnose",
+  "error_type": "runtime | logic | performance | type | test | integration | operational | unknown",
+  "evidence_refs": [
+    {"type": "log", "uri": "output/tasks/<task_id>/error.log", "sha256": "..."}
+  ],
+  "reproduction": {
+    "steps": [],
+    "frequency": "always | intermittent | rare | unknown",
     "environment": "development | staging | production",
-    "first_occurred": "khi nào lỗi bắt đầu xuất hiện (nếu biết)"
+    "first_known_bad": "commit-or-time-or-null",
+    "last_known_good": "commit-or-time-or-null"
   },
-  "context": {
-    "affected_files": ["./src/modules/payment/payment.service.ts"],
-    "recent_changes": "mô tả thay đổi gần nhất trước khi lỗi xảy ra",
-    "frequency": "always | intermittent | rare"
+  "scope": {
+    "approved_boundaries": ["packages/api/**"],
+    "suspected_paths": []
   }
 }
 ```
 
----
+Do not require raw full logs when a focused, redacted slice and artifact reference are sufficient.
 
-## Output Schema
+## Output
+
+Return the common result envelope from `global.md` with:
 
 ```json
 {
-  "agent_id": "code-agent",
-  "status": "root_cause_found | investigation_needed | cannot_determine",
-  "result": {
-    "root_cause": {
-      "description": "mô tả nguyên nhân gốc bằng Tiếng Việt",
-      "file": "./src/modules/payment/payment.service.ts",
-      "line": 87,
-      "code_snippet": "đoạn code gây lỗi",
-      "why": "giải thích tại sao đây là nguyên nhân"
-    },
-    "contributing_factors": ["yếu tố phụ 1", "yếu tố phụ 2"],
-    "fix_suggestion": {
-      "approach": "mô tả cách fix ngắn gọn",
-      "code_example": "đoạn code fix nếu đơn giản",
-      "complexity": "simple | medium | complex"
-    },
-    "regression_test_needed": true,
-    "similar_risks": [
-      "Vị trí tương tự trong codebase có thể có cùng lỗi: ./src/modules/order/order.service.ts:123"
-    ]
+  "diagnosis_status": "root_cause_confirmed | probable_cause | more_evidence_required | not_reproduced",
+  "root_cause": {
+    "description": "Evidence-based cause.",
+    "path": "repository-relative path or null",
+    "symbol": "symbol or null",
+    "line": 87,
+    "confidence": "high | medium | low",
+    "evidence_refs": []
   },
-  "next_action": "implement_feature (mode=fix)",
-  "message": "Tìm thấy root cause, sẵn sàng để fix"
+  "contributing_factors": [],
+  "reproduction_artifact_ref": null,
+  "fix_constraints": [],
+  "regression_test": {
+    "required": true,
+    "proposed_level": "unit | integration | contract | e2e | manual",
+    "observable_failure": "Exact pre-fix failure."
+  },
+  "similar_risks": []
 }
 ```
 
----
+Set the common envelope's top-level `next_action` to `regression_baseline`, `request_evidence`, or `null`.
 
-## Quy Trình Debug Có Hệ Thống
+Use `line: null` when source location is not stable. Prefer path plus symbol and commit SHA over stale line numbers.
 
-### Bước 1 — Đọc lỗi đúng cách
-```
-Stack trace TypeScript/Node.js cần đọc từ dưới lên:
-  - Dòng cuối = điểm khởi phát lỗi ban đầu
-  - Dòng đầu = nơi lỗi được bắt hoặc re-throw
+## Investigation workflow
 
-Error: Cannot read properties of undefined (reading 'email')
-    at UserService.createUser (user.service.ts:42:28)   ← Điểm lỗi
-    at OrderService.placeOrder (order.service.ts:87:5)  ← Caller
-    at POST /api/orders (order.controller.ts:23:3)      ← Entry point
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-         Đọc từ đây lên để hiểu context đầy đủ
-```
+### 1. Establish the evidence boundary
 
-### Bước 2 — Phân tích theo loại lỗi
+- Record environment, base commit, affected version, request/job identifiers, and time window.
+- Redact sensitive values before saving logs or payloads.
+- Separate observed facts from user hypotheses and agent hypotheses.
+- Confirm whether the task is diagnosis-only or includes implementation.
 
-#### Runtime Error — `Cannot read properties of undefined/null`
-```typescript
-// Nguyên nhân thường gặp:
-// 1. Không check null/undefined trước khi access property
-const user = await getUser(id) // Có thể trả null!
-console.log(user.email)        // ❌ Crash nếu user là null
+### 2. Reproduce or triangulate
 
-// Debug steps:
-// → Tìm hàm getUser, xem khi nào trả null
-// → Tìm nơi gọi getUser, xem có check null không
-// → Xác định: tại sao lần này getUser trả null?
+Use the least expensive reliable method:
 
-// Fix:
-const user = await getUser(id)
-if (!user) throw new NotFoundError('User', id)
-console.log(user.email) // ✅ TypeScript biết user không null
-```
+1. Existing focused failing test.
+2. Minimal local reproduction.
+3. Deterministic log/trace correlation.
+4. Comparison with last-known-good behavior.
+5. Controlled instrumentation in development/staging when authorized.
 
-#### Type Error — TypeScript compile error
-```typescript
-// Nguyên nhân thường gặp:
-// 1. Type mismatch giữa function signature và caller
-// 2. Missing property trong object literal
-// 3. Incompatible generic types
+Production diagnosis is read-only unless a Human Gate explicitly authorizes mutation.
 
-// Debug steps:
-// → Đọc toàn bộ error message (không chỉ dòng đầu)
-// → TypeScript thường chỉ rõ "expected X, received Y"
-// → Tìm type definition của function/variable đang lỗi
+### 3. Trace causality
 
-// Example error:
-// Argument of type 'string | undefined' is not assignable
-// to parameter of type 'string'
-// → Nguyên nhân: email có thể undefined nhưng function đòi string
-// → Fix: thêm null check hoặc non-null assertion có giải thích
-```
+Trace from observable failure through call/data/dependency flow to the earliest incorrect state. Inspect:
 
-#### Logic Error — Code chạy nhưng kết quả sai
-```typescript
-// Khó nhất — không có error message rõ ràng
-// Debug approach: Binary search + logging
+- Input validation and serialization boundaries.
+- Nullability, type narrowing, units, time zones, and numeric precision.
+- Async ordering, cancellation, retries, idempotency, races, and backpressure.
+- Database transactions, isolation, N+1 access, connection/resource leaks.
+- Cache invalidation, stale reads, queues, external service partial failures.
+- Configuration differences and recent dependency/deployment changes.
+- Test non-determinism, shared state, time, randomness, and external services.
 
-// Bước 1: Xác định "điểm cuối cùng đúng" và "điểm đầu tiên sai"
-// Bước 2: Log intermediate values ở giữa khoảng đó
-// Bước 3: Thu hẹp phạm vi đến function cụ thể
-// Bước 4: Viết unit test reproduce lỗi trước khi fix
+Do not label the crash site as root cause unless evidence shows that the incorrect state originated there.
 
-// Ví dụ: calculateDiscount trả kết quả sai
-function calculateDiscount(price: number, coupon: Coupon): number {
-  // Bug tiềm ẩn: percentage được lưu là 0.2 hay 20?
-  return price * coupon.discountRate
-  //            ^^^^^^^^^^^^^^^^^^^
-  //  Nếu discountRate = 20 (không phải 0.2) → discount 20x giá!
-}
+### 4. Test hypotheses
 
-// Fix: Làm rõ unit trong type
-type Coupon = {
-  discountRate: number // 0–1 (percentage / 100), e.g., 0.2 = 20% off
-}
-```
-
-#### Performance Issue — Chậm, timeout, memory leak
-```typescript
-// Common patterns cần tìm:
-
-// 1. N+1 query
-for (const order of orders) {
-  const user = await userRepo.findById(order.userId) // Query trong loop!
-}
-// Fix: batch query
-const userIds = orders.map(o => o.userId)
-const users = await userRepo.findByIds(userIds)
-
-// 2. Missing await làm mất back-pressure
-for (const item of largeArray) {
-  processItem(item) // Không await → spawn hàng nghìn promises cùng lúc
-}
-// Fix: sequential hoặc batched
-for (const item of largeArray) {
-  await processItem(item) // Sequential
-}
-// Hoặc batched parallel:
-const BATCH_SIZE = 10
-for (let i = 0; i < largeArray.length; i += BATCH_SIZE) {
-  await Promise.all(largeArray.slice(i, i + BATCH_SIZE).map(processItem))
-}
-
-// 3. Memory leak từ event listener không được cleanup
-class Service {
-  init() {
-    emitter.on('event', this.handler) // Listener không bao giờ removed!
-  }
-  // Fix: implement cleanup
-  destroy() {
-    emitter.off('event', this.handler)
-  }
-}
-```
-
-#### Test Failure — Test fail sau thay đổi
-```
-Debug approach cho test failure:
-  1. Đọc fail message: "Expected X, received Y"
-  2. Tìm assert nào fail
-  3. Hỏi: test fail vì code sai hay test expectation sai?
-     → Nếu code sai: fix code
-     → Nếu test sai (requirement thay đổi): update test + document lý do
-     → Nếu test flaky: tìm non-determinism (timing, random, external state)
-```
-
----
-
-## Các Lỗi TypeScript/Node.js Phổ Biến
+For each plausible hypothesis, record:
 
 ```yaml
-"Cannot find module":
-  cause: Import path sai, file không tồn tại, tsconfig paths chưa cấu hình
-  fix: Kiểm tra relative path, tsconfig paths, file extension
-
-"Promise<void> returned":
-  cause: Quên await trong async function
-  fix: Thêm await, hoặc return promise nếu muốn chain
-
-"ECONNREFUSED":
-  cause: Service (DB, Redis, external API) không chạy
-  fix: Kiểm tra service status, env vars, network config
-
-"Maximum call stack exceeded":
-  cause: Infinite recursion
-  fix: Tìm base case bị thiếu hoặc circular dependency
-
-"Cannot access X before initialization":
-  cause: Circular import hoặc sử dụng biến trước khi declare
-  fix: Tái cấu trúc imports, dùng lazy initialization
-
-"Unhandled Promise Rejection":
-  cause: async function throw lỗi nhưng không được await hoặc .catch()
-  fix: Thêm try/catch hoặc .catch() handler
-
-"heap out of memory":
-  cause: Memory leak, xử lý dataset quá lớn trong memory
-  fix: Stream processing, pagination, tìm vòng lặp giữ reference
+hypothesis: "Description"
+expected_observation: "What should be true if correct"
+check: "Repository-supported command or artifact inspection"
+actual_observation: "Observed result"
+verdict: confirmed | rejected | inconclusive
 ```
 
----
+Investigate at most the smallest set needed to distinguish causes. Do not perform broad speculative edits.
 
-## Quy Tắc Khi Debug
+### 5. Define the fix boundary
 
-```
-✅ Tìm root cause — không chỉ làm cho test pass
-✅ Luôn viết regression test để ngăn lỗi quay lại
-✅ Tìm similar risks trong codebase sau khi fix
-✅ Document lý do fix nếu solution không rõ ràng
+- State the behavior that must change and behavior that must remain unchanged.
+- Identify compatibility, data, security, and operational constraints.
+- Propose a regression test that fails for the confirmed cause, not merely the visible symptom.
+- Search for the same faulty pattern only inside approved boundaries; record other occurrences as risks unless the scope authorizes fixing them.
 
-❌ Không dùng try/catch để nuốt lỗi mà không log
-❌ Không thêm if/else để bypass lỗi mà không hiểu nguyên nhân
-❌ Không xoá test đang fail thay vì fix lỗi
-❌ Không sửa bug và refactor cùng lúc trong 1 commit
-```
+## Performance and large-repository guidance
+
+- Use profiles, query plans, traces, or heap evidence when available; do not infer a performance cause from style alone.
+- Query the code index/module manifest before opening large dependency trees.
+- Search progressively: failing symbol -> direct callers -> owning module -> dependent modules.
+- Store long logs, profiles, and traces as artifacts; return only the relevant evidence references.
+
+## Prohibited shortcuts
+
+- Swallowing errors, weakening assertions, deleting failing tests, or adding bypass conditions.
+- Combining unrelated refactoring with a bug fix.
+- Claiming root cause without a reproducible observation or converging independent evidence.
+- Mutating production or persistent data during diagnosis without approval.

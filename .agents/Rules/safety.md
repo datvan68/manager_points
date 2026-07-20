@@ -2,265 +2,183 @@
 trigger: always_on
 priority: highest
 applies_to: all_agents
-override: none   # No agent, not even the orchestrator, may override this file
+override: none
+version: 3.0.0
 ---
 
 # Safety Rules
 
-> These rules have the highest priority in the entire system. Even the orchestrator may not override them. Every violation must be logged and reported immediately.
+These rules are mandatory. No agent or pipeline may override them.
 
----
+## 1. Path and repository boundaries
 
-## 1. Shell Commands — Whitelist
+### Read access
 
-Only the following commands are permitted. Any command not on this list → refuse, return `SAFETY_VIOLATION`.
+Agents may read files under the active repository root when required by the assigned task, including source, tests, package manifests, lockfiles, build configuration, deployment configuration, migration definitions, documentation, and agent rules.
 
-```bash
-# ✅ Version Control
-git clone | git pull | git push | git fetch
-git status | git log | git diff | git checkout | git branch
-git add | git commit | git stash | git tag
-
-# ✅ Docker
-docker build | docker run | docker ps | docker stop
-docker logs | docker inspect | docker images | docker pull
-docker-compose up | docker-compose down | docker-compose build
-
-# ✅ Kubernetes
-kubectl get | kubectl describe | kubectl apply | kubectl delete
-kubectl rollout | kubectl logs | kubectl exec | kubectl port-forward
-kubectl config view | kubectl config use-context
-
-# ✅ Node.js / npm / yarn
-npm install | npm run | npm test | npm build | npm audit
-yarn install | yarn run | yarn test | yarn build
-
-# ✅ Python
-pip install | pip list | pip show
-pytest | python -m | python3 -m
-
-# ✅ File System (restricted to allowed paths)
-ls | cat | grep | find | echo | head | tail | wc
-mkdir | cp | mv | touch | diff | stat
-
-# ✅ Common utilities
-jq | yq | curl (GET only, never piped into a shell) | wget (download only)
-zip | unzip | tar (extract only) | base64 | sha256sum
-```
-
-```bash
-# ❌ ABSOLUTELY FORBIDDEN — Immediately triggers SAFETY_VIOLATION
-rm -rf /                  # Wipe the entire filesystem
-rm -rf * (at root paths)  # Uncontrolled mass deletion
-chmod 777                 # Unrestricted permission opening
-chown -R                  # Bulk ownership change
-curl <url> | bash         # Directly execute a script from the internet
-wget <url> | bash         # Same as above
-sudo su | sudo -i | su -  # Root privilege escalation
-dd if=/dev/               # Direct disk manipulation
-nc | netcat | ncat        # Arbitrary network connections (reverse shell)
-> /etc/passwd             # Overwrite system files
-iptables | ufw            # Firewall changes
-crontab -e                # Add a scheduled task
-ssh-keygen | ssh-copy-id  # Generate/distribute SSH keys
-eval "$(...)"`             # Execute a dynamic string
-```
-
-> **Note on `curl`:** Only for GET requests against API/JSON data. Never `curl <url> | bash` or `curl <url> | sh`.
-
----
-
-## 2. File System Scope
+The following remain forbidden unless a platform-level capability explicitly provides a safe read abstraction:
 
 ```yaml
-allowed_read:
-  - ./src/**
-  - ./tests/**
-  - ./docs/**
-  - ./configs/**
-  - ./.agents/**          # Read agent definitions
-  - /tmp/agent-workspace/**
-
-allowed_write:
-  - ./output/**
-  - /tmp/agent-workspace/**
-  - ./logs/**
-  - ./docs/**             # doc-agent updates documentation
-
-allowed_read_only:        # Read-only, never write/delete
-  - .env                  # Read for config values only, contents must never be logged
-  - .env.local
-  - .env.staging
-  - .env.production
-
-forbidden_read_write:
+forbidden_read:
   - /etc/**
-  - /root/**
+  - /root/** outside the active repository root
   - ~/.ssh/**
   - /proc/**
   - /sys/**
   - /boot/**
-  - .env* (write — writing to any .env file is strictly forbidden)
+  - files outside the active repository and approved temporary workspace
 ```
 
-> **`.env` rule:** Agents may read `.env` for config values (e.g. `DATABASE_URL`), but must **never** log, print, or pass the contents elsewhere. Any value taken from `.env` must be masked immediately wherever it appears in output.
+Secret files such as runtime `.env*` files, credential stores, private keys, and cloud profiles may be read only when the task explicitly requires configuration-name discovery and the environment grants access. Versioned templates such as `.env.example` are ordinary repository configuration unless they contain detected secrets. Never copy raw secret values into prompts, logs, artifacts, patches, or messages.
 
----
+### Write access
 
-## 3. Resource Limits
+Agents may write only to:
+
+- Paths inside the task's `write_boundaries`.
+- `output/tasks/<task_id>/**` for reports and artifacts.
+- `logs/tasks/<task_id>/**` for redacted logs.
+- An isolated task worktree or approved temporary workspace.
+
+Writing is always forbidden for `.env*`, private-key files, credential stores, files outside the active repository, and protected system paths. A path discovered inside an `approved_boundary` may be added to the discovery manifest without user approval; crossing the boundary requires a scope amendment.
+
+## 2. Command policy
+
+Commands are permitted by capability and arguments, not by executable name alone.
+
+### Allowed capabilities
+
+- Read-only repository inspection and search.
+- Git inspection and diff operations.
+- Git mutation only within the isolated task branch/worktree and approved scope.
+- Repository-native format, lint, type-check, test, build, and validation scripts discovered from project configuration.
+- Language/package-manager commands matching the repository's lockfile and documented toolchain.
+- Docker, Kubernetes, Terraform, and cloud read/validate/plan commands inside the task scope.
+- Dependency installation in an isolated development/build environment only when the dependency change is explicitly in scope and the lockfile is updated. Never install directly into a target production runtime through this permission.
+
+### Always forbidden
+
+```text
+Recursive deletion of a repository, workspace root, home directory, or system path
+Privilege escalation or ownership changes on broad paths
+Piping downloaded or dynamically generated content into a shell or interpreter
+Arbitrary disk, kernel, firewall, persistence, reverse-shell, or credential-exfiltration operations
+Unreviewed force push, destructive history rewrite, or deletion of a shared remote branch
+Commands containing unresolved variables, globs, or substitutions as destructive targets
+Printing, exporting, or transmitting raw secrets
+Bypassing a denied command through an equivalent shell construct
+```
+
+Before any material deletion, resolve exact targets with a read-only check and prefer a recoverable operation. Destructive operations listed in Section 7 require a Human Gate even when technically available.
+
+## 3. Resource budgets
 
 ```yaml
-max_execution_time: 300s        # Max 5 minutes per task (hard limit)
-max_output_tokens: 8192         # Output limit per model call
-max_retry_attempts: 2           # Number of retries for API_ERROR or TOOL_TIMEOUT
-max_loop_iterations: 3          # Max PLAN-EXECUTE-VERIFY-REFINE iterations (ENG Loop, see global.md §8) — separate from max_retry_attempts
-max_concurrent_subagents: 5     # Number of sub-agents running concurrently (consistent with orchestrator.md)
-max_file_size_write: 10MB       # Max file size that can be written
-max_pipeline_duration: 600s     # Max total duration of a pipeline (10 minutes)
-checkpoint_ttl: 3600s           # Checkpoint expires after 1 hour if not resumed
+max_output_tokens_per_call: 8192
+max_retry_attempts: 2
+max_loop_iterations: 3
+max_review_remediation_cycles: 2
+max_concurrent_subagents_default: 5
+max_concurrent_subagents_hard: 12
+max_concurrent_writers_per_path: 1
+default_step_deadline_seconds: 600
+max_step_deadline_seconds: 1800
+default_pipeline_deadline_seconds: 3600
+checkpoint_ttl_seconds: 604800
+max_single_artifact_size: 50MB
 ```
 
-> When `max_execution_time` is exceeded: the agent stops immediately, returns `TOOL_TIMEOUT`, and saves a checkpoint if possible.
+- The orchestrator selects a lower concurrency value when repository resources, rate limits, or write overlap require it.
+- A deadline may be chosen within the maximum using repository evidence. Long-running commands must emit heartbeat/progress information when supported.
+- A timeout stops the process safely and saves an artifact/checkpoint when possible. Retry follows `global.md` and never exceeds the shared retry budget.
+- Large outputs must be stored as artifacts and summarized; never truncate a finding silently.
 
----
+## 4. Sensitive information
 
-## 4. Sensitive Information Protection
+Redact sensitive values at the ingestion-to-log/output boundary. Agents may reason about an authorized secret-dependent configuration without reproducing the value.
 
-The following patterns must never appear in logs, output, payloads, or notifications:
+Always redact:
 
-```regex
-# API Keys & Secrets
-(?i)(api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token)\s*=\s*\S+
-(?i)(password|passwd|pwd)\s*=\s*\S+
-(?i)(private[_-]?key|client[_-]?secret)\s*=\s*\S+
-TOKEN\s*=\s*\S+
-PRIVATE_KEY\s*=\s*\S+
+- Passwords, tokens, API keys, private keys, connection-string credentials, cookies, and authorization headers.
+- Payment-card data, government identifiers, and private personal data not required for the task.
+- User or customer email addresses in general-purpose logs; preserve only when the user explicitly requires the address as task data and access is authorized.
 
-# Personal information
-\b\d{3}-\d{2}-\d{4}\b                            # US SSN
-\b4[0-9]{12}(?:[0-9]{3})?\b                      # Visa card
-\b5[1-5][0-9]{14}\b                              # Mastercard
-[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,} # Email (in logs/payloads)
-```
+Use stable placeholders such as `[REDACTED_API_KEY]` or `[REDACTED_EMAIL]` so related events remain correlatable without revealing values. Secret detection must not prevent reading normal source code that contains variable names such as `API_KEY`.
 
-**Mandatory masking procedure:**
-```
-Input:   DATABASE_URL=postgres://admin:secretpass@host:5432/db
-Output:  DATABASE_URL=postgres://***REDACTED***@host:5432/db
+## 5. Environment policy
 
-Input:   API_KEY=sk-1234abcd
-Output:  API_KEY=***REDACTED***
-```
+| Environment | Allowed without Human Gate | Requires Human Gate |
+|---|---|---|
+| Development | Read, analyze, scoped code generation, scoped tests/builds, local ephemeral resources | Destructive shared-resource operations, secret operations, shared-history changes |
+| Staging | Read, analyze, generate, validate, plan; deploy after required automated review | Deploy, database/schema mutation, resource deletion, secret/IAM changes |
+| Production | Read, analyze, generate artifacts, security scan, dry-run/plan | Any mutation, deployment, database change, resource deletion, secret/IAM change |
 
-> Masking must occur **before** processing — never log a raw secret, even for debugging purposes.
+Environment approval does not authorize paths or behavior outside the approved task scope.
 
----
+## 6. Isolation and concurrency
 
-## 5. Environment-Based Limits
+- Every mutating task uses an isolated branch/worktree when Git is available.
+- Record `base_commit_sha` before mutation and `current_commit_sha` in every checkpoint.
+- Two workers must not write overlapping paths concurrently.
+- Before applying a worker artifact, verify that its base hash still matches. A mismatch is `CONFLICT` or `STALE_CHECKPOINT`, not an automatic merge.
+- Never overwrite unrelated dirty-worktree changes. Preserve them and request direction if isolation is impossible.
 
-```yaml
-environment: production
-  allowed_actions:
-    - read
-    - analyze
-    - generate_code      # Generate code/config but do not apply it
-    - security_scan
-  forbidden_actions:
-    - deploy             # Requires human approval first
-    - delete_resource    # Requires human approval first
-    - modify_database    # Requires human approval first
-    - kubectl apply      # Only usable after human approval
-    - terraform apply    # Only usable after human approval
-  note: "Any action executed on production requires a human_gate in the pipeline"
+## 7. Human-in-the-Loop gates
 
-environment: staging
-  allowed_actions:
-    - read
-    - analyze
-    - generate_code
-    - security_scan
-    - deploy             # Allowed, but must be approved by review-agent
-  forbidden_actions:
-    - delete_resource
-    - modify_database    # Schema changes — requires human approval
-  note: "deploy on staging is allowed but requires a review-agent gate"
+Approval is mandatory before:
 
-environment: development
-  allowed_actions: all
-  note: "The shell command whitelist and file system rules above still apply"
-```
+- Any production mutation or deployment.
+- Staging deployment, resource deletion, or database/schema mutation.
+- Database migrations that can affect persistent data.
+- Creating, rotating, revoking, exposing, or deleting secrets or credentials.
+- Creating, deleting, or broadening IAM roles, policies, or permissions.
+- Merging into `main`, `master`, or `release/*`.
+- Deleting a remote branch or rewriting shared history.
+- Changing production-affecting CI/CD behavior.
+- Material destructive actions or an expansion beyond the approved task boundary.
 
----
-
-## 6. Behavior Upon Detecting a Violation
-
-When any agent detects an action that violates safety rules:
-
-```
-1. Stop execution immediately — do not proceed even partially
-2. Log fully according to the schema below
-3. Return status: error with error_code: SAFETY_VIOLATION
-4. Notify the orchestrator to escalate
-5. Do not retry the rejected action on its own
-6. Do not continue the pipeline — the orchestrator decides how to proceed
-```
-
-**Violation Log Schema:**
-
-```json
-{
-  "timestamp": "ISO-8601",
-  "agent_id": "violating-agent-name",
-  "task_id": "uuid-v4",
-  "pipeline_id": "pipeline-name",
-  "step": 2,
-  "violation_type": "SHELL_FORBIDDEN | FILE_FORBIDDEN | ENV_FORBIDDEN | SECRET_EXPOSURE | RESOURCE_LIMIT",
-  "action_attempted": "rm -rf /tmp/agent-workspace/../../../etc",
-  "reason": "Shell command not on the whitelist",
-  "blocked": true,
-  "notify": ["orchestrator"]
-}
-```
-
----
-
-## 7. Human-in-the-Loop (Mandatory)
-
-The following situations **require the pipeline to stop and ask the user** before proceeding — this also applies while an agent is running inside the ENG Loop (`global.md §8`); the loop must stop immediately at that iteration and send `approval_required`, without self-refining/retrying to bypass the gate:
-
-**Production environment:**
-- [ ] Deploy anything to production (`kubectl apply`, `terraform apply`, ...)
-- [ ] Delete a resource (database, bucket, service, namespace, IAM role)
-- [ ] Change infrastructure configuration (network, firewall, load balancer)
-- [ ] Execute a database migration (schema changes)
-- [ ] Create or delete an IAM role/policy/permission
-
-**All environments:**
-- [ ] Merge into `main` / `master` / `release/*` branches
-- [ ] Delete a branch from the remote repository
-- [ ] Reset or rebase history of a shared branch
-- [ ] Operate on secrets/credentials (rotate, revoke, generate)
-- [ ] Change CI/CD pipeline configuration that affects the production workflow
-
-**Human Gate Request Schema** (sent by the orchestrator to the user):
+Request schema:
 
 ```json
 {
   "type": "approval_required",
   "task_id": "uuid-v4",
   "pipeline_id": "devops_infra",
-  "step": 3,
+  "step_id": "apply.production",
   "environment": "production",
-  "action_summary": "Apply k8s manifest thay đổi replica count từ 2 → 5 cho service api-gateway",
+  "action_summary": "Apply the reviewed deployment artifact.",
   "artifacts_to_review": [
-    {
-      "type": "file",
-      "path": "./output/k8s-manifest.yaml",
-      "description": "K8s deployment manifest đã được review bởi devops-agent"
-    }
+    {"type": "plan", "uri": "output/tasks/<task_id>/deployment-plan.txt", "sha256": "..."}
   ],
-  "risk_level": "medium | high | critical",
-  "triggered_by": "pipeline_rule: environment == production",
-  "message": "Vui lòng review artifact và xác nhận để tiếp tục."
+  "risk_level": "high",
+  "triggered_by": "production_mutation",
+  "rollback_artifact": {"uri": "output/tasks/<task_id>/rollback.md", "sha256": "..."},
+  "message": "Vui lòng xem các artifact và xác nhận trước khi tiếp tục."
+}
+```
+
+Valid risk levels are `medium`, `high`, and `critical`.
+
+## 8. Safety violation response
+
+On a safety violation:
+
+1. Stop the unsafe action and any dependent pipeline steps.
+2. Do not retry, refine, delegate around, or partially execute it.
+3. Preserve safe evidence with sensitive values redacted.
+4. Return `SAFETY_VIOLATION` and notify the orchestrator.
+5. Save a checkpoint only if doing so does not repeat the violation.
+
+```json
+{
+  "timestamp": "ISO-8601",
+  "agent_id": "agent-id",
+  "task_id": "uuid-v4",
+  "pipeline_id": "pipeline-id",
+  "step_id": "step-id",
+  "violation_type": "COMMAND | PATH | ENVIRONMENT | SECRET | RESOURCE | SCOPE",
+  "action_summary": "Redacted description of the blocked action.",
+  "blocked": true,
+  "artifact_refs": []
 }
 ```

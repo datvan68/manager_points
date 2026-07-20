@@ -28,7 +28,7 @@ export class ActivityScheduleActiveNotificationService {
   })
   async handleCron() {
     const now = new Date();
-    this.logger.log(`Checking for active activity schedules at ${now.toISOString()}`);
+    this.logger.debug(`Checking for active activity schedules at ${now.toISOString()}`);
 
     try {
       // Find active schedules:
@@ -46,7 +46,7 @@ export class ActivityScheduleActiveNotificationService {
         return;
       }
 
-      this.logger.log(`Found ${activeSchedules.length} active schedules. Starting notification dispatch.`);
+      this.logger.debug(`Found ${activeSchedules.length} active schedules. Starting notification dispatch.`);
 
       for (const schedule of activeSchedules) {
         const scheduleIdStr = schedule._id.toString();
@@ -83,7 +83,7 @@ export class ActivityScheduleActiveNotificationService {
         const uniqueRecipientUserIds = Array.from(new Set(recipientUserIds));
 
         if (uniqueRecipientUserIds.length === 0) {
-          this.logger.log(`Schedule ${scheduleIdStr} has no eligible student members to notify.`);
+          this.logger.debug(`Schedule ${scheduleIdStr} has no eligible student members to notify.`);
           continue;
         }
 
@@ -124,7 +124,7 @@ export class ActivityScheduleActiveNotificationService {
           }
         }
 
-        this.logger.log(
+        this.logger.debug(
           `Processed notifications for schedule ${scheduleIdStr}: ${sentCount} sent successfully, ${errorCount} errors.`,
         );
       }

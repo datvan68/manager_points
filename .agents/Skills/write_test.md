@@ -1,380 +1,150 @@
-# Skill: Write Test — Viết Unit & Integration Test
+# Skill: Write Test
 
-> Skill viết test tự động cho TypeScript/Node.js.
-> Test không phải là "optional" — đây là phần không thể tách rời của một tính năng.
-
----
+> Add or update the smallest risk-based test set that proves changed behavior and prevents meaningful regressions, using the repository's existing test stack.
 
 ## Metadata
 
 ```yaml
 skill_id: write_test
-version: 1.0.0
-language: TypeScript
-framework:
-  unit: Vitest
-  integration: Vitest + Supertest
-  coverage: @vitest/coverage-v8
-supported_agents:
-  - test-agent
-  - code-agent
-triggers:
-  - Tự động sau khi implement_feature hoàn thành
-  - Tự động sau khi bug_fix hoàn thành
-  - Thủ công khi được orchestrator yêu cầu
-coverage_targets:
-  unit: 80%        # Tối thiểu
-  integration: 60% # Tối thiểu
-  critical_paths: 100% # Bắt buộc
+version: 2.0.0
+supported_agents: [test-agent, code-agent]
+capabilities: [search, code_gen]
+supported_stacks: repository_defined
 ```
 
----
+This skill does not mandate Vitest, Jest, Pytest, Supertest, a directory layout, or a universal coverage percentage. Discover and preserve the repository's established runner, helpers, fixtures, naming, and thresholds.
 
-## Tại Sao Vitest (không phải Jest)?
-
-```
-✅ Vitest — Lý do chọn cho TypeScript/Node.js mới:
-  - Native TypeScript (không cần babel transform)
-  - Nhanh hơn Jest 2–5x nhờ Vite engine
-  - API tương thích Jest (migrate dễ)
-  - Built-in coverage với @vitest/coverage-v8
-  - Hot module reload khi chạy watch mode
-  - Hỗ trợ ESM tốt hơn Jest
-```
-
----
-
-## Thiết Lập Môi Trường (Một Lần Duy Nhất)
-
-### Cài đặt
-```bash
-npm install -D vitest @vitest/coverage-v8 supertest @types/supertest
-```
-
-### vitest.config.ts
-```typescript
-import { defineConfig } from 'vitest/config'
-import tsconfigPaths from 'vite-tsconfig-paths'
-
-export default defineConfig({
-  plugins: [tsconfigPaths()],
-  test: {
-    globals: true,
-    environment: 'node',
-    setupFiles: ['./tests/setup.ts'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 75,
-        statements: 80,
-      },
-      exclude: [
-        'node_modules/**',
-        'tests/**',
-        '**/*.types.ts',
-        '**/*.config.ts',
-        '**/index.ts',       // Re-export files
-      ],
-    },
-    include: ['tests/**/*.test.ts'],
-    exclude: ['node_modules'],
-  },
-})
-```
-
-### tests/setup.ts
-```typescript
-import { beforeAll, afterAll, afterEach } from 'vitest'
-
-// Reset mocks sau mỗi test để tránh test pollution
-afterEach(() => {
-  vi.restoreAllMocks()
-})
-
-// Database / external service setup nếu cần
-beforeAll(async () => {
-  // Setup test database, start mock servers...
-})
-
-afterAll(async () => {
-  // Cleanup connections...
-})
-```
-
-### package.json scripts
-```json
-{
-  "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration"
-  }
-}
-```
-
----
-
-## Input Schema
+## Input
 
 ```json
 {
-  "test_type": "unit | integration | both",
+  "protocol_version": "3.0",
+  "task_id": "uuid-v4",
+  "pipeline_id": "feature_development",
+  "step_id": "tests",
   "target": {
-    "file_path": "./src/modules/user/user.service.ts",
-    "function_names": ["createUser", "getUserById"],
-    "feature_description": "mô tả tính năng bằng Tiếng Việt"
+    "changed_paths": ["packages/api/src/orders/service.ts"],
+    "changed_symbols": ["createOrder"],
+    "behavior_summary": "..."
   },
-  "acceptance_criteria": [
-    "createUser với email trùng phải trả error ConflictError",
-    "getUserById với id không tồn tại phải trả null"
-  ],
-  "context": {
-    "existing_code": "<nội dung file cần test>",
-    "related_types": "<types/interfaces liên quan>",
-    "mocking_required": ["UserRepository", "EmailService"]
-  }
+  "acceptance_criteria_ids": ["AC-001"],
+  "risk_profile": {
+    "level": "medium | high | critical",
+    "areas": ["authorization", "persistent_data"]
+  },
+  "scope": {
+    "approved_boundaries": ["packages/api/**"],
+    "write_boundaries": ["packages/api/tests/**"]
+  },
+  "context_refs": [
+    {"type": "diff", "uri": "output/tasks/<task_id>/implement.diff", "sha256": "..."}
+  ]
 }
 ```
 
----
+## Output
 
-## Output Schema
+Return the common result envelope with:
 
 ```json
 {
-  "agent_id": "test-agent",
-  "status": "success | error",
-  "result": {
-    "files": [
-      {
-        "path": "./tests/unit/modules/user/user.service.test.ts",
-        "type": "unit",
-        "content": "<TypeScript test code>",
-        "test_count": 12,
-        "covers_functions": ["createUser", "getUserById"]
-      }
-    ],
-    "coverage_estimate": {
-      "lines": "85%",
-      "branches": "78%",
-      "critical_paths_covered": true
-    },
-    "test_cases_summary": [
-      "✅ createUser — happy path",
-      "✅ createUser — email trùng → ConflictError",
-      "✅ getUserById — tìm thấy",
-      "✅ getUserById — không tìm thấy → null"
-    ]
+  "summary": "Added focused regression coverage for changed behavior.",
+  "changed_paths": [],
+  "test_matrix": [
+    {
+      "id": "T-001",
+      "criterion_id": "AC-001",
+      "level": "unit | integration | contract | e2e | property | manual",
+      "behavior": "...",
+      "risk": "...",
+      "status": "passed | failed | not_run",
+      "evidence_ref": {"uri": "...", "sha256": "..."}
+    }
+  ],
+  "commands": [],
+  "coverage": {
+    "repository_threshold_met": null,
+    "changed_behavior_covered": true,
+    "report_ref": null
   },
-  "next_action": null,
-  "message": "Đã viết 12 test cases, ước tính coverage 85%"
+  "artifact_refs": []
 }
 ```
 
----
+Never report estimated coverage as measured coverage. If a coverage command was not run or the repository defines no threshold, return `repository_threshold_met: null`, `report_ref: null`, and state that explicitly.
 
-## Chuẩn Viết Unit Test
+## Test selection
 
-### Cấu trúc file chuẩn — AAA Pattern
-```typescript
-// tests/unit/modules/user/user.service.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { UserService } from '@/modules/user/user.service'
-import { UserRepository } from '@/modules/user/user.repository'
-import { ConflictError } from '@/shared/errors'
+Build the matrix from changed behavior and risk, not from a fixed checklist for every function.
 
-// Mock dependencies — chỉ mock những gì cần thiết
-vi.mock('@/modules/user/user.repository')
+### Required when applicable
 
-describe('UserService', () => {
-  let userService: UserService
-  let mockUserRepo: vi.Mocked<UserRepository>
+- Each acceptance criterion has at least one observable test or approved manual check.
+- The changed happy path is covered.
+- Meaningful failure behavior introduced or changed by the diff is covered.
+- A bug fix has a deterministic regression test for the confirmed root cause when technically feasible.
+- Authorization, sensitive-data, persistent-data, money, destructive, and externally visible contract paths receive negative tests appropriate to their risk.
+- Boundary and concurrency tests are included when the implementation contains relevant boundaries or shared-state behavior.
 
-  beforeEach(() => {
-    // Tạo fresh instance trước mỗi test — không share state
-    mockUserRepo = new UserRepository() as vi.Mocked<UserRepository>
-    userService = new UserService(mockUserRepo)
-  })
+### Avoid by default
 
-  // --- createUser ---
-  describe('createUser', () => {
-    it('nên tạo user thành công khi dữ liệu hợp lệ', async () => {
-      // Arrange — chuẩn bị dữ liệu và mock
-      const dto = { email: 'test@example.com', password: 'Password123', name: 'Test User' }
-      mockUserRepo.findByEmail.mockResolvedValue(null)
-      mockUserRepo.create.mockResolvedValue({ id: 'uuid-1', ...dto })
+- Testing framework or language implementation details.
+- Duplicating the same behavior at every test level.
+- Exhaustive null/empty/404/409 cases for functions where those states cannot occur.
+- Snapshot tests that hide semantic regressions.
+- Assertions used only to inflate line coverage.
 
-      // Act — gọi function cần test
-      const result = await userService.createUser(dto)
+## Workflow
 
-      // Assert — kiểm tra kết quả
-      expect(result.success).toBe(true)
-      expect(result.data).toMatchObject({ email: dto.email, name: dto.name })
-      expect(mockUserRepo.create).toHaveBeenCalledOnce()
-    })
+### 1. Discover
 
-    it('nên trả ConflictError khi email đã tồn tại', async () => {
-      // Arrange
-      const dto = { email: 'existing@example.com', password: 'Password123', name: 'Test' }
-      mockUserRepo.findByEmail.mockResolvedValue({ id: 'existing-id', ...dto })
+- Identify the owning package, existing runner/configuration, nearest representative tests, fixtures, test database policy, and repository commands.
+- Resolve changed callers/consumers using the dependency manifest.
+- Confirm that test files are inside the assigned write boundary.
 
-      // Act
-      const result = await userService.createUser(dto)
+### 2. Design
 
-      // Assert
-      expect(result.success).toBe(false)
-      expect(result.error).toBeInstanceOf(ConflictError)
-      expect(mockUserRepo.create).not.toHaveBeenCalled()
-    })
+- Choose the lowest test level that reliably proves each behavior.
+- Add a higher-level contract/integration/E2E test only for a boundary that cannot be proven below it.
+- Define deterministic setup, action, observation, cleanup, and failure message.
+- Control time, randomness, network, and shared state using existing repository utilities.
 
-    it('nên không lưu mật khẩu plaintext', async () => {
-      // Arrange
-      const dto = { email: 'new@example.com', password: 'PlainPassword', name: 'Test' }
-      mockUserRepo.findByEmail.mockResolvedValue(null)
-      mockUserRepo.create.mockResolvedValue({ id: 'uuid-1', ...dto })
+### 3. Implement
 
-      // Act
-      await userService.createUser(dto)
+- Follow existing naming and arrangement style; AAA/Given-When-Then are options, not mandatory replacements.
+- Keep tests independent and order-insensitive.
+- Mock only outside the behavior under test. Do not mock the assertion target itself.
+- Never use production databases, production credentials, or uncontrolled external services.
+- Clean up persistent or process-wide state through established fixtures.
 
-      // Assert — password phải được hash trước khi lưu
-      const savedData = mockUserRepo.create.mock.calls[0][0]
-      expect(savedData.password).not.toBe('PlainPassword')
-      expect(savedData.password).toMatch(/^\$2[ab]\$/) // bcrypt format
-    })
-  })
-})
-```
+### 4. Verify
 
-### Naming convention cho test cases
-```typescript
-// Format: "nên [kết quả mong đợi] khi [điều kiện]"
-it('nên trả user khi id hợp lệ', ...)
-it('nên trả null khi id không tồn tại', ...)
-it('nên throw ValidationError khi email sai format', ...)
-it('nên gọi repository đúng 1 lần', ...)
+Run in order:
 
-// ❌ Tên tệ — không rõ expect gì
-it('test createUser', ...)
-it('works', ...)
-it('should work correctly', ...)
-```
+1. The new or changed test file.
+2. The affected test suite/package.
+3. Static checks for changed tests.
+4. Integration/full regression/coverage only when required by impact, repository policy, or risk.
 
----
+Save long output and coverage reports as redacted artifacts. Distinguish pre-existing failures from failures introduced by the test or implementation.
 
-## Chuẩn Viết Integration Test
+### 5. Refine
 
-### Cấu trúc với Supertest
-```typescript
-// tests/integration/user.integration.test.ts
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import request from 'supertest'
-import { app } from '@/app'
-import { db } from '@/shared/database'
-import { seedTestUser, cleanupTestUsers } from '../helpers/user.helper'
+- Fix flaky setup, incorrect expectations, or implementation defects according to the owning pipeline.
+- Do not add retries, sleeps, broad mocks, skipped tests, or weakened assertions merely to obtain a pass.
+- A test that exposes an implementation bug returns `VERIFICATION_FAILED` to the orchestrator; the test agent must not silently rewrite product code unless assigned a separate authorized step.
 
-describe('POST /api/users — Integration', () => {
-  beforeAll(async () => {
-    // Dùng database test riêng biệt — KHÔNG dùng production DB
-    await db.connect(process.env.TEST_DATABASE_URL)
-  })
+## Large-repository strategy
 
-  afterAll(async () => {
-    await cleanupTestUsers()
-    await db.disconnect()
-  })
+- Use changed-file and dependency impact analysis to select packages.
+- Shard test execution only when fixtures and external resources are isolated.
+- Cap parallel workers according to database, container, CPU, memory, and rate-limit capacity.
+- Cache dependencies/build artifacts only when the repository guarantees cache validity for the pinned commit and configuration.
 
-  it('nên tạo user và trả 201 khi request hợp lệ', async () => {
-    const response = await request(app)
-      .post('/api/users')
-      .send({ email: 'new@example.com', password: 'Password123', name: 'New User' })
-      .expect(201)
+## Quality gate
 
-    expect(response.body).toMatchObject({
-      data: {
-        email: 'new@example.com',
-        name: 'New User',
-      },
-    })
-    // Đảm bảo password KHÔNG có trong response
-    expect(response.body.data.password).toBeUndefined()
-  })
-
-  it('nên trả 409 khi email đã tồn tại', async () => {
-    // Seed user vào DB trước
-    await seedTestUser({ email: 'existing@example.com' })
-
-    const response = await request(app)
-      .post('/api/users')
-      .send({ email: 'existing@example.com', password: 'Password123', name: 'Dup' })
-      .expect(409)
-
-    expect(response.body.error.code).toBe('CONFLICT')
-  })
-
-  it('nên trả 422 khi email sai format', async () => {
-    const response = await request(app)
-      .post('/api/users')
-      .send({ email: 'not-an-email', password: 'Password123', name: 'Test' })
-      .expect(422)
-
-    expect(response.body.error.code).toBe('VALIDATION_ERROR')
-    expect(response.body.error.fields).toContain('email')
-  })
-})
-```
-
----
-
-## Danh Sách Test Cases Bắt Buộc
-
-Với **mỗi function/endpoint**, agent phải viết tối thiểu các test cases sau:
-
-```yaml
-Bắt buộc — Happy path:
-  - [ ] Input hợp lệ → output đúng format
-  - [ ] Tất cả acceptance criteria được cover
-
-Bắt buộc — Error cases:
-  - [ ] Input thiếu field bắt buộc
-  - [ ] Input sai kiểu dữ liệu
-  - [ ] Resource không tồn tại (404)
-  - [ ] Duplicate resource (409)
-
-Bắt buộc — Boundary cases:
-  - [ ] String rỗng ""
-  - [ ] Giá trị tại boundary (min length, max length)
-  - [ ] Null / undefined input
-
-Bắt buộc — Security:
-  - [ ] Password/secret không xuất hiện trong response
-  - [ ] SQL injection pattern trong input (nếu dùng raw query)
-  - [ ] Auth header thiếu → 401 (cho protected routes)
-
-Tuỳ chọn — Edge cases:
-  - [ ] Concurrent requests (race condition)
-  - [ ] Extremely large input
-  - [ ] Special characters trong string fields
-```
-
----
-
-## Quy Tắc Cốt Lõi
-
-```
-✅ Mỗi test phải độc lập — không phụ thuộc vào thứ tự chạy
-✅ Mỗi test chỉ test MỘT behaviour
-✅ Mock đúng layer — unit test mock repository, integration test dùng DB thật
-✅ Test data phải được cleanup sau mỗi test/suite
-✅ Tên test phải đọc như một câu mô tả behaviour
-
-❌ Không share mutable state giữa các test cases
-❌ Không dùng production database cho integration test
-❌ Không mock quá nhiều — test sẽ mất giá trị
-❌ Không bỏ qua test cho error paths với lý do "hiếm xảy ra"
-❌ Không viết test chỉ để đạt coverage % mà không assert meaningful
-```
+- Tests fail for the intended pre-fix/pre-feature state when that baseline is available.
+- Tests pass for the final state.
+- Failure messages identify the violated behavior.
+- Each required criterion has evidence.
+- Repository coverage thresholds pass when applicable; numeric thresholds are not invented by this skill.

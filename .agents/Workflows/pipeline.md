@@ -1,323 +1,360 @@
 ---
-description: Defines the standard pipelines for each common task type in the Software Development / DevOps project. The orchestrator maps a task to the appropriate pipeline and executes it according to the declared order / parallel structure.
----
-
-# Pipeline — Concrete Processing Flows
-
----
-
-## Metadata
-
-```yaml
-version: 2.0.0
+description: Defines dependency-aware, resumable pipelines for software engineering and DevOps tasks.
+version: 3.0.0
 managed_by: orchestrator
-trigger: orchestrator receives a task and maps it to the appropriate pipeline
-max_pipeline_duration: 10m
-checkpointing: enabled
-checkpoint_store: redis
-resume_from_last_success: true
-```
-
 ---
 
-## Syntax Conventions
+# Pipeline — Processing Flows
+
+## 1. Common syntax
 
 ```yaml
-# Sequential: step runs after the previous step completes
-- step: N
-  agent: agent-id
+- step_id: discover
+  agent: code-agent
+  capability: search
+  depends_on: []
+  mode: read_only
+  loop_iterations: 0
+  on_failure: stop
+  checkpoint: after
 
-# Parallel: all items in parallel[] run concurrently
-- step: N
+- step_id: verify.parallel
   parallel:
-    - agent: agent-a
-      skill: skill_a
-      action: "..."
-    - agent: agent-b
-      skill: skill_b
-      action: "..."
-  sync_at: step_N+1   # wait for all branches to finish before continuing
+    - step_id: verify.tests
+      agent: test-agent
+      write_boundaries: ["tests/**"]
+    - step_id: verify.docs
+      agent: doc-agent
+      write_boundaries: ["docs/**"]
+  sync_at: review
 
-# Conditional: only runs if the condition is true
-- step: N
-  agent: agent-id
-  condition: "condition expression"
-
-# Human gate
-- step: N
+- step_id: apply.production
   type: human_gate
-  condition: "triggering expression"
-  message: "Confirmation request content"
-
-# Override the ENG Loop iteration count for a specific step (default 3, see global.md §8)
-- step: N
-  agent: agent-id
-  skill: skill_id
-  loop_iterations: 5        # high-risk step / needs heavy refinement (e.g. fixing a complex bug)
-  # or
-  loop_iterations: 0        # disables the loop; step is read/analysis only, nothing to refine
+  condition: "environment == production and apply_requested == true"
 ```
 
-> **ENG Loop in the pipeline:** each step executed by a sub-agent internally runs `PLAN → EXECUTE → VERIFY → REFINE` (up to `loop_iterations`, default 3) before returning its result to the orchestrator — see `global.md §8`. A step's `on_failure` only triggers **after** the internal loop is exhausted, not per individual iteration. A step of `type: human_gate` or with a `gate:` always sits **outside** the loop — a sub-agent may not iterate on its own to bypass a gate.
+Rules:
 
----
+- `loop_iterations` is `0..3`; it may never exceed `safety.md`.
+- `remediation_cycles` are pipeline-level review/fix cycles, separate from the ENG Loop, and may never exceed `safety.md`.
+- Every mutating step declares non-overlapping `write_boundaries`.
+- Every synchronization point validates artifact hashes and repository base state.
+- Required tests, review, security checks, and acceptance criteria use `on_failure: stop`.
+- Read-only work may be sharded by package/module; mutation is parallel only when paths and dependencies do not overlap.
 
-## Pipeline 1: Feature Development
-
-**When to use:** Developing a new feature from a requirement
-
-```
-┌─────────────┐     ┌──────────────────────────┐     ┌─────────────┐     ┌─────────────┐
-│  code-agent │────▶│  PARALLEL:                │────▶│review-agent │────▶│  doc-agent  │
-│ generate    │     │  test-agent (unit tests)  │     │ review +    │     │  update     │
-│ code        │     │  doc-agent  (draft docs)  │     │ security    │     │ documentation│
-└─────────────┘     └──────────────────────────┘     └─────────────┘     └─────────────┘
-```
+## 2. Feature development
 
 ```yaml
 pipeline_id: feature_development
 steps:
-  - step: 1
+  - step_id: discover
     agent: code-agent
-    skill: code_gen
-    action: "Generate code according to the requirement"
-    input_from: user
-    output_to: step_2
+    capability: search
+    action: "Build a module-scoped dependency, convention, and verification manifest."
+    mode: read_only
+    loop_iterations: 0
     on_failure: stop
     checkpoint: after
 
-  - step: 2
+  - step_id: implement
+    agent: code-agent
+    capability: code_gen
+    depends_on: [discover]
+    action: "Implement only approved acceptance criteria inside the assigned write boundary."
+    loop_iterations: 3
+    on_failure: stop
+    checkpoint: after
+
+  - step_id: supporting.parallel
+    depends_on: [implement]
     parallel:
-      - agent: test-agent
-        skill: code_gen (mode=test)
-        action: "Write unit tests for the code just generated"
-        input_from: step_1
-        on_failure: retry_once
-      - agent: doc-agent
-        skill: summarize (mode=draft)
-        action: "Create a draft docstring and README section"
-        input_from: step_1
-        on_failure: warn_only
-    sync_at: step_3
+      - step_id: tests
+        agent: test-agent
+        capability: code_gen
+        action: "Add or update risk-based tests for changed behavior and run focused verification."
+        on_failure: stop
+      - step_id: docs
+        agent: doc-agent
+        capability: summarize
+        action: "Update documentation only when public behavior or operator/developer usage changed."
+        condition: "documentation_impact == true"
+        on_failure: stop
+    sync_at: review
     checkpoint: after
 
-  - step: 3
+  - step_id: review
     agent: review-agent
-    skill: search + summarize + security_scan
-    action: "Review code quality, security, performance; check test coverage"
-    input_from: step_1, step_2
-    output_to: step_4
+    capability: [search, summarize, security_scan]
+    depends_on: [supporting.parallel]
+    action: "Review the diff against acceptance criteria, repository conventions, tests, security, and performance."
+    mode: read_only
+    loop_iterations: 0
+    verdicts: [approved, changes_requested, blocked]
+    on_changes_requested: implement
+    remediation_cycles: 2
     on_failure: stop
-    gate: "review-agent must approve before continuing"
     checkpoint: after
 
-  - step: 4
-    agent: doc-agent
-    skill: code_gen (mode=document)
-    action: "Finalize README, docstring, changelog based on the draft (step_2) and the review result (step_3)"
-    input_from: step_2, step_3
-    output_to: orchestrator
-    on_failure: warn_only
-    notify_on_failure:
-      type: warn
-      message: "doc-agent không hoàn thiện được tài liệu, tiếp tục mà không có changelog."
-      notify: [user]
-      log_level: warn
+  - step_id: final_verify
+    agent: test-agent
+    capability: search
+    depends_on: [review]
+    condition: "review.verdict == approved"
+    action: "Run the complete verification set selected by impact and risk."
+    mode: read_only
+    loop_iterations: 0
+    on_failure: stop
 ```
 
----
-
-## Pipeline 2: Bug Fix
-
-**When to use:** Fixing a bug from a bug report or log
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  code-agent │────▶│  code-agent │────▶│  test-agent │────▶│review-agent │
-│ analyze root│     │  fix bug    │     │ regression  │     │ confirm fix │
-│ cause       │     │             │     │ test        │     │             │
-└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
-```
+## 3. Bug fix
 
 ```yaml
 pipeline_id: bug_fix
 steps:
-  - step: 1
-    agent: code-agent          # ✅ code-agent is responsible for analysis, not the orchestrator
-    skill: search
-    action: "Analyze the log/error message, determine the root cause"
-    input_from: user
-    output_to: step_2
-    on_failure: stop
-    loop_iterations: 0        # step is analysis/read-only, nothing to self-refine
-    checkpoint: after
-
-  - step: 2
+  - step_id: diagnose
     agent: code-agent
-    skill: code_gen (mode=fix)
-    action: "Fix the bug based on the root cause from step_1"
-    input_from: step_1
-    output_to: step_3
+    capability: search
+    action: "Reproduce or establish evidence, trace the failure, and identify root cause and similar risks."
+    mode: read_only
+    loop_iterations: 0
     on_failure: stop
-    loop_iterations: 5        # gives code-agent more room to self-refine the fix before escalating — bug fixes typically need more attempts than the default
     checkpoint: after
 
-  - step: 3
+  - step_id: regression_baseline
     agent: test-agent
-    skill: code_gen (mode=test)
-    action: "Write a regression test to ensure the bug does not reoccur"
-    input_from: step_2
-    output_to: step_4
-    on_failure: warn_only
-    notify_on_failure:
-      type: warn
-      message: "test-agent không tạo được regression test."
-      notify: [user]
-      log_level: warn
+    capability: code_gen
+    depends_on: [diagnose]
+    action: "Create the smallest deterministic failing regression test when technically feasible."
+    loop_iterations: 2
+    on_failure: stop
     checkpoint: after
 
-  - step: 4
-    agent: review-agent
-    skill: summarize + security_scan
-    action: "Confirm the fix addresses the correct root cause, introduces no new bugs, and has no security regression"
-    input_from: step_2, step_3
-    output_to: orchestrator
+  - step_id: fix
+    agent: code-agent
+    capability: code_gen
+    depends_on: [regression_baseline]
+    action: "Fix the verified root cause without unrelated refactoring."
+    loop_iterations: 3
     on_failure: stop
-    gate: must_approve
+    checkpoint: after
+
+  - step_id: regression_verify
+    agent: test-agent
+    capability: search
+    depends_on: [fix]
+    action: "Run the regression test, affected-package tests, and required static checks."
+    mode: read_only
+    loop_iterations: 0
+    on_failure: stop
+
+  - step_id: review
+    agent: review-agent
+    capability: [search, summarize, security_scan]
+    depends_on: [regression_verify]
+    action: "Confirm root-cause coverage, absence of bypasses, regression protection, and security impact."
+    mode: read_only
+    loop_iterations: 0
+    on_changes_requested: fix
+    remediation_cycles: 2
+    on_failure: stop
 ```
 
----
+If a deterministic regression test is impossible, `regression_baseline` must produce a reproducible manual verification artifact approved by the reviewer. It may not silently warn and continue.
 
-## Pipeline 3: DevOps / Infrastructure
+## 4. Refactoring
 
-**When to use:** Creating/updating a Dockerfile, k8s manifest, CI/CD pipeline, Terraform
-
+```yaml
+pipeline_id: refactor
+steps:
+  - step_id: baseline
+    agent: test-agent
+    capability: search
+    action: "Capture behavior invariants and a passing focused baseline."
+    mode: read_only
+    loop_iterations: 0
+    on_failure: stop
+  - step_id: refactor
+    agent: code-agent
+    capability: code_gen
+    depends_on: [baseline]
+    action: "Apply one approved structural transformation without changing observable behavior."
+    loop_iterations: 3
+    on_failure: stop
+  - step_id: verify
+    agent: test-agent
+    capability: search
+    depends_on: [refactor]
+    action: "Re-run baseline and affected-package checks; compare public API and generated artifacts."
+    mode: read_only
+    loop_iterations: 0
+    on_failure: stop
+  - step_id: review
+    agent: review-agent
+    capability: [search, summarize]
+    depends_on: [verify]
+    action: "Confirm behavior preservation and absence of unapproved scope expansion."
+    mode: read_only
+    loop_iterations: 0
+    on_changes_requested: refactor
+    remediation_cycles: 2
+    on_failure: stop
 ```
-┌──────────────┐     ┌──────────────────────────────┐     ┌──────────────────┐
-│ devops-agent │────▶│  PARALLEL:                    │────▶│ Human Approval   │
-│ generate     │     │  review-agent (code quality)  │     │ (if production)  │
-│ infra code   │     │  devops-agent (security IaC)  │     │                  │
-└──────────────┘     └──────────────────────────────┘     └──────────────────┘
+
+## 5. Test-only work
+
+```yaml
+pipeline_id: test_only
+steps:
+  - step_id: discover
+    agent: test-agent
+    capability: search
+    mode: read_only
+    action: "Identify changed behavior, existing test conventions, and the smallest useful test matrix."
+    loop_iterations: 0
+    on_failure: stop
+  - step_id: write_tests
+    agent: test-agent
+    capability: code_gen
+    depends_on: [discover]
+    loop_iterations: 3
+    on_failure: stop
+  - step_id: review
+    agent: review-agent
+    capability: [search, summarize]
+    depends_on: [write_tests]
+    mode: read_only
+    loop_iterations: 0
+    on_failure: stop
 ```
+
+## 6. Explanation and documentation
+
+```yaml
+pipeline_id: explain_or_document
+steps:
+  - step_id: inspect
+    agent: review-agent
+    capability: search
+    mode: read_only
+    loop_iterations: 0
+    on_failure: stop
+  - step_id: synthesize
+    agent: doc-agent
+    capability: [summarize, code_gen]
+    depends_on: [inspect]
+    action: "Produce evidence-linked explanation or documentation at the requested level."
+    mode: "read_only for explanation; scoped write for a requested documentation artifact"
+    loop_iterations: 2
+    on_failure: stop
+```
+
+## 7. DevOps and infrastructure
 
 ```yaml
 pipeline_id: devops_infra
 steps:
-  - step: 1
+  - step_id: discover
     agent: devops-agent
-    skill: code_gen (mode=infra)
-    action: "Generate infrastructure code per the requirement (Dockerfile, k8s manifest, Terraform, CI/CD config)"
-    input_from: user
-    output_to: step_2
+    capability: search
+    mode: read_only
+    loop_iterations: 0
     on_failure: stop
-    checkpoint: after
-
-  - step: 2
+  - step_id: generate
+    agent: devops-agent
+    capability: code_gen
+    depends_on: [discover]
+    action: "Generate scoped infrastructure or delivery configuration and rollback instructions."
+    loop_iterations: 3
+    on_failure: stop
+  - step_id: validate.parallel
+    depends_on: [generate]
     parallel:
-      - agent: review-agent
-        skill: search + summarize
-        action: "Review code quality, best practices, IaC structure"
-        input_from: step_1
+      - step_id: architecture_review
+        agent: review-agent
+        capability: [search, summarize]
+        mode: read_only
         on_failure: stop
-      - agent: devops-agent
-        skill: security_scan
-        action: "Scan for security issues: exposed secrets, overprivileged roles, insecure defaults in IaC"
-        input_from: step_1
+      - step_id: security_validate
+        agent: devops-agent
+        capability: [search, security_scan]
+        mode: read_only
         on_failure: stop
-    sync_at: step_3
-    gate: "Both branches must approve before continuing"
-    checkpoint: after
-
-  - step: 3
+    sync_at: approval
+  - step_id: approval
     type: human_gate
-    condition: "environment == production"
-    message: "⚠️ Thay đổi infrastructure ảnh hưởng production. Vui lòng review artifact và xác nhận trước khi apply."
-    output_to: orchestrator
+    condition: "safety_gate_required == true"
+  - step_id: apply
+    agent: devops-agent
+    capability: code_gen
+    depends_on: [approval]
+    condition: "apply_requested == true and (safety_gate_required == false or approval.granted == true)"
+    loop_iterations: 0
+    on_failure: stop
+  - step_id: post_apply_verify
+    agent: devops-agent
+    capability: search
+    depends_on: [apply]
+    condition: "apply.executed == true"
+    mode: read_only
+    loop_iterations: 0
+    on_failure: stop
 ```
 
----
-
-## Pipeline 4: Code Review (PR Review)
-
-**When to use:** Automatically reviewing a pull request
-
-```
-┌─────────────┐     ┌──────────────────────────────────┐     ┌─────────────┐
-│ code-agent  │────▶│  PARALLEL:                        │────▶│  doc-agent  │
-│ get git diff│     │  review-agent (logic/security)    │     │ synthesize  │
-│             │     │  devops-agent (if infra files)    │     │ action items│
-└─────────────┘     └──────────────────────────────────┘     └─────────────┘
-```
+## 8. Pull-request review
 
 ```yaml
 pipeline_id: pr_review
 steps:
-  - step: 1
+  - step_id: classify
     agent: code-agent
-    skill: search (mode=code_search)
-    action: "Fetch the PR's git diff, classify changed files (source code vs infra files)"
-    input_from: user (PR link)
-    output_to: step_2
+    capability: search
+    mode: read_only
+    action: "Resolve the exact diff, base SHA, changed modules, generated files, and infrastructure impact."
+    loop_iterations: 0
     on_failure: stop
-    checkpoint: after
-
-  - step: 2
-    parallel:
+  - step_id: review.parallel
+    depends_on: [classify]
+    parallel_strategy: "shard by non-overlapping module; limit concurrency through safety.md"
+    workers:
       - agent: review-agent
-        skill: search + summarize + security_scan
-        action: "Detect bugs, security issues, code smells, missing tests in source code changes"
-        input_from: step_1
-        on_failure: stop
+        capability: [search, summarize, security_scan]
+        condition: "source_changes == true"
       - agent: devops-agent
-        skill: search + summarize + security_scan
-        action: "Review IaC changes if the PR contains a Dockerfile, k8s, Terraform, or CI/CD config"
-        input_from: step_1
-        condition: "pr_contains_infra_files == true"
-        on_failure: stop
-    sync_at: step_3
-    checkpoint: after
-
-  - step: 3
+        capability: [search, summarize, security_scan]
+        condition: "infrastructure_changes == true"
+      - agent: test-agent
+        capability: search
+        condition: "test_impact_analysis_required == true"
+    sync_at: synthesize
+  - step_id: synthesize
     agent: doc-agent
-    skill: summarize (mode=action_items)
-    action: "Synthesize all comments from review-agent and devops-agent into a prioritized action items list"
-    input_from: step_2
-    output_to: orchestrator
-    on_failure: warn_only
-    notify_on_failure:
-      type: warn
-      message: "doc-agent không tổng hợp được action items."
-      notify: [user]
-      log_level: warn
+    capability: summarize
+    action: "Deduplicate evidence-linked findings and produce a prioritized verdict."
+    mode: read_only
+    loop_iterations: 0
+    on_failure: stop
 ```
 
----
+## 9. Routing
 
-## General Rules for All Pipelines
+Route by requested outcome and primary artifact:
 
-```
-1. Every sub-agent receives full shared_context from the orchestrator (see orchestrator.md)
-2. Every step must return output matching the orchestrator's schema
-3. If a step fails and on_failure=stop → save a checkpoint, the entire pipeline stops
-4. Gate steps: downstream agents do not run until the gate is approved
-5. Maximum duration per pipeline: 10 minutes
-6. Checkpoints are saved after every successful step — the pipeline can resume from the next step
-7. Log every step, including successful ones, with duration_ms
-8. The orchestrator notifies the user when a pipeline completes, is interrupted, or needs approval
-9. on_failure=warn_only must include a notify_on_failure schema — silent warnings are not allowed
-10. The orchestrator does NOT execute any skill in any pipeline
-11. Each step may internally iterate per the ENG Loop (global.md §8, default 3 iterations, overridable via loop_iterations); on_failure only applies after the internal loop is exhausted — not per iteration
-12. A step of type: human_gate or with a gate: always stands outside the ENG Loop — no sub-agent may self-iterate to bypass a gate
-13. When a step needs to run a shell command, only use commands permitted for the current environment and command whitelist (safety.md §1, §5). If the intended command is rejected or unavailable, the agent should first try a permitted equivalent command that achieves the same verified outcome, within its own ENG Loop (global.md §8), before failing the step. on_failure only triggers once no permitted equivalent remains to complete the task. This flexibility never applies to commands on the forbidden list in safety.md §1 — those remain a hard stop with no substitution attempt, per safety.md §6 and global.md §8.3
-```
-
----
-
-## Task → Pipeline Mapping
-
-| Keyword in task | Pipeline |
+| Intent | Pipeline |
 |---|---|
-| "thêm tính năng", "implement", "viết code mới", "feature" | `feature_development` |
-| "sửa lỗi", "fix bug", "lỗi", "crash", "error", "phân tích log" | `bug_fix` |
-| "dockerfile", "k8s", "deploy", "terraform", "ci/cd", "infra" | `devops_infra` |
-| "review PR", "kiểm tra code", "pull request", "git diff" | `pr_review` |
+| Add or change product behavior | `feature_development` |
+| Diagnose and fix incorrect behavior | `bug_fix` |
+| Preserve behavior while changing structure | `refactor` |
+| Add, repair, or improve tests only | `test_only` |
+| Explain code or create documentation without implementation | `explain_or_document` |
+| Change build, deployment, container, IaC, or operational configuration | `devops_infra` |
+| Review an existing diff or PR without implementing fixes | `pr_review` |
+
+When a request spans several outcomes, select the pipeline that owns the primary mutation and add conditional supporting steps. Split into separate tasks when write boundaries, risk, or approvals differ materially.
+
+## 10. Large-repository rules
+
+- Discovery produces a module dependency graph and verification profile before mutation.
+- Shard only independent packages or services and cap concurrency using actual repository capacity.
+- Exchange artifact references and deltas, not complete shared context.
+- Full-repository tests are not automatic for every step; run them when impact analysis, merge policy, or risk requires them.
+- A pipeline completes only after all required branches synchronize and hashes still match.

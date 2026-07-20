@@ -12,6 +12,7 @@ describe('ActivityScheduleActiveNotificationService', () => {
   let scheduleModel: any;
   let activityMemberModel: any;
   let notificationsService: any;
+  let logger: any;
 
   const mockScheduleId = new Types.ObjectId();
   const mockActivityId = new Types.ObjectId();
@@ -86,6 +87,10 @@ describe('ActivityScheduleActiveNotificationService', () => {
     scheduleModel = module.get(getModelToken(ActivitySchedule.name));
     activityMemberModel = module.get(getModelToken(ActivityMember.name));
     notificationsService = module.get(NotificationsService);
+    logger = (service as any).logger;
+    jest.spyOn(logger, 'debug');
+    jest.spyOn(logger, 'log');
+    jest.spyOn(logger, 'error');
   });
 
   it('should be defined', () => {
@@ -158,6 +163,18 @@ describe('ActivityScheduleActiveNotificationService', () => {
       await service.handleCron();
       expect(activityMemberModel.find).not.toHaveBeenCalled();
       expect(notificationsService.createOnce).not.toHaveBeenCalled();
+      expect(logger.log).not.toHaveBeenCalled();
+      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('Checking for active activity schedules'));
+    });
+
+    it('keeps scheduler failures at error level', async () => {
+      scheduleModel.find.mockReturnValueOnce({
+        exec: jest.fn().mockRejectedValue(new Error('database unavailable')),
+      });
+
+      await service.handleCron();
+
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('database unavailable'));
     });
   });
 });
