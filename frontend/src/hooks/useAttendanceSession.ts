@@ -70,9 +70,10 @@ export function useAttendanceSession({ contextType, contextId, enabled = true, c
       return;
     }
     if (event.type === 'attendance.checkin_created') {
+      if (canManage && event.sessionId) void fetchCheckins(event.sessionId);
       setState((previous) => {
         const checkin = event.checkin as unknown as AttendanceCheckinData | undefined;
-        const checkins = checkin && !previous.checkins.some((item) => item._id === checkin._id)
+        const checkins = !canManage && checkin && !previous.checkins.some((item) => item._id === checkin._id)
           ? [checkin, ...previous.checkins] : previous.checkins;
         return {
           ...previous,
@@ -83,7 +84,7 @@ export function useAttendanceSession({ contextType, contextId, enabled = true, c
       return;
     }
     if (event.type === 'attendance.qr_rotated' && canManage && event.sessionId) fetchQrData(event.sessionId);
-  }, [canManage, fetchQrData]);
+  }, [canManage, fetchCheckins, fetchQrData]);
 
   const { status: realtimeStatus } = useAttendanceRealtime({ contextType, contextId, enabled, onEvent: applyRealtimeEvent });
 

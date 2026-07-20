@@ -16,6 +16,7 @@ import { isAuthError } from '@/api/http-client';
 import { toast } from 'sonner';
 import StudentCongratsModalGate from './StudentCongratsModalGate';
 import { useHeader } from '@/providers/header-provider';
+import { useLocationPermission } from '@/hooks/useLocationPermission';
 
 interface HeaderProps {
     customMappings?: Record<string, string>;
@@ -29,13 +30,10 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);
-    const [locationEnabled, setLocationEnabled] = useState(() => {
-      if (typeof window !== 'undefined') {
-        return localStorage.getItem('attendance_location_enabled') === 'true';
-      }
-      return false;
-    });
-    const [locationStatus, setLocationStatus] = useState<'idle' | 'granted' | 'denied' | 'requesting'>('idle');
+    const { permission, granted: locationEnabled, requesting, requestPermission } = useLocationPermission();
+    const locationStatus = requesting ? 'requesting' : permission === 'denied' ? 'denied' : permission === 'granted' ? 'granted' : 'idle';
+    const setLocationStatus = (_status: typeof locationStatus) => undefined;
+    const setLocationEnabled = (_enabled: boolean) => undefined;
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isResolvingProfile, setIsResolvingProfile] = useState(false);
@@ -309,6 +307,19 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                       </div>
                       <button 
                           onClick={async () => {
+                            const result = locationEnabled ? 'granted' : await requestPermission();
+                            if (locationEnabled) {
+                              toast.info('Quyền vị trí đã được cấp. Hãy thu hồi quyền trong cài đặt trình duyệt.');
+                              return;
+                            }
+                            if (result === 'granted') {
+                              toast.success('ÄĂ£ báº­t chia sáº» vá»‹ trĂ­ cho Ä‘iá»ƒm danh.');
+                              return;
+                            }
+                            if (result === 'denied') {
+                              toast.error('Quyền vị trí bị từ chối. Vui lòng bật trong cài đặt trình duyệt.');
+                              return;
+                            }
                             if (!locationEnabled) {
                               // Turn ON: request GPS permission
                               setLocationStatus('requesting');
@@ -324,7 +335,6 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                                   () => {
                                     setLocationEnabled(true);
                                     setLocationStatus('granted');
-                                    localStorage.setItem('attendance_location_enabled', 'true');
                                     toast.success('Đã bật chia sẻ vị trí cho điểm danh.');
                                   },
                                   (err) => {
@@ -343,7 +353,6 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                                   () => {
                                     setLocationEnabled(true);
                                     setLocationStatus('granted');
-                                    localStorage.setItem('attendance_location_enabled', 'true');
                                     toast.success('Đã bật chia sẻ vị trí cho điểm danh.');
                                   },
                                   () => {
@@ -357,7 +366,6 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                               // Turn OFF
                               setLocationEnabled(false);
                               setLocationStatus('idle');
-                              localStorage.setItem('attendance_location_enabled', 'false');
                               toast.success('Đã tắt chia sẻ vị trí.');
                             }
                           }}

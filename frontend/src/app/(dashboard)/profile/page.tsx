@@ -40,10 +40,12 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { normalizeProfile, NormalizedProfile } from "./_lib/normalize-profile";
+import { useLocationPermission } from "@/hooks/useLocationPermission";
 
 export default function ProfilePage() {
   const router = useRouter();
   const { checkAuth, logout } = useAuth();
+  const { granted: locationEnabled } = useLocationPermission();
 
   const [activeTab, setActiveTab] = useState("Thông tin cá nhân");
   const [profile, setProfile] = useState<NormalizedProfile | null>(null);
@@ -336,17 +338,17 @@ export default function ProfilePage() {
                           UUID: {profile?.id?.substring(0, 8).toUpperCase()}
                         </div>
                         <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl border ${
-                          typeof window !== 'undefined' && localStorage.getItem('attendance_location_enabled') === 'true'
+                          locationEnabled
                             ? 'bg-blue-500/10 text-blue-700 border-blue-500/20'
                             : 'bg-gray-500/10 text-gray-600 border-gray-500/20'
                         }`}>
                           <div className={`w-1.5 h-1.5 rounded-full ${
-                            typeof window !== 'undefined' && localStorage.getItem('attendance_location_enabled') === 'true'
+                            locationEnabled
                               ? 'bg-blue-500 animate-pulse'
                               : 'bg-gray-400'
                           }`} />
                           <span className="text-[11px] font-bold">
-                            {typeof window !== 'undefined' && localStorage.getItem('attendance_location_enabled') === 'true'
+                            {locationEnabled
                               ? 'Đang chia sẻ vị trí'
                               : 'Vị trí: Tắt'}
                           </span>
