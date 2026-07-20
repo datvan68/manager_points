@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Req,
+  Sse,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
@@ -17,12 +18,18 @@ import { QueryNotificationDto } from './dto/query-notification.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkRole } from '../auth/guards/check-role.guard';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { NotificationsRealtimeService } from './notifications-realtime.service';
 
 @ApiTags('notifications')
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(private readonly notificationsService: NotificationsService, private readonly realtimeService: NotificationsRealtimeService) {}
+
+  @Sse('realtime')
+  realtime() {
+    return this.realtimeService.getStream();
+  }
 
   @Post()
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))

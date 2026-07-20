@@ -343,7 +343,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
 
     // Legacy role fallback for other modules (e.g. dormitory, club, notifications)
     if (isStudent) {
-      return mod.group === 'Học sinh';
+      return mod.group === 'Học sinh' || mod.id === 'club';
     }
     if (isTeacher) {
       return ['sv-profile', 'grading', 'attendance', 'events', 'club'].includes(mod.id);

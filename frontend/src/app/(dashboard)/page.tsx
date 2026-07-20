@@ -101,6 +101,12 @@ export default function DashboardPage() {
     }
   }, [user]);
 
+  useEffect(() => {
+    const handleNotificationsUpdate = () => loadData(false);
+    window.addEventListener('notifications-updated', handleNotificationsUpdate);
+    return () => window.removeEventListener('notifications-updated', handleNotificationsUpdate);
+  }, [loadData]);
+
   const handleRefresh = () => {
     loadData(true);
   };

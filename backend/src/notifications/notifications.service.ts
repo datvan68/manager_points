@@ -13,9 +13,11 @@ import {
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { QueryNotificationDto } from './dto/query-notification.dto';
+import { notificationEventEmitter } from '../system/notification-event-emitter';
 
 @Injectable()
 export class NotificationsService {
+  private readonly emittedDeduplicationKeys = new Set<string>();
   constructor(
     @InjectModel(Notification.name)
     private notificationModel: Model<NotificationDocument>,
@@ -64,7 +66,9 @@ export class NotificationsService {
   ): Promise<NotificationDocument> {
     const payload = this.normalizePayload(createDto, creatorId);
     const created = new this.notificationModel(payload);
-    return created.save();
+    const saved = await created.save();
+    notificationEventEmitter.emit('notification.created', { type: 'notification.created' });
+    return saved;
   }
 
   async createOnce(
@@ -81,6 +85,10 @@ export class NotificationsService {
           { upsert: true, returnDocument: 'after' },
         )
         .exec();
+      if (!this.emittedDeduplicationKeys.has(deduplicationKey)) {
+        this.emittedDeduplicationKeys.add(deduplicationKey);
+        notificationEventEmitter.emit('notification.created', { type: 'notification.created' });
+      }
       return result;
     } catch (error) {
       if (error.code === 11000 || (error.writeErrors && error.writeErrors.some((e: any) => e.code === 11000))) {

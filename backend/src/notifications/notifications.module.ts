@@ -6,6 +6,7 @@ import {
 } from './schemas/notification.schema';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
+import { NotificationsRealtimeService } from './notifications-realtime.service';
 
 @Module({
   imports: [
@@ -14,7 +15,7 @@ import { NotificationsController } from './notifications.controller';
     ]),
   ],
   controllers: [NotificationsController],
-  providers: [NotificationsService],
+  providers: [NotificationsService, NotificationsRealtimeService],
   exports: [NotificationsService],
 })
 export class NotificationsModule {}

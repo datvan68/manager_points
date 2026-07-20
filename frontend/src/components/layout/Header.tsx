@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import StudentCongratsModalGate from './StudentCongratsModalGate';
 import { useHeader } from '@/providers/header-provider';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
+import { useNotificationRealtime } from '@/hooks/useNotificationRealtime';
 
 interface HeaderProps {
     customMappings?: Record<string, string>;
@@ -41,6 +42,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const profileRef = useRef<HTMLDivElement>(null);
     const notificationRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
+    useNotificationRealtime(Boolean(user));
 
     // Xác định tên phân hệ hiện tại dựa trên url path
     const pathSegments = pathname.split('/').filter(segment => segment !== '');
