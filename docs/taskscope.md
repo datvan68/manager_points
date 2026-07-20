@@ -1,30 +1,20 @@
-Task: optimize-local-node-memory | devops_infra | Risk: MEDIUM
-Objective: Reduce the repeatable steady-state private working set of the project's local frontend and backend Node.js development processes by at least 20% without losing hot reload, type-check coverage, build correctness, or runtime behavior.
+Task: student-activity-menubar-select-filter | bug_fix | Risk: LOW
+Objective: Limit the `/activities` controls shown to student accounts to search and activity-type filtering, using the shared Select component for the filter.
 Scope:
-- `scripts/measure-node-memory.ps1` :: repeatable Windows Node.js memory baseline :: add a read-only sampler that uses performance counters and listening ports to report PID, creating PID, private working set, private bytes, and grouped totals for the frontend on port 3000 and backend on port 8001 without requiring administrator access.
-- `frontend/next.config.js` :: development route retention :: add conservative `onDemandEntries` settings (`maxInactiveAge: 25 * 1000`, `pagesBufferLength: 2`) so inactive compiled routes are released sooner while preserving the existing standalone production output and default Turbopack compiler.
-- `backend/package.json` :: development compiler and static checking :: run `start:dev` with the Nest SWC builder in watch mode and add a separate `typecheck` script using `tsc --noEmit -p tsconfig.build.json`; keep the production `build` and `start:prod` commands on their current paths.
-- `backend/package-lock.json` :: SWC development toolchain :: lock the compatible `@swc/cli` and `@swc/core` development dependencies installed for the Nest watcher without upgrading unrelated packages.
-Out: Production Docker heap/container limits, application business logic, database or cache configuration, broad frontend component refactors, unrelated dependency upgrades, OS antivirus settings, stopping unrelated Node.js or Codex processes, and unrelated files and behavior.
-Context: On 2026-07-20, port ownership and Windows performance counters identified frontend PID 19888 on port 3000 at approximately 1,322 MiB private working set and 2,750 MiB private bytes, backend application PID 20112 on port 8001 at approximately 120 MiB private working set, and its development compiler/watcher PID 21596 at approximately 663 MiB private working set. The main project development processes therefore retain roughly 2.1 GiB before smaller launcher processes are counted. The frontend contains 306 TypeScript/TSX files and several large routes, including a 270 KiB `/students/record` source file, so retained compiled routes are a material candidate. Production already runs each application with `--max-old-space-size=384` inside a 512 MiB container limit; lowering those limits without production telemetry is not justified by the local development sample. Next.js officially exposes `onDemandEntries` for releasing inactive development pages, and Nest officially recommends SWC for a faster development compiler. SWC watch mode does not replace TypeScript validation, so type checking remains an explicit verification step.
+- `frontend/src/components/activities/ActivityListWorkspace.tsx` :: controls bar :: conditionally render only the search and type filter for students; replace the native activity-type `select` with the existing shared `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, and `SelectItem` components while preserving query-parameter synchronization and local filtering.
+- `frontend/src/components/activities/ActivityListWorkspace.test.tsx` :: student controls and filter regression coverage :: verify students cannot access schedule, refresh, create, or view-toggle controls, and verify selecting an activity type through the shared Select invokes the existing filter callback and filters the displayed records.
+Out: Backend APIs, activity permissions, student activity visibility/data rules, non-student controls, shared Select implementation, unrelated files and behavior.
+Context: Student detection is already derived from the authenticated token user in `ActivityListWorkspace`; the shared Select component already supports controlled values and searchable item selection.
 Steps:
-1. Add the memory sampler and record five cold-idle samples plus five post-workload samples for the current frontend and backend development commands.
-2. Configure conservative Next.js development entry disposal and confirm that production standalone output remains unchanged.
-3. Change only the Nest development watcher to SWC, install its required development dependencies, and retain an explicit TypeScript validation command.
-4. Repeat the identical authenticated route workload and sampling window, compare grouped private working-set medians, and revert or tune an optimization if it fails the acceptance threshold or materially harms hot reload.
-5. Run backend and frontend validation, then review the final diff and package-lock changes for unintended updates.
+1. Replace the native type selector with the shared Select component and retain the current type options, selected value, and callback behavior.
+2. Gate the action and view-mode section from student accounts, leaving the search and filter controls available.
+3. Add focused component tests for student-only controls and Select-based filtering.
 Verify:
-- repository root :: `powershell -ExecutionPolicy Bypass -File scripts/measure-node-memory.ps1 -Samples 5 -IntervalSeconds 2 -FrontendPort 3000 -BackendPort 8001` before and after the change => reports the relevant PID groups and comparable median private working-set/private-byte totals without elevation.
-- local development session :: open `/`, `/students`, `/students/record`, `/grading/score`, and `/permissions`, wait 60 seconds, then repeat the sampler => aggregate project private working-set median is at least 20% below the same-machine baseline and no relevant process exits or reports an out-of-memory error.
-- `backend` :: `npm run start:dev` => SWC compiles successfully, watch mode restarts after a scoped source edit, and `GET /health` on port 8001 returns success.
-- `backend` :: `npm run typecheck` and `npm run build` => the production TypeScript graph and Nest build pass independently of SWC watch mode.
-- `frontend` :: `npm run typecheck` and `npm run build` => the Next.js configuration is accepted and standalone production output builds successfully.
-- repository root :: `git diff --check`, `git diff -- backend/package-lock.json`, and `git status --short` => no whitespace errors, no unrelated lockfile churn, and only scoped files plus this taskscope are changed by the implementation task.
+- `frontend` :: `npm test -- src/components/activities/ActivityListWorkspace.test.tsx` => student-control and filter regression tests pass.
+- `frontend` :: `npm run typecheck` => changed component and tests compile without TypeScript errors.
+- repository root :: `git diff --check` and `git status --short` => no whitespace errors and only scoped files plus this taskscope are changed by the implementation task.
 Done:
-- The standardized post-workload median private working set of the project Node.js process groups is at least 20% lower than the recorded baseline on the same machine.
-- Frontend HMR and backend watch restart remain functional, backend TypeScript validation remains explicit, and all listed type-check/build/health checks pass.
-- Production Node heap caps, Docker memory limits, APIs, data, and application behavior are unchanged.
-Gate/Stop: Stop if the 20% reduction is not reached after two measured tuning iterations, SWC changes decorator metadata or runtime output, the Next.js retention setting is ignored by the installed 16.1.6/Turbopack runtime, verification exposes a pre-existing failure that prevents comparison, or further reduction would require lowering production limits or refactoring large feature routes; report the measurements and request a new scope decision.
-Rollback: Restore the original frontend Next.js configuration and backend development script, remove only the added SWC development dependencies and sampler, regenerate the lockfile through npm, and re-run the original development commands; no data rollback is required.
-Dependencies: Windows performance counters and `netstat` for local measurement, the existing Node.js installation, npm access to compatible `@swc/cli` and `@swc/core` packages, authenticated access to the listed local routes, and identical machine/workload conditions for before/after comparison.
-Artifacts: Before/after five-sample memory reports, development/HMR and health-check observations, backend/frontend type-check and build output, and the final scoped diff.
+- A student on `/activities` sees only search and the activity-type filter in the controls bar.
+- The activity-type filter uses the shared Select component and still updates the existing filtering/query synchronization path.
+- The targeted test and type check pass.
+Gate/Stop: None.

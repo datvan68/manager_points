@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { tokenStorage } from '@/api/auth-api';
 import { activityCategoryLabels, activityTypeLabels, getActivityTypeLabel, activityTypes } from './activity-view-policy';
 import ActivityCard from './ActivityCard';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Simple status badge
 function ActivityStatusBadge({ status }: { status: string }) {
@@ -158,27 +159,30 @@ export default function ActivityListWorkspace({
           {/* Type Filter */}
           <div className="relative min-w-[180px] w-full sm:w-auto">
             <Filter size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
-            <select
+            <Select
               value={filterActivityType}
-              onChange={(e) => {
-                const val = e.target.value;
+              onValueChange={(val: string) => {
                 setFilterActivityType(val);
                 onActivityTypeChange?.(val);
               }}
-              className="w-full pl-8 pr-4 h-8 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-xs text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 shadow-xs cursor-pointer appearance-none transition-all duration-150 ease-out hover:bg-white/60"
             >
-              <option value="">Tất cả loại hoạt động</option>
+              <SelectTrigger className="w-full pl-8 pr-4 h-8 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-xs text-[#1E293B] shadow-xs cursor-pointer">
+                <SelectValue placeholder="Tất cả loại hoạt động" />
+              </SelectTrigger>
+              <SelectContent>
+              <SelectItem value="">Tất cả loại hoạt động</SelectItem>
               {activityTypes.map((k) => (
-                <option key={k} value={k}>
+                <SelectItem key={k} value={k}>
                   {activityTypeLabels[k] || k}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
         {/* Action Button & View Toggle */}
-        <div className="flex items-center justify-end gap-2 w-full md:w-auto shrink-0">
+        {!isStudent && <div className="flex items-center justify-end gap-2 w-full md:w-auto shrink-0">
           <Button
             variant="outline"
             onClick={onScheduleClick}
@@ -233,7 +237,7 @@ export default function ActivityListWorkspace({
               <List size={13} />
             </button>
           </div>
-        </div>
+        </div>}
       </div>
 
 
